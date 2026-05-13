@@ -1,10 +1,10 @@
 ---
-description: Use when `sp-map-scan` has produced a full evidence baseline and you need to reconstruct the project cognition graph, claims, conflicts, and slices.
+description: Use when `sp-map-scan` has produced a full evidence baseline and you need to reconstruct the project cognition SQLite runtime.
 workflow_contract:
-  when_to_use: A graph-native scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
-  primary_objective: Validate scan evidence, reconstruct graph nodes and edges, synthesize claims, assign confidence, create conflicts, and publish task-oriented cognition slices.
-  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, `.specify/project-cognition/graph/conflicts.json`, `.specify/project-cognition/graph/updates.json`, and `.specify/project-cognition/slices/`.'
-  default_handoff: Return to the blocked brownfield workflow once the graph-native cognition baseline is ready.
+  when_to_use: A scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
+  primary_objective: Validate scan evidence, reconstruct graph nodes and edges into the SQLite cognition database, synthesize claims, assign confidence, create conflicts, and publish queryable task-oriented cognition bundles.
+  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
+  default_handoff: Return to the blocked brownfield workflow once the query-backed cognition baseline is ready.
 ---
 
 {{spec-kit-include: ../command-partials/map-build/shell.md}}
@@ -23,7 +23,7 @@ Use `execution_surface: native-subagents`.
 
 ## Objective
 
-Reconstruct or refresh the graph-native project cognition runtime from a completed evidence baseline.
+Reconstruct or refresh the query-backed project cognition runtime from a completed evidence baseline.
 
 ## Passive Project Learning Layer
 
@@ -41,18 +41,18 @@ Reconstruct or refresh the graph-native project cognition runtime from a complet
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Use `specify project-map complete-refresh` only after the graph-ready baseline and accepted compatibility/export refresh outputs are complete.
+- Use `specify project-map complete-refresh` only after the query-ready baseline and accepted compatibility/export refresh outputs are complete.
 
 ## Hard Boundary
 
-- `sp-map-build` is the command that publishes graph-native cognition truth.
+- `sp-map-build` is the command that publishes query-backed cognition truth.
 - `sp-map-build` must not fall back to handbook-first runtime output.
-- `sp-map-build` owns claim synthesis, `truth_layer` assignment, confidence assignment, conflict construction, and slice publication.
+- `sp-map-build` owns claim synthesis, `truth_layer` assignment, confidence assignment, conflict construction, and SQLite runtime publication.
 - Existing narratives may inform continuity, but final graph claims must be backed by scan evidence.
 
 ## Required Inputs
 
-Before writing graph-native truth, read:
+Before writing query-backed truth, read:
 
 - `.specify/project-cognition/status.json`
 - `.specify/project-cognition/evidence/`
@@ -70,16 +70,12 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 The only canonical runtime outputs for this command are:
 
 - `.specify/project-cognition/status.json`
-- `.specify/project-cognition/graph/nodes.json`
-- `.specify/project-cognition/graph/edges.json`
-- `.specify/project-cognition/graph/claims.json`
-- `.specify/project-cognition/graph/conflicts.json`
-- `.specify/project-cognition/graph/updates.json`
-- `.specify/project-cognition/slices/`
-- join-point `worker-results` evidence for delegated build lanes until the leader accepts the final graph-ready baseline
+- `.specify/project-cognition/project-cognition.db`
+- query/update helper readiness metadata
+- join-point `worker-results` evidence for delegated build lanes until the leader accepts the final query-ready baseline
 - `.specify/project-map/worker-results/<packet-id>.json`
 
-Do not publish handbook-first runtime truth from this command.
+Do not publish handbook-first runtime truth from this command. Do not publish raw graph JSON artifacts or slices as runtime truth.
 
 ## Guardrails
 
@@ -118,7 +114,7 @@ Do not publish handbook-first runtime truth from this command.
 - synthesize claims from evidence with explicit `truth_layer`
 - assign claim confidence
 - create explicit conflict records
-- publish graph-native slices for downstream agent work
+- publish queryable task-oriented bundles for downstream agent work
 - produce workflow-operational reachability validation
 - produce reverse coverage validation
 - do not rebuild the scan from chat memory
@@ -134,7 +130,7 @@ Every accepted graph build must make room for:
 - claims
 - conflicts
 - updates
-- slices
+- queryable task-local bundles
 
 At minimum, claims must include:
 
@@ -155,18 +151,17 @@ At minimum, claims must include:
 
 - Use `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)` before lane execution.
 - Dispatch each build lane from a validated `MapBuildPacket`.
-- Recommended build lanes include graph normalization, claim synthesis, conflict review, and slice generation.
+- Recommended build lanes include DB normalization, claim synthesis, conflict review, and queryable task-local bundle generation.
 - The leader owns final graph consistency and readiness state.
 
 ## Completion Rule
 
 Before reporting completion:
 
-- use `specify project-map complete-refresh` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
-- confirm that graph artifacts were written under `.specify/project-cognition/graph/`
-- confirm that slices were published under `.specify/project-cognition/slices/`
-- confirm that `status.json` reflects a graph-ready baseline
-- confirm that the runtime remains graph-native and does not advertise handbook-first outputs
+- use `specify project-map complete-refresh` once the query-ready baseline and compatibility/export refresh workbench outputs have been accepted
+- confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `specify project-cognition query`
+- confirm that `status.json` reflects a query-ready baseline
+- confirm that the runtime remains query-backed and does not advertise raw graph JSON or handbook-first outputs as runtime truth
 - report whether follow-on localized maintenance should continue through `map-update` for future touched-area drift
 - every `critical` row appears in at least one final handbook target
 - every `important` row appears in a final handbook target

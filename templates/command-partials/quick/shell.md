@@ -10,6 +10,6 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 ## Context
 
-- Primary inputs: the user's request, quick-task workspace state, passive learning files, the project cognition runtime (`status.json`, required slices, and targeted live evidence), and the smallest workflow-local state files needed for the touched area.
+- Primary inputs: the user's request, quick-task workspace state, passive learning files, the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`, and the smallest workflow-local state files needed for the touched area.
 - The leader owns `STATUS.md`, lane selection, join points, validation, and final summary state.
 - Quick mode is the resumable middle lane between `sp-fast` and the full specification workflow.

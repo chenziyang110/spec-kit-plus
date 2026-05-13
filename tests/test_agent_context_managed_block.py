@@ -150,10 +150,13 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert "validated `workertaskpacket`" in lower
     assert "raw task text" in lower
     assert "structured handoff" in lower
-    assert "runtime atlas is graph-native" in lower
+    assert "runtime atlas is query-backed" in lower
     assert ".specify/project-cognition/status.json" in lower
+    assert ".specify/project-cognition/project-cognition.db" in lower
+    assert "project-cognition query" in lower
+    assert "minimal_live_reads" in lower
     assert "sp-map-update" in lower
-    assert "primary runtime truth path" in lower
+    assert "not the ordinary first-read runtime contract for workflow routing" in lower
     assert "`sp-teams` only" in lower
     assert "## lane recovery rules" in lower
     assert "lane-first, not branch-first" in lower

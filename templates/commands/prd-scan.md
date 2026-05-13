@@ -14,7 +14,7 @@ workflow_contract:
 This summary is routing metadata only. The full workflow contract is the frontmatter plus the sections below.
 
 - Use `sp-prd-scan` for read-only reconstruction investigation.
-- Primary truth source: current repository reality plus `.specify/project-cognition/status.json`, the smallest relevant graph/slice artifacts, and compatibility/export evidence when explicitly needed.
+- Primary truth source: current repository reality plus the `project-cognition query` bundle and compatibility/export evidence when explicitly needed.
 - Primary terminal state: completed scan package under `.specify/prd-runs/<run-id>/`.
 - Stable freshness state: `.specify/prd/status.json`.
 - Default handoff: `/sp-prd-build`.
@@ -30,8 +30,23 @@ Every consequential claim must preserve `Evidence`, `Inference`, and `Unknown` l
 
 Required context inputs:
 
-- `.specify/project-cognition/status.json` as the default runtime truth entrypoint.
-- `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when deeper repository structure proof is needed.
+- **Project cognition gate:** query the active project's runtime before broad
+  repository reads.
+
+  Run or emulate:
+
+  ```text
+  specify project-cognition query --intent research --query "$ARGUMENTS" --format json
+  ```
+
+  Use the returned readiness:
+
+  - `ready`: continue with the returned task-local bundle.
+  - `review`: perform only the returned `minimal_live_reads` before continuing.
+  - `ambiguous`: ask the user to select the intended candidate.
+  - `needs_update`: route through `{{invoke:map-update}}`.
+  - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+  - `blocked`: stop and report the blocking runtime issue.
 - `PROJECT-HANDBOOK.md` and `.specify/project-map/**` only when compatibility/export evidence is explicitly relevant.
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.
 - Current repository evidence from code, docs, tests, routes, UI surfaces, service surfaces, data models, integrations, configuration, and deployment surfaces.

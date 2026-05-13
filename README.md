@@ -302,7 +302,7 @@ Skill map after `specify init`:
 
 Conditional gates and follow-up commands:
 
-- Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices such as `.specify/project-cognition/slices/change.json` as the default brownfield runtime truth surface.
+- Generated projects use `.specify/project-cognition/status.json` plus the task-local bundle returned by `specify project-cognition query` as the default brownfield runtime truth surface, while `.specify/project-cognition/project-cognition.db` is the canonical graph store.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - Recorded refresh and ready refresh are different outcomes: refresh commands may write update metadata, then still report `partial_refresh` when the shared freshness contract says runtime readiness remains blocked.
@@ -325,7 +325,7 @@ Conditional gates and follow-up commands:
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 
-Already have code? Resolve `.specify/project-cognition/status.json` and the workflow-appropriate cognition slice first. Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+Already have code? Resolve `.specify/project-cognition/status.json` and the task-local bundle returned by `specify project-cognition query` first. Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 Generated projects track cognition freshness in `.specify/project-cognition/status.json`, so brownfield workflows can decide whether the current cognition baseline is `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, or `possibly_stale` before proceeding. Ordinary `sp-*` workflows should treat cognition freshness as a hard gate before source-level work rather than a warn-only hint, while using `recommended_next_action` for public state guidance.
 
 Routing guide for lightweight work:
@@ -333,7 +333,7 @@ Routing guide for lightweight work:
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
-- Both `sp-fast` and `sp-quick` still pass the project cognition gate first: read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json` before source reads continue.
+- Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `specify project-cognition query --intent implement --query "$ARGUMENTS" --format json` and continue from the returned readiness, task-local bundle, and `minimal_live_reads` before source reads continue.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, route directly to `sp-test-scan` before continuing.
 - For brownfield repositories with weak legacy coverage, let `sp-test-scan` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`; use `sp-test-build` only once build-ready lanes exist.
@@ -671,7 +671,7 @@ Important directories:
 
 Navigation and technical truth are now cognition-first:
 
-- Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface.
+- Generated projects use `.specify/project-cognition/status.json` plus the task-local bundle returned by `specify project-cognition query` as the default brownfield runtime truth surface, while `.specify/project-cognition/project-cognition.db` is the canonical graph store.
 - Ordinary brownfield workflows should read the cognition status and the smallest required slice before broader repository analysis.
 - `fresh` means the last handbook refresh completed against a known git baseline, and `.specify/project-cognition/status.json` records that git-baseline freshness truth source.
 - `support_drift` means support/tool-managed surfaces changed without proving runtime-truth staleness; resolve or ignore those support surfaces instead of treating them as a localized runtime refresh.

@@ -19,23 +19,18 @@ def _load_module():
 
 def _write_cognition_baseline(project_root: Path, *, graph_ready: bool = True) -> None:
     cognition_dir = project_root / ".specify" / "project-cognition"
-    (cognition_dir / "graph").mkdir(parents=True, exist_ok=True)
-    (cognition_dir / "slices").mkdir(parents=True, exist_ok=True)
+    cognition_dir.mkdir(parents=True, exist_ok=True)
     (cognition_dir / "status.json").write_text(
         (
-            '{"version": 1, "graph_ready": true, "baseline_state": "ready"}\n'
+            '{"version": 3, "graph_ready": true, "baseline_state": "ready", '
+            '"freshness": "fresh", "graph_store_path": ".specify/project-cognition/project-cognition.db", '
+            '"active_generation_id": "GEN-0001", "query_contract_version": 1, "update_contract_version": 1}\n'
             if graph_ready
-            else '{"version": 1, "graph_ready": false, "baseline_state": "missing"}\n'
+            else '{"version": 3, "graph_ready": false, "baseline_state": "missing"}\n'
         ),
         encoding="utf-8",
     )
-    for relative in ("graph/nodes.json", "graph/edges.json", "graph/claims.json", "graph/conflicts.json"):
-        (cognition_dir / relative).write_text('{"items": []}\n', encoding="utf-8")
-    (cognition_dir / "graph" / "nodes.json").write_text('{"nodes": []}\n', encoding="utf-8")
-    (cognition_dir / "graph" / "edges.json").write_text('{"edges": []}\n', encoding="utf-8")
-    (cognition_dir / "graph" / "claims.json").write_text('{"claims": []}\n', encoding="utf-8")
-    (cognition_dir / "graph" / "conflicts.json").write_text('{"conflicts": []}\n', encoding="utf-8")
-    (cognition_dir / "slices" / "change.json").write_text('{"slice": {"slice_id": "change"}}\n', encoding="utf-8")
+    (cognition_dir / "project-cognition.db").write_bytes(b"SQLite test database marker")
 
 
 def _write_cognition_status(project_root: Path, payload: str) -> None:
@@ -86,11 +81,7 @@ def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
     normalized = [str(path).replace("\\", "/") for path in missing]
     assert normalized == [
         f"{tmp_path.as_posix()}/.specify/project-cognition/status.json",
-        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/nodes.json",
-        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/edges.json",
-        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/claims.json",
-        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/conflicts.json",
-        f"{tmp_path.as_posix()}/.specify/project-cognition/slices",
+        f"{tmp_path.as_posix()}/.specify/project-cognition/project-cognition.db",
     ]
 
 

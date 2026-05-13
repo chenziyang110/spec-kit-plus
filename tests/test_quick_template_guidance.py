@@ -45,18 +45,16 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "passive project learning layer" in content
     assert "passive project learning layer" in content
     assert "project cognition gate" in content
-    assert "must pass the cognition gate before" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "project-cognition query --intent implement" in content
+    assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "debug-handbook.md" not in content
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "treat `missing` as a rebuild requirement" in content
-    assert "`stale` as blocking until `{{invoke:map-update}}` refreshes localized touched-area coverage" in content
-    assert "`possibly_stale`" in content
-    assert "cognition status, changed paths, reasons, and change-slice coverage" in content
+    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
+    assert "`needs_update`: route through `{{invoke:map-update}}`" in content
+    assert "returned task-local bundle" in content
     assert "must_refresh_topics" not in content
     assert "review_topics" not in content
     assert "task-relevant coverage as insufficient" in content
@@ -277,8 +275,8 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     content = read_template("templates/commands/quick.md")
     lowered = content.lower()
 
-    assert "**freshness**: treat `missing` as a rebuild requirement" in lowered
-    assert "evaluate `possibly_stale` against cognition status, changed paths, reasons, and change-slice coverage" in lowered
+    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in lowered
+    assert "`needs_update`: route through `{{invoke:map-update}}`" in lowered
     assert "must_refresh_topics" not in lowered
     assert "review_topics" not in lowered
     assert "ownership, placement, workflow, integration, or verification guidance" in content

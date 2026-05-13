@@ -14,6 +14,12 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+STALE_COGNITION_ADDENDUM_PHRASES = (
+    "status and slice artifacts",
+    "status and debug-oriented slice artifacts",
+    "required project cognition status and slice artifacts",
+    "graph-native runtime coverage",
+)
 
 
 def _assert_downstream_testing_control_plane(command_content: str) -> None:
@@ -77,6 +83,19 @@ class MarkdownIntegrationTests:
     def test_registered(self):
         assert self.KEY in INTEGRATION_REGISTRY
         assert get_integration(self.KEY) is not None
+
+    def test_generated_commands_do_not_include_obsolete_cognition_addenda(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        commands_dir = i.commands_dest(tmp_path)
+        generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in commands_dir.glob("**/*.md"))
+
+        assert "project-cognition query" in generated
+        assert "minimal_live_reads" in generated
+        for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
+            assert phrase not in generated
 
     def test_is_markdown_integration(self):
         assert isinstance(get_integration(self.KEY), MarkdownIntegration)
@@ -209,15 +228,13 @@ class MarkdownIntegrationTests:
             assert "crucial first step" in content
             if f.name == "sp.debug.md":
                 assert "project cognition" in content
-                assert ".specify/project-cognition/status.json" in content
-                assert ".specify/project-cognition/slices/debug.json" in content
-                assert ".specify/project-cognition/graph/claims.json" in content
-                assert ".specify/project-cognition/graph/conflicts.json" in content
+                assert "project-cognition query --intent debug" in content
+                assert "minimal_live_reads" in content
                 assert "debug-handbook.md" not in content
             else:
                 assert "project cognition" in content
-                assert ".specify/project-cognition/status.json" in content
-                assert ".specify/project-cognition/slices/change.json" in content
+                assert "project-cognition query" in content
+                assert "minimal_live_reads" in content
                 assert "build-handbook.md" not in content
                 assert "fixed chapter ids required for this workflow" not in content
             assert "map-scan" in content
@@ -247,8 +264,8 @@ class MarkdownIntegrationTests:
         assert ".specify/project-cognition/provisional/nodes.json" in scan_content
         assert ".specify/project-cognition/provisional/edges.json" in scan_content
         assert ".specify/project-cognition/coverage.json" in scan_content
-        assert ".specify/project-cognition/graph/nodes.json" in build_content
-        assert ".specify/project-cognition/slices/" in build_content
+        assert ".specify/project-cognition/project-cognition.db" in build_content
+        assert "raw graph json artifacts or slices as runtime truth" in build_content
 
     def test_test_build_command_surfaces_downstream_testing_control_plane(self, tmp_path):
         i = get_integration(self.KEY)

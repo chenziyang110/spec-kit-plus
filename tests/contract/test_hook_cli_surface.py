@@ -151,23 +151,27 @@ def _write_heavy_prd_build_exports(run_dir: Path) -> None:
 
 
 def _write_project_cognition_runtime(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "status.json").write_text(
+        '{"version": 3, "graph_ready": true, "freshness": "fresh", '
+        '"graph_store_path": ".specify/project-cognition/project-cognition.db", '
+        '"active_generation_id": "GEN-0001", "query_contract_version": 1, "update_contract_version": 1}\n',
+        encoding="utf-8",
+    )
+    (run_dir / "project-cognition.db").write_bytes(b"SQLite test database marker")
+
+
+def _write_project_cognition_scan_artifacts(run_dir: Path) -> None:
+    (run_dir / "evidence").mkdir(parents=True, exist_ok=True)
     for relative, content in {
-        "status.json": "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\"}\n",
         "coverage.json": "{\"rows\": []}\n",
         "provisional/nodes.json": "{\"nodes\": []}\n",
         "provisional/edges.json": "{\"edges\": []}\n",
         "provisional/observations.json": "{\"observations\": []}\n",
-        "graph/nodes.json": "{\"nodes\": []}\n",
-        "graph/edges.json": "{\"edges\": []}\n",
-        "graph/claims.json": "{\"claims\": []}\n",
-        "graph/conflicts.json": "{\"conflicts\": []}\n",
-        "graph/updates.json": "{\"updates\": []}\n",
-        "slices/change.json": "{\"slice\": {\"slice_id\": \"change\", \"slice_type\": \"change\"}}\n",
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
-    (run_dir / "evidence").mkdir(parents=True, exist_ok=True)
 
 
 def test_map_build_capability_diagram_validation_accepts_project_map_prefixed_pages(tmp_path: Path):
@@ -1104,6 +1108,7 @@ def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_ex
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
 
     result = _invoke_in_project(
         project,
@@ -1118,6 +1123,7 @@ def test_hook_validate_artifacts_blocks_map_scan_on_malformed_graph_shapes(tmp_p
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
     (run_dir / "coverage.json").write_text("{\"version\": 1}\n", encoding="utf-8")
 
     result = _invoke_in_project(
@@ -1134,6 +1140,7 @@ def test_hook_validate_artifacts_blocks_map_scan_on_malformed_status_shape(tmp_p
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
     (run_dir / "status.json").write_text("[]\n", encoding="utf-8")
 
     result = _invoke_in_project(
@@ -1146,17 +1153,11 @@ def test_hook_validate_artifacts_blocks_map_scan_on_malformed_status_shape(tmp_p
     assert any("status.json" in message and "top-level JSON object" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_graph_outputs_are_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     run_dir.mkdir(parents=True, exist_ok=True)
-    for relative, content in {
-        "status.json": "{\"version\": 1, \"graph_ready\": false}\n",
-    }.items():
-        target = run_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    (run_dir / "slices").mkdir()
+    (run_dir / "status.json").write_text('{"version": 3, "graph_ready": true}\n', encoding="utf-8")
 
     result = _invoke_in_project(
         project,
@@ -1165,11 +1166,25 @@ def test_hook_validate_artifacts_blocks_map_build_when_graph_outputs_are_missing
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("graph/nodes.json" in message for message in payload["errors"])
-    assert any("graph/conflicts.json" in message for message in payload["errors"])
+    assert any("project-cognition.db" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_accepts_map_build_when_graph_outputs_exist(tmp_path: Path):
+def test_map_build_artifact_validation_requires_sqlite_database(tmp_path: Path):
+    run_dir = tmp_path / ".specify" / "project-cognition"
+    run_dir.mkdir(parents=True)
+    (run_dir / "status.json").write_text('{"version": 3, "graph_ready": true}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        tmp_path,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir), "--format", "json"],
+    )
+
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert any("project-cognition.db" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_accepts_map_build_when_sqlite_database_exists(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -1183,11 +1198,11 @@ def test_hook_validate_artifacts_accepts_map_build_when_graph_outputs_exist(tmp_
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_map_build_on_malformed_graph_shapes(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_empty(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    (run_dir / "graph" / "nodes.json").write_text("{\"items\": []}\n", encoding="utf-8")
+    (run_dir / "project-cognition.db").write_bytes(b"")
 
     result = _invoke_in_project(
         project,
@@ -1196,7 +1211,7 @@ def test_hook_validate_artifacts_blocks_map_build_on_malformed_graph_shapes(tmp_
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("graph/nodes.json" in message and "nodes" in message for message in payload["errors"])
+    assert any("project-cognition.db" in message and "must not be empty" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_map_build_on_malformed_status_shape(tmp_path: Path):
@@ -1215,23 +1230,6 @@ def test_hook_validate_artifacts_blocks_map_build_on_malformed_status_shape(tmp_
     assert any("status.json" in message and "top-level JSON object" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_slices_are_empty(tmp_path: Path):
-    project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-cognition"
-    _write_project_cognition_runtime(run_dir)
-    for child in (run_dir / "slices").iterdir():
-        child.unlink()
-
-    result = _invoke_in_project(
-        project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
-    )
-
-    payload = json.loads(result.output.strip())
-    assert payload["status"] == "blocked"
-    assert any("slices must contain at least one file" in message for message in payload["errors"])
-
-
 def test_hook_validate_artifacts_blocks_map_update_when_last_update_id_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
@@ -1245,10 +1243,10 @@ def test_hook_validate_artifacts_blocks_map_update_when_last_update_id_is_missin
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("last_update_id" in message for message in payload["errors"])
+    assert any("last_update_id" in message and "freshness" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_update_when_changed_scope_metadata_is_missing(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_update_when_status_records_freshness(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -1259,20 +1257,15 @@ def test_hook_validate_artifacts_blocks_map_update_when_changed_scope_metadata_i
     )
 
     payload = json.loads(result.output.strip())
-    assert payload["status"] == "blocked"
-    assert any("changed-scope metadata" in message for message in payload["errors"])
+    assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_map_update_when_changed_scope_metadata_has_no_usable_paths(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_update_when_status_records_partial_refresh(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
     (run_dir / "status.json").write_text(
-        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": [\"\"]}\n",
-        encoding="utf-8",
-    )
-    (run_dir / "graph" / "updates.json").write_text(
-        "{\"updates\": [{\"update_id\": \"UPD-001\", \"changed_paths\": [null]}]}\n",
+        "{\"version\": 3, \"graph_ready\": true, \"freshness\": \"partial_refresh\"}\n",
         encoding="utf-8",
     )
 
@@ -1282,8 +1275,7 @@ def test_hook_validate_artifacts_blocks_map_update_when_changed_scope_metadata_h
     )
 
     payload = json.loads(result.output.strip())
-    assert payload["status"] == "blocked"
-    assert any("changed-scope metadata" in message for message in payload["errors"])
+    assert payload["status"] == "ok"
 
 
 def test_hook_validate_artifacts_accepts_map_update_when_changed_scope_metadata_exists(tmp_path: Path):
@@ -1304,16 +1296,12 @@ def test_hook_validate_artifacts_accepts_map_update_when_changed_scope_metadata_
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_accepts_map_update_when_update_log_supplies_changed_scope(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_update_without_graph_json_runtime(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
     (run_dir / "status.json").write_text(
-        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": []}\n",
-        encoding="utf-8",
-    )
-    (run_dir / "graph" / "updates.json").write_text(
-        "{\"updates\": [{\"update_id\": \"UPD-001\", \"changed_paths\": [\"src/app.py\"]}]}\n",
+        "{\"version\": 3, \"graph_ready\": true, \"last_update_id\": \"UPD-001\"}\n",
         encoding="utf-8",
     )
 
@@ -1324,26 +1312,6 @@ def test_hook_validate_artifacts_accepts_map_update_when_update_log_supplies_cha
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
-
-
-def test_hook_validate_artifacts_blocks_map_update_on_malformed_graph_shape(tmp_path: Path):
-    project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-cognition"
-    _write_project_cognition_runtime(run_dir)
-    (run_dir / "status.json").write_text(
-        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": [\"src/app.py\"]}\n",
-        encoding="utf-8",
-    )
-    (run_dir / "graph" / "nodes.json").write_text("{\"items\": []}\n", encoding="utf-8")
-
-    result = _invoke_in_project(
-        project,
-        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
-    )
-
-    payload = json.loads(result.output.strip())
-    assert payload["status"] == "blocked"
-    assert any("graph/nodes.json" in message and "nodes" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_path: Path):

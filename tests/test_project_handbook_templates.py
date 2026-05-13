@@ -27,8 +27,8 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
     assert "## Topic Map" in content
     assert "## Compatibility Export Model" in content
     assert "`.specify/project-cognition/status.json`" in content
-    assert "`.specify/project-cognition/slices/change.json`" in content
-    assert "`.specify/project-cognition/slices/debug.json`" in content
+    assert "`.specify/project-cognition/project-cognition.db`" in content
+    assert "`specify project-cognition query`" in content
     assert "`DEBUG-HANDBOOK.md`" in content
     assert "`BUILD-HANDBOOK.md`" in content
     assert "compatibility/export views during the migration window" in content
@@ -138,7 +138,8 @@ def test_project_handbook_template_points_readers_to_project_cognition_first():
     content = _read("templates/project-handbook-template.md")
 
     assert "`.specify/project-cognition/status.json` for freshness" in content
-    assert "workflow-appropriate cognition slices" in content
+    assert "`.specify/project-cognition/project-cognition.db` as the canonical graph store" in content
+    assert "task-local bundle returned by `specify project-cognition query`" in content
     assert "not the default runtime truth path" in content
     assert "Use `Where To Read Next` for task-oriented routing." in content
 
@@ -153,7 +154,8 @@ def test_project_handbook_template_defines_cross_project_cognition_reference_con
     assert "fresh-only" in lowered
     assert "minimal read" in lowered
     assert "`.specify/project-cognition/status.json`" in content
-    assert "`.specify/project-cognition/slices/change.json`" in content
+    assert "`.specify/project-cognition/project-cognition.db`" in content
+    assert "`specify project-cognition query`" in content
     assert "`.specify/project-map/**`" in content
     assert "not the default runtime truth path" in content
     assert "project-map as primary truth" not in lowered
@@ -184,7 +186,7 @@ def test_project_handbook_template_routes_compatibility_export_model() -> None:
 def test_project_handbook_routes_generated_status_to_project_cognition() -> None:
     content = _read("PROJECT-HANDBOOK.md")
 
-    assert "Generated-project `.specify/project-cognition/status.json` plus workflow-appropriate cognition slices" in content
+    assert "Generated-project `.specify/project-cognition/status.json` plus the task-local bundle returned by `specify project-cognition query`" in content
     assert "Generated-project `.specify/project-map/index/status.json`: freshness and module coverage status." not in content
 
 

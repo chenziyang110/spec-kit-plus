@@ -38,19 +38,11 @@ FILE_REQUIRED_ARTIFACTS = {
     ),
     "map-build": (
         "status.json",
-        "graph/nodes.json",
-        "graph/edges.json",
-        "graph/claims.json",
-        "graph/conflicts.json",
-        "graph/updates.json",
+        "project-cognition.db",
     ),
     "map-update": (
         "status.json",
-        "graph/nodes.json",
-        "graph/edges.json",
-        "graph/claims.json",
-        "graph/conflicts.json",
-        "graph/updates.json",
+        "project-cognition.db",
     ),
     "prd-scan": (
         "workflow-state.md",
@@ -89,8 +81,6 @@ FILE_REQUIRED_ARTIFACTS = {
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
     "map-scan": ("evidence",),
-    "map-build": ("slices",),
-    "map-update": ("slices",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
     "prd": ("scan-packets", "evidence", "worker-results"),
@@ -125,21 +115,11 @@ REQUIRED_ARTIFACTS = {
     ),
     "map-build": (
         "status.json",
-        "graph/nodes.json",
-        "graph/edges.json",
-        "graph/claims.json",
-        "graph/conflicts.json",
-        "graph/updates.json",
-        "slices",
+        "project-cognition.db",
     ),
     "map-update": (
         "status.json",
-        "graph/nodes.json",
-        "graph/edges.json",
-        "graph/claims.json",
-        "graph/conflicts.json",
-        "graph/updates.json",
-        "slices",
+        "project-cognition.db",
     ),
     "prd-scan": (
         "workflow-state.md",
@@ -670,8 +650,13 @@ def _validate_cognition_status_artifact(feature_dir: Path) -> list[str]:
     return []
 
 
-def _has_non_empty_string(values: object) -> bool:
-    return isinstance(values, list) and any(isinstance(item, str) and item.strip() for item in values)
+def _validate_cognition_database_artifact(feature_dir: Path) -> list[str]:
+    db_path = feature_dir / "project-cognition.db"
+    if not db_path.exists() or not db_path.is_file():
+        return ["project-cognition.db must exist for the SQLite project cognition runtime"]
+    if db_path.stat().st_size == 0:
+        return ["project-cognition.db must not be empty"]
+    return []
 
 
 def _normalize_result_path(value: object) -> str:
@@ -698,16 +683,7 @@ def _validate_map_scan_artifacts(feature_dir: Path) -> list[str]:
 def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     errors.extend(_validate_cognition_status_artifact(feature_dir))
-    errors.extend(_validate_graph_artifact(feature_dir, "graph/nodes.json", GRAPH_NODE_REQUIRED_KEYS))
-    errors.extend(_validate_graph_artifact(feature_dir, "graph/edges.json", GRAPH_EDGE_REQUIRED_KEYS))
-    errors.extend(_validate_graph_artifact(feature_dir, "graph/claims.json", GRAPH_CLAIM_REQUIRED_KEYS))
-    errors.extend(_validate_graph_artifact(feature_dir, "graph/conflicts.json", GRAPH_CONFLICT_REQUIRED_KEYS))
-    errors.extend(_validate_graph_artifact(feature_dir, "graph/updates.json", GRAPH_UPDATE_REQUIRED_KEYS))
-    slices_dir = feature_dir / "slices"
-    if not slices_dir.is_dir():
-        errors.append("slices must be a directory")
-    elif not any(slices_dir.iterdir()):
-        errors.append("slices must contain at least one file before map-build can pass")
+    errors.extend(_validate_cognition_database_artifact(feature_dir))
     return errors
 
 
@@ -720,27 +696,8 @@ def _validate_map_update_artifacts(feature_dir: Path) -> list[str]:
     if not isinstance(payload, dict):
         errors.append("status.json must contain a top-level JSON object")
         return errors
-    if not payload.get("last_update_id"):
-        errors.append("status.json must include a non-empty last_update_id for map-update")
-    status_scope = payload.get("stale_paths")
-    has_status_scope = _has_non_empty_string(status_scope)
-    updates_payload, update_read_errors = _read_json_artifact(feature_dir / "graph/updates.json", "graph/updates.json")
-    if update_read_errors:
-        errors.extend(update_read_errors)
-        return errors
-    has_update_scope = False
-    if isinstance(updates_payload, dict):
-        updates = updates_payload.get("updates")
-        if isinstance(updates, list):
-            for item in updates:
-                if not isinstance(item, dict):
-                    continue
-                changed_paths = item.get("changed_paths")
-                if _has_non_empty_string(changed_paths):
-                    has_update_scope = True
-                    break
-    if not has_status_scope and not has_update_scope:
-        errors.append("map-update requires non-empty changed-scope metadata in status.json.stale_paths or graph/updates.json updates[].changed_paths")
+    if not payload.get("last_update_id") and payload.get("freshness") not in {"fresh", "partial_refresh"}:
+        errors.append("status.json must record last_update_id or a post-update freshness state")
     return errors
 
 

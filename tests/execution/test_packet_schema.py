@@ -37,20 +37,20 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
                 kind="project_map",
-                purpose="Project cognition runtime status for planning and implementation work",
+                purpose="Project cognition freshness entrypoint for query-backed planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="cognition status is the primary runtime truth surface",
+                selection_reason="status is the lightweight entrypoint before requesting a task-local cognition query bundle",
             ),
             ContextBundleItem(
-                path=".specify/project-cognition/slices/change.json",
-                kind="task_reference",
-                purpose="Workflow-specific cognition change slice for touched-scope routing",
+                path=".specify/project-cognition/project-cognition.db",
+                kind="project_map",
+                purpose="Query-backed cognition graph store for touched-scope routing",
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
                 must_read=True,
-                selection_reason="change slice carries touched-scope context and conflict signals",
+                selection_reason="project-cognition query returns touched-scope context and conflict signals",
             ),
         ],
         required_references=[
@@ -112,20 +112,20 @@ def test_worker_task_packet_round_trips_through_json() -> None:
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
                 kind="project_map",
-                purpose="Project cognition runtime status for planning and implementation work",
+                purpose="Project cognition freshness entrypoint for query-backed planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="cognition status is the primary runtime truth surface",
+                selection_reason="status is the lightweight entrypoint before requesting a task-local cognition query bundle",
             ),
             ContextBundleItem(
-                path=".specify/project-cognition/slices/change.json",
-                kind="task_reference",
-                purpose="Workflow-specific cognition change slice for touched-scope routing",
+                path=".specify/project-cognition/project-cognition.db",
+                kind="project_map",
+                purpose="Query-backed cognition graph store for touched-scope routing",
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
                 must_read=True,
-                selection_reason="change slice carries touched-scope context and conflict signals",
+                selection_reason="project-cognition query returns touched-scope context and conflict signals",
             ),
         ],
         required_references=[
@@ -149,7 +149,7 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.intent.constraints == ["Do not create a parallel auth stack"]
     assert restored.scope.write_scope == ["src/services/auth_service.py"]
     assert restored.context_bundle[0].path == ".specify/project-cognition/status.json"
-    assert restored.context_bundle[1].path == ".specify/project-cognition/slices/change.json"
+    assert restored.context_bundle[1].path == ".specify/project-cognition/project-cognition.db"
     assert restored.required_references[0].path == "src/contracts/auth.py"
     assert restored.platform_guardrails == ["supported_platforms: windows, linux"]
 
@@ -194,9 +194,9 @@ def test_worker_task_result_round_trips_context_read_receipts() -> None:
             context_bundle_read=True,
             paths_read=[
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
-            critical_notes=["validated cognition status, change slice, and conflict signals before execution"],
+            critical_notes=["validated query readiness, task-local bundle, and minimal_live_reads before execution"],
         ),
     )
 
@@ -205,8 +205,8 @@ def test_worker_task_result_round_trips_context_read_receipts() -> None:
     assert restored.rule_acknowledgement.context_bundle_read is True
     assert restored.rule_acknowledgement.paths_read == [
         ".specify/project-cognition/status.json",
-        ".specify/project-cognition/slices/change.json",
+        ".specify/project-cognition/project-cognition.db",
     ]
     assert restored.rule_acknowledgement.critical_notes == [
-        "validated cognition status, change slice, and conflict signals before execution"
+        "validated query readiness, task-local bundle, and minimal_live_reads before execution"
     ]

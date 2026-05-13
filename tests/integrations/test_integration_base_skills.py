@@ -20,6 +20,12 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+STALE_COGNITION_ADDENDUM_PHRASES = (
+    "status and slice artifacts",
+    "status and debug-oriented slice artifacts",
+    "required project cognition status and slice artifacts",
+    "graph-native runtime coverage",
+)
 
 
 def test_generated_specify_skill_teaches_brainstorming_kernel_contract(tmp_path):
@@ -98,6 +104,19 @@ class SkillsIntegrationTests:
     def test_registered(self):
         assert self.KEY in INTEGRATION_REGISTRY
         assert get_integration(self.KEY) is not None
+
+    def test_generated_skills_do_not_include_obsolete_cognition_addenda(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        skills_dir = i.skills_dest(tmp_path)
+        generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in skills_dir.glob("**/SKILL.md"))
+
+        assert "project-cognition query" in generated
+        assert "minimal_live_reads" in generated
+        for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
+            assert phrase not in generated
 
     def test_is_skills_integration(self):
         assert isinstance(get_integration(self.KEY), SkillsIntegration)
@@ -391,9 +410,9 @@ class SkillsIntegrationTests:
         assert ".specify/project-cognition/" in scan_content
         assert "provisional" in scan_content
         assert "evidence" in scan_content
-        assert ".specify/project-cognition/graph/nodes.json" in build_content
-        assert ".specify/project-cognition/graph/claims.json" in build_content
-        assert ".specify/project-cognition/slices/" in build_content
+        assert ".specify/project-cognition/project-cognition.db" in build_content
+        assert "specify project-cognition query" in build_content
+        assert "raw graph json artifacts or slices as runtime truth" in build_content
 
     def test_test_build_skill_surfaces_downstream_testing_control_plane(self, tmp_path):
         i = get_integration(self.KEY)

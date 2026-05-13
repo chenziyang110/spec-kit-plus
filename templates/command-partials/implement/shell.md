@@ -6,7 +6,7 @@ Advance the current feature through tracked implementation batches while keeping
 
 ## Context
 
-- Primary inputs: `tasks.md`, the plan package, `implement-tracker.md`, worker-result handoff files, passive learning files, the project cognition runtime (`status.json`, required slices, and targeted live evidence), and the smallest workflow-local state files needed for the touched area.
+- Primary inputs: `tasks.md`, the plan package, `implement-tracker.md`, worker-result handoff files, passive learning files, the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`, and the smallest workflow-local state files needed for the touched area.
 - The leader owns tracker truth, execution strategy, join points, blocker handling, and final validation.
 - Delegated workers own bounded implementation lanes only; they do not own the overall implementation state.
 

@@ -134,8 +134,12 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
-        assert ".specify/project-cognition/status.json" in content.lower()
-        assert ".specify/project-cognition/slices/change.json" in content.lower()
+        assert "project-cognition query --intent implement" in content
+        assert "readiness" in content
+        assert "task-local bundle" in content
+        assert "minimal_live_reads" in content
+        assert ".specify/project-cognition/slices/change.json" not in content.lower()
+        assert "status and slice artifacts" not in content.lower()
         assert "build-handbook.md" not in content.lower()
         assert "build-workflow-contract" not in content.lower()
         assert "change-entrypoints" not in content.lower()
@@ -182,17 +186,23 @@ class TestInitIntegrationFlag:
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
-        assert ".specify/project-cognition/status.json" in debug_content
-        assert ".specify/project-cognition/slices/debug.json" in debug_content
-        assert ".specify/project-cognition/graph/claims.json" in debug_content
-        assert ".specify/project-cognition/graph/conflicts.json" in debug_content
+        assert "project-cognition query --intent debug" in debug_content
+        assert "returned readiness" in debug_content
+        assert "task-local bundle" in debug_content
+        assert "minimal_live_reads" in debug_content
+        assert ".specify/project-cognition/slices/debug.json" not in debug_content
+        assert ".specify/project-cognition/graph/claims.json" not in debug_content
+        assert ".specify/project-cognition/graph/conflicts.json" not in debug_content
         assert "debug-handbook.md" not in debug_content
         assert "debug-workflow-contract" not in debug_content
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert ".specify/project-cognition/status.json" in fast_content
-        assert ".specify/project-cognition/slices/change.json" in fast_content
+        assert "project-cognition query --intent implement" in fast_content
+        assert "returned readiness" in fast_content
+        assert "task-local bundle" in fast_content
+        assert "minimal_live_reads" in fast_content
+        assert ".specify/project-cognition/slices/change.json" not in fast_content
         assert "build-handbook.md" not in fast_content
         assert "shared surfaces" in fast_content
         assert "change-propagation hotspot" in fast_content
@@ -205,9 +215,13 @@ class TestInitIntegrationFlag:
         assert "future senior engineer" in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
-        assert ".specify/project-cognition/" in quick_content
-        assert "project cognition contract" in quick_content
-        assert "status and slice artifacts" in quick_content
+        assert "project-cognition query --intent implement" in quick_content
+        assert "project cognition query" in quick_content
+        assert "returned readiness" in quick_content
+        assert "task-local bundle" in quick_content
+        assert "minimal_live_reads" in quick_content
+        assert "status and slice artifacts" not in quick_content
+        assert ".specify/project-cognition/slices/change.json" not in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
         assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
         assert "retry_attempts" in quick_content
@@ -975,7 +989,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                         "write_scope": ["src/demo.py"],
                         "read_scope": [
                             ".specify/project-cognition/status.json",
-                            ".specify/project-cognition/slices/change.json",
+                            ".specify/project-cognition/project-cognition.db",
                         ],
                     },
                     "context_bundle": [
@@ -989,13 +1003,13 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                             "selection_reason": "cognition status is the primary runtime truth surface",
                         },
                         {
-                            "path": ".specify/project-cognition/slices/change.json",
-                            "kind": "task_reference",
-                            "purpose": "workflow-specific cognition change slice",
+                            "path": ".specify/project-cognition/project-cognition.db",
+                            "kind": "project_map",
+                            "purpose": "query-backed cognition graph store",
                             "required_for": ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                             "read_order": 2,
                             "must_read": True,
-                            "selection_reason": "change slice carries touched-scope context and conflict signals",
+                            "selection_reason": "project-cognition query returns the task-local bundle and minimal_live_reads",
                         }
                     ],
                     "required_references": [{"path": "src/demo.py", "reason": "canonical implementation reference"}],
@@ -2527,6 +2541,50 @@ def test_cognition_discover_reports_nested_project_cognition_candidates(tmp_path
     assert {Path(project["root"]) for project in payload["projects"]} == {reference, nested_reference}
     assert all("implicit" not in json.dumps(project) for project in payload["projects"])
     assert ".specify/project-map" not in json.dumps(payload)
+
+
+def test_project_cognition_cli_exposes_local_query_update_surface():
+    runner = CliRunner()
+
+    help_result = runner.invoke(app, ["project-cognition", "--help"], catch_exceptions=False)
+    query_help = runner.invoke(app, ["project-cognition", "query", "--help"], catch_exceptions=False)
+    update_help = runner.invoke(app, ["project-cognition", "update", "--help"], catch_exceptions=False)
+    cognition_help = runner.invoke(app, ["cognition", "--help"], catch_exceptions=False)
+
+    assert help_result.exit_code == 0, help_result.output
+    assert query_help.exit_code == 0, query_help.output
+    assert update_help.exit_code == 0, update_help.output
+    assert "--intent" in query_help.output
+    assert "--query" in query_help.output
+    assert "--paths" in query_help.output
+    assert "--changed-paths" in update_help.output
+    assert "Discover and read fresh cross-project cognition references" in cognition_help.output
+    assert "query" not in cognition_help.output.lower()
+
+
+def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "query-empty-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    db_path = project / ".specify" / "project-cognition" / "project-cognition.db"
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "query", "--intent", "debug", "--query", "login", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "needs_rebuild"
+    assert payload["recommended_next_action"] == "run_map_scan_build"
+    assert not db_path.exists()
 
 
 def test_cognition_read_outputs_minimal_reference_read_order_without_project_map_fallback(tmp_path):

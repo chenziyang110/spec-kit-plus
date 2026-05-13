@@ -400,12 +400,8 @@ class TestBuiltInSkillGeneration:
         assert "fixed heavy discovery lifecycle" in specify_body.lower()
         assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
-        assert ".specify/project-cognition/status.json" in specify_body
-        assert ".specify/project-cognition/slices/change.json" in specify_body
-        assert ".specify/project-cognition/graph/nodes.json" in specify_body
-        assert ".specify/project-cognition/graph/edges.json" in specify_body
-        assert ".specify/project-cognition/graph/claims.json" in specify_body
-        assert ".specify/project-cognition/graph/conflicts.json" in specify_body
+        assert "project-cognition query --intent plan" in specify_body
+        assert "minimal_live_reads" in specify_body
         assert "BUILD-HANDBOOK.md" not in specify_body
         assert "BUILD-WORKFLOW-CONTRACT" not in specify_body
         assert "PRODUCT-AND-CAPABILITY-MAP" not in specify_body
@@ -541,19 +537,17 @@ class TestBuiltInSkillGeneration:
 
         build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
         assert ".specify/project-cognition/status.json" in build_body
-        assert ".specify/project-cognition/graph/nodes.json" in build_body
-        assert ".specify/project-cognition/graph/edges.json" in build_body
-        assert ".specify/project-cognition/graph/claims.json" in build_body
+        assert ".specify/project-cognition/project-cognition.db" in build_body
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_body
         assert "route back to `/sp-map-scan`" in build_body
         assert "Required Graph Semantics" in build_body
-        assert "publish graph-native slices" in build_body
-        assert "graph-ready baseline" in build_body
+        assert "queryable task-local bundle generation" in build_body
+        assert "query-ready baseline" in build_body
         assert "Do not publish handbook-first runtime truth" in build_body
         assert "validate scan completeness for graph reconstruction" in build_body
         assert "synthesize claims from evidence" in build_body
         assert "create explicit conflict records" in build_body
-        assert "status.json` reflects a graph-ready baseline" in build_body
+        assert "status.json` reflects a query-ready baseline" in build_body
 
         test_scan_body = _body_without_frontmatter(skills_dir / "sp-test-scan" / "SKILL.md")
         assert ".specify/testing/TEST_SCAN.md" in test_scan_body
@@ -564,9 +558,10 @@ class TestBuiltInSkillGeneration:
         assert "parallel-subagents" in test_scan_body.lower()
         assert "native-subagents" in test_scan_body.lower()
         assert "read-only scan subagents" in test_scan_body.lower()
-        assert "read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json`" in test_scan_body.lower()
-        assert "stop and tell the user to use `/sp-map-update`; wait for that refresh before continuing" in test_scan_body.lower()
-        assert "rebuild through `/sp-map-scan`, then `/sp-map-build` only when no usable localized baseline remains" in test_scan_body.lower()
+        assert "project-cognition query --intent test" in test_scan_body.lower()
+        assert "minimal_live_reads" in test_scan_body
+        assert "`needs_update`: route through `/sp-map-update`" in test_scan_body.lower()
+        assert "`needs_rebuild`: route through `/sp-map-scan`, then `/sp-map-build`" in test_scan_body.lower()
         assert "read `build-handbook.md`." not in test_scan_body.lower()
 
         test_build_body = _body_without_frontmatter(skills_dir / "sp-test-build" / "SKILL.md")
@@ -583,8 +578,9 @@ class TestBuiltInSkillGeneration:
         assert "managed-team" in test_build_body.lower()
         assert "testbuildpacket" in test_build_body.lower()
         assert "before mutating shared repository test framework/config files" in test_build_body.lower()
-        assert "read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json`" in test_build_body.lower()
-        assert "stop and tell the user to use `/sp-map-update`; wait for that refresh before continuing" in test_build_body.lower()
+        assert "project-cognition query --intent test" in test_build_body.lower()
+        assert "minimal_live_reads" in test_build_body
+        assert "`needs_update`: route through `/sp-map-update`" in test_build_body.lower()
         assert "if testing-surface cognition coverage is insufficient for the current repository" in test_build_body.lower()
         assert "read `build-handbook.md`." not in test_build_body.lower()
         assert "classify the next workflow recommendation before the final report" in test_build_body.lower()
@@ -623,11 +619,14 @@ class TestBuiltInSkillGeneration:
         assert ".planning/learnings/candidates.md" not in checklist_lower or "compatibility" in checklist_lower
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
-        assert ".specify/project-cognition/status.json" in checklist_lower
-        assert ".specify/project-cognition/slices/change.json" in checklist_lower
+        assert "project-cognition query --intent plan" in checklist_lower
+        assert "task-local bundle" in checklist_lower
+        assert "minimal_live_reads" in checklist_lower
+        assert ".specify/project-cognition/slices/change.json" not in checklist_lower
         assert "build-handbook.md" not in checklist_lower
-        assert "project cognition runtime cannot tell you the touched area's owning surfaces" in checklist_lower
-        assert "run `{{invoke:map-update}}`" in checklist_body or "run `/sp-map-update`" in checklist_body
+        assert "touched area's owning surfaces" in checklist_lower
+        assert "recommended_next_action" in checklist_lower
+        assert "`needs_update`: route through `{{invoke:map-update}}`" in checklist_body or "`needs_update`: route through `/sp-map-update`" in checklist_body
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "recommend `/sp-analyze`" in checklist_lower

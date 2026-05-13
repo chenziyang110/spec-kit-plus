@@ -120,13 +120,10 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "Treat `sp-*` names as canonical workflow identities." in block
 
     assert "## Brownfield Context Gate" in block
-    assert "`.specify/project-cognition/status.json`" in block
-    assert "`.specify/project-cognition/graph/nodes.json`" in block
-    assert "`.specify/project-cognition/graph/edges.json`" in block
-    assert "`.specify/project-cognition/graph/claims.json`" in block
-    assert "`.specify/project-cognition/graph/conflicts.json`" in block
+    assert "specify project-cognition query" in lowered
+    assert "raw graph json artifacts as obsolete runtime surfaces" in lowered
     assert "compatibility/export surfaces for ordinary workflow execution" in block
-    assert "read the workflow-appropriate project cognition status and graph slice artifacts" in lowered
+    assert "retrieve the task-local project cognition bundle" in lowered
 
     assert "## Project Memory" in block
     assert "Treat the learning layer as workflow-execution infrastructure, not as optional notes." in block
@@ -166,9 +163,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
 
     assert "## Map Maintenance" in block
     assert "Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline." in block
-    assert "Use `sp-map-update` after baseline creation when the graph runtime is stale or too weak for the touched area." in block
-    assert "Do not treat consumed project cognition graph context as self-maintaining" in block
-    assert "graph-native" in lowered
+    assert "Use `sp-map-update` after baseline creation when the query-backed runtime is stale or too weak for the touched area." in block
+    assert "Do not treat consumed project cognition query context as self-maintaining" in block
+    assert "query-backed" in lowered
     assert "project-cognition" in block
     assert "map-update" in block
 
@@ -332,12 +329,8 @@ def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
-    assert ".specify/project-cognition/graph/nodes.json" in content
-    assert ".specify/project-cognition/graph/edges.json" in content
-    assert ".specify/project-cognition/graph/claims.json" in content
-    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "specify project-cognition query --intent plan" in content
+    assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
     assert "support-only project-map artifacts" in lowered
@@ -557,8 +550,8 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     combined = "\n".join([managed_block, routing_skill, plan_shell, map_scan_shell])
     lowered = combined.lower()
 
-    assert ".specify/project-cognition/status.json" in lowered
-    assert ".specify/project-cognition/slices/change.json" in lowered
+    assert "specify project-cognition query" in lowered
+    assert "task-local project" in lowered
     assert "cross-project cognition reference" in lowered
     assert "explicit-only" in lowered
     assert "supplemental-only" in lowered
@@ -580,16 +573,16 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
     for rel_path in legacy_rel_paths:
         content = _read(rel_path)
         lowered = content.lower()
-        assert ".specify/project-cognition/status.json" in lowered
-        assert ".specify/project-cognition/slices/change.json" in lowered
+        assert "project-cognition query" in lowered
+        assert "minimal_live_reads" in lowered
         assert "build-handbook.md" not in lowered
         assert "build-workflow-contract" not in lowered
         assert "product-and-capability-map" not in lowered
         assert "atlas.entry" not in lowered
 
     implement = _read("templates/commands/implement.md").lower()
-    assert ".specify/project-cognition/status.json" in implement
-    assert ".specify/project-cognition/slices/change.json" in implement
+    assert "project-cognition query --intent implement" in implement
+    assert "minimal_live_reads" in implement
     assert "build-handbook.md" not in implement
     assert "build-workflow-contract" not in implement
     assert "product-and-capability-map" not in implement
@@ -659,12 +652,8 @@ def test_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
-    assert ".specify/project-cognition/graph/nodes.json" in content
-    assert ".specify/project-cognition/graph/edges.json" in content
-    assert ".specify/project-cognition/graph/claims.json" in content
-    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "specify project-cognition query --intent plan" in content
+    assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
     assert "workflow-state.md" in content
@@ -812,12 +801,8 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
-    assert ".specify/project-cognition/graph/nodes.json" in content
-    assert ".specify/project-cognition/graph/edges.json" in content
-    assert ".specify/project-cognition/graph/claims.json" in content
-    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "specify project-cognition query --intent plan" in content
+    assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
     assert "PRODUCT-AND-CAPABILITY-MAP" not in content
@@ -945,8 +930,8 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "`next_command: /sp.implement`" in content
     assert "when no upstream remediation is required" in lowered
     assert "`next_command: /sp.plan`" in content or "`next_command: /sp.tasks`" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "specify project-cognition query --intent implement" in content
+    assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
     assert "PRODUCT-AND-CAPABILITY-MAP" not in content
@@ -964,8 +949,8 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "(`spec.md`, `context.md`, `plan.md`, `tasks.md`)" in content
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
     assert ".specify/memory/constitution.md" in content
-    assert "Read `.specify/project-cognition/status.json`" in content
-    assert "Read `.specify/project-cognition/slices/change.json`" in content
+    assert "Consume the `project-cognition query` bundle." in content
+    assert "minimal_live_reads" in content
     assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" not in content
     assert "**From context.md:**" in content
     assert "Locked Decisions" in content
@@ -1533,8 +1518,8 @@ def test_implement_template_supports_capability_aware_parallel_batches():
         "Note: This command assumes a complete task breakdown exists in tasks.md.",
     )
 
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "specify project-cognition query --intent implement" in content
+    assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
     assert "PRODUCT-AND-CAPABILITY-MAP" not in content
@@ -1686,19 +1671,14 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     lowered_shim = navigation_shim.lower()
 
     assert "DEBUG-HANDBOOK.md" not in debug_template
-    assert ".specify/project-cognition/status.json" in debug_template
-    assert ".specify/project-cognition/slices/debug.json" in debug_template
-    assert ".specify/project-cognition/graph/claims.json" in debug_template
-    assert ".specify/project-cognition/graph/conflicts.json" in debug_template
+    assert "specify project-cognition query --intent debug" in debug_template
+    assert "minimal_live_reads" in debug_template
     assert "BUILD-HANDBOOK.md" not in build_template
-    assert ".specify/project-cognition/status.json" in build_template
-    assert ".specify/project-cognition/slices/change.json" in build_template
+    assert "specify project-cognition query --intent implement" in build_template
+    assert "minimal_live_reads" in build_template
     assert "project cognition runtime" in lowered_gate
-    assert ".specify/project-cognition/status.json" in shared_gate
-    assert ".specify/project-cognition/graph/nodes.json" in shared_gate
-    assert ".specify/project-cognition/graph/edges.json" in shared_gate
-    assert ".specify/project-cognition/graph/claims.json" in shared_gate
-    assert ".specify/project-cognition/graph/conflicts.json" in shared_gate
+    assert "specify project-cognition query" in shared_gate
+    assert "raw graph JSON artifacts as obsolete runtime surfaces" in shared_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
     assert "`support_drift` -> stop and tell the user to resolve support-surface drift" in shared_gate
     assert "`partial_refresh` -> tell the user the refresh was recorded but readiness did not pass" in shared_gate
@@ -1874,10 +1854,11 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
-    assert ".specify/project-cognition/status.json" in lowered
-    assert ".specify/project-cognition/slices/change.json" in lowered
+    assert "project-cognition query --intent plan" in lowered
+    assert "returned readiness" in lowered
+    assert "minimal_live_reads" in lowered
     assert "build-handbook.md" not in lowered
-    assert "run `{{invoke:map-update}}`" in lowered
+    assert "`needs_update`: route through `{{invoke:map-update}}`" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered

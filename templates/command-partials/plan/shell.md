@@ -6,7 +6,7 @@ Translate the approved specification package into explicit implementation design
 
 ## Context
 
-- Primary inputs: `spec.md`, `alignment.md`, `context.md`, `references.md`, the compiled brainstorming truth and any `plan-contract.json` contract, the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence), and passive learning files.
+- Primary inputs: `spec.md`, `alignment.md`, `context.md`, `references.md`, the compiled brainstorming truth and any `plan-contract.json` contract, the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`, and passive learning files.
 - Working state lives in the active `FEATURE_DIR`, especially `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `workflow-state.md`.
 - This command is design-only. Planning does not grant permission to start execution.
 
@@ -28,5 +28,5 @@ Translate the approved specification package into explicit implementation design
 
 - Do not implement code, edit tests, or start execution from `sp-plan`.
 - Do not leave locked planning decisions implicit or scattered only in prose.
-- Do not trust stale navigation coverage when the project cognition runtime should be the source of truth.
+- Do not trust stale navigation coverage when the project cognition query bundle should be the source of truth.
 - Use anchorable section headings (`## Section Name`) in all output artifacts so that downstream task generation can produce precise `file#section` context pointers.

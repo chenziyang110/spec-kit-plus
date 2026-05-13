@@ -37,20 +37,20 @@ def sample_packet() -> WorkerTaskPacket:
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
                 kind="project_map",
-                purpose="Project cognition runtime status for planning and implementation work",
+                purpose="Project cognition freshness entrypoint for query-backed planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="cognition status is the primary runtime truth surface",
+                selection_reason="status is the lightweight entrypoint before requesting a task-local cognition query bundle",
             ),
             ContextBundleItem(
-                path=".specify/project-cognition/slices/change.json",
-                kind="task_reference",
-                purpose="Workflow-specific cognition change slice for touched-scope routing",
+                path=".specify/project-cognition/project-cognition.db",
+                kind="project_map",
+                purpose="Query-backed cognition graph store for touched-scope routing",
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
                 must_read=True,
-                selection_reason="change slice carries touched-scope context and conflict signals",
+                selection_reason="project-cognition query returns touched-scope context and conflict signals",
             ),
         ],
         required_references=[
@@ -90,7 +90,7 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
             context_bundle_read=True,
             paths_read=[
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
         ),
     )
@@ -138,7 +138,7 @@ def test_validate_worker_task_result_accepts_blocked_result_with_fail_fast_conte
             context_bundle_read=True,
             paths_read=[
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
         ),
     )
@@ -176,7 +176,7 @@ def test_validate_worker_task_result_rejects_blocked_result_without_recovery_con
             context_bundle_read=True,
             paths_read=[
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
         ),
     )
@@ -237,7 +237,7 @@ def test_validate_worker_task_result_rejects_success_without_truthful_validation
             context_bundle_read=True,
             paths_read=[
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
         ),
     )
@@ -270,7 +270,7 @@ def test_validate_worker_task_result_rejects_success_when_a_validation_gate_is_m
             context_bundle_read=True,
             paths_read=[
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
         ),
     )
@@ -305,7 +305,7 @@ def test_validate_worker_task_result_rejects_missing_required_consumer_evidence(
             context_bundle_read=True,
             paths_read=[
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
         ),
     )

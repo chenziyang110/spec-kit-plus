@@ -34,20 +34,20 @@ def sample_packet() -> WorkerTaskPacket:
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
                 kind="project_map",
-                purpose="Project cognition runtime status baseline for graph readiness, stale paths, and refresh metadata.",
+                purpose="Project cognition freshness entrypoint for query-backed readiness and refresh metadata.",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="project cognition status is the primary runtime truth surface for downstream execution work",
+                selection_reason="project status is the lightweight entrypoint before requesting a task-local cognition query bundle for downstream execution work",
             ),
             ContextBundleItem(
-                path=".specify/project-cognition/slices/change.json",
-                kind="task_reference",
-                purpose="Change-focused cognition slice for the active implementation lane.",
+                path=".specify/project-cognition/project-cognition.db",
+                kind="project_map",
+                purpose="Query-backed cognition graph store for the active implementation lane.",
                 required_for=["implementation_scope"],
                 read_order=2,
                 must_read=True,
-                selection_reason="change slice narrows the runtime context to touched surfaces without routing through handbook defaults",
+                selection_reason="project-cognition query narrows the runtime context to touched surfaces without raw slice reads",
             )
         ],
         required_references=[

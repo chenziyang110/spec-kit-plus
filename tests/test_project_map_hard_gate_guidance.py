@@ -39,11 +39,8 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     lowered_gate = shared_gate.lower()
 
     assert "project cognition runtime" in lowered_gate
-    assert ".specify/project-cognition/status.json" in shared_gate
-    assert ".specify/project-cognition/graph/nodes.json" in shared_gate
-    assert ".specify/project-cognition/graph/edges.json" in shared_gate
-    assert ".specify/project-cognition/graph/claims.json" in shared_gate
-    assert ".specify/project-cognition/graph/conflicts.json" in shared_gate
+    assert "specify project-cognition query" in shared_gate
+    assert "raw graph JSON artifacts as obsolete runtime surfaces" in shared_gate
     assert "`missing` -> block and refresh through `sp-map-scan -> sp-map-build`" in shared_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
     assert "Do not treat handbook-first or layered project-map files as the primary runtime read surfaces" in shared_gate
@@ -53,23 +50,20 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     assert "compatibility shim" in lowered_shim
     assert "context-loading-gradient.md" in navigation_shim
     assert "project cognition runtime" in lowered_shim
-    assert ".specify/project-cognition/status.json" in navigation_shim
     assert "{{invoke:map-update}}" in navigation_shim
     assert "PROJECT-HANDBOOK.md" not in navigation_shim
     assert ".specify/project-map/index/" not in navigation_shim
 
     debug_content = _read("templates/commands/debug.md").lower()
-    assert ".specify/project-cognition/status.json" in debug_content
-    assert ".specify/project-cognition/slices/debug.json" in debug_content
-    assert ".specify/project-cognition/graph/claims.json" in debug_content
-    assert ".specify/project-cognition/graph/conflicts.json" in debug_content
+    assert "specify project-cognition query --intent debug" in debug_content
+    assert "minimal_live_reads" in debug_content
     assert "debug-handbook.md" not in debug_content
     assert "debug-workflow-contract" not in debug_content
 
     for rel_path in [path for path in TARGETS if path != "templates/commands/debug.md"]:
         content = _read(rel_path).lower()
-        assert ".specify/project-cognition/status.json" in content, f"{rel_path} missing cognition status gate"
-        assert ".specify/project-cognition/slices/change.json" in content, f"{rel_path} missing cognition change slice gate"
+        assert "project-cognition query" in content, f"{rel_path} missing cognition query gate"
+        assert "minimal_live_reads" in content, f"{rel_path} missing minimal live read guidance"
         assert "build-handbook.md" not in content, f"{rel_path} should not keep BUILD-HANDBOOK gate"
         assert "build-workflow-contract" not in content, f"{rel_path} should not keep BUILD-WORKFLOW-CONTRACT gate"
 

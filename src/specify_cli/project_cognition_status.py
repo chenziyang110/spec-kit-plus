@@ -19,12 +19,8 @@ from typing import Any
 
 from specify_cli.cognition import (
     CognitionStatus,
+    cognition_db_path,
     cognition_status_path,
-    graph_claims_path,
-    graph_conflicts_path,
-    graph_edges_path,
-    graph_nodes_path,
-    graph_slices_dir,
     read_cognition_status,
     write_cognition_status,
 )
@@ -246,11 +242,7 @@ def legacy_project_map_status_path(project_root: Path) -> Path:
 def canonical_cognition_runtime_paths(project_root: Path) -> list[Path]:
     return [
         cognition_status_path(project_root),
-        graph_nodes_path(project_root),
-        graph_edges_path(project_root),
-        graph_claims_path(project_root),
-        graph_conflicts_path(project_root),
-        graph_slices_dir(project_root),
+        cognition_db_path(project_root),
     ]
 
 
@@ -259,7 +251,10 @@ def canonical_project_map_paths(project_root: Path) -> list[Path]:
 
 
 def atlas_minimum_read_set(project_root: Path) -> list[Path]:
-    return canonical_cognition_runtime_paths(project_root)
+    return [
+        cognition_status_path(project_root),
+        cognition_db_path(project_root),
+    ]
 
 
 def atlas_root_topic_path(project_root: Path, topic_filename: str) -> Path:

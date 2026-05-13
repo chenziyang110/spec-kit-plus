@@ -33,17 +33,23 @@ Dispatch one safe validated lane as `one-subagent` or multiple safe isolated lan
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project cognition gate:** you must pass the cognition gate before repository
-analysis, implementation design, or code reads continue.
+**Project cognition gate:** query the active project's runtime before broad
+repository reads.
 
-**This command tier: light.** Pass the cognition gate by reading:
-1. `.specify/project-cognition/status.json`
-2. `.specify/project-cognition/slices/change.json`
-3. workflow-specific graph artifacts only when the change slice does not fully cover ownership, propagation, or verification routes
+Run or emulate:
 
-After the cognition gate passes, continue into live repository evidence for the touched area.
+```text
+specify project-cognition query --intent implement --query "$ARGUMENTS" --format json
+```
 
-**Freshness**: Treat `missing` as a rebuild requirement and `stale` as blocking until `{{invoke:map-update}}` refreshes localized touched-area coverage or `{{invoke:map-scan}}`, then `{{invoke:map-build}}` rebuilds an unusable baseline. Treat `support_drift` as support-surface cleanup, not a reflexive `{{invoke:map-update}}` route. Treat `partial_refresh` as recorded refresh data whose readiness still failed, then follow `recommended_next_action`. Evaluate `possibly_stale` against cognition status, changed paths, reasons, and change-slice coverage before continuing.
+Use the returned readiness:
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: perform only the returned `minimal_live_reads` before continuing.
+- `ambiguous`: ask the user to select the intended candidate.
+- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `blocked`: stop and report the blocking runtime issue.
 
 Treat task-relevant coverage as insufficient when the touched area still lacks
 ownership, placement, workflow, integration, or verification guidance before

@@ -130,21 +130,30 @@ moves into reproduction, logs, tests, or source-code reads.
 
 ## Debug Cognition Gate
 
-Before observer framing moves into reproduction, logs, tests, or source-code
-reads, pass the cognition gate by reading:
+**Project cognition gate:** query the active project's runtime before broad
+repository reads.
 
-1. `.specify/project-cognition/status.json`
-2. `.specify/project-cognition/slices/debug.json`
-3. `.specify/project-cognition/graph/claims.json` when truth ownership is still ambiguous
-4. `.specify/project-cognition/graph/conflicts.json` when competing truths or stale assumptions exist
+Run or emulate:
+
+```text
+specify project-cognition query --intent debug --query "$ARGUMENTS" --format json
+```
+
+Use the returned readiness:
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: perform only the returned `minimal_live_reads` before continuing.
+- `ambiguous`: ask the user to select the intended candidate.
+- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `blocked`: stop and report the blocking runtime issue.
 
 ## Investigation Protocol
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/debug.json` before trusting existing brownfield routing assumptions.
-- If truth ownership is ambiguous after the debug slice, read `.specify/project-cognition/graph/claims.json`.
-- If competing truths, stale assumptions, or contradiction signals exist, read `.specify/project-cognition/graph/conflicts.json`.
+- Query project cognition with `specify project-cognition query --intent debug --query "$ARGUMENTS" --format json` before trusting existing brownfield routing assumptions.
+- If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
 - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.
 - [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
@@ -443,7 +452,7 @@ The session file must always make it clear:
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
-- Treat project cognition status and the debug slice as the truth source for brownfield debug runtime coverage.
+- Treat the returned `project-cognition query` bundle and readiness as the truth source for brownfield debug runtime coverage; use only returned `minimal_live_reads` when needed.
 - If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains; then run `specify project-map complete-refresh` as the successful-refresh finalizer.
 - If that refresh cannot be completed now, use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback and tell the user to refresh the project cognition runtime before later brownfield work proceeds.
 - [AGENT] Resolved debug sessions should auto-capture reusable lessons from the persisted debug session state into index/detail entries.

@@ -1,6 +1,6 @@
 ---
 name: spec-kit-project-map-gate
-description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require project cognition status and the workflow-appropriate slice first, or route to map refresh when cognition coverage is missing or stale."
+description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require the project cognition query bundle first, or route to map refresh when cognition coverage is missing or stale."
 origin: spec-kit-plus
 ---
 
@@ -21,13 +21,11 @@ This passive skill is the brownfield hard gate, not the route selection layer.
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
-- Read `.specify/project-cognition/status.json` first.
-- Read `.specify/project-cognition/slices/debug.json` for `sp-debug`.
-- Read `.specify/project-cognition/slices/change.json` for other ordinary brownfield workflows.
+- Use `specify project-cognition query` to retrieve the task-local project
+  cognition bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.
-- Read targeted graph artifacts, such as `.specify/project-cognition/graph/claims.json` or `.specify/project-cognition/graph/conflicts.json`, only when the active workflow needs ownership or conflict resolution beyond the slice.
 - Treat `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` as compatibility/export surfaces, not the default runtime truth path.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.

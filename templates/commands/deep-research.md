@@ -230,10 +230,23 @@ Use `execution_surface: native-subagents`.
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/learnings/INDEX.md` if present
    - relevant linked learning detail docs from the learning index
-   - `.specify/project-cognition/status.json` if present
-   - `.specify/project-cognition/slices/change.json` if present
-   - `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice does not prove the current implementation pattern safely
-   - targeted live repository files only when the project cognition runtime cannot prove the current implementation pattern safely
+   - **Project cognition gate:** query the active project's runtime before broad
+     repository reads.
+
+     Run or emulate:
+
+     ```text
+     specify project-cognition query --intent research --query "$ARGUMENTS" --format json
+     ```
+
+     Use the returned readiness:
+
+     - `ready`: continue with the returned task-local bundle.
+     - `review`: perform only the returned `minimal_live_reads` before continuing.
+     - `ambiguous`: ask the user to select the intended candidate.
+     - `needs_update`: route through `{{invoke:map-update}}`.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+     - `blocked`: stop and report the blocking runtime issue.
    - From `FEATURE_DIR/alignment.md`, extract:
      - `Feasibility / Deep Research Gate` status per capability
      - `Planning Gate Recommendation`

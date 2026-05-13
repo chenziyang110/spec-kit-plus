@@ -9,7 +9,7 @@ planning.
 
 ## Context
 
-- Primary inputs: the user's request, the current repository state, passive learning files, and the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence).
+- Primary inputs: the user's request, the current repository state, passive learning files, and the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`.
 - Brainstorming truth lives under the active `FEATURE_DIR/brainstorming/`, especially `facts.json`, `route.json`, `intent.json`, `complexity.json`, and `handoff-to-specify.json`.
 - Compiled working state lives under the active `FEATURE_DIR`, especially `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`.
 - This command is specification-only. It is not permission to implement code.

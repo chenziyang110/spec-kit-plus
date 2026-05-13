@@ -67,10 +67,10 @@ def worker_result_schema_hint() -> dict[str, object]:
             "context_bundle_read": True,
             "paths_read": [
                 ".specify/project-cognition/status.json",
-                ".specify/project-cognition/slices/change.json",
+                ".specify/project-cognition/project-cognition.db",
             ],
             "critical_notes": [
-                "what key cognition status, slice, conflict signal, or verification rule you confirmed before execution"
+                "what key query readiness, task-local bundle signal, minimal_live_reads item, or verification rule you confirmed before execution"
             ],
         },
         "aliases": {

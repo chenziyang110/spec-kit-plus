@@ -15,17 +15,14 @@ def _create_project(tmp_path: Path) -> Path:
 
 def _write_cognition_baseline(project: Path) -> None:
     cognition_dir = project / ".specify" / "project-cognition"
-    (cognition_dir / "graph").mkdir(parents=True, exist_ok=True)
-    (cognition_dir / "slices").mkdir(parents=True, exist_ok=True)
+    cognition_dir.mkdir(parents=True, exist_ok=True)
     (cognition_dir / "status.json").write_text(
-        '{"version": 1, "graph_ready": true, "baseline_state": "ready"}\n',
+        '{"version": 3, "graph_ready": true, "baseline_state": "ready", "freshness": "fresh", '
+        '"graph_store_path": ".specify/project-cognition/project-cognition.db", '
+        '"active_generation_id": "GEN-0001", "query_contract_version": 1, "update_contract_version": 1}\n',
         encoding="utf-8",
     )
-    (cognition_dir / "graph" / "nodes.json").write_text('{"nodes": []}\n', encoding="utf-8")
-    (cognition_dir / "graph" / "edges.json").write_text('{"edges": []}\n', encoding="utf-8")
-    (cognition_dir / "graph" / "claims.json").write_text('{"claims": []}\n', encoding="utf-8")
-    (cognition_dir / "graph" / "conflicts.json").write_text('{"conflicts": []}\n', encoding="utf-8")
-    (cognition_dir / "slices" / "change.json").write_text('{"slice": {"slice_id": "change"}}\n', encoding="utf-8")
+    (cognition_dir / "project-cognition.db").write_bytes(b"SQLite test database marker")
 
 
 def _write_workflow_state(
@@ -162,6 +159,31 @@ def test_preflight_blocks_when_project_map_status_is_missing_for_brownfield_work
     assert result.status == "blocked"
     assert result.severity == "critical"
     assert any("cognition" in message.lower() for message in result.errors)
+
+
+def test_preflight_missing_runtime_guidance_names_sqlite_database_not_graph_json(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_workflow_state(
+        feature_dir,
+        active_command="sp-specify",
+        status="active",
+        phase_mode="planning-only",
+        next_command="/sp.plan",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.preflight",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    combined = "\n".join(result.errors + result.warnings).lower()
+    assert "project-cognition.db" in combined or "project cognition" in combined
+    assert "nodes.json" not in combined
+    assert "edges.json" not in combined
+    assert "claims.json" not in combined
+    assert "conflicts.json" not in combined
 
 
 def test_preflight_warns_for_same_feature_implement_resume_when_dirty_origin_matches(tmp_path: Path):
