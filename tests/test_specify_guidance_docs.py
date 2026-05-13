@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -12,6 +13,10 @@ def _section(content: str, start: str, end: str) -> str:
     start_index = content.index(start)
     end_index = content.index(end, start_index)
     return content[start_index:end_index]
+
+
+def _paragraphs_with(content: str, marker: str) -> list[str]:
+    return [paragraph for paragraph in content.split("\n\n") if marker in paragraph]
 
 
 def test_quickstart_teaches_specify_to_plan_mainline():
@@ -82,6 +87,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "Support skills" in readme
     assert "Codex-only runtime" in readme
     assert "`auto`" in readme
+    assert "`discussion`" in readme
     assert "`clarify`" in readme
     assert "`deep-research`" in readme
     assert "`prd`" in readme
@@ -96,10 +102,32 @@ def test_guidance_docs_explain_skill_groups():
     assert "Core workflow skills" in quickstart
     assert "Support skills" in quickstart
     assert "Codex-only runtime" in quickstart
+    assert "`discussion`" in quickstart
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
     assert "`constitution`, `specify`, `plan`, `tasks`, `implement`" in skill_map
-    assert "`map-scan`, `map-build`, `map-update`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
+    assert "`map-scan`, `map-build`, `map-update`, `test-scan`, `test-build`, `auto`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
     assert "/sp-" not in skill_map
+
+
+def test_guidance_docs_position_discussion_before_specify() -> None:
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+    installation = _read("docs/installation.md")
+
+    for content in (readme, quickstart, installation):
+        matching_guidance = []
+        for paragraph in _paragraphs_with(content, "`discussion`"):
+            normalized = re.sub(r"\s+", " ", paragraph).lower()
+            if (
+                "rough idea" in normalized
+                and ("before formal specification" in normalized or "pre-spec" in normalized)
+                and "handoff-to-specify.md" in paragraph
+                and "explicit" in normalized
+                and "does not automatically invoke `specify`" in normalized
+            ):
+                matching_guidance.append(paragraph)
+
+        assert matching_guidance
 
 
 def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax():

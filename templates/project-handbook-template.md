@@ -21,6 +21,10 @@ and what sits clearly outside the system boundary.]
 - [List the highest-value capabilities a newcomer should understand first.]
 - [For each capability, state why it matters and which topical file should be
   read next.]
+- **Pre-spec discussion**: `sp-discussion` stores resumable product/technical
+  discussions under `.specify/discussions/<slug>/`, produces technical options
+  and requirements drafts, and only hands off to `sp-specify` through explicit
+  `handoff-to-specify.md`.
 
 ## How To Read This Project
 
