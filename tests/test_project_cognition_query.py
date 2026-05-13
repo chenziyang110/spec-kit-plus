@@ -105,6 +105,16 @@ def test_query_reports_needs_update_when_path_is_missing_from_index(tmp_path: Pa
     assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
 
 
+def test_query_reports_needs_update_when_path_is_missing_even_with_query_candidate(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(tmp_path, intent="debug", query_text="login", paths=["src/auth/missing.ts"])
+
+    assert result["readiness"] == "needs_update"
+    assert result["recommended_next_action"] == "run_map_update"
+    assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
+
+
 def test_query_reports_ambiguous_when_candidates_are_close(tmp_path: Path) -> None:
     generation_id = _seed_login_graph(tmp_path)
     with closing(connect_cognition_db(tmp_path)) as conn:

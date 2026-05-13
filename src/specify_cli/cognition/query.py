@@ -57,21 +57,7 @@ def query_project_cognition(
                 for node_id, evidence_ids in path_nodes.items()
             ]
 
-        if missing_paths and not candidates:
-            return {
-                "readiness": "needs_update",
-                "recommended_next_action": "run_map_update",
-                "intent": intent,
-                "query": query_text,
-                "capability_candidates": [],
-                "symptom_candidates": [],
-                "affected_nodes": [],
-                "minimal_live_reads": normalized_paths,
-                "missing_coverage": [f"path not covered by project cognition index: {path}" for path in missing_paths],
-                "subgraph": {"nodes": [], "edges": [], "claims": [], "conflicts": []},
-            }
-
-        readiness = _readiness_for_candidates(candidates)
+        readiness = "needs_update" if missing_paths else _readiness_for_candidates(candidates)
         affected_nodes = sorted(
             set(path_nodes.keys()) | {item["node_id"] for item in candidates if item["target_type"] != "symptom"}
         )
