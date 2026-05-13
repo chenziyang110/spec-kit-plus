@@ -774,6 +774,119 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
     assert expected_atomic_paths <= set(write_calls)
 
 
+def test_complete_dispatched_batch_retries_join_point_after_metadata_version_race(
+    monkeypatch,
+    codex_team_project_root: Path,
+):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    result = route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    for task_id in ("T002", "T003"):
+        record = get_task(codex_team_project_root, task_id)
+        token = claim_task(
+            codex_team_project_root,
+            task_id=task_id,
+            worker_id=f"{task_id.lower()}-worker",
+            expected_version=record.version,
+        )
+        in_progress = transition_task_status(
+            codex_team_project_root,
+            task_id=task_id,
+            new_status="in_progress",
+            owner=f"{task_id.lower()}-worker",
+            expected_version=record.version + 1,
+            claim_token=token,
+        )
+        transition_task_status(
+            codex_team_project_root,
+            task_id=task_id,
+            new_status="completed",
+            owner=f"{task_id.lower()}-worker",
+            expected_version=in_progress.version,
+            claim_token=token,
+        )
+        request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
+        result_path = result_record_path(codex_team_project_root, request_id)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        worker_result = WorkerTaskResult(
+            task_id=task_id,
+            status="success",
+            changed_files=[f"src/{task_id.lower()}.py"],
+            validation_results=[
+                ValidationResult(
+                    command="pytest tests/unit/test_auth_service.py -q",
+                    status="passed",
+                    output="1 passed",
+                )
+            ],
+            summary=f"{task_id} finished cleanly",
+            rule_acknowledgement=RuleAcknowledgement(
+                required_references_read=True,
+                forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/auth.py"],
+            ),
+        )
+        result_path.write_text(
+            json.dumps(worker_task_result_payload(worker_result), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    from specify_cli.codex_team import auto_dispatch
+
+    real_mark_join_point = auto_dispatch.task_ops.mark_join_point
+    raced = False
+
+    def _mark_with_single_version_race(project_root: Path, **kwargs):
+        nonlocal raced
+        if kwargs["task_id"] == "T002" and not raced:
+            raced = True
+            record = get_task(project_root, "T002")
+            auto_dispatch.task_ops.update_task_metadata(
+                project_root,
+                "T002",
+                expected_version=record.version,
+                metadata={"race_marker": "metadata-sync"},
+            )
+        return real_mark_join_point(project_root, **kwargs)
+
+    monkeypatch.setattr(auto_dispatch.task_ops, "mark_join_point", _mark_with_single_version_race)
+
+    completion = complete_dispatched_batch(
+        codex_team_project_root,
+        batch_id=result.batch_id,
+        session_id="default",
+    )
+
+    assert completion.status == "completed"
+    task_payload = get_task(codex_team_project_root, "T002")
+    assert task_payload.metadata["race_marker"] == "metadata-sync"
+    assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "complete"
+
+
 def test_complete_dispatched_batch_tolerates_result_submission_after_task_already_completed(
     monkeypatch,
     codex_team_project_root: Path,

@@ -66,6 +66,38 @@ class AutoDispatchUnavailableError(AutoDispatchError):
     """Raised when the runtime backend is unavailable."""
 
 
+def _mark_join_point_from_latest_task(
+    project_root: Path,
+    *,
+    task_id: str,
+    join_point_name: str,
+    status: str,
+    details: dict[str, Any],
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    """Mark a join point while tolerating concurrent result metadata sync."""
+
+    last_error: task_ops.TaskOpsError | None = None
+    for _ in range(max_attempts):
+        record = task_ops.get_task(project_root, task_id)
+        try:
+            return task_ops.mark_join_point(
+                project_root,
+                task_id=task_id,
+                join_point_name=join_point_name,
+                expected_version=record.version,
+                status=status,
+                details=details,
+            )
+        except task_ops.TaskOpsError as exc:
+            if not str(exc).startswith("expected version "):
+                raise
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    raise AutoDispatchError(f"unable to mark join point for task {task_id}")
+
+
 @dataclass(slots=True)
 class ParsedTask:
     task_id: str
@@ -1191,14 +1223,12 @@ def complete_dispatched_batch(
                         result=result_file.read_text(encoding="utf-8"),
                     )
 
-        record = task_ops.get_task(project_root, task_id)
         if join_point_name:
             join_status = "review_pending" if payload.get("review_required") else "complete"
-            task_ops.mark_join_point(
+            _mark_join_point_from_latest_task(
                 project_root,
                 task_id=task_id,
                 join_point_name=join_point_name,
-                expected_version=record.version,
                 status=join_status,
                 details={
                     "batch_id": batch_id,
@@ -1213,12 +1243,10 @@ def complete_dispatched_batch(
         payload["review_status"] = "awaiting_review"
         if join_point_name:
             for task_id in task_ids:
-                task_record = task_ops.get_task(project_root, task_id)
-                task_ops.mark_join_point(
+                _mark_join_point_from_latest_task(
                     project_root,
                     task_id=task_id,
                     join_point_name=join_point_name,
-                    expected_version=task_record.version,
                     status="review_pending",
                     details={
                         "batch_id": batch_id,
