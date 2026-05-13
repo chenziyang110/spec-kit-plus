@@ -18,6 +18,10 @@ class CognitionStatus:
     baseline_built_at: str = ""
     last_update_id: str = ""
     graph_ready: bool = False
+    graph_store_path: str = ""
+    active_generation_id: str = ""
+    query_contract_version: int = 0
+    update_contract_version: int = 0
     stale_paths: list[str] = field(default_factory=list)
     stale_reasons: list[str] = field(default_factory=list)
     freshness: str = ""
@@ -65,6 +69,10 @@ def read_cognition_status(project_root: Path) -> CognitionStatus:
         baseline_built_at=str(payload.get("baseline_built_at", "")),
         last_update_id=str(payload.get("last_update_id", "")),
         graph_ready=raw_graph_ready if isinstance(raw_graph_ready, bool) else False,
+        graph_store_path=str(payload.get("graph_store_path", "")),
+        active_generation_id=str(payload.get("active_generation_id", "")),
+        query_contract_version=int(payload.get("query_contract_version", 0)),
+        update_contract_version=int(payload.get("update_contract_version", 0)),
         stale_paths=_coerce_string_list(payload.get("stale_paths", [])),
         stale_reasons=_coerce_string_list(payload.get("stale_reasons", [])),
         freshness=str(payload.get("freshness", "")),

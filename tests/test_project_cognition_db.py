@@ -3,11 +3,14 @@ import sqlite3
 from pathlib import Path
 
 from specify_cli.cognition import (
+    CognitionStatus,
     cognition_db_path,
     connect_cognition_db,
     ensure_cognition_db,
     get_active_generation_id,
+    read_cognition_status,
     seed_active_generation,
+    write_cognition_status,
 )
 
 
@@ -97,3 +100,24 @@ def test_connection_uses_row_factory_and_foreign_keys(tmp_path: Path) -> None:
         row = conn.execute("PRAGMA foreign_keys").fetchone()
         assert isinstance(row, sqlite3.Row)
         assert row[0] == 1
+
+
+def test_cognition_status_round_trips_database_runtime_fields(tmp_path: Path) -> None:
+    write_cognition_status(
+        tmp_path,
+        CognitionStatus(
+            graph_ready=True,
+            graph_store_path=".specify/project-cognition/project-cognition.db",
+            active_generation_id="GEN-0001",
+            query_contract_version=1,
+            update_contract_version=1,
+        ),
+    )
+
+    status = read_cognition_status(tmp_path)
+
+    assert status.graph_ready is True
+    assert status.graph_store_path == ".specify/project-cognition/project-cognition.db"
+    assert status.active_generation_id == "GEN-0001"
+    assert status.query_contract_version == 1
+    assert status.update_contract_version == 1
