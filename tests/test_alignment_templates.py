@@ -973,9 +973,16 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "locked decision silently dropped between artifacts" in lowered
     assert "**Locked Decision Preservation Table:**" in content
     assert "**Boundary Guardrail Table:**" in content
-    assert "| BG1 | Boundary Guardrail Gap | HIGH |" in content
-    assert "| BG2 | Boundary Guardrail Gap | HIGH |" in content
-    assert "| BG3 | Boundary Guardrail Gap | HIGH |" in content
+    assert "Signal Code" in content
+    assert "| ID | Signal Code | Category | Severity | Location(s) | Summary | Recommendation |" in content
+    assert "| BG1-001 | BG1 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| BG2-001 | BG2 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| BG3-001 | BG3 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| DP1-001 | DP1 | Dispatch Packet Gap | HIGH |" in content
+    assert "| DP2-001 | DP2 | Dispatch Packet Gap | HIGH |" in content
+    assert "| DP3-001 | DP3 | Dispatch Result Gap | HIGH |" in content
+    assert "stable fingerprint-first finding ID" in content
+    assert "keeps BG/DP values as signal codes where applicable" in content
     assert "DP1" in content
     assert "DP2" in content
     assert "DP3" in content
@@ -985,6 +992,24 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "output exactly one `Recommended Next Command`" in content
     assert "Do not output multiple alternative next commands" in content
     assert "Closed-loop requirement" in content
+    assert "complete blocker bundle" in lowered
+    assert "Blocker Bundle" in content
+    assert "Limit the visible findings table to 50 rows for readability" in content
+    assert "`Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding" in content
+    assert "Do not place blocking findings only in overflow summaries" in content
+    assert "complete the full detection matrix before selecting the single `recommended next command`" in lowered
+    assert "Stable Finding Identity" in content
+    assert "fingerprint-first" in lowered
+    assert "reuse the prior ID" in content
+    assert "Allocate a new ID only for a genuinely new fingerprint" in content
+    assert "Revalidation Attribution" in content
+    assert "missed_by_previous_analyze" in content
+    assert "introduced_by_remediation" in content
+    assert "upstream_artifact_changed" in content
+    assert "detector_scope_changed" in content
+    assert "Persist attribution per new blocking finding in the `Analyze Gate` `blocker_bundle`" in content
+    assert "No more than one task-layer remediation cycle is expected" in content
+    assert "Do not treat repeated task/analyze loops as normal workflow" in content
     assert "Recommended Next Command" in content
     assert "### 9. Define Workflow Re-entry" in content
     assert "Recommended Re-entry" in content
@@ -993,6 +1018,14 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "If the highest invalid stage is `tasks`" in content
     assert "If the constitution itself must change" in content
     assert "`next_command: /sp.constitution`" in content
+    assert "Analyze Gate" in content
+    assert "gate_status" in content
+    assert "gate_cycle" in content
+    assert "highest_invalid_stage" in content
+    assert "blocker_bundle" in content
+    assert "`blocker_bundle: [finding ID | invalid stage | status | attribution | compact summary | remediation requirement]`" in content
+    assert "artifact_fingerprint_basis" in content
+    assert "record its attribution on that `blocker_bundle` row" in content
     assert "If the remaining issue is execution-only, the re-entry chain MUST begin at `{{invoke:implement}}` or `{{invoke:debug}}`." in content
     assert "exact workflow re-entry path" in content
 
@@ -1017,6 +1050,19 @@ def test_workflow_state_template_supports_analyze_gate_phase():
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
+    assert "## Analyze Gate" in content
+    assert "gate_status" in content
+    assert "gate_cycle" in content
+    assert "highest_invalid_stage" in content
+    assert "blocker_bundle" in content
+    assert "[finding-id | invalid-stage | open | attribution | compact summary | remediation requirement]" in content
+    assert "blocker_attribution_values" in content
+    assert "artifact_fingerprint_basis" in content
+    assert "missed_by_previous_analyze" in content
+    assert "introduced_by_remediation" in content
+    assert "upstream_artifact_changed" in content
+    assert "detector_scope_changed" in content
+    assert "new_finding_attribution" not in content
     assert "/sp.constitution" not in content
 
 
@@ -1760,6 +1806,32 @@ def test_tasks_template_fail_closes_into_analyze_before_implement():
     assert "`next_command: /sp.analyze`" in content
     assert "implementation remains blocked until `{{invoke:analyze}}`" in lowered
     assert "do not hand off directly to `{{invoke:implement}}` from `sp-tasks`" in lowered
+
+
+def test_tasks_template_requires_analyze_compatible_self_audit_and_remediation_mode():
+    content = _read("templates/commands/tasks.md")
+    lowered = content.lower()
+
+    assert "default_handoff: '/sp.analyze for normal completed or non-escalated task generation" in content
+    assert "/sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
+    assert "send: false" in content
+    assert "Analyze-Compatible Task Self-Audit" in content
+    assert "buildable `FR-*`" in content
+    assert "locked planning decision" in lowered
+    assert "Implementation Constitution" in content
+    assert "Task Guardrail Index" in content
+    assert "DP1" in content
+    assert "DP2" in content
+    assert "DP3" in content
+    assert "Analyze Remediation Mapping" in content
+    assert "resolved | deferred | not_applicable | escalated" in content
+    assert "Escalation is terminal for the current `sp-tasks` run" in content
+    assert "sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
+    assert "No more than one task-layer remediation cycle is expected" in content
+    assert "Do not treat repeated task/analyze loops as normal workflow" in content
+    assert "normal completed or non-escalated task generation" in lowered
+    assert "escalated remediation preserves the upstream `next_command`" in content
+    assert "stops without an analyze handoff" in lowered
 
 
 def test_implement_template_honors_pending_analyze_gate_from_workflow_state():

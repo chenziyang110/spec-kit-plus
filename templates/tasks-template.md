@@ -36,6 +36,17 @@ description: "Task list template for feature implementation"
 - If a reference behavior is intentionally deferred, record that explicitly instead of silently omitting it.
 - If a reference behavior is intentionally redesigned, point to the task or review checkpoint that must acknowledge the divergence.
 
+## Analyze Remediation Mapping
+
+Use this section only when regenerating tasks after a blocked `sp-analyze` gate. Leave it as `No prior analyze blockers for this task package.` for first-pass task generation.
+
+| Finding ID | Disposition | Task/Section Evidence | Notes |
+|------------|-------------|-----------------------|-------|
+| No prior analyze blockers | not_applicable | First task-generation pass | No remediation mapping required |
+
+Allowed dispositions: `resolved`, `deferred`, `not_applicable`, `escalated`.
+If any finding is `escalated`, stop task generation and set `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` in `workflow-state.md`.
+
 ## Task Shaping Rules
 
 - Top-level tasks should stay bounded enough to finish in one coffee break sized implementation slice, usually roughly 10-20 minutes.
@@ -47,6 +58,22 @@ description: "Task list template for feature implementation"
 - Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, the task MUST be refined before `tasks.md` can be finalized.
 - If the active profile has a reference fidelity contract, add an explicit Fidelity Checkpoint before any implementation batch that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
 - Any task that intentionally departs from the reference object MUST name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
+
+## Analyze-Compatible Task Self-Audit
+
+Before final handoff to `sp-analyze`, confirm:
+
+- Buildable `FR-*` and buildable success criteria have task, checkpoint, or deferred-note coverage.
+- Locked planning decisions that affect implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails are preserved in this task package.
+- `Implementation Constitution` rules from `plan.md` are preserved through the implementation guardrails phase, `Task Guardrail Index`, task notes, or explicit escalation.
+- `Task Guardrail Index` entries map applicable guardrails to concrete implementation tasks.
+- Each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
+- Task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
+- Reference fidelity behavior items map to task IDs, checkpoints, join points, or explicit deferred notes.
+- Unmapped tasks are justified as setup, polish, verification, or cross-cutting work, or removed.
+- Task dependencies and parallel batches do not contain obvious write-set conflicts.
+
+Audit status keywords should explicitly cover buildable `FR-*`, locked planning decisions, task guardrails, DP readiness, reference fidelity, unmapped tasks, and write-set conflicts.
 
 ## Format: `[ID] [P?] [Story] [Agent?] Description`
 

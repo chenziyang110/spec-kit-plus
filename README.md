@@ -451,6 +451,10 @@ Closed-loop remediation after `analyze`:
 - If the defect is in `spec.md` or `context.md`, go back to `clarify`, then rerun `plan`, `tasks`, and `analyze` before resuming `implement`.
 - If the defect is in `plan.md`, go back to `plan`, then rerun `tasks` and `analyze` before resuming `implement`.
 - If the defect is only in `tasks.md`, rerun `tasks`, then `analyze`, then resume `implement`.
+- `analyze` should finish a complete blocker bundle before selecting the single recommended next command; do not treat one discovered blocker as permission to stop the rest of the analysis pass.
+- `tasks` should run an analyze-compatible task self-audit before final handoff, covering task coverage, locked decision preservation, task guardrails, DP1/DP2/DP3 readiness, reference fidelity mapping, unmapped tasks, and write-set conflicts.
+- repeated `tasks -> analyze -> tasks` loops are abnormal. No more than one task-layer remediation cycle is expected; if revalidation finds new task-layer blockers that were detectable before remediation, diagnose a previous analyze miss or a tasks self-audit failure.
+- If `tasks` discovers missing upstream truth during remediation, route directly to `plan`, `clarify`, or `deep-research`; run `analyze` again only after upstream artifacts are repaired and tasks are regenerated.
 - If the defect is execution-only with no upstream artifact drift, continue in `implement` or route into `debug`.
 - If `analyze` is run after `implement` has already started or finished, treat the current implementation as provisional until the highest invalid stage has been repaired and downstream artifacts have been regenerated.
 

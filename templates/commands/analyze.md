@@ -39,6 +39,8 @@ Analyze must not switch branches, implicitly check out a "correct" feature branc
 Preserve canonical `/sp.implement` only in workflow-state fields.
 When recommending manual implementation resumption to the user, tell them to run `{{invoke:implement}}`.
 
+**Convergence requirement**: Complete the full detection matrix before selecting the single `Recommended Next Command`. Do not stop analysis after finding enough evidence to route backward. The report must include the complete blocker bundle for the current artifact set, grouped by invalid stage, so downstream remediation does not discover same-artifact blockers one cycle at a time.
+
 **Constitution Authority**: The project constitution (`.specify/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `/sp.analyze`.
 
 ## Workflow Phase Lock
@@ -52,6 +54,29 @@ When recommending manual implementation resumption to the user, tell them to run
   - `phase_mode: analysis-only`
   - `forbidden_actions: edit source code, edit tests, edit planning artifacts, start implementation before the gate is cleared`
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before continuing.
+
+## Analyze Gate Convergence Contract
+
+### Stable Finding Identity
+
+- Use stable finding IDs that survive revalidation. Category-only IDs such as `BG2` are too coarse, and run-local sequence numbers are not stable by themselves.
+- Use a fingerprint-first ID contract:
+  - Build a canonical finding fingerprint from category, invalid stage, artifact, requirement or section key when available, normalized summary, and remediation requirement.
+  - Before assigning IDs, load the previous `Analyze Gate` ledger from `workflow-state.md` when it exists.
+  - Match current findings to previous open or recently cleared findings by fingerprint first, and reuse the prior ID when the fingerprint matches.
+  - Allocate a new ID only for a genuinely new fingerprint.
+  - For new fingerprints, allocate the next unused category sequence after sorting by category, artifact, section key, and normalized summary.
+
+### Revalidation Attribution
+
+- When revalidating after a blocked analyze gate, any new blocker must include one attribution:
+  - `missed_by_previous_analyze`: detectable in the prior artifact set and should have been included in the earlier blocker bundle.
+  - `introduced_by_remediation`: remediation changed `tasks.md` or downstream state in a way that introduced the issue.
+  - `upstream_artifact_changed`: an authoritative input changed since the prior analyze pass.
+  - `detector_scope_changed`: the workflow template or analysis instructions changed the detector scope between runs.
+- If there is no evidence for `introduced_by_remediation`, `upstream_artifact_changed`, or `detector_scope_changed`, use `missed_by_previous_analyze`.
+- Persist attribution per new blocking finding in the `Analyze Gate` `blocker_bundle`; report-body attribution without durable blocker-row attribution is not sufficient for revalidation.
+- No more than one task-layer remediation cycle is expected. If revalidation finds new task-layer blockers that were detectable before remediation, classify them as a previous analyze miss or a tasks self-audit failure. Do not treat repeated task/analyze loops as normal workflow.
 
 ## Workflow Quality Requirements
 
@@ -162,7 +187,7 @@ Create internal representations (do not include raw artifacts in output):
 
 ### 5. Detection Passes (Token-Efficient Analysis)
 
-Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
+Focus on high-signal findings in the report body. Limit the visible findings table to 50 rows for readability, but do not omit blockers from the durable gate result: `Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding. Overflow summaries may cover only non-blocking findings.
 
 #### A. Duplication Detection
 
@@ -242,17 +267,29 @@ Output a Markdown report (no file writes) with the following structure:
 
 ## Specification Analysis Report
 
-| ID | Category | Severity | Location(s) | Summary | Recommendation |
-|----|----------|----------|-------------|---------|----------------|
-| A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
-| BG1 | Boundary Guardrail Gap | HIGH | plan.md, tasks.md | Boundary-sensitive area lacks `Implementation Constitution` in the plan | Re-run `{{invoke:plan}}` to add the constitution, then `{{invoke:tasks}}` if guardrail tasks need regeneration |
-| BG2 | Boundary Guardrail Gap | HIGH | tasks.md | Plan declares a boundary-sensitive constitution rule, but tasks do not preserve it as implementation guardrails | Re-run `{{invoke:tasks}}` or edit `tasks.md` so guardrail tasks exist before setup or feature work |
-| BG3 | Boundary Guardrail Gap | HIGH | implement guidance | Execution guidance does not force boundary confirmation before code-writing work starts | Update implementation guidance so the owning framework, required references, and forbidden drift are confirmed before dispatch |
-| DP1 | Dispatch Packet Gap | HIGH | implement guidance, runtime payload | Delegated execution path is missing compiled hard rules, validation gates, or done criteria | Compile and validate a `WorkerTaskPacket` before dispatch |
-| DP2 | Dispatch Packet Gap | HIGH | plan.md, tasks.md, runtime payload | Delegated execution path is missing required references or forbidden drift | Add packet references/forbidden drift to planning artifacts, then recompile |
-| DP3 | Dispatch Result Gap | HIGH | subagent result, join point | Subagent completion lacks validation evidence or rule acknowledgement | Reject the subagent result and require a packet-compliant rerun |
+| ID | Signal Code | Category | Severity | Location(s) | Summary | Recommendation |
+|----|-------------|----------|----------|-------------|---------|----------------|
+| A1-001 | A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
+| BG1-001 | BG1 | Boundary Guardrail Gap | HIGH | plan.md, tasks.md | Boundary-sensitive area lacks `Implementation Constitution` in the plan | Re-run `{{invoke:plan}}` to add the constitution, then `{{invoke:tasks}}` if guardrail tasks need regeneration |
+| BG2-001 | BG2 | Boundary Guardrail Gap | HIGH | tasks.md | Plan declares a boundary-sensitive constitution rule, but tasks do not preserve it as implementation guardrails | Re-run `{{invoke:tasks}}` or edit `tasks.md` so guardrail tasks exist before setup or feature work |
+| BG3-001 | BG3 | Boundary Guardrail Gap | HIGH | implement guidance | Execution guidance does not force boundary confirmation before code-writing work starts | Update implementation guidance so the owning framework, required references, and forbidden drift are confirmed before dispatch |
+| DP1-001 | DP1 | Dispatch Packet Gap | HIGH | implement guidance, runtime payload | Delegated execution path is missing compiled hard rules, validation gates, or done criteria | Compile and validate a `WorkerTaskPacket` before dispatch |
+| DP2-001 | DP2 | Dispatch Packet Gap | HIGH | plan.md, tasks.md, runtime payload | Delegated execution path is missing required references or forbidden drift | Add packet references/forbidden drift to planning artifacts, then recompile |
+| DP3-001 | DP3 | Dispatch Result Gap | HIGH | subagent result, join point | Subagent completion lacks validation evidence or rule acknowledgement | Reject the subagent result and require a packet-compliant rerun |
 
-(Add one row per finding; generate stable IDs prefixed by category initial.)
+(Add one row per finding. Each row uses a stable fingerprint-first finding ID, and keeps BG/DP values as signal codes where applicable.)
+
+**Blocker Bundle:**
+
+The `Blocker Bundle` MUST enumerate every blocking finding even when the visible findings table is capped at 50 rows. Do not place blocking findings only in overflow summaries.
+
+| Invalid Stage | Blocking Finding IDs | Required Re-entry | Notes |
+|---------------|----------------------|-------------------|-------|
+| clarify | [IDs or none] | `{{invoke:clarify}}` | Reopen spec/context truth, then regenerate downstream artifacts |
+| deep-research | [IDs or none] | `{{invoke:deep-research}}` | Prove unresolved implementation chain before planning |
+| plan | [IDs or none] | `{{invoke:plan}}` | Repair planning truth, then regenerate tasks |
+| tasks | [IDs or none] | `{{invoke:tasks}}` | Repair task decomposition and rerun analyze |
+| execution-only | [IDs or none] | `{{invoke:implement}}` or `{{invoke:debug}}` | No upstream artifact regeneration required |
 
 **Coverage Summary Table:**
 
@@ -316,6 +353,15 @@ Rules:
 ### 9.5 Persist Workflow Gate Result
 
 Before the final completion text, write or update `WORKFLOW_STATE_FILE` so it records the gate outcome:
+
+Always update or preserve the `Analyze Gate` section in `WORKFLOW_STATE_FILE` with:
+- `gate_status: cleared | blocked`
+- `gate_cycle: [integer]`
+- `highest_invalid_stage: clarify | deep-research | plan | tasks | execution-only | none`
+- `blocker_bundle: [finding ID | invalid stage | status | attribution | compact summary | remediation requirement]`
+- `artifact_fingerprint_basis: [spec.md/context.md/plan.md/tasks.md summaries or hashes when available]`
+
+When revalidation finds a new blocker, record its attribution on that `blocker_bundle` row using `missed_by_previous_analyze`, `introduced_by_remediation`, `upstream_artifact_changed`, or `detector_scope_changed`.
 
 - When no upstream remediation is required, record the analyze gate as cleared and hand off to implementation.
 - If no upstream remediation is required:

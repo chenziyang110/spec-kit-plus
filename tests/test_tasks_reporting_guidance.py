@@ -47,3 +47,21 @@ def test_tasks_template_makes_parallel_tasks_packet_ready_for_leaders():
     assert "for each `[p]` task or explicit parallel batch" in lowered
     assert "objective, write set, required references, forbidden drift, validation command, and done condition" in lowered
     assert "leader can compile a bounded subagent execution packet" in lowered
+
+
+def test_tasks_template_includes_analyze_remediation_mapping_and_self_audit():
+    content = _read("templates/tasks-template.md")
+    lowered = content.lower()
+
+    assert "## Analyze Remediation Mapping" in content
+    assert "| Finding ID | Disposition | Task/Section Evidence | Notes |" in content
+    assert "resolved" in lowered
+    assert "deferred" in lowered
+    assert "not_applicable" in content
+    assert "escalated" in lowered
+    assert "## Analyze-Compatible Task Self-Audit" in content
+    assert "buildable `FR-*`" in content
+    assert "Task Guardrail Index" in content
+    assert "DP1" in content
+    assert "DP2" in content
+    assert "DP3" in content

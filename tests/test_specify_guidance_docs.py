@@ -195,3 +195,16 @@ def test_guidance_docs_teach_specify_as_public_shell_with_internal_brainstorming
         assert "route-lock" in lowered or "route lock" in lowered or "route" in lowered
         assert "intent-lock" in lowered or "intent lock" in lowered or "intent" in lowered
         assert "sp-implement" in content
+
+
+def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
+    readme = _read("README.md")
+    handbook = _read("PROJECT-HANDBOOK.md")
+
+    for content in (readme, handbook):
+        lowered = content.lower()
+        assert "complete blocker bundle" in lowered
+        assert "analyze-compatible task self-audit" in lowered
+        assert "repeated `tasks -> analyze -> tasks` loops are abnormal" in content
+        assert "No more than one task-layer remediation cycle is expected" in content
+        assert "directly to `plan`, `clarify`, or `deep-research`" in content
