@@ -12,6 +12,15 @@ from specify_cli import app
 from tests.conftest import strip_ansi
 
 
+def _create_git_head(project: Path) -> None:
+    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "spec-kit-test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Spec Kit Test"], cwd=project, check=True)
+    (project / "README.md").write_text("# Test Project\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial test commit"], cwd=project, check=True, capture_output=True, text=True)
+
+
 def test_top_level_cli_exposes_discussion_entrypoint():
     runner = CliRunner()
     root_help = runner.invoke(app, ["--help"], catch_exceptions=False)
@@ -441,6 +450,71 @@ def test_project_map_namespace_remains_legacy_alias_for_cognition_status(tmp_pat
 
     payload = json.loads(alias_result.output)
     assert payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
+
+
+def test_project_cognition_record_refresh_does_not_require_project_map_outputs(tmp_path):
+    project = tmp_path / "project-cognition-record-refresh"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            ["init", "--here", "--ai", "claude", "--script", "sh", "--no-git", "--ignore-agent-tools"],
+            catch_exceptions=False,
+        )
+        _create_git_head(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "record-refresh", "--reason", "manual", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["freshness"] == "fresh"
+    assert payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
+    assert not (project / ".specify" / "project-map").exists()
+
+
+def test_project_cognition_complete_refresh_records_map_build_reason_without_project_map_outputs(tmp_path):
+    project = tmp_path / "project-cognition-complete-refresh"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            ["init", "--here", "--ai", "claude", "--script", "sh", "--no-git", "--ignore-agent-tools"],
+            catch_exceptions=False,
+        )
+        _create_git_head(project)
+        complete_result = runner.invoke(
+            app,
+            ["project-cognition", "complete-refresh", "--format", "json"],
+            catch_exceptions=False,
+        )
+        status_result = runner.invoke(app, ["project-cognition", "status", "--format", "json"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert complete_result.exit_code == 0, complete_result.output
+    assert status_result.exit_code == 0, status_result.output
+
+    complete_payload = json.loads(complete_result.output)
+    status_payload = json.loads(status_result.output)
+    assert complete_payload["freshness"] == "fresh"
+    assert status_payload["last_refresh_reason"] == "map-build"
+    assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
+    assert not (project / ".specify" / "project-map").exists()
 
 
 def test_init_installs_brainstorming_truth_templates(tmp_path):
@@ -1137,117 +1211,6 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert payload["dirty_reasons"] == ["workflow_contract_changed"]
         assert payload["must_refresh_topics"] == ["WORKFLOWS.md"]
         assert payload["review_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "TESTING.md"]
-
-    def test_project_map_record_refresh_requires_canonical_outputs(self, tmp_path):
-        from typer.testing import CliRunner
-        from specify_cli import app
-
-        project = tmp_path / "project-map-refresh"
-        project.mkdir()
-        runner = CliRunner()
-
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(project)
-            init_result = runner.invoke(
-                app,
-                [
-                    "init",
-                    "--here",
-                    "--ai",
-                    "claude",
-                    "--script",
-                    "sh",
-                    "--no-git",
-                    "--ignore-agent-tools",
-                ],
-                catch_exceptions=False,
-            )
-            refresh_result = runner.invoke(
-                app,
-                ["project-map", "record-refresh", "--reason", "manual"],
-                catch_exceptions=False,
-            )
-        finally:
-            os.chdir(old_cwd)
-
-        assert init_result.exit_code == 0, init_result.output
-        assert refresh_result.exit_code != 0
-        lowered = refresh_result.output.lower()
-        assert "canonical map files" in lowered
-        assert "are missing" in lowered
-        assert "map-scan" in refresh_result.output.lower()
-        assert "map-build" in refresh_result.output.lower()
-
-    def test_project_map_complete_refresh_records_map_build_reason(self, tmp_path):
-        from typer.testing import CliRunner
-        from specify_cli import app
-
-        project = tmp_path / "project-map-complete-refresh"
-        project.mkdir()
-        runner = CliRunner()
-
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(project)
-            init_result = runner.invoke(
-                app,
-                [
-                    "init",
-                    "--here",
-                    "--ai",
-                    "claude",
-                    "--script",
-                    "sh",
-                    "--no-git",
-                    "--ignore-agent-tools",
-                ],
-                catch_exceptions=False,
-            )
-            (project / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
-            project_map_dir = project / ".specify" / "project-map"
-            index_dir = project_map_dir / "index"
-            root_dir = project_map_dir / "root"
-            (project_map_dir / "QUICK-NAV.md").write_text("# Quick Navigation\n", encoding="utf-8")
-            index_dir.mkdir(parents=True, exist_ok=True)
-            root_dir.mkdir(parents=True, exist_ok=True)
-            (index_dir / "atlas-index.json").write_text("{}\n", encoding="utf-8")
-            (index_dir / "modules.json").write_text('{"modules":[]}\n', encoding="utf-8")
-            (index_dir / "relations.json").write_text('{"relations":[]}\n', encoding="utf-8")
-            for name in (
-                "ARCHITECTURE.md",
-                "STRUCTURE.md",
-                "CONVENTIONS.md",
-                "INTEGRATIONS.md",
-                "WORKFLOWS.md",
-                "TESTING.md",
-                "OPERATIONS.md",
-            ):
-                (root_dir / name).write_text(f"# {name}\n", encoding="utf-8")
-
-            refresh_result = runner.invoke(
-                app,
-                ["project-map", "complete-refresh", "--format", "json"],
-                catch_exceptions=False,
-            )
-            status_result = runner.invoke(
-                app,
-                ["project-map", "status", "--format", "json"],
-                catch_exceptions=False,
-            )
-        finally:
-            os.chdir(old_cwd)
-
-        assert init_result.exit_code == 0, init_result.output
-        assert refresh_result.exit_code == 0, refresh_result.output
-        assert status_result.exit_code == 0, status_result.output
-
-        refresh_payload = json.loads(refresh_result.output)
-        status_payload = json.loads(status_result.output)
-        assert refresh_payload["freshness"] == "possibly_stale"
-        assert refresh_payload["state"] == "runtime_stale"
-        assert "recommended_next_action" in refresh_payload
-        assert status_payload["last_refresh_reason"] == "map-build"
 
     def test_project_map_record_refresh_json_reports_support_drift_as_not_ready(self, tmp_path):
         from typer.testing import CliRunner

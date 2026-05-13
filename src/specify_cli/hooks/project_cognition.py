@@ -11,7 +11,7 @@ from specify_cli.project_cognition_status import (
     has_git_repo,
     inspect_project_cognition_freshness,
     mark_project_map_dirty,
-    project_map_status_path,
+    project_cognition_status_metadata_path,
 )
 
 from .events import (
@@ -145,7 +145,7 @@ def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResul
         event=PROJECT_COGNITION_MARK_DIRTY,
         status="ok",
         severity="info",
-        writes={"status_path": str(project_map_status_path(project_root))},
+        writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
         data={"project_map_status": status.to_dict()},
     )
 
@@ -158,13 +158,13 @@ def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> Ho
             event=PROJECT_COGNITION_COMPLETE_REFRESH,
             status="blocked",
             severity="critical",
-            errors=["git baseline unavailable for project-map complete-refresh"],
+            errors=["git baseline unavailable for project-cognition complete-refresh"],
         )
     status = complete_project_map_refresh(project_root)
     return HookResult(
         event=PROJECT_COGNITION_COMPLETE_REFRESH,
         status="ok",
         severity="info",
-        writes={"status_path": str(project_map_status_path(project_root))},
+        writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
         data={"project_map_status": status.to_dict()},
     )

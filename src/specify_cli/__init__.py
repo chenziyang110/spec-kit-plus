@@ -114,7 +114,6 @@ from specify_cli.project_cognition_status import (
     inspect_project_cognition_freshness_for_command,
     mark_project_map_dirty,
     mark_project_map_refreshed,
-    missing_canonical_project_map_paths,
     project_cognition_status_metadata_path,
     read_project_map_status,
     refresh_project_map_topics,
@@ -766,20 +765,6 @@ def _require_fresh_project_map_for_execution(project_root: Path, *, command_name
         command_name=command_name,
         block_on={"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"},
     )
-
-
-def _ensure_project_map_artifacts_exist(project_root: Path) -> list[Path]:
-    missing = missing_canonical_project_map_paths(project_root)
-    if not missing:
-        return []
-
-    console.print("[red]Error:[/red] Cannot record a fresh project cognition baseline because canonical compatibility/export files are missing.")
-    for path in missing:
-        console.print(f"- {path}")
-    console.print(
-        "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] first so the graph-native project cognition baseline and its compatibility/export outputs exist, then retry [cyan]specify project-map complete-refresh[/cyan]. Use [cyan]specify project-map record-refresh[/cyan] only for low-level/manual recovery."
-    )
-    raise typer.Exit(1)
 
 
 def _project_root_from_source() -> Path:
@@ -1605,10 +1590,9 @@ def project_map_record_refresh(
     reason: str = typer.Option("manual", "--reason", help="Why the map was refreshed"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Low-level/manual recovery path to record a fresh graph-native cognition baseline and compatibility/export snapshot at the current HEAD."""
+    """Low-level/manual recovery path to record a fresh project cognition baseline at the current HEAD."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    _ensure_project_map_artifacts_exist(project_root)
     mark_project_map_refreshed(
         project_root,
         head_commit=git_head_commit(project_root),
@@ -1627,10 +1611,9 @@ def project_map_record_refresh(
 def project_map_complete_refresh(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Finalize a successful full cognition refresh by recording a fresh git baseline."""
+    """Finalize a successful project cognition refresh by recording a fresh git baseline."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    _ensure_project_map_artifacts_exist(project_root)
     complete_project_map_refresh(project_root)
     result = inspect_project_cognition_freshness(project_root)
     if output_format.lower() == "json":
@@ -1654,7 +1637,6 @@ def project_map_refresh_topics_command(
         console.print(f"[red]Error:[/red] Unknown topic(s): {', '.join(unknown)}")
         console.print(f"Valid topics: {', '.join(TOPIC_FILES)}")
         raise typer.Exit(1)
-    _ensure_project_map_artifacts_exist(project_root)
     status = refresh_project_map_topics(
         project_root,
         topics=topics,
