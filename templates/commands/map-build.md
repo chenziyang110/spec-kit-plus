@@ -41,7 +41,7 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Use `specify project-map complete-refresh` only after the query-ready baseline and accepted compatibility/export refresh outputs are complete.
+- Use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after the query-ready baseline has been accepted.
 
 ## Hard Boundary
 
@@ -60,8 +60,8 @@ Before writing query-backed truth, read:
 - `.specify/project-cognition/provisional/edges.json`
 - `.specify/project-cognition/provisional/observations.json`
 - `.specify/project-cognition/coverage.json`
-- `.specify/project-map/coverage-ledger.json`
-- `.specify/project-map/scan-packets/`
+- `.specify/project-cognition/workbench/coverage-ledger.json`
+- `.specify/project-cognition/workbench/scan-packets/`
 
 If those artifacts are missing, stop and route back to `/sp-map-scan`.
 
@@ -73,7 +73,7 @@ The only canonical runtime outputs for this command are:
 - `.specify/project-cognition/project-cognition.db`
 - query/update helper readiness metadata
 - join-point `worker-results` evidence for delegated build lanes until the leader accepts the final query-ready baseline
-- `.specify/project-map/worker-results/<packet-id>.json`
+- `.specify/project-cognition/workbench/worker-results/<packet-id>.json`
 
 Do not publish handbook-first runtime truth from this command. Do not publish raw graph JSON artifacts or slices as runtime truth.
 
@@ -87,7 +87,7 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - If the build lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 - If a delegated lane returns unresolved evidence gaps, preserve the scan gap report and stop for escalation or recovery instead of inventing closure.
 
-## Project Map State Protocol
+## Project Cognition Workbench State Protocol
 
 - Project Map State Protocol remains active during build acceptance.
 - Validate Scan Inputs Before Execution.
@@ -138,15 +138,6 @@ At minimum, claims must include:
 - `truth_layer`
 - `confidence`
 
-## Runtime Compatibility Outputs
-
-- `DEBUG-HANDBOOK.md`
-- `BUILD-HANDBOOK.md`
-- `DEBUG-WORKFLOW-CONTRACT`
-- `BUILD-WORKFLOW-CONTRACT`
-- `INVESTIGATION-PLAYBOOKS`
-- `IMPLEMENTATION-PLAYBOOKS`
-
 ## Dispatch Guidance
 
 - Use `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)` before lane execution.
@@ -158,8 +149,8 @@ At minimum, claims must include:
 
 Before reporting completion:
 
-- use `specify project-map complete-refresh` once the query-ready baseline and compatibility/export refresh workbench outputs have been accepted
-- confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `specify project-cognition query`
+- use `{{specify-subcmd:project-cognition complete-refresh --format json}}` once the query-ready baseline has been accepted
+- confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition query --intent implement --query "$ARGUMENTS" --format json}}`
 - confirm that `status.json` reflects a query-ready baseline
 - confirm that the runtime remains query-backed and does not advertise raw graph JSON or handbook-first outputs as runtime truth
 - report whether follow-on localized maintenance should continue through `map-update` for future touched-area drift

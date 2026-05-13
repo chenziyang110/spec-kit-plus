@@ -31,14 +31,14 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
 
     assert "sp-map-scan" in content
     assert "sp-map-build" in content
-    assert ".specify/project-map/map-scan.md" in content
-    assert ".specify/project-map/coverage-ledger.md" in content
-    assert ".specify/project-map/coverage-ledger.json" in content
-    assert ".specify/project-map/scan-packets/<lane-id>.md" in content
-    assert ".specify/project-map/map-state.md" in content
-    assert "Project Map State Protocol" in content
-    assert "MAP_STATE_FILE=.specify/project-map/map-state.md" in content
-    assert ".specify/project-map/QUICK-NAV.md" in content
+    assert ".specify/project-cognition/workbench/map-scan.md" in content
+    assert ".specify/project-cognition/workbench/coverage-ledger.md" in content
+    assert ".specify/project-cognition/workbench/coverage-ledger.json" in content
+    assert ".specify/project-cognition/workbench/scan-packets/<lane-id>.md" in content
+    assert ".specify/project-cognition/workbench/map-state.md" in content
+    assert "Project Cognition Workbench State Protocol" in content
+    assert "MAP_STATE_FILE=.specify/project-cognition/workbench/map-state.md" in content
+    assert ".specify/project-map/" not in content
     assert "MapScanPacket" in content
     assert "`mode: read_only`" in content
     assert "`result_handoff_path`" in content
@@ -122,14 +122,14 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "scan-packets" in content
     assert "begins with validation, not writing" in lowered
     assert "must not guess and continue" in lowered
-    assert "Project Map State Protocol" in content
+    assert "Project Cognition Workbench State Protocol" in content
     assert "Validate Scan Inputs Before Execution" in content
     assert "Compile And Validate MapBuildPacket Inputs" in content
     assert "do not rebuild the scan from chat memory" in lowered
     assert "coverage-ledger.json` as the machine-readable row source" in content
     assert "MapBuildPacket" in content
     assert "raw scan prose or raw Markdown checklist items alone" in content
-    assert ".specify/project-map/worker-results/<packet-id>.json" in content
+    assert ".specify/project-cognition/workbench/worker-results/<packet-id>.json" in content
     assert "scan gap report" in lowered
     assert "packet results without paths read" in lowered
     assert "packet results that only summarize without evidence" in lowered
@@ -140,11 +140,10 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "structural-only refresh is a failed build" in lowered
     assert "reverse coverage validation" in lowered
     assert "complete-refresh" in content
-    assert "DEBUG-HANDBOOK.md" in content
-    assert "BUILD-HANDBOOK.md" in content
+    assert "DEBUG-HANDBOOK.md" not in content
+    assert "BUILD-HANDBOOK.md" not in content
     assert "PROJECT-HANDBOOK.md" not in content
-    assert ".specify/project-map/root/*.md" not in content
-    assert ".specify/project-map/modules/<module-id>/*.md" not in content
+    assert ".specify/project-map/" not in content
     assert "derived-only evidence" in lowered
     assert "required_reads contain only reference-only" in lowered or "reference-only or hard-excluded" in lowered
 
@@ -190,9 +189,9 @@ def test_map_scan_template_requires_truth_layer_ledgers() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()
 
-    assert ".specify/project-map/repository-universe.json" in content
-    assert ".specify/project-map/capability-ledger.json" in content
-    assert ".specify/project-map/control-ledger.json" in content
+    assert ".specify/project-cognition/workbench/repository-universe.json" in content
+    assert ".specify/project-cognition/workbench/capability-ledger.json" in content
+    assert ".specify/project-cognition/workbench/control-ledger.json" in content
     assert "file, entrypoint, branch, and control-node coverage" in lowered
     assert "by capability" in lowered
     assert "by symptom" in lowered
@@ -202,9 +201,9 @@ def test_map_build_template_requires_truth_layer_outputs() -> None:
     content = _read("templates/commands/map-build.md")
     lowered = content.lower()
 
-    assert "DEBUG-HANDBOOK.md" in content
-    assert "BUILD-HANDBOOK.md" in content
-    assert "DEBUG-WORKFLOW-CONTRACT" in content
-    assert "BUILD-WORKFLOW-CONTRACT" in content
-    assert "INVESTIGATION-PLAYBOOKS" in content
-    assert "IMPLEMENTATION-PLAYBOOKS" in content
+    assert ".specify/project-cognition/project-cognition.db" in content
+    assert "queryable task-oriented cognition bundles" in lowered
+    assert "DEBUG-HANDBOOK.md" not in content
+    assert "BUILD-HANDBOOK.md" not in content
+    assert "DEBUG-WORKFLOW-CONTRACT" not in content
+    assert "BUILD-WORKFLOW-CONTRACT" not in content

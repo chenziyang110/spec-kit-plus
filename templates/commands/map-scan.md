@@ -3,7 +3,7 @@ description: Use when a brownfield workflow needs a fresh graph-native cognition
 workflow_contract:
   when_to_use: A workflow needs reliable brownfield cognition and no graph-native baseline exists yet, or a full baseline rebuild is explicitly required.
   primary_objective: Enumerate all project-relevant in-repo evidence, build provisional nodes and candidate edges, and publish the scan artifacts required for graph reconstruction.
-  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, `.specify/project-cognition/coverage.json`, refresh-workbench `coverage-ledger` artifacts, and `map-state.md`.'
+  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, `.specify/project-cognition/coverage.json`, `.specify/project-cognition/workbench/coverage-ledger.*`, and `.specify/project-cognition/workbench/map-state.md`.'
   default_handoff: /sp-map-build after the evidence baseline is complete and the scan outputs are ready for graph reconstruction.
 ---
 
@@ -54,15 +54,14 @@ The only canonical outputs for this command are:
 - `.specify/project-cognition/provisional/edges.json`
 - `.specify/project-cognition/provisional/observations.json`
 - `.specify/project-cognition/coverage.json`
-- `.specify/project-map/map-scan.md`
-- `.specify/project-map/coverage-ledger.md`
-- `.specify/project-map/coverage-ledger.json`
-- `.specify/project-map/scan-packets/<lane-id>.md`
-- `.specify/project-map/map-state.md`
-- `.specify/project-map/QUICK-NAV.md`
-- `.specify/project-map/repository-universe.json`
-- `.specify/project-map/capability-ledger.json`
-- `.specify/project-map/control-ledger.json`
+- `.specify/project-cognition/workbench/map-scan.md`
+- `.specify/project-cognition/workbench/coverage-ledger.md`
+- `.specify/project-cognition/workbench/coverage-ledger.json`
+- `.specify/project-cognition/workbench/scan-packets/<lane-id>.md`
+- `.specify/project-cognition/workbench/map-state.md`
+- `.specify/project-cognition/workbench/repository-universe.json`
+- `.specify/project-cognition/workbench/capability-ledger.json`
+- `.specify/project-cognition/workbench/control-ledger.json`
 - refresh-workbench `coverage-ledger` artifacts that summarize scan coverage for follow-on build validation
 - `map-state.md` as the scan-stage workbench state surface
 
@@ -75,10 +74,10 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 - Do not silently downgrade unknown or unclassified project-relevant surfaces.
 - If the required scan lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 
-## Project Map State Protocol
+## Project Cognition Workbench State Protocol
 
-- `MAP_STATE_FILE=.specify/project-map/map-state.md`
-- Treat `.specify/project-map/map-state.md` as the refresh-workbench state surface for scan progress, accepted packets, and unresolved gaps.
+- `MAP_STATE_FILE=.specify/project-cognition/workbench/map-state.md`
+- Treat `.specify/project-cognition/workbench/map-state.md` as the refresh-workbench state surface for scan progress, accepted packets, and unresolved gaps.
 - Scan packets are executable read instructions, not final truth documents.
 - `MapScanPacket` is the required packet contract for each delegated scan lane.
 - Each packet must declare `mode: read_only` and a `result_handoff_path`.

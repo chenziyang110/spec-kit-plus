@@ -94,7 +94,7 @@ def test_map_build_template_targets_graph_reconstruction() -> None:
     content = _read("templates/commands/map-build.md")
 
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "specify project-cognition query" in content
+    assert "{{specify-subcmd:project-cognition query" in content
     assert "raw graph JSON artifacts or slices as runtime truth" in content
     assert "conflict" in content.lower()
     assert "claim" in content.lower()
