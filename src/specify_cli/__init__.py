@@ -83,6 +83,7 @@ from specify_cli.codex_team.runtime_bridge import (
     submit_runtime_result,
 )
 from specify_cli.cli_output import print_json
+from specify_cli.cognition import apply_cognition_update, query_project_cognition
 from specify_cli.execution import (
     build_result_handoff_path,
     write_normalized_result_handoff,
@@ -1706,6 +1707,59 @@ def project_map_status_command(
         console.print("[bold]Dirty Reasons[/bold]")
         for reason in status["dirty_reasons"]:
             console.print(f"- {reason}")
+
+
+@project_cognition_app.command("query")
+def project_cognition_query_command(
+    intent: str = typer.Option(..., "--intent", help="Task intent such as debug, implement, plan, or explain"),
+    query_text: str = typer.Option("", "--query", help="Natural-language project cognition query"),
+    paths: list[str] = typer.Option([], "--paths", help="Known touched path; may be specified more than once"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
+):
+    """Return a task-local project cognition bundle from the active project's graph store."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = query_project_cognition(project_root, intent=intent, query_text=query_text, paths=paths)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+    console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Query", border_style="cyan"))
+
+
+@project_cognition_app.command("update")
+def project_cognition_update_command(
+    changed_paths: list[str] = typer.Option(..., "--changed-paths", help="Changed path; may be specified more than once"),
+    reason: str = typer.Option("manual", "--reason", help="Update trigger or reason"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
+):
+    """Apply a bounded transactional project cognition update for changed paths."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = apply_cognition_update(project_root, changed_paths=changed_paths, reason=reason)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+    console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Update", border_style="cyan"))
+
+
+@project_cognition_app.command("doctor")
+def project_cognition_doctor_command(
+    output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
+):
+    """Inspect local project cognition database readiness."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    result = inspect_project_cognition_freshness(project_root)
+    if output_format.lower() == "json":
+        print_json(result, indent=2)
+        return
+    _render_project_map_freshness(result)
+
+
+@project_cognition_app.command("rebuild")
+def project_cognition_rebuild_command():
+    """Explain the rebuild workflow for the local project cognition database."""
+    console.print("Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to rebuild project cognition.")
 
 
 @cognition_app.command("discover")

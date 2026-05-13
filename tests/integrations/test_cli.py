@@ -2529,6 +2529,48 @@ def test_cognition_discover_reports_nested_project_cognition_candidates(tmp_path
     assert ".specify/project-map" not in json.dumps(payload)
 
 
+def test_project_cognition_cli_exposes_local_query_update_surface():
+    runner = CliRunner()
+
+    help_result = runner.invoke(app, ["project-cognition", "--help"], catch_exceptions=False)
+    query_help = runner.invoke(app, ["project-cognition", "query", "--help"], catch_exceptions=False)
+    update_help = runner.invoke(app, ["project-cognition", "update", "--help"], catch_exceptions=False)
+    cognition_help = runner.invoke(app, ["cognition", "--help"], catch_exceptions=False)
+
+    assert help_result.exit_code == 0, help_result.output
+    assert query_help.exit_code == 0, query_help.output
+    assert update_help.exit_code == 0, update_help.output
+    assert "--intent" in query_help.output
+    assert "--query" in query_help.output
+    assert "--paths" in query_help.output
+    assert "--changed-paths" in update_help.output
+    assert "Discover and read fresh cross-project cognition references" in cognition_help.output
+    assert "query" not in cognition_help.output.lower()
+
+
+def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "query-empty-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "query", "--intent", "debug", "--query", "login", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "needs_rebuild"
+    assert payload["recommended_next_action"] == "run_map_scan_build"
+
+
 def test_cognition_read_outputs_minimal_reference_read_order_without_project_map_fallback(tmp_path):
     runner = CliRunner()
     project = tmp_path / "project"
