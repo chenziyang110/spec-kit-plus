@@ -557,6 +557,10 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "Boundary Guardrail Table" in analyze_content
     assert "Closed-loop requirement" in analyze_content
     assert "Recommended Re-entry" in analyze_content
+    assert "Blocker Bundle" in analyze_content
+    assert "fingerprint-first" in analyze_content.lower()
+    assert "missed_by_previous_analyze" in analyze_content
+    assert "No more than one task-layer remediation cycle is expected" in analyze_content
     assert "This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`." in analyze_content
     assert "workflow-state.md" in analyze_content
     assert "analysis-only" in analyze_content.lower()
