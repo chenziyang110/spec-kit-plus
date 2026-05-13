@@ -154,6 +154,12 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert ".specify/project-cognition/status.json" in lower
     assert ".specify/project-cognition/project-cognition.db" in lower
     assert "project-cognition query" in lower
+    assert "project-cognition complete-refresh" in lower
+    assert "project-cognition mark-dirty" in lower
+    assert ".specify/project-map/" not in lower
+    assert "project-map complete-refresh" not in lower
+    assert "project-map mark-dirty" not in lower
+    assert "use that launcher instead of path `specify`" in lower
     assert "minimal_live_reads" in lower
     assert "sp-map-update" in lower
     assert "not the ordinary first-read runtime contract for workflow routing" in lower

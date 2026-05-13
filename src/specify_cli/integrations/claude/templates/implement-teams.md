@@ -18,7 +18,7 @@ User-facing workflow skill:
 This gate is mandatory and precedes all broad implementation-context recovery.
 
 1. After `{SCRIPT}` resolves `FEATURE_DIR` and confirms `tasks.md` exists, the first non-prerequisite action is creating or resuming the Claude Agent Team.
-2. Do not read `plan.md`, `tasks.md` beyond the minimum existence/status check, project cognition runtime files, compatibility/export files such as `PROJECT-HANDBOOK.md` or `.specify/project-map/*`, implementation files, or test files before this gate passes.
+2. Do not read `plan.md`, `tasks.md` beyond the minimum existence/status check, project cognition runtime files, compatibility/export files such as `PROJECT-HANDBOOK.md`, implementation files, or test files before this gate passes.
 3. Do not run validation, edit files, or inspect broad implementation context before this gate passes.
 4. If a Claude Agent Team for the same feature slug already exists, resume that team and inspect only its ledger and shared task list until the leader has confirmed the team state.
 5. If `TeamCreate`, team resume, shared task records, or native teammate launch is unavailable, stop and report that Claude Agent Teams is unavailable for this `/sp-implement-teams` run.
@@ -71,7 +71,7 @@ TeamCreate({
    - include the `{{specify-subcmd:project-cognition query --intent implement --query "$ARGUMENTS" --format json}}` result for the current batch
    - include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane
    - include `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` as the runtime freshness/store boundary when the teammate must acknowledge the underlying cognition runtime
-   - include compatibility/export files such as `PROJECT-HANDBOOK.md` or `.specify/project-map/*.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported atlas wording
+   - include compatibility/export files such as `PROJECT-HANDBOOK.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported handbook wording
    - include `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present
    - for each bundled item, preserve the path or query source, why it matters, and a read order so the teammate knows which query results are primary and which compatibility/export artifacts are supplementary
 8. Convert the ready implementation slices into explicit shared tasks with `TaskCreate`.

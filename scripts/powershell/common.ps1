@@ -411,6 +411,21 @@ function Resolve-Template {
     return $null
 }
 
+function Get-ProjectCognitionDir {
+    param([string]$RepoRoot = (Get-RepoRoot))
+    return (Join-Path $RepoRoot ".specify/project-cognition")
+}
+
+function Get-ProjectCognitionStatusPath {
+    param([string]$RepoRoot = (Get-RepoRoot))
+    return (Join-Path (Get-ProjectCognitionDir -RepoRoot $RepoRoot) "status.json")
+}
+
+function Get-ProjectCognitionHelperPath {
+    param([string]$RepoRoot = (Get-RepoRoot))
+    return (Join-Path $RepoRoot ".specify/scripts/powershell/project-map-freshness.ps1")
+}
+
 function Get-ProjectMapDir {
     param([string]$RepoRoot = (Get-RepoRoot))
     return (Join-Path $RepoRoot ".specify/project-map")
@@ -418,7 +433,7 @@ function Get-ProjectMapDir {
 
 function Get-ProjectMapStatusPath {
     param([string]$RepoRoot = (Get-RepoRoot))
-    return (Join-Path (Join-Path (Get-ProjectMapDir -RepoRoot $RepoRoot) "index") "status.json")
+    return (Get-ProjectCognitionStatusPath -RepoRoot $RepoRoot)
 }
 
 function Get-LegacyProjectMapStatusPath {

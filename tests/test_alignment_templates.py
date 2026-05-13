@@ -2097,8 +2097,8 @@ def test_script_contracts_expose_context_artifact_paths():
     assert "CONTEXT       = Join-Path $featureDir 'context.md'" in ps_common
     assert "CONTEXT      = $paths.CONTEXT" in ps_check
     assert "[string]$FeatureDir" in ps_check
-    assert "PROJECT_MAP_STATUS = (Get-ProjectMapStatusPath -RepoRoot $paths.REPO_ROOT)" in ps_check
-    assert 'PROJECT_MAP_HELPER = (Join-Path $paths.REPO_ROOT ".specify/scripts/powershell/project-map-freshness.ps1")' in ps_check
+    assert "PROJECT_COGNITION_STATUS = (Get-ProjectCognitionStatusPath -RepoRoot $paths.REPO_ROOT)" in ps_check
+    assert "PROJECT_COGNITION_HELPER = (Get-ProjectCognitionHelperPath -RepoRoot $paths.REPO_ROOT)" in ps_check
     assert "context.md" in ps_check
     assert "CONTEXT = $paths.CONTEXT" in ps_setup
     assert "SPECIFY_DRAFT = Join-Path $featureDir 'specify-draft.md'" in ps_common
@@ -2112,8 +2112,8 @@ def test_script_contracts_expose_context_artifact_paths():
     assert "Get-FeatureSpecsRoots" in ps_common
     assert '--arg context "$CONTEXT"' in sh_check
     assert '--feature-dir' in sh_check
-    assert '--arg project_map_status "$(project_map_status_path "$REPO_ROOT")"' in sh_check
-    assert '--arg project_map_helper "$REPO_ROOT/.specify/scripts/bash/project-map-freshness.sh"' in sh_check
+    assert '--arg project_cognition_status "$(project_cognition_status_path "$REPO_ROOT")"' in sh_check
+    assert '--arg project_cognition_helper "$(project_cognition_helper_path "$REPO_ROOT")"' in sh_check
     assert '"CONTEXT":"%s"' in sh_check
     assert '--arg context "$CONTEXT"' in sh_setup
     assert '--arg feature_dir "$FEATURE_DIR"' in sh_setup

@@ -2356,7 +2356,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "minimal_live_reads" in lower
     assert ".specify/project-cognition/slices/change.json" not in lower
     assert "project-handbook.md" in lower
-    assert ".specify/project-map/*.md" in lower
+    assert ".specify/project-map/*.md" not in lower
     assert ".specify/testing/TESTING_CONTRACT.md".lower() in lower
     assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lower
     assert "read-order" in lower or "read order" in lower

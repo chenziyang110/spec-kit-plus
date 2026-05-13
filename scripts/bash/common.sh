@@ -426,6 +426,21 @@ except Exception:
     return 1
 }
 
+project_cognition_dir() {
+    local repo_root="${1:-$(get_repo_root)}"
+    echo "$repo_root/.specify/project-cognition"
+}
+
+project_cognition_status_path() {
+    local repo_root="${1:-$(get_repo_root)}"
+    echo "$(project_cognition_dir "$repo_root")/status.json"
+}
+
+project_cognition_helper_path() {
+    local repo_root="${1:-$(get_repo_root)}"
+    echo "$repo_root/.specify/scripts/bash/project-map-freshness.sh"
+}
+
 project_map_dir() {
     local repo_root="${1:-$(get_repo_root)}"
     echo "$repo_root/.specify/project-map"
@@ -433,7 +448,7 @@ project_map_dir() {
 
 project_map_status_path() {
     local repo_root="${1:-$(get_repo_root)}"
-    echo "$(project_map_dir "$repo_root")/index/status.json"
+    project_cognition_status_path "$repo_root"
 }
 
 legacy_project_map_status_path() {
