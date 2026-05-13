@@ -6,6 +6,7 @@ from collections import defaultdict
 from contextlib import closing
 from pathlib import Path
 import re
+import sqlite3
 from typing import Any
 
 from .db import connect_cognition_db, ensure_cognition_db, get_active_generation_id
@@ -124,16 +125,19 @@ def _resolve_claim_fts(conn: Any, generation_id: str, query_text: str) -> list[d
     if not normalized_query:
         return []
 
-    safe_query = " OR ".join(token for token in re.findall(r"[\w\u4e00-\u9fff.:-]+", normalized_query) if token)
+    safe_query = " OR ".join(token for token in re.findall(r"\w+", normalized_query) if token)
     if not safe_query:
         return []
 
-    rows = conn.execute(
-        "SELECT claims.subject_ref, claims.id AS claim_id FROM claim_fts "
-        "JOIN claims ON claims.id = claim_fts.claim_id "
-        "WHERE claims.generation_id = ? AND claim_fts MATCH ? LIMIT 10",
-        (generation_id, safe_query),
-    ).fetchall()
+    try:
+        rows = conn.execute(
+            "SELECT claims.subject_ref, claims.id AS claim_id FROM claim_fts "
+            "JOIN claims ON claims.id = claim_fts.claim_id "
+            "WHERE claims.generation_id = ? AND claim_fts MATCH ? LIMIT 10",
+            (generation_id, safe_query),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
     return [
         {
             "node_id": str(row["subject_ref"]),

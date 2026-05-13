@@ -1,6 +1,8 @@
 from contextlib import closing
 from pathlib import Path
 
+import pytest
+
 from specify_cli.cognition import (
     connect_cognition_db,
     ensure_cognition_db,
@@ -113,6 +115,25 @@ def test_query_reports_needs_update_when_path_is_missing_even_with_query_candida
     assert result["readiness"] == "needs_update"
     assert result["recommended_next_action"] == "run_map_update"
     assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
+
+
+@pytest.mark.parametrize(
+    "query_text",
+    [
+        "AuthService.login",
+        "foo-bar",
+        "capability:auth.login",
+        "src/auth/login.ts",
+        "login:",
+        "login - password",
+    ],
+)
+def test_query_tolerates_punctuation_heavy_fts_input(tmp_path: Path, query_text: str) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(tmp_path, intent="debug", query_text=query_text, paths=[])
+
+    assert result["readiness"] in {"ready", "needs_update"}
 
 
 def test_query_reports_ambiguous_when_candidates_are_close(tmp_path: Path) -> None:
