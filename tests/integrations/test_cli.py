@@ -9,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from specify_cli import app
+from tests.conftest import strip_ansi
 
 
 def test_top_level_cli_exposes_discussion_entrypoint():
@@ -2570,10 +2571,12 @@ def test_project_cognition_cli_exposes_local_query_update_surface():
     assert help_result.exit_code == 0, help_result.output
     assert query_help.exit_code == 0, query_help.output
     assert update_help.exit_code == 0, update_help.output
-    assert "--intent" in query_help.output
-    assert "--query" in query_help.output
-    assert "--paths" in query_help.output
-    assert "--changed-paths" in update_help.output
+    query_output = strip_ansi(query_help.output)
+    update_output = strip_ansi(update_help.output)
+    assert "--intent" in query_output
+    assert "--query" in query_output
+    assert "--paths" in query_output
+    assert "--changed-paths" in update_output
     assert "Discover and read fresh cross-project cognition references" in cognition_help.output
     assert "query" not in cognition_help.output.lower()
 

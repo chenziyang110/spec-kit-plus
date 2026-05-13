@@ -17,7 +17,6 @@ from .utils import generate_slug, get_debug_dir
 from .graph import run_debug_session
 from ..learnings import capture_auto_learning
 from ..project_cognition_status import inspect_project_cognition_freshness
-from ..project_map_status import inspect_project_map_freshness
 
 console = Console()
 debug_app = typer.Typer(help="Systematic debugging engine for Spec Kit Plus.")

@@ -189,7 +189,7 @@ def test_debug_preflight_blocks_on_support_drift(clean_debug_dir, monkeypatch):
 
     monkeypatch.setattr(
         cli_module,
-        "inspect_project_map_freshness",
+        "inspect_project_cognition_freshness",
         lambda _project_root: {
             "freshness": "support_drift",
             "state": "support_drift",
@@ -209,7 +209,7 @@ def test_debug_preflight_blocks_on_partial_refresh(clean_debug_dir, monkeypatch)
 
     monkeypatch.setattr(
         cli_module,
-        "inspect_project_map_freshness",
+        "inspect_project_cognition_freshness",
         lambda _project_root: {
             "freshness": "partial_refresh",
             "state": "partial_refresh",

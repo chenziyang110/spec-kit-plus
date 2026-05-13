@@ -10,7 +10,6 @@ from specify_cli.project_cognition_status import (
     git_head_commit,
     has_git_repo,
     inspect_project_cognition_freshness,
-    inspect_project_map_freshness,
     mark_project_map_dirty,
     project_map_status_path,
 )
@@ -18,8 +17,6 @@ from specify_cli.project_cognition_status import (
 from .events import (
     PROJECT_COGNITION_COMPLETE_REFRESH,
     PROJECT_COGNITION_MARK_DIRTY,
-    PROJECT_MAP_COMPLETE_REFRESH,
-    PROJECT_MAP_MARK_DIRTY,
 )
 from .types import HookResult, QualityHookError
 

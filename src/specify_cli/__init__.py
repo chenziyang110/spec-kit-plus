@@ -112,8 +112,6 @@ from specify_cli.project_cognition_status import (
     git_head_commit,
     inspect_project_cognition_freshness,
     inspect_project_cognition_freshness_for_command,
-    inspect_project_map_freshness,
-    inspect_project_map_freshness_for_command,
     legacy_project_map_status_path,
     mark_project_map_dirty,
     mark_project_map_refreshed,
