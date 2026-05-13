@@ -37,6 +37,20 @@
 - reopen_target: [none | brainstorming | specify | plan | tasks]
 - reopen_reason: [why a prior truth layer must be reopened]
 
+## Analyze Gate
+
+- gate_status: [not-run | cleared | blocked]
+- gate_cycle: [0]
+- highest_invalid_stage: [none | clarify | deep-research | plan | tasks | execution-only]
+- blocker_bundle:
+  - [finding-id | invalid-stage | open | compact summary and remediation requirement]
+- artifact_fingerprint_basis:
+  - spec.md: [summary or hash when available]
+  - context.md: [summary or hash when available]
+  - plan.md: [summary or hash when available]
+  - tasks.md: [summary or hash when available]
+- new_finding_attribution: [none | missed_by_previous_analyze | introduced_by_remediation | upstream_artifact_changed | detector_scope_changed]
+
 ## Handoff Files
 
 - handoff_to_specify: [path or none]

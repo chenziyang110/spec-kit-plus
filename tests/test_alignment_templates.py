@@ -1059,6 +1059,16 @@ def test_workflow_state_template_supports_analyze_gate_phase():
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
+    assert "## Analyze Gate" in content
+    assert "gate_status" in content
+    assert "gate_cycle" in content
+    assert "highest_invalid_stage" in content
+    assert "blocker_bundle" in content
+    assert "artifact_fingerprint_basis" in content
+    assert "missed_by_previous_analyze" in content
+    assert "introduced_by_remediation" in content
+    assert "upstream_artifact_changed" in content
+    assert "detector_scope_changed" in content
     assert "/sp.constitution" not in content
 
 
