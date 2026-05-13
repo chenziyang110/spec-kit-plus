@@ -37,7 +37,7 @@ and what sits clearly outside the system boundary.]
   explicit-only, supplemental-only, fresh-only context with a minimal read before
   broader source inspection.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface.
-- Read this handbook only when a user or workflow explicitly asks for the compatibility/export view.
+- Read this handbook only when a user or workflow explicitly asks for the compatibility/export view; it is not the default runtime truth path.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed.
 - Support drift is not runtime-truth staleness; resolve support-surface drift without reflexively routing to `map-update`.

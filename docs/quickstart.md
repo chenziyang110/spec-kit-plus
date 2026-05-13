@@ -259,8 +259,8 @@ For Codex team-mode execution, use the runtime surface deliberately:
 
 Generated project navigation now follows the project cognition runtime:
 
-- Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface.
-- Read the cognition status and the smallest matching slice before broader repository analysis.
+- Generated projects use `.specify/project-cognition/status.json` plus the task-local `project-cognition query` bundle as the default brownfield runtime truth surface.
+- Read the cognition status and the returned task-local bundle before broader repository analysis.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - Any code change that alters navigation meaning must update the project cognition runtime.
