@@ -320,6 +320,11 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         if not tokens:
             return match.group(0)
         if launcher is None:
+            if tokens[0] == "project-cognition":
+                return (
+                    "invoke the project launcher configured in `.specify/config.json` with "
+                    f"`{args_text}`; fall back to PATH `specify` only when no project launcher is configured"
+                )
             return render_command((*default.argv, *tokens))
         subcommand = project_specify_subcommand(project_root, tokens)
         return subcommand.command if subcommand is not None else render_command((*default.argv, *tokens))

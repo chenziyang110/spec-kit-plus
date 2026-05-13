@@ -630,7 +630,8 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "provisional" in scan_content
 
     assert ".specify/project-cognition/project-cognition.db" in build_content
-    assert "specify project-cognition query" in build_content
+    assert "project launcher configured in `.specify/config.json`" in build_content
+    assert "project-cognition query" in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
     assert "raw graph json artifacts or slices as runtime truth" in build_content
     assert "spawn_agent" in build_content
