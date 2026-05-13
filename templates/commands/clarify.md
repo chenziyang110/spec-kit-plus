@@ -117,7 +117,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      Run or emulate:
 
      ```text
-     specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+     {{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
      ```
 
      Use the returned readiness:
@@ -191,7 +191,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - if this repair pass proves the current project cognition runtime no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds
+   - if this repair pass proves the current project cognition runtime no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback before later brownfield implementation proceeds
 
 ## Presentation Contract
 

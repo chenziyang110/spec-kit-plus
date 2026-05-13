@@ -106,7 +106,7 @@ Use `execution_surface: native-subagents`.
      Run or emulate:
 
      ```text
-     specify project-cognition query --intent test --query "$ARGUMENTS" --format json
+     {{specify-subcmd:project-cognition query --intent test --query "$ARGUMENTS" --format json}}
      ```
 
      Use the returned readiness:

@@ -39,7 +39,7 @@ repository reads.
 Run or emulate:
 
 ```text
-specify project-cognition query --intent implement --query "$ARGUMENTS" --format json
+{{specify-subcmd:project-cognition query --intent implement --query "$ARGUMENTS" --format json}}
 ```
 
 Use the returned readiness:
@@ -295,8 +295,8 @@ resume_decision: [resume here | blocked waiting | resolved]
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before marking the quick task `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `specify project-map complete-refresh` as the successful-refresh finalizer.
-- If a refresh cannot be completed now, use `specify project-map mark-dirty` as the manual override/fallback with command shape `specify project-map mark-dirty --reason "<reason>"`, and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before marking the quick task `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:project-cognition complete-refresh --format json}}` as the successful-refresh finalizer.
+- If a refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback with command shape `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}`, and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
 
 ## Propagating Change Rule
 

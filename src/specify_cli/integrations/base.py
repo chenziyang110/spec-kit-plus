@@ -508,7 +508,7 @@ class IntegrationBase(ABC):
         }.get(command_name, "implement")
         return (
             "**Crucial First Step**: You MUST query project cognition first with "
-            f"`specify project-cognition query --intent {intent} --query \"$ARGUMENTS\" --format json` "
+            f"`{{{{specify-subcmd:project-cognition query --intent {intent} --query \"$ARGUMENTS\" --format json}}}}` "
             f"{command_step}, then use the returned readiness, task-local bundle, and `minimal_live_reads`."
         )
 
@@ -1281,6 +1281,8 @@ class MarkdownIntegration(IntegrationBase):
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=src_file.stem,
             )
+            from specify_cli.launcher import render_project_launcher_placeholders
+            processed = render_project_launcher_placeholders(project_root, processed)
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
                 processed, dest / dst_name, project_root, manifest
@@ -1482,6 +1484,8 @@ class TomlIntegration(IntegrationBase):
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=src_file.stem,
             )
+            from specify_cli.launcher import render_project_launcher_placeholders
+            processed = render_project_launcher_placeholders(project_root, processed)
             _, body = self._split_frontmatter(processed)
             toml_content = self._render_toml(description, body)
             dst_name = self.command_filename(src_file.stem)
@@ -1780,6 +1784,8 @@ class SkillsIntegration(IntegrationBase):
                 skill_content = self._append_specify_brainstorming_kernel_guidance(
                     content=skill_content,
                 )
+            from specify_cli.launcher import render_project_launcher_placeholders
+            skill_content = render_project_launcher_placeholders(project_root, skill_content)
 
             # Write sp-<name>/SKILL.md
             skill_dir = skills_dir / skill_name

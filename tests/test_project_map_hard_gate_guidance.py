@@ -55,7 +55,7 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     assert ".specify/project-map/index/" not in navigation_shim
 
     debug_content = _read("templates/commands/debug.md").lower()
-    assert "specify project-cognition query --intent debug" in debug_content
+    assert '{{specify-subcmd:project-cognition query --intent debug --query "$arguments" --format json}}' in debug_content
     assert "minimal_live_reads" in debug_content
     assert "debug-handbook.md" not in debug_content
     assert "debug-workflow-contract" not in debug_content

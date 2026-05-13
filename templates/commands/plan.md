@@ -112,7 +112,7 @@ agent_scripts:
    - Read `.specify/memory/project-rules.md` if present
    - Read `.specify/memory/learnings/INDEX.md` if present
    - Open only linked learning detail docs relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
-   - [AGENT] Query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`.
+   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}`.
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Read `templates/workflow-state-template.md`
@@ -137,7 +137,7 @@ repository reads.
 Run or emulate:
 
 ```text
-specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
 ```
 
 Use the returned readiness:
@@ -243,7 +243,7 @@ Use the returned readiness:
     - generated artifacts
     - workflow-state path
     - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
-    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds
+    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback before later brownfield implementation proceeds
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`
       - `phase_mode: design-only`

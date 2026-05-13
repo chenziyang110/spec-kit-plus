@@ -136,7 +136,7 @@ repository reads.
 Run or emulate:
 
 ```text
-specify project-cognition query --intent debug --query "$ARGUMENTS" --format json
+{{specify-subcmd:project-cognition query --intent debug --query "$ARGUMENTS" --format json}}
 ```
 
 Use the returned readiness:
@@ -152,7 +152,7 @@ Use the returned readiness:
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Query project cognition with `specify project-cognition query --intent debug --query "$ARGUMENTS" --format json` before trusting existing brownfield routing assumptions.
+- Query project cognition with `{{specify-subcmd:project-cognition query --intent debug --query "$ARGUMENTS" --format json}}` before trusting existing brownfield routing assumptions.
 - If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
 - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.
@@ -453,8 +453,8 @@ The session file must always make it clear:
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
 - Treat the returned `project-cognition query` bundle and readiness as the truth source for brownfield debug runtime coverage; use only returned `minimal_live_reads` when needed.
-- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains; then run `specify project-map complete-refresh` as the successful-refresh finalizer.
-- If that refresh cannot be completed now, use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback and tell the user to refresh the project cognition runtime before later brownfield work proceeds.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains; then run `{{specify-subcmd:project-cognition complete-refresh --format json}}` as the successful-refresh finalizer.
+- If that refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback and tell the user to refresh the project cognition runtime before later brownfield work proceeds.
 - [AGENT] Resolved debug sessions should auto-capture reusable lessons from the persisted debug session state into index/detail entries.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.
 - [AGENT] If the auto-capture pass produced no captured lesson but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface to create or merge an index/detail entry.

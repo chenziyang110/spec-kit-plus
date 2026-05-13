@@ -107,7 +107,7 @@ scripts:
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
    - **Required when present**: `.specify/memory/learnings/INDEX.md` (searchable reusable learning index that may shape decomposition, validation, or guardrails)
    - **Required when relevant index entries exist**: open only the linked learning detail docs relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
-   - **Required**: [AGENT] Query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`.
+   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}`.
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion; then inspect the minimum live files still needed to replace guesswork with evidence
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
@@ -120,7 +120,7 @@ repository reads.
 Run or emulate:
 
 ```text
-specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
 ```
 
 Use the returned readiness:
@@ -278,7 +278,7 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
       - write-set conflict status
     - Recommended next command: `{{invoke:analyze}}` for normal completed or non-escalated task generation.
     - For escalated remediation: preserve the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stop without an analyze handoff.
-    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the project cognition runtime, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds.
+    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the project cognition runtime, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback before later brownfield implementation proceeds.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

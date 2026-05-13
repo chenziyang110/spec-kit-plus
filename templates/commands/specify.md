@@ -55,7 +55,7 @@ repository reads.
 Run or emulate:
 
 ```text
-specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
 ```
 
 Use the returned readiness:
@@ -241,7 +241,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/project-rules.md` if present.
    - Read `.specify/memory/learnings/INDEX.md` if present.
    - Open only linked learning detail docs relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
-   - [AGENT] Query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`.
+   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
    - From the project cognition runtime, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
@@ -912,7 +912,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - release decision
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
-    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current query-backed runtime does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield execution work proceeds
+    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current query-backed runtime does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback before later brownfield execution work proceeds
     - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `user_preference`, or `project_constraint`, use the manual `learning capture` helper surface.
       Required options: `--command`, `--type`, `--summary`, `--evidence`
     - leave one-off runs as `--decision none` with no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence

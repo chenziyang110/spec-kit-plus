@@ -23,6 +23,10 @@ def _read_project_file(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
+def _launcher_query(intent: str) -> str:
+    return f'{{{{specify-subcmd:project-cognition query --intent {intent} --query "$ARGUMENTS" --format json}}}}'
+
+
 def _assert_learning_index_detail_model(content: str) -> None:
     assert ".specify/memory/learnings/INDEX.md" in content
     assert "detail document" in content or "detail docs" in content
@@ -434,7 +438,7 @@ def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert "specify project-cognition query --intent plan" in content
+    assert _launcher_query("plan") in content
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -753,11 +757,28 @@ def test_primary_tui_templates_avoid_closed_ascii_card_examples():
         )
 
 
+def test_generated_workflow_templates_use_launcher_backed_cognition_helpers() -> None:
+    command_dir = PROJECT_ROOT / "templates" / "commands"
+    offenders: list[str] = []
+    for path in command_dir.glob("*.md"):
+        content = path.read_text(encoding="utf-8")
+        for bare in (
+            "specify project-cognition query",
+            "specify project-cognition complete-refresh",
+            "specify project-cognition mark-dirty",
+            "specify project-map complete-refresh",
+            "specify project-map mark-dirty",
+        ):
+            if bare in content:
+                offenders.append(f"{path.relative_to(PROJECT_ROOT)} contains {bare}")
+    assert offenders == []
+
+
 def test_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
-    assert "specify project-cognition query --intent plan" in content
+    assert _launcher_query("plan") in content
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -906,7 +927,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "specify project-cognition query --intent plan" in content
+    assert _launcher_query("plan") in content
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -1035,7 +1056,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "`next_command: /sp.implement`" in content
     assert "when no upstream remediation is required" in lowered
     assert "`next_command: /sp.plan`" in content or "`next_command: /sp.tasks`" in content
-    assert "specify project-cognition query --intent implement" in content
+    assert _launcher_query("implement") in content
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -1669,7 +1690,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
         "Note: This command assumes a complete task breakdown exists in tasks.md.",
     )
 
-    assert "specify project-cognition query --intent implement" in content
+    assert _launcher_query("implement") in content
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -1827,10 +1848,10 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     lowered_shim = navigation_shim.lower()
 
     assert "DEBUG-HANDBOOK.md" not in debug_template
-    assert "specify project-cognition query --intent debug" in debug_template
+    assert _launcher_query("debug") in debug_template
     assert "minimal_live_reads" in debug_template
     assert "BUILD-HANDBOOK.md" not in build_template
-    assert "specify project-cognition query --intent implement" in build_template
+    assert _launcher_query("implement") in build_template
     assert "minimal_live_reads" in build_template
     assert "project cognition runtime" in lowered_gate
     assert "specify project-cognition query" in shared_gate
