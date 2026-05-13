@@ -8,6 +8,30 @@ def _read(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
+def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> None:
+    workflow_files = [
+        "fast.md",
+        "quick.md",
+        "specify.md",
+        "clarify.md",
+        "deep-research.md",
+        "plan.md",
+        "tasks.md",
+        "implement.md",
+        "debug.md",
+        "test-scan.md",
+        "test-build.md",
+        "prd-scan.md",
+    ]
+    for name in workflow_files:
+        content = (PROJECT_ROOT / "templates" / "commands" / name).read_text(encoding="utf-8").lower()
+        assert "project-cognition query" in content
+        assert ".specify/project-cognition/graph/nodes.json" not in content
+        assert ".specify/project-cognition/graph/edges.json" not in content
+        assert ".specify/project-cognition/graph/claims.json" not in content
+        assert ".specify/project-cognition/graph/conflicts.json" not in content
+
+
 def test_map_scan_template_targets_graph_native_runtime() -> None:
     content = _read("templates/commands/map-scan.md")
 
@@ -21,9 +45,9 @@ def test_map_scan_template_targets_graph_native_runtime() -> None:
 def test_map_build_template_targets_graph_reconstruction() -> None:
     content = _read("templates/commands/map-build.md")
 
-    assert ".specify/project-cognition/graph/nodes.json" in content
-    assert ".specify/project-cognition/graph/claims.json" in content
-    assert ".specify/project-cognition/slices/" in content
+    assert ".specify/project-cognition/project-cognition.db" in content
+    assert "specify project-cognition query" in content
+    assert "raw graph JSON artifacts or slices as runtime truth" in content
     assert "conflict" in content.lower()
     assert "claim" in content.lower()
 
@@ -42,6 +66,7 @@ def test_map_update_template_exists_and_is_incremental() -> None:
     assert "partial_refresh" in content.lower()
     assert "user-supplied scope is authoritative for the touched area unless repository evidence disproves it" in content.lower()
     assert "prefer the smallest update that can truthfully restore readiness" in content.lower()
-    assert "do not re-read or rewrite the full graph when status.json, graph/updates.json, and one or two affected slices are sufficient" in content.lower()
+    assert "do not read or rewrite raw graph json artifacts; they are not runtime truth" in content.lower()
+    assert ".specify/project-cognition/project-cognition.db" in content
     assert "do not split small localized updates into parallel scan-style lanes just because subagents are available" in content.lower()
     assert "escalate to `sp-map-scan`, then `sp-map-build` only when the current baseline is unusable or the affected closure cannot be bounded safely" in content.lower()

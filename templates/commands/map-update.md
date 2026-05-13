@@ -1,15 +1,15 @@
 ---
-description: Use when a graph-native project cognition baseline already exists and diff-based evidence refresh or user-supplied corrections must update it incrementally.
+description: Use when a query-backed project cognition baseline already exists and diff-based evidence refresh or user-supplied corrections must update it incrementally.
 workflow_contract:
   when_to_use: A project cognition baseline exists and repository changes or user supplements must update the runtime without a full rebuild.
-  primary_objective: Compute impact closure, refresh affected evidence, update claims and conflicts, and rebuild only the affected graph slices.
-  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/graph/updates.json`, refreshed graph artifacts, and refreshed slices under `.specify/project-cognition/slices/`.'
-  default_handoff: Return to the blocked workflow once the affected slices are green or yellow.
+  primary_objective: Compute impact closure, refresh affected evidence, update claims and conflicts, and update only the affected SQLite runtime records.
+  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
+  default_handoff: Return to the blocked workflow once the affected query scope is green or yellow.
 ---
 
 ## Objective
 
-Refresh the existing graph-native project cognition baseline incrementally from diff-driven evidence or explicit user corrections.
+Refresh the existing query-backed project cognition baseline incrementally from diff-driven evidence or explicit user corrections.
 
 ## Mandatory Subagent Execution
 
@@ -25,20 +25,20 @@ Use `execution_surface: native-subagents`.
 
 ## Process
 
-- Read the current graph-native baseline and determine the affected closure before editing runtime outputs.
+- Query the current project cognition baseline and determine the affected closure before editing runtime outputs.
 - Prefer the smallest update that can truthfully restore readiness.
 - Treat explicit user corrections and user-supplied scope as first-class routing input; user-supplied scope is authoritative for the touched area unless repository evidence disproves it.
 - Dispatch only validated incremental update lanes with bounded affected scope.
 - A tiny localized refresh may stay as one bounded lane even when native subagents are available.
 - If a safe update lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
-- Rebuild only the affected graph slices when the evidence proves the scoped refresh is sufficient.
+- Update only the affected runtime records when the evidence proves the scoped refresh is sufficient.
 
 ## Incremental Rule
 
 - `sp-map-update` is the normal maintenance entrypoint after baseline build.
 - It must accept both diff-driven and user-supplement-driven updates.
-- It must update graph-native cognition artifacts incrementally.
-- It must treat `.specify/project-cognition/status.json` as the runtime truth source for post-update readiness.
+- It must update the query-backed cognition runtime incrementally.
+- It must treat `.specify/project-cognition/status.json` plus `.specify/project-cognition/project-cognition.db` as the runtime truth source for post-update readiness.
 - It must not silently escalate to a full rebuild without recording why.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
@@ -51,33 +51,29 @@ Use `execution_surface: native-subagents`.
 At minimum, read:
 
 - `.specify/project-cognition/status.json`
-- `.specify/project-cognition/graph/nodes.json`
-- `.specify/project-cognition/graph/edges.json`
-- `.specify/project-cognition/graph/claims.json`
-- `.specify/project-cognition/graph/conflicts.json`
-- `.specify/project-cognition/graph/updates.json` if present
-- affected graph slices under `.specify/project-cognition/slices/` when they exist
-- relevant existing evidence records under `.specify/project-cognition/evidence/`
+- `.specify/project-cognition/project-cognition.db` through the
+  `project-cognition` query/update helpers
 - changed paths or changed commit range
 - user supplement input if provided
+
+Do not read or rewrite raw graph JSON artifacts; they are not runtime truth.
 
 ## Output Contract
 
 The canonical outputs for this command are:
 
 - updated `.specify/project-cognition/status.json`
-- updated `.specify/project-cognition/graph/updates.json`
-- refreshed affected graph artifacts
-- refreshed affected slices
+- updated `.specify/project-cognition/project-cognition.db`
+- query/update helper readiness metadata
 - the post-recording freshness result, including `freshness`, `readiness`, and `recommended_next_action`
 - when the post-recording freshness result is ready, a completed compatibility finalizer via `specify project-map complete-refresh`
 
 ## Guardrails
 
 - Do not silently escalate to a full rebuild without recording why.
-- Do not refresh unaffected slices just because the touched area is ambiguous.
+- Do not refresh unaffected runtime records just because the touched area is ambiguous.
 - Do not invent closure when changed paths or user supplements do not support the update.
-- Do not re-read or rewrite the full graph when status.json, graph/updates.json, and one or two affected slices are sufficient.
+- Do not re-read or rewrite raw graph JSON artifacts; use the query/update helpers and the smallest affected runtime records that can truthfully restore readiness.
 - Do not split small localized updates into parallel scan-style lanes just because subagents are available.
 - If the affected update lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 
@@ -94,7 +90,7 @@ The canonical outputs for this command are:
 - refresh affected evidence
 - invalidate stale claims
 - update or create conflicts
-- rebuild only affected graph slices when safe
+- update only affected runtime records when safe
 - produce an incremental update record
 - verify the shared freshness contract after the update record is written
 - run the successful-refresh finalizer when that verification proves the runtime ready

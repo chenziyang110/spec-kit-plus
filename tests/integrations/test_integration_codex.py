@@ -301,8 +301,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
-    assert ".specify/project-cognition/status.json" in content.lower()
-    assert ".specify/project-cognition/slices/change.json" in content.lower()
+    assert "project-cognition query --intent implement" in content.lower()
+    assert "minimal_live_reads" in content.lower()
     assert "build-handbook.md" not in content.lower()
     assert "build-workflow-contract" not in content.lower()
     assert "product-and-capability-map" not in content.lower()
@@ -598,12 +598,10 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "close_agent" in scan_content
     assert "provisional" in scan_content
 
-    assert ".specify/project-cognition/graph/nodes.json" in build_content
-    assert ".specify/project-cognition/graph/edges.json" in build_content
-    assert ".specify/project-cognition/graph/claims.json" in build_content
-    assert ".specify/project-cognition/graph/conflicts.json" in build_content
+    assert ".specify/project-cognition/project-cognition.db" in build_content
+    assert "specify project-cognition query" in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
-    assert ".specify/project-cognition/slices/" in build_content
+    assert "raw graph json artifacts or slices as runtime truth" in build_content
     assert "spawn_agent" in build_content
     assert "wait_agent" in build_content
     assert "close_agent" in build_content
@@ -647,10 +645,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "codex subagent evidence collection" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/debug.json" in content
-    assert ".specify/project-cognition/graph/claims.json" in content
-    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "project-cognition query --intent debug" in content
+    assert "minimal_live_reads" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
     assert "symptom-to-surface-routing" not in content
@@ -792,8 +788,8 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "do not read constitution, project-rules, or project-learnings" in content
     assert "leave `.specify/memory/learnings/index.md`" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "project-cognition query --intent implement" in content
+    assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "shared surfaces" in content
     assert "cognition gate" in content
@@ -832,8 +828,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".specify/memory/learnings/index.md" in content
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "project-cognition query --intent implement" in content
+    assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content

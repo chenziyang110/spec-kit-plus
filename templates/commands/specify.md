@@ -49,25 +49,23 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project cognition gate:** you must pass the graph-native cognition gate before
-repository analysis, planning-critical clarification, or
-implementation-shaping code reads begin.
+**Project cognition gate:** query the active project's runtime before broad
+repository reads.
 
-**This command tier: heavy.** Pass the cognition gate by reading:
-1. `.specify/project-cognition/status.json`
-2. `.specify/project-cognition/slices/change.json`
-3. `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
-4. `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
-5. `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
-6. `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
+Run or emulate:
 
-Freshness enforcement stays blocking. Route from the shared state contract:
-`missing` rebuilds through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`;
-`stale` refreshes through `{{invoke:map-update}}`; `support_drift` stops for
-support-surface cleanup without reflexively routing to `{{invoke:map-update}}`;
-`partial_refresh` means refresh data was recorded but readiness still failed.
-Use `recommended_next_action` for public next-step guidance before repository
-analysis continues.
+```text
+specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+```
+
+Use the returned readiness:
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: perform only the returned `minimal_live_reads` before continuing.
+- `ambiguous`: ask the user to select the intended candidate.
+- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `blocked`: stop and report the blocking runtime issue.
 
 ## Workflow Phase Lock
 
@@ -231,8 +229,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/project-rules.md` if present.
    - Read `.specify/memory/learnings/INDEX.md` if present.
    - Open only linked learning detail docs relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
-   - [AGENT] Read `.specify/project-cognition/status.json`.
-   - [AGENT] Read `.specify/project-cognition/slices/change.json`.
+   - [AGENT] Query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
    - From the project cognition runtime, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
@@ -330,7 +327,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
 
 7. Run `facts-lock`.
-   Build a top-down understanding grounded in `.specify/project-cognition/status.json`, `.specify/project-cognition/slices/change.json`, the graph artifacts, and any targeted live-file reads. It must cover:
+   Build a top-down understanding grounded in the `project-cognition query` bundle and any returned targeted live-file reads. It must cover:
    - what the user is probably trying to achieve
    - what a complete usable version of the capability likely includes
    - intended users and roles
@@ -389,7 +386,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - After every answered batch, run `batch-adversarial-review` before proceeding.
 
 14. Analyze the whole feature before decomposing it.
-   Build a top-down understanding grounded in `.specify/project-cognition/status.json`, `.specify/project-cognition/slices/change.json`, the graph artifacts, and any targeted live-file reads. It must cover:
+   Build a top-down understanding grounded in the `project-cognition query` bundle and any returned targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
    - first-release scope
@@ -903,7 +900,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - release decision
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
-    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current graph-native runtime does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield execution work proceeds
+    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current query-backed runtime does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield execution work proceeds
     - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `user_preference`, or `project_constraint`, use the manual `learning capture` helper surface.
       Required options: `--command`, `--type`, `--summary`, `--evidence`
     - leave one-off runs as `--decision none` with no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence

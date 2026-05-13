@@ -111,10 +111,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/learnings/INDEX.md` if present
    - relevant linked learning detail docs from the learning index
-   - `.specify/project-cognition/status.json` if present
-   - `.specify/project-cognition/slices/change.json` if present
-   - `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice does not answer the touched planning-critical gap safely
-   - targeted live repository files only when the project cognition runtime cannot answer the touched planning-critical gap safely
+   - query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`
+   - targeted live repository files only when the project cognition runtime returns them in `minimal_live_reads`
    - relevant repository documentation and design artifacts when they materially affect the requested change
 
 4. Identify what needs enhancement:

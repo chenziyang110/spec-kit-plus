@@ -91,14 +91,13 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 
 ### 2. Ensure project cognition runtime exists
 
-- Read `.specify/project-cognition/status.json`.
-- Read `.specify/project-cognition/slices/change.json`.
-- If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
-- If the graph runtime is stale or too weak for the touched area, use `{{invoke:map-update}}` when the touched area is localized.
+- Query project cognition with `specify project-cognition query --intent implement --query "$ARGUMENTS" --format json`.
+- If readiness is `needs_rebuild`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+- If readiness is `needs_update` or the returned bundle is too weak for the touched area, use `{{invoke:map-update}}` when the touched area is localized.
 - Escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required.
-- If the runtime is `possibly_stale`, inspect the reported changed paths, reasons, and slice coverage. If the change slice does not cover ownership, propagation, or verification routes for the current analysis request, use `{{invoke:map-update}}` before trusting the runtime for analysis.
+- If readiness is `review`, inspect only the returned `minimal_live_reads` before trusting the runtime for analysis.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-- If task-relevant coverage is insufficient for the current analysis request, read existing workflow-specific graph artifacts or targeted live evidence; refresh through `{{invoke:map-update}}` when localized, and rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before continuing when no usable localized baseline remains or a full rebuild is required.
+- If task-relevant coverage is insufficient for the current analysis request, inspect the returned targeted live evidence; refresh through `{{invoke:map-update}}` when localized, and rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before continuing when no usable localized baseline remains or a full rebuild is required.
 
 ### 3. Load Artifacts (Progressive Disclosure)
 
@@ -106,9 +105,8 @@ Load only the minimal necessary context from each artifact:
 
 **From project cognition runtime:**
 
-- Read `.specify/project-cognition/status.json`
-- Read `.specify/project-cognition/slices/change.json`
-- Read workflow-specific graph artifacts only when the change slice does not fully cover ownership, propagation, or verification routes
+- Consume the `project-cognition query` bundle.
+- Inspect only returned `minimal_live_reads` when the bundle does not fully cover ownership, propagation, or verification routes.
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, use `/sp-map-update` when localized; rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required, then inspect the minimum live files still needed to replace guesswork with evidence
 
 **From spec.md:**

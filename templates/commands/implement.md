@@ -262,13 +262,12 @@ human_needed_checks:
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
    - **IF LANE RESOLUTION OR SESSION-STATE RECONCILE RETURNS `uncertain`**: stop and surface the conflict instead of guessing which lane to continue.
    - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
-   - **REQUIRED**: Read `.specify/project-cognition/status.json`.
-   - **REQUIRED**: Read `.specify/project-cognition/slices/change.json`.
-   - **IF THE STATUS IS `missing`**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing.
-   - **IF THE STATUS IS `stale` OR TOO WEAK FOR THE TOUCHED AREA**: Use `/sp-map-update` when the touched area is localized. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required.
-   - **IF THE STATUS IS `possibly_stale`**: Inspect the reported changed paths, reasons, and slice coverage. If the change slice does not cover ownership, propagation, or verification routes for the current implementation area, use `/sp-map-update` for localized refresh before trusting the runtime for implementation decisions.
+   - **REQUIRED**: Query project cognition with `specify project-cognition query --intent implement --query "$ARGUMENTS" --format json`.
+   - **IF READINESS IS `needs_rebuild`**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing.
+   - **IF READINESS IS `needs_update` OR TOO WEAK FOR THE TOUCHED AREA**: Use `/sp-map-update` when the touched area is localized. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required.
+   - **IF READINESS IS `review`**: Inspect only the returned `minimal_live_reads` before trusting the runtime for implementation decisions.
    - **TREAT TASK-RELEVANT COVERAGE AS INSUFFICIENT** when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: add targeted graph or testing artifacts, refresh through `/sp-map-update` when localized, or rebuild through `/sp-map-scan` followed by `/sp-map-build` only when needed; then inspect the minimum live files still needed to replace guesswork with evidence.
+   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: use returned testing artifacts, refresh through `/sp-map-update` when localized, or rebuild through `/sp-map-scan` followed by `/sp-map-build` only when needed; then inspect the returned minimum live files needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
    - **REQUIRED**: Read `.specify/memory/learnings/INDEX.md` if present.
@@ -303,15 +302,23 @@ human_needed_checks:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project cognition gate:** you must pass the cognition gate before packet
-compilation, subagent dispatch, or implementation-shaping code reads continue.
+**Project cognition gate:** query the active project's runtime before broad
+repository reads.
 
-**This command tier: heavy.** Pass the cognition gate by reading:
-1. `.specify/project-cognition/status.json`
-2. `.specify/project-cognition/slices/change.json`
-3. workflow-specific graph artifacts only when the change slice does not fully cover ownership, propagation, or verification routes
+Run or emulate:
 
-Freshness is enforced as a blocking gate.
+```text
+specify project-cognition query --intent implement --query "$ARGUMENTS" --format json
+```
+
+Use the returned readiness:
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: perform only the returned `minimal_live_reads` before continuing.
+- `ambiguous`: ask the user to select the intended candidate.
+- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `blocked`: stop and report the blocking runtime issue.
 
 Do not compile packets, dispatch subagents, or inspect implementation files
 until the cognition gate has passed.

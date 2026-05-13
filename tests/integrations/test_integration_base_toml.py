@@ -249,8 +249,8 @@ class TomlIntegrationTests:
                 assert "fixed chapter ids required for debug" in content
             else:
                 assert "project cognition" in content
-                assert ".specify/project-cognition/status.json" in content
-                assert ".specify/project-cognition/slices/change.json" in content
+                assert "project-cognition query" in content
+                assert "minimal_live_reads" in content
                 assert "build-handbook.md" not in content
                 assert "fixed chapter ids required for this workflow" not in content
             assert "map-scan" in content

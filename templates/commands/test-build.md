@@ -100,14 +100,24 @@ Use `execution_surface: native-subagents`.
 
 1. **Establish repository context**
    - Confirm the repository root and treat this workflow as project-level rather than feature-level.
-   - Read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json` before broad testing-system build work.
-   - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
-   - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before continuing.
-   - [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
-   - [AGENT] If cognition freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
-   - [AGENT] If cognition freshness is `possibly_stale`, inspect the reported changed paths, reasons, and change-slice coverage. If the testing surfaces are stale or weak, use `{{invoke:map-update}}` when localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains. Otherwise review the relevant cognition slice before trusting the current runtime.
-   - [AGENT] If the project cognition status or change slice is insufficient for the touched area, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - Treat testing-surface coverage as insufficient when the current project cognition status and change slice cannot yet tell you:
+   - **Project cognition gate:** query the active project's runtime before broad
+     repository reads.
+
+     Run or emulate:
+
+     ```text
+     specify project-cognition query --intent test --query "$ARGUMENTS" --format json
+     ```
+
+     Use the returned readiness:
+
+     - `ready`: continue with the returned task-local bundle.
+     - `review`: perform only the returned `minimal_live_reads` before continuing.
+     - `ambiguous`: ask the user to select the intended candidate.
+     - `needs_update`: route through `{{invoke:map-update}}`.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+     - `blocked`: stop and report the blocking runtime issue.
+   - Treat testing-surface coverage as insufficient when the current project cognition query bundle cannot yet tell you:
      - which modules or packages own the main truth-bearing logic
      - which test frameworks and conventions already govern those modules
      - which workflows or integration seams are regression-sensitive
@@ -211,8 +221,7 @@ Use `execution_surface: native-subagents`.
        "module": "src/specify_cli",
        "risk_tier": "P0",
        "read_refs": [
-         ".specify/project-cognition/status.json",
-         ".specify/project-cognition/slices/change.json",
+         "project-cognition query bundle",
          ".specify/testing/TESTING_CONTRACT.md",
          ".specify/testing/TESTING_PLAYBOOK.md"
        ],

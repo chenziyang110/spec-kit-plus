@@ -104,28 +104,32 @@ scripts:
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
    - **Required when present**: `.specify/memory/learnings/INDEX.md` (searchable reusable learning index that may shape decomposition, validation, or guardrails)
    - **Required when relevant index entries exist**: open only the linked learning detail docs relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
-   - **Required**: [AGENT] Read `.specify/project-cognition/status.json`
-   - **Required**: [AGENT] Read `.specify/project-cognition/slices/change.json`
-   - **Required when needed**: [AGENT] Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice alone does not close ownership, propagation, or conflicting-truth questions
+   - **Required**: [AGENT] Query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`.
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion; then inspect the minimum live files still needed to replace guesswork with evidence
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project cognition gate:** you must pass the graph-native cognition gate before
-task-shaping analysis, decomposition, or implementation-shaping code reads
-begin.
+**Project cognition gate:** query the active project's runtime before broad
+repository reads.
 
-**This command tier: heavy.** Pass the cognition gate by reading:
-1. `.specify/project-cognition/status.json`
-2. `.specify/project-cognition/slices/change.json`
-3. `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
-4. `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
-5. `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
-6. `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
+Run or emulate:
 
-Task generation may stay focused on the plan artifacts afterward, but it may not skip the graph-native cognition gate.
+```text
+specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+```
+
+Use the returned readiness:
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: perform only the returned `minimal_live_reads` before continuing.
+- `ambiguous`: ask the user to select the intended candidate.
+- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `blocked`: stop and report the blocking runtime issue.
+
+Task generation may stay focused on the plan artifacts afterward, but it may not skip the query-backed cognition gate.
 
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, split work only into the supported task-generation lanes: `story and phase decomposition`, `dependency graph analysis`, and `write-set and parallel-safety analysis`.

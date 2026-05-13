@@ -130,21 +130,30 @@ moves into reproduction, logs, tests, or source-code reads.
 
 ## Debug Cognition Gate
 
-Before observer framing moves into reproduction, logs, tests, or source-code
-reads, pass the cognition gate by reading:
+**Project cognition gate:** query the active project's runtime before broad
+repository reads.
 
-1. `.specify/project-cognition/status.json`
-2. `.specify/project-cognition/slices/debug.json`
-3. `.specify/project-cognition/graph/claims.json` when truth ownership is still ambiguous
-4. `.specify/project-cognition/graph/conflicts.json` when competing truths or stale assumptions exist
+Run or emulate:
+
+```text
+specify project-cognition query --intent debug --query "$ARGUMENTS" --format json
+```
+
+Use the returned readiness:
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: perform only the returned `minimal_live_reads` before continuing.
+- `ambiguous`: ask the user to select the intended candidate.
+- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `blocked`: stop and report the blocking runtime issue.
 
 ## Investigation Protocol
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/debug.json` before trusting existing brownfield routing assumptions.
-- If truth ownership is ambiguous after the debug slice, read `.specify/project-cognition/graph/claims.json`.
-- If competing truths, stale assumptions, or contradiction signals exist, read `.specify/project-cognition/graph/conflicts.json`.
+- Query project cognition with `specify project-cognition query --intent debug --query "$ARGUMENTS" --format json` before trusting existing brownfield routing assumptions.
+- If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
 - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.
 - [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.

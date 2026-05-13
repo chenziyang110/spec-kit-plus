@@ -391,9 +391,9 @@ class SkillsIntegrationTests:
         assert ".specify/project-cognition/" in scan_content
         assert "provisional" in scan_content
         assert "evidence" in scan_content
-        assert ".specify/project-cognition/graph/nodes.json" in build_content
-        assert ".specify/project-cognition/graph/claims.json" in build_content
-        assert ".specify/project-cognition/slices/" in build_content
+        assert ".specify/project-cognition/project-cognition.db" in build_content
+        assert "specify project-cognition query" in build_content
+        assert "raw graph json artifacts or slices as runtime truth" in build_content
 
     def test_test_build_skill_surfaces_downstream_testing_control_plane(self, tmp_path):
         i = get_integration(self.KEY)

@@ -62,12 +62,23 @@ Fast path does not load the full passive learning layer.
 
 2. **Pass the project cognition gate**
    - {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
-   - **Project cognition gate:** you must pass the cognition gate before reading
-     implementation source, running reproduction, or preparing a fix.
-   - **This command tier: trivial.** Pass the cognition gate by reading:
-     1. `.specify/project-cognition/status.json`
-     2. `.specify/project-cognition/slices/change.json`
-     3. add graph or testing artifacts only if the change slice does not fully cover the touched area
+   - **Project cognition gate:** query the active project's runtime before broad
+     repository reads.
+
+     Run or emulate:
+
+     ```text
+     specify project-cognition query --intent implement --query "$ARGUMENTS" --format json
+     ```
+
+     Use the returned readiness:
+
+     - `ready`: continue with the returned task-local bundle.
+     - `review`: perform only the returned `minimal_live_reads` before continuing.
+     - `ambiguous`: ask the user to select the intended candidate.
+     - `needs_update`: route through `{{invoke:map-update}}`.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+     - `blocked`: stop and report the blocking runtime issue.
    - Only after the cognition gate passes may you read the source files to change.
 
 3. **Execute the fast lane**

@@ -112,12 +112,7 @@ agent_scripts:
    - Read `.specify/memory/project-rules.md` if present
    - Read `.specify/memory/learnings/INDEX.md` if present
    - Open only linked learning detail docs relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
-   - [AGENT] Read `.specify/project-cognition/status.json`
-   - [AGENT] Read `.specify/project-cognition/slices/change.json`
-   - [AGENT] Read `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
-   - [AGENT] Read `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
-   - [AGENT] Read `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
-   - [AGENT] Read `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
+   - [AGENT] Query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`.
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Read `templates/workflow-state-template.md`
@@ -136,19 +131,23 @@ agent_scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project cognition gate:** you must pass the graph-native cognition gate
-before planning analysis, architecture synthesis, or implementation-shaping
-code reads begin.
+**Project cognition gate:** query the active project's runtime before broad
+repository reads.
 
-**This command tier: heavy.** Pass the cognition gate by reading:
-1. `.specify/project-cognition/status.json`
-2. `.specify/project-cognition/slices/change.json`
-3. `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
-4. `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
-5. `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
-6. `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
+Run or emulate:
 
-Freshness is enforced as a blocking graph-native gate.
+```text
+specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+```
+
+Use the returned readiness:
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: perform only the returned `minimal_live_reads` before continuing.
+- `ambiguous`: ask the user to select the intended candidate.
+- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `blocked`: stop and report the blocking runtime issue.
 
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
