@@ -163,11 +163,11 @@ render_speckit_managed_block() {
 
 ## Brownfield Context Gate
 
-- The runtime atlas is query-backed: run `specify project-cognition query --intent <workflow-intent> --query "$ARGUMENTS" --format json` before broader repository analysis, planning, debugging, or implementation begins.
+- The runtime atlas is query-backed: run `specify project-cognition query --intent <workflow-intent> --query "$ARGUMENTS" --format json` to retrieve the task-local project cognition bundle before broader repository analysis, planning, debugging, or implementation begins.
 - Treat `.specify/project-cognition/project-cognition.db` as the canonical graph store and `.specify/project-cognition/status.json` as the lightweight freshness entrypoint.
-- Use the returned readiness, task-local bundle, and `minimal_live_reads`; do not replace the query bundle with raw graph JSON or slice reads.
+- Use the returned readiness, task-local bundle, and `minimal_live_reads`; treat raw graph JSON artifacts as obsolete runtime surfaces, and do not replace the query bundle with raw graph JSON or slice reads.
 - The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.
-- Supporting handbook/project-map artifacts under `.specify/project-map/` are compatibility/export outputs, not the ordinary first-read runtime contract for workflow routing.
+- Supporting handbook/project-map artifacts under `.specify/project-map/` are compatibility/export surfaces for ordinary workflow execution, not the ordinary first-read runtime contract for workflow routing.
 - If the graph-native cognition baseline is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.
 - If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.
 - Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, do it and use `specify project-map complete-refresh` as the successful-refresh finalizer; otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback.
@@ -253,6 +253,7 @@ render_speckit_managed_block() {
 
 ## Map Maintenance
 
+- Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline.
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the query-backed project cognition baseline.
 - Use `sp-map-update` after baseline creation when the query-backed runtime is stale or too weak for the touched area.
 - `sp-map-update` is the primary maintenance path after a baseline exists.

@@ -426,7 +426,8 @@ def test_project_map_gate_has_staged_discussion_gate() -> None:
     assert "product framing" in lowered
     assert "before the cognition gate" in lowered
     assert "technical options" in lowered
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "specify project-cognition query" in lowered
+    assert "retrieve the task-local project cognition bundle" in lowered
 
 
 def test_specify_template_uses_alignment_first_contract():
