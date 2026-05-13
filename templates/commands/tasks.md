@@ -272,7 +272,8 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
       - reference fidelity mapping status
       - unmapped task status
       - write-set conflict status
-    - Recommended next command: `{{invoke:analyze}}`
+    - Recommended next command: `{{invoke:analyze}}` for normal completed or non-escalated task generation.
+    - For escalated remediation: preserve the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stop without an analyze handoff.
     - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the project cognition runtime, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
@@ -280,7 +281,8 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
      - current authoritative files
      - exit criteria for task-generation completion
      - the next action required before handoff
-     - `next_command: /sp.analyze`
+     - `next_command: /sp.analyze` only for normal completed or non-escalated task generation
+     - escalated remediation preserves the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stops without an analyze handoff
 
 7. **Check for extension hooks**: After tasks.md is generated, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_tasks` key

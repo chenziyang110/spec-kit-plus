@@ -1837,6 +1837,9 @@ def test_tasks_template_requires_analyze_compatible_self_audit_and_remediation_m
     assert "sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
     assert "No more than one task-layer remediation cycle is expected" in content
     assert "Do not treat repeated task/analyze loops as normal workflow" in content
+    assert "normal completed or non-escalated task generation" in lowered
+    assert "escalated remediation preserves the upstream `next_command`" in content
+    assert "stops without an analyze handoff" in lowered
 
 
 def test_implement_template_honors_pending_analyze_gate_from_workflow_state():
