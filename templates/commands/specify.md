@@ -129,6 +129,18 @@ analysis continues.
 - Reopen upstream truth explicitly when later discovery invalidates a locked
   conclusion; reopen is a first-class workflow action.
 
+## Discussion Handoff Intake
+
+If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
+
+- Treat the discussion handoff as an authoritative input to the brainstorming kernel, not a bypass around it.
+- Record `entry_source: sp-discussion` and the handoff path or pasted discussion handoff marker in the generated feature artifacts.
+- Preserve confirmed requirements, confirmed non-goals, settled decisions, and selected technical direction in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing `sp-specify` artifact responsibilities.
+- Convert open questions from the handoff into explicit unknowns with `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, and `status`.
+- Cite the discussion handoff and relevant `project-context.md` evidence in `references.md` or `context.md`.
+- Do not re-ask settled discussion questions unless repository evidence, constitution rules, or user correction contradicts the handoff.
+- If a settled discussion conclusion is reopened, record the reopen reason before changing the derived spec package.
+
 ## Outline
 
 The text the user typed when invoking this workflow is the starting point, not the finished requirement package. Your responsibility is to run the internal brainstorming kernel, persist truth in deterministic locks, and only then compile a planning-ready requirement package. Conversation memory is not a valid handoff surface; only persisted truth files and compiled artifacts count.
