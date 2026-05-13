@@ -186,7 +186,7 @@ def test_project_handbook_template_routes_compatibility_export_model() -> None:
 def test_project_handbook_routes_generated_status_to_project_cognition() -> None:
     content = _read("PROJECT-HANDBOOK.md")
 
-    assert "Generated-project `.specify/project-cognition/status.json` plus workflow-appropriate cognition slices" in content
+    assert "Generated-project `.specify/project-cognition/status.json` plus the task-local bundle returned by `specify project-cognition query`" in content
     assert "Generated-project `.specify/project-map/index/status.json`: freshness and module coverage status." not in content
 
 

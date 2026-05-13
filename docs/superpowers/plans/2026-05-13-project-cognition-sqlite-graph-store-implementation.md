@@ -2065,3 +2065,13 @@ The plan consistently uses:
 - `graph_store_path`
 - `query_contract_version`
 - `update_contract_version`
+
+## Verification Notes
+
+- `pytest tests/test_project_cognition_db.py tests/test_project_cognition_query.py tests/test_project_map_status.py tests/hooks/test_preflight_hooks.py tests/contract/test_hook_cli_surface.py tests/integrations/test_cli.py -q`
+- `pytest tests/test_extension_skills.py tests/integrations/test_integration_claude.py tests/test_map_runtime_template_guidance.py tests/test_project_map_hard_gate_guidance.py tests/test_alignment_templates.py tests/integrations/test_integration_base_markdown.py tests/integrations/test_integration_base_toml.py tests/integrations/test_integration_base_skills.py tests/integrations/test_integration_codex.py tests/test_project_handbook_templates.py tests/test_specify_guidance_docs.py tests/test_runtime_handbook_contract.py -q`
+- `pytest tests/integrations/test_cli.py::TestInitIntegrationFlag::test_non_codex_implement_skill_does_not_use_specify_team_as_primary_entrypoint tests/execution/test_packet_compiler.py tests/execution/test_packet_schema.py tests/execution/test_packet_validator.py tests/execution/test_result_validator.py tests/codex_team/test_worker_bootstrap.py -q`
+- Confirmed `project-cognition.db` is the canonical graph runtime path.
+- Confirmed `project-cognition query` returns task-local bundles and readiness guidance across generated workflow surfaces.
+- Confirmed raw graph JSON files are no longer required by freshness, hook validation, workflow templates, generated addenda, or execution packet defaults.
+- Full `pytest -q` was attempted once but hit the 10-minute command timeout in this environment; focused runtime, template/integration, and execution suites above passed.
