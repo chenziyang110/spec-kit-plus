@@ -2273,6 +2273,9 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
     assert "current batch, `wait_agent` to join them" not in content
     assert "## claude dispatch-first gate" not in content
     assert "attempt native subagent execution before leader-inline fallback" not in content
+    assert "concrete fallback reason in `feature_dir/implement-tracker.md`" not in content
+    assert "dispatch fallback" not in content
+    assert "actual_surface: leader-inline" not in content
 
 
 def test_claude_generated_sp_implement_description_prefers_subagent_dispatch(tmp_path):

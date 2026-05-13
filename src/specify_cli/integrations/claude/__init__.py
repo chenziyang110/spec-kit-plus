@@ -559,11 +559,11 @@ class ClaudeIntegration(SkillsIntegration):
         addendum = (
             "\n"
             "## Claude Dispatch-First Gate\n\n"
-            "- For `sp-implement`, attempt native subagent execution before leader-inline fallback.\n"
+            "- For `sp-implement`, attempt native subagent execution before any local implementation path.\n"
             "- Use Claude's native subagent path for `one-subagent` and `parallel-subagents` dispatch shapes whenever the batch is safe to dispatch.\n"
             "- Prefer subagent fan-out over local deep-dive execution when ready tasks have isolated write sets and stable upstream inputs.\n"
             "- Do not begin concrete implementation on the leader path while an untried native subagent path is available for the current batch.\n"
-            "- Only use `leader-inline-fallback` after recording the concrete fallback reason in `FEATURE_DIR/implement-tracker.md`.\n"
+            "- If native subagent dispatch fails at runtime, report that current-session event in the response and stop; do not persist a durable inline fallback decision in `FEATURE_DIR/implement-tracker.md`.\n"
         )
         if "## Leader Role" in content:
             return content.replace("## Leader Role", addendum + "\n## Leader Role", 1)

@@ -365,7 +365,12 @@ class SkillsIntegrationTests:
             content = (i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "subagent dispatch contract" in content
             assert "subagent dispatch" in content
-            assert "fallback path" in content
+            if name == "implement":
+                assert "durable fallback decision" in content
+                assert "dispatch fallback" not in content
+                assert "actual_surface: leader-inline" not in content
+            else:
+                assert "fallback path" in content
             assert "subagent result contract" in content
             assert "result handoff path" in content
             assert "reported_status" in content

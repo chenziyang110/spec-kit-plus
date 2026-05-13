@@ -1898,7 +1898,7 @@ class SkillsIntegration(IntegrationBase):
                 "- If subagent dispatch is unavailable or the packet is incomplete for the current selected wave or ready batch context, use `subagent-blocked`, record the blocker, and preserve the same join-point discipline.\n"
                 "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
                 "- The leader dispatches subagents rather than executing the implementation itself when the batch is ready for subagent work.\n"
-                "- Once one safe lane clears the subagent-readiness bar, do **not** ask the user whether it should switch to subagent execution; dispatch the subagent by default and only discuss fallback after dispatch concretely fails.\n"
+                "- Once one safe lane clears the subagent-readiness bar, do **not** ask the user whether it should switch to subagent execution; dispatch the subagent by default, and if native dispatch concretely fails, report that runtime event in the response and stop without writing a durable fallback decision to `implement-tracker.md`.\n"
                 "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
             )
             content += addendum

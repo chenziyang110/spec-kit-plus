@@ -1728,6 +1728,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
     assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
     assert "Dispatch failure is not permission to continue locally." in content
+    assert "Do not persist native subagent dispatch failures" in content
+    assert "runtime-surface failure metadata" in lowered
+    assert "without writing a durable fallback decision to `implement-tracker.md`" in content
+    assert "dispatch fallback" not in lowered
+    assert "actual_surface: leader-inline" not in lowered
     assert "delegation_confidence" not in lowered
     assert "enough context" not in lowered
     assert "low-context" not in lowered

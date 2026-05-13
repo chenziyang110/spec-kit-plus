@@ -345,6 +345,10 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
     assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
     assert "Dispatch failure is not permission to continue locally." in content
+    assert "Do not persist native subagent dispatch failures" in content
+    assert "without writing a durable fallback decision to `implement-tracker.md`" in content
+    assert "Dispatch Fallback" not in content
+    assert "actual_surface: leader-inline" not in content
     assert "max_parallel_subagents = 4" in content
     assert "implement-slot-1" in content
     assert "current selected wave" in content
