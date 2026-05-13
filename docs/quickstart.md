@@ -208,8 +208,8 @@ incompatibility, then run `specify integration repair` before continuing with
 When the feature touches an established boundary pattern in the target project, make that constraint explicit before coding starts:
 
 - For brownfield runtime refresh decisions, treat `.specify/project-cognition/status.json` as the truth source for git-baseline freshness.
-- If a full refresh can be completed now, use `specify project-map complete-refresh` as the successful-refresh finalizer.
-- Otherwise use `specify project-map mark-dirty --reason "<reason>"` as the shared manual override/fallback before later brownfield work continues.
+- If a full refresh can be completed now, use `specify project-cognition complete-refresh --format json` as the successful-refresh finalizer.
+- Otherwise use `specify project-cognition mark-dirty --reason "<reason>" --format json` as the shared manual override/fallback before later brownfield work continues.
 
 - `plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
@@ -261,7 +261,7 @@ Generated project navigation now follows the project cognition runtime:
 
 - Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface.
 - Read the cognition status and the smallest matching slice before broader repository analysis.
-- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - Any code change that alters navigation meaning must update the project cognition runtime.
 
@@ -347,10 +347,9 @@ Hook runtime and diagnostics:
   - `specify hook validate-packet --packet-file <path>`
   - `specify hook validate-result --packet-file <packet> --result-file <result>`
 - Use project cognition commands for freshness:
-  - Command shape: `specify project-map complete-refresh`
-  - Command shape: `specify project-map mark-dirty --reason "<reason>"`
   - Command shape: `specify project-cognition complete-refresh`
   - Command shape: `specify project-cognition mark-dirty --reason "<reason>"`
+  - Legacy alias: existing projects may still call `specify project-map ...`; it routes to the project cognition implementation and should not be used in new generated workflow guidance.
 
 Claude Code project-local integration:
 

@@ -36,7 +36,7 @@ and what sits clearly outside the system boundary.]
 - **Cross-project cognition reference**: use the project cognition runtime as
   explicit-only, supplemental-only, fresh-only context with a minimal read before
   broader source inspection.
-- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are compatibility/export views during the migration window, not the default runtime truth path.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface.
 - Read this handbook only when a user or workflow explicitly asks for the compatibility/export view.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed.
@@ -51,7 +51,7 @@ Describe the handbook export model explicitly:
 
 - **Debug export**: `DEBUG-HANDBOOK.md` — compatibility view of symptom routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
 - **Build/change export**: `BUILD-HANDBOOK.md` — compatibility view of product capability map, workflow sequences, change entrypoints, collaboration routes, propagation risks, implementation playbooks, and verification routes
-- **Project-map exports**: `.specify/project-map/**` — support-only, reference-only, or export-only continuity surfaces
+- **Legacy project-map alias**: `specify project-map ...` routes to project cognition for existing projects; new workflows should not read or require `.specify/project-map/**`
 - **Runtime truth**: `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and the task-local bundle returned by `specify project-cognition query`
 
 The export model should help the reader distinguish compatibility views from
@@ -99,7 +99,7 @@ the graph-native cognition runtime used before broader code reads begin.
 ## Atlas Views
 
 - [Summarize which cognition status and slices answer debugging, requirement shaping, implementation planning, testing, and verification questions.]
-- [Call out where compatibility/export handbooks and support-only project-map artifacts still help continuity without becoming the primary runtime truth path.]
+- [Call out where compatibility/export handbooks still help continuity without becoming the primary runtime truth path.]
 
 ## Where To Read Next
 
@@ -116,7 +116,7 @@ the graph-native cognition runtime used before broader code reads begin.
 - `specify project-cognition query` - default route to task-local cognition bundles, readiness, and `minimal_live_reads`
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
-- `.specify/project-map/**` - compatibility/export and refresh-workbench surfaces, not the primary runtime truth path
+- `specify project-map ...` - legacy CLI alias for existing projects, not the new runtime truth path
 
 ## Update Triggers
 

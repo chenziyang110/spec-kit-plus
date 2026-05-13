@@ -140,7 +140,8 @@ def test_project_map_gate_references_routing_and_learning_roles() -> None:
     assert "specify project-cognition query" in content
     assert "task-local project" in content
     assert "raw graph json artifacts as obsolete runtime surfaces" in content
-    assert "compatibility/export surfaces" in content
+    assert "runtime truth surface" in content
+    assert "legacy project-map exports are not the default runtime truth path" in content
     assert "read `debug-handbook.md`" not in content
     assert "read `build-handbook.md`" not in content
     assert "default runtime truth path" in content

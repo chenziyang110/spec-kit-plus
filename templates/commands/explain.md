@@ -43,8 +43,8 @@ Goal: Read the current stage artifact, project cognition artifact, or explicitly
 2. Resolve the stage artifact deterministically:
    - If the user explicitly names a stage, honor it.
    - If the user explicitly asks about project cognition, touched-area state, or brownfield runtime truth, resolve `.specify/project-cognition/status.json` and the smallest matching slice first.
-   - Explain handbook or project-map artifacts only when the user explicitly requests the compatibility/export surfaces themselves.
-   - If the user explicitly asks for a compatibility/export handbook, `PROJECT-HANDBOOK.md`, project-map export, `architecture`, `structure`, `conventions`, `integrations`, `workflows`, `testing`, or `operations` artifact, resolve that artifact directly.
+   - Explain handbook artifacts only when the user explicitly requests the compatibility/export surfaces themselves.
+   - If the user explicitly asks for a compatibility/export handbook, `PROJECT-HANDBOOK.md`, `architecture`, `structure`, `conventions`, `integrations`, `workflows`, `testing`, or `operations` artifact, resolve that artifact directly.
    - Explain the architecture, cognition, or compatibility/export atlas artifact directly instead of forcing a planning-stage fallback.
    - Otherwise prefer the most advanced available artifact in this order:
      - `tasks` -> `FEATURE_DIR/tasks.md`
@@ -57,7 +57,7 @@ Goal: Read the current stage artifact, project cognition artifact, or explicitly
      - `tasks`: also read `FEATURE_DIR/plan.md` and `FEATURE_DIR/spec.md` when needed for explanation
      - `implement`: if there is no canonical implementation status artifact, explain that implementation status is unavailable from the current file set and fall back to the most recent planning artifact instead of guessing
      - `project cognition`: read `.specify/project-cognition/status.json` plus the smallest matching slice needed to explain ownership, dependencies, lifecycle, change impact, or verification routes accurately
-     - `compatibility/export atlas`: read the explicitly requested handbook or project-map artifact plus the smallest supporting export files needed to explain ownership, dependencies, lifecycle, change impact, or verification routes accurately
+     - `compatibility/export atlas`: read the explicitly requested handbook plus the smallest supporting export files needed to explain ownership, dependencies, lifecycle, change impact, or verification routes accurately
 
 3. Read the resolved artifact and any immediately supporting artifact needed to explain it accurately.
    - If present, also read `.specify/memory/constitution.md` so the explanation honors the project constitution and its constraints on the current stage artifact.

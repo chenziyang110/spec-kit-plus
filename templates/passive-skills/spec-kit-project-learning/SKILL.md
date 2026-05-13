@@ -72,7 +72,7 @@ Use the smallest accurate type:
 - `routing_mistake`: wrong workflow entry or route correction
 - `verification_gap`: missing or broken validation path
 - `state_surface_gap`: durable state failed to preserve needed context
-- `map_coverage_gap`: handbook/project-map lacked needed truth
+- `map_coverage_gap`: project cognition lacked needed truth
 - `tooling_trap`: environment, shell, toolchain, watcher, or dev-surface trap
 - `false_lead_pattern`: misleading diagnosis pattern
 - `near_miss`: late-avoided risky path

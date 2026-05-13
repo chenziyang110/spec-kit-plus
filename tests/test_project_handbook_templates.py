@@ -31,8 +31,9 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
     assert "`specify project-cognition query`" in content
     assert "`DEBUG-HANDBOOK.md`" in content
     assert "`BUILD-HANDBOOK.md`" in content
-    assert "compatibility/export views during the migration window" in content
-    assert "default runtime truth path" in content
+    assert "`specify project-map ...`" in content
+    assert "legacy CLI alias" in content
+    assert "new workflows should not read or require `.specify/project-map/**`" in content
 
 
 def test_project_map_templates_share_metadata_contract():
@@ -140,7 +141,8 @@ def test_project_handbook_template_points_readers_to_project_cognition_first():
     assert "`.specify/project-cognition/status.json` for freshness" in content
     assert "`.specify/project-cognition/project-cognition.db` as the canonical graph store" in content
     assert "task-local bundle returned by `specify project-cognition query`" in content
-    assert "not the default runtime truth path" in content
+    assert "runtime truth surface" in content
+    assert "new workflows should not read or require `.specify/project-map/**`" in content
     assert "Use `Where To Read Next` for task-oriented routing." in content
 
 
@@ -156,8 +158,9 @@ def test_project_handbook_template_defines_cross_project_cognition_reference_con
     assert "`.specify/project-cognition/status.json`" in content
     assert "`.specify/project-cognition/project-cognition.db`" in content
     assert "`specify project-cognition query`" in content
-    assert "`.specify/project-map/**`" in content
-    assert "not the default runtime truth path" in content
+    assert "`specify project-map ...`" in content
+    assert "legacy cli alias" in lowered
+    assert "new workflows should not read or require `.specify/project-map/**`" in lowered
     assert "project-map as primary truth" not in lowered
     assert "project-map primary truth" not in lowered
 
@@ -171,7 +174,8 @@ def test_project_handbook_template_guides_architecture_level_summary_content():
     assert "list the highest-value capabilities a newcomer should understand first" in content.lower()
     assert "current stale, inferred, or weakly evidenced areas" in content.lower()
     assert "tie low-confidence areas back to specific capabilities, workflows, or boundaries" in content.lower()
-    assert "compatibility/export handbooks and support-only project-map artifacts" in content.lower()
+    assert "compatibility/export handbooks" in content.lower()
+    assert "support-only project-map artifacts" not in content.lower()
 
 
 def test_project_handbook_template_routes_compatibility_export_model() -> None:

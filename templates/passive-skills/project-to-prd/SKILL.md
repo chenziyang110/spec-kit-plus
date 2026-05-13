@@ -37,7 +37,7 @@ evidence is still missing.
   into the canonical `sp-prd-scan -> sp-prd-build` flow.
 - Ground the PRD in current implementation reality: code, docs, tests, routes,
   UI surfaces, service/API surfaces, configuration, data models, domain terms,
-  `PROJECT-HANDBOOK.md`, and project-map evidence when present.
+  `PROJECT-HANDBOOK.md`, and project cognition evidence when present.
 - Require capability triage before claiming the PRD suite is complete.
 - Use targeted evidence harvest for `critical` and `high` capabilities.
 - Keep `critical capabilities` visible until they are depth-aware and

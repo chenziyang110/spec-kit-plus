@@ -47,7 +47,7 @@ Required context inputs:
   - `needs_update`: route through `{{invoke:map-update}}`.
   - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
   - `blocked`: stop and report the blocking runtime issue.
-- `PROJECT-HANDBOOK.md` and `.specify/project-map/**` only when compatibility/export evidence is explicitly relevant.
+- `PROJECT-HANDBOOK.md` only when compatibility/export evidence is explicitly relevant.
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.
 - Current repository evidence from code, docs, tests, routes, UI surfaces, service surfaces, data models, integrations, configuration, and deployment surfaces.
 - Existing `workflow-state.md` under `.specify/prd-runs/<run-id>/` when resuming an interrupted run.

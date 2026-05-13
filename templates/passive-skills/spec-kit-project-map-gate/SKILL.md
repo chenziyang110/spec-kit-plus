@@ -4,9 +4,10 @@ description: "Use when changing, reviewing, planning against, or debugging an ex
 origin: spec-kit-plus
 ---
 
-# Spec Kit Project Map Gate
+# Spec Kit Project Cognition Gate
 
 This passive skill is the brownfield hard gate, not the route selection layer.
+The skill name is legacy; the runtime gate it describes is project cognition.
 
 ## Complementary Passive Skills
 
@@ -30,7 +31,7 @@ judgment in an established Spec Kit Plus repository:
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.
-- Treat `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` as compatibility/export surfaces, not the default runtime truth path.
+- Treat project cognition under `.specify/project-cognition/` as the runtime truth surface. Legacy project-map exports are not the default runtime truth path.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
 

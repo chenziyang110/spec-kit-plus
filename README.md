@@ -305,7 +305,7 @@ Skill map after `specify init`:
 Conditional gates and follow-up commands:
 
 - Generated projects use `.specify/project-cognition/status.json` plus the task-local bundle returned by `specify project-cognition query` as the default brownfield runtime truth surface, while `.specify/project-cognition/project-cognition.db` is the canonical graph store.
-- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - Recorded refresh and ready refresh are different outcomes: refresh commands may write update metadata, then still report `partial_refresh` when the shared freshness contract says runtime readiness remains blocked.
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
@@ -315,7 +315,7 @@ Conditional gates and follow-up commands:
 - `auto` to resume the recommended next workflow step from current repository state; it reads canonical state surfaces such as `workflow-state.md`, `implement-tracker.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, and debug session files, then continues under the routed workflow's contract without rewriting downstream `next_command` to `sp-auto`
 - when concurrent feature lanes exist, `auto` should prefer lane registry plus reconcile over branch-only recency and should only auto-resume when exactly one safe candidate remains
 - `discussion` to shape a rough idea through resumable senior product and technical discussion before formal specification. It writes `.specify/discussions/<slug>/` artifacts and creates `handoff-to-specify.md` only when the user explicitly requests handoff; it does not automatically invoke `specify`.
-- `prd-scan` followed by `prd-build` to reverse-extract a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory and read implementation reality, docs, tests, routes, UI/API surfaces, handbook/project-map evidence, and memory files into `.specify/prd-runs/<run-id>/`; critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan. `prd` remains a deprecated compatibility entrypoint that should route into the same pair.
+- `prd-scan` followed by `prd-build` to reverse-extract a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory and read implementation reality, docs, tests, routes, UI/API surfaces, project cognition evidence, and memory files into `.specify/prd-runs/<run-id>/`; critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan. `prd` remains a deprecated compatibility entrypoint that should route into the same pair.
 - `clarify` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `deep-research` to coordinate focused feasibility research, optional multi-agent evidence gathering, and disposable demos before planning when requirements are clear but a capability still lacks a credible implementation chain; it writes a traceable `Planning Handoff` with evidence IDs for `plan` and should be skipped for minor tweaks to already-proven project behavior. `research` is a compatibility alias for this same gate and must not create separate workflow artifacts
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
@@ -399,11 +399,10 @@ First-party hook runtime:
   - `specify hook validate-result --packet-file <packet> --result-file <result>`
   - `specify hook validate-read-path --target-path <path>`
   - `specify hook validate-prompt --prompt-text "<text>"`
-- Project cognition freshness should use the public project-map/project-cognition commands:
-  - Command shape: `specify project-map complete-refresh`
-  - Command shape: `specify project-map mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
+- Project cognition freshness should use the public project-cognition commands:
   - Command shape: `specify project-cognition complete-refresh`
   - Command shape: `specify project-cognition mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
+  - Legacy alias: existing projects may still call `specify project-map ...`; it routes to the project cognition implementation and should not be used in new generated workflow guidance.
 
 Claude Code integration note:
 
@@ -685,10 +684,9 @@ Navigation and technical truth are now cognition-first:
 - `partial_refresh` means refresh data was recorded but the ready refresh check still failed; do not report refresh completion until readiness passes.
 - `sp-map-scan` still performs diff-based scope selection when entered, but the refresh workbench remains internal to `map-scan` / `map-build`.
 - Ordinary runtime consumption should prefer `debug-handbook.md` or `build-handbook.md` plus the workflow's fixed chapter set only as compatibility/export views.
-- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are support-only/reference-only surfaces for ordinary runtime consumption.
-- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
-- If a full refresh can be completed now, use `specify project-map complete-refresh` as the successful-refresh finalizer; otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback.
+- If a full refresh can be completed now, use `specify project-cognition complete-refresh --format json` as the successful-refresh finalizer; otherwise use `specify project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback.
 - This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.
 - After a successful refresh, record the new fresh cognition baseline. Use dirty fallback metadata only when the required refresh cannot be completed now, so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.
 - Any code change that alters project cognition meaning must update the cognition runtime.

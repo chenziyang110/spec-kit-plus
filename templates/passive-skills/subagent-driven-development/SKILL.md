@@ -61,7 +61,7 @@ A subagent prompt must include:
 - The validated `WorkerTaskPacket` or equivalent packet summary.
 - Exact write set and paths the worker must not touch.
 - Source artifacts that are truth for the lane, including spec, plan, tasks,
-  workflow state, project-map entries, and memory rules when present.
+  workflow state, project cognition entries, and memory rules when present.
 - Required RED/GREEN or diagnosis evidence.
 - Required structured handoff format.
 

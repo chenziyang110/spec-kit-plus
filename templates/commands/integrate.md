@@ -14,7 +14,7 @@ surface drift or overlap risk, and close the lane cleanly.
 
 ## Context
 
-- Primary inputs: completed lane state, verification evidence, lane closeout metadata, and the smallest relevant handbook or project-map guidance for merge-sensitive shared surfaces.
+- Primary inputs: completed lane state, verification evidence, lane closeout metadata, and the smallest relevant project cognition query bundle or handbook guidance for merge-sensitive shared surfaces.
 - This workflow is a dedicated closeout lane after implementation, not a substitute for `sp-implement`.
 
 ## Process

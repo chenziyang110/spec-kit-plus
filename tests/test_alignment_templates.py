@@ -126,7 +126,8 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "## Brownfield Context Gate" in block
     assert "specify project-cognition query" in lowered
     assert "raw graph json artifacts as obsolete runtime surfaces" in lowered
-    assert "compatibility/export surfaces for ordinary workflow execution" in block
+    assert "project cognition under `.specify/project-cognition/` is the runtime truth surface" in lowered
+    assert "legacy project-map exports are not the ordinary first-read runtime contract" in lowered
     assert "retrieve the task-local project cognition bundle" in lowered
 
     assert "## Project Memory" in block
@@ -442,7 +443,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
-    assert "support-only project-map artifacts" in lowered
+    assert "legacy export artifacts" in lowered
+    assert "support-only project-map artifacts" not in lowered
     assert "WORKFLOW_STATE_FILE" in content
     assert "workflow-state.md" in content
     assert "Read `templates/workflow-state-template.md`." in content
@@ -456,7 +458,8 @@ def test_specify_template_uses_alignment_first_contract():
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command specify --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
-    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-map/index/status.json" not in content
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
@@ -631,7 +634,7 @@ def test_readme_documents_runtime_atlas_refresh_scope_and_workbench_boundaries()
 
     assert ".specify/project-cognition/status.json" in lowered
     assert "default brownfield runtime truth surface" in lowered
-    assert "compatibility/export surfaces only during the migration window" in lowered
+    assert "runtime truth surface" in lowered
     assert "map-update" in lowered
     assert "map-scan" in lowered
     assert "map-build" in lowered
@@ -643,9 +646,9 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
     lowered = handbook.lower()
 
     assert "default brownfield runtime truth surface" in lowered
-    assert "compatibility/export surfaces only during the migration window" in lowered
+    assert "runtime truth surface" in lowered
     assert "project cognition as the primary runtime truth surface" in lowered
-    assert "generated `.specify/project-map/**` outputs in this repository are compatibility/export or refresh-workbench surfaces" in lowered
+    assert "templates/project-map/**` is retained only for legacy compatibility review" in lowered
     assert "`debug-handbook.md` - compatibility/export debug view" in lowered
     assert "`build-handbook.md` - compatibility/export build/change view" in lowered
 
@@ -666,7 +669,8 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     assert "supplemental-only" in lowered
     assert "fresh-only" in lowered
     assert "minimal read" in lowered
-    assert "compatibility/export surfaces" in lowered
+    assert "runtime truth surface" in lowered
+    assert "legacy project-map exports are not the ordinary first-read runtime contract" in lowered
     assert "primary runtime truth" in lowered or "primary brownfield context surface" in lowered
     assert "project-map" in lowered
     assert "project-map as primary truth" not in lowered
@@ -721,7 +725,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command constitution --format json}}" in content
     assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-map/index/status.json" not in content
     assert "`/sp-map-scan` followed by `/sp-map-build`" in content
     assert "workflow-state.md" in content
     assert "/sp-plan" in content
@@ -793,7 +797,8 @@ def test_plan_template_requires_alignment_report_before_planning():
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command plan --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
-    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-map/index/status.json" not in content
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
@@ -862,7 +867,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "recommended follow-up quality check: `{{invoke:checklist}}`" in content
-    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
     assert "successful-refresh finalizer" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
@@ -1001,7 +1006,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "Planning inputs section" in content
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
-    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
     assert "successful-refresh finalizer" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
@@ -1036,7 +1041,7 @@ def test_explain_template_documents_conservative_routing_contract():
     assert "project cognition, touched-area state, or brownfield runtime truth" in lowered
     assert ".specify/project-cognition/status.json" in content
     assert "smallest matching slice" in lowered
-    assert "handbook or project-map artifacts only when the user explicitly requests the compatibility/export surfaces themselves" in lowered
+    assert "handbook artifacts only when the user explicitly requests the compatibility/export surfaces themselves" in lowered
     assert "explain the architecture, cognition, or compatibility/export atlas artifact directly instead of forcing a planning-stage fallback" in lowered
     assert "verified facts, inferred relationships, important unknowns, and the next relevant cognition slice or export view" in lowered
     assert "specify team" not in lowered
@@ -1407,7 +1412,7 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
-    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
     assert "successful-refresh finalizer" in lowered
     assert "manual override/fallback" in lowered
 
@@ -2134,15 +2139,15 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     ]
 
     stale_normal_path_phrases = [
-        "should mark `.specify/project-map/index/status.json` dirty and run",
-        "mark `.specify/project-map/index/status.json` dirty through the project cognition freshness helper and recommend",
-        "prefer `specify project-map mark-dirty` as the shared dirty-mark path",
+        "should mark `.specify/project-cognition/status.json` dirty and run",
+        "mark `.specify/project-cognition/status.json` dirty through the project cognition freshness helper and recommend",
+        "prefer `specify project-cognition mark-dirty` as the shared dirty-mark path",
     ]
     for path in legacy_owned_surfaces:
         lowered = _read(path).lower()
         if path in {"README.md", "docs/quickstart.md"}:
             assert "default brownfield runtime truth surface" in lowered
-            assert "compatibility/export surfaces only during the migration window" in lowered
+            assert "runtime truth surface" in lowered
             assert "map-update" in lowered
             assert "map-scan" in lowered
             assert "map-build" in lowered

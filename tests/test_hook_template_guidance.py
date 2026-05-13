@@ -84,21 +84,21 @@ EXECUTION_TEMPLATE_EXPECTED_FRAGMENTS = {
         "WorkerTaskPacket",
         "WorkerTaskResult",
         "structured handoff",
-        "specify project-map complete-refresh",
-        'specify project-map mark-dirty --reason "<reason>"',
+        "{{specify-subcmd:project-cognition complete-refresh --format json}}",
+        '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}',
     ),
     "templates/commands/quick.md": (
         "STATUS.md",
         "WorkerTaskPacket",
         "structured handoff",
-        "specify project-map complete-refresh",
-        'specify project-map mark-dirty --reason "<reason>"',
+        "{{specify-subcmd:project-cognition complete-refresh --format json}}",
+        '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}',
     ),
     "templates/commands/debug.md": (
         "debug session",
         "evidence",
-        "specify project-map complete-refresh",
-        'specify project-map mark-dirty --reason "<reason>"',
+        "{{specify-subcmd:project-cognition complete-refresh --format json}}",
+        '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}',
     ),
 }
 
