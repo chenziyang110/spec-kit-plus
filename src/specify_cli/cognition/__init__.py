@@ -52,6 +52,7 @@ from .store import (
     write_json_artifact,
     write_slice,
 )
+from .update import apply_cognition_update
 
 __all__ = [
     "ClaimRecord",
@@ -63,6 +64,7 @@ __all__ = [
     "ObservationRecord",
     "SliceRecord",
     "UpdateEventRecord",
+    "apply_cognition_update",
     "build_diff_impact_payload",
     "cognition_db_path",
     "cognition_dir",
