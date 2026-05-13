@@ -1000,6 +1000,20 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "output exactly one `Recommended Next Command`" in content
     assert "Do not output multiple alternative next commands" in content
     assert "Closed-loop requirement" in content
+    assert "complete blocker bundle" in lowered
+    assert "Blocker Bundle" in content
+    assert "finish the full detection matrix before selecting the single recommended next command" in lowered
+    assert "Stable Finding Identity" in content
+    assert "fingerprint-first" in lowered
+    assert "reuse the prior ID" in content
+    assert "Allocate a new ID only for a genuinely new fingerprint" in content
+    assert "Revalidation Attribution" in content
+    assert "missed_by_previous_analyze" in content
+    assert "introduced_by_remediation" in content
+    assert "upstream_artifact_changed" in content
+    assert "detector_scope_changed" in content
+    assert "No more than one task-layer remediation cycle is expected" in content
+    assert "Do not treat repeated task/analyze loops as normal workflow" in content
     assert "Recommended Next Command" in content
     assert "### 9. Define Workflow Re-entry" in content
     assert "Recommended Re-entry" in content
@@ -1008,6 +1022,12 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "If the highest invalid stage is `tasks`" in content
     assert "If the constitution itself must change" in content
     assert "`next_command: /sp.constitution`" in content
+    assert "Analyze Gate" in content
+    assert "gate_status" in content
+    assert "gate_cycle" in content
+    assert "highest_invalid_stage" in content
+    assert "blocker_bundle" in content
+    assert "artifact_fingerprint_basis" in content
     assert "If the remaining issue is execution-only, the re-entry chain MUST begin at `{{invoke:implement}}` or `{{invoke:debug}}`." in content
     assert "exact workflow re-entry path" in content
 
