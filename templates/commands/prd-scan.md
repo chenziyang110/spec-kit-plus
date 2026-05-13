@@ -30,8 +30,23 @@ Every consequential claim must preserve `Evidence`, `Inference`, and `Unknown` l
 
 Required context inputs:
 
-- query project cognition with `specify project-cognition query --intent research --query "$ARGUMENTS" --format json` as the default runtime truth entrypoint.
-- perform only the returned `minimal_live_reads` when deeper repository structure proof is needed.
+- **Project cognition gate:** query the active project's runtime before broad
+  repository reads.
+
+  Run or emulate:
+
+  ```text
+  specify project-cognition query --intent research --query "$ARGUMENTS" --format json
+  ```
+
+  Use the returned readiness:
+
+  - `ready`: continue with the returned task-local bundle.
+  - `review`: perform only the returned `minimal_live_reads` before continuing.
+  - `ambiguous`: ask the user to select the intended candidate.
+  - `needs_update`: route through `{{invoke:map-update}}`.
+  - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+  - `blocked`: stop and report the blocking runtime issue.
 - `PROJECT-HANDBOOK.md` and `.specify/project-map/**` only when compatibility/export evidence is explicitly relevant.
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.
 - Current repository evidence from code, docs, tests, routes, UI surfaces, service surfaces, data models, integrations, configuration, and deployment surfaces.

@@ -111,8 +111,23 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/learnings/INDEX.md` if present
    - relevant linked learning detail docs from the learning index
-   - query project cognition with `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`
-   - targeted live repository files only when the project cognition runtime returns them in `minimal_live_reads`
+   - **Project cognition gate:** query the active project's runtime before broad
+     repository reads.
+
+     Run or emulate:
+
+     ```text
+     specify project-cognition query --intent plan --query "$ARGUMENTS" --format json
+     ```
+
+     Use the returned readiness:
+
+     - `ready`: continue with the returned task-local bundle.
+     - `review`: perform only the returned `minimal_live_reads` before continuing.
+     - `ambiguous`: ask the user to select the intended candidate.
+     - `needs_update`: route through `{{invoke:map-update}}`.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+     - `blocked`: stop and report the blocking runtime issue.
    - relevant repository documentation and design artifacts when they materially affect the requested change
 
 4. Identify what needs enhancement:

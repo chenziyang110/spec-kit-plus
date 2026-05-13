@@ -9,23 +9,28 @@ def _read(path: str) -> str:
 
 
 def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> None:
-    workflow_files = [
-        "fast.md",
-        "quick.md",
-        "specify.md",
-        "clarify.md",
-        "deep-research.md",
-        "plan.md",
-        "tasks.md",
-        "implement.md",
-        "debug.md",
-        "test-scan.md",
-        "test-build.md",
-        "prd-scan.md",
-    ]
-    for name in workflow_files:
+    workflow_intents = {
+        "fast.md": "implement",
+        "quick.md": "implement",
+        "specify.md": "plan",
+        "clarify.md": "plan",
+        "deep-research.md": "research",
+        "plan.md": "plan",
+        "tasks.md": "plan",
+        "implement.md": "implement",
+        "debug.md": "debug",
+        "test-scan.md": "test",
+        "test-build.md": "test",
+        "prd-scan.md": "research",
+    }
+    readiness_states = ["ready", "review", "ambiguous", "needs_update", "needs_rebuild", "blocked"]
+
+    for name, intent in workflow_intents.items():
         content = (PROJECT_ROOT / "templates" / "commands" / name).read_text(encoding="utf-8").lower()
         assert "project-cognition query" in content
+        assert f"project-cognition query --intent {intent}" in content
+        for state in readiness_states:
+            assert f"`{state}`" in content, f"{name} missing readiness state {state}"
         assert ".specify/project-cognition/graph/nodes.json" not in content
         assert ".specify/project-cognition/graph/edges.json" not in content
         assert ".specify/project-cognition/graph/claims.json" not in content
