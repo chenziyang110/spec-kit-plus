@@ -28,6 +28,11 @@ from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
 from specify_cli.codex_team.task_ops import TaskOpsError, claim_task, get_task, transition_task_status
 
+CONTEXT_BUNDLE_PATHS = [
+    ".specify/project-cognition/status.json",
+    ".specify/project-cognition/project-cognition.db",
+]
+
 
 @pytest.fixture(autouse=True)
 def _enable_legacy_executor(monkeypatch):
@@ -101,6 +106,7 @@ def _write_fake_agent_teams_runtime_cli(path: Path) -> None:
                 "        item['status'] = 'passed'",
                 "        item['output'] = '1 passed'",
                 "    paths_read = [line[2:] for line in description.splitlines() if line.startswith('- src/')]",
+                "    paths_read.extend(line.split('. ', 1)[1].split(' [', 1)[0] for line in description.splitlines() if '. .specify/project-cognition/' in line)",
                 "    result_payload['rule_acknowledgement'] = {",
                 "        'required_references_read': True,",
                 "        'forbidden_drift_respected': True,",
@@ -847,7 +853,7 @@ def test_complete_dispatched_batch_retries_join_point_after_metadata_version_rac
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["src/contracts/auth.py"],
+                paths_read=["src/contracts/auth.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
         result_path.write_text(
@@ -937,7 +943,7 @@ def test_complete_dispatched_batch_tolerates_result_submission_after_task_alread
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["src/contracts/auth.py"],
+                paths_read=["src/contracts/auth.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
         result_path.write_text(
@@ -1164,7 +1170,7 @@ def test_terminal_task_completion_auto_completes_batch(monkeypatch, codex_team_p
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["src/contracts/auth.py"],
+                paths_read=["src/contracts/auth.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
         result_path.write_text(
@@ -1227,7 +1233,7 @@ def test_complete_dispatched_batch_validates_structured_worker_results(monkeypat
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["src/contracts/auth.py"],
+                paths_read=["src/contracts/auth.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
         result_path.write_text(
@@ -1301,7 +1307,7 @@ def test_complete_dispatched_batch_waits_for_review_when_review_gate_is_required
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["src/contracts/auth.py"],
+                paths_read=["src/contracts/auth.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
         result_path.write_text(

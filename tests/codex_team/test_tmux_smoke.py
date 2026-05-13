@@ -79,7 +79,7 @@ def test_team_command_status_guides_native_windows_users_to_psmux(monkeypatch, c
     assert "psmux" in result.output
 
 
-def test_team_command_dispatch_blocks_when_project_map_is_dirty(monkeypatch, codex_team_project_root):
+def test_team_command_dispatch_blocks_when_project_cognition_is_dirty(monkeypatch, codex_team_project_root):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
 
@@ -90,7 +90,7 @@ def test_team_command_dispatch_blocks_when_project_map_is_dirty(monkeypatch, cod
         encoding="utf-8",
     )
 
-    status_path = specify_dir / "project-map" / "status.json"
+    status_path = specify_dir / "project-cognition" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     payload["freshness"] = "stale"
     payload["dirty"] = True

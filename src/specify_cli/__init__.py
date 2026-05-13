@@ -703,7 +703,7 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
     )
     if state == "missing_baseline":
         console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to create the graph-native project cognition baseline and its compatibility/export outputs, then retry."
+            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to create the graph-native project cognition baseline, then retry."
         )
     elif state == "support_drift":
         console.print(
@@ -721,7 +721,7 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
             "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry."
         )
         console.print(
-            "If no usable baseline remains, rebuild the runtime baseline and its compatibility/export outputs."
+            "If no usable baseline remains, rebuild the project cognition baseline."
         )
         console.print(
             "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
@@ -3087,8 +3087,8 @@ SKILL_DESCRIPTIONS = {
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
     "test-scan": "Use when you need a deep, read-only scan that turns a repository's testing gaps into a build-ready unit-test system plan.",
     "test-build": "Use when a completed test-system scan exists and you need to build or refresh the repository's unit testing system through leader-managed execution waves.",
-    "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction and compatibility/export synthesis.",
-    "map-build": "Use when map-scan has produced a full evidence baseline and you need to reconstruct the project cognition graph, claims, conflicts, slices, and compatibility/export outputs.",
+    "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction.",
+    "map-build": "Use when map-scan has produced a full evidence baseline and you need to reconstruct the project cognition graph, claims, conflicts, slices, and query-backed runtime outputs.",
     "map-update": "Use when a graph-native project cognition baseline exists and diff-based evidence refresh or user-supplied corrections must update the cognition runtime incrementally.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }

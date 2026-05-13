@@ -8,6 +8,12 @@ from specify_cli import app
 from specify_cli.codex_team.state_paths import batch_record_path, dispatch_record_path, result_record_path, task_record_path
 from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
+from specify_cli.project_map_status import ProjectMapStatus, write_project_map_status
+
+CONTEXT_BUNDLE_PATHS = [
+    ".specify/project-cognition/status.json",
+    ".specify/project-cognition/project-cognition.db",
+]
 
 
 def _create_codex_project(tmp_path: Path) -> Path:
@@ -17,21 +23,16 @@ def _create_codex_project(tmp_path: Path) -> Path:
     spec_root.mkdir()
     (spec_root / "integration.json").write_text(json.dumps({"integration": "codex"}), encoding="utf-8")
     (spec_root / "teams").mkdir(parents=True, exist_ok=True)
-    (spec_root / "project-map").mkdir(parents=True, exist_ok=True)
-    (spec_root / "project-map" / "status.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "last_mapped_commit": "",
-                "last_mapped_at": "2026-04-21T00:00:00Z",
-                "last_mapped_branch": "",
-                "freshness": "missing",
-                "last_refresh_reason": "seeded-test",
-                "dirty": False,
-                "dirty_reasons": [],
-            }
+    write_project_map_status(
+        project,
+        ProjectMapStatus(
+            version=2,
+            last_mapped_at="2026-04-21T00:00:00Z",
+            freshness="missing",
+            last_refresh_reason="seeded-test",
+            dirty=False,
+            dirty_reasons=[],
         ),
-        encoding="utf-8",
     )
     (spec_root / "memory").mkdir(parents=True, exist_ok=True)
     (spec_root / "memory" / "constitution.md").write_text(
@@ -126,7 +127,7 @@ def _write_success_results(project: Path) -> None:
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["src/contracts/example.py"],
+                paths_read=["src/contracts/example.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
         path.write_text(json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -148,7 +149,7 @@ def _write_success_results_for(project: Path, batch_name: str, task_ids: tuple[s
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["src/contracts/example.py"],
+                paths_read=["src/contracts/example.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
         path.write_text(json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -322,11 +323,11 @@ def test_team_submit_result_updates_task_and_batch_state(tmp_path: Path):
     assert task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"] == "complete"
 
 
-def test_team_auto_dispatch_blocks_when_project_map_is_dirty(tmp_path: Path):
+def test_team_auto_dispatch_blocks_when_project_cognition_is_dirty(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
 
-    status_path = project / ".specify" / "project-map" / "status.json"
+    status_path = project / ".specify" / "project-cognition" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     payload["freshness"] = "stale"
     payload["dirty"] = True
@@ -344,11 +345,46 @@ def test_team_auto_dispatch_blocks_when_project_map_is_dirty(tmp_path: Path):
     assert "/sp-map-scan, then /sp-map-build" in result.output
 
 
+def test_team_auto_dispatch_still_blocks_with_legacy_project_map_dirty_status(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    canonical_status_path = project / ".specify" / "project-cognition" / "status.json"
+    canonical_status_path.unlink()
+    legacy_status_path = project / ".specify" / "project-map" / "status.json"
+    legacy_status_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_status_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "last_mapped_commit": "",
+                "last_mapped_at": "2026-04-21T00:00:00Z",
+                "last_mapped_branch": "",
+                "freshness": "stale",
+                "last_refresh_reason": "legacy-dirty-status",
+                "dirty": True,
+                "dirty_reasons": ["shared_surface_changed"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+
+    assert result.exit_code != 0
+    assert "Cognition Freshness" in result.output
+    assert "/sp-map-scan, then /sp-map-build" in result.output
+
+
 def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
 
-    status_path = project / ".specify" / "project-map" / "status.json"
+    status_path = project / ".specify" / "project-cognition" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     payload["freshness"] = "fresh"
     payload["dirty"] = False

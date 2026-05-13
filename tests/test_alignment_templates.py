@@ -2400,7 +2400,7 @@ def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts
     assert "stop-and-reopen conditions" in implement.lower()
 
 
-def test_implement_template_requires_structured_execution_contract_from_tasks() -> None:
+def test_implement_template_rejects_locked_goal_redefinition() -> None:
     implement = _read("templates/commands/implement.md").lower()
 
     assert "handoff-to-implement.json" in implement
