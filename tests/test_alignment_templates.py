@@ -988,9 +988,16 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "locked decision silently dropped between artifacts" in lowered
     assert "**Locked Decision Preservation Table:**" in content
     assert "**Boundary Guardrail Table:**" in content
-    assert "| BG1 | Boundary Guardrail Gap | HIGH |" in content
-    assert "| BG2 | Boundary Guardrail Gap | HIGH |" in content
-    assert "| BG3 | Boundary Guardrail Gap | HIGH |" in content
+    assert "Signal Code" in content
+    assert "| ID | Signal Code | Category | Severity | Location(s) | Summary | Recommendation |" in content
+    assert "| BG1-001 | BG1 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| BG2-001 | BG2 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| BG3-001 | BG3 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| DP1-001 | DP1 | Dispatch Packet Gap | HIGH |" in content
+    assert "| DP2-001 | DP2 | Dispatch Packet Gap | HIGH |" in content
+    assert "| DP3-001 | DP3 | Dispatch Result Gap | HIGH |" in content
+    assert "stable fingerprint-first finding ID" in content
+    assert "keeps BG/DP values as signal codes where applicable" in content
     assert "DP1" in content
     assert "DP2" in content
     assert "DP3" in content

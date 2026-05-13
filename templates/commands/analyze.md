@@ -269,17 +269,17 @@ Output a Markdown report (no file writes) with the following structure:
 
 ## Specification Analysis Report
 
-| ID | Category | Severity | Location(s) | Summary | Recommendation |
-|----|----------|----------|-------------|---------|----------------|
-| A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
-| BG1 | Boundary Guardrail Gap | HIGH | plan.md, tasks.md | Boundary-sensitive area lacks `Implementation Constitution` in the plan | Re-run `{{invoke:plan}}` to add the constitution, then `{{invoke:tasks}}` if guardrail tasks need regeneration |
-| BG2 | Boundary Guardrail Gap | HIGH | tasks.md | Plan declares a boundary-sensitive constitution rule, but tasks do not preserve it as implementation guardrails | Re-run `{{invoke:tasks}}` or edit `tasks.md` so guardrail tasks exist before setup or feature work |
-| BG3 | Boundary Guardrail Gap | HIGH | implement guidance | Execution guidance does not force boundary confirmation before code-writing work starts | Update implementation guidance so the owning framework, required references, and forbidden drift are confirmed before dispatch |
-| DP1 | Dispatch Packet Gap | HIGH | implement guidance, runtime payload | Delegated execution path is missing compiled hard rules, validation gates, or done criteria | Compile and validate a `WorkerTaskPacket` before dispatch |
-| DP2 | Dispatch Packet Gap | HIGH | plan.md, tasks.md, runtime payload | Delegated execution path is missing required references or forbidden drift | Add packet references/forbidden drift to planning artifacts, then recompile |
-| DP3 | Dispatch Result Gap | HIGH | subagent result, join point | Subagent completion lacks validation evidence or rule acknowledgement | Reject the subagent result and require a packet-compliant rerun |
+| ID | Signal Code | Category | Severity | Location(s) | Summary | Recommendation |
+|----|-------------|----------|----------|-------------|---------|----------------|
+| A1-001 | A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
+| BG1-001 | BG1 | Boundary Guardrail Gap | HIGH | plan.md, tasks.md | Boundary-sensitive area lacks `Implementation Constitution` in the plan | Re-run `{{invoke:plan}}` to add the constitution, then `{{invoke:tasks}}` if guardrail tasks need regeneration |
+| BG2-001 | BG2 | Boundary Guardrail Gap | HIGH | tasks.md | Plan declares a boundary-sensitive constitution rule, but tasks do not preserve it as implementation guardrails | Re-run `{{invoke:tasks}}` or edit `tasks.md` so guardrail tasks exist before setup or feature work |
+| BG3-001 | BG3 | Boundary Guardrail Gap | HIGH | implement guidance | Execution guidance does not force boundary confirmation before code-writing work starts | Update implementation guidance so the owning framework, required references, and forbidden drift are confirmed before dispatch |
+| DP1-001 | DP1 | Dispatch Packet Gap | HIGH | implement guidance, runtime payload | Delegated execution path is missing compiled hard rules, validation gates, or done criteria | Compile and validate a `WorkerTaskPacket` before dispatch |
+| DP2-001 | DP2 | Dispatch Packet Gap | HIGH | plan.md, tasks.md, runtime payload | Delegated execution path is missing required references or forbidden drift | Add packet references/forbidden drift to planning artifacts, then recompile |
+| DP3-001 | DP3 | Dispatch Result Gap | HIGH | subagent result, join point | Subagent completion lacks validation evidence or rule acknowledgement | Reject the subagent result and require a packet-compliant rerun |
 
-(Add one row per finding; generate stable IDs prefixed by category initial.)
+(Add one row per finding. Each row uses a stable fingerprint-first finding ID, and keeps BG/DP values as signal codes where applicable.)
 
 **Blocker Bundle:**
 
