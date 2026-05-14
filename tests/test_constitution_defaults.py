@@ -6,6 +6,10 @@ from specify_cli import build_constitution_template_for_profile, ensure_constitu
 from specify_cli.learnings import ensure_learning_memory_from_templates
 
 
+def _compact(text: str) -> str:
+    return " ".join(text.split())
+
+
 def _seed_constitution_template(project_path: Path) -> None:
     source_template = Path(__file__).resolve().parents[1] / "templates" / "constitution-template.md"
     target_template = project_path / ".specify" / "templates" / "constitution-template.md"
@@ -45,6 +49,7 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
 
     constitution_path = project_path / ".specify" / "memory" / "constitution.md"
     content = constitution_path.read_text(encoding="utf-8")
+    compact_content = _compact(content)
 
     assert constitution_path.exists()
     assert "# demo-project Constitution" in content
@@ -58,7 +63,12 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert ".specify/project-cognition/status.json" in content
     assert "workflow-appropriate cognition" in content
     assert "default brownfield runtime truth surface" in content
-    assert "Legacy handbook or\n  project-map exports are compatibility surfaces only." in content
+    assert "Project Cognition Before Existing-System Judgment" in content
+    assert "agents MUST query project cognition before broad source inspection" in compact_content
+    assert "query result MUST guide routing, minimal live reads" in compact_content
+    assert "Legacy handbook" in content
+    assert "project-map exports" in content
+    assert "compatibility surfaces only" in content
     assert "map-update" in content
     assert "map-scan" in content
     assert "map-build" in content
@@ -66,7 +76,7 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "generate it before structural work continues" in content
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
-    assert "**Version**: 1.1.0" in content
+    assert "**Version**: 1.2.0" in content
     assert f"**Ratified**: {date.today().isoformat()}" in content
 
 
@@ -92,18 +102,59 @@ def test_ensure_constitution_from_template_materializes_library_profile(tmp_path
     constitution_path = project_path / ".specify" / "memory" / "constitution.md"
     template_content = template_path.read_text(encoding="utf-8")
     content = constitution_path.read_text(encoding="utf-8")
+    compact_content = _compact(content)
 
     assert "# library-project Constitution" in content
     assert "### IV. Stable Public Surface" in content
     assert "Public APIs, configuration keys, CLI flags, and file formats MUST" in content
     assert "SemVer and Release Discipline" in content
     assert "Examples and Upgrade Paths" in content
+    assert "Project Cognition Before Existing-System Judgment" in content
+    assert "existing project truth" in content
+    assert "query result MUST guide routing, minimal live reads" in compact_content
     assert ".specify/project-cognition/status.json" not in content
     assert "# [PROJECT_NAME] Constitution" in template_content
     assert "Stable Public Surface" in template_content
     assert "[PROJECT_NAME]" not in content
-    assert "**Version**: 1.0.0" in content
+    assert "**Version**: 1.1.0" in content
     assert f"**Ratified**: {date.today().isoformat()}" in content
+
+
+def test_ensure_constitution_from_template_materializes_minimal_profile(tmp_path):
+    project_path = tmp_path / "minimal-project"
+    project_path.mkdir()
+    _seed_constitution_template(project_path)
+    _seed_constitution_profile_assets(project_path)
+
+    ensure_constitution_from_template(project_path, constitution_profile="minimal")
+
+    constitution_path = project_path / ".specify" / "memory" / "constitution.md"
+    content = constitution_path.read_text(encoding="utf-8")
+
+    assert "# minimal-project Constitution" in content
+    assert "Project Cognition Before Existing-System Judgment" in content
+    assert "scope boundaries" in content
+    assert ".specify/project-cognition/status.json" not in content
+    assert "**Version**: 1.1.0" in content
+
+
+def test_ensure_constitution_from_template_materializes_regulated_profile(tmp_path):
+    project_path = tmp_path / "regulated-project"
+    project_path.mkdir()
+    _seed_constitution_template(project_path)
+    _seed_constitution_profile_assets(project_path)
+
+    ensure_constitution_from_template(project_path, constitution_profile="regulated")
+
+    constitution_path = project_path / ".specify" / "memory" / "constitution.md"
+    content = constitution_path.read_text(encoding="utf-8")
+
+    assert "# regulated-project Constitution" in content
+    assert "Project Cognition Before Existing-System Judgment" in content
+    assert "trust boundaries" in content
+    assert "control impact" in content
+    assert ".specify/project-cognition/status.json" not in content
+    assert "**Version**: 1.1.0" in content
 
 
 def test_ensure_constitution_from_template_preserves_existing_constitution(tmp_path):

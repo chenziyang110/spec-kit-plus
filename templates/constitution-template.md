@@ -119,6 +119,11 @@ The system MUST make failures easy to detect, explain, and reproduce.
 
 ## Engineering Standards
 
+- **Project Cognition Before Existing-System Judgment**: When work depends on
+  existing project truth, agents MUST query project cognition before broad
+  source inspection, planning, debugging, implementation, task decomposition,
+  or subagent dispatch. The query result MUST guide routing, minimal live
+  reads, boundary constraints, and verification strategy.
 - **Technical Source of Truth**: Maintain
   `.specify/project-cognition/status.json` and workflow-appropriate cognition
   slices as the default brownfield runtime truth surface. Legacy handbook or
