@@ -138,6 +138,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     (core_pack / "shared_hooks").mkdir(parents=True)
     (core_pack / "shared_hooks" / "specify-hook").write_text("#!/usr/bin/env sh\n", encoding="utf-8")
     (core_pack / "shared_hooks" / "specify-hook.cmd").write_text("@echo off\n", encoding="utf-8")
+    (core_pack / "shared_hooks" / "specify-hook.mjs").write_text("console.log('hook')\n", encoding="utf-8")
     (core_pack / "shared_hooks" / "specify-hook.py").write_text("print('hook')\n", encoding="utf-8")
     (core_pack / "scripts" / "powershell").mkdir(parents=True)
     (core_pack / "scripts" / "powershell" / "common.ps1").write_text("# common\n", encoding="utf-8")
@@ -159,4 +160,5 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     assert not (project_root / ".specify" / "templates" / "project-map" / "root" / "ARCHITECTURE.md").exists()
     assert (project_root / ".specify" / "templates" / "worker-prompts" / "implementer.md").exists()
     assert (project_root / ".specify" / "scripts" / "shared" / "prd-state.py").exists()
+    assert not (project_root / ".specify" / "bin" / "specify-hook.mjs").exists()
     assert not (project_root / ".specify" / "bin" / "specify-hook.py").exists()

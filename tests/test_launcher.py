@@ -10,6 +10,7 @@ from specify_cli.launcher import (
     SpecifyLauncherSpec,
     load_project_specify_launcher,
     project_specify_subcommand,
+    render_claude_hook_launcher,
     render_hook_launcher_command,
     render_project_launcher_placeholders,
     resolve_hook_runtime_spec,
@@ -285,7 +286,7 @@ def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(
     assert "stale-review-learning-command-surface" in codes
 
 
-def test_diagnose_project_runtime_compatibility_reports_stale_claude_windows_hook_commands(tmp_path):
+def test_diagnose_project_runtime_compatibility_reports_stale_claude_shell_hook_commands(tmp_path):
     settings_path = tmp_path / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
     settings_path.write_text(
@@ -310,7 +311,35 @@ def test_diagnose_project_runtime_compatibility_reports_stale_claude_windows_hoo
 
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
-    assert any(issue["code"] == "stale-claude-windows-hook-command" for issue in issues)
+    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_reports_stale_claude_cmd_launcher_commands(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start',
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
 
 
 def test_diagnose_project_runtime_compatibility_reports_stale_direct_hook_launcher_command(tmp_path):
@@ -402,6 +431,20 @@ def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(m
     assert command == '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
 
 
+def test_render_claude_hook_launcher_uses_node_exec_form():
+    hook = render_claude_hook_launcher("session-start")
+
+    assert hook == {
+        "type": "command",
+        "command": "node",
+        "args": [
+            "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
+            "claude",
+            "session-start",
+        ],
+    }
+
+
 def test_install_shared_hook_launcher_assets_writes_all_runtime_files(tmp_path):
     created = install_shared_hook_launcher_assets(tmp_path)
     relpaths = sorted(path.relative_to(tmp_path).as_posix() for path in created)
@@ -409,6 +452,7 @@ def test_install_shared_hook_launcher_assets_writes_all_runtime_files(tmp_path):
     assert relpaths == [
         ".specify/bin/specify-hook",
         ".specify/bin/specify-hook.cmd",
+        ".specify/bin/specify-hook.mjs",
         ".specify/bin/specify-hook.py",
     ]
 

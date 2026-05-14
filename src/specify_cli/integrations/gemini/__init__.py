@@ -358,6 +358,7 @@ class GeminiIntegration(TomlIntegration):
         install_shared_hook_launcher_assets(
             project_root,
             manifest=manifest,
+            include_node=False,
         )
         self._install_or_merge_hook_settings(
             project_root=project_root,
@@ -384,6 +385,7 @@ class GeminiIntegration(TomlIntegration):
             install_shared_hook_launcher_assets(
                 project_root,
                 manifest=manifest,
+                include_node=False,
             )
         )
         created.extend(
