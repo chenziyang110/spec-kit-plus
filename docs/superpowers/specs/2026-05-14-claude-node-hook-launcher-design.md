@@ -31,7 +31,7 @@ Claude managed hooks should invoke this launcher with Claude Code's argv-style c
   "type": "command",
   "command": "node",
   "args": [
-    ".specify/bin/specify-hook.mjs",
+    "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
     "claude",
     "session-start"
   ]
