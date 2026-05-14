@@ -97,6 +97,24 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "senior product manager" in skill_lower
 
 
+def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
+    hard_gate_index = content.find("project cognition hard gate")
+    assert hard_gate_index != -1
+    assert "carry forward" in content
+    assert "next workflow artifact or execution state" in content
+
+    if command_name == "implement":
+        orchestration_index = content.find("## orchestration model")
+        if orchestration_index != -1:
+            assert hard_gate_index < orchestration_index
+        assert "implement-tracker.md" in content
+        assert "workertaskpacket" in content
+    elif command_name == "quick":
+        assert "status.md" in content
+    elif command_name == "debug":
+        assert "debug session state" in content
+
+
 class SkillsIntegrationTests:
     """Mixin — set class-level constants and inherit these tests.
 
@@ -133,6 +151,29 @@ class SkillsIntegrationTests:
         assert "minimal_live_reads" in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in generated
+
+    def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        skills_dir = i.skills_dest(tmp_path)
+        for name in ("implement", "debug", "quick"):
+            content = (skills_dir / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+            assert "crucial first step" in content
+            assert "project cognition" in content
+            assert "project-cognition query" in content
+            assert "minimal_live_reads" in content
+            assert "map-scan" in content
+            assert "map-build" in content
+            _assert_runtime_cognition_carry_forward(content, name)
+            if name == "debug":
+                assert "project-cognition query --intent debug" in content
+                assert "debug-handbook.md" not in content
+            else:
+                assert "build-handbook.md" not in content
+                assert "map-update" in content
 
     def test_is_skills_integration(self):
         assert isinstance(get_integration(self.KEY), SkillsIntegration)

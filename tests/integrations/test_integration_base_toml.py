@@ -82,6 +82,24 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "senior product manager" in command_lower
 
 
+def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
+    hard_gate_index = content.find("project cognition hard gate")
+    assert hard_gate_index != -1
+    assert "carry forward" in content
+    assert "next workflow artifact or execution state" in content
+
+    if command_name == "implement":
+        orchestration_index = content.find("## orchestration model")
+        if orchestration_index != -1:
+            assert hard_gate_index < orchestration_index
+        assert "implement-tracker.md" in content
+        assert "workertaskpacket" in content
+    elif command_name == "quick":
+        assert "status.md" in content
+    elif command_name == "debug":
+        assert "debug session state" in content
+
+
 class TomlIntegrationTests:
     """Mixin — set class-level constants and inherit these tests.
 
@@ -288,6 +306,8 @@ class TomlIntegrationTests:
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
             assert "crucial first step" in content
+            command_name = f.stem.split(".")[1]
+            _assert_runtime_cognition_carry_forward(content, command_name)
             if "debug" in f.name:
                 assert "runtime handbook contract" in content
                 assert "debug-handbook.md" in content

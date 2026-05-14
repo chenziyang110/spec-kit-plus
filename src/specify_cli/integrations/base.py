@@ -478,6 +478,11 @@ class IntegrationBase(ABC):
             "quick": "before repository analysis or implementation",
         }[command_name]
         query_gate = self._project_cognition_query_gate_line(command_name=command_name, command_step=command_step)
+        carry_forward = {
+            "implement": "- Carry forward the selected capability, minimal live reads, boundary constraints, required references, validation route, and evidence gaps into `implement-tracker.md` or the current `WorkerTaskPacket` before dispatch or code edits.\n",
+            "debug": "- Carry forward the selected capability or symptom, evidence routes, minimal reads, competing truths, and unresolved coverage gaps into debug session state before root-cause claims.\n",
+            "quick": "- Carry forward the selected capability, minimal reads, validation route, and known risk into quick-task `STATUS.md` before implementation proceeds.\n",
+        }[command_name]
 
         addendum = (
             "\n"
@@ -486,10 +491,14 @@ class IntegrationBase(ABC):
             "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` routes through `{{invoke:map-update}}`; `needs_rebuild` routes through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` stops with the runtime issue.\n"
             "- Treat the project cognition query bundle as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when query-backed runtime coverage should be the source of truth.\n"
             "- Treat this as a hard gate, not a best-effort reminder; do not continue until the returned readiness and task-local bundle are strong enough for the workflow.\n"
+            "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.\n"
+            f"{carry_forward}"
         )
 
         insert_before = None
-        if "## Outline" in content:
+        if "## Orchestration Model" in content:
+            insert_before = "## Orchestration Model"
+        elif "## Outline" in content:
             insert_before = "## Outline"
         elif "## Process" in content:
             insert_before = "## Process"
@@ -1884,6 +1893,12 @@ class SkillsIntegration(IntegrationBase):
         agent_name_full = self.config.get("name", self.key.capitalize())
         agent_name = agent_name_full.replace(" CLI", "")
 
+        content = self._append_runtime_project_cognition_gate(
+            content=content,
+            agent_name=agent_name,
+            command_name="implement",
+        )
+
         content = self._append_implement_leader_gate(
             content=content,
             agent_name=agent_name,
@@ -1950,6 +1965,12 @@ class SkillsIntegration(IntegrationBase):
         content = debug_skill.read_text(encoding="utf-8")
         agent_name_full = self.config.get("name", self.key.capitalize())
         agent_name = agent_name_full.replace(" CLI", "")
+
+        content = self._append_runtime_project_cognition_gate(
+            content=content,
+            agent_name=agent_name,
+            command_name="debug",
+        )
 
         gate_marker = f"## {agent_name} Leader Gate"
         if gate_marker not in content:
@@ -2062,6 +2083,12 @@ class SkillsIntegration(IntegrationBase):
         content = quick_skill.read_text(encoding="utf-8")
         agent_name_full = self.config.get("name", self.key.capitalize())
         agent_name = agent_name_full.replace(" CLI", "")
+
+        content = self._append_runtime_project_cognition_gate(
+            content=content,
+            agent_name=agent_name,
+            command_name="quick",
+        )
 
         gate_marker = f"## {agent_name} Leader Gate"
         if gate_marker not in content:
