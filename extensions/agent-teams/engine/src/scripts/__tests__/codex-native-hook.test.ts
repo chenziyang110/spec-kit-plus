@@ -2771,7 +2771,7 @@ export async function onHookEvent(event) {
       );
       assert.match(
         String(output?.hookSpecificOutput?.additionalContext ?? ""),
-        /review-learning --command implement/i,
+        /record a learning review decision for `sp-implement`/i,
       );
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -2907,7 +2907,7 @@ export async function onHookEvent(event) {
       );
       assert.match(
         String(output?.hookSpecificOutput?.additionalContext ?? ""),
-        /review-learning --command implement/i,
+        /record a learning review decision for `sp-implement`/i,
       );
     } finally {
       await rm(cwd, { recursive: true, force: true });

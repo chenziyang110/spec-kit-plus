@@ -451,12 +451,14 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
         os.chdir(old_cwd)
 
     assert result.exit_code == 0
-    assert "project compatibility" in result.output.lower()
-    assert "persisted project launcher is configured but unavailable" in result.output.lower()
-    assert "generated powershell workflow scripts are stale" in result.output.lower()
-    assert "generated shared workflow scripts still target legacy feature roots" in result.output.lower()
-    assert "claude managed hook commands still use powershell-style" in result.output.lower()
-    assert "bash-compatible launcher command" in result.output.lower()
+    output = " ".join(result.output.lower().split())
+    assert "project compatibility" in output
+    assert "persisted project launcher is configured but unavailable" in output
+    assert "generated powershell workflow scripts are stale" in output
+    assert "generated shared workflow scripts still target legacy feature roots" in output
+    assert "claude managed hook commands still use shell-parsed direct python" in output
+    assert "shell-free node launcher" in output
+    assert "managed native hook commands still invoke integration dispatch scripts through a direct python command" in output
 
 
 def test_project_cognition_status_and_check_commands_render_seeded_state_without_project_map(tmp_path):
