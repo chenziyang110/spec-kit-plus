@@ -296,6 +296,44 @@ def test_validate_build_blocks_when_db_is_missing(tmp_path: Path) -> None:
     assert any("project-cognition.db" in message and "must exist" in message for message in result["errors"])
 
 
+def test_validate_build_blocks_when_db_is_empty(tmp_path: Path) -> None:
+    write_cognition_status(
+        tmp_path,
+        CognitionStatus(
+            version=3,
+            graph_ready=True,
+            graph_store_path=".specify/project-cognition/project-cognition.db",
+        ),
+    )
+    db_path = tmp_path / ".specify" / "project-cognition" / "project-cognition.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_path.write_bytes(b"")
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("project-cognition.db" in message and "must not be empty" in message for message in result["errors"])
+
+
+def test_validate_build_blocks_when_db_is_not_readable_sqlite(tmp_path: Path) -> None:
+    write_cognition_status(
+        tmp_path,
+        CognitionStatus(
+            version=3,
+            graph_ready=True,
+            graph_store_path=".specify/project-cognition/project-cognition.db",
+        ),
+    )
+    db_path = tmp_path / ".specify" / "project-cognition" / "project-cognition.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_path.write_text("not a sqlite database\n", encoding="utf-8")
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("SQLite" in message for message in result["errors"])
+
+
 def test_validate_build_blocks_when_db_has_no_active_generation(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
     write_cognition_status(tmp_path, CognitionStatus(version=3, graph_ready=True))
