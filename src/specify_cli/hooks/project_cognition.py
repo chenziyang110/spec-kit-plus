@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from specify_cli.cognition import validate_build_acceptance
 from specify_cli.execution import worker_task_packet_from_json
 from specify_cli.project_cognition_status import (
     complete_project_map_refresh,
+    git_branch_name,
     git_head_commit,
     has_git_repo,
     inspect_project_cognition_freshness,
     mark_project_map_dirty,
+    mark_project_map_refreshed,
     project_cognition_status_metadata_path,
+    write_project_map_status,
 )
 
 from .events import (
@@ -159,6 +163,34 @@ def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> Ho
             status="blocked",
             severity="critical",
             errors=["git baseline unavailable for project-cognition complete-refresh"],
+        )
+    validation = validate_build_acceptance(project_root)
+    if validation.get("status") != "ok":
+        status = mark_project_map_refreshed(
+            project_root,
+            head_commit=git_head_commit(project_root),
+            branch=git_branch_name(project_root),
+            reason="acceptance-blocked",
+            refresh_topics=[],
+            refresh_scope="partial",
+            refresh_basis="build-acceptance",
+            changed_files_basis=[],
+        )
+        status.freshness = "partial_refresh"
+        write_project_map_status(project_root, status)
+        return HookResult(
+            event=PROJECT_COGNITION_COMPLETE_REFRESH,
+            status="blocked",
+            severity="critical",
+            errors=[str(message) for message in validation.get("errors", [])],
+            writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
+            data={
+                "validation": validation,
+                "freshness": "partial_refresh",
+                "readiness": "blocked",
+                "recommended_next_action": "run_map_scan_build",
+                "project_cognition_status": status.to_dict(),
+            },
         )
     status = complete_project_map_refresh(project_root)
     return HookResult(

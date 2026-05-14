@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from specify_cli.cognition import validate_build_acceptance, validate_scan_acceptance
+
 from .checkpoint_serializers import extract_field, normalize_command_name
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
@@ -651,12 +653,14 @@ def _validate_cognition_status_artifact(feature_dir: Path) -> list[str]:
 
 
 def _validate_cognition_database_artifact(feature_dir: Path) -> list[str]:
-    db_path = feature_dir / "project-cognition.db"
-    if not db_path.exists() or not db_path.is_file():
-        return ["project-cognition.db must exist for the SQLite project cognition runtime"]
-    if db_path.stat().st_size == 0:
-        return ["project-cognition.db must not be empty"]
-    return []
+    validation = validate_build_acceptance(_project_root_from_cognition_dir(feature_dir))
+    return [str(message) for message in validation.get("errors", [])]
+
+
+def _project_root_from_cognition_dir(feature_dir: Path) -> Path:
+    if feature_dir.name == "project-cognition" and feature_dir.parent.name == ".specify":
+        return feature_dir.parent.parent
+    return feature_dir
 
 
 def _normalize_result_path(value: object) -> str:
@@ -669,15 +673,8 @@ def _normalize_result_path(value: object) -> str:
 
 
 def _validate_map_scan_artifacts(feature_dir: Path) -> list[str]:
-    errors: list[str] = []
-    errors.extend(_validate_cognition_status_artifact(feature_dir))
-    errors.extend(_validate_graph_artifact(feature_dir, "provisional/nodes.json", GRAPH_NODE_REQUIRED_KEYS))
-    errors.extend(_validate_graph_artifact(feature_dir, "provisional/edges.json", GRAPH_EDGE_REQUIRED_KEYS))
-    errors.extend(
-        _validate_json_object_with_array_key(feature_dir, "provisional/observations.json", "observations")
-    )
-    errors.extend(_validate_json_object_with_array_key(feature_dir, "coverage.json", "rows"))
-    return errors
+    validation = validate_scan_acceptance(_project_root_from_cognition_dir(feature_dir))
+    return [str(message) for message in validation.get("errors", [])]
 
 
 def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
