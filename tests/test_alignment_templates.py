@@ -2214,6 +2214,18 @@ def test_project_map_freshness_scripts_exist_and_share_status_contract():
     assert "git baseline unavailable for project-map compatibility/export freshness" in ps_freshness
 
 
+def test_project_cognition_freshness_scripts_are_launcher_backed_and_map_free():
+    sh_freshness = _read("scripts/bash/project-cognition-freshness.sh")
+    ps_freshness = _read("scripts/powershell/project-cognition-freshness.ps1")
+
+    for content in (sh_freshness, ps_freshness):
+        assert "project-cognition" in content
+        assert "specify_launcher" in content
+        assert ".specify/config.json" in content
+        assert ".specify/project-map" not in content
+        assert "project-map-freshness" not in content
+
+
 def test_update_agent_context_emitters_share_managed_block_v2_contract() -> None:
     bash_script = _read("scripts/bash/update-agent-context.sh")
     powershell_script = _read("scripts/powershell/update-agent-context.ps1")

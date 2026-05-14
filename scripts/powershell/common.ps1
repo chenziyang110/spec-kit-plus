@@ -423,7 +423,7 @@ function Get-ProjectCognitionStatusPath {
 
 function Get-ProjectCognitionHelperPath {
     param([string]$RepoRoot = (Get-RepoRoot))
-    return (Join-Path $RepoRoot ".specify/scripts/powershell/project-map-freshness.ps1")
+    return (Join-Path $RepoRoot ".specify/scripts/powershell/project-cognition-freshness.ps1")
 }
 
 function Get-ProjectMapDir {

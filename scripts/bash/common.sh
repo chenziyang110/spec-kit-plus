@@ -438,7 +438,7 @@ project_cognition_status_path() {
 
 project_cognition_helper_path() {
     local repo_root="${1:-$(get_repo_root)}"
-    echo "$repo_root/.specify/scripts/bash/project-map-freshness.sh"
+    echo "$repo_root/.specify/scripts/bash/project-cognition-freshness.sh"
 }
 
 project_map_dir() {

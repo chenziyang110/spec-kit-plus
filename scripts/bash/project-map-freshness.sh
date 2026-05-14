@@ -943,7 +943,7 @@ case "$COMMAND" in
         clear_dirty
         ;;
     *)
-        echo "Usage: project-map-freshness.sh [repo_root] {check|record-refresh|complete-refresh|mark-dirty|clear-dirty} [reason] [origin_command] [origin_feature_dir] [origin_lane_id] [dirty_scope_paths_json]" >&2
+        echo "Usage: $(basename "$0") [repo_root] {check|record-refresh|complete-refresh|mark-dirty|clear-dirty} [reason] [origin_command] [origin_feature_dir] [origin_lane_id] [dirty_scope_paths_json]" >&2
         exit 1
         ;;
 esac

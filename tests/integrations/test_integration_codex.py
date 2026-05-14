@@ -115,6 +115,13 @@ class TestCodexAutoPromote:
         assert (target / ".specify" / "project-cognition" / "status.json").exists()
         assert not (target / ".specify" / "templates" / "project-map").exists()
         assert not (target / ".specify" / "project-map").exists()
+        cognition_helper = target / ".specify" / "scripts" / "bash" / "project-cognition-freshness.sh"
+        assert cognition_helper.exists()
+        cognition_helper_text = cognition_helper.read_text(encoding="utf-8")
+        assert ".specify/project-map" not in cognition_helper_text
+        assert "project-map-freshness" not in cognition_helper_text
+        assert "project-cognition" in cognition_helper_text
+        assert not (target / ".specify" / "scripts" / "bash" / "project-map-freshness.sh").exists()
 
         _assert_stable_subagent_contract((target / "AGENTS.md").read_text(encoding="utf-8"))
 

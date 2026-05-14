@@ -1536,7 +1536,16 @@ def project_map_check(
 @project_map_app.command("mark-dirty")
 @project_cognition_app.command("mark-dirty")
 def project_map_mark_dirty(
-    reason: str = typer.Argument(..., help="Why the current work needs a manual dirty override/fallback"),
+    reason: str = typer.Argument(
+        "",
+        metavar="REASON",
+        help="Why the current work needs a manual dirty override/fallback",
+    ),
+    reason_option: str = typer.Option(
+        "",
+        "--reason",
+        help="Why the current work needs a manual dirty override/fallback",
+    ),
     origin_command: str = typer.Option("", "--origin-command", help="Optional workflow command that created the dirty fallback"),
     origin_feature_dir: str = typer.Option("", "--origin-feature-dir", help="Optional feature directory that created the dirty fallback"),
     origin_lane_id: str = typer.Option("", "--origin-lane-id", help="Optional lane id that created the dirty fallback"),
@@ -1554,9 +1563,14 @@ def project_map_mark_dirty(
         packet = worker_task_packet_from_json(resolved_packet.read_text(encoding="utf-8"))
         scope_paths = list(dict.fromkeys([*packet.scope.write_scope, *packet.scope.read_scope]))
 
+    dirty_reason = reason_option.strip() or reason.strip()
+    if not dirty_reason:
+        console.print("[red]Error:[/red] A dirty reason is required. Pass REASON or --reason <reason>.")
+        raise typer.Exit(1)
+
     mark_project_map_dirty(
         project_root,
-        reason,
+        dirty_reason,
         origin_command=origin_command.strip(),
         origin_feature_dir=origin_feature_dir.strip(),
         origin_lane_id=origin_lane_id.strip(),
@@ -2692,7 +2706,9 @@ def _install_shared_infra(
             # Merge without overwriting — only add files that don't exist yet
             for src_path in variant_src.rglob("*"):
                 if src_path.is_file():
-                    rel_path = src_path.relative_to(variant_src)
+                    rel_path = _generated_script_relative_path(src_path, variant_src)
+                    if rel_path is None:
+                        continue
                     dst_path = dest_variant / rel_path
                     if dst_path.exists() and not overwrite_existing:
                         skipped_files.append(str(dst_path.relative_to(project_path)))
@@ -2798,6 +2814,18 @@ def _install_shared_infra(
 
     manifest.save()
     return True
+
+
+def _generated_script_relative_path(src_path: Path, variant_src: Path) -> Path | None:
+    """Return the generated-project script path for a source helper file."""
+    rel_path = src_path.relative_to(variant_src)
+    legacy_helpers = {
+        Path("project-map-freshness.sh"),
+        Path("project-map-freshness.ps1"),
+    }
+    if rel_path in legacy_helpers:
+        return None
+    return rel_path
 
 
 def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = None) -> None:

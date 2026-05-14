@@ -481,6 +481,36 @@ def test_project_cognition_record_refresh_does_not_require_project_map_outputs(t
     assert not (project / ".specify" / "project-map").exists()
 
 
+def test_project_cognition_mark_dirty_accepts_documented_reason_option(tmp_path):
+    project = tmp_path / "project-cognition-mark-dirty-reason-option"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            ["init", "--here", "--ai", "claude", "--script", "sh", "--no-git", "--ignore-agent-tools"],
+            catch_exceptions=False,
+        )
+        result = runner.invoke(
+            app,
+            ["project-cognition", "mark-dirty", "--reason", "workflow contract changed", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["dirty"] is True
+    assert payload["dirty_reasons"] == ["workflow_contract_changed"]
+    assert payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
+    assert not (project / ".specify" / "project-map").exists()
+
+
 def test_project_cognition_complete_refresh_records_map_build_reason_without_project_map_outputs(tmp_path):
     project = tmp_path / "project-cognition-complete-refresh"
     project.mkdir()
