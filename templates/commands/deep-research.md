@@ -249,6 +249,10 @@ Use `execution_surface: native-subagents`.
      - `needs_update`: route through `{{invoke:map-update}}`.
      - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
      - `blocked`: stop and report the blocking runtime issue.
+     - **CARRY FORWARD**: Treat project-cognition results as repository-grounded
+       starting context. Preserve cited capabilities, constraints, affected
+       surfaces, and verification routes in `deep-research.md`, and distinguish
+       repository facts from external research findings.
    - From `FEATURE_DIR/alignment.md`, extract:
      - `Feasibility / Deep Research Gate` status per capability
      - `Planning Gate Recommendation`

@@ -130,6 +130,10 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-clarify`.
      - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
      - `blocked`: stop and report the blocking runtime issue.
+     - **CARRY FORWARD**: Use project-cognition facts to decide whether an
+       apparent requirement gap is already answered by repository truth. Preserve
+       selected ownership, boundary, ambiguity, and verification facts in the
+       clarified spec package before routing back to planning.
    - relevant repository documentation and design artifacts when they materially affect the requested change
 
 4. Identify what needs enhancement:

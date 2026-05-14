@@ -554,11 +554,15 @@ def test_test_scan_and_build_templates_use_project_cognition_gates():
     build_content = _read("templates/commands/test-build.md")
 
     for content in (scan_content, build_content):
+        lowered = content.lower()
         assert "project-cognition lexicon --intent test" in content
         assert "project-cognition query --intent test" in content
         assert "--query-plan" in content
         assert "query_plan" in content
         assert "minimal_live_reads" in content
+        assert "testing-surface ownership" in lowered
+        assert "coverage gaps" in lowered
+        assert "required live reads" in lowered
         assert ".specify/testing/TESTING_CONTRACT.md" in content
         assert ".specify/testing/TESTING_PLAYBOOK.md" in content
         assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content

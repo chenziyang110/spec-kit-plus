@@ -150,6 +150,9 @@ Use the returned readiness:
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-plan`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Promote project-cognition facts into planning constraints,
+  `Implementation Constitution`, boundary rules, verification strategy, and
+  `plan-contract.json` when they affect implementation shape.
 
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:

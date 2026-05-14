@@ -321,6 +321,11 @@ Use the returned readiness:
 - `needs_update`: route through `{{invoke:map-update}}`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Before dispatch or code edits, write the selected
+  capability, minimal live reads, boundary constraints, required references,
+  validation route, and evidence gaps into `implement-tracker.md` or the current
+  `WorkerTaskPacket`. Do not dispatch from a packet that omits the relevant
+  project-cognition facts.
 
 Do not compile packets, dispatch subagents, or inspect implementation files
 until the cognition gate has passed.

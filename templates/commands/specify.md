@@ -68,6 +68,10 @@ Use the returned readiness:
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-specify`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Write project-cognition ownership, affected surfaces,
+  reusable assets, verification routes, and known unknowns into `context.md`
+  and the brainstorming handoff where they materially shape the downstream
+  plan. Do not leave these facts only in the transient query output.
 
 ## Workflow Phase Lock
 

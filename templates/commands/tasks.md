@@ -133,6 +133,9 @@ Use the returned readiness:
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-tasks`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Carry cognition-derived required references, write scopes,
+  validation commands, forbidden drift, and known unknowns into `tasks.md`,
+  `task-index.json`, and task packets.
 
 Task generation may stay focused on the plan artifacts afterward, but it may not skip the query-backed cognition gate.
 
