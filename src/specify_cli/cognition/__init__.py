@@ -53,6 +53,7 @@ from .store import (
     write_slice,
 )
 from .update import apply_cognition_update
+from .validation import validate_build_acceptance, validate_scan_acceptance
 
 __all__ = [
     "ClaimRecord",
@@ -94,6 +95,8 @@ __all__ = [
     "read_json_artifact",
     "ReferenceProjectReadError",
     "seed_active_generation",
+    "validate_build_acceptance",
+    "validate_scan_acceptance",
     "write_cognition_status",
     "write_coverage",
     "write_graph_claims",
