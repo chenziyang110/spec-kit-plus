@@ -1875,7 +1875,21 @@ class SkillsIntegration(IntegrationBase):
         content = skill_path.read_text(encoding="utf-8")
         if marker in content:
             return
-        self.write_file_and_record(content + addendum, skill_path, project_root, manifest)
+        self._write_augmented_skill(content + addendum, skill_path, project_root, manifest)
+
+    def _write_augmented_skill(
+        self,
+        content: str,
+        skill_path: Path,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> None:
+        """Write a post-processed skill after resolving launcher placeholders."""
+
+        from specify_cli.launcher import render_project_launcher_placeholders
+
+        rendered = render_project_launcher_placeholders(project_root, content)
+        self.write_file_and_record(rendered, skill_path, project_root, manifest)
 
     def _augment_implement_skill(
         self,
@@ -1948,7 +1962,7 @@ class SkillsIntegration(IntegrationBase):
                 heading="Subagent Dispatch Contract",
             )
 
-        self.write_file_and_record(content, implement_skill, project_root, manifest)
+        self._write_augmented_skill(content, implement_skill, project_root, manifest)
 
     def _augment_debug_skill(
         self,
@@ -2066,7 +2080,7 @@ class SkillsIntegration(IntegrationBase):
                 heading="Subagent Dispatch Contract",
             )
 
-        self.write_file_and_record(content, debug_skill, project_root, manifest)
+        self._write_augmented_skill(content, debug_skill, project_root, manifest)
 
     def _augment_quick_skill(
         self,
@@ -2132,7 +2146,7 @@ class SkillsIntegration(IntegrationBase):
                     snapshot=snapshot,
                     heading="Subagent Dispatch Contract",
                 )
-            self.write_file_and_record(content, quick_skill, project_root, manifest)
+            self._write_augmented_skill(content, quick_skill, project_root, manifest)
             return
 
         addendum = (
@@ -2163,7 +2177,7 @@ class SkillsIntegration(IntegrationBase):
                 heading="Subagent Dispatch Contract",
             )
 
-        self.write_file_and_record(content, quick_skill, project_root, manifest)
+        self._write_augmented_skill(content, quick_skill, project_root, manifest)
 
     def _augment_implement_teams_result_contract(
         self,
@@ -2186,7 +2200,7 @@ class SkillsIntegration(IntegrationBase):
             command_name="implement",
             snapshot=snapshot,
         )
-        self.write_file_and_record(content, implement_teams_skill, project_root, manifest)
+        self._write_augmented_skill(content, implement_teams_skill, project_root, manifest)
 
     def _augment_implement_teams_shared_contract(
         self,
@@ -2243,4 +2257,4 @@ class SkillsIntegration(IntegrationBase):
             content = content.replace("## Execution Contract", addendum + "\n## Execution Contract", 1)
         else:
             content += addendum
-        self.write_file_and_record(content, implement_teams_skill, project_root, manifest)
+        self._write_augmented_skill(content, implement_teams_skill, project_root, manifest)
