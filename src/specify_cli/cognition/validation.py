@@ -264,14 +264,13 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
                     errors,
                     details,
                 )
+            if active_generation_id and not errors:
+                _validate_readonly_smoke_query(conn, active_generation_id, minimal_baseline, errors, details)
     except sqlite3.Error as exc:
         errors.append(f".specify/project-cognition/project-cognition.db must open as SQLite: {exc}")
         active_generation_id = ""
 
     _validate_status(status_payload, active_generation_id, errors)
-
-    if not errors:
-        details["smoke_query_readiness"] = "ready"
 
     return _result(
         gate="build",
@@ -371,8 +370,39 @@ def _validate_generation_content(
             errors.append("active generation must contain at least one claim or an explicit minimal-baseline marker")
 
 
-def _count_generation_rows(conn: sqlite3.Connection, table: str, generation_id: str) -> int:
-    row = conn.execute(f"SELECT COUNT(*) AS count FROM {table} WHERE generation_id = ?", (generation_id,)).fetchone()
+def _validate_readonly_smoke_query(
+    conn: sqlite3.Connection,
+    generation_id: str,
+    minimal_baseline: bool,
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    if minimal_baseline:
+        details["smoke_query_readiness"] = "ready"
+        details["smoke_query_signal"] = "minimal_baseline"
+        return
+
+    alias_count = _count_generation_rows(conn, "alias_index", generation_id)
+    active_claim_count = _count_generation_rows(conn, "claims", generation_id, "status = 'active'")
+    details["smoke_alias_count"] = alias_count
+    details["smoke_active_claim_count"] = active_claim_count
+    if alias_count > 0 or active_claim_count > 0:
+        details["smoke_query_readiness"] = "ready"
+        details["smoke_query_signal"] = "alias_index" if alias_count > 0 else "active_claim"
+        return
+
+    details["smoke_query_readiness"] = "needs_rebuild"
+    errors.append("read-only smoke query readiness probe found no alias_index rows or active claims")
+
+
+def _count_generation_rows(
+    conn: sqlite3.Connection,
+    table: str,
+    generation_id: str,
+    extra_where: str = "",
+) -> int:
+    where_clause = f"generation_id = ? AND {extra_where}" if extra_where else "generation_id = ?"
+    row = conn.execute(f"SELECT COUNT(*) AS count FROM {table} WHERE {where_clause}", (generation_id,)).fetchone()
     return int(row["count"]) if row else 0
 
 
