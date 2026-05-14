@@ -383,16 +383,26 @@ def _validate_readonly_smoke_query(
         return
 
     alias_count = _count_generation_rows(conn, "alias_index", generation_id)
-    active_claim_count = _count_generation_rows(conn, "claims", generation_id, "status = 'active'")
+    claim_fts_count = _count_claim_fts_rows(conn, generation_id)
     details["smoke_alias_count"] = alias_count
-    details["smoke_active_claim_count"] = active_claim_count
-    if alias_count > 0 or active_claim_count > 0:
+    details["smoke_claim_fts_count"] = claim_fts_count
+    if alias_count > 0 or claim_fts_count > 0:
         details["smoke_query_readiness"] = "ready"
-        details["smoke_query_signal"] = "alias_index" if alias_count > 0 else "active_claim"
+        details["smoke_query_signal"] = "alias_index" if alias_count > 0 else "claim_fts"
         return
 
     details["smoke_query_readiness"] = "needs_rebuild"
-    errors.append("read-only smoke query readiness probe found no alias_index rows or active claims")
+    errors.append("read-only smoke query readiness probe found no alias_index rows or claim_fts active-claim signal")
+
+
+def _count_claim_fts_rows(conn: sqlite3.Connection, generation_id: str) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) AS count FROM claim_fts "
+        "JOIN claims ON claims.id = claim_fts.claim_id "
+        "WHERE claims.generation_id = ? AND claims.status = 'active'",
+        (generation_id,),
+    ).fetchone()
+    return int(row["count"]) if row else 0
 
 
 def _count_generation_rows(

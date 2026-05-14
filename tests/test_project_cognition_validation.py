@@ -148,7 +148,7 @@ def _seed_runtime_without_smoke_signal(project_root: Path) -> str:
         )
         conn.execute(
             "INSERT INTO claims(id, generation_id, subject_ref, predicate, object_ref, object_value, truth_layer, confidence, status, last_validated_at, attrs_json) "
-            "VALUES ('claim:login', ?, 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', '', 'implementation_reality', 'strong', 'draft', '2026-05-14T00:00:00Z', '{}')",
+            "VALUES ('claim:login', ?, 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', '', 'implementation_reality', 'strong', 'active', '2026-05-14T00:00:00Z', '{}')",
             (generation_id,),
         )
         conn.commit()
@@ -420,6 +420,22 @@ def test_validate_build_blocks_when_smoke_probe_has_no_alias_or_claim_signal(tmp
 
     assert result["status"] == "blocked"
     assert any("smoke" in message or "query readiness" in message for message in result["errors"])
+
+
+def test_validate_build_accepts_claim_fts_query_signal(tmp_path: Path) -> None:
+    _seed_runtime_without_smoke_signal(tmp_path)
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO claim_fts(claim_id, subject_ref, predicate, object_text, content) "
+            "VALUES ('claim:login', 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', 'login capability')"
+        )
+        conn.commit()
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["details"]["smoke_query_readiness"] == "ready"
+    assert result["details"]["smoke_query_signal"] == "claim_fts"
 
 
 def test_validate_build_blocks_when_active_generation_has_no_claims(tmp_path: Path) -> None:
