@@ -263,6 +263,7 @@ Generated project navigation now follows the project cognition runtime:
 - Read the cognition status and the returned task-local bundle before broader repository analysis.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+- For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. After that, normal code changes should use `sp-map-update` for bounded incremental refresh. Return to `sp-map-scan -> sp-map-build` only when the baseline is missing, unusable, schema-incompatible, or the changed closure cannot be bounded safely.
 - Any code change that alters navigation meaning must update the project cognition runtime.
 
 Use support skills when they solve a specific gap:
@@ -283,7 +284,7 @@ Use support skills when they solve a specific gap:
 - `analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
 - `explain` when you want the current spec, plan, task, implement, project cognition, or compatibility/export artifact restated in plain language
 
-If you're starting from an existing codebase, resolve `.specify/project-cognition/status.json` plus the workflow-appropriate slice before requirement, planning, task generation, or implementation work continues. Downstream workflows use cognition freshness in `.specify/project-cognition/status.json` to decide whether the existing runtime is fresh, possibly stale, or stale; use `map-update` for localized stale refresh and `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+If you're starting from an existing codebase, resolve `.specify/project-cognition/status.json` plus the workflow-appropriate slice before requirement, planning, task generation, or implementation work continues. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` and require `project-cognition validate-scan --format json` plus `project-cognition validate-build --format json` to pass before downstream workflows proceed. Downstream workflows use cognition freshness in `.specify/project-cognition/status.json` to decide whether the existing runtime is fresh, possibly stale, or stale; use `map-update` for localized stale refresh and `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 
 Use the lightweight routing rules consistently:
 
@@ -347,6 +348,8 @@ Hook runtime and diagnostics:
   - `specify hook validate-packet --packet-file <path>`
   - `specify hook validate-result --packet-file <packet> --result-file <result>`
 - Use project cognition commands for freshness:
+  - Command shape: `specify project-cognition validate-scan --format json`
+  - Command shape: `specify project-cognition validate-build --format json`
   - Command shape: `specify project-cognition complete-refresh`
   - Command shape: `specify project-cognition mark-dirty --reason "<reason>"`
   - Legacy alias: existing projects may still call `specify project-map ...`; it routes to the project cognition implementation and should not be used in new generated workflow guidance.

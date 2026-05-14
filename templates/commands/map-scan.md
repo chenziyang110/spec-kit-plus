@@ -174,5 +174,8 @@ Before reporting completion:
 
 - confirm that the evidence baseline exists under `.specify/project-cognition/`
 - confirm that provisional nodes and candidate edges were written
+- run `{{specify-subcmd:project-cognition validate-scan --format json}}` before handoff to `sp-map-build`
+- `sp-map-scan` may report complete only after `validate-scan` returns `status=ok` and `readiness=scan_ready`
+- if `validate-scan` returns `status=blocked`, report the blocking errors and do not claim the scan package is build-ready
 - confirm that the scan still has not published final cognition truth
 - report any open uncertainty that `sp-map-build` must reconcile

@@ -527,6 +527,7 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "learning reflex" in content
         assert ".specify/memory/learnings/index.md" in content
         assert "future senior engineer" in content
+        assert "project-cognition validate-build --format json" in content
         assert "invoke the project launcher with `project-cognition complete-refresh --format json`" in content
         assert 'invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json`' in content
         assert ("use `" + "project" + "-map complete-refresh`") not in content
@@ -555,3 +556,7 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
         assert "support_drift" in content
         assert "partial_refresh" in content
         assert "recommended_next_action" in content
+        assert "project-cognition validate-scan --format json" in content
+        assert "project-cognition validate-build --format json" in content
+        assert "first brownfield cognition baseline" in content
+        assert "missing, unusable, schema-incompatible" in content

@@ -42,6 +42,9 @@ Use `execution_surface: native-subagents`.
 - It must not silently escalate to a full rebuild without recording why.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
+- After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.
+- If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report that the baseline is unusable and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- If `validate-build` is blocked after update recording, report `partial_refresh` and preserve the validation errors instead of claiming the runtime is fresh.
 - If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:project-cognition complete-refresh --format json}}` so cognition freshness metadata cannot remain stale.
 - Do not report refresh completion when the runtime remains blocked.
 - A recorded refresh is not automatically a ready refresh: `partial_refresh` means update metadata was written but readiness still failed.

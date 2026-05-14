@@ -41,7 +41,8 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after the query-ready baseline has been accepted.
+- Run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing `.specify/project-cognition/project-cognition.db`.
+- Use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after `validate-build` returns `status=ok` and `readiness=query_ready`.
 
 ## Hard Boundary
 
@@ -149,8 +150,10 @@ At minimum, claims must include:
 
 Before reporting completion:
 
-- use `{{specify-subcmd:project-cognition complete-refresh --format json}}` once the query-ready baseline has been accepted
+- run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing `.specify/project-cognition/project-cognition.db`
+- use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after `validate-build` returns `status=ok` and `readiness=query_ready`
 - confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition query --intent implement --query "$ARGUMENTS" --format json}}`
+- if `validate-build` returns `status=blocked`, report the specific DB, schema, active generation, status, or smoke-query error and do not mark the baseline fresh
 - confirm that `status.json` reflects a query-ready baseline
 - confirm that the runtime remains query-backed and does not advertise raw graph JSON or handbook-first outputs as runtime truth
 - report whether follow-on localized maintenance should continue through `map-update` for future touched-area drift

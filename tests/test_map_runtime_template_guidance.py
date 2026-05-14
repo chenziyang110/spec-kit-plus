@@ -119,3 +119,7 @@ def test_map_update_template_exists_and_is_incremental() -> None:
     assert ".specify/project-cognition/project-cognition.db" in content
     assert "do not split small localized updates into parallel scan-style lanes just because subagents are available" in content.lower()
     assert "escalate to `sp-map-scan`, then `sp-map-build` only when the current baseline is unusable or the affected closure cannot be bounded safely" in content.lower()
+    assert "project-cognition validate-build --format json" in content
+    assert "must not call" in content.lower()
+    assert "needs_rebuild" in content
+    assert "complete-refresh" in content

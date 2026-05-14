@@ -154,6 +154,7 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert ".specify/project-cognition/status.json" in lower
     assert ".specify/project-cognition/project-cognition.db" in lower
     assert "project-cognition query" in lower
+    assert "project-cognition validate-build --format json" in lower
     assert "project-cognition complete-refresh" in lower
     assert "project-cognition mark-dirty" in lower
     assert ".specify/project-map/" not in lower
