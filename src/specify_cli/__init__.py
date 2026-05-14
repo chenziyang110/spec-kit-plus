@@ -83,7 +83,14 @@ from specify_cli.codex_team.runtime_bridge import (
     submit_runtime_result,
 )
 from specify_cli.cli_output import print_json
-from specify_cli.cognition import apply_cognition_update, cognition_db_path, cognition_status_path, query_project_cognition
+from specify_cli.cognition import (
+    apply_cognition_update,
+    cognition_db_path,
+    cognition_status_path,
+    query_project_cognition,
+    validate_build_acceptance,
+    validate_scan_acceptance,
+)
 from specify_cli.execution import (
     build_result_handoff_path,
     write_normalized_result_handoff,
@@ -1599,6 +1606,29 @@ def project_map_clear_dirty(
     _render_project_map_freshness(result)
 
 
+def _project_cognition_blocked_refresh_payload(project_root: Path, validation: dict[str, object]) -> dict[str, object]:
+    status = mark_project_map_refreshed(
+        project_root,
+        head_commit=git_head_commit(project_root),
+        branch=git_branch_name(project_root),
+        reason="acceptance-blocked",
+        refresh_topics=[],
+        refresh_scope="partial",
+        refresh_basis="build-acceptance",
+        changed_files_basis=[],
+    )
+    status.freshness = "partial_refresh"
+    write_project_map_status(project_root, status)
+    result = inspect_project_cognition_freshness(project_root)
+    result["status"] = "blocked"
+    result["freshness"] = "partial_refresh"
+    result["state"] = "partial_refresh"
+    result["readiness"] = "blocked"
+    result["recommended_next_action"] = "run_map_update"
+    result["validation"] = validation
+    return result
+
+
 @project_map_app.command("record-refresh")
 @project_cognition_app.command("record-refresh")
 def project_map_record_refresh(
@@ -1608,6 +1638,14 @@ def project_map_record_refresh(
     """Low-level/manual recovery path to record a fresh project cognition baseline at the current HEAD."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    validation = validate_build_acceptance(project_root)
+    if validation.get("status") != "ok":
+        result = _project_cognition_blocked_refresh_payload(project_root, validation)
+        if output_format.lower() == "json":
+            print_json(result, indent=2)
+            return
+        _render_project_map_freshness(result)
+        return
     mark_project_map_refreshed(
         project_root,
         head_commit=git_head_commit(project_root),
@@ -1629,6 +1667,14 @@ def project_map_complete_refresh(
     """Finalize a successful project cognition refresh by recording a fresh git baseline."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    validation = validate_build_acceptance(project_root)
+    if validation.get("status") != "ok":
+        result = _project_cognition_blocked_refresh_payload(project_root, validation)
+        if output_format.lower() == "json":
+            print_json(result, indent=2)
+            return
+        _render_project_map_freshness(result)
+        return
     complete_project_map_refresh(project_root)
     result = inspect_project_cognition_freshness(project_root)
     if output_format.lower() == "json":
@@ -1669,6 +1715,34 @@ def project_map_refresh_topics_command(
         ("Topics", f"[dim]{', '.join(payload['last_refresh_topics']) or '-'}[/dim]"),
     ]
     console.print(_cli_panel(_labeled_grid(rows), title="Cognition Partial Refresh", border_style="cyan"))
+
+
+@project_cognition_app.command("validate-scan")
+def project_cognition_validate_scan_command(
+    output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
+):
+    """Validate that map-scan produced an acceptance-ready scan package."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = validate_scan_acceptance(project_root)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+    console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Scan Gate", border_style="cyan"))
+
+
+@project_cognition_app.command("validate-build")
+def project_cognition_validate_build_command(
+    output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
+):
+    """Validate that map-build published a query-ready project cognition runtime."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = validate_build_acceptance(project_root)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+    console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Build Gate", border_style="cyan"))
 
 
 @project_map_app.command("status")
@@ -1727,7 +1801,9 @@ def project_cognition_query_command(
             "symptom_candidates": [],
             "affected_nodes": [],
             "minimal_live_reads": [],
-            "missing_coverage": ["project cognition database has no active generation"],
+            "missing_coverage": [
+                ".specify/project-cognition/project-cognition.db is missing; run sp-map-scan followed by sp-map-build"
+            ],
             "subgraph": {"nodes": [], "edges": [], "claims": [], "conflicts": []},
         }
     if output_format.lower() == "json":
