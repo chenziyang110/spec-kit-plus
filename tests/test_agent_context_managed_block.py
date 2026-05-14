@@ -160,12 +160,34 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert "project-cognition validate-build --format json" in lower
     assert "project-cognition complete-refresh" in lower
     assert "project-cognition mark-dirty" in lower
+    assert "## project cognition usage" in lower
+    assert "agent context files" in lower
+    assert "existing-system truth" in lower
+    assert "changing existing functionality or behavior" in lower
+    assert "task decomposition" in lower
+    assert "debugging symptoms" in lower
+    assert "testing strategy" in lower
+    assert "closeout" in lower
+    assert "risk, context cost, and user goal" in lower
+    assert "a project-cognition query is not complete when it returns json" in lower
+    assert "readiness drives routing" in lower
+    assert "minimal_live_reads constrains inspection" in lower
+    assert "carried into the next workflow artifact or execution state" in lower
+    assert "--intent <workflow-intent>" in lower
+    assert "plan`, `implement`, `debug`, `test`, and `research`" in lower
+    assert "include them through `--paths`" in lower
+    assert "do not assume every integration uses `agents.md`" in lower
     assert ".specify/project-map/" not in lower
     assert "project-map complete-refresh" not in lower
     assert "project-map mark-dirty" not in lower
     assert "use that launcher instead of path `specify`" in lower
     assert "minimal_live_reads" in lower
     assert "sp-map-update" in lower
+    assert "project cognition baseline" in lower
+    assert "query-backed runtime" in lower
+    assert "project-cognition truth" in lower
+    assert "known-stale handbook state" not in lower
+    assert "map-level truth" not in lower
     assert "not the ordinary first-read runtime contract for workflow routing" in lower
     assert "`sp-teams` only" in lower
     assert "## lane recovery rules" in lower

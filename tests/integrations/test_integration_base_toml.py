@@ -771,6 +771,18 @@ class TomlIntegrationTests:
         content = (project / self.CONTEXT_FILE).read_text(encoding="utf-8")
         assert "## Active Technologies" in content
         assert SPEC_KIT_BLOCK_START in content
+        lower = content.lower()
+        assert "## project cognition usage" in lower
+        assert "mandatory when existing-system truth is required" in lower
+        assert "changing existing functionality or behavior" in lower
+        assert "debugging symptoms" in lower
+        assert "testing strategy" in lower
+        assert "risk, context cost, and user goal" in lower
+        assert "a project-cognition query is not complete when it returns json" in lower
+        assert "readiness drives routing" in lower
+        assert "minimal_live_reads constrains inspection" in lower
+        assert "carried into the next workflow artifact or execution state" in lower
+        assert "do not assume every integration uses `agents.md`" in lower
         assert "[AGENT]" in content
         assert "specify -> plan" in content
         assert ".specify/project-cognition/" in content
