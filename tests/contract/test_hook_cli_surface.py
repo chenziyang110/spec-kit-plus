@@ -8,6 +8,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.cognition import CognitionStatus, connect_cognition_db, seed_active_generation, write_cognition_status
 from specify_cli.hooks import artifact_validation as artifact_validation_mod
 
 HOOK_SUBCOMMANDS = [
@@ -151,27 +152,81 @@ def _write_heavy_prd_build_exports(run_dir: Path) -> None:
 
 
 def _write_project_cognition_runtime(run_dir: Path) -> None:
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "status.json").write_text(
-        '{"version": 3, "graph_ready": true, "freshness": "fresh", '
-        '"graph_store_path": ".specify/project-cognition/project-cognition.db", '
-        '"active_generation_id": "GEN-0001", "query_contract_version": 1, "update_contract_version": 1}\n',
-        encoding="utf-8",
+    project_root = run_dir.parent.parent
+    generation_id = seed_active_generation(project_root, source_commit="abc123")
+    with connect_cognition_db(project_root) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-login', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'hash-login', '2026-05-14T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-14T00:00:00Z', '2026-05-14T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-login', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-login', '2026-05-14T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) "
+            "VALUES ('A-login', ?, 'login', 'login', 'capability', 'capability:auth.login', 'en', 'evidence', 'strong', 'E-login')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO claims(id, generation_id, subject_ref, predicate, object_ref, object_value, truth_layer, confidence, status, last_validated_at, attrs_json) "
+            "VALUES ('claim:login', ?, 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', '', 'implementation_reality', 'strong', 'active', '2026-05-14T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO claim_fts(claim_id, subject_ref, predicate, object_text, content) "
+            "VALUES ('claim:login', 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', 'login capability')"
+        )
+        conn.commit()
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    write_cognition_status(
+        project_root,
+        CognitionStatus(
+            version=3,
+            baseline_state="ready",
+            graph_ready=True,
+            graph_store_path=".specify/project-cognition/project-cognition.db",
+            active_generation_id=generation_id,
+            query_contract_version=1,
+            update_contract_version=1,
+            freshness="fresh",
+        ),
     )
-    (run_dir / "project-cognition.db").write_bytes(b"SQLite test database marker")
 
 
 def _write_project_cognition_scan_artifacts(run_dir: Path) -> None:
     (run_dir / "evidence").mkdir(parents=True, exist_ok=True)
+    (run_dir / "evidence" / "E-001.json").write_text('{"id": "E-001"}\n', encoding="utf-8")
     for relative, content in {
-        "coverage.json": "{\"rows\": []}\n",
-        "provisional/nodes.json": "{\"nodes\": []}\n",
+        "coverage.json": "{\"rows\": [{\"path\": \"src/auth/login.ts\", \"criticality\": \"critical\"}]}\n",
+        "provisional/nodes.json": "{\"nodes\": [{\"id\": \"capability:auth.login\"}]}\n",
         "provisional/edges.json": "{\"edges\": []}\n",
-        "provisional/observations.json": "{\"observations\": []}\n",
+        "provisional/observations.json": "{\"observations\": [{\"id\": \"OBS-001\"}]}\n",
+        "workbench/coverage-ledger.json": (
+            "{\"rows\": [{\"path\": \"src/auth/login.ts\", \"criticality\": \"critical\", "
+            "\"coverage_state\": \"covered\"}], \"open_gaps\": []}\n"
+        ),
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
+    packets_dir = run_dir / "workbench" / "scan-packets"
+    packets_dir.mkdir(parents=True, exist_ok=True)
+    (packets_dir / "core.md").write_text("# Core scan packet\n", encoding="utf-8")
+
+
+def _update_project_cognition_status(run_dir: Path, **updates: object) -> None:
+    status_path = run_dir / "status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload.update(updates)
+    status_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
 
 def test_map_build_capability_diagram_validation_accepts_project_map_prefixed_pages(tmp_path: Path):
@@ -1099,6 +1154,7 @@ def test_hook_validate_artifacts_blocks_map_scan_when_graph_baseline_outputs_are
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
+    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
     assert any("provisional/nodes.json" in message for message in payload["errors"])
     assert any("provisional/edges.json" in message for message in payload["errors"])
     assert any("provisional/observations.json" in message for message in payload["errors"])
@@ -1166,6 +1222,7 @@ def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_missin
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
+    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
@@ -1181,6 +1238,7 @@ def test_map_build_artifact_validation_requires_sqlite_database(tmp_path: Path):
 
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
+    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
@@ -1196,6 +1254,28 @@ def test_hook_validate_artifacts_accepts_map_build_when_sqlite_database_exists(t
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_ready(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "status.json").write_text(
+        '{"version": 3, "graph_ready": true, "freshness": "fresh", '
+        '"graph_store_path": ".specify/project-cognition/project-cognition.db", '
+        '"active_generation_id": "GEN-0001", "query_contract_version": 1, "update_contract_version": 1}\n',
+        encoding="utf-8",
+    )
+    (run_dir / "project-cognition.db").write_bytes(b"SQLite test database marker")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("project-cognition.db" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_empty(tmp_path: Path):
@@ -1264,10 +1344,7 @@ def test_hook_validate_artifacts_accepts_map_update_when_status_records_partial_
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    (run_dir / "status.json").write_text(
-        "{\"version\": 3, \"graph_ready\": true, \"freshness\": \"partial_refresh\"}\n",
-        encoding="utf-8",
-    )
+    _update_project_cognition_status(run_dir, freshness="partial_refresh")
 
     result = _invoke_in_project(
         project,
@@ -1282,10 +1359,7 @@ def test_hook_validate_artifacts_accepts_map_update_when_changed_scope_metadata_
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    (run_dir / "status.json").write_text(
-        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": [\"src/app.py\"]}\n",
-        encoding="utf-8",
-    )
+    _update_project_cognition_status(run_dir, version=1, last_update_id="UPD-001", stale_paths=["src/app.py"])
 
     result = _invoke_in_project(
         project,
@@ -1300,10 +1374,7 @@ def test_hook_validate_artifacts_accepts_map_update_without_graph_json_runtime(t
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    (run_dir / "status.json").write_text(
-        "{\"version\": 3, \"graph_ready\": true, \"last_update_id\": \"UPD-001\"}\n",
-        encoding="utf-8",
-    )
+    _update_project_cognition_status(run_dir, last_update_id="UPD-001")
 
     result = _invoke_in_project(
         project,
@@ -2874,6 +2945,66 @@ def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "project_cognition.complete_refresh"
     assert payload["status"] == "blocked"
+
+
+def test_hook_complete_refresh_blocks_without_query_ready_runtime(tmp_path: Path):
+    project = _create_project(tmp_path)
+    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "README.md").write_text("# Test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial test commit"], cwd=project, check=True, capture_output=True, text=True)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "complete-refresh",
+            "--format",
+            "json",
+        ],
+    )
+
+    payload = json.loads(result.output.strip())
+    status_path = project / ".specify" / "project-cognition" / "status.json"
+    status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+    assert result.exit_code == 0, result.output
+    assert payload["event"] == "project_cognition.complete_refresh"
+    assert payload["status"] == "blocked"
+    assert payload["severity"] == "critical"
+    assert payload["data"]["validation"]["status"] == "blocked"
+    assert status_payload["freshness"] == "partial_refresh"
+
+
+def test_hook_complete_refresh_accepts_query_ready_runtime(tmp_path: Path):
+    project = _create_project(tmp_path)
+    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "README.md").write_text("# Test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial test commit"], cwd=project, check=True, capture_output=True, text=True)
+    _write_project_cognition_runtime(project / ".specify" / "project-cognition")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "complete-refresh",
+            "--format",
+            "json",
+        ],
+    )
+
+    payload = json.loads(result.output.strip())
+    status_path = project / ".specify" / "project-cognition" / "status.json"
+    status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+    assert result.exit_code == 0, result.output
+    assert payload["event"] == "project_cognition.complete_refresh"
+    assert payload["status"] == "ok"
+    assert status_payload["freshness"] == "fresh"
+    assert status_payload["last_refresh_reason"] == "map-build"
 
 
 def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(tmp_path: Path, monkeypatch):

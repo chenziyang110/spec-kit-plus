@@ -68,6 +68,9 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "reference-only" in lowered
     assert "live surface" in lowered
     assert "must not become a scan target" in lowered
+    assert "project-cognition validate-scan --format json" in content
+    assert "validate-scan" in lowered
+    assert "may report complete only after" in lowered
 
 
 def test_map_scan_template_prefers_native_subagent_inventory_with_structured_handoffs() -> None:
@@ -140,6 +143,9 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "structural-only refresh is a failed build" in lowered
     assert "reverse coverage validation" in lowered
     assert "complete-refresh" in content
+    assert "project-cognition validate-build --format json" in content
+    assert "validate-build" in lowered
+    assert "only after `validate-build`" in lowered or "only after validate-build" in lowered
     assert "DEBUG-HANDBOOK.md" not in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "PROJECT-HANDBOOK.md" not in content

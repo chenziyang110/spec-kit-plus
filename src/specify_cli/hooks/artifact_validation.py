@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from specify_cli.cognition import validate_build_acceptance, validate_scan_acceptance
+
 from .checkpoint_serializers import extract_field, normalize_command_name
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
@@ -651,12 +653,14 @@ def _validate_cognition_status_artifact(feature_dir: Path) -> list[str]:
 
 
 def _validate_cognition_database_artifact(feature_dir: Path) -> list[str]:
-    db_path = feature_dir / "project-cognition.db"
-    if not db_path.exists() or not db_path.is_file():
-        return ["project-cognition.db must exist for the SQLite project cognition runtime"]
-    if db_path.stat().st_size == 0:
-        return ["project-cognition.db must not be empty"]
-    return []
+    validation = validate_build_acceptance(_project_root_from_cognition_dir(feature_dir))
+    return [str(message) for message in validation.get("errors", [])]
+
+
+def _project_root_from_cognition_dir(feature_dir: Path) -> Path:
+    if feature_dir.name == "project-cognition" and feature_dir.parent.name == ".specify":
+        return feature_dir.parent.parent
+    return feature_dir
 
 
 def _normalize_result_path(value: object) -> str:
@@ -669,15 +673,8 @@ def _normalize_result_path(value: object) -> str:
 
 
 def _validate_map_scan_artifacts(feature_dir: Path) -> list[str]:
-    errors: list[str] = []
-    errors.extend(_validate_cognition_status_artifact(feature_dir))
-    errors.extend(_validate_graph_artifact(feature_dir, "provisional/nodes.json", GRAPH_NODE_REQUIRED_KEYS))
-    errors.extend(_validate_graph_artifact(feature_dir, "provisional/edges.json", GRAPH_EDGE_REQUIRED_KEYS))
-    errors.extend(
-        _validate_json_object_with_array_key(feature_dir, "provisional/observations.json", "observations")
-    )
-    errors.extend(_validate_json_object_with_array_key(feature_dir, "coverage.json", "rows"))
-    return errors
+    validation = validate_scan_acceptance(_project_root_from_cognition_dir(feature_dir))
+    return [str(message) for message in validation.get("errors", [])]
 
 
 def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
@@ -995,6 +992,29 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
     feature_dir = Path(raw)
     if not feature_dir.is_absolute():
         feature_dir = (project_root / feature_dir).resolve()
+
+    if command_name in {"map-scan", "map-build", "map-update"}:
+        validation_errors: list[str] = []
+        if command_name == "map-scan":
+            validation_errors.extend(_validate_map_scan_artifacts(feature_dir))
+        if command_name == "map-build":
+            validation_errors.extend(_validate_map_build_artifacts(feature_dir))
+        if command_name == "map-update":
+            validation_errors.extend(_validate_map_update_artifacts(feature_dir))
+        if validation_errors:
+            return HookResult(
+                event=WORKFLOW_ARTIFACTS_VALIDATE,
+                status="blocked",
+                severity="critical",
+                errors=validation_errors,
+                data={"feature_dir": str(feature_dir)},
+            )
+        return HookResult(
+            event=WORKFLOW_ARTIFACTS_VALIDATE,
+            status="ok",
+            severity="info",
+            data={"feature_dir": str(feature_dir)},
+        )
 
     missing = [name for name in REQUIRED_ARTIFACTS[command_name] if not (feature_dir / name).exists()]
     type_errors: list[str] = []
