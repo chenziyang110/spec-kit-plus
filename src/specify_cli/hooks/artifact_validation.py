@@ -993,6 +993,29 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
     if not feature_dir.is_absolute():
         feature_dir = (project_root / feature_dir).resolve()
 
+    if command_name in {"map-scan", "map-build", "map-update"}:
+        validation_errors: list[str] = []
+        if command_name == "map-scan":
+            validation_errors.extend(_validate_map_scan_artifacts(feature_dir))
+        if command_name == "map-build":
+            validation_errors.extend(_validate_map_build_artifacts(feature_dir))
+        if command_name == "map-update":
+            validation_errors.extend(_validate_map_update_artifacts(feature_dir))
+        if validation_errors:
+            return HookResult(
+                event=WORKFLOW_ARTIFACTS_VALIDATE,
+                status="blocked",
+                severity="critical",
+                errors=validation_errors,
+                data={"feature_dir": str(feature_dir)},
+            )
+        return HookResult(
+            event=WORKFLOW_ARTIFACTS_VALIDATE,
+            status="ok",
+            severity="info",
+            data={"feature_dir": str(feature_dir)},
+        )
+
     missing = [name for name in REQUIRED_ARTIFACTS[command_name] if not (feature_dir / name).exists()]
     type_errors: list[str] = []
     for relative_path in FILE_REQUIRED_ARTIFACTS.get(command_name, ()):

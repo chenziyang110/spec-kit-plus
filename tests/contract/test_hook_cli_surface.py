@@ -1154,6 +1154,7 @@ def test_hook_validate_artifacts_blocks_map_scan_when_graph_baseline_outputs_are
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
+    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
     assert any("provisional/nodes.json" in message for message in payload["errors"])
     assert any("provisional/edges.json" in message for message in payload["errors"])
     assert any("provisional/observations.json" in message for message in payload["errors"])
@@ -1221,6 +1222,7 @@ def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_missin
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
+    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
@@ -1236,6 +1238,7 @@ def test_map_build_artifact_validation_requires_sqlite_database(tmp_path: Path):
 
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
+    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
