@@ -1241,6 +1241,8 @@ def test_debug_templates_lock_single_path_intake_contract() -> None:
     assert "causal_map:" in debug_thinker
     assert "dimension_scan" in debug_thinker
     assert "candidate_board" in debug_thinker
+    assert "project cognition" in debug_thinker
+    assert "### project map" not in debug_thinker
     assert "light_scores" in debug_thinker
     assert "likelihood" in debug_thinker
     assert "impact_radius" in debug_thinker

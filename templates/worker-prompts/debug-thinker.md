@@ -8,7 +8,7 @@ Stage 1A output is causal-map-only. Produce the causal map, dimension scan, and 
 
 - **Do NOT read source code.** You do not have access to the codebase and must not request it.
 - **Do NOT run commands.** You are a pure reasoning agent.
-- **Work only from the project map and feature context provided below.**
+- **Work only from the project cognition context and feature context provided below.**
 - **Do NOT inspect logs, runtime output, or test output.** Logs are a first-class evidence source, but they belong to the later investigation stage, not this observer stage.
 - **Generate as many plausible hypotheses as you can** (minimum 3). Cast a wide net.
 
@@ -23,12 +23,12 @@ Stage 1A output is causal-map-only. Produce the causal map, dimension scan, and 
 ### Feature Context
 {FEATURE_CONTEXT}
 
-### Project Map
-{PROJECT_MAP}
+### Project Cognition
+{PROJECT_COGNITION}
 
 ## Instructions
 
-1. Analyze the symptoms against the project map. Which layers/contracts could produce this failure?
+1. Analyze the symptoms against the project cognition context. Which layers/contracts could produce this failure?
 2. Identify the **primary suspected loop** (scheduler-admission, cache-snapshot, ui-projection, or general).
 3. Identify the **suspected owning layer** - which system layer most likely owns the truth that is breaking.
 4. Build a `causal_map` that explains where the symptom first appears, how the closed loop should behave, and which edges might be broken.
@@ -39,7 +39,7 @@ Stage 1A output is causal-map-only. Produce the causal map, dimension scan, and 
    - `family`: one of truth_owner_logic, control_observation_drift, projection_render, cache_snapshot, boundary_contract, config_flag_env, or ordering_concurrency
    - `candidate`: a concise one-line hypothesis
    - `why_it_fits`: why this matches the observed symptoms
-   - `map_evidence`: what in the project map supports this hypothesis
+   - `map_evidence`: what in the project cognition context supports this hypothesis
    - `falsifier`: what evidence would eliminate this candidate
    - `break_edge`: the most likely broken edge in the closed loop
    - `bypass_path`: any likely cache/projection bypass

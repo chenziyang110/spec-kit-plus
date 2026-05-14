@@ -33,28 +33,30 @@ def build_think_subagent_prompt(state: DebugGraphState) -> str:
         feature_parts.append(f"Summary: {state.context.summary}")
     if state.context.description:
         feature_parts.append(f"Description: {state.context.description}")
-    if state.context.project_map_summary:
-        feature_parts.append(f"Project Map: {state.context.project_map_summary}")
+    if state.context.project_cognition_summary:
+        feature_parts.append(f"Project Cognition: {state.context.project_cognition_summary}")
     feature_text = "\n".join(feature_parts) if feature_parts else "No feature context loaded."
 
-    project_map_parts: list[str] = []
+    project_cognition_parts: list[str] = []
     if state.context.modified_files:
-        project_map_parts.append("Modified files:")
-        project_map_parts.extend(f"  - {f}" for f in state.context.modified_files[:10])
+        project_cognition_parts.append("Modified files:")
+        project_cognition_parts.extend(f"  - {f}" for f in state.context.modified_files[:10])
     if state.recently_modified:
-        if not project_map_parts:
-            project_map_parts.append("Recently modified files:")
+        if not project_cognition_parts:
+            project_cognition_parts.append("Recently modified files:")
         else:
-            project_map_parts.append("\nRecently modified (git):")
-        project_map_parts.extend(f"  - {f}" for f in state.recently_modified[:10])
-    project_map_text = "\n".join(project_map_parts) if project_map_parts else "No file information available."
+            project_cognition_parts.append("\nRecently modified (git):")
+        project_cognition_parts.extend(f"  - {f}" for f in state.recently_modified[:10])
+    project_cognition_text = (
+        "\n".join(project_cognition_parts) if project_cognition_parts else "No file information available."
+    )
 
     prompt = (
         template
         .replace("{SYMPTOMS}", symptoms_text)
         .replace("{DIAGNOSTIC_PROFILE}", state.diagnostic_profile or "general")
         .replace("{FEATURE_CONTEXT}", feature_text)
-        .replace("{PROJECT_MAP}", project_map_text)
+        .replace("{PROJECT_COGNITION}", project_cognition_text)
     )
 
     return prompt

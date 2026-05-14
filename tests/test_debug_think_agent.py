@@ -53,6 +53,37 @@ class TestBuildThinkSubagentPrompt:
         assert "FEAT-001" in prompt
         assert "Cache invalidation" in prompt
 
+    def test_prompt_uses_project_cognition_context_name(self) -> None:
+        state = DebugGraphState(
+            slug="test-session",
+            trigger="stale cache",
+            diagnostic_profile="cache-snapshot",
+        )
+        state.context.project_cognition_summary = "Cache table ownership route"
+        state.context.modified_files = ["src/cache/table.py"]
+
+        prompt = build_think_subagent_prompt(state)
+
+        assert "Project Cognition: Cache table ownership route" in prompt
+        assert "### Project Cognition" in prompt
+        assert "Project Map: Cache table ownership route" not in prompt
+        assert "### Project Map" not in prompt
+        assert "{PROJECT_COGNITION}" not in prompt
+        assert "{PROJECT_MAP}" not in prompt
+
+    def test_prompt_accepts_legacy_project_map_summary_as_cognition_context(self) -> None:
+        state = DebugGraphState(
+            slug="test-session",
+            trigger="legacy debug state",
+            diagnostic_profile="general",
+        )
+        state.context.project_map_summary = "Legacy state summary"
+
+        prompt = build_think_subagent_prompt(state)
+
+        assert "Project Cognition: Legacy state summary" in prompt
+        assert "Project Map: Legacy state summary" not in prompt
+
     def test_prompt_contains_stage_1a_output_shape(self) -> None:
         state = DebugGraphState(
             slug="test-session",

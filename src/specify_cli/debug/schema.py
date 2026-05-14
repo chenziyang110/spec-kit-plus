@@ -387,18 +387,36 @@ class Resolution(BaseModel):
     loop_restoration_proof: List[str] = Field(default_factory=list)
 
 class FeatureContext(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
     feature_id: Optional[str] = None
     feature_name: Optional[str] = None
     feature_phase: Optional[str] = None
     summary: Optional[str] = None
     description: Optional[str] = None
-    project_map_summary: Optional[str] = None
+    project_cognition_summary: Optional[str] = None
     spec_path: Optional[str] = None
     plan_path: Optional[str] = None
     tasks_path: Optional[str] = None
     constitution_path: Optional[str] = None
     roadmap_path: Optional[str] = None
     modified_files: List[str] = Field(default_factory=list)
+
+    @property
+    def project_map_summary(self) -> Optional[str]:
+        return self.project_cognition_summary
+
+    @project_map_summary.setter
+    def project_map_summary(self, value: Optional[str]) -> None:
+        self.project_cognition_summary = value
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_project_map_summary(cls, data: object) -> object:
+        if isinstance(data, dict) and "project_map_summary" in data and "project_cognition_summary" not in data:
+            data = dict(data)
+            data["project_cognition_summary"] = data.pop("project_map_summary")
+        return data
 
 class DebugGraphState(BaseModel):
     slug: str

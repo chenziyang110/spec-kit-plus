@@ -204,6 +204,9 @@ def test_debug_thinker_template_documents_stage_1a_causal_map_outputs() -> None:
     assert "impact_radius" in content
     assert "falsifiability" in content
     assert "log_observability" in content
+    assert "project cognition" in content
+    assert "### project map" not in content
+    assert "{project_map}" not in content
     assert "log_investigation_plan:" not in content
     assert "observer_mode:" not in content
     assert "expanded_observer:" not in content
