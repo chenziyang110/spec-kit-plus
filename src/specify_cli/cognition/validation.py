@@ -360,7 +360,7 @@ def _validate_generation_content(
     if path_count < 1:
         errors.append("active generation must have at least one path_index row")
     if claim_count < 1:
-        warnings.append("active generation has no claims")
+        errors.append("active generation must contain at least one claim or an explicit minimal-baseline marker")
 
 
 def _count_generation_rows(conn: sqlite3.Connection, table: str, generation_id: str) -> int:

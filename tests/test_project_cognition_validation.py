@@ -93,6 +93,41 @@ def _seed_query_ready_runtime(project_root: Path) -> str:
     return generation_id
 
 
+def _seed_runtime_without_claims(project_root: Path) -> str:
+    generation_id = seed_active_generation(project_root, source_commit="abc123")
+    with closing(connect_cognition_db(project_root)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-login', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'hash-login', '2026-05-14T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-14T00:00:00Z', '2026-05-14T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-login', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-login', '2026-05-14T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+    write_cognition_status(
+        project_root,
+        CognitionStatus(
+            version=3,
+            baseline_state="ready",
+            graph_ready=True,
+            graph_store_path=".specify/project-cognition/project-cognition.db",
+            active_generation_id=generation_id,
+            query_contract_version=1,
+            update_contract_version=1,
+            freshness="fresh",
+        ),
+    )
+    return generation_id
+
+
 def test_validate_scan_blocks_when_required_artifacts_are_missing(tmp_path: Path) -> None:
     result = validate_scan_acceptance(tmp_path)
 
@@ -281,6 +316,15 @@ def test_validate_build_accepts_query_ready_runtime(tmp_path: Path) -> None:
     assert result["readiness"] == "query_ready"
     assert result["errors"] == []
     assert result["details"]["active_generation_id"] == "GEN-0001"
+
+
+def test_validate_build_blocks_when_active_generation_has_no_claims(tmp_path: Path) -> None:
+    _seed_runtime_without_claims(tmp_path)
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("claim" in message or "minimal-baseline" in message for message in result["errors"])
 
 
 def test_validate_build_does_not_create_wal_sidecars(tmp_path: Path) -> None:
