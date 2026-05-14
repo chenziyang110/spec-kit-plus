@@ -1624,7 +1624,7 @@ def _project_cognition_blocked_refresh_payload(project_root: Path, validation: d
     result["freshness"] = "partial_refresh"
     result["state"] = "partial_refresh"
     result["readiness"] = "blocked"
-    result["recommended_next_action"] = "run_map_update"
+    result["recommended_next_action"] = "run_map_scan_build"
     result["validation"] = validation
     return result
 

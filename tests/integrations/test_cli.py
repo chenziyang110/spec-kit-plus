@@ -72,6 +72,39 @@ def _seed_query_ready_runtime(project: Path) -> str:
     return generation_id
 
 
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+
+def _write_complete_scan_package(project: Path) -> None:
+    run_dir = project / ".specify" / "project-cognition"
+    _write_json(run_dir / "status.json", {"version": 3, "graph_ready": False})
+    evidence_dir = run_dir / "evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    (evidence_dir / "E-001.json").write_text('{"id": "E-001"}\n', encoding="utf-8")
+    _write_json(run_dir / "provisional" / "nodes.json", {"nodes": [{"id": "capability:auth.login"}]})
+    _write_json(run_dir / "provisional" / "edges.json", {"edges": []})
+    _write_json(run_dir / "provisional" / "observations.json", {"observations": [{"id": "OBS-001"}]})
+    _write_json(run_dir / "coverage.json", {"rows": [{"path": "src/auth/login.ts", "criticality": "critical"}]})
+    _write_json(
+        run_dir / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "covered",
+                }
+            ],
+            "open_gaps": [],
+        },
+    )
+    packets_dir = run_dir / "workbench" / "scan-packets"
+    packets_dir.mkdir(parents=True, exist_ok=True)
+    (packets_dir / "core.md").write_text("# Core scan packet\n", encoding="utf-8")
+
+
 def test_top_level_cli_exposes_discussion_entrypoint():
     runner = CliRunner()
     root_help = runner.invoke(app, ["--help"], catch_exceptions=False)
@@ -530,6 +563,7 @@ def test_project_cognition_record_refresh_does_not_require_project_map_outputs(t
     assert payload["status"] == "blocked"
     assert payload["freshness"] == "partial_refresh"
     assert payload["readiness"] == "blocked"
+    assert payload["recommended_next_action"] == "run_map_scan_build"
     assert payload["validation"]["status"] == "blocked"
     assert payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
     assert not (project / ".specify" / "project-map").exists()
@@ -630,6 +664,65 @@ def test_project_cognition_validate_build_blocks_empty_runtime_json(tmp_path):
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
+def test_project_cognition_validate_scan_blocks_empty_package_json(tmp_path):
+    project = tmp_path / "project-cognition-validate-scan-empty"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            ["init", "--here", "--ai", "claude", "--script", "sh", "--no-git", "--ignore-agent-tools"],
+            catch_exceptions=False,
+        )
+        result = runner.invoke(
+            app,
+            ["project-cognition", "validate-scan", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert payload["gate"] == "scan"
+    assert any("coverage-ledger.json" in message for message in payload["errors"])
+
+
+def test_project_cognition_validate_scan_accepts_complete_package_json(tmp_path):
+    project = tmp_path / "project-cognition-validate-scan-ready"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            ["init", "--here", "--ai", "claude", "--script", "sh", "--no-git", "--ignore-agent-tools"],
+            catch_exceptions=False,
+        )
+        _write_complete_scan_package(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "validate-scan", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["gate"] == "scan"
+    assert payload["readiness"] == "scan_ready"
+
+
 def test_project_cognition_validate_build_accepts_seeded_query_ready_runtime_json(tmp_path):
     project = tmp_path / "project-cognition-validate-build-ready"
     project.mkdir()
@@ -692,6 +785,7 @@ def test_project_cognition_complete_refresh_blocks_without_query_ready_runtime_j
     assert payload["status"] == "blocked"
     assert payload["freshness"] == "partial_refresh"
     assert payload["readiness"] == "blocked"
+    assert payload["recommended_next_action"] == "run_map_scan_build"
     assert payload["validation"]["status"] == "blocked"
     assert status_payload["freshness"] == "partial_refresh"
 
