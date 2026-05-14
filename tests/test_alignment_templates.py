@@ -168,7 +168,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "do not claim completion until those artifacts exist" in lowered
 
     assert "## Map Maintenance" in block
-    assert "Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline." in block
+    assert "Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline" in block
+    assert "project-cognition validate-scan --format json" in block
+    assert "project-cognition validate-build --format json" in block
     assert "Use `sp-map-update` after baseline creation when the query-backed runtime is stale or too weak for the touched area." in block
     assert "Do not treat consumed project cognition query context as self-maintaining" in block
     assert "query-backed" in lowered
@@ -2159,7 +2161,8 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
             assert "git-baseline freshness" in lowered
             assert "truth source" in lowered
             assert "complete-refresh" in lowered
-            assert "successful-refresh finalizer" in lowered
+            assert "validate-build --format json" in lowered
+            assert "only when build acceptance passes" in lowered
             assert "manual override/fallback" in lowered
             assert "if a full refresh can be completed now" in lowered
             assert "otherwise" in lowered

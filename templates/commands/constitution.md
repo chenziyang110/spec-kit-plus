@@ -74,7 +74,7 @@ missing, copy the template first.
   `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
   follow-up rather than fabricating repository context.
 - If an amendment affects project cognition runtime truth and a full refresh can be completed now,
-  do it and use `{{specify-subcmd:project-cognition complete-refresh --format json}}` as the successful-refresh finalizer;
+  do it, run `{{specify-subcmd:project-cognition validate-build --format json}}`, and use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes;
   otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback.
 - If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related project cognition compatibility/export surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related project cognition compatibility/export surface for refresh.
 
