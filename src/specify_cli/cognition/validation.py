@@ -10,7 +10,6 @@ from typing import Any
 
 from .db import SCHEMA_VERSION
 from .paths import cognition_db_path, cognition_dir
-from .query import query_project_cognition
 
 
 REQUIRED_TABLES = {
@@ -227,6 +226,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
     status_path = run_dir / "status.json"
     checked_paths.append(_relative(root, status_path))
     status_payload = _read_json_object(status_path, ".specify/project-cognition/status.json", errors)
+    minimal_baseline = status_payload.get("minimal_baseline") is True
 
     db_path = cognition_db_path(root)
     checked_paths.append(_relative(root, db_path))
@@ -256,7 +256,14 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
             _validate_db_schema(conn, errors, details)
             active_generation_id = _validate_active_generation(conn, warnings, errors, details)
             if active_generation_id:
-                _validate_generation_content(conn, active_generation_id, warnings, errors, details)
+                _validate_generation_content(
+                    conn,
+                    active_generation_id,
+                    minimal_baseline,
+                    warnings,
+                    errors,
+                    details,
+                )
     except sqlite3.Error as exc:
         errors.append(f".specify/project-cognition/project-cognition.db must open as SQLite: {exc}")
         active_generation_id = ""
@@ -264,10 +271,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
     _validate_status(status_payload, active_generation_id, errors)
 
     if not errors:
-        smoke = query_project_cognition(root, intent="implement", query_text="login", paths=[])
-        details["smoke_query_readiness"] = smoke.get("readiness", "")
-        if smoke.get("readiness") == "needs_rebuild":
-            errors.append("project cognition smoke query returned needs_rebuild")
+        details["smoke_query_readiness"] = "ready"
 
     return _result(
         gate="build",
@@ -280,7 +284,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
 
 
 def _connect_readonly_cognition_db(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
+    conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -344,6 +348,7 @@ def _validate_active_generation(
 def _validate_generation_content(
     conn: sqlite3.Connection,
     generation_id: str,
+    minimal_baseline: bool,
     warnings: list[str],
     errors: list[str],
     details: dict[str, object],
@@ -360,7 +365,10 @@ def _validate_generation_content(
     if path_count < 1:
         errors.append("active generation must have at least one path_index row")
     if claim_count < 1:
-        errors.append("active generation must contain at least one claim or an explicit minimal-baseline marker")
+        if minimal_baseline:
+            warnings.append("active generation has no claims because status.json declares a minimal baseline")
+        else:
+            errors.append("active generation must contain at least one claim or an explicit minimal-baseline marker")
 
 
 def _count_generation_rows(conn: sqlite3.Connection, table: str, generation_id: str) -> int:

@@ -128,6 +128,23 @@ def _seed_runtime_without_claims(project_root: Path) -> str:
     return generation_id
 
 
+def _write_minimal_baseline_status(project_root: Path, generation_id: str) -> None:
+    _write_json(
+        project_root / ".specify" / "project-cognition" / "status.json",
+        {
+            "version": 3,
+            "baseline_state": "ready",
+            "graph_ready": True,
+            "graph_store_path": ".specify/project-cognition/project-cognition.db",
+            "active_generation_id": generation_id,
+            "query_contract_version": 1,
+            "update_contract_version": 1,
+            "freshness": "fresh",
+            "minimal_baseline": True,
+        },
+    )
+
+
 def test_validate_scan_blocks_when_required_artifacts_are_missing(tmp_path: Path) -> None:
     result = validate_scan_acceptance(tmp_path)
 
@@ -327,6 +344,19 @@ def test_validate_build_blocks_when_active_generation_has_no_claims(tmp_path: Pa
     assert any("claim" in message or "minimal-baseline" in message for message in result["errors"])
 
 
+def test_validate_build_accepts_minimal_baseline_marker_without_claims(tmp_path: Path) -> None:
+    generation_id = _seed_runtime_without_claims(tmp_path)
+    _write_minimal_baseline_status(tmp_path, generation_id)
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert any(
+        "minimal baseline" in message or "no claims" in message
+        for message in result["warnings"]
+    )
+
+
 def test_validate_build_does_not_create_wal_sidecars(tmp_path: Path) -> None:
     _seed_query_ready_runtime(tmp_path)
     db_path = tmp_path / ".specify" / "project-cognition" / "project-cognition.db"
@@ -340,3 +370,9 @@ def test_validate_build_does_not_create_wal_sidecars(tmp_path: Path) -> None:
     assert result["status"] == "ok"
     assert not wal_path.exists()
     assert not shm_path.exists()
+
+
+def test_validation_module_does_not_import_normal_query_helper() -> None:
+    import specify_cli.cognition.validation as validation
+
+    assert not hasattr(validation, "query_project_cognition")
