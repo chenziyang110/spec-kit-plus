@@ -126,7 +126,14 @@ def test_validate_scan_warns_for_non_critical_open_gaps(tmp_path: Path) -> None:
                     "coverage_state": "covered",
                 }
             ],
-            "open_gaps": [{"criticality": "low-risk", "reason": "deferred sample"}],
+            "open_gaps": [
+                {
+                    "criticality": "low-risk",
+                    "owner": "map-scan",
+                    "reason": "deferred sample",
+                    "revisit_condition": "when sample path changes",
+                }
+            ],
         },
     )
 
@@ -137,6 +144,73 @@ def test_validate_scan_warns_for_non_critical_open_gaps(tmp_path: Path) -> None:
         "open gap" in message or "non-critical" in message
         for message in result["warnings"]
     )
+
+
+def test_validate_scan_blocks_empty_coverage_rows(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(tmp_path / ".specify" / "project-cognition" / "coverage.json", {"rows": []})
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("coverage.json" in message and "rows" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_empty_ledger_rows(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {"rows": [], "open_gaps": []},
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_malformed_open_gaps(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "covered",
+                }
+            ],
+            "open_gaps": [{"criticality": "unknown", "reason": "cannot classify"}],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("open gap" in message and "criticality" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_noncritical_open_gap_without_metadata(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "covered",
+                }
+            ],
+            "open_gaps": [{"criticality": "important", "reason": "deferred sample"}],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("open gap" in message and "owner" in message for message in result["errors"])
 
 
 def test_validate_scan_blocks_for_critical_open_gaps(tmp_path: Path) -> None:
@@ -207,3 +281,18 @@ def test_validate_build_accepts_query_ready_runtime(tmp_path: Path) -> None:
     assert result["readiness"] == "query_ready"
     assert result["errors"] == []
     assert result["details"]["active_generation_id"] == "GEN-0001"
+
+
+def test_validate_build_does_not_create_wal_sidecars(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    db_path = tmp_path / ".specify" / "project-cognition" / "project-cognition.db"
+    wal_path = db_path.with_name(f"{db_path.name}-wal")
+    shm_path = db_path.with_name(f"{db_path.name}-shm")
+    wal_path.unlink(missing_ok=True)
+    shm_path.unlink(missing_ok=True)
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert not wal_path.exists()
+    assert not shm_path.exists()

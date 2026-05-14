@@ -8,7 +8,7 @@ from pathlib import Path
 import sqlite3
 from typing import Any
 
-from .db import SCHEMA_VERSION, connect_cognition_db
+from .db import SCHEMA_VERSION
 from .paths import cognition_db_path, cognition_dir
 from .query import query_project_cognition
 
@@ -77,6 +77,13 @@ def _require_list(payload: dict[str, Any], key: str, label: str, errors: list[st
     return value
 
 
+def _require_non_empty_list(payload: dict[str, Any], key: str, label: str, errors: list[str]) -> list[Any]:
+    value = _require_list(payload, key, label, errors)
+    if not value:
+        errors.append(f"{label} must define a non-empty {key} array")
+    return value
+
+
 def _directory_has_files(path: Path) -> bool:
     return path.exists() and path.is_dir() and any(child.is_file() for child in path.iterdir())
 
@@ -117,14 +124,19 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     checked_paths.append(_relative(root, coverage_path))
     coverage = _read_json_object(coverage_path, ".specify/project-cognition/coverage.json", errors)
     if coverage:
-        rows = _require_list(coverage, "rows", ".specify/project-cognition/coverage.json", errors)
+        rows = _require_non_empty_list(coverage, "rows", ".specify/project-cognition/coverage.json", errors)
         details["coverage_rows"] = len(rows)
 
     ledger_path = run_dir / "workbench" / "coverage-ledger.json"
     checked_paths.append(_relative(root, ledger_path))
     ledger = _read_json_object(ledger_path, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
     if ledger:
-        rows = _require_list(ledger, "rows", ".specify/project-cognition/workbench/coverage-ledger.json", errors)
+        rows = _require_non_empty_list(
+            ledger,
+            "rows",
+            ".specify/project-cognition/workbench/coverage-ledger.json",
+            errors,
+        )
         details["ledger_rows"] = len(rows)
         _check_unresolved_scan_gaps(rows, ledger, warnings, errors)
 
@@ -159,20 +171,47 @@ def _check_unresolved_scan_gaps(
     if unresolved_critical_rows:
         errors.append("coverage-ledger.json has unresolved critical rows")
 
-    open_gaps = ledger.get("open_gaps", [])
-    if not isinstance(open_gaps, list) or not open_gaps:
+    if "open_gaps" not in ledger:
         return
 
-    critical_gaps = [
-        gap
-        for gap in open_gaps
-        if isinstance(gap, dict) and str(gap.get("criticality", "")).lower() == "critical"
-    ]
-    if critical_gaps:
-        errors.append("coverage-ledger.json has unresolved critical open gaps")
+    open_gaps = ledger["open_gaps"]
+    if not isinstance(open_gaps, list):
+        errors.append("coverage-ledger.json open_gaps must be an array")
         return
 
-    warnings.append("coverage-ledger.json records non-critical open gaps")
+    valid_noncritical_count = 0
+    for index, gap in enumerate(open_gaps, start=1):
+        if not isinstance(gap, dict):
+            errors.append(f"coverage-ledger.json open gap {index} must be an object")
+            continue
+
+        criticality = str(gap.get("criticality", "")).strip().lower()
+        if criticality not in {"critical", "important", "low-risk"}:
+            errors.append(f"coverage-ledger.json open gap {index} has missing or unknown criticality")
+            continue
+
+        if criticality == "critical":
+            errors.append("coverage-ledger.json has unresolved critical open gaps")
+            continue
+
+        missing_metadata = [
+            field
+            for field in ("owner", "reason")
+            if not str(gap.get(field, "")).strip()
+        ]
+        if not (str(gap.get("revisit_condition", "")).strip() or str(gap.get("revisit", "")).strip()):
+            missing_metadata.append("revisit_condition")
+        if missing_metadata:
+            errors.append(
+                f"coverage-ledger.json non-critical open gap {index} is missing "
+                f"required metadata: {', '.join(missing_metadata)}"
+            )
+            continue
+
+        valid_noncritical_count += 1
+
+    if valid_noncritical_count:
+        warnings.append("coverage-ledger.json records non-critical open gaps")
 
 
 def validate_build_acceptance(project_root: Path) -> dict[str, object]:
@@ -213,7 +252,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
         )
 
     try:
-        with closing(connect_cognition_db(root)) as conn:
+        with closing(_connect_readonly_cognition_db(db_path)) as conn:
             _validate_db_schema(conn, errors, details)
             active_generation_id = _validate_active_generation(conn, warnings, errors, details)
             if active_generation_id:
@@ -238,6 +277,12 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
         checked_paths=checked_paths,
         details=details,
     )
+
+
+def _connect_readonly_cognition_db(db_path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def _validate_db_schema(conn: sqlite3.Connection, errors: list[str], details: dict[str, object]) -> None:
