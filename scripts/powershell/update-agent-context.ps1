@@ -57,15 +57,18 @@ $AUGGIE_FILE   = Join-Path $REPO_ROOT '.augment/rules/specify-rules.md'
 $ROO_FILE      = Join-Path $REPO_ROOT '.roo/rules/specify-rules.md'
 $CODEBUDDY_FILE = Join-Path $REPO_ROOT 'CODEBUDDY.md'
 $QODER_FILE    = Join-Path $REPO_ROOT 'QODER.md'
+# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, Pi, and Forge
+# all share root AGENTS.md.
 $AMP_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $SHAI_FILE     = Join-Path $REPO_ROOT 'SHAI.md'
 $TABNINE_FILE  = Join-Path $REPO_ROOT 'TABNINE.md'
 $KIRO_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'
 $AGY_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $BOB_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
-$VIBE_FILE     = Join-Path $REPO_ROOT '.vibe/agents/specify-agents.md'
+$VIBE_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'
+$VIBE_LEGACY_FILE = Join-Path $REPO_ROOT '.vibe/agents/specify-agents.md'
 $KIMI_FILE     = Join-Path $REPO_ROOT 'KIMI.md'
-$TRAE_FILE     = Join-Path $REPO_ROOT '.trae/rules/AGENTS.md'
+$TRAE_FILE     = Join-Path $REPO_ROOT '.trae/rules/project_rules.md'
 $IFLOW_FILE    = Join-Path $REPO_ROOT 'IFLOW.md'
 $FORGE_FILE    = Join-Path $REPO_ROOT 'AGENTS.md'
 
@@ -716,7 +719,7 @@ function Update-AllExistingAgents {
         
         if (-not (Test-Path $FilePath)) { return $true }
         
-        # Get the real path to detect duplicates (e.g., AMP_FILE, KIRO_FILE, BOB_FILE all point to AGENTS.md)
+        # Get the real path to detect duplicate AGENTS.md aliases.
         $realPath = (Get-Item -LiteralPath $FilePath).FullName
         
         # Check if we've already updated this file
@@ -738,7 +741,7 @@ function Update-AllExistingAgents {
     if (-not (Update-IfNew -FilePath $COPILOT_FILE  -AgentName 'GitHub Copilot')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $CURSOR_FILE   -AgentName 'Cursor IDE')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $QWEN_FILE     -AgentName 'Qwen Code')) { $ok = $false }
-    if (-not (Update-IfNew -FilePath $AGENTS_FILE   -AgentName 'Codex/opencode/Amp/Kiro/Bob/Pi/Forge')) { $ok = $false }
+    if (-not (Update-IfNew -FilePath $AGENTS_FILE   -AgentName 'Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/Pi/Forge')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $WINDSURF_FILE -AgentName 'Windsurf')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $JUNIE_FILE    -AgentName 'Junie')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $KILOCODE_FILE -AgentName 'Kilo Code')) { $ok = $false }
@@ -753,6 +756,11 @@ function Update-AllExistingAgents {
     if (-not (Update-IfNew -FilePath $KIMI_FILE     -AgentName 'Kimi Code')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $TRAE_FILE     -AgentName 'Trae')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $IFLOW_FILE    -AgentName 'iFlow CLI')) { $ok = $false }
+
+    if (-not (Test-Path $AGENTS_FILE) -and (Test-Path $VIBE_LEGACY_FILE)) {
+        $found = $true
+        if (-not (Update-AgentFile -TargetFile $AGENTS_FILE -AgentName 'Mistral Vibe')) { $ok = $false }
+    }
     
     if (-not $found) {
         Write-Info 'No existing agent files found, creating default Claude file...'

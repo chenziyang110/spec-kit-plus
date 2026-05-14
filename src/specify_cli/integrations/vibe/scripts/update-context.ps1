@@ -1,4 +1,4 @@
-# update-context.ps1 — Mistral Vibe integration: create/update .vibe/agents/specify-agents.md
+# update-context.ps1 — Mistral Vibe integration: create/update AGENTS.md
 #
 # Thin wrapper that delegates to the shared update-agent-context script.
 # Activated in Stage 7 when the shared script uses integration.json dispatch.

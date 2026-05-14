@@ -117,8 +117,11 @@ def _run_bash_update(repo: Path, agent_type: str = "codex") -> subprocess.Comple
 def _run_powershell_update(
     repo: Path, agent_type: str = "codex"
 ) -> subprocess.CompletedProcess[str]:
+    command = [POWERSHELL, "-NoProfile", "-File", str(POWERSHELL_SCRIPT)]
+    if agent_type:
+        command.extend(["-AgentType", agent_type])
     return subprocess.run(
-        [POWERSHELL, "-NoProfile", "-File", str(POWERSHELL_SCRIPT), "-AgentType", agent_type],
+        command,
         cwd=repo,
         text=True,
         errors="replace",
@@ -476,3 +479,121 @@ def test_powershell_script_updates_agy_root_agents_file(
     assert result.returncode == 0, result.stderr
     assert (repo / "AGENTS.md").exists()
     assert not (repo / ".agent" / "rules" / "specify-rules.md").exists()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_script_updates_vibe_root_agents_file(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_bash_update(repo, "vibe")
+
+    assert result.returncode == 0, result.stderr
+    assert (repo / "AGENTS.md").exists()
+    assert BLOCK_START in (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert not (repo / ".vibe" / "agents" / "specify-agents.md").exists()
+
+
+def test_powershell_script_updates_vibe_root_agents_file(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_powershell_update(repo, "vibe")
+
+    assert result.returncode == 0, result.stderr
+    assert (repo / "AGENTS.md").exists()
+    assert BLOCK_START in _read_utf8_without_bom(repo / "AGENTS.md")
+    assert not (repo / ".vibe" / "agents" / "specify-agents.md").exists()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_update_all_migrates_legacy_vibe_file_to_root_agents(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    legacy_vibe = repo / ".vibe" / "agents" / "specify-agents.md"
+    legacy_vibe.parent.mkdir(parents=True)
+    legacy_content = "# Legacy Vibe\n\nKeep this file.\n"
+    legacy_vibe.write_text(legacy_content, encoding="utf-8")
+
+    result = _run_bash_update(repo, "")
+
+    assert result.returncode == 0, result.stderr
+    agents = repo / "AGENTS.md"
+    assert agents.exists()
+    assert BLOCK_START in agents.read_text(encoding="utf-8")
+    assert not (repo / "CLAUDE.md").exists()
+    assert legacy_vibe.read_text(encoding="utf-8") == legacy_content
+
+
+def test_powershell_update_all_migrates_legacy_vibe_file_to_root_agents(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    legacy_vibe = repo / ".vibe" / "agents" / "specify-agents.md"
+    legacy_vibe.parent.mkdir(parents=True)
+    legacy_content = "# Legacy Vibe\r\n\r\nKeep this file.\r\n"
+    legacy_vibe.write_bytes(legacy_content.encode("utf-8"))
+
+    result = _run_powershell_update(repo, "")
+
+    assert result.returncode == 0, result.stderr
+    agents = repo / "AGENTS.md"
+    assert agents.exists()
+    assert BLOCK_START in _read_utf8_without_bom(agents)
+    assert not (repo / "CLAUDE.md").exists()
+    assert _read_utf8_without_bom(legacy_vibe) == legacy_content
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_script_updates_trae_project_rules_file(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_bash_update(repo, "trae")
+
+    assert result.returncode == 0, result.stderr
+    trae_rules = repo / ".trae" / "rules" / "project_rules.md"
+    assert trae_rules.exists()
+    assert BLOCK_START in trae_rules.read_text(encoding="utf-8")
+    assert not (repo / ".trae" / "rules" / "AGENTS.md").exists()
+
+
+def test_powershell_script_updates_trae_project_rules_file(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_powershell_update(repo, "trae")
+
+    assert result.returncode == 0, result.stderr
+    trae_rules = repo / ".trae" / "rules" / "project_rules.md"
+    assert trae_rules.exists()
+    assert BLOCK_START in _read_utf8_without_bom(trae_rules)
+    assert not (repo / ".trae" / "rules" / "AGENTS.md").exists()

@@ -74,7 +74,8 @@ AUGGIE_FILE="$REPO_ROOT/.augment/rules/specify-rules.md"
 ROO_FILE="$REPO_ROOT/.roo/rules/specify-rules.md"
 CODEBUDDY_FILE="$REPO_ROOT/CODEBUDDY.md"
 QODER_FILE="$REPO_ROOT/QODER.md"
-# Amp, Kiro CLI, IBM Bob, Pi, and Forge all share AGENTS.md — use AGENTS_FILE to avoid
+# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, Pi, and Forge
+# all share AGENTS.md — use AGENTS_FILE to avoid
 # updating the same file multiple times.
 AMP_FILE="$AGENTS_FILE"
 SHAI_FILE="$REPO_ROOT/SHAI.md"
@@ -82,9 +83,10 @@ TABNINE_FILE="$REPO_ROOT/TABNINE.md"
 KIRO_FILE="$AGENTS_FILE"
 AGY_FILE="$AGENTS_FILE"
 BOB_FILE="$AGENTS_FILE"
-VIBE_FILE="$REPO_ROOT/.vibe/agents/specify-agents.md"
+VIBE_FILE="$AGENTS_FILE"
+VIBE_LEGACY_FILE="$REPO_ROOT/.vibe/agents/specify-agents.md"
 KIMI_FILE="$REPO_ROOT/KIMI.md"
-TRAE_FILE="$REPO_ROOT/.trae/rules/AGENTS.md"
+TRAE_FILE="$REPO_ROOT/.trae/rules/project_rules.md"
 IFLOW_FILE="$REPO_ROOT/IFLOW.md"
 FORGE_FILE="$AGENTS_FILE"
 
@@ -989,7 +991,7 @@ update_all_existing_agents() {
     _update_if_new "$COPILOT_FILE" "GitHub Copilot"        || _all_ok=false
     _update_if_new "$CURSOR_FILE" "Cursor IDE"             || _all_ok=false
     _update_if_new "$QWEN_FILE" "Qwen Code"                || _all_ok=false
-    _update_if_new "$AGENTS_FILE" "Codex/opencode/Amp/Kiro/Bob/Pi/Forge" || _all_ok=false
+    _update_if_new "$AGENTS_FILE" "Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/Pi/Forge" || _all_ok=false
     _update_if_new "$WINDSURF_FILE" "Windsurf"             || _all_ok=false
     _update_if_new "$JUNIE_FILE" "Junie"                || _all_ok=false
     _update_if_new "$KILOCODE_FILE" "Kilo Code"            || _all_ok=false
@@ -1004,6 +1006,11 @@ update_all_existing_agents() {
     _update_if_new "$KIMI_FILE" "Kimi Code"                || _all_ok=false
     _update_if_new "$TRAE_FILE" "Trae"                     || _all_ok=false
     _update_if_new "$IFLOW_FILE" "iFlow CLI"               || _all_ok=false
+
+    if [[ ! -f "$AGENTS_FILE" && -f "$VIBE_LEGACY_FILE" ]]; then
+        _found_agent=true
+        update_agent_file "$AGENTS_FILE" "Mistral Vibe" || _all_ok=false
+    fi
 
     # If no agent files exist, create a default Claude file
     if [[ "$_found_agent" == false ]]; then
