@@ -12,7 +12,7 @@ import yaml
 
 from ..base import SkillsIntegration
 from ..manifest import IntegrationManifest
-from ...launcher import install_shared_hook_launcher_assets, render_hook_launcher_command
+from ...launcher import install_shared_hook_launcher_assets, render_claude_hook_launcher
 from ...orchestration import CapabilitySnapshot, describe_delegation_surface
 from .multi_agent import ClaudeMultiAgentAdapter
 
@@ -58,13 +58,9 @@ class ClaudeIntegration(SkillsIntegration):
     key = "claude"
 
     @staticmethod
-    def _hook_dispatch_command(route: str, *, script_type: str = "sh") -> str:
-        return render_hook_launcher_command(
-            "claude",
-            route,
-            project_dir_env_var="CLAUDE_PROJECT_DIR",
-            script_type=script_type,
-        )
+    def _hook_dispatch_hook(route: str, *, script_type: str = "sh") -> dict[str, Any]:
+        del script_type
+        return render_claude_hook_launcher(route)
 
     @classmethod
     def _build_managed_hook_events(cls, *, script_type: str = "sh") -> dict[str, list[dict[str, Any]]]:
@@ -72,20 +68,14 @@ class ClaudeIntegration(SkillsIntegration):
             "SessionStart": [
                 {
                     "hooks": [
-                        {
-                            "type": "command",
-                            "command": cls._hook_dispatch_command("session-start", script_type=script_type),
-                        }
+                        cls._hook_dispatch_hook("session-start", script_type=script_type)
                     ]
                 }
             ],
             "UserPromptSubmit": [
                 {
                     "hooks": [
-                        {
-                            "type": "command",
-                            "command": cls._hook_dispatch_command("user-prompt-submit", script_type=script_type),
-                        }
+                        cls._hook_dispatch_hook("user-prompt-submit", script_type=script_type)
                     ]
                 }
             ],
@@ -93,20 +83,14 @@ class ClaudeIntegration(SkillsIntegration):
                 {
                     "matcher": "Bash|Edit|Write|MultiEdit|Task",
                     "hooks": [
-                        {
-                            "type": "command",
-                            "command": cls._hook_dispatch_command("post-tool-session-state", script_type=script_type),
-                        }
+                        cls._hook_dispatch_hook("post-tool-session-state", script_type=script_type)
                     ],
                 }
             ],
             "Stop": [
                 {
                     "hooks": [
-                        {
-                            "type": "command",
-                            "command": cls._hook_dispatch_command("stop-monitor", script_type=script_type),
-                        }
+                        cls._hook_dispatch_hook("stop-monitor", script_type=script_type)
                     ]
                 }
             ],
@@ -114,19 +98,13 @@ class ClaudeIntegration(SkillsIntegration):
                 {
                     "matcher": "Read|Write|Edit|MultiEdit",
                     "hooks": [
-                        {
-                            "type": "command",
-                            "command": cls._hook_dispatch_command("pre-tool-read", script_type=script_type),
-                        }
+                        cls._hook_dispatch_hook("pre-tool-read", script_type=script_type)
                     ],
                 },
                 {
                     "matcher": "Bash",
                     "hooks": [
-                        {
-                            "type": "command",
-                            "command": cls._hook_dispatch_command("pre-tool-bash", script_type=script_type),
-                        }
+                        cls._hook_dispatch_hook("pre-tool-bash", script_type=script_type)
                     ],
                 },
             ],
@@ -183,7 +161,9 @@ class ClaudeIntegration(SkillsIntegration):
         normalized = str(command or "")
         if any(suffix in normalized for suffix in managed_suffixes):
             return True
-        if ".specify/bin/specify-hook" in normalized and '"$env:CLAUDE_PROJECT_DIR"' in normalized:
+        if ".specify/bin/specify-hook" in normalized:
+            return True
+        if '"$env:CLAUDE_PROJECT_DIR"' in normalized or "$env:CLAUDE_PROJECT_DIR" in normalized:
             return True
         return False
 
@@ -225,14 +205,25 @@ class ClaudeIntegration(SkillsIntegration):
     def _normalize_hook_command(command: Any) -> str:
         return str(command or "").strip()
 
+    @staticmethod
+    def _normalize_hook_signature(hook: Any) -> tuple[str, tuple[str, ...]]:
+        if not isinstance(hook, dict):
+            return ("", ())
+        command = str(hook.get("command") or "").strip()
+        args = hook.get("args", [])
+        if not isinstance(args, list):
+            args = []
+        normalized_args = tuple(str(arg) for arg in args if isinstance(arg, str))
+        return (command, normalized_args)
+
     def _has_managed_hook_entry(
         self,
         *,
         existing_entries: list[Any],
         matcher: str | None,
-        command: str,
+        expected_hook: dict[str, Any],
     ) -> bool:
-        normalized_command = self._normalize_hook_command(command)
+        expected_signature = self._normalize_hook_signature(expected_hook)
         for entry in existing_entries:
             if not isinstance(entry, dict):
                 continue
@@ -242,9 +233,7 @@ class ClaudeIntegration(SkillsIntegration):
             if not isinstance(hooks, list):
                 continue
             for hook in hooks:
-                if not isinstance(hook, dict):
-                    continue
-                if self._normalize_hook_command(hook.get("command")) == normalized_command:
+                if self._normalize_hook_signature(hook) == expected_signature:
                     return True
         return False
 
@@ -319,20 +308,16 @@ class ClaudeIntegration(SkillsIntegration):
                 hooks_list = managed_entry.get("hooks", [])
                 if not isinstance(hooks_list, list):
                     continue
-                command = next(
-                    (
-                        self._normalize_hook_command(hook.get("command"))
-                        for hook in hooks_list
-                        if isinstance(hook, dict)
-                    ),
-                    "",
+                expected_hook = next(
+                    (hook for hook in hooks_list if isinstance(hook, dict)),
+                    None,
                 )
-                if not command:
+                if expected_hook is None:
                     continue
                 if self._has_managed_hook_entry(
                     existing_entries=event_entries,
                     matcher=matcher if isinstance(matcher, str) else None,
-                    command=command,
+                    expected_hook=expected_hook,
                 ):
                     continue
                 event_entries.append(json.loads(json.dumps(managed_entry)))

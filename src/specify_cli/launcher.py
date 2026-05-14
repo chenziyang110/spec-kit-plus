@@ -24,6 +24,7 @@ HOOK_RUNTIME_ARGV_ENV = "SPECIFY_HOOK_RUNTIME_ARGV"
 HOOK_RUNTIME_COMMAND_ENV = "SPECIFY_HOOK_RUNTIME_COMMAND"
 HOOK_LAUNCHER_POSIX = "specify-hook"
 HOOK_LAUNCHER_WINDOWS = "specify-hook.cmd"
+HOOK_LAUNCHER_NODE = "specify-hook.mjs"
 HOOK_LAUNCHER_PYTHON = "specify-hook.py"
 DIRECT_HOOK_DISPATCH_MARKERS = (
     "claude-hook-dispatch.py",
@@ -211,10 +212,25 @@ def render_hook_launcher_command(
     return f"{launcher_path} {integration_key} {route}"
 
 
+def render_claude_hook_launcher(route: str) -> dict[str, Any]:
+    """Render a shell-free Claude Code native-hook launcher entry."""
+
+    return {
+        "type": "command",
+        "command": "node",
+        "args": [
+            f"${{CLAUDE_PROJECT_DIR}}/.specify/bin/{HOOK_LAUNCHER_NODE}",
+            "claude",
+            route,
+        ],
+    }
+
+
 def install_shared_hook_launcher_assets(
     project_root: Path,
     *,
     manifest: IntegrationManifest | None = None,
+    include_node: bool = True,
 ) -> list[Path]:
     """Install shared native-hook launcher assets into ``.specify/bin/``."""
 
@@ -227,6 +243,8 @@ def install_shared_hook_launcher_assets(
     dest_dir.mkdir(parents=True, exist_ok=True)
     for src_file in sorted(assets_dir.iterdir()):
         if not src_file.is_file():
+            continue
+        if not include_node and src_file.name == HOOK_LAUNCHER_NODE:
             continue
         dst_file = dest_dir / src_file.name
         shutil.copy2(src_file, dst_file)
@@ -492,11 +510,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                         command = str(hook.get("command") or "")
                         if "claude-hook-dispatch.py" in command:
                             stale_claude_hook = True
-                        if (
-                            ".specify/bin/specify-hook" in command
-                            and "claude" in command
-                            and '"$env:CLAUDE_PROJECT_DIR"' in command
-                        ):
+                        if ".specify/bin/specify-hook" in command and "claude" in command:
                             stale_claude_hook = True
                         if any(marker in command for marker in DIRECT_HOOK_DISPATCH_MARKERS) and any(
                             token in command for token in ("python ", "python3 ", "py ")
@@ -509,8 +523,8 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
         if stale_claude_hook:
             issues.append(
                 {
-                    "code": "stale-claude-windows-hook-command",
-                    "summary": "Claude managed hook commands still use PowerShell-style `$env:CLAUDE_PROJECT_DIR` (or legacy `claude-hook-dispatch.py`) instead of the bash-compatible launcher command.",
+                    "code": "stale-claude-managed-hook-command",
+                    "summary": "Claude managed hook commands still use shell-parsed direct Python, POSIX, cmd, or PowerShell-style launcher commands instead of the shell-free Node launcher.",
                     "repair": "Run `specify integration repair` (or `specify init --here --force --ai claude`) so `.claude/settings.json` refreshes managed hook commands.",
                 }
             )

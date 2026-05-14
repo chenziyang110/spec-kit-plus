@@ -32,6 +32,18 @@ def _init_project(tmp_path, integration="copilot"):
     return project
 
 
+def _expected_claude_hook(route: str) -> dict[str, object]:
+    return {
+        "type": "command",
+        "command": "node",
+        "args": [
+            "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
+            "claude",
+            route,
+        ],
+    }
+
+
 # ── list ─────────────────────────────────────────────────────────────
 
 
@@ -514,16 +526,17 @@ class TestIntegrationRepair:
 
         assert result.exit_code == 0, result.output
         repaired_settings = json.loads(settings_path.read_text(encoding="utf-8"))
-        commands = [
-            hook["command"]
+        hooks = [
+            hook
             for entries in repaired_settings["hooks"].values()
             for entry in entries
             for hook in entry.get("hooks", [])
-            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+            if isinstance(hook, dict)
         ]
-        assert any(
-            command == '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
-            for command in commands
+        assert _expected_claude_hook("session-start") in hooks
+        assert not any(
+            isinstance(hook.get("command"), str) and "claude-hook-dispatch.py" in hook["command"]
+            for hook in hooks
         )
 
     def test_repair_refreshes_missing_project_launcher_and_stale_claude_hook_commands(self, tmp_path, monkeypatch):
@@ -576,18 +589,18 @@ class TestIntegrationRepair:
         assert repaired_config["specify_launcher"]["argv"] == list(launcher.argv)
 
         repaired_settings = json.loads(settings_path.read_text(encoding="utf-8"))
-        commands = [
-            hook["command"]
+        hooks = [
+            hook
             for entries in repaired_settings["hooks"].values()
             for entry in entries
             for hook in entry.get("hooks", [])
-            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+            if isinstance(hook, dict)
         ]
-        assert commands
-        assert all(
-            command.startswith('"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude ')
-            for command in commands
-        )
+        assert hooks
+        assert _expected_claude_hook("session-start") in hooks
+        assert all(hook.get("command") == "node" for hook in hooks)
+        assert all("specify-hook.cmd" not in json.dumps(hook) for hook in hooks)
+        assert all("$env:CLAUDE_PROJECT_DIR" not in json.dumps(hook) for hook in hooks)
 
     def test_repair_refreshes_shared_powershell_script_assets(self, tmp_path):
         project = _init_project(tmp_path, "claude")

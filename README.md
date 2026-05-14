@@ -113,7 +113,7 @@ specify integration repair
 
 - missing or broken persisted project launchers
 - stale generated PowerShell workflow scripts that still rely on exact branch-to-feature-dir matching
-- stale Claude Windows hook commands that still use PowerShell-style `$env:CLAUDE_PROJECT_DIR` (or legacy `claude-hook-dispatch.py`) instead of bash-style `$CLAUDE_PROJECT_DIR`
+- stale Claude hook commands that still use shell-parsed direct Python, POSIX, cmd, or PowerShell-style launchers instead of the shell-free Node launcher
 
 `specify integration repair` refreshes shared/runtime-managed generated assets in place
 without overwriting user-edited workflow or skill content.
@@ -407,6 +407,7 @@ First-party hook runtime:
 Claude Code integration note:
 
 - `specify init --ai claude` installs thin native adapters in `.claude/hooks/` and merges project-local `.claude/settings.json`.
+- Managed Claude hook entries use Claude Code's `command` + `args` form with `node` and `${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs` to avoid shell-specific path and environment parsing on Windows.
 - The current managed Claude native hook set covers:
   - `SessionStart` statusline/orientation context plus bounded compaction-backed resume cues
   - `UserPromptSubmit` prompt-guard checks plus shared workflow-policy enforcement

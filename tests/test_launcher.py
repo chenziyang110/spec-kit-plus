@@ -286,7 +286,7 @@ def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(
     assert "stale-review-learning-command-surface" in codes
 
 
-def test_diagnose_project_runtime_compatibility_reports_stale_claude_windows_hook_commands(tmp_path):
+def test_diagnose_project_runtime_compatibility_reports_stale_claude_shell_hook_commands(tmp_path):
     settings_path = tmp_path / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
     settings_path.write_text(
@@ -311,7 +311,35 @@ def test_diagnose_project_runtime_compatibility_reports_stale_claude_windows_hoo
 
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
-    assert any(issue["code"] == "stale-claude-windows-hook-command" for issue in issues)
+    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_reports_stale_claude_cmd_launcher_commands(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start',
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
 
 
 def test_diagnose_project_runtime_compatibility_reports_stale_direct_hook_launcher_command(tmp_path):

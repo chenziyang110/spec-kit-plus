@@ -15,7 +15,7 @@ from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import IntegrationBase
 from specify_cli.integrations.claude import ARGUMENT_HINTS
 from specify_cli.integrations.manifest import IntegrationManifest
-from specify_cli.launcher import render_hook_launcher_command
+from specify_cli.launcher import render_claude_hook_launcher
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
@@ -100,13 +100,9 @@ def test_claude_hook_infers_active_context_from_specify_features_root(tmp_path):
 
 class TestClaudeIntegration:
     @staticmethod
-    def _expected_launcher_command(route: str, *, script_type: str = "sh") -> str:
-        return render_hook_launcher_command(
-            "claude",
-            route,
-            project_dir_env_var="CLAUDE_PROJECT_DIR",
-            script_type=script_type,
-        )
+    def _expected_launcher_hook(route: str, *, script_type: str = "sh") -> dict:
+        del script_type
+        return render_claude_hook_launcher(route)
 
     @staticmethod
     def _command_stems() -> list[str]:
@@ -174,6 +170,7 @@ class TestClaudeIntegration:
                 ".claude/settings.json",
                 ".specify/bin/specify-hook",
                 ".specify/bin/specify-hook.cmd",
+                ".specify/bin/specify-hook.mjs",
                 ".specify/bin/specify-hook.py",
                 ".specify/init-options.json",
                 ".specify/integration.json",
@@ -328,54 +325,60 @@ class TestClaudeIntegration:
         hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
         settings_path = tmp_path / ".claude" / "settings.json"
         shared_launcher = tmp_path / ".specify" / "bin" / "specify-hook.py"
+        shared_node_launcher = tmp_path / ".specify" / "bin" / "specify-hook.mjs"
 
         assert hook_script.exists()
         assert settings_path.exists()
         assert shared_launcher.exists()
+        assert shared_node_launcher.exists()
 
         payload = json.loads(settings_path.read_text(encoding="utf-8"))
         assert "hooks" in payload
         assert "UserPromptSubmit" in payload["hooks"]
         assert "PreToolUse" in payload["hooks"]
 
-        commands = [
-            hook["command"]
+        managed_hooks = [
+            hook
             for entries in payload["hooks"].values()
             for entry in entries
             for hook in entry.get("hooks", [])
-            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+            if isinstance(hook, dict)
         ]
-        assert any(command == self._expected_launcher_command("user-prompt-submit", script_type="sh") for command in commands)
-        assert any(command == self._expected_launcher_command("pre-tool-read", script_type="sh") for command in commands)
-        assert any(command == self._expected_launcher_command("pre-tool-bash", script_type="sh") for command in commands)
-        assert any(command == self._expected_launcher_command("session-start", script_type="sh") for command in commands)
-        assert any(command == self._expected_launcher_command("post-tool-session-state", script_type="sh") for command in commands)
-        assert any(command == self._expected_launcher_command("stop-monitor", script_type="sh") for command in commands)
+        assert self._expected_launcher_hook("user-prompt-submit", script_type="sh") in managed_hooks
+        assert self._expected_launcher_hook("pre-tool-read", script_type="sh") in managed_hooks
+        assert self._expected_launcher_hook("pre-tool-bash", script_type="sh") in managed_hooks
+        assert self._expected_launcher_hook("session-start", script_type="sh") in managed_hooks
+        assert self._expected_launcher_hook("post-tool-session-state", script_type="sh") in managed_hooks
+        assert self._expected_launcher_hook("stop-monitor", script_type="sh") in managed_hooks
 
         tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
         assert ".claude/hooks/claude-hook-dispatch.py" in tracked
         assert ".claude/settings.json" in tracked
+        assert ".specify/bin/specify-hook.mjs" in tracked
         assert ".specify/bin/specify-hook.py" in tracked
 
-    def test_setup_writes_windows_safe_hook_commands(self, tmp_path):
+    def test_setup_writes_shell_free_hook_entries_for_powershell_script_variant(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)
         integration.setup(tmp_path, manifest, script_type="ps")
 
         settings_path = tmp_path / ".claude" / "settings.json"
         payload = json.loads(settings_path.read_text(encoding="utf-8"))
-        commands = [
-            hook["command"]
+        managed_hooks = [
+            hook
             for entries in payload["hooks"].values()
             for entry in entries
             for hook in entry.get("hooks", [])
-            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+            if isinstance(hook, dict)
         ]
 
-        assert commands
-        for command in commands:
-            assert command.startswith('"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude ')
-            assert "$env:CLAUDE_PROJECT_DIR" not in command
+        assert managed_hooks
+        for hook in managed_hooks:
+            assert hook["command"] == "node"
+            assert hook["args"][0] == "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs"
+            hook_json = json.dumps(hook)
+            assert "specify-hook.cmd" not in hook_json
+            assert "$env:CLAUDE_PROJECT_DIR" not in hook_json
 
     def test_setup_refreshes_existing_managed_hook_asset(self, tmp_path):
         integration = get_integration("claude")
@@ -480,7 +483,7 @@ class TestClaudeIntegration:
             if entry.get("matcher") == "Read|Write|Edit|MultiEdit"
             and any(
                 isinstance(hook, dict)
-                and self._expected_launcher_command("pre-tool-read", script_type="sh") == str(hook.get("command", ""))
+                and self._expected_launcher_hook("pre-tool-read", script_type="sh") == hook
                 for hook in entry.get("hooks", [])
             )
         ]
@@ -1609,23 +1612,23 @@ class TestClaudeIntegration:
 
         settings_path = tmp_path / ".claude" / "settings.json"
         payload = json.loads(settings_path.read_text(encoding="utf-8"))
-        commands = [
-            hook["command"]
+        managed_hooks = [
+            hook
             for entries in payload["hooks"].values()
             for entry in entries
             for hook in entry.get("hooks", [])
-            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+            if isinstance(hook, dict)
         ]
-        suffixes = (
-            self._expected_launcher_command("session-start", script_type="sh"),
-            self._expected_launcher_command("user-prompt-submit", script_type="sh"),
-            self._expected_launcher_command("pre-tool-read", script_type="sh"),
-            self._expected_launcher_command("pre-tool-bash", script_type="sh"),
-            self._expected_launcher_command("post-tool-session-state", script_type="sh"),
-            self._expected_launcher_command("stop-monitor", script_type="sh"),
+        expected_hooks = (
+            self._expected_launcher_hook("session-start", script_type="sh"),
+            self._expected_launcher_hook("user-prompt-submit", script_type="sh"),
+            self._expected_launcher_hook("pre-tool-read", script_type="sh"),
+            self._expected_launcher_hook("pre-tool-bash", script_type="sh"),
+            self._expected_launcher_hook("post-tool-session-state", script_type="sh"),
+            self._expected_launcher_hook("stop-monitor", script_type="sh"),
         )
-        for suffix in suffixes:
-            assert sum(command == suffix for command in commands) == 1
+        for expected_hook in expected_hooks:
+            assert sum(hook == expected_hook for hook in managed_hooks) == 1
 
     def test_uninstall_removes_install_owned_settings_json_when_only_managed_hooks_exist(self, tmp_path):
         integration = get_integration("claude")
