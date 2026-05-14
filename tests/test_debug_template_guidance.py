@@ -145,7 +145,8 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "use only returned `minimal_live_reads` when needed" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "complete-refresh" in content
-    assert "successful-refresh finalizer" in content
+    assert "project-cognition validate-build --format json" in content
+    assert "only when build acceptance passes" in content
     assert "if that refresh cannot be completed now" in content
     assert "manual override/fallback" in content
     assert "highest-signal" in content

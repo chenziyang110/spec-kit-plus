@@ -239,7 +239,8 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
     assert "rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required" in content
     assert "complete-refresh" in content
-    assert "successful-refresh finalizer" in content
+    assert "project-cognition validate-build --format json" in content
+    assert "only when build acceptance passes" in content
     assert "if a refresh cannot be completed now" in content
     assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
     assert "manual override/fallback" in content

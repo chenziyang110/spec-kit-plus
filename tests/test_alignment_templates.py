@@ -871,7 +871,8 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "recommended follow-up quality check: `{{invoke:checklist}}`" in content
     assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
-    assert "successful-refresh finalizer" in lowered
+    assert "project-cognition validate-build --format json" in lowered
+    assert "only when build acceptance passes" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
@@ -1010,7 +1011,8 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
     assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
-    assert "successful-refresh finalizer" in lowered
+    assert "project-cognition validate-build --format json" in lowered
+    assert "only when build acceptance passes" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
 
@@ -1418,7 +1420,8 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
     assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
-    assert "successful-refresh finalizer" in lowered
+    assert "project-cognition validate-build --format json" in lowered
+    assert "only when build acceptance passes" in lowered
     assert "manual override/fallback" in lowered
 
 
@@ -1809,7 +1812,8 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
     assert ".specify/project-map/index/status.json" not in lowered
-    assert "successful-refresh finalizer" in lowered
+    assert "project-cognition validate-build --format json" in lowered
+    assert "only when build acceptance passes" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
