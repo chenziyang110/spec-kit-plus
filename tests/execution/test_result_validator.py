@@ -36,7 +36,7 @@ def sample_packet() -> WorkerTaskPacket:
         context_bundle=[
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
-                kind="project_map",
+                kind="project_cognition",
                 purpose="Project cognition freshness entrypoint for query-backed planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
@@ -45,7 +45,7 @@ def sample_packet() -> WorkerTaskPacket:
             ),
             ContextBundleItem(
                 path=".specify/project-cognition/project-cognition.db",
-                kind="project_map",
+                kind="project_cognition",
                 purpose="Query-backed cognition graph store for touched-scope routing",
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,

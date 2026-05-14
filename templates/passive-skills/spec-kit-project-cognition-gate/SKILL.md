@@ -1,5 +1,5 @@
 ---
-name: spec-kit-project-map-gate
+name: spec-kit-project-cognition-gate
 description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require the project cognition query bundle first, or route to map refresh when cognition coverage is missing or stale."
 origin: spec-kit-plus
 ---
@@ -7,7 +7,6 @@ origin: spec-kit-plus
 # Spec Kit Project Cognition Gate
 
 This passive skill is the brownfield hard gate, not the route selection layer.
-The skill name is legacy; the runtime gate it describes is project cognition.
 
 ## Complementary Passive Skills
 

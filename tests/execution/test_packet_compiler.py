@@ -98,8 +98,8 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
         "src/contracts/auth.py",
     ]
     assert [item.read_order for item in packet.context_bundle] == list(range(1, 7))
-    assert packet.context_bundle[0].kind == "project_map"
-    assert packet.context_bundle[1].kind == "project_map"
+    assert packet.context_bundle[0].kind == "project_cognition"
+    assert packet.context_bundle[1].kind == "project_cognition"
     assert packet.context_bundle[-1].kind == "task_reference"
     assert ".specify/project-cognition/status.json" in packet.scope.read_scope
     assert ".specify/project-cognition/project-cognition.db" in packet.scope.read_scope

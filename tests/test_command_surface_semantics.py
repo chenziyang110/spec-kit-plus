@@ -178,7 +178,7 @@ def test_invoke_placeholder_does_not_rewrite_canonical_tokens():
 
 def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_examples():
     routing = read_template("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-    map_gate = read_template("templates/passive-skills/spec-kit-project-map-gate/SKILL.md")
+    cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
     subagents = read_template("templates/passive-skills/subagent-driven-development/SKILL.md")
     parallel = read_template("templates/passive-skills/dispatching-parallel-agents/SKILL.md")
 
@@ -187,8 +187,8 @@ def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_exa
     assert "Use `/sp-specify`" not in routing
     assert "Use `/sp-plan`" not in routing
 
-    assert "{{invoke:map-scan}} -> {{invoke:map-build}}" in map_gate
-    assert "use `/sp-map-scan -> /sp-map-build`" not in map_gate
+    assert "{{invoke:map-scan}} -> {{invoke:map-build}}" in cognition_gate
+    assert "use `/sp-map-scan -> /sp-map-build`" not in cognition_gate
 
     assert "{{invoke:tasks}}" in subagents
     assert "{{invoke:implement}}" in subagents
@@ -201,9 +201,9 @@ def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_exa
 
 def test_passive_workflow_skills_enforce_real_specify_command_surface() -> None:
     routing = read_template("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
-    map_gate = read_template("templates/passive-skills/spec-kit-project-map-gate/SKILL.md").lower()
+    cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
 
-    for content in (routing, map_gate):
+    for content in (routing, cognition_gate):
         assert "specify --help" in content
         assert "generated\ncreate-feature script" in content or "generated create-feature script" in content
         assert ".specify/scripts/bash/create-new-feature.sh" in content
@@ -349,7 +349,7 @@ def test_generated_codex_passive_routing_skills_expose_create_feature_helper_pat
                 "target = Path(sys.argv[1])\n"
                 "result = CliRunner().invoke(app, ['init', str(target), '--ai', 'codex', '--no-git', '--ignore-agent-tools', '--script', 'sh'])\n"
                 "assert result.exit_code == 0, result.output\n"
-                "for name in ('spec-kit-workflow-routing', 'spec-kit-project-map-gate'):\n"
+                "for name in ('spec-kit-workflow-routing', 'spec-kit-project-cognition-gate'):\n"
                 "    print(f'## {name}')\n"
                 "    print((target / '.codex' / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8'))\n"
             ),

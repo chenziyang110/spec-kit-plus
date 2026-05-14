@@ -123,7 +123,7 @@ def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResul
 
     reason = str(payload.get("reason") or "").strip()
     if not reason:
-        raise QualityHookError("reason is required for project_map.mark_dirty")
+        raise QualityHookError("reason is required for project_cognition.mark_dirty")
     scope_paths: list[str] | None = None
     packet_file = str(payload.get("packet_file") or "").strip()
     if packet_file:
@@ -146,7 +146,7 @@ def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResul
         status="ok",
         severity="info",
         writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
-        data={"project_map_status": status.to_dict()},
+        data={"project_cognition_status": status.to_dict()},
     )
 
 
@@ -166,5 +166,5 @@ def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> Ho
         status="ok",
         severity="info",
         writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
-        data={"project_map_status": status.to_dict()},
+        data={"project_cognition_status": status.to_dict()},
     )

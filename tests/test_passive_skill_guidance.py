@@ -8,10 +8,11 @@ def _read(rel_path: str) -> str:
     return (PROJECT_ROOT / rel_path).read_text(encoding="utf-8")
 
 
-def test_workflow_routing_references_map_gate_and_project_learning_roles() -> None:
+def test_workflow_routing_references_cognition_gate_and_project_learning_roles() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
 
-    assert "spec-kit-project-map-gate" in content
+    assert "spec-kit-project-cognition-gate" in content
+    assert "spec-kit-project-map-gate" not in content
     assert "spec-kit-project-learning" in content
     assert "sp-test-scan" in content
     assert "sp-test-build" in content
@@ -130,11 +131,12 @@ def test_dispatching_parallel_agents_uses_current_runtime_before_external_sessio
     assert "advise the user to run multiple parallel instances" not in content
 
 
-def test_project_map_gate_references_routing_and_learning_roles() -> None:
-    content = _read("templates/passive-skills/spec-kit-project-map-gate/SKILL.md").lower()
+def test_project_cognition_gate_references_routing_and_learning_roles() -> None:
+    content = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
 
     assert "spec-kit-workflow-routing" in content
     assert "spec-kit-project-learning" in content
+    assert "spec-kit-project-map-gate" not in content
     assert "route selection" in content
     assert "shared memory capture layer" in content
     assert "launcher-backed project cognition query" in content

@@ -49,7 +49,7 @@ def _valid_packet() -> WorkerTaskPacket:
         context_bundle=[
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
-                kind="project_map",
+                kind="project_cognition",
                 purpose="project cognition runtime status baseline",
                 required_for=["workflow_boundary"],
                 read_order=1,

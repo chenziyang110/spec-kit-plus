@@ -101,7 +101,7 @@ class CursorAgentIntegration(SkillsIntegration):
             "quick": skills_dir / "sp-quick" / "SKILL.md",
         }
         for command_name, path in runtime_skills.items():
-            self._append_project_map_gate_to_file(
+            self._append_project_cognition_gate_to_file(
                 project_root=project_root,
                 manifest=manifest,
                 path=path,
@@ -129,7 +129,7 @@ class CursorAgentIntegration(SkillsIntegration):
         skills_dir = self.skills_dest(project_root)
         for stem in ("implement", "debug", "quick"):
             path = skills_dir / f"sp-{stem}" / "SKILL.md"
-            project_map_update = self._append_project_map_gate_to_file(
+            project_cognition_update = self._append_project_cognition_gate_to_file(
                 project_root=project_root,
                 manifest=manifest,
                 path=path,
@@ -140,13 +140,13 @@ class CursorAgentIntegration(SkillsIntegration):
                 path=path,
                 command_name=stem,
             )
-            updated = updated or project_map_update
+            updated = updated or project_cognition_update
             if updated is None:
                 continue
             updated_files.append(updated)
         return updated_files
 
-    def _append_project_map_gate_to_file(
+    def _append_project_cognition_gate_to_file(
         self,
         *,
         project_root: Path,
@@ -157,17 +157,17 @@ class CursorAgentIntegration(SkillsIntegration):
             return None
 
         content = path.read_text(encoding="utf-8")
-        if "## Cursor Project Map Gate" in content:
+        if "## Cursor Project Cognition Gate" in content:
             return None
 
         addendum = (
             "\n"
-            "## Cursor Project Map Gate\n\n"
-            "**Crucial First Step**: Before repository analysis or implementation, read the current project cognition baseline and verify whether `sp-map-scan` or `sp-map-build` must refresh it.\n"
-            "- Use `.specify/project-cognition/` as the graph-native project map source when present.\n"
-            "- If the map is missing, stale, or too incomplete for the requested work, run or request `sp-map-scan` before relying on local assumptions.\n"
+            "## Cursor Project Cognition Gate\n\n"
+            "**Crucial First Step**: Before repository analysis or implementation, query the current project cognition runtime and verify whether `sp-map-scan` or `sp-map-build` must refresh it.\n"
+            "- Use `.specify/project-cognition/` as the graph-native project cognition source when present.\n"
+            "- If the runtime is missing, stale, or too incomplete for the requested work, run or request `sp-map-scan` before relying on local assumptions.\n"
             "- If scan evidence exists but the graph artifacts are missing or stale, run or request `sp-map-build` before accepting the map as current.\n"
-            "- Continue only after the project map state is fresh enough for the active workflow or a concrete blocker is recorded.\n"
+            "- Continue only after the project cognition state is fresh enough for the active workflow or a concrete blocker is recorded.\n"
         )
 
         if "## Orchestration Model" in content:

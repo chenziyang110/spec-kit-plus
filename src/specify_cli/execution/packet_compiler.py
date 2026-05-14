@@ -96,14 +96,14 @@ def _context_bundle_from_project_docs(
     specs: list[tuple[str, str, str, list[str], str]] = [
         (
             ".specify/project-cognition/status.json",
-            "project_map",
+            "project_cognition",
             "Project cognition freshness entrypoint for query-backed runtime readiness and refresh metadata.",
             ["workflow_boundary", "architecture_boundary", "validation"],
             "status is the lightweight entrypoint before requesting a task-local cognition query bundle",
         ),
         (
             ".specify/project-cognition/project-cognition.db",
-            "project_map",
+            "project_cognition",
             "Canonical SQLite project cognition graph store queried for task-local bundle, readiness, and minimal_live_reads.",
             ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
             "project-cognition query resolves touched-area execution context without raw slice reads",

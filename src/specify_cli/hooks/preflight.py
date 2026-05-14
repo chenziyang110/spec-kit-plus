@@ -134,7 +134,7 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
             severity="critical",
             errors=errors,
             warnings=warnings,
-            data={"project_map": freshness.to_dict()},
+            data={"project_cognition": freshness.to_dict()},
         )
     if warnings:
         return HookResult(
@@ -142,13 +142,13 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
             status="warn",
             severity="warning",
             warnings=warnings,
-            data={"project_map": freshness.to_dict()},
+            data={"project_cognition": freshness.to_dict()},
         )
     return HookResult(
         event=WORKFLOW_PREFLIGHT,
         status="ok",
         severity="info",
-        data={"project_map": freshness.to_dict()},
+        data={"project_cognition": freshness.to_dict()},
     )
 
 

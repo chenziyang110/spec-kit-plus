@@ -36,7 +36,7 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
         context_bundle=[
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
-                kind="project_map",
+                kind="project_cognition",
                 purpose="Project cognition freshness entrypoint for query-backed planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
@@ -45,7 +45,7 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
             ),
             ContextBundleItem(
                 path=".specify/project-cognition/project-cognition.db",
-                kind="project_map",
+                kind="project_cognition",
                 purpose="Query-backed cognition graph store for touched-scope routing",
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
@@ -111,7 +111,7 @@ def test_worker_task_packet_round_trips_through_json() -> None:
         context_bundle=[
             ContextBundleItem(
                 path=".specify/project-cognition/status.json",
-                kind="project_map",
+                kind="project_cognition",
                 purpose="Project cognition freshness entrypoint for query-backed planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
@@ -120,7 +120,7 @@ def test_worker_task_packet_round_trips_through_json() -> None:
             ),
             ContextBundleItem(
                 path=".specify/project-cognition/project-cognition.db",
-                kind="project_map",
+                kind="project_cognition",
                 purpose="Query-backed cognition graph store for touched-scope routing",
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
@@ -152,6 +152,60 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.context_bundle[1].path == ".specify/project-cognition/project-cognition.db"
     assert restored.required_references[0].path == "src/contracts/auth.py"
     assert restored.platform_guardrails == ["supported_platforms: windows, linux"]
+
+
+def test_worker_task_packet_from_json_normalizes_legacy_project_map_context_kind() -> None:
+    payload = {
+        "feature_id": "001-feature",
+        "task_id": "T017",
+        "story_id": "US1",
+        "objective": "Implement auth flow",
+        "intent": {
+            "outcome": "Implement auth flow",
+            "constraints": ["Do not create a parallel auth stack"],
+            "success_signals": ["login/logout behavior implemented"],
+        },
+        "scope": {
+            "write_scope": ["src/services/auth_service.py"],
+            "read_scope": [".specify/project-cognition/status.json"],
+        },
+        "context_bundle": [
+            {
+                "path": ".specify/project-cognition/status.json",
+                "kind": "project_map",
+                "purpose": "legacy packet from older runtime",
+                "required_for": ["workflow_boundary"],
+                "read_order": 1,
+                "must_read": True,
+                "selection_reason": "legacy packet compatibility",
+            }
+        ],
+        "required_references": [
+            {
+                "path": "src/contracts/auth.py",
+                "reason": "public contract compatibility must be preserved",
+            }
+        ],
+        "hard_rules": ["Every public function changed must have tests"],
+        "forbidden_drift": ["Do not create a parallel auth stack"],
+        "validation_gates": ["pytest tests/unit/test_auth_service.py -q"],
+        "done_criteria": ["login/logout behavior implemented"],
+        "handoff_requirements": ["return changed files"],
+        "platform_guardrails": ["supported_platforms: windows, linux"],
+    }
+
+    restored = worker_task_packet_from_json(json.dumps(payload))
+
+    assert restored.context_bundle[0].kind == "project_cognition"
+
+
+def test_context_bundle_item_normalizes_legacy_project_map_kind_on_construction() -> None:
+    item = ContextBundleItem(
+        path=".specify/project-cognition/status.json",
+        kind="project_map",
+    )
+
+    assert item.kind == "project_cognition"
 
 
 def test_worker_task_result_round_trips_through_json() -> None:

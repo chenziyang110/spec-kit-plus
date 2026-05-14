@@ -16,7 +16,7 @@ SCANNED_FILES = [
     "templates/commands/explain.md",
     "templates/commands/test-scan.md",
     "templates/commands/test-build.md",
-    "templates/passive-skills/spec-kit-project-map-gate/SKILL.md",
+    "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
     "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 ]
 LEGACY_TOKENS = ("BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md", ".specify/project-map/")
@@ -27,7 +27,7 @@ ALLOWLIST = {
     "docs/quickstart.md",
     "docs/project-cognition-compatibility-inventory.md",
     "templates/project-handbook-template.md",
-    "templates/passive-skills/spec-kit-project-map-gate/SKILL.md",
+    "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
 }
 
 

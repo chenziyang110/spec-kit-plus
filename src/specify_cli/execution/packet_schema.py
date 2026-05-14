@@ -9,12 +9,17 @@ from typing import Literal
 
 PacketMode = Literal["hard_fail"]
 ContextKind = Literal[
+    "coverage_baseline",
     "handbook",
-    "project_map",
+    "project_cognition",
     "testing_contract",
     "testing_playbook",
     "task_reference",
 ]
+
+LEGACY_CONTEXT_KIND_ALIASES: dict[str, ContextKind] = {
+    "project_map": "project_cognition",
+}
 
 
 @dataclass(slots=True)
@@ -38,6 +43,10 @@ class ContextBundleItem:
     read_order: int = 0
     must_read: bool = True
     selection_reason: str = ""
+
+    def __post_init__(self) -> None:
+        if isinstance(self.kind, str):
+            self.kind = LEGACY_CONTEXT_KIND_ALIASES.get(self.kind, self.kind)
 
 
 @dataclass(slots=True)
@@ -88,6 +97,14 @@ def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str
     return {key: value for key, value in payload.items() if key in allowed}
 
 
+def _normalize_context_bundle_item_payload(payload: dict[str, object]) -> dict[str, object]:
+    item_payload = _filter_dataclass_payload(ContextBundleItem, payload)
+    kind = item_payload.get("kind")
+    if isinstance(kind, str):
+        item_payload["kind"] = LEGACY_CONTEXT_KIND_ALIASES.get(kind, kind)
+    return item_payload
+
+
 def worker_task_packet_payload(packet: WorkerTaskPacket) -> dict[str, object]:
     """Return a JSON-serializable payload for a worker packet."""
 
@@ -105,7 +122,7 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
         if isinstance(item, dict)
     ]
     context_bundle = [
-        ContextBundleItem(**_filter_dataclass_payload(ContextBundleItem, item))
+        ContextBundleItem(**_normalize_context_bundle_item_payload(item))
         for item in payload.get("context_bundle", [])
         if isinstance(item, dict)
     ]

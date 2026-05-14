@@ -127,7 +127,7 @@ class CopilotIntegration(IntegrationBase):
                 template_path=src_file,
                 project_root=project_root,
             )
-            processed = self._append_runtime_project_map_gate(
+            processed = self._append_runtime_project_cognition_gate(
                 content=processed,
                 agent_name="GitHub Copilot",
                 command_name=src_file.stem,

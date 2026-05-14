@@ -227,12 +227,12 @@ class TestCopilotIntegration:
             assert "\nscripts:\n" not in content
             assert "\nagent_scripts:\n" not in content
 
-    def test_runtime_commands_hard_gate_project_map_reads(self, tmp_path):
+    def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
 
         runner = CliRunner()
-        target = tmp_path / "copilot-project-map-gate"
+        target = tmp_path / "copilot-project-cognition-gate"
 
         result = runner.invoke(
             app,

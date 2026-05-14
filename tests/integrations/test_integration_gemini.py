@@ -836,9 +836,9 @@ class TestGeminiIntegration(TomlIntegrationTests):
         assert skipped == []
 
 
-def test_gemini_runtime_commands_hard_gate_project_map_reads(tmp_path):
+def test_gemini_runtime_commands_hard_gate_project_cognition_reads(tmp_path):
     runner = CliRunner()
-    target = tmp_path / "gemini-project-map-gate"
+    target = tmp_path / "gemini-project-cognition-gate"
 
     result = runner.invoke(
         app,

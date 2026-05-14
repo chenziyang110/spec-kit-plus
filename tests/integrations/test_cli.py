@@ -1109,7 +1109,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                     "context_bundle": [
                         {
                             "path": ".specify/project-cognition/status.json",
-                            "kind": "project_map",
+                            "kind": "project_cognition",
                             "purpose": "project cognition runtime status",
                             "required_for": ["workflow_boundary"],
                             "read_order": 1,
@@ -1118,7 +1118,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                         },
                         {
                             "path": ".specify/project-cognition/project-cognition.db",
-                            "kind": "project_map",
+                            "kind": "project_cognition",
                             "purpose": "query-backed cognition graph store",
                             "required_for": ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                             "read_order": 2,

@@ -75,12 +75,12 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in content
 
 
-def test_cursor_runtime_skills_hard_gate_project_map_reads(tmp_path):
+def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
     runner = CliRunner()
-    target = tmp_path / "cursor-project-map-gate"
+    target = tmp_path / "cursor-project-cognition-gate"
 
     result = runner.invoke(
         app,

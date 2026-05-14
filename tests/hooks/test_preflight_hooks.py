@@ -195,6 +195,29 @@ def test_preflight_missing_runtime_guidance_names_sqlite_database_not_graph_json
     assert "conflicts.json" not in combined
 
 
+def test_preflight_result_uses_project_cognition_data_key(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_workflow_state(
+        feature_dir,
+        active_command="sp-specify",
+        status="active",
+        phase_mode="planning-only",
+        next_command="/sp.plan",
+    )
+    _write_cognition_baseline(project)
+
+    result = run_quality_hook(
+        project,
+        "workflow.preflight",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status in {"ok", "warn"}
+    assert "project_cognition" in result.data
+    assert "project_map" not in result.data
+
+
 def test_preflight_warns_for_same_feature_implement_resume_when_dirty_origin_matches(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
@@ -290,7 +313,7 @@ def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(
                 "context_bundle": [
                     {
                         "path": ".specify/project-cognition/status.json",
-                        "kind": "project_map",
+                        "kind": "project_cognition",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -372,7 +395,7 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
                 "context_bundle": [
                     {
                         "path": ".specify/project-cognition/status.json",
-                        "kind": "project_map",
+                        "kind": "project_cognition",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -454,7 +477,7 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
                 "context_bundle": [
                     {
                         "path": ".specify/project-cognition/status.json",
-                        "kind": "project_map",
+                        "kind": "project_cognition",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -536,7 +559,7 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
                 "context_bundle": [
                     {
                         "path": ".specify/project-cognition/status.json",
-                        "kind": "project_map",
+                        "kind": "project_cognition",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,

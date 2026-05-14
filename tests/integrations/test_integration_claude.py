@@ -1748,7 +1748,8 @@ class TestClaudeIntegration:
         assert result.exit_code == 0, result.output
         assert (project / ".claude" / "skills" / "sp-plan" / "SKILL.md").exists()
         assert (project / ".claude" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
-        assert (project / ".claude" / "skills" / "spec-kit-project-map-gate" / "SKILL.md").exists()
+        assert (project / ".claude" / "skills" / "spec-kit-project-cognition-gate" / "SKILL.md").exists()
+        assert not (project / ".claude" / "skills" / "spec-kit-project-map-gate").exists()
         assert not (project / ".claude" / "commands").exists()
 
         init_options = json.loads(

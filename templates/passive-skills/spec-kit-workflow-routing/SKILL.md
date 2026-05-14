@@ -44,8 +44,8 @@ standalone branch-creation command.
 
 ## Complementary Passive Skills
 
-- `spec-kit-project-map-gate` is the hard brownfield context gate. Workflow routing
-  handles route selection into the right active `sp-*` workflow, while the map gate
+- `spec-kit-project-cognition-gate` is the hard brownfield context gate. Workflow routing
+  handles route selection into the right active `sp-*` workflow, while the cognition gate
   decides whether an existing-code task can continue or must detour through
   `sp-map-update` or `sp-map-scan -> sp-map-build` first.
 - `spec-kit-project-learning` is the shared memory layer that applies after routing.

@@ -424,8 +424,8 @@ def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -
     assert "{{invoke:specify}}" in content
 
 
-def test_project_map_gate_has_staged_discussion_gate() -> None:
-    content = _read("templates/passive-skills/spec-kit-project-map-gate/SKILL.md")
+def test_project_cognition_gate_has_staged_discussion_gate() -> None:
+    content = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
     lowered = content.lower()
 
     assert "sp-discussion" in content
@@ -656,7 +656,7 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
 
 def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     managed_block = _extract_bash_managed_block(_read("scripts/bash/update-agent-context.sh"))
-    routing_skill = _read("templates/passive-skills/spec-kit-project-map-gate/SKILL.md")
+    routing_skill = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
     plan_shell = _read("templates/command-partials/plan/shell.md")
     map_scan_shell = _read("templates/command-partials/map-scan/shell.md")
 

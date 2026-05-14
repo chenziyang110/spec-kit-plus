@@ -456,7 +456,7 @@ class IntegrationBase(ABC):
         )
         return content + addendum
 
-    def _append_runtime_project_map_gate(
+    def _append_runtime_project_cognition_gate(
         self,
         *,
         content: str,
@@ -1232,7 +1232,7 @@ class MarkdownIntegration(IntegrationBase):
                 project_root=project_root,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
-            processed = self._append_runtime_project_map_gate(
+            processed = self._append_runtime_project_cognition_gate(
                 content=processed,
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=src_file.stem,
@@ -1431,7 +1431,7 @@ class TomlIntegration(IntegrationBase):
                 project_root=project_root,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
-            processed = self._append_runtime_project_map_gate(
+            processed = self._append_runtime_project_cognition_gate(
                 content=processed,
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=src_file.stem,
