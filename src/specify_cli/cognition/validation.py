@@ -126,7 +126,7 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     if ledger:
         rows = _require_list(ledger, "rows", ".specify/project-cognition/workbench/coverage-ledger.json", errors)
         details["ledger_rows"] = len(rows)
-        _check_unresolved_scan_gaps(rows, ledger, errors)
+        _check_unresolved_scan_gaps(rows, ledger, warnings, errors)
 
     packets_path = run_dir / "workbench" / "scan-packets"
     checked_paths.append(_relative(root, packets_path))
@@ -143,7 +143,12 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     )
 
 
-def _check_unresolved_scan_gaps(rows: list[Any], ledger: dict[str, Any], errors: list[str]) -> None:
+def _check_unresolved_scan_gaps(
+    rows: list[Any],
+    ledger: dict[str, Any],
+    warnings: list[str],
+    errors: list[str],
+) -> None:
     unresolved_critical_rows = [
         row
         for row in rows
@@ -155,8 +160,19 @@ def _check_unresolved_scan_gaps(rows: list[Any], ledger: dict[str, Any], errors:
         errors.append("coverage-ledger.json has unresolved critical rows")
 
     open_gaps = ledger.get("open_gaps", [])
-    if open_gaps:
-        errors.append("coverage-ledger.json has unresolved open gaps")
+    if not isinstance(open_gaps, list) or not open_gaps:
+        return
+
+    critical_gaps = [
+        gap
+        for gap in open_gaps
+        if isinstance(gap, dict) and str(gap.get("criticality", "")).lower() == "critical"
+    ]
+    if critical_gaps:
+        errors.append("coverage-ledger.json has unresolved critical open gaps")
+        return
+
+    warnings.append("coverage-ledger.json records non-critical open gaps")
 
 
 def validate_build_acceptance(project_root: Path) -> dict[str, object]:

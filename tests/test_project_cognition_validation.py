@@ -114,6 +114,53 @@ def test_validate_scan_accepts_complete_scan_package(tmp_path: Path) -> None:
     assert ".specify/project-cognition/workbench/coverage-ledger.json" in result["checked_paths"]
 
 
+def test_validate_scan_warns_for_non_critical_open_gaps(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "covered",
+                }
+            ],
+            "open_gaps": [{"criticality": "low-risk", "reason": "deferred sample"}],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert any(
+        "open gap" in message or "non-critical" in message
+        for message in result["warnings"]
+    )
+
+
+def test_validate_scan_blocks_for_critical_open_gaps(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "covered",
+                }
+            ],
+            "open_gaps": [{"criticality": "critical", "reason": "required source missing"}],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("critical" in message and "open gap" in message for message in result["errors"])
+
+
 def test_validate_build_blocks_when_db_is_missing(tmp_path: Path) -> None:
     write_cognition_status(tmp_path, CognitionStatus(version=3, graph_ready=True))
 
