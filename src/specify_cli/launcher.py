@@ -215,9 +215,15 @@ def render_hook_launcher_command(
 def render_claude_hook_launcher(route: str) -> dict[str, Any]:
     """Render a Claude Code native-hook launcher entry."""
 
+    bootstrap = (
+        "let d=process.cwd(),p=require('path'),f=require('fs'),u=require('url');"
+        "while(!f.existsSync(p.join(d,'.specify','bin','specify-hook.mjs'))){"
+        "let n=p.dirname(d);if(n===d){console.error('Missing .specify/bin/specify-hook.mjs. Run specify integration repair.');process.exit(2)}d=n}"
+        "import(u.pathToFileURL(p.join(d,'.specify','bin','specify-hook.mjs')).href)"
+    )
     return {
         "type": "command",
-        "command": f'node ".specify/bin/{HOOK_LAUNCHER_NODE}" claude {route}',
+        "command": f'node -e "{bootstrap}" specify-hook claude {route}',
     }
 
 

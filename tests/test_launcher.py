@@ -515,10 +515,10 @@ def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(m
 def test_render_claude_hook_launcher_uses_single_command_string():
     hook = render_claude_hook_launcher("session-start")
 
-    assert hook == {
-        "type": "command",
-        "command": 'node ".specify/bin/specify-hook.mjs" claude session-start',
-    }
+    assert hook["type"] == "command"
+    assert hook["command"].startswith('node -e "')
+    assert hook["command"].endswith('" specify-hook claude session-start')
+    assert "specify-hook.mjs" in hook["command"]
     assert "args" not in hook
     assert "${CLAUDE_PROJECT_DIR}" not in json.dumps(hook)
     assert "$CLAUDE_PROJECT_DIR" not in json.dumps(hook)
@@ -567,6 +567,47 @@ def test_render_claude_hook_launcher_command_runs_from_project_root_without_shel
     assert payload["argv"] == ["claude", "session-start"]
     assert payload["cwd"] == str(project)
     assert payload["stdin"]["cwd"] == str(project)
+
+
+def test_render_claude_hook_launcher_command_runs_from_project_subdirectory(tmp_path):
+    if shutil.which("node") is None:
+        return
+
+    project = tmp_path / "project"
+    child = project / "desktop"
+    launcher = project / ".specify" / "bin" / "specify-hook.mjs"
+    launcher.parent.mkdir(parents=True)
+    child.mkdir(parents=True)
+    launcher.write_text(
+        "\n".join(
+            [
+                "console.log(JSON.stringify({",
+                "  argv: process.argv.slice(2),",
+                "  cwd: process.cwd(),",
+                "}));",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    hook = render_claude_hook_launcher("pre-tool-bash")
+    env = os.environ.copy()
+    env.pop("CLAUDE_PROJECT_DIR", None)
+
+    result = subprocess.run(
+        hook["command"],
+        text=True,
+        capture_output=True,
+        cwd=child,
+        env=env,
+        shell=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["argv"] == ["claude", "pre-tool-bash"]
+    assert payload["cwd"] == str(child)
 
 
 def test_plain_node_hook_command_would_execute_hook_payload_as_javascript(tmp_path):

@@ -374,7 +374,9 @@ class TestClaudeIntegration:
 
         assert managed_hooks
         for hook in managed_hooks:
-            assert hook["command"].startswith('node ".specify/bin/specify-hook.mjs" claude ')
+            assert hook["command"].startswith('node -e "')
+            assert '" specify-hook claude ' in hook["command"]
+            assert "specify-hook.mjs" in hook["command"]
             assert "args" not in hook
             hook_json = json.dumps(hook)
             assert "${CLAUDE_PROJECT_DIR}" not in hook_json
@@ -1840,7 +1842,9 @@ class TestClaudeIntegration:
         assert hooks
         assert all("args" not in hook for hook in hooks)
         assert all(
-            hook.get("command", "").startswith('node ".specify/bin/specify-hook.mjs" claude ')
+            hook.get("command", "").startswith('node -e "')
+            and '" specify-hook claude ' in hook.get("command", "")
+            and "specify-hook.mjs" in hook.get("command", "")
             for hook in hooks
         )
         serialized = json.dumps(settings)
