@@ -8,7 +8,13 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
-from specify_cli.cognition import CognitionStatus, connect_cognition_db, seed_active_generation, write_cognition_status
+from specify_cli.cognition import (
+    CognitionStatus,
+    connect_cognition_db,
+    publish_cognition_runtime_metadata,
+    seed_active_generation,
+    write_cognition_status,
+)
 from specify_cli.hooks import artifact_validation as artifact_validation_mod
 
 HOOK_SUBCOMMANDS = [
@@ -199,6 +205,7 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
             freshness="fresh",
         ),
     )
+    publish_cognition_runtime_metadata(project_root)
 
 
 def _write_project_cognition_scan_artifacts(run_dir: Path) -> None:

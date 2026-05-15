@@ -1,7 +1,10 @@
 from importlib.util import module_from_spec, spec_from_file_location
+import json
 from pathlib import Path
 import subprocess
 import sys
+
+from specify_cli.cognition import publish_cognition_runtime_metadata, seed_active_generation
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -262,6 +265,76 @@ def test_complete_project_map_refresh_clears_manual_override_and_writes_refresh_
     cognition_payload = (tmp_path / ".specify" / "project-cognition" / "status.json").read_text(encoding="utf-8")
     assert '"freshness": "fresh"' in cognition_payload
     assert '"manual_force_stale": false' in cognition_payload
+
+
+def test_complete_project_map_refresh_preserves_query_runtime_fields(tmp_path):
+    mod = _load_module()
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=tmp_path, check=True)
+    _write_cognition_status(
+        tmp_path,
+        """{
+  "version": 3,
+  "baseline_state": "ready",
+  "baseline_commit": "old",
+  "baseline_branch": "main",
+  "baseline_built_at": "2026-05-14T00:00:00Z",
+  "graph_ready": true,
+  "graph_store_path": ".specify/project-cognition/project-cognition.db",
+  "active_generation_id": "GEN-0001",
+  "query_contract_version": 1,
+  "update_contract_version": 1,
+  "freshness": "fresh"
+}
+""",
+    )
+
+    status = mod.complete_project_map_refresh(tmp_path)
+    payload = json.loads((tmp_path / ".specify" / "project-cognition" / "status.json").read_text(encoding="utf-8"))
+
+    assert status.freshness == "fresh"
+    assert payload["baseline_state"] == "ready"
+    assert payload["graph_ready"] is True
+    assert payload["graph_store_path"] == ".specify/project-cognition/project-cognition.db"
+    assert payload["active_generation_id"] == "GEN-0001"
+    assert payload["query_contract_version"] == 1
+    assert payload["update_contract_version"] == 1
+
+
+def test_complete_project_map_refresh_restores_runtime_fields_from_db_metadata(tmp_path):
+    mod = _load_module()
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=tmp_path, check=True)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    publish_cognition_runtime_metadata(tmp_path)
+    _write_cognition_status(
+        tmp_path,
+        """{
+  "version": 3,
+  "baseline_state": "missing",
+  "graph_ready": false,
+  "freshness": "fresh"
+}
+""",
+    )
+
+    mod.complete_project_map_refresh(tmp_path)
+    payload = json.loads((tmp_path / ".specify" / "project-cognition" / "status.json").read_text(encoding="utf-8"))
+
+    assert payload["baseline_state"] == "ready"
+    assert payload["graph_ready"] is True
+    assert payload["graph_store_path"] == ".specify/project-cognition/project-cognition.db"
+    assert payload["active_generation_id"] == generation_id
+    assert payload["query_contract_version"] == 1
+    assert payload["update_contract_version"] == 1
 
 
 def test_mark_project_map_refreshed_accepts_partial_topic_scope(tmp_path):

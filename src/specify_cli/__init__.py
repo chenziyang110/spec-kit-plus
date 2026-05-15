@@ -85,8 +85,10 @@ from specify_cli.codex_team.runtime_bridge import (
 from specify_cli.cli_output import print_json
 from specify_cli.cognition import (
     apply_cognition_update,
+    CognitionRuntimeMetadataError,
     cognition_db_path,
     cognition_status_path,
+    publish_cognition_runtime_metadata,
     project_cognition_lexicon,
     query_project_cognition,
     validate_build_acceptance,
@@ -1694,6 +1696,41 @@ def project_map_complete_refresh(
         print_json(result, indent=2)
         return
     _render_project_map_freshness(result)
+
+
+@project_cognition_app.command("publish-runtime-metadata")
+def project_cognition_publish_runtime_metadata_command(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Publish DB-derived project cognition runtime metadata into status.json."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        metadata = publish_cognition_runtime_metadata(project_root)
+    except CognitionRuntimeMetadataError as exc:
+        result = {
+            "status": "blocked",
+            "readiness": "blocked",
+            "errors": [str(exc)],
+            "status_path": str(cognition_status_path(project_root)),
+            "graph_store_path": str(cognition_db_path(project_root)),
+        }
+        if output_format.lower() == "json":
+            print_json(result, indent=2)
+            return
+        console.print(f"[red]Blocked:[/red] {exc}")
+        return
+    result = {
+        "status": "ok",
+        "readiness": "query_runtime_metadata_published",
+        "metadata": metadata,
+        "status_path": str(cognition_status_path(project_root)),
+        "graph_store_path": str(cognition_db_path(project_root)),
+    }
+    if output_format.lower() == "json":
+        print_json(result, indent=2)
+        return
+    console.print("[green]Project cognition runtime metadata published.[/green]")
 
 
 @project_map_app.command("refresh-topics")

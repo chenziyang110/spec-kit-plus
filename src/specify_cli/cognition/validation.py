@@ -321,6 +321,8 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
             _validate_db_schema(conn, errors, details)
             active_generation_id = _validate_active_generation(conn, warnings, errors, details)
             if active_generation_id:
+                _validate_runtime_metadata(conn, active_generation_id, errors, details)
+            if active_generation_id:
                 _validate_generation_content(
                     conn,
                     active_generation_id,
@@ -408,6 +410,48 @@ def _validate_active_generation(
     details["active_generation_id"] = generation_id
     details["active_generation_sequence"] = int(rows[0]["sequence"])
     return generation_id
+
+
+def _validate_runtime_metadata(
+    conn: sqlite3.Connection,
+    active_generation_id: str,
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    expected = {
+        "baseline_state": "ready",
+        "graph_ready": True,
+        "graph_store_path": EXPECTED_GRAPH_STORE_PATH,
+        "active_generation_id": active_generation_id,
+        "query_contract_version": 1,
+        "update_contract_version": 1,
+    }
+    try:
+        rows = conn.execute(
+            "SELECT key, value_json FROM metadata WHERE key IN "
+            "('baseline_state', 'graph_ready', 'graph_store_path', 'active_generation_id', "
+            "'query_contract_version', 'update_contract_version')"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        errors.append(f"runtime metadata could not be read: {exc}")
+        return
+
+    actual: dict[str, object] = {}
+    for row in rows:
+        key = str(row["key"])
+        value_json = str(row["value_json"])
+        try:
+            actual[key] = json.loads(value_json)
+        except json.JSONDecodeError:
+            actual[key] = value_json
+    details["runtime_metadata"] = actual
+
+    for key, expected_value in expected.items():
+        if key not in actual:
+            errors.append(f"metadata.{key} must exist")
+            continue
+        if actual[key] != expected_value:
+            errors.append(f"metadata.{key} must equal {expected_value!r}")
 
 
 def _validate_generation_content(

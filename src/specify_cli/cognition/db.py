@@ -15,6 +15,10 @@ from .paths import cognition_db_path, cognition_dir
 SCHEMA_VERSION = 1
 
 
+class CognitionRuntimeMetadataError(RuntimeError):
+    """Raised when query runtime metadata cannot be derived from the DB."""
+
+
 def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -48,12 +52,115 @@ def ensure_cognition_db(project_root: Path) -> Path:
     path = cognition_db_path(project_root)
     with closing(connect_cognition_db(project_root)) as conn:
         _create_schema(conn)
-        conn.execute(
-            "INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES (?, ?, ?)",
-            ("schema_version", json.dumps(SCHEMA_VERSION), iso_now()),
-        )
+        _write_metadata(conn, "schema_version", SCHEMA_VERSION)
         conn.commit()
     return path
+
+
+def _write_metadata(conn: sqlite3.Connection, key: str, value: object) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES (?, ?, ?)",
+        (key, json.dumps(value), iso_now()),
+    )
+
+
+def publish_cognition_runtime_metadata(project_root: Path) -> dict[str, object]:
+    """Publish query-runtime readiness metadata into the DB and status entrypoint."""
+
+    from .paths import cognition_status_path
+    from .status import read_cognition_status
+
+    ensure_cognition_db(project_root)
+    active_generation_id = get_active_generation_id(project_root)
+    if not active_generation_id:
+        raise CognitionRuntimeMetadataError("project-cognition.db must have an active generation before publishing runtime metadata")
+    metadata: dict[str, object] = {
+        "baseline_state": "ready",
+        "graph_ready": True,
+        "graph_store_path": ".specify/project-cognition/project-cognition.db",
+        "active_generation_id": active_generation_id,
+        "query_contract_version": 1,
+        "update_contract_version": 1,
+    }
+    with closing(connect_cognition_db(project_root)) as conn:
+        for key, value in metadata.items():
+            _write_metadata(conn, key, value)
+        conn.commit()
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    current = read_cognition_status(project_root)
+    status_path = cognition_status_path(project_root)
+    existing_payload: dict[str, object] = {}
+    if status_path.exists() and status_path.is_file():
+        try:
+            raw_payload = json.loads(status_path.read_text(encoding="utf-8"))
+            if isinstance(raw_payload, dict):
+                existing_payload = dict(raw_payload)
+        except json.JSONDecodeError:
+            existing_payload = {}
+    existing_payload.update(
+        {
+            "version": max(int(current.version or 1), 3),
+            "baseline_state": "ready",
+            "baseline_commit": current.baseline_commit,
+            "baseline_branch": current.baseline_branch,
+            "baseline_built_at": current.baseline_built_at,
+            "last_update_id": current.last_update_id,
+            "graph_ready": True,
+            "graph_store_path": ".specify/project-cognition/project-cognition.db",
+            "active_generation_id": active_generation_id,
+            "query_contract_version": 1,
+            "update_contract_version": 1,
+            "stale_paths": list(current.stale_paths or []),
+            "stale_reasons": list(current.stale_reasons or []),
+            "freshness": current.freshness,
+            "last_refresh_reason": current.last_refresh_reason,
+            "last_refresh_topics": list(current.last_refresh_topics or []),
+            "last_refresh_scope": current.last_refresh_scope,
+            "last_refresh_basis": current.last_refresh_basis,
+            "last_refresh_changed_files_basis": list(current.last_refresh_changed_files_basis or []),
+            "manual_force_stale": current.manual_force_stale,
+            "manual_force_stale_reasons": list(current.manual_force_stale_reasons or []),
+            "dirty": current.dirty,
+            "dirty_reasons": list(current.dirty_reasons or []),
+            "dirty_origin_command": current.dirty_origin_command,
+            "dirty_origin_feature_dir": current.dirty_origin_feature_dir,
+            "dirty_origin_lane_id": current.dirty_origin_lane_id,
+            "dirty_scope_paths": list(current.dirty_scope_paths or []),
+        }
+    )
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(json.dumps(existing_payload, indent=2) + "\n", encoding="utf-8")
+    return metadata
+
+
+def read_cognition_runtime_metadata(project_root: Path) -> dict[str, object]:
+    """Read DB-published query runtime metadata."""
+
+    db_path = cognition_db_path(project_root)
+    if not db_path.exists() or not db_path.is_file() or db_path.stat().st_size == 0:
+        return {}
+    try:
+        conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+        conn.row_factory = sqlite3.Row
+        with closing(conn):
+            rows = conn.execute(
+                "SELECT key, value_json FROM metadata WHERE key IN "
+                "('baseline_state', 'graph_ready', 'graph_store_path', 'active_generation_id', "
+                "'query_contract_version', 'update_contract_version')"
+            ).fetchall()
+    except sqlite3.Error:
+        return {}
+
+    metadata: dict[str, object] = {}
+    for row in rows:
+        key = str(row["key"])
+        raw_value = str(row["value_json"])
+        try:
+            metadata[key] = json.loads(raw_value)
+        except json.JSONDecodeError:
+            metadata[key] = raw_value
+    return metadata
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:

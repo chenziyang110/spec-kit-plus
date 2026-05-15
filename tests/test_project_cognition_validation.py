@@ -8,6 +8,7 @@ from specify_cli.cognition import (
     CognitionStatus,
     connect_cognition_db,
     ensure_cognition_db,
+    publish_cognition_runtime_metadata,
     seed_active_generation,
     validate_build_acceptance,
     validate_scan_acceptance,
@@ -90,6 +91,7 @@ def _seed_query_ready_runtime(project_root: Path) -> str:
             freshness="fresh",
         ),
     )
+    publish_cognition_runtime_metadata(project_root)
     return generation_id
 
 
@@ -125,6 +127,7 @@ def _seed_runtime_without_claims(project_root: Path) -> str:
             freshness="fresh",
         ),
     )
+    publish_cognition_runtime_metadata(project_root)
     return generation_id
 
 
@@ -165,6 +168,7 @@ def _seed_runtime_without_smoke_signal(project_root: Path) -> str:
             freshness="fresh",
         ),
     )
+    publish_cognition_runtime_metadata(project_root)
     return generation_id
 
 
@@ -400,6 +404,32 @@ def test_validate_build_blocks_when_status_generation_conflicts_with_db(tmp_path
 
     assert result["status"] == "blocked"
     assert any("active_generation_id" in message and "does not match" in message for message in result["errors"])
+
+
+def test_validate_build_blocks_when_db_runtime_metadata_is_missing(tmp_path: Path) -> None:
+    generation_id = _seed_query_ready_runtime(tmp_path)
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute("DELETE FROM metadata WHERE key IN ('baseline_state', 'graph_ready', 'graph_store_path')")
+        conn.commit()
+    write_cognition_status(
+        tmp_path,
+        CognitionStatus(
+            version=3,
+            baseline_state="ready",
+            graph_ready=True,
+            graph_store_path=".specify/project-cognition/project-cognition.db",
+            active_generation_id=generation_id,
+            query_contract_version=1,
+            update_contract_version=1,
+        ),
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("metadata.baseline_state" in message for message in result["errors"])
+    assert any("metadata.graph_ready" in message for message in result["errors"])
+    assert any("metadata.graph_store_path" in message for message in result["errors"])
 
 
 def test_validate_build_accepts_query_ready_runtime(tmp_path: Path) -> None:

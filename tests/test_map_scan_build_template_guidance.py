@@ -163,6 +163,7 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "structural-only refresh is a failed build" in lowered
     assert "reverse coverage validation" in lowered
     assert "complete-refresh" in content
+    assert "project-cognition publish-runtime-metadata --format json" in content
     assert "project-cognition validate-build --format json" in content
     assert "validate-build" in lowered
     assert "only after `validate-build`" in lowered or "only after validate-build" in lowered
@@ -172,6 +173,8 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert ".specify/project-map/" not in content
     assert "derived-only evidence" in lowered
     assert "required_reads contain only reference-only" in lowered or "reference-only or hard-excluded" in lowered
+    assert "`.specify/**` inputs are workbench/control artifacts, not graph evidence rows" in content
+    assert "must not write `.specify/**` into `evidence.source_path`, `path_index.path`" in content
 
 
 def test_map_build_template_requires_reverse_coverage_closure() -> None:

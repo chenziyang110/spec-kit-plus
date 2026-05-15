@@ -1,15 +1,20 @@
 from contextlib import closing
+import json
 import sqlite3
 from pathlib import Path
+
+import pytest
 
 from specify_cli.cognition import (
     apply_cognition_update,
     CognitionStatus,
+    CognitionRuntimeMetadataError,
     cognition_db_path,
     cognition_status_path,
     connect_cognition_db,
     ensure_cognition_db,
     get_active_generation_id,
+    publish_cognition_runtime_metadata,
     read_cognition_status,
     seed_active_generation,
     write_cognition_status,
@@ -137,6 +142,102 @@ def test_cognition_status_tolerates_malformed_database_contract_versions(tmp_pat
 
     assert status.query_contract_version == 0
     assert status.update_contract_version == 0
+
+
+def test_publish_cognition_runtime_metadata_writes_db_and_status_runtime_fields(tmp_path: Path) -> None:
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+
+    publish_cognition_runtime_metadata(tmp_path)
+
+    status = read_cognition_status(tmp_path)
+    assert status.baseline_state == "ready"
+    assert status.graph_ready is True
+    assert status.graph_store_path == ".specify/project-cognition/project-cognition.db"
+    assert status.active_generation_id == generation_id
+    assert status.query_contract_version == 1
+    assert status.update_contract_version == 1
+
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        rows = conn.execute(
+            "SELECT key, value_json FROM metadata WHERE key IN "
+            "('baseline_state', 'graph_ready', 'graph_store_path', 'active_generation_id', "
+            "'query_contract_version', 'update_contract_version')"
+        ).fetchall()
+
+    metadata = {str(row["key"]): row["value_json"] for row in rows}
+    assert metadata == {
+        "baseline_state": '"ready"',
+        "graph_ready": "true",
+        "graph_store_path": '".specify/project-cognition/project-cognition.db"',
+        "active_generation_id": '"GEN-0001"',
+        "query_contract_version": "1",
+        "update_contract_version": "1",
+    }
+
+
+def test_publish_cognition_runtime_metadata_preserves_extra_status_fields(tmp_path: Path) -> None:
+    seed_active_generation(tmp_path, source_commit="abc123")
+    status_path = cognition_status_path(tmp_path)
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 3,
+                "minimal_baseline": True,
+                "custom_marker": "keep-me",
+                "freshness": "fresh",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    publish_cognition_runtime_metadata(tmp_path)
+
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    assert payload["minimal_baseline"] is True
+    assert payload["custom_marker"] == "keep-me"
+    assert payload["baseline_state"] == "ready"
+    assert payload["graph_ready"] is True
+
+
+def test_publish_cognition_runtime_metadata_blocks_without_active_generation(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+
+    with pytest.raises(CognitionRuntimeMetadataError, match="active generation"):
+        publish_cognition_runtime_metadata(tmp_path)
+
+    status = read_cognition_status(tmp_path)
+    assert status.graph_ready is False
+    assert status.baseline_state == "missing"
+
+
+def test_publish_cognition_runtime_metadata_checkpoints_wal_sidecar(tmp_path: Path) -> None:
+    seed_active_generation(tmp_path, source_commit="abc123")
+    db_path = cognition_db_path(tmp_path)
+    wal_path = db_path.with_name(f"{db_path.name}-wal")
+
+    publish_cognition_runtime_metadata(tmp_path)
+
+    assert not wal_path.exists() or wal_path.stat().st_size == 0
+
+
+def test_read_cognition_runtime_metadata_does_not_create_wal_sidecars(tmp_path: Path) -> None:
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    publish_cognition_runtime_metadata(tmp_path)
+    db_path = cognition_db_path(tmp_path)
+    wal_path = db_path.with_name(f"{db_path.name}-wal")
+    shm_path = db_path.with_name(f"{db_path.name}-shm")
+    wal_path.unlink(missing_ok=True)
+    shm_path.unlink(missing_ok=True)
+
+    from specify_cli.cognition import read_cognition_runtime_metadata
+
+    metadata = read_cognition_runtime_metadata(tmp_path)
+
+    assert metadata["active_generation_id"] == generation_id
+    assert not wal_path.exists()
+    assert not shm_path.exists()
 
 
 def test_apply_cognition_update_records_affected_path_update(tmp_path: Path) -> None:
