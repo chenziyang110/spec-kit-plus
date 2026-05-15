@@ -332,7 +332,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
+    assert "project-cognition lexicon --intent implement" in content.lower()
     assert "project-cognition query --intent implement" in content.lower()
+    assert "--query-plan" in content.lower()
     assert "minimal_live_reads" in content.lower()
     assert "build-handbook.md" not in content.lower()
     assert "build-workflow-contract" not in content.lower()
@@ -685,7 +687,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "codex subagent evidence collection" in content
+    assert "project-cognition lexicon --intent debug" in content
     assert "project-cognition query --intent debug" in content
+    assert "--query-plan" in content
     assert "minimal_live_reads" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
@@ -828,7 +832,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "do not read constitution, project-rules, or project-learnings" in content
     assert "leave `.specify/memory/learnings/index.md`" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+    assert "project-cognition lexicon --intent implement" in content
     assert "project-cognition query --intent implement" in content
+    assert "--query-plan" in content
     assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "shared surfaces" in content
@@ -868,7 +874,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".specify/memory/learnings/index.md" in content
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+    assert "project-cognition lexicon --intent implement" in content
     assert "project-cognition query --intent implement" in content
+    assert "--query-plan" in content
     assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "build-workflow-contract" not in content

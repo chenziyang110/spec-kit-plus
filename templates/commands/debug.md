@@ -136,7 +136,9 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition query --intent debug --query "$ARGUMENTS" --format json}}
+{{specify-subcmd:project-cognition lexicon --intent debug --query "$ARGUMENTS" --format json}}
+# Agent: generate <query_plan_json> from raw user intent plus returned map terms.
+{{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}
 ```
 
 Use the returned readiness:
@@ -152,7 +154,7 @@ Use the returned readiness:
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Query project cognition with `{{specify-subcmd:project-cognition query --intent debug --query "$ARGUMENTS" --format json}}` before trusting existing brownfield routing assumptions.
+- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent debug --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}` before trusting existing brownfield routing assumptions.
 - If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
 - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.

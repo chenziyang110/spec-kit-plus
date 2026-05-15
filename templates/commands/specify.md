@@ -55,7 +55,9 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
+{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}
+# Agent: generate <query_plan_json> from raw user intent plus returned map terms.
+{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
 ```
 
 Use the returned readiness:
@@ -241,7 +243,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/project-rules.md` if present.
    - Read `.specify/memory/learnings/INDEX.md` if present.
    - Open only linked learning detail docs relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
-   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}`.
+   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
    - From the project cognition runtime, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.

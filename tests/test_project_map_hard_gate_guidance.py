@@ -39,7 +39,9 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     lowered_gate = shared_gate.lower()
 
     assert "project cognition runtime" in lowered_gate
-    assert "launcher-backed project cognition query" in lowered_gate
+    assert "launcher-backed project cognition query planning flow" in lowered_gate
+    assert "lexicon" in lowered_gate
+    assert "query_plan" in shared_gate
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "`missing` -> block and refresh through `sp-map-scan -> sp-map-build`" in shared_gate
@@ -56,7 +58,8 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     assert ".specify/project-map/index/" not in navigation_shim
 
     debug_content = _read("templates/commands/debug.md").lower()
-    assert '{{specify-subcmd:project-cognition query --intent debug --query "$arguments" --format json}}' in debug_content
+    assert '{{specify-subcmd:project-cognition lexicon --intent debug --query "$arguments" --format json}}' in debug_content
+    assert '{{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}' in debug_content
     assert "minimal_live_reads" in debug_content
     assert "debug-handbook.md" not in debug_content
     assert "debug-workflow-contract" not in debug_content

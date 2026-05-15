@@ -23,7 +23,9 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     content = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered = content.lower()
 
-    assert "launcher-backed project cognition query" in lowered
+    assert "launcher-backed project cognition query planning flow" in lowered
+    assert "project-cognition lexicon" in lowered
+    assert "query_plan" in content
     assert "task-local project" in lowered
     assert "raw" in lowered
     assert "graph json artifacts as obsolete runtime surfaces" in lowered
@@ -44,7 +46,9 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         content = _read(rel_path)
         lowered = content.lower()
 
+        assert "project-cognition lexicon --intent plan" in content
         assert "project-cognition query --intent plan" in content
+        assert "--query-plan" in content
         assert "minimal_live_reads" in content
         assert "graph-native" not in lowered
         assert "build-handbook.md" not in lowered
@@ -59,4 +63,7 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
     assert "task-local project cognition query bundle" in lowered
+    assert "agent-planned `project-cognition query`" in lowered
+    assert "project-cognition lexicon" in lowered
+    assert "query_plan" in content
     assert "workflow-appropriate slices" not in lowered

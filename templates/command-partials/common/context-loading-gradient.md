@@ -10,9 +10,11 @@ passed.
 
 ### Required Project Cognition Query
 
-Use the launcher-backed project cognition query required by this command's
-workflow contract to retrieve the task-local project cognition bundle. Treat raw
-graph JSON artifacts as obsolete runtime surfaces.
+Use the launcher-backed project cognition query planning flow required by this
+command's workflow contract to retrieve the task-local project cognition bundle:
+run `project-cognition lexicon`, translate raw user intent into a `query_plan`
+from returned map terms, then run `project-cognition query --query-plan`. Treat
+raw graph JSON artifacts as obsolete runtime surfaces.
 
 ### Fixed Bundle Consumption
 

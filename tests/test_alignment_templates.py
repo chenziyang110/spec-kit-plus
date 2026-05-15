@@ -24,7 +24,17 @@ def _read_project_file(path: str) -> str:
 
 
 def _launcher_query(intent: str) -> str:
-    return f'{{{{specify-subcmd:project-cognition query --intent {intent} --query "$ARGUMENTS" --format json}}}}'
+    return f'{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}'
+
+
+def _launcher_lexicon(intent: str) -> str:
+    return f'{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query "$ARGUMENTS" --format json}}}}'
+
+
+def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
+    assert _launcher_lexicon(intent) in content
+    assert _launcher_query(intent) in content
+    assert "query_plan" in content
 
 
 def _assert_learning_index_detail_model(content: str) -> None:
@@ -124,7 +134,10 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "Treat `sp-*` names as canonical workflow identities." in block
 
     assert "## Brownfield Context Gate" in block
+    assert "project-cognition lexicon --intent <workflow-intent>" in lowered
     assert "project-cognition query --intent <workflow-intent>" in lowered
+    assert "query-plan" in lowered
+    assert "translate the raw user intent into a `query_plan`" in lowered
     assert "project launcher configured in `.specify/config.json`" in lowered
     assert "raw graph json artifacts as obsolete runtime surfaces" in lowered
     assert "project cognition under `.specify/project-cognition/` is the runtime truth surface" in lowered
@@ -434,7 +447,7 @@ def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     assert "product framing" in lowered
     assert "before the cognition gate" in lowered
     assert "technical options" in lowered
-    assert "launcher-backed project cognition query" in lowered
+    assert "launcher-backed project cognition query planning flow" in lowered
     assert "retrieve the task-local project cognition bundle" in lowered
 
 
@@ -442,7 +455,7 @@ def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert _launcher_query("plan") in content
+    _assert_agent_assisted_cognition_gate(content, "plan")
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -689,6 +702,7 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
     for rel_path in legacy_rel_paths:
         content = _read(rel_path)
         lowered = content.lower()
+        _assert_agent_assisted_cognition_gate(content, "plan")
         assert "project-cognition query" in lowered
         assert "minimal_live_reads" in lowered
         assert "build-handbook.md" not in lowered
@@ -697,7 +711,9 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
         assert "atlas.entry" not in lowered
 
     implement = _read("templates/commands/implement.md").lower()
+    assert "project-cognition lexicon --intent implement" in implement
     assert "project-cognition query --intent implement" in implement
+    assert "query-plan" in implement
     assert "minimal_live_reads" in implement
     assert "build-handbook.md" not in implement
     assert "build-workflow-contract" not in implement
@@ -785,7 +801,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
-    assert _launcher_query("plan") in content
+    _assert_agent_assisted_cognition_gate(content, "plan")
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -936,7 +952,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert _launcher_query("plan") in content
+    _assert_agent_assisted_cognition_gate(content, "plan")
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -1066,7 +1082,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "`next_command: /sp.implement`" in content
     assert "when no upstream remediation is required" in lowered
     assert "`next_command: /sp.plan`" in content or "`next_command: /sp.tasks`" in content
-    assert _launcher_query("implement") in content
+    _assert_agent_assisted_cognition_gate(content, "implement")
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -1703,7 +1719,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
         "Note: This command assumes a complete task breakdown exists in tasks.md.",
     )
 
-    assert _launcher_query("implement") in content
+    _assert_agent_assisted_cognition_gate(content, "implement")
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
@@ -1862,13 +1878,13 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     lowered_shim = navigation_shim.lower()
 
     assert "DEBUG-HANDBOOK.md" not in debug_template
-    assert _launcher_query("debug") in debug_template
+    _assert_agent_assisted_cognition_gate(debug_template, "debug")
     assert "minimal_live_reads" in debug_template
     assert "BUILD-HANDBOOK.md" not in build_template
-    assert _launcher_query("implement") in build_template
+    _assert_agent_assisted_cognition_gate(build_template, "implement")
     assert "minimal_live_reads" in build_template
     assert "project cognition runtime" in lowered_gate
-    assert "launcher-backed project cognition query" in lowered_gate
+    assert "launcher-backed project cognition query planning flow" in lowered_gate
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
@@ -2073,6 +2089,8 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
     assert "project-cognition query --intent plan" in lowered
+    assert "project-cognition lexicon --intent plan" in lowered
+    assert "query-plan" in lowered
     assert "returned readiness" in lowered
     assert "minimal_live_reads" in lowered
     assert "build-handbook.md" not in lowered

@@ -27,6 +27,7 @@ from .paths import (
     provisional_nodes_path,
     provisional_observations_path,
 )
+from .lexicon import project_cognition_lexicon
 from .query import query_project_cognition
 from .reference_read import ReferenceProjectReadError, read_reference_project_cognition
 from .schema import (
@@ -89,6 +90,7 @@ __all__ = [
     "provisional_edges_path",
     "provisional_nodes_path",
     "provisional_observations_path",
+    "project_cognition_lexicon",
     "query_project_cognition",
     "read_cognition_status",
     "read_reference_project_cognition",

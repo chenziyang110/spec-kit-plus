@@ -40,8 +40,12 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
 
     for name, intent in workflow_intents.items():
         content = read_template(f"templates/commands/{name}").lower()
+        assert "project-cognition lexicon" in content
+        assert f"project-cognition lexicon --intent {intent}" in content
         assert "project-cognition query" in content
         assert f"project-cognition query --intent {intent}" in content
+        assert "--query-plan" in content
+        assert "query_plan" in content
         for state in readiness_states:
             assert f"`{state}`" in content, f"{name} missing readiness state {state}"
         assert ".specify/project-cognition/graph/nodes.json" not in content
@@ -95,7 +99,9 @@ def test_map_build_template_targets_graph_reconstruction() -> None:
     content = _read("templates/commands/map-build.md")
 
     assert ".specify/project-cognition/project-cognition.db" in content
+    assert "{{specify-subcmd:project-cognition lexicon" in content
     assert "{{specify-subcmd:project-cognition query" in content
+    assert "--query-plan" in content
     assert "raw graph JSON artifacts or slices as runtime truth" in content
     assert "conflict" in content.lower()
     assert "claim" in content.lower()

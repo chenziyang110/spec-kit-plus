@@ -29,7 +29,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Enriched task contract generation**: `sp-tasks` produces subagent-ready task contracts with agent role assignment, context navigation pointers, write/read/forbidden scope boundaries, verify commands, and escalation strategy — enabling `sp-implement` to dispatch subagents directly without leader clarification.
 - **Analyze/tasks convergence contract**: `sp-analyze` must finish a complete blocker bundle before choosing the single recommended next command, while `sp-tasks` must run an analyze-compatible task self-audit before handoff. repeated `tasks -> analyze -> tasks` loops are abnormal. No more than one task-layer remediation cycle is expected, and missing upstream truth routes directly to `plan`, `clarify`, or `deep-research` before regenerated tasks return to `analyze`.
 - **Spec quality gate (`spec-lint`)**: `tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets against 8 tiered quality checks before `sp-plan`. Install scripts, CI cross-compilation, and the quality gate spec live alongside the tool. Read `templates/spec-quality-gate.md`.
-- **Brownfield cognition lifecycle**: Generated projects use `.specify/project-cognition/status.json` plus `project-cognition query` task-local bundles as the default brownfield runtime truth surface, while `.specify/project-cognition/project-cognition.db` is the canonical graph store. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. After that, normal code changes should use `sp-map-update` for bounded incremental refresh. Return to `sp-map-scan -> sp-map-build` only when the baseline is missing, unusable, schema-incompatible, or the changed closure cannot be bounded safely. Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed. Support drift is not runtime-truth staleness and should be resolved as support-surface cleanup, not reflexively routed to `map-update`. Same-feature `sp-implement` resume may continue with warning when dirty fallback metadata was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first.
+- **Brownfield cognition lifecycle**: Generated projects use `.specify/project-cognition/status.json` plus agent-planned `project-cognition query` task-local bundles as the default brownfield runtime truth surface, while `.specify/project-cognition/project-cognition.db` is the canonical graph store. Workflows first call `project-cognition lexicon`, have the agent translate raw user intent into a `query_plan` using returned map terms, then call `project-cognition query --query-plan`. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. After that, normal code changes should use `sp-map-update` for bounded incremental refresh. Return to `sp-map-scan -> sp-map-build` only when the baseline is missing, unusable, schema-incompatible, or the changed closure cannot be bounded safely. Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed. Support drift is not runtime-truth staleness and should be resolved as support-surface cleanup, not reflexively routed to `map-update`. Same-feature `sp-implement` resume may continue with warning when dirty fallback metadata was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first.
 - **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, subagents-first dispatch selection, and state surfaces.
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets.
 - **Testing and verification**: Python pytest layers, integration/template contract tests, Codex-team tests, and engine build checks protect generated behavior.
@@ -40,7 +40,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - The runtime atlas now resolves to two workflow handbooks.
 - Read `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug workflows.
 - **First stop for any task**: use the project cognition routes described here. Repo-local `.specify/` state is not committed source-of-truth for this repository.
-- For generated projects, read `.specify/project-cognition/status.json` plus the task-local project cognition query bundle before broad brownfield work.
+- For generated projects, read `.specify/project-cognition/status.json` plus the agent-planned task-local project cognition query bundle before broad brownfield work.
 - Treat project cognition as the primary runtime truth surface.
 - Supporting project-map outputs are support-only or reference-only.
 - The refresh workbench still contains `map-scan` / `map-build` scan packets and refresh workbench artifacts for rebuilding the handbooks.
@@ -54,7 +54,7 @@ For generated projects, use project cognition first:
 
 - `.specify/project-cognition/status.json` — freshness, coverage, stale paths, and refresh metadata
 - `.specify/project-cognition/project-cognition.db` — canonical SQLite graph store
-- `project-cognition query` bundle — task-local cognition bundles, readiness, and `minimal_live_reads`
+- `project-cognition lexicon` plus `project-cognition query --query-plan` bundle — map terms for agent query planning, task-local cognition bundles, readiness, and `minimal_live_reads`
 
 The cognition model should help answer:
 
@@ -154,7 +154,7 @@ The cognition model should help answer:
 
 - `.specify/project-cognition/status.json` - default generated-project runtime status, freshness, coverage, stale paths, and refresh metadata
 - `.specify/project-cognition/project-cognition.db` - canonical generated-project SQLite graph store
-- `project-cognition query` bundle - default generated-project route to task-local bundles, readiness, and `minimal_live_reads`
+- `project-cognition lexicon` plus `project-cognition query --query-plan` bundle - default generated-project route to map terms, task-local bundles, readiness, and `minimal_live_reads`
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
 - `templates/project-map/**` is retained only for legacy compatibility review and must not be installed or required by new generated projects.
@@ -165,7 +165,7 @@ The cognition model should help answer:
 
 ## Recent Structural Changes
 
-- The runtime atlas is being rewritten around `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` task-local bundles.
+- The runtime atlas is being rewritten around `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon`, and agent-planned `project-cognition query --query-plan` task-local bundles.
 - Ordinary `sp-*` workflows should treat project cognition consumption as the hard gate before source-level work.
 - Supporting handbook artifacts remain available as compatibility/export surfaces, but are no longer the primary runtime truth path.
 - Testing workflow guidance now centers `sp-test-scan` and `sp-test-build`.

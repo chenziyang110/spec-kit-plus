@@ -239,7 +239,9 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
+        assert "project-cognition lexicon --intent implement" in content
         assert "project-cognition query --intent implement" in content
+        assert "--query-plan" in content
         assert "readiness" in content
         assert "task-local bundle" in content
         assert "minimal_live_reads" in content
@@ -292,7 +294,9 @@ class TestInitIntegrationFlag:
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
+        assert "project-cognition lexicon --intent debug" in debug_content
         assert "project-cognition query --intent debug" in debug_content
+        assert "--query-plan" in debug_content
         assert "returned readiness" in debug_content
         assert "task-local bundle" in debug_content
         assert "minimal_live_reads" in debug_content
@@ -304,7 +308,9 @@ class TestInitIntegrationFlag:
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "project-cognition lexicon --intent implement" in fast_content
         assert "project-cognition query --intent implement" in fast_content
+        assert "--query-plan" in fast_content
         assert "returned readiness" in fast_content
         assert "task-local bundle" in fast_content
         assert "minimal_live_reads" in fast_content
@@ -321,7 +327,9 @@ class TestInitIntegrationFlag:
         assert "future senior engineer" in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
+        assert "project-cognition lexicon --intent implement" in quick_content
         assert "project-cognition query --intent implement" in quick_content
+        assert "--query-plan" in quick_content
         assert "project cognition query" in quick_content
         assert "returned readiness" in quick_content
         assert "task-local bundle" in quick_content
@@ -2797,17 +2805,25 @@ def test_project_cognition_cli_exposes_local_query_update_surface():
 
     help_result = runner.invoke(app, ["project-cognition", "--help"], catch_exceptions=False)
     query_help = runner.invoke(app, ["project-cognition", "query", "--help"], catch_exceptions=False)
+    lexicon_help = runner.invoke(app, ["project-cognition", "lexicon", "--help"], catch_exceptions=False)
     update_help = runner.invoke(app, ["project-cognition", "update", "--help"], catch_exceptions=False)
     cognition_help = runner.invoke(app, ["cognition", "--help"], catch_exceptions=False)
 
     assert help_result.exit_code == 0, help_result.output
     assert query_help.exit_code == 0, query_help.output
+    assert lexicon_help.exit_code == 0, lexicon_help.output
     assert update_help.exit_code == 0, update_help.output
+    help_output = strip_ansi(help_result.output)
     query_output = strip_ansi(query_help.output)
+    lexicon_output = strip_ansi(lexicon_help.output)
     update_output = strip_ansi(update_help.output)
+    assert "lexicon" in help_output
     assert "--intent" in query_output
     assert "--query" in query_output
+    assert "--expanded-query" in query_output
+    assert "--query-plan" in query_output
     assert "--paths" in query_output
+    assert "--limit" in lexicon_output
     assert "--changed-paths" in update_output
     assert "Discover and read fresh cross-project cognition references" in cognition_help.output
     assert "query" not in cognition_help.output.lower()
@@ -2835,11 +2851,129 @@ def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
     payload = json.loads(result.output)
     assert payload["readiness"] == "needs_rebuild"
     assert payload["recommended_next_action"] == "run_map_scan_build"
+    assert payload["query_plan"] == {"raw_query": "login", "expanded_queries": [], "paths": []}
     assert (
         ".specify/project-cognition/project-cognition.db is missing; run sp-map-scan followed by sp-map-build"
         in payload["missing_coverage"]
     )
     assert not db_path.exists()
+
+
+def test_project_cognition_lexicon_outputs_agent_terms(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lexicon-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    _seed_query_ready_runtime(project)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "lexicon",
+                "--intent",
+                "plan",
+                "--query",
+                "登录流程怎么改",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["terms"][0]["node_id"] == "capability:auth.login"
+    assert "login" in payload["terms"][0]["aliases"]
+    assert "src/auth/login.ts" in payload["terms"][0]["paths"]
+    assert payload["query_planning_contract"]["agent_responsibility"] == "translate raw user intent using this lexicon"
+
+
+def test_project_cognition_query_accepts_expanded_query(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "expanded-query-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    _seed_query_ready_runtime(project)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "query",
+                "--intent",
+                "plan",
+                "--query",
+                "用户口语化表达登录相关问题",
+                "--expanded-query",
+                "login",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["capability_candidates"][0]["node_id"] == "capability:auth.login"
+    assert "expanded_query:login" in payload["capability_candidates"][0]["matched_by"]
+    assert payload["query_plan"]["expanded_queries"] == ["login"]
+
+
+def test_project_cognition_query_accepts_query_plan(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "query-plan-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    _seed_query_ready_runtime(project)
+
+    query_plan = json.dumps(
+        {
+            "raw_query": "用户随口说登录这块要改",
+            "expanded_queries": ["login"],
+            "paths": ["src\\auth\\login.ts"],
+        }
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "query",
+                "--intent",
+                "plan",
+                "--query-plan",
+                query_plan,
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["query"] == "用户随口说登录这块要改"
+    assert payload["query_plan"]["expanded_queries"] == ["login"]
+    assert payload["query_plan"]["paths"] == ["src/auth/login.ts"]
+    assert payload["minimal_live_reads"] == ["src/auth/login.ts"]
 
 
 def test_cognition_read_outputs_minimal_reference_read_order_without_project_map_fallback(tmp_path):

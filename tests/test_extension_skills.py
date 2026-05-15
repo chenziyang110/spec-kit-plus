@@ -400,7 +400,9 @@ class TestBuiltInSkillGeneration:
         assert "fixed heavy discovery lifecycle" in specify_body.lower()
         assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
+        assert "project-cognition lexicon --intent plan" in specify_body
         assert "project-cognition query --intent plan" in specify_body
+        assert "--query-plan" in specify_body
         assert "minimal_live_reads" in specify_body
         assert "BUILD-HANDBOOK.md" not in specify_body
         assert "BUILD-WORKFLOW-CONTRACT" not in specify_body
@@ -558,7 +560,9 @@ class TestBuiltInSkillGeneration:
         assert "parallel-subagents" in test_scan_body.lower()
         assert "native-subagents" in test_scan_body.lower()
         assert "read-only scan subagents" in test_scan_body.lower()
+        assert "project-cognition lexicon --intent test" in test_scan_body.lower()
         assert "project-cognition query --intent test" in test_scan_body.lower()
+        assert "--query-plan" in test_scan_body.lower()
         assert "minimal_live_reads" in test_scan_body
         assert "`needs_update`: route through `/sp-map-update`" in test_scan_body.lower()
         assert "`needs_rebuild`: route through `/sp-map-scan`, then `/sp-map-build`" in test_scan_body.lower()
@@ -578,7 +582,9 @@ class TestBuiltInSkillGeneration:
         assert "managed-team" in test_build_body.lower()
         assert "testbuildpacket" in test_build_body.lower()
         assert "before mutating shared repository test framework/config files" in test_build_body.lower()
+        assert "project-cognition lexicon --intent test" in test_build_body.lower()
         assert "project-cognition query --intent test" in test_build_body.lower()
+        assert "--query-plan" in test_build_body.lower()
         assert "minimal_live_reads" in test_build_body
         assert "`needs_update`: route through `/sp-map-update`" in test_build_body.lower()
         assert "if testing-surface cognition coverage is insufficient for the current repository" in test_build_body.lower()
@@ -619,7 +625,9 @@ class TestBuiltInSkillGeneration:
         assert ".planning/learnings/candidates.md" not in checklist_lower or "compatibility" in checklist_lower
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
+        assert "project-cognition lexicon --intent plan" in checklist_lower
         assert "project-cognition query --intent plan" in checklist_lower
+        assert "--query-plan" in checklist_lower
         assert "task-local bundle" in checklist_lower
         assert "minimal_live_reads" in checklist_lower
         assert ".specify/project-cognition/slices/change.json" not in checklist_lower

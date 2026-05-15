@@ -253,12 +253,16 @@ class MarkdownIntegrationTests:
             assert "crucial first step" in content
             if f.name == "sp.debug.md":
                 assert "project cognition" in content
+                assert "project-cognition lexicon --intent debug" in content
                 assert "project-cognition query --intent debug" in content
+                assert "--query-plan" in content
                 assert "minimal_live_reads" in content
                 assert "debug-handbook.md" not in content
             else:
                 assert "project cognition" in content
+                assert "project-cognition lexicon" in content
                 assert "project-cognition query" in content
+                assert "--query-plan" in content
                 assert "minimal_live_reads" in content
                 assert "build-handbook.md" not in content
                 assert "fixed chapter ids required for this workflow" not in content

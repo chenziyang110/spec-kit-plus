@@ -45,7 +45,10 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "passive project learning layer" in content
     assert "passive project learning layer" in content
     assert "project cognition gate" in content
+    assert "project-cognition lexicon --intent implement" in content
     assert "project-cognition query --intent implement" in content
+    assert "--query-plan" in content
+    assert "query_plan" in content
     assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "debug-handbook.md" not in content

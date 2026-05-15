@@ -106,7 +106,9 @@ Use `execution_surface: native-subagents`.
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition query --intent test --query "$ARGUMENTS" --format json}}
+     {{specify-subcmd:project-cognition lexicon --intent test --query "$ARGUMENTS" --format json}}
+     # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
+     {{specify-subcmd:project-cognition query --intent test --query-plan "<query_plan_json>" --format json}}
      ```
 
      Use the returned readiness:

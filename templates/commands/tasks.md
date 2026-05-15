@@ -107,7 +107,7 @@ scripts:
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
    - **Required when present**: `.specify/memory/learnings/INDEX.md` (searchable reusable learning index that may shape decomposition, validation, or guardrails)
    - **Required when relevant index entries exist**: open only the linked learning detail docs relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
-   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}`.
+   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion; then inspect the minimum live files still needed to replace guesswork with evidence
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
@@ -120,7 +120,9 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
+{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}
+# Agent: generate <query_plan_json> from raw user intent plus returned map terms.
+{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
 ```
 
 Use the returned readiness:

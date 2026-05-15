@@ -184,7 +184,7 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
 def test_render_project_launcher_placeholders_without_project_launcher_avoids_bare_cognition_command(tmp_path):
     rendered = render_project_launcher_placeholders(
         tmp_path,
-        'Run `{{specify-subcmd:project-cognition query --intent implement --query "$ARGUMENTS" --format json}}`.',
+        'Run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.',
     )
 
     assert "specify project-cognition query" not in rendered

@@ -117,7 +117,9 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
+     {{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}
+     # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
+     {{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
      ```
 
      Use the returned readiness:

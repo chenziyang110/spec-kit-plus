@@ -6,6 +6,7 @@ import pytest
 from specify_cli.cognition import (
     connect_cognition_db,
     ensure_cognition_db,
+    project_cognition_lexicon,
     query_project_cognition,
     seed_active_generation,
 )
@@ -75,6 +76,44 @@ def _seed_login_graph(project_root: Path) -> str:
     return generation_id
 
 
+def _seed_api_version_graph(project_root: Path) -> str:
+    ensure_cognition_db(project_root)
+    generation_id = seed_active_generation(project_root, source_commit="abc123")
+    with closing(connect_cognition_db(project_root)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-api', ?, 'file', 'apps/relay-server/src/handlers/routes.ts', 'abc123', '1-120', 'test', 'hash-api', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('node-rest-api', ?, 'capability', 'REST API versioning', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) "
+            "VALUES ('A-api-version', ?, 'api version', 'api version', 'capability', 'node-rest-api', 'en', 'evidence', 'strong', 'E-api')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) "
+            "VALUES ('A-rest-api', ?, 'REST API', 'rest api', 'capability', 'node-rest-api', 'en', 'evidence', 'strong', 'E-api')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-api', ?, 'apps/relay-server/src/handlers/routes.ts', 'node-rest-api', 'implements', 'strong', 'E-api', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO symbol_index(id, generation_id, symbol_name, normalized_symbol, node_id, path, relation, evidence_id, confidence) "
+            "VALUES ('S-api-handler', ?, 'createV2Handler', 'createv2handler', 'node-rest-api', 'apps/relay-server/src/handlers/routes.ts', 'implements', 'E-api', 'strong')",
+            (generation_id,),
+        )
+        conn.commit()
+    return generation_id
+
+
 def test_query_resolves_login_by_alias_with_evidence_trace(tmp_path: Path) -> None:
     _seed_login_graph(tmp_path)
 
@@ -128,6 +167,68 @@ def test_query_returns_review_when_text_misses_but_runtime_has_baseline(tmp_path
     assert result["missing_coverage"] == [
         "query did not match project cognition aliases or claims; use minimal live reads or ask a clarifying question"
     ]
+
+
+def test_lexicon_returns_map_terms_for_agent_query_planning(tmp_path: Path) -> None:
+    _seed_api_version_graph(tmp_path)
+
+    result = project_cognition_lexicon(tmp_path, intent="plan", query_text="v1 v2接口很乱啊，能不能统一用最新的")
+
+    assert result["readiness"] == "ready"
+    assert result["intent"] == "plan"
+    assert result["query"] == "v1 v2接口很乱啊，能不能统一用最新的"
+    assert result["terms"][0]["node_id"] == "node-rest-api"
+    assert result["terms"][0]["title"] == "REST API versioning"
+    assert "api version" in result["terms"][0]["aliases"]
+    assert "REST API" in result["terms"][0]["aliases"]
+    assert "apps/relay-server/src/handlers/routes.ts" in result["terms"][0]["paths"]
+    assert "createV2Handler" in result["terms"][0]["symbols"]
+    assert "api" in result["available_terms"]
+    assert result["query_planning_contract"]["agent_responsibility"] == "translate raw user intent using this lexicon"
+
+
+def test_lexicon_default_returns_complete_keyword_mapping(tmp_path: Path) -> None:
+    generation_id = _seed_api_version_graph(tmp_path)
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        for index in range(25):
+            node_id = f"node-filler-{index:02d}"
+            conn.execute(
+                "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+                "VALUES (?, ?, 'capability', ?, 'medium', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+                (node_id, generation_id, f"Filler capability {index:02d}"),
+            )
+            conn.execute(
+                "INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) "
+                "VALUES (?, ?, ?, ?, 'capability', ?, 'en', 'evidence', 'medium', 'E-api')",
+                (f"A-filler-{index:02d}", generation_id, f"filler-{index:02d}", f"filler-{index:02d}", node_id),
+            )
+        conn.commit()
+
+    result = project_cognition_lexicon(tmp_path, intent="plan", query_text="接口版本太乱了，统一用最新的")
+
+    term_ids = {term["node_id"] for term in result["terms"]}
+    assert "node-rest-api" in term_ids
+    assert len(term_ids) == 26
+
+
+def test_query_consumes_agent_expanded_queries(tmp_path: Path) -> None:
+    _seed_api_version_graph(tmp_path)
+
+    result = query_project_cognition(
+        tmp_path,
+        intent="plan",
+        query_text="v1 v2接口很乱啊，能不能统一用最新的",
+        expanded_queries=["api version", "REST API version consolidation", "latest interface"],
+        paths=["apps\\relay-server\\src\\handlers\\routes.ts"],
+    )
+
+    assert result["readiness"] == "ready"
+    assert result["capability_candidates"][0]["node_id"] == "node-rest-api"
+    assert "expanded_query:api version" in result["capability_candidates"][0]["matched_by"]
+    assert result["query_plan"]["raw_query"] == "v1 v2接口很乱啊，能不能统一用最新的"
+    assert "api version" in result["query_plan"]["expanded_queries"]
+    assert result["query_plan"]["paths"] == ["apps/relay-server/src/handlers/routes.ts"]
+    assert result["minimal_live_reads"] == ["apps/relay-server/src/handlers/routes.ts"]
 
 
 @pytest.mark.parametrize(

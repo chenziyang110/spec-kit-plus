@@ -112,7 +112,7 @@ agent_scripts:
    - Read `.specify/memory/project-rules.md` if present
    - Read `.specify/memory/learnings/INDEX.md` if present
    - Open only linked learning detail docs relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
-   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}`.
+   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Read `templates/workflow-state-template.md`
@@ -137,7 +137,9 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition query --intent plan --query "$ARGUMENTS" --format json}}
+{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}
+# Agent: generate <query_plan_json> from raw user intent plus returned map terms.
+{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
 ```
 
 Use the returned readiness:

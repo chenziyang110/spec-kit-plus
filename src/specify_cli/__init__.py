@@ -87,6 +87,7 @@ from specify_cli.cognition import (
     apply_cognition_update,
     cognition_db_path,
     cognition_status_path,
+    project_cognition_lexicon,
     query_project_cognition,
     validate_build_acceptance,
     validate_scan_acceptance,
@@ -949,7 +950,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "## Brownfield Context Gate",
             "",
-            "- The runtime atlas is query-backed: invoke the project launcher configured in `.specify/config.json` with `project-cognition query --intent <workflow-intent> --query \"$ARGUMENTS\" --format json` before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.",
+            "- The runtime atlas is query-backed and agent-planned: invoke the project launcher configured in `.specify/config.json` with `project-cognition lexicon --intent <workflow-intent> --query \"$ARGUMENTS\" --format json`, translate the raw user intent into a `query_plan` using returned map terms, then run `project-cognition query --intent <workflow-intent> --query-plan \"<query_plan_json>\" --format json` before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.",
             "- Treat `.specify/project-cognition/project-cognition.db` as the canonical graph store and `.specify/project-cognition/status.json` as the lightweight freshness entrypoint.",
             "- Use the returned readiness, task-local bundle, and `minimal_live_reads`; do not replace the query bundle with raw graph JSON or slice reads.",
             "- The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.",
@@ -1783,20 +1784,45 @@ def project_map_status_command(
 def project_cognition_query_command(
     intent: str = typer.Option(..., "--intent", help="Task intent such as debug, implement, plan, or explain"),
     query_text: str = typer.Option("", "--query", help="Natural-language project cognition query"),
+    expanded_queries: list[str] = typer.Option(
+        [], "--expanded-query", help="Agent-planned query expansion; may be specified more than once"
+    ),
+    query_plan: str = typer.Option("", "--query-plan", help="Agent-planned JSON with raw_query, expanded_queries, and paths"),
     paths: list[str] = typer.Option([], "--paths", help="Known touched path; may be specified more than once"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
 ):
     """Return a task-local project cognition bundle from the active project's graph store."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    planned_query = _parse_project_cognition_query_plan(query_plan)
+    effective_query = str(planned_query.get("raw_query") or query_text)
+    effective_expanded_queries = [
+        *expanded_queries,
+        *[str(value) for value in planned_query.get("expanded_queries", []) if str(value).strip()],
+    ]
+    effective_paths = [
+        *paths,
+        *[str(value) for value in planned_query.get("paths", []) if str(value).strip()],
+    ]
     if cognition_db_path(project_root).exists():
-        payload = query_project_cognition(project_root, intent=intent, query_text=query_text, paths=paths)
+        payload = query_project_cognition(
+            project_root,
+            intent=intent,
+            query_text=effective_query,
+            expanded_queries=effective_expanded_queries,
+            paths=effective_paths,
+        )
     else:
         payload = {
             "readiness": "needs_rebuild",
             "recommended_next_action": "run_map_scan_build",
             "intent": intent,
-            "query": query_text,
+            "query": effective_query,
+            "query_plan": {
+                "raw_query": effective_query,
+                "expanded_queries": effective_expanded_queries,
+                "paths": [path.replace("\\", "/") for path in effective_paths],
+            },
             "capability_candidates": [],
             "symptom_candidates": [],
             "affected_nodes": [],
@@ -1810,6 +1836,39 @@ def project_cognition_query_command(
         print_json(payload, indent=2)
         return
     console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Query", border_style="cyan"))
+
+
+def _parse_project_cognition_query_plan(query_plan: str) -> dict[str, object]:
+    if not query_plan.strip():
+        return {}
+    try:
+        payload = json.loads(query_plan)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"--query-plan must be valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise typer.BadParameter("--query-plan must be a JSON object")
+    for list_key in ("expanded_queries", "paths"):
+        value = payload.get(list_key, [])
+        if value and not isinstance(value, list):
+            raise typer.BadParameter(f"--query-plan {list_key} must be a list")
+    return payload
+
+
+@project_cognition_app.command("lexicon")
+def project_cognition_lexicon_command(
+    intent: str = typer.Option(..., "--intent", help="Task intent such as debug, implement, plan, or explain"),
+    query_text: str = typer.Option("", "--query", help="Raw user intent to orient the returned lexicon"),
+    limit: int = typer.Option(0, "--limit", help="Maximum node terms to return; 0 returns the complete lexicon"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
+):
+    """Return an agent-facing map lexicon bundle for query planning."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = project_cognition_lexicon(project_root, intent=intent, query_text=query_text, limit=limit)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+    console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Lexicon", border_style="cyan"))
 
 
 @project_cognition_app.command("update")

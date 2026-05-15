@@ -151,7 +151,7 @@ function Get-SpecKitManagedBlock {
             ''
             '## Brownfield Context Gate'
             ''
-            '- The runtime atlas is query-backed: invoke the project launcher configured in `.specify/config.json` with `project-cognition query --intent <workflow-intent> --query "$ARGUMENTS" --format json` to retrieve the task-local project cognition bundle before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.'
+            '- The runtime atlas is query-backed and agent-planned: invoke the project launcher configured in `.specify/config.json` with `project-cognition lexicon --intent <workflow-intent> --query "$ARGUMENTS" --format json`, translate the raw user intent into a `query_plan` using returned map terms, then run `project-cognition query --intent <workflow-intent> --query-plan "<query_plan_json>" --format json` to retrieve the task-local project cognition bundle before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.'
             '- Treat `.specify/project-cognition/project-cognition.db` as the canonical graph store and `.specify/project-cognition/status.json` as the lightweight freshness entrypoint.'
             '- Use the returned readiness, task-local bundle, and `minimal_live_reads`; treat raw graph JSON artifacts as obsolete runtime surfaces, and do not replace the query bundle with raw graph JSON or slice reads.'
             '- The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.'

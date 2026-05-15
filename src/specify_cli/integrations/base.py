@@ -507,9 +507,11 @@ class IntegrationBase(ABC):
             "quick": "implement",
         }.get(command_name, "implement")
         return (
-            "**Crucial First Step**: You MUST query project cognition first with "
-            f"`{{{{specify-subcmd:project-cognition query --intent {intent} --query \"$ARGUMENTS\" --format json}}}}` "
-            f"{command_step}, then use the returned readiness, task-local bundle, and `minimal_live_reads`."
+            "**Crucial First Step**: You MUST use agent-assisted project cognition query planning first: "
+            f"retrieve the map lexicon with `{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query \"$ARGUMENTS\" --format json}}}}`, "
+            "translate the raw user intent into a query_plan using returned map terms, then run "
+            f"`{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan \"<query_plan_json>\" --format json}}}}` "
+            f"{command_step}. Use the returned readiness, task-local bundle, and `minimal_live_reads`."
         )
 
     def _append_toml_debug_runtime_bridge(

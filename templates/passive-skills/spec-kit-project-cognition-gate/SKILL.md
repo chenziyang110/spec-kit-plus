@@ -1,6 +1,6 @@
 ---
 name: spec-kit-project-cognition-gate
-description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require the project cognition query bundle first, or route to map refresh when cognition coverage is missing or stale."
+description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require the agent-planned project cognition query bundle first, or route to map refresh when cognition coverage is missing or stale."
 origin: spec-kit-plus
 ---
 
@@ -21,13 +21,16 @@ This passive skill is the brownfield hard gate, not the route selection layer.
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
-- Use the launcher-backed project cognition query required by the active
-  workflow contract to retrieve the task-local project cognition bundle. Treat
-  raw graph JSON artifacts as obsolete runtime surfaces.
+- Use the launcher-backed project cognition query planning flow required by the
+  active workflow contract to retrieve the task-local project cognition bundle.
+  Run `project-cognition lexicon` first, translate the raw user request into a
+  `query_plan` using returned map terms, then run `project-cognition query
+  --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - For `sp-discussion`, product framing may begin before the cognition gate. Before
   technical options, affected-surface claims, source-code reads, or
   source-grounded recommendations, use the active workflow's launcher-backed
-  project cognition query to retrieve the task-local project cognition bundle.
+  project cognition query planning flow to retrieve the task-local project
+  cognition bundle.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.

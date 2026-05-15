@@ -21,9 +21,11 @@ def query_project_cognition(
     *,
     intent: str,
     query_text: str = "",
+    expanded_queries: list[str] | None = None,
     paths: list[str] | None = None,
 ) -> dict[str, Any]:
     ensure_cognition_db(project_root)
+    query_plan = _query_plan_payload(query_text=query_text, expanded_queries=expanded_queries, paths=paths)
     generation_id = get_active_generation_id(project_root)
     if not generation_id:
         return {
@@ -31,6 +33,7 @@ def query_project_cognition(
             "recommended_next_action": "run_map_scan_build",
             "intent": intent,
             "query": query_text,
+            "query_plan": query_plan,
             "capability_candidates": [],
             "symptom_candidates": [],
             "affected_nodes": [],
@@ -43,7 +46,9 @@ def query_project_cognition(
     with closing(connect_cognition_db(project_root)) as conn:
         path_nodes, missing_paths = _resolve_paths(conn, generation_id, normalized_paths)
         candidates = _merge_candidates(
-            _resolve_aliases(conn, generation_id, query_text) + _resolve_claim_fts(conn, generation_id, query_text)
+            _resolve_aliases(conn, generation_id, query_text)
+            + _resolve_claim_fts(conn, generation_id, query_text)
+            + _resolve_expanded_queries(conn, generation_id, expanded_queries or [])
         )
         if not candidates and path_nodes:
             candidates = [
@@ -81,6 +86,7 @@ def query_project_cognition(
             "recommended_next_action": _recommended_action(readiness),
             "intent": intent,
             "query": query_text,
+            "query_plan": query_plan,
             "capability_candidates": [item for item in candidates if item["target_type"] in {"capability", "node"}],
             "symptom_candidates": [item for item in candidates if item["target_type"] == "symptom"],
             "affected_nodes": affected_nodes,
@@ -106,6 +112,19 @@ def _resolve_paths(conn: Any, generation_id: str, paths: list[str]) -> tuple[dic
     return result, missing
 
 
+def _query_plan_payload(
+    *,
+    query_text: str,
+    expanded_queries: list[str] | None,
+    paths: list[str] | None,
+) -> dict[str, Any]:
+    return {
+        "raw_query": query_text,
+        "expanded_queries": [query for query in (expanded_queries or []) if normalize_query_token(query)],
+        "paths": [path.replace("\\", "/") for path in (paths or []) if normalize_query_token(path)],
+    }
+
+
 def _resolve_aliases(conn: Any, generation_id: str, query_text: str) -> list[dict[str, Any]]:
     normalized_query = normalize_query_token(query_text)
     if not normalized_query:
@@ -129,6 +148,26 @@ def _resolve_aliases(conn: Any, generation_id: str, query_text: str) -> list[dic
                     "evidence_ids": [str(row["evidence_id"])],
                 }
             )
+    return candidates
+
+
+def _resolve_expanded_queries(conn: Any, generation_id: str, expanded_queries: list[str]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for expanded_query in expanded_queries:
+        if not normalize_query_token(expanded_query):
+            continue
+        for candidate in _resolve_aliases(conn, generation_id, expanded_query):
+            candidate["matched_by"] = [
+                f"expanded_query:{expanded_query}" if item.startswith("alias:") else item
+                for item in candidate["matched_by"]
+            ]
+            candidates.append(candidate)
+        for candidate in _resolve_claim_fts(conn, generation_id, expanded_query):
+            candidate["matched_by"] = [
+                f"expanded_query:{expanded_query}" if item.startswith("claim:") else item
+                for item in candidate["matched_by"]
+            ]
+            candidates.append(candidate)
     return candidates
 
 
