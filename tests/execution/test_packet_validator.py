@@ -223,3 +223,66 @@ def test_compile_worker_task_packet_collects_must_preserve_obligations(
     assert [item.id for item in packet.must_preserve_obligations] == ["MP-002", "MP-003"]
     assert packet.must_preserve_obligations[0].source == "plan.md"
     assert packet.must_preserve_obligations[1].source == "tasks.md"
+
+
+def test_compile_worker_task_packet_keeps_unrelated_must_preserve_obligations_out_of_packet(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n',
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST preserve public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+                "",
+                "## Must-Preserve Carry-Forward",
+                "",
+                "- MP-001: Applies to all implementation tasks: Keep the agreed product outcome.",
+                "- MP-002: Keep auth implementation inside existing service boundary.",
+                "- MP-003: Keep billing implementation inside existing service boundary.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- pytest tests/unit/test_auth_service.py -q",
+                "",
+                "## Task Guardrail Index",
+                "",
+                "- T017: MP-002",
+                "- T018: MP-003",
+                "",
+                "- [ ] T017 [US1] Implement auth flow in src/services/auth_service.py",
+                "- [ ] T018 [US2] Implement billing flow in src/services/billing_service.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T017",
+    )
+
+    assert [item.id for item in packet.must_preserve_obligations] == ["MP-001", "MP-002"]

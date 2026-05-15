@@ -23,6 +23,7 @@ TASK_RE = re.compile(r"(?m)^\s*-\s\[[ xX]\]\s(?P<task_id>T\d+)(?P<body>.+)$")
 PATH_RE = re.compile(r"[\w./-]+/[\w./-]+")
 STORY_RE = re.compile(r"\[(US\d+)\]")
 MP_LINE_RE = re.compile(r"\b(MP-\d{3})\b\s*:?\s*(?P<claim>.+)")
+MP_ID_ONLY_RE = re.compile(r"\bMP-\d{3}\b")
 
 
 def _read(path: Path) -> str:
@@ -113,6 +114,26 @@ def _must_preserve_obligations_from_text(text: str, *, source: str) -> list[Must
             )
         )
     return obligations
+
+
+def _applicable_mp_ids_from_tasks(tasks_text: str, task_id: str, task_body: str) -> set[str]:
+    applicable = set(MP_ID_ONLY_RE.findall(task_body))
+    guardrail_body = _section_body(tasks_text, "Task Guardrail Index")
+    for line in guardrail_body.splitlines():
+        if task_id not in line:
+            continue
+        applicable.update(MP_ID_ONLY_RE.findall(line))
+    return applicable
+
+
+def _global_must_preserve_ids(plan_text: str) -> set[str]:
+    ids: set[str] = set()
+    for line in plan_text.splitlines():
+        lowered = line.lower()
+        if "applies to all" not in lowered and "all implementation tasks" not in lowered:
+            continue
+        ids.update(MP_ID_ONLY_RE.findall(line))
+    return ids
 
 
 def _unique_obligations(values: list[MustPreserveObligation]) -> list[MustPreserveObligation]:
@@ -277,10 +298,21 @@ def compile_worker_task_packet(
         required_references=required_references,
     )
     read_scope = _unique([item.path for item in context_bundle] + [ref.path for ref in required_references])
+    applicable_mp_ids = _applicable_mp_ids_from_tasks(tasks_text, task_id, resolved_task_body) | _global_must_preserve_ids(
+        plan_text
+    )
     must_preserve_obligations = _unique_obligations(
         [
-            *_must_preserve_obligations_from_text(plan_text, source="plan.md"),
-            *_must_preserve_obligations_from_text(tasks_text, source="tasks.md"),
+            *[
+                obligation
+                for obligation in _must_preserve_obligations_from_text(plan_text, source="plan.md")
+                if not applicable_mp_ids or obligation.id in applicable_mp_ids
+            ],
+            *[
+                obligation
+                for obligation in _must_preserve_obligations_from_text(tasks_text, source="tasks.md")
+                if not applicable_mp_ids or obligation.id in applicable_mp_ids
+            ],
         ]
     )
 
