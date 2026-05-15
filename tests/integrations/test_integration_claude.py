@@ -1801,6 +1801,53 @@ class TestClaudeIntegration:
             f"Extra: {sorted(set(actual) - set(expected))}"
         )
 
+    def test_init_generates_claude_hooks_as_command_strings_without_args(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-hook-command-contract"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        settings = json.loads((project / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        hooks = [
+            hook
+            for entries in settings["hooks"].values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict)
+        ]
+
+        assert hooks
+        assert all("args" not in hook for hook in hooks)
+        assert all(
+            hook.get("command", "").startswith('node ".specify/bin/specify-hook.mjs" claude ')
+            for hook in hooks
+        )
+        serialized = json.dumps(settings)
+        assert "$CLAUDE_PROJECT_DIR" not in serialized
+        assert "${CLAUDE_PROJECT_DIR}" not in serialized
+        assert "$env:CLAUDE_PROJECT_DIR" not in serialized
+
     def test_ai_flag_auto_promotes_and_enables_skills(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
