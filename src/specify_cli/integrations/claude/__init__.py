@@ -181,6 +181,7 @@ class ClaudeIntegration(SkillsIntegration):
             if (
                 first_arg.startswith("${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook")
                 or first_arg.startswith('"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook')
+                or "specify-hook.mjs" in first_arg
                 or (
                     len(normalized_args) >= 4
                     and normalized_args[0] == "-e"

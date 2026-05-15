@@ -438,7 +438,7 @@ def test_diagnose_project_runtime_compatibility_reports_stale_quoted_claude_node
     assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
 
 
-def test_diagnose_project_runtime_compatibility_accepts_current_claude_node_bootstrap(tmp_path):
+def test_diagnose_project_runtime_compatibility_accepts_current_claude_node_launcher(tmp_path):
     settings_path = tmp_path / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
     settings_path.write_text(
@@ -512,25 +512,25 @@ def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(m
     assert command == '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
 
 
-def test_render_claude_hook_launcher_uses_node_exec_form():
+def test_render_claude_hook_launcher_uses_single_command_string():
     hook = render_claude_hook_launcher("session-start")
 
-    assert hook["type"] == "command"
-    assert hook["command"] == "node"
-    assert hook["args"][0] == "-e"
-    assert hook["args"][-2:] == ["claude", "session-start"]
+    assert hook == {
+        "type": "command",
+        "command": 'node ".specify/bin/specify-hook.mjs" claude session-start',
+    }
+    assert "args" not in hook
     assert "${CLAUDE_PROJECT_DIR}" not in json.dumps(hook)
+    assert "$CLAUDE_PROJECT_DIR" not in json.dumps(hook)
     assert "$env:CLAUDE_PROJECT_DIR" not in json.dumps(hook)
 
 
-def test_render_claude_hook_launcher_bootstrap_resolves_project_root_without_shell_env(tmp_path):
+def test_render_claude_hook_launcher_command_runs_from_project_root_without_shell_env(tmp_path):
     if shutil.which("node") is None:
         return
 
     project = tmp_path / "project"
-    nested = project / "src" / "nested"
     launcher = project / ".specify" / "bin" / "specify-hook.mjs"
-    nested.mkdir(parents=True)
     launcher.parent.mkdir(parents=True)
     launcher.write_text(
         "\n".join(
@@ -552,12 +552,13 @@ def test_render_claude_hook_launcher_bootstrap_resolves_project_root_without_she
     env.pop("CLAUDE_PROJECT_DIR", None)
 
     result = subprocess.run(
-        ["node", *hook["args"]],
-        input=json.dumps({"cwd": str(nested), "hook_event_name": "SessionStart"}),
+        hook["command"],
+        input=json.dumps({"cwd": str(project), "hook_event_name": "SessionStart"}),
         text=True,
         capture_output=True,
-        cwd=nested,
+        cwd=project,
         env=env,
+        shell=True,
         check=False,
     )
 
@@ -565,7 +566,24 @@ def test_render_claude_hook_launcher_bootstrap_resolves_project_root_without_she
     payload = json.loads(result.stdout)
     assert payload["argv"] == ["claude", "session-start"]
     assert payload["cwd"] == str(project)
-    assert payload["stdin"]["cwd"] == str(nested)
+    assert payload["stdin"]["cwd"] == str(project)
+
+
+def test_plain_node_hook_command_would_execute_hook_payload_as_javascript(tmp_path):
+    if shutil.which("node") is None:
+        return
+
+    result = subprocess.run(
+        ["node"],
+        input=json.dumps({"cwd": str(tmp_path), "hook_event_name": "SessionStart"}),
+        text=True,
+        capture_output=True,
+        cwd=tmp_path,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "[stdin]:1" in result.stderr
 
 
 def test_install_shared_hook_launcher_assets_writes_all_runtime_files(tmp_path):

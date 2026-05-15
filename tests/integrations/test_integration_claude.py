@@ -374,12 +374,12 @@ class TestClaudeIntegration:
 
         assert managed_hooks
         for hook in managed_hooks:
-            assert hook["command"] == "node"
-            assert hook["args"][0] == "-e"
-            assert hook["args"][-2] == "claude"
+            assert hook["command"].startswith('node ".specify/bin/specify-hook.mjs" claude ')
+            assert "args" not in hook
             hook_json = json.dumps(hook)
             assert "${CLAUDE_PROJECT_DIR}" not in hook_json
             assert "specify-hook.cmd" not in hook_json
+            assert "$CLAUDE_PROJECT_DIR" not in hook_json
             assert "$env:CLAUDE_PROJECT_DIR" not in hook_json
 
     def test_setup_refreshes_existing_managed_hook_asset(self, tmp_path):
@@ -448,7 +448,7 @@ class TestClaudeIntegration:
             for hook in hooks
         )
 
-    def test_teardown_strips_current_node_bootstrap_hooks_from_user_settings(self, tmp_path):
+    def test_teardown_strips_current_node_command_hooks_from_user_settings(self, tmp_path):
         integration = get_integration("claude")
         claude_dir = tmp_path / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)

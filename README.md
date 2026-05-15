@@ -408,7 +408,7 @@ First-party hook runtime:
 Claude Code integration note:
 
 - `specify init --ai claude` installs thin native adapters in `.claude/hooks/` and merges project-local `.claude/settings.json`.
-- Managed Claude hook entries use Claude Code's `command` + `args` form with `node -e <bootstrap>` so JavaScript resolves the project root from `CLAUDE_PROJECT_DIR`, hook payload `cwd`, or the current directory before launching `.specify/bin/specify-hook.mjs`. This avoids shell-specific path and environment parsing across cmd, Bash, and PowerShell.
+- Managed Claude hook entries use a single `command` string with `node ".specify/bin/specify-hook.mjs" claude <route>`. The command avoids shell-specific environment-variable expansion and lets the shared Node launcher resolve project-local runtime details from the hook payload and project files.
 - The current managed Claude native hook set covers:
   - `SessionStart` statusline/orientation context plus bounded compaction-backed resume cues
   - `UserPromptSubmit` prompt-guard checks plus shared workflow-policy enforcement

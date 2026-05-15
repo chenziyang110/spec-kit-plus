@@ -26,42 +26,6 @@ HOOK_LAUNCHER_POSIX = "specify-hook"
 HOOK_LAUNCHER_WINDOWS = "specify-hook.cmd"
 HOOK_LAUNCHER_NODE = "specify-hook.mjs"
 HOOK_LAUNCHER_PYTHON = "specify-hook.py"
-CLAUDE_HOOK_NODE_BOOTSTRAP = (
-    "const fs=require('node:fs');"
-    "const path=require('node:path');"
-    "const cp=require('node:child_process');"
-    "let input='';"
-    "try{input=fs.readFileSync(0,'utf8')}catch{}"
-    "let payload={};"
-    "try{payload=input.trim()?JSON.parse(input):{}}catch{}"
-    "function findRoot(){"
-    "const starts=[process.env.CLAUDE_PROJECT_DIR,payload.cwd,process.cwd()].filter(Boolean);"
-    "for(const start of starts){"
-    "let dir=path.resolve(String(start));"
-    "for(;;){"
-    "const launcher=path.join(dir,'.specify','bin','specify-hook.mjs');"
-    "if(fs.existsSync(launcher))return{dir,launcher};"
-    "const parent=path.dirname(dir);"
-    "if(parent===dir)break;"
-    "dir=parent;"
-    "}"
-    "}"
-    "return null;"
-    "}"
-    "const found=findRoot();"
-    "if(!found){"
-    "console.error(\"Missing .specify/bin/specify-hook.mjs. Run 'specify integration repair'.\");"
-    "process.exit(2);"
-    "}"
-    "const child=cp.spawnSync(process.execPath,[found.launcher,...process.argv.slice(1)],{"
-    "cwd:found.dir,env:process.env,input,stdio:['pipe','inherit','inherit'],shell:false"
-    "});"
-    "if(child.error){"
-    "console.error(`Failed to start native hook launcher: ${child.error.message}`);"
-    "process.exit(2);"
-    "}"
-    "process.exit(child.status??2);"
-)
 DIRECT_HOOK_DISPATCH_MARKERS = (
     "claude-hook-dispatch.py",
     "gemini-hook-dispatch.py",
@@ -249,17 +213,11 @@ def render_hook_launcher_command(
 
 
 def render_claude_hook_launcher(route: str) -> dict[str, Any]:
-    """Render a shell-free Claude Code native-hook launcher entry."""
+    """Render a Claude Code native-hook launcher entry."""
 
     return {
         "type": "command",
-        "command": "node",
-        "args": [
-            "-e",
-            CLAUDE_HOOK_NODE_BOOTSTRAP,
-            "claude",
-            route,
-        ],
+        "command": f'node ".specify/bin/{HOOK_LAUNCHER_NODE}" claude {route}',
     }
 
 
@@ -549,7 +507,8 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                         if "claude-hook-dispatch.py" in command:
                             stale_claude_hook = True
                         if ".specify/bin/specify-hook" in command and "claude" in command:
-                            stale_claude_hook = True
+                            if "${CLAUDE_PROJECT_DIR}" in command or "$CLAUDE_PROJECT_DIR" in command:
+                                stale_claude_hook = True
                         if (
                             command == "node"
                             and isinstance(args, list)

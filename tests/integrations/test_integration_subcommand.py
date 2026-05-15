@@ -590,8 +590,14 @@ class TestIntegrationRepair:
         ]
         assert hooks
         assert _expected_claude_hook("session-start") in hooks
-        assert all(hook.get("command") == "node" for hook in hooks)
+        assert all(
+            isinstance(hook.get("command"), str)
+            and hook["command"].startswith('node ".specify/bin/specify-hook.mjs" claude ')
+            for hook in hooks
+        )
+        assert all("args" not in hook for hook in hooks)
         assert all("specify-hook.cmd" not in json.dumps(hook) for hook in hooks)
+        assert all("$CLAUDE_PROJECT_DIR" not in json.dumps(hook) for hook in hooks)
         assert all("$env:CLAUDE_PROJECT_DIR" not in json.dumps(hook) for hook in hooks)
 
     def test_repair_refreshes_shared_powershell_script_assets(self, tmp_path):
