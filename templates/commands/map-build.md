@@ -152,7 +152,7 @@ Before reporting completion:
 
 - run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing `.specify/project-cognition/project-cognition.db`
 - use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after `validate-build` returns `status=ok` and `readiness=query_ready`
-- confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition lexicon --intent implement --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`
+- confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`
 - if `validate-build` returns `status=blocked`, report the specific DB, schema, active generation, status, or smoke-query error and do not mark the baseline fresh
 - confirm that `status.json` reflects a query-ready baseline
 - confirm that the runtime remains query-backed and does not advertise raw graph JSON or handbook-first outputs as runtime truth

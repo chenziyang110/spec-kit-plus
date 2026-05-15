@@ -68,7 +68,7 @@ Fast path does not load the full passive learning layer.
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition lexicon --intent implement --query "$ARGUMENTS" --format json}}
+     {{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}
      # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
      {{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}
      ```

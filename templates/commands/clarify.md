@@ -117,7 +117,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}
+     {{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}
      # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
      {{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
      ```
@@ -127,7 +127,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      - `ready`: continue with the returned task-local bundle.
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`.
+     - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-clarify`.
      - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
      - `blocked`: stop and report the blocking runtime issue.
    - relevant repository documentation and design artifacts when they materially affect the requested change
@@ -193,7 +193,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - if this repair pass proves the current project cognition runtime no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-cognition/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes, otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback before later brownfield implementation proceeds
+   - cognition follow-up: if artifact-only clarification work proves later implementation should refresh ownership, workflow, integration boundary, or verification-surface cognition, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date
 
 ## Presentation Contract
 

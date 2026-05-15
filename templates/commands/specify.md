@@ -55,7 +55,7 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}
+{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}
 # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
 {{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
 ```
@@ -65,7 +65,7 @@ Use the returned readiness:
 - `ready`: continue with the returned task-local bundle.
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
-- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-specify`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
 
@@ -213,14 +213,14 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Treat these files as the authoritative truth layer for lock-state
      progression before the final specification package is compiled.
 
-5. Ensure project cognition runtime exists.
+5. Ensure project cognition runtime exists and record planning advisory state.
    - Check whether `.specify/project-cognition/status.json` exists.
    - If it exists, use the project cognition freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
    - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
-   - [AGENT] If freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; wait for that refresh before continuing.
-   - [AGENT] If freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
-   - [AGENT] If freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
+   - [AGENT] If freshness is `stale`, record a planning advisory, continue with minimal live reads from the query result, and do not require `{{invoke:map-update}}` during artifact-only `sp-specify` work.
+   - [AGENT] If freshness is `support_drift`, record a planning advisory about support-surface drift and continue only with evidence-backed reads; do not reflexively route to `{{invoke:map-update}}`.
+   - [AGENT] If freshness is `partial_refresh`, record a planning advisory that the refresh was incomplete, preserve `recommended_next_action`, and continue only when query results plus minimal live reads are sufficient for requirement discovery.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. For artifact-only `sp-specify` work, record a planning advisory for any overlapping topics, review those topic files and minimal live reads, and continue without requiring `{{invoke:map-scan}}`/`{{invoke:map-build}}`.
    - Check whether `.specify/project-cognition/status.json` exists at the repository root.
    - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
@@ -230,7 +230,7 @@ Generate the pre-analysis output as the first section of `context.md`.
      - change-propagation hotspots
      - verification entry points
      - known unknowns or stale evidence boundaries
-   - [AGENT] If task-relevant coverage is insufficient for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If task-relevant coverage is insufficient for the current request, record a planning advisory, continue with minimal live reads and targeted clarification, and do not require a project cognition refresh during `sp-specify`.
    - Do not treat legacy export artifacts as the primary runtime read path for this workflow.
 
 6. Load context.
@@ -243,10 +243,10 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/project-rules.md` if present.
    - Read `.specify/memory/learnings/INDEX.md` if present.
    - Open only linked learning detail docs relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
-   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
+   - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
    - From the project cognition runtime, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
-   - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
+   - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, record a planning advisory in the feature artifacts, inspect the minimum live files still needed to replace guesswork with evidence, and ask targeted planning-critical questions instead of requiring a project cognition refresh during artifact-only specification work.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
@@ -914,7 +914,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - release decision
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
-    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current query-backed runtime does not yet capture, treat git-baseline freshness in `.specify/project-cognition/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes, otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback before later brownfield execution work proceeds
+    - cognition follow-up: if artifact-only specification work identifies future modules, workflows, integration boundaries, verification surfaces, or ownership facts that the current query-backed runtime does not yet encode, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date
     - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `user_preference`, or `project_constraint`, use the manual `learning capture` helper surface.
       Required options: `--command`, `--type`, `--summary`, `--evidence`
     - leave one-off runs as `--decision none` with no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence

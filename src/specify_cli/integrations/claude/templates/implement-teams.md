@@ -68,7 +68,7 @@ TeamCreate({
    - team membership lives in `~/.claude/teams/{team-name}/config.json`
    - shared tasks live under `~/.claude/tasks/{team-name}/`
 7. Before the first `TaskCreate`, compile an execution context bundle for the current batch:
-   - include the `{{specify-subcmd:project-cognition lexicon --intent implement --query "$ARGUMENTS" --format json}}` lexicon result, the agent-generated `query_plan`, and the `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` result for the current batch
+   - include the `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}` lexicon result, the agent-generated `query_plan`, and the `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` result for the current batch
    - include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane
    - include `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` as the runtime freshness/store boundary when the teammate must acknowledge the underlying cognition runtime
    - include compatibility/export files such as `PROJECT-HANDBOOK.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported handbook wording

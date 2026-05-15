@@ -28,7 +28,7 @@ def _launcher_query(intent: str) -> str:
 
 
 def _launcher_lexicon(intent: str) -> str:
-    return f'{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query "$ARGUMENTS" --format json}}}}'
+    return f'{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query="$ARGUMENTS" --format json}}}}'
 
 
 def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
@@ -481,7 +481,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
     assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" not in content
     assert "Use `Topic Map` to choose the smallest relevant topical documents" not in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
+    assert "artifact-only `sp-specify` work" in lowered
+    assert "record a planning advisory" in lowered
     assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md" in content
     assert "primary brownfield testing-program input" in content
     assert "module priority waves" in content
@@ -821,7 +822,8 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
+    assert "artifact-only `sp-plan` work" in lowered
+    assert "record a planning advisory" in lowered
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -886,10 +888,9 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "recommended follow-up quality check: `{{invoke:checklist}}`" in content
-    assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
-    assert "project-cognition validate-build --format json" in lowered
-    assert "only when build acceptance passes" in lowered
-    assert "manual override/fallback" in lowered
+    assert "cognition follow-up" in lowered
+    assert "artifact-only planning work" in lowered
+    assert "actual source/runtime changes" in lowered
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
 
@@ -1026,10 +1027,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "Planning inputs section" in content
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
-    assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
-    assert "project-cognition validate-build --format json" in lowered
-    assert "only when build acceptance passes" in lowered
-    assert "manual override/fallback" in lowered
+    assert "cognition follow-up" in lowered
+    assert "artifact-only task generation" in lowered
+    assert "actual source/runtime changes" in lowered
     assert "specify team" not in lowered
 
 
@@ -1435,10 +1435,9 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
-    assert "git-baseline freshness in `.specify/project-cognition/status.json` as the truth source" in lowered
-    assert "project-cognition validate-build --format json" in lowered
-    assert "only when build acceptance passes" in lowered
-    assert "manual override/fallback" in lowered
+    assert "cognition follow-up" in lowered
+    assert "artifact-only clarification work" in lowered
+    assert "actual source/runtime changes" in lowered
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():
@@ -2155,13 +2154,9 @@ def test_script_contracts_expose_context_artifact_paths():
 
 
 def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
-    legacy_owned_surfaces = [
+    refresh_owned_surfaces = [
         "README.md",
         "docs/quickstart.md",
-        "templates/commands/specify.md",
-        "templates/commands/plan.md",
-        "templates/commands/tasks.md",
-        "templates/commands/clarify.md",
         "scripts/bash/update-agent-context.sh",
         "scripts/powershell/update-agent-context.ps1",
     ]
@@ -2171,7 +2166,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         "mark `.specify/project-cognition/status.json` dirty through the project cognition freshness helper and recommend",
         "prefer `specify project-cognition mark-dirty` as the shared dirty-mark path",
     ]
-    for path in legacy_owned_surfaces:
+    for path in refresh_owned_surfaces:
         lowered = _read(path).lower()
         if path in {"README.md", "docs/quickstart.md"}:
             assert "default brownfield runtime truth surface" in lowered
@@ -2192,6 +2187,19 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
             assert phrase not in lowered
 
     for path in [
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/clarify.md",
+    ]:
+        lowered = _read(path).lower()
+        assert "cognition follow-up" in lowered
+        assert "artifact-only" in lowered
+        assert "actual source/runtime changes" in lowered
+        assert "project-cognition mark-dirty" not in lowered
+        assert "project-cognition complete-refresh" not in lowered
+
+    for path in [
         "templates/commands/quick.md",
         "templates/commands/implement.md",
         "templates/commands/fast.md",
@@ -2202,6 +2210,53 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         assert "complete-refresh" in lowered
         assert "manual override/fallback" in lowered
         assert "git-baseline freshness" not in lowered
+
+
+def test_planning_only_workflows_do_not_dirty_project_cognition_after_artifact_writes():
+    for path in [
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+        "templates/commands/clarify.md",
+        "templates/commands/tasks.md",
+    ]:
+        lowered = _read(path).lower()
+
+        assert "project-cognition mark-dirty" not in lowered
+        assert "project-cognition complete-refresh" not in lowered
+        assert "project-cognition validate-build --format json" not in lowered
+        assert "artifact-only" in lowered
+        assert "cognition follow-up" in lowered
+        assert "actual source/runtime changes" in lowered
+
+
+def test_specify_plan_and_clarify_treat_needs_update_as_planning_advisory():
+    for path in [
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+        "templates/commands/clarify.md",
+        "templates/commands/tasks.md",
+    ]:
+        lowered = _read(path).lower()
+
+        assert "`needs_update`: record a planning advisory" in lowered
+        assert "`needs_update`: route through `{{invoke:map-update}}`" not in lowered
+
+
+def test_specify_and_plan_treat_stale_cognition_as_planning_advisory():
+    for path in [
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+    ]:
+        lowered = _read(path).lower()
+
+        assert "freshness is `stale`" in lowered
+        assert "planning advisory" in lowered
+        assert "if freshness is `stale`, stop" not in lowered
+        assert "if freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`" not in lowered
+        assert "if freshness is `possibly_stale`" in lowered
+        assert "must_refresh_topics` is non-empty" not in lowered
+        assert "if task-relevant coverage is insufficient" in lowered
+        assert "continue with minimal live reads" in lowered
 
 
 def test_project_map_freshness_scripts_exist_and_share_status_contract():

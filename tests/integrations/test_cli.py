@@ -2859,6 +2859,54 @@ def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
     assert not db_path.exists()
 
 
+def test_project_cognition_query_accepts_equals_empty_query(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "query-empty-string-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "query", "--intent", "plan", "--query=", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "needs_rebuild"
+    assert payload["query"] == ""
+    assert payload["query_plan"] == {"raw_query": "", "expanded_queries": [], "paths": []}
+
+
+def test_project_cognition_lexicon_accepts_equals_empty_query(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lexicon-empty-string-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "lexicon", "--intent", "plan", "--query=", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "needs_rebuild"
+    assert payload["query"] == ""
+    assert payload["query_planning_contract"]["agent_responsibility"]
+
+
 def test_project_cognition_lexicon_outputs_agent_terms(tmp_path):
     runner = CliRunner()
     project = tmp_path / "lexicon-runtime"

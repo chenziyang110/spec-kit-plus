@@ -116,7 +116,7 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 
 ### 2. Ensure project cognition runtime exists
 
-- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
+- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
 - If readiness is `needs_rebuild`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
 - If readiness is `needs_update` or the returned bundle is too weak for the touched area, use `{{invoke:map-update}}` when the touched area is localized.
 - Escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required.

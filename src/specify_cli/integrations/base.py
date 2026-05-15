@@ -508,7 +508,7 @@ class IntegrationBase(ABC):
         }.get(command_name, "implement")
         return (
             "**Crucial First Step**: You MUST use agent-assisted project cognition query planning first: "
-            f"retrieve the map lexicon with `{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query \"$ARGUMENTS\" --format json}}}}`, "
+            f"retrieve the map lexicon with `{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}`, "
             "translate the raw user intent into a query_plan using returned map terms, then run "
             f"`{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan \"<query_plan_json>\" --format json}}}}` "
             f"{command_step}. Use the returned readiness, task-local bundle, and `minimal_live_reads`."

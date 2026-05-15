@@ -79,18 +79,18 @@ scripts:
      - `authoritative_files: spec.md, alignment.md, context.md, plan.md, tasks.md`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
-2. **Ensure project cognition runtime exists**:
+2. **Ensure project cognition runtime exists and record planning advisory state**:
    - Check whether `.specify/project-cognition/status.json` exists.
    - If it exists, use the project cognition freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
    - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
-   - [AGENT] If freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; wait for that refresh before continuing.
-   - [AGENT] If freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
-   - [AGENT] If freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
+   - [AGENT] If freshness is `stale`, record a planning advisory, continue with minimal live reads from the query result, and do not require `{{invoke:map-update}}` during artifact-only `sp-tasks` work.
+   - [AGENT] If freshness is `support_drift`, record a planning advisory about support-surface drift and continue only with evidence-backed reads; do not reflexively route to `{{invoke:map-update}}`.
+   - [AGENT] If freshness is `partial_refresh`, record a planning advisory that the refresh was incomplete, preserve `recommended_next_action`, and continue only when query results plus minimal live reads are sufficient for task generation.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. For artifact-only `sp-tasks` work, record a planning advisory for any overlapping topics, review those topic files and minimal live reads, and continue without requiring `{{invoke:map-scan}}`/`{{invoke:map-build}}`.
    - Check whether `.specify/project-cognition/status.json` exists at the repository root.
    - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - [AGENT] If task-relevant coverage is insufficient for the current task-generation request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If task-relevant coverage is insufficient for the current task-generation request, record a planning advisory, continue with minimal live reads and explicit task assumptions, and do not require a project cognition refresh during `sp-tasks`.
 
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
@@ -107,8 +107,8 @@ scripts:
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
    - **Required when present**: `.specify/memory/learnings/INDEX.md` (searchable reusable learning index that may shape decomposition, validation, or guardrails)
    - **Required when relevant index entries exist**: open only the linked learning detail docs relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
-   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
-   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion; then inspect the minimum live files still needed to replace guesswork with evidence
+   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
+   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: record a planning advisory in the feature artifacts, inspect the minimum live files still needed to replace guesswork with evidence, and carry explicit assumptions or follow-up tasks instead of requiring a project cognition refresh during artifact-only task generation
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
@@ -120,7 +120,7 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition lexicon --intent plan --query "$ARGUMENTS" --format json}}
+{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}
 # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
 {{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
 ```
@@ -130,7 +130,7 @@ Use the returned readiness:
 - `ready`: continue with the returned task-local bundle.
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
-- `needs_update`: route through `{{invoke:map-update}}`.
+- `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-tasks`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
 
@@ -280,7 +280,7 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
       - write-set conflict status
     - Recommended next command: `{{invoke:analyze}}` for normal completed or non-escalated task generation.
     - For escalated remediation: preserve the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stop without an analyze handoff.
-    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the project cognition runtime, treat git-baseline freshness in `.specify/project-cognition/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes, otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback before later brownfield implementation proceeds.
+    - cognition follow-up: if artifact-only task generation exposes future shared surfaces, workflow joins, or validation entry points that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `tasks.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

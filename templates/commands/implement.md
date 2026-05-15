@@ -262,7 +262,7 @@ human_needed_checks:
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
    - **IF LANE RESOLUTION OR SESSION-STATE RECONCILE RETURNS `uncertain`**: stop and surface the conflict instead of guessing which lane to continue.
    - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
-   - **REQUIRED**: Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query "$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
+   - **REQUIRED**: Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
    - **IF READINESS IS `needs_rebuild`**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing.
    - **IF READINESS IS `needs_update` OR TOO WEAK FOR THE TOUCHED AREA**: Use `/sp-map-update` when the touched area is localized. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required.
    - **IF READINESS IS `review`**: Inspect only the returned `minimal_live_reads` before trusting the runtime for implementation decisions.
@@ -308,7 +308,7 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition lexicon --intent implement --query "$ARGUMENTS" --format json}}
+{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}
 # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
 {{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}
 ```
