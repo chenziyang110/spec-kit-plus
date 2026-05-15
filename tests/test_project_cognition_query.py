@@ -117,6 +117,19 @@ def test_query_reports_needs_update_when_path_is_missing_even_with_query_candida
     assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
 
 
+def test_query_returns_review_when_text_misses_but_runtime_has_baseline(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(tmp_path, intent="plan", query_text="接口版本混乱", paths=[])
+
+    assert result["readiness"] == "review"
+    assert result["recommended_next_action"] == "perform_minimal_live_reads"
+    assert result["minimal_live_reads"] == ["src/auth/login.ts"]
+    assert result["missing_coverage"] == [
+        "query did not match project cognition aliases or claims; use minimal live reads or ask a clarifying question"
+    ]
+
+
 @pytest.mark.parametrize(
     "query_text",
     [
@@ -133,7 +146,7 @@ def test_query_tolerates_punctuation_heavy_fts_input(tmp_path: Path, query_text:
 
     result = query_project_cognition(tmp_path, intent="debug", query_text=query_text, paths=[])
 
-    assert result["readiness"] in {"ready", "needs_update"}
+    assert result["readiness"] in {"ready", "review"}
 
 
 def test_query_reports_ambiguous_when_candidates_are_close(tmp_path: Path) -> None:

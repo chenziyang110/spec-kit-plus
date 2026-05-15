@@ -58,11 +58,23 @@ def query_project_cognition(
                 for node_id, evidence_ids in path_nodes.items()
             ]
 
-        readiness = "needs_update" if missing_paths else _readiness_for_candidates(candidates)
+        query_missed_runtime_index = (
+            bool(normalize_query_token(query_text)) and not missing_paths and not path_nodes and not candidates
+        )
+        readiness = "review" if query_missed_runtime_index else (
+            "needs_update" if missing_paths else _readiness_for_candidates(candidates)
+        )
         affected_nodes = sorted(
             set(path_nodes.keys()) | {item["node_id"] for item in candidates if item["target_type"] != "symptom"}
         )
         minimal_live_reads = sorted(set(normalized_paths) | set(_paths_for_nodes(conn, generation_id, affected_nodes)))
+        if query_missed_runtime_index:
+            minimal_live_reads = _fallback_review_paths(conn, generation_id)
+        missing_coverage = [f"path not covered by project cognition index: {path}" for path in missing_paths]
+        if query_missed_runtime_index:
+            missing_coverage.append(
+                "query did not match project cognition aliases or claims; use minimal live reads or ask a clarifying question"
+            )
 
         return {
             "readiness": readiness,
@@ -73,7 +85,7 @@ def query_project_cognition(
             "symptom_candidates": [item for item in candidates if item["target_type"] == "symptom"],
             "affected_nodes": affected_nodes,
             "minimal_live_reads": minimal_live_reads,
-            "missing_coverage": [f"path not covered by project cognition index: {path}" for path in missing_paths],
+            "missing_coverage": missing_coverage,
             "subgraph": _subgraph_for_nodes(conn, generation_id, affected_nodes),
         }
 
@@ -231,6 +243,14 @@ def _paths_for_nodes(conn: Any, generation_id: str, node_ids: list[str]) -> list
     rows = conn.execute(
         f"SELECT DISTINCT path FROM path_index WHERE generation_id = ? AND node_id IN ({placeholders})",
         (generation_id, *node_ids),
+    ).fetchall()
+    return sorted(str(row["path"]) for row in rows)
+
+
+def _fallback_review_paths(conn: Any, generation_id: str) -> list[str]:
+    rows = conn.execute(
+        "SELECT DISTINCT path FROM path_index WHERE generation_id = ? ORDER BY path LIMIT 10",
+        (generation_id,),
     ).fetchall()
     return sorted(str(row["path"]) for row in rows)
 
