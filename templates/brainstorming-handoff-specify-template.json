@@ -1,10 +1,20 @@
 {
-  "version": 1,
+  "version": 2,
   "status": "pending",
+  "entry_source": null,
+  "source_handoff": null,
+  "source_handoff_json": null,
   "facts_file": "brainstorming/facts.json",
   "route_file": "brainstorming/route.json",
   "intent_file": "brainstorming/intent.json",
   "complexity_file": "brainstorming/complexity.json",
   "soft_unknowns": [],
+  "unknowns": [],
+  "must_preserve": [],
+  "conflicts": [],
+  "coverage_status": "not_started",
+  "planning_gate_status": "blocked_by_incomplete_coverage",
+  "hard_unknown_count": 0,
+  "open_conflict_count": 0,
   "compile_ready": false
 }
