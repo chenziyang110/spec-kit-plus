@@ -24,7 +24,10 @@ and what sits clearly outside the system boundary.]
 - **Pre-spec discussion**: `sp-discussion` stores resumable product/technical
   discussions under `.specify/discussions/<slug>/`, produces technical options
   and requirements drafts, and only hands off to `sp-specify` through explicit
-  `handoff-to-specify.md`.
+  `handoff-to-specify.md` plus `handoff-to-specify.json`. The handoff uses a
+  Must-Preserve Ledger (`MP-*` items) plus coverage and planning gate status,
+  so downstream workflows must either preserve each protected item or block for
+  a user decision.
 
 ## How To Read This Project
 

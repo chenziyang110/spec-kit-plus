@@ -20,6 +20,23 @@
 - [Decision that must be preserved in downstream planning]
 - [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
 
+
+## Must-Preserve Carry-Forward
+
+<!--
+  Copy implementation-shaping MP-* items from brainstorming/handoff-to-specify.json,
+  spec.md, alignment.md, context.md, and references.md.
+  Preserve the MP ID so task generation and implementation can prove the original
+  discussion conclusion was not lost.
+  If a planning decision conflicts with an MP-* obligation, keep the conflict
+  explicit here and route back for a user decision instead of silently replacing
+  the protected discussion conclusion.
+-->
+
+| MP ID | Type | Planning Obligation | Plan Location | Reopen Or Conflict Condition |
+| --- | --- | --- | --- | --- |
+| MP-### | [goal | scope | non_goal | scenario | decision | reference | tradeoff] | [what the plan must preserve] | [section anchor] | [condition, conflict decision, or none] |
+
 ## Reference Fidelity Inputs
 
 <!--

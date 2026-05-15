@@ -23,6 +23,9 @@ Advance the current feature through tracked implementation batches while keeping
 - Produce verified implementation changes plus updated execution-state artifacts for the active feature.
 - Keep `implement-tracker.md` and worker-result handoffs aligned with what actually happened.
 - Report blockers, retries, and completion honestly rather than inferring success from partial progress.
+- Preserve any `MP-*` obligations carried in task packets, implementation state, or result handoff expectations.
+- Worker result handoffs must include must-preserve evidence when packet obligations require it.
+- If implementation discovers a conflict with an `MP-*` obligation, return a blocked result instead of silently changing the protected discussion decision.
 
 ## Guardrails
 

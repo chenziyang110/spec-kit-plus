@@ -67,6 +67,10 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert ".specify/discussions/<slug>/" in command_content
     assert "discussion-state.md" in command_content
     assert "handoff-to-specify.md" in command_content
+    assert "Must-Preserve Ledger" in command_content
+    assert "handoff-to-specify.json" in command_content
+    assert "coverage_status" in command_content
+    assert "planning_gate_status" in command_content
     assert (
         "explicit user" in command_lower
         or "user explicitly" in command_lower

@@ -16,13 +16,16 @@ Drive a resumable product and technical discussion that matures a rough idea int
 - Ask one high-impact question at a time.
 - Preserve key decisions in `discussion-log.md`.
 - Keep `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` current.
-- Generate `handoff-to-specify.md` only after explicit user request.
+- Generate `handoff-to-specify.md` and `handoff-to-specify.json` only after explicit user request.
 
 ## Output Contract
 
 - Maintain the independent discussion state and artifacts under `.specify/discussions/<slug>/`.
 - Provide 2-3 project-grounded technical options when implementation strategy affects the requirement.
 - Report unresolved questions honestly instead of forcing planning readiness.
+- When explicit handoff is requested, write both `handoff-to-specify.md` and `handoff-to-specify.json` with a Must-Preserve Ledger.
+- Do not mark handoff ready if a confirmed goal, non-goal, decision, critical reference, trade-off rationale, or blocking question is missing from the ledger.
+- Preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` for the downstream fidelity gate.
 
 ## Guardrails
 

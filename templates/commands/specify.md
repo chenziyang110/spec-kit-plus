@@ -138,12 +138,30 @@ Use the returned readiness:
 If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
 
 - Treat the discussion handoff as an authoritative input to the brainstorming kernel, not a bypass around it.
+- Read `.specify/discussions/<slug>/handoff-to-specify.json` when present.
+- If Markdown and JSON mismatch on any ledger item's `id`, `type`, `claim`, `blocking_level`, `owner`, `latest_resolve_phase`, or `status`, block with `coverage_status: blocked_by_handoff_integrity` and ask the user to refresh the discussion handoff.
+- If Markdown exists but JSON is missing, reconstruct the JSON companion into `FEATURE_DIR/brainstorming/handoff-to-specify.json` and record the reconstruction source.
+- If JSON exists but Markdown is missing, block because the user-reviewable handoff source is absent.
 - Record `entry_source: sp-discussion` and the handoff path or pasted discussion handoff marker in the generated feature artifacts.
-- Preserve confirmed requirements, confirmed non-goals, settled decisions, and selected technical direction in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing `sp-specify` artifact responsibilities.
-- Convert open questions from the handoff into explicit unknowns with `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, and `status`.
+- Copy the Must-Preserve Ledger into `FEATURE_DIR/brainstorming/handoff-to-specify.json`.
+- Preserve confirmed requirements, confirmed non-goals, settled decisions, selected technical direction, critical references, and trade-off rationale in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing artifact responsibilities.
+- Convert open questions from the handoff into explicit unknowns with `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, `status`, and a user-visible reopen reason when the unknown can reopen upstream discussion truth.
 - Cite the discussion handoff and relevant `project-context.md` evidence in `references.md` or `context.md`.
 - Do not re-ask settled discussion questions unless repository evidence, constitution rules, or user correction contradicts the handoff.
-- If a settled discussion conclusion is reopened, record the reopen reason before changing the derived spec package.
+- If a settled discussion conclusion conflicts with repository evidence, constitution rules, project rules, project cognition evidence, or architecture constraints, block and ask the user to choose keep, revise, drop, or defer with an explicit risk contract. Do not silently reinterpret the ledger item.
+
+## Discussion Fidelity Coverage Gate
+
+When `entry_source` is `sp-discussion`, coverage and planning readiness are separate.
+
+- `coverage_status`: `not_started | incomplete | complete | blocked_by_handoff_integrity`
+- `planning_gate_status`: `ready | blocked_by_hard_unknowns | blocked_by_conflict | blocked_by_incomplete_coverage | blocked_by_handoff_integrity`
+
+Before recommending `/sp.plan`, write `hard_unknown_count` and `open_conflict_count` to `brainstorming/handoff-to-specify.json`.
+
+Coverage can be complete only when every active `MP-*` item is mapped to at least one artifact, and every resolved, superseded, dropped, or deferred item carries the required evidence fields.
+
+Planning can be ready only when coverage is complete, no hard unknowns remain open, and no conflicts remain open.
 
 ## Outline
 

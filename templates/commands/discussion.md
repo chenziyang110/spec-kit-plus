@@ -3,7 +3,7 @@ description: Use when a rough idea or requirement needs a resumable senior produ
 workflow_contract:
   when_to_use: A rough idea or requirement needs product/technical discussion before it is ready for sp-specify.
   primary_objective: Build a durable discussion package that matures the idea into requirements and technical implementation options.
-  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, and explicit `handoff-to-specify.md` only when requested by the user.'
+  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, and explicit `handoff-to-specify.md` plus `handoff-to-specify.json` only when requested by the user.'
   default_handoff: Stay in sp-discussion until the user explicitly asks to hand off; then write handoff-to-specify.md and tell the user how to invoke sp-specify.
 ---
 
@@ -41,6 +41,7 @@ Required files:
 - `project-context.md`
 - `open-questions.md`
 - `handoff-to-specify.md` only after explicit user request
+- `handoff-to-specify.json` only after explicit user request
 
 Use `templates/discussion-state-template.md` when initializing `discussion-state.md`.
 
@@ -63,7 +64,7 @@ Use `templates/discussion-state-template.md` when initializing `discussion-state
 4. Keep `open-questions.md` grouped by blocking level.
 5. Refresh `requirements.md` whenever a material requirement decision changes.
 6. Enter technical options only when implementation strategy affects the requirement.
-7. Generate `handoff-to-specify.md` only after explicit user request.
+7. Generate `handoff-to-specify.md` and `handoff-to-specify.json` only after explicit user request.
 
 ## Staged Project Cognition Gate
 
@@ -125,5 +126,53 @@ When requested, write or refresh `handoff-to-specify.md` with:
 - project-context evidence and inference notes
 - unresolved questions with blocking levels
 - instructions for `sp-specify` about settled decisions and remaining decisions
+
+
+## Must-Preserve Ledger
+
+When the user explicitly requests handoff, `handoff-to-specify.md` must include a Must-Preserve Ledger. The ledger preserves only semantic units that would cause product or implementation drift if lost.
+
+Ledger item types:
+
+- `goal`
+- `scope`
+- `non_goal`
+- `scenario`
+- `decision`
+- `reference`
+- `tradeoff`
+- `blocking_question`
+
+Each ledger item must include:
+
+- `id`: stable `MP-###`
+- `type`: one of the ledger item types
+- `claim`: the exact conclusion to preserve
+- `source`: source file, reference, or user confirmation
+- `downstream_requirement`: how later artifacts must carry this forward
+- `blocking_level`: `hard` or `soft`
+- `owner`: `user`, `evidence`, `downstream-contract`, or `risk-waiver`
+- `latest_resolve_phase`: latest phase allowed to resolve or carry the item
+- `status`: `pending`, `mapped`, `resolved`, `deferred`, `superseded`, or `dropped`
+- `deferred_to`: downstream phase when status is `deferred`
+- `stop_and_reopen_condition`: required for deferred items
+- `superseded_by`: replacement item or conflict resolution when status is `superseded`
+- `mapped_to`: empty in discussion handoff; populated by `sp-specify`
+
+Include ledger items for confirmed goals, selected scope, non-goals, acceptance-shaping scenarios, selected decisions, critical references, selected or rejected trade-offs whose rationale matters, and blocking open questions.
+
+## Handoff JSON Companion
+
+When `handoff-to-specify.md` is written, also write `.specify/discussions/<slug>/handoff-to-specify.json` with the same ledger item IDs and key fields.
+
+The Markdown and JSON forms must agree on every ledger item's `id`, `type`, `claim`, `blocking_level`, `owner`, `latest_resolve_phase`, and `status`.
+
+If an existing Markdown handoff and JSON companion disagree, block and refresh the handoff instead of choosing one silently.
+
+## Conflict Blocker
+
+If an `MP-*` item conflicts with repository evidence, constitution rules, project rules, project cognition evidence, or architecture constraints, do not silently reinterpret, downgrade, or replace the discussion conclusion. Block and ask the user to choose keep, revise, drop, or defer with an explicit risk contract.
+
+Do not mark the discussion `handoff-ready` until every confirmed or critical item is represented in the Must-Preserve Ledger. Deferred items require `deferred_to`, `owner`, `latest_resolve_phase`, and `stop_and_reopen_condition`. The handoff must preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` fields for downstream coverage.
 
 After writing the handoff, tell the user to invoke the generated integration's `sp-specify` command form with the handoff path. Do not invoke it yourself.

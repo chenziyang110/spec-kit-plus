@@ -88,6 +88,10 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert ".specify/discussions/<slug>/" in skill_content
     assert "discussion-state.md" in skill_content
     assert "handoff-to-specify.md" in skill_content
+    assert "Must-Preserve Ledger" in skill_content
+    assert "handoff-to-specify.json" in skill_content
+    assert "coverage_status" in skill_content
+    assert "planning_gate_status" in skill_content
     assert (
         "explicit user" in skill_lower
         or "user explicitly" in skill_lower
@@ -297,6 +301,21 @@ class SkillsIntegrationTests:
         discussion_path = i.skills_dest(tmp_path) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists()
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+    def test_specify_skill_preserves_discussion_fidelity_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        content = (i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+        lowered = content.lower()
+
+        assert "Must-Preserve Ledger" in content
+        assert "coverage_status" in content
+        assert "planning_gate_status" in content
+        assert "blocked_by_handoff_integrity" in content
+        assert "entry_source: sp-discussion" in content
+        assert "do not silently" in lowered
 
     def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
         i = get_integration(self.KEY)

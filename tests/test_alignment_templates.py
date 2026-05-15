@@ -101,6 +101,17 @@ def _assert_reference_evidence_contract(text: str) -> None:
     assert "verification entry points" in lowered
 
 
+def _assert_must_preserve_ledger_contract(content: str) -> None:
+    lowered = content.lower()
+    assert "must-preserve ledger" in lowered
+    assert "mp-*" in lowered or "mp-###" in lowered
+    assert "coverage_status" in content
+    assert "planning_gate_status" in content
+    assert "hard_unknown_count" in content
+    assert "open_conflict_count" in content
+    assert "conflict blocker" in lowered or ("block" in lowered and "conflict" in lowered)
+
+
 def _extract_bash_managed_block(script: str) -> str:
     match = re.search(
         r"render_speckit_managed_block\(\)\s*\{\s*cat <<'EOF'\n(?P<block>.*?)\nEOF",
@@ -425,6 +436,37 @@ def test_specify_consumes_explicit_discussion_handoff_without_bypassing_kernel()
     assert "blocking_level" in content
     assert "references.md" in content
     assert "reopen reason" in lowered
+
+
+def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
+    content = _read("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    _assert_must_preserve_ledger_contract(content)
+    assert "handoff-to-specify.json" in content
+    assert "markdown" in lowered and "json" in lowered
+    assert "id" in lowered
+    assert "claim" in lowered
+    assert "source" in lowered
+    assert "downstream_requirement" in content
+    assert "owner" in lowered
+    assert "latest_resolve_phase" in content
+    assert "stop_and_reopen_condition" in content
+    assert "do not silently" in lowered
+
+
+def test_specify_discussion_handoff_has_coverage_and_planning_gate_split() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    _assert_must_preserve_ledger_contract(content)
+    assert "entry_source: sp-discussion" in content
+    assert "blocked_by_hard_unknowns" in content
+    assert "blocked_by_conflict" in content
+    assert "blocked_by_incomplete_coverage" in content
+    assert "blocked_by_handoff_integrity" in content
+    assert "coverage and planning readiness are separate" in lowered
+    assert "markdown" in lowered and "json" in lowered and "mismatch" in lowered
 
 
 def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -> None:
@@ -2499,6 +2541,22 @@ def test_compiled_artifact_templates_preserve_route_and_complexity_truth() -> No
     assert "## Truth Sources Used For Route And Intent Lock" in references
 
 
+def test_compiled_artifact_templates_preserve_must_preserve_ids() -> None:
+    spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    references = _read("templates/references-template.md")
+
+    assert "Must-Preserve" in spec
+    assert "MP-" in spec
+    assert "Must-Preserve" in alignment
+    assert "MP-" in alignment
+    assert "Must-Preserve" in context
+    assert "MP-" in context
+    assert "Must-Preserve" in references
+    assert "MP-" in references
+
+
 def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts() -> None:
     plan = _read("templates/commands/plan.md")
     tasks = _read("templates/commands/tasks.md")
@@ -2512,6 +2570,43 @@ def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts
     assert "must-preserve invariants" in implement.lower()
     assert "allowed optimization scope" in implement.lower()
     assert "stop-and-reopen conditions" in implement.lower()
+
+
+def test_plan_tasks_and_implement_preserve_discussion_fidelity_obligations() -> None:
+    plan = _read("templates/commands/plan.md")
+    plan_template = _read("templates/plan-template.md")
+    tasks = _read("templates/commands/tasks.md")
+    tasks_template = _read("templates/tasks-template.md")
+    implement = _read("templates/commands/implement.md")
+    implement_shell = _read("templates/command-partials/implement/shell.md")
+
+    for content in (plan, plan_template, tasks, tasks_template, implement, implement_shell):
+        lowered = content.lower()
+        assert "mp-*" in lowered or "MP-" in content
+        assert "must-preserve" in lowered
+        assert "conflict" in lowered
+
+    assert "Must-Preserve Carry-Forward" in plan_template
+    assert "Task Guardrail Index" in tasks_template
+    assert "WorkerTaskPacket" in implement
+    assert "result handoff" in implement_shell.lower()
+
+
+def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
+    handoff = _read("templates/brainstorming-handoff-specify-template.json")
+    plan_contract = _read("templates/plan-contract-template.json")
+    implement_state = _read("templates/implement-execution-state-template.json")
+
+    for content in (handoff, plan_contract, implement_state):
+        assert '"must_preserve"' in content
+        assert "mp_obligations" in content or "must_preserve" in content
+
+    assert '"coverage_status"' in handoff
+    assert '"planning_gate_status"' in handoff
+    assert '"hard_unknown_count"' in handoff
+    assert '"open_conflict_count"' in handoff
+    assert '"open_conflicts"' in plan_contract
+    assert '"applied_mp_obligations"' in implement_state
 
 
 def test_implement_template_rejects_locked_goal_redefinition() -> None:
@@ -2532,8 +2627,11 @@ def test_implement_execution_state_template_requires_structured_execution_contra
     assert '"complexity_level": null' in content
     assert '"active_packet_ids": []' in content
     assert '"must_preserve": []' in content
+    assert '"applied_mp_obligations": []' in content
     assert '"allowed_optimization_scope": []' in content
     assert '"open_reopen_conditions": []' in content
+    assert '"open_conflict_count": 0' in content
+    assert '"hard_unknown_count": 0' in content
 
 
 def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
