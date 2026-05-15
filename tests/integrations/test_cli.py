@@ -2899,8 +2899,39 @@ def test_project_cognition_cli_exposes_local_query_update_surface():
     assert "--paths" in query_output
     assert "--limit" in lexicon_output
     assert "--changed-paths" in update_output
+    assert "--scope" in update_output
     assert "Discover and read fresh cross-project cognition references" in cognition_help.output
     assert "query" not in cognition_help.output.lower()
+
+
+def test_project_cognition_update_accepts_scope_alias_for_changed_path(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "cognition-update-scope-alias"
+    project.mkdir()
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "update",
+                "--scope",
+                "bindings/c/demo.c",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "needs_rebuild"
+    assert payload["changed_paths"] == ["bindings/c/demo.c"]
 
 
 def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):

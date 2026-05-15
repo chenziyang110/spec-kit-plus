@@ -268,6 +268,12 @@ def test_apply_cognition_update_records_affected_path_update(tmp_path: Path) -> 
     assert result["affected_nodes"] == ["capability:auth.login"]
     assert result["changed_paths"] == ["src/auth/login.ts"]
     assert result["update_id"]
+    status = read_cognition_status(tmp_path)
+    assert status.last_update_id == result["update_id"]
+    assert status.last_refresh_reason == "unit-test"
+    assert status.last_refresh_scope == "partial"
+    assert status.last_refresh_basis == "project-cognition update"
+    assert status.last_refresh_changed_files_basis == ["src/auth/login.ts"]
     with closing(connect_cognition_db(tmp_path)) as conn:
         updates = conn.execute(
             "SELECT id, trigger, changed_paths_json, affected_nodes_json, result_state FROM updates"

@@ -8,6 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from .db import cognition_transaction, ensure_cognition_db, get_active_generation_id, iso_now
+from .status import read_cognition_status, write_cognition_status
 
 
 def apply_cognition_update(
@@ -65,6 +66,16 @@ def apply_cognition_update(
                 "{}",
             ),
         )
+
+    status = read_cognition_status(project_root)
+    status.last_update_id = update_id
+    status.stale_paths = []
+    status.stale_reasons = []
+    status.last_refresh_reason = reason
+    status.last_refresh_scope = "partial"
+    status.last_refresh_basis = "project-cognition update"
+    status.last_refresh_changed_files_basis = list(normalized_paths)
+    write_cognition_status(project_root, status)
 
     return {
         "readiness": "ready",
