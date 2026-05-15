@@ -167,6 +167,30 @@ class ClaudeIntegration(SkillsIntegration):
             return True
         return False
 
+    @staticmethod
+    def _is_stale_managed_hook(hook: Any, managed_suffixes: tuple[str, ...]) -> bool:
+        if not isinstance(hook, dict):
+            return False
+        command = str(hook.get("command", ""))
+        if ClaudeIntegration._is_stale_managed_hook_command(command, managed_suffixes):
+            return True
+        args = hook.get("args")
+        if command == "node" and isinstance(args, list) and args:
+            normalized_args = [str(arg) for arg in args]
+            first_arg = normalized_args[0]
+            if (
+                first_arg.startswith("${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook")
+                or first_arg.startswith('"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook')
+                or (
+                    len(normalized_args) >= 4
+                    and normalized_args[0] == "-e"
+                    and "specify-hook.mjs" in normalized_args[1]
+                    and normalized_args[2] == "claude"
+                )
+            ):
+                return True
+        return False
+
     def _install_hook_assets(
         self,
         *,
@@ -254,10 +278,7 @@ class ClaudeIntegration(SkillsIntegration):
                 continue
             kept: list[Any] = []
             for hook in hooks:
-                if isinstance(hook, dict) and ClaudeIntegration._is_stale_managed_hook_command(
-                    str(hook.get("command", "")),
-                    managed_suffixes,
-                ):
+                if ClaudeIntegration._is_stale_managed_hook(hook, managed_suffixes):
                     changed = True
                 else:
                     kept.append(hook)
@@ -390,12 +411,9 @@ class ClaudeIntegration(SkillsIntegration):
                             filtered_hooks = [
                                 hook
                                 for hook in hook_list
-                                if not (
-                                    isinstance(hook, dict)
-                                    and self._is_stale_managed_hook_command(
-                                        self._normalize_hook_command(hook.get("command")),
-                                        self._managed_hook_command_suffixes(),
-                                    )
+                                if not self._is_stale_managed_hook(
+                                    hook,
+                                    self._managed_hook_command_suffixes(),
                                 )
                             ]
                             if len(filtered_hooks) != len(hook_list):

@@ -6,7 +6,7 @@ import os
 from typer.testing import CliRunner
 
 from specify_cli import app
-from specify_cli.launcher import SpecifyLauncherSpec
+from specify_cli.launcher import SpecifyLauncherSpec, render_claude_hook_launcher
 
 
 runner = CliRunner()
@@ -33,15 +33,7 @@ def _init_project(tmp_path, integration="copilot"):
 
 
 def _expected_claude_hook(route: str) -> dict[str, object]:
-    return {
-        "type": "command",
-        "command": "node",
-        "args": [
-            "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
-            "claude",
-            route,
-        ],
-    }
+    return render_claude_hook_launcher(route)
 
 
 # ── list ─────────────────────────────────────────────────────────────

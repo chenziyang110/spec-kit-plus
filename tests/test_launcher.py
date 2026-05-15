@@ -1,6 +1,8 @@
 import json
 import os
+import shutil
 import stat
+import subprocess
 
 import specify_cli
 from specify_cli.launcher import (
@@ -370,6 +372,85 @@ def test_diagnose_project_runtime_compatibility_reports_stale_direct_hook_launch
     assert any(issue["code"] == "stale-direct-hook-launcher-command" for issue in issues)
 
 
+def test_diagnose_project_runtime_compatibility_reports_stale_claude_node_args_launcher(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "node",
+                                    "args": [
+                                        "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
+                                        "claude",
+                                        "session-start",
+                                    ],
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_reports_stale_quoted_claude_node_args_launcher(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "node",
+                                    "args": [
+                                        '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.mjs',
+                                        "claude",
+                                        "session-start",
+                                    ],
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_accepts_current_claude_node_bootstrap(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps({"hooks": {"SessionStart": [{"hooks": [render_claude_hook_launcher("session-start")]}]}}),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert not any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+
+
 def test_resolve_hook_runtime_spec_prefers_runtime_command_env(monkeypatch, tmp_path):
     monkeypatch.setenv("SPECIFY_HOOK_RUNTIME_COMMAND", "python-custom -X utf8")
 
@@ -434,15 +515,57 @@ def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(m
 def test_render_claude_hook_launcher_uses_node_exec_form():
     hook = render_claude_hook_launcher("session-start")
 
-    assert hook == {
-        "type": "command",
-        "command": "node",
-        "args": [
-            "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
-            "claude",
-            "session-start",
-        ],
-    }
+    assert hook["type"] == "command"
+    assert hook["command"] == "node"
+    assert hook["args"][0] == "-e"
+    assert hook["args"][-2:] == ["claude", "session-start"]
+    assert "${CLAUDE_PROJECT_DIR}" not in json.dumps(hook)
+    assert "$env:CLAUDE_PROJECT_DIR" not in json.dumps(hook)
+
+
+def test_render_claude_hook_launcher_bootstrap_resolves_project_root_without_shell_env(tmp_path):
+    if shutil.which("node") is None:
+        return
+
+    project = tmp_path / "project"
+    nested = project / "src" / "nested"
+    launcher = project / ".specify" / "bin" / "specify-hook.mjs"
+    nested.mkdir(parents=True)
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(
+        "\n".join(
+            [
+                "import { readFileSync } from 'node:fs';",
+                "const stdin = readFileSync(0, 'utf8');",
+                "console.log(JSON.stringify({",
+                "  argv: process.argv.slice(2),",
+                "  cwd: process.cwd(),",
+                "  stdin: JSON.parse(stdin)",
+                "}));",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    hook = render_claude_hook_launcher("session-start")
+    env = os.environ.copy()
+    env.pop("CLAUDE_PROJECT_DIR", None)
+
+    result = subprocess.run(
+        ["node", *hook["args"]],
+        input=json.dumps({"cwd": str(nested), "hook_event_name": "SessionStart"}),
+        text=True,
+        capture_output=True,
+        cwd=nested,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["argv"] == ["claude", "session-start"]
+    assert payload["cwd"] == str(project)
+    assert payload["stdin"]["cwd"] == str(nested)
 
 
 def test_install_shared_hook_launcher_assets_writes_all_runtime_files(tmp_path):

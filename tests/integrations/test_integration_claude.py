@@ -375,8 +375,10 @@ class TestClaudeIntegration:
         assert managed_hooks
         for hook in managed_hooks:
             assert hook["command"] == "node"
-            assert hook["args"][0] == "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs"
+            assert hook["args"][0] == "-e"
+            assert hook["args"][-2] == "claude"
             hook_json = json.dumps(hook)
+            assert "${CLAUDE_PROJECT_DIR}" not in hook_json
             assert "specify-hook.cmd" not in hook_json
             assert "$env:CLAUDE_PROJECT_DIR" not in hook_json
 
@@ -394,6 +396,84 @@ class TestClaudeIntegration:
         refreshed = hook_script.read_text(encoding="utf-8")
         assert "# stale managed hook" not in refreshed
         assert "def _handle_stop_monitor" in refreshed
+
+    def test_setup_strips_quoted_shell_env_node_args_launcher(self, tmp_path):
+        integration = get_integration("claude")
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        settings_path = claude_dir / "settings.json"
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "node",
+                                        "args": [
+                                            '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.mjs',
+                                            "claude",
+                                            "session-start",
+                                        ],
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        hooks = [
+            hook
+            for entries in payload["hooks"].values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict)
+        ]
+
+        assert self._expected_launcher_hook("session-start", script_type="sh") in hooks
+        assert not any(
+            hook.get("command") == "node"
+            and isinstance(hook.get("args"), list)
+            and hook["args"]
+            and hook["args"][0] == '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.mjs'
+            for hook in hooks
+        )
+
+    def test_teardown_strips_current_node_bootstrap_hooks_from_user_settings(self, tmp_path):
+        integration = get_integration("claude")
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        settings_path = claude_dir / "settings.json"
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "custom.setting": True,
+                    "hooks": {
+                        "SessionStart": [
+                            {"hooks": [self._expected_launcher_hook("session-start", script_type="sh")]}
+                        ]
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        manifest = IntegrationManifest("claude", tmp_path)
+
+        integration.teardown(tmp_path, manifest)
+
+        remaining = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert remaining["custom.setting"] is True
+        assert "hooks" not in remaining
 
     def test_claude_hook_adapter_respects_event_specific_output_schema(self):
         module = _load_claude_hook_dispatch_module()
