@@ -135,6 +135,7 @@ def _assert_managed_block_v2_contract(block: str) -> None:
 
     assert "## Brownfield Context Gate" in block
     assert "project-cognition lexicon --intent <workflow-intent>" in lowered
+    assert 'project-cognition lexicon --intent <workflow-intent> --query="$arguments"' in lowered
     assert "project-cognition query --intent <workflow-intent>" in lowered
     assert "query-plan" in lowered
     assert "translate the raw user intent into a `query_plan`" in lowered
