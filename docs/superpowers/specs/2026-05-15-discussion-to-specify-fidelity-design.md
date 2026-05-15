@@ -64,9 +64,29 @@ Each item records:
   source: discussion-log.md#..., requirements.md#..., technical-options.md#..., project-context.md#..., or user confirmation.
   downstream_requirement: How later artifacts must carry this forward.
   blocking_level: hard | soft
+  owner: user | evidence | downstream-contract | risk-waiver
+  latest_resolve_phase: discussion-handoff | facts-lock | route-lock | intent-lock | complexity-lock | specify-compile | plan | tasks | implement
+  status: pending | mapped | resolved | deferred | superseded | dropped
+  deferred_to: null
+  stop_and_reopen_condition: null
+  superseded_by: null
+  mapped_to: []
 ```
 
-`blocking_level` is required for `blocking_question` and optional for other item types. If omitted, the default is `hard` for decisions, non-goals, scope, and selected trade-offs, and `soft` for contextual references.
+`blocking_level`, `owner`, `latest_resolve_phase`, and `status` are required for every `blocking_question`. They are also required for any item that is deferred past `sp-specify`. For other item types, `blocking_level` may be omitted and defaults to `hard` for decisions, non-goals, scope, and selected trade-offs, and `soft` for contextual references.
+
+The status enum means:
+
+- `pending`: imported from discussion but not yet mapped or resolved by the current workflow.
+- `mapped`: preserved in the required downstream artifact locations.
+- `resolved`: an open question or conflict was closed by user decision or accepted evidence.
+- `deferred`: intentionally carried to a named downstream phase with owner and stop-and-reopen condition.
+- `superseded`: replaced by a user-approved revised ledger item.
+- `dropped`: removed only by explicit user approval or an approved risk contract.
+
+`mapped_to` may be empty in the `sp-discussion` handoff because `sp-specify` has not compiled the final artifact package yet. `sp-specify` must populate it in the active feature copy before coverage can be complete for active mapped items.
+
+Deferral is valid only when `deferred_to`, `owner`, `latest_resolve_phase`, and `stop_and_reopen_condition` are populated. `superseded` is valid only when `superseded_by` points to another `MP-*` item or a conflict resolution record.
 
 The ledger is not meant to track every note. `sp-discussion` should include items marked or implied as:
 
@@ -125,13 +145,28 @@ Example:
       "claim": "Preserve the user's confirmed product outcome.",
       "source": "requirements.md#feature-goal",
       "downstream_requirement": "Carry into spec.md Feature Goal and plan.md Summary.",
-      "blocking_level": "hard"
+      "blocking_level": "hard",
+      "owner": "user",
+      "latest_resolve_phase": "specify-compile",
+      "status": "pending",
+      "deferred_to": null,
+      "stop_and_reopen_condition": null,
+      "superseded_by": null,
+      "mapped_to": []
     }
   ]
 }
 ```
 
 The JSON companion is not a new long-term truth source. Once `sp-specify` consumes it, the formal truth should live in the active feature's `spec.md`, `alignment.md`, `context.md`, `references.md`, and generated brainstorming truth files.
+
+## Markdown And JSON Precedence
+
+`handoff-to-specify.md` is the human-readable source. `handoff-to-specify.json` is the machine-readable mirror. They must agree on every ledger item's `id`, `type`, `claim`, `blocking_level`, `owner`, `latest_resolve_phase`, and `status`.
+
+If both files exist and disagree on those fields, the next workflow must block and report a handoff integrity error instead of silently picking one representation. The operator-facing message should name the mismatched `MP-*` ID, the Markdown value, the JSON value, and the required repair: rerun or refresh `sp-discussion` handoff before invoking `sp-specify`.
+
+If Markdown exists but JSON is missing, `sp-specify` may reconstruct JSON from the Markdown ledger and record that reconstruction in `FEATURE_DIR/brainstorming/handoff-to-specify.json`. If JSON exists but Markdown is missing, the handoff is invalid because the user-reviewable source is absent.
 
 ## Handoff Readiness Rule
 
@@ -141,6 +176,7 @@ The JSON companion is not a new long-term truth source. Once `sp-specify` consum
 - every ledger item has a stable `MP-###` ID
 - every ledger item names a source file or user confirmation
 - every blocking open question has `blocking_level`, owner, and latest expected resolution phase
+- every deferred item has `deferred_to`, `owner`, `latest_resolve_phase`, and `stop_and_reopen_condition`
 - the handoff includes a clear instruction that `sp-specify` must block rather than rewrite on conflict
 
 If a requirement or technical option is not important enough to appear in the ledger, it may remain in the discussion source files as background context. The ledger is the preservation boundary.
@@ -172,11 +208,19 @@ The active feature copy should track mapping status:
       "source": "requirements.md#feature-goal",
       "downstream_requirement": "Carry into spec.md Feature Goal and plan.md Summary.",
       "mapped_to": ["spec.md#Feature Goal", "alignment.md#Domain Closure Log"],
-      "status": "mapped"
+      "owner": "user",
+      "latest_resolve_phase": "specify-compile",
+      "status": "mapped",
+      "deferred_to": null,
+      "stop_and_reopen_condition": null,
+      "superseded_by": null
     }
   ],
   "conflicts": [],
-  "coverage_status": "complete"
+  "coverage_status": "complete",
+  "planning_gate_status": "ready",
+  "hard_unknown_count": 0,
+  "open_conflict_count": 0
 }
 ```
 
@@ -184,9 +228,12 @@ The active feature copy should track mapping status:
 
 Before `sp-specify` can mark the package ready for `/sp.plan`, it must complete a discussion coverage gate when `entry_source` is `sp-discussion`.
 
+Coverage and planning readiness are separate. Coverage answers whether every `MP-*` item has been mapped, resolved, or explicitly deferred with a valid downstream contract. Planning readiness answers whether the current package may proceed to `/sp.plan`.
+
 Coverage rules:
 
-- Every `MP-*` item must have at least one `mapped_to` target.
+- Every active `MP-*` item with status `pending` or `mapped` must have at least one `mapped_to` target before coverage can be complete.
+- Items with status `resolved`, `superseded`, `dropped`, or `deferred` do not require a current `mapped_to` target, but they must carry the required resolution, supersession, approval, or deferral evidence.
 - `goal`, `scope`, `scenario`, and acceptance-shaping items must appear in `spec.md`.
 - `non_goal` and boundary items must appear in `spec.md` and, when implementation-shaping, in `context.md`.
 - `decision` items must appear in `spec.md#Decision Capture` or the equivalent locked-decision section and in `alignment.md` when they affect planning readiness.
@@ -194,6 +241,25 @@ Coverage rules:
 - `tradeoff` items must appear in `context.md`, `alignment.md`, or planning constraints according to whether the trade-off affects specification, planning, or execution.
 - `blocking_question` items with `hard` blocking level must become hard unknowns and prevent a `/sp.plan` recommendation until resolved by the user or explicit evidence accepted by the user.
 - Items may be deferred only when their ledger entry records the downstream phase that owns resolution and the stop-and-reopen condition.
+
+`coverage_status` values:
+
+- `not_started`
+- `incomplete`
+- `complete`
+- `blocked_by_handoff_integrity`
+
+`planning_gate_status` values:
+
+- `ready`
+- `blocked_by_hard_unknowns`
+- `blocked_by_conflict`
+- `blocked_by_incomplete_coverage`
+- `blocked_by_handoff_integrity`
+
+`coverage_status: complete` is allowed only when all items are mapped, resolved, superseded, dropped by user approval, or validly deferred. It does not by itself imply planning readiness. If any hard unknown remains open, `planning_gate_status` must be `blocked_by_hard_unknowns`. If any conflict is open, `planning_gate_status` must be `blocked_by_conflict`. If coverage is incomplete or handoff integrity failed, planning is blocked even if no hard unknowns exist.
+
+The active feature copy must carry `hard_unknown_count` and `open_conflict_count` so tests and downstream workflows can distinguish incomplete mapping from planning blockers.
 
 If coverage is incomplete, `sp-specify` must keep `coverage_status: incomplete`, update `workflow-state.md`, and avoid recommending `/sp.plan`.
 
@@ -213,6 +279,30 @@ Conflict output should name:
 - available user decisions: keep, revise, drop, or defer with an explicit risk contract
 
 The workflow may not silently reinterpret, downgrade, or replace the discussion conclusion. It may continue only after the user decides.
+
+Conflicts must be persisted in the active feature copy:
+
+```json
+{
+  "conflicts": [
+    {
+      "id": "CONFLICT-001",
+      "mp_id": "MP-004",
+      "original_claim": "Original discussion decision.",
+      "conflicting_evidence": ["context.md#...", ".specify/project-cognition/..."],
+      "status": "open",
+      "resolution": null,
+      "user_decision_source": null,
+      "superseded_by": null,
+      "approved_risk_contract": null
+    }
+  ]
+}
+```
+
+`resolution` values are `keep`, `revise`, `drop`, `defer`, or `none`. A closed conflict must record `user_decision_source`, such as a chat answer captured into `specify-draft.md` or `workflow-state.md`. If the user revises the original decision, the original ledger item becomes `superseded` and `superseded_by` points to the replacement `MP-*` item. If the user drops it, the item becomes `dropped`. If the user defers it, the item becomes `deferred` and must include `deferred_to`, `owner`, `latest_resolve_phase`, `stop_and_reopen_condition`, and any `approved_risk_contract`.
+
+Compiled artifacts must be updated after conflict resolution. A resolution is not complete if the ledger changes but `spec.md`, `alignment.md`, `context.md`, `references.md`, `plan.md`, or task artifacts still carry the old conclusion.
 
 ## Downstream Propagation
 
@@ -259,6 +349,8 @@ The implementation leader or worker should not need to reconstruct the whole dis
 
 Completion evidence should prove the relevant obligations were honored or identify the user-approved change that revised them.
 
+`implement-tracker.md`, implementation result handoffs, task-packet results, and `implement-execution-state-template.json` should preserve the applied `MP-*` obligations for each execution batch when those obligations affect acceptance, references, forbidden drift, or conflict/reopen conditions.
+
 ## Tests And Verification
 
 Regression coverage should focus on contracts, not end-to-end natural-language perfection.
@@ -270,14 +362,19 @@ Template tests:
 - `discussion.md` forbids `handoff-ready` unless confirmed and critical items are represented in the ledger.
 - `specify.md` consumes discussion handoff ledgers before normal parsing.
 - `specify.md` requires coverage status before recommending `/sp.plan`.
-- `specify.md`, `plan.md`, and `tasks.md` all contain conflict-blocker language for `MP-*` items.
+- `specify.md`, `plan.md`, `tasks.md`, and `implement.md` all contain conflict-blocker language for `MP-*` items.
 
 Artifact validation tests:
 
 - `FEATURE_DIR/brainstorming/handoff-to-specify.json` accepts the new ledger shape.
-- every `must_preserve` item requires `id`, `type`, `claim`, `source`, `downstream_requirement`, `status`, and `mapped_to` once coverage is complete.
-- `coverage_status: complete` is invalid when any item is unmapped.
-- hard `blocking_question` items prevent compile readiness unless resolved.
+- every `must_preserve` item requires `id`, `type`, `claim`, `source`, `downstream_requirement`, `owner`, `latest_resolve_phase`, `status`, and `mapped_to` once coverage is complete.
+- `coverage_status: complete` is invalid when any active item is unmapped or any resolved, superseded, dropped, or deferred item lacks its required evidence fields.
+- `planning_gate_status: ready` is invalid when hard unknowns or open conflicts remain.
+- Markdown/JSON ledger mismatches block with `coverage_status: blocked_by_handoff_integrity`.
+- conflict records require `resolution`, `user_decision_source`, `superseded_by`, and `approved_risk_contract` when closed by revise, drop, or defer decisions.
+- hard `blocking_question` items prevent `planning_gate_status: ready` unless resolved, superseded, dropped by user approval, or deferred with an approved risk contract and stop-and-reopen condition.
+- task packet and task index artifacts preserve implementation-shaping `MP-*` IDs.
+- implement execution state and result handoffs preserve applied `MP-*` obligations and completion evidence.
 
 Integration tests:
 
@@ -324,10 +421,18 @@ Implementation should update the normal workflow change surface:
 - `templates/command-partials/discussion/shell.md`
 - `templates/commands/specify.md`
 - `templates/brainstorming-handoff-specify-template.json`
+- `templates/spec-template.md`
+- `templates/alignment-template.md`
+- `templates/context-template.md`
+- `templates/references-template.md`
 - `templates/commands/plan.md`
 - `templates/commands/tasks.md`
+- `templates/commands/implement.md`
 - `templates/plan-template.md`
+- `templates/plan-contract-template.json`
 - `templates/tasks-template.md`
+- task packet, task index, and result handoff templates or schemas used by `sp-tasks` and `sp-implement`
+- `templates/implement-execution-state-template.json`
 - `templates/project-handbook-template.md`
 - README and project handbook workflow guidance
 - artifact validation tests and integration template tests
