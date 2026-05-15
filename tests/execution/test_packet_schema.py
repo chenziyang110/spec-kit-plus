@@ -2,6 +2,7 @@ from specify_cli.execution.packet_schema import (
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
+    MustPreserveObligation,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -154,6 +155,60 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.platform_guardrails == ["supported_platforms: windows, linux"]
 
 
+def test_worker_task_packet_preserves_must_preserve_obligations() -> None:
+    packet = WorkerTaskPacket(
+        feature_id="001-feature",
+        task_id="T017",
+        story_id="US1",
+        objective="Implement auth flow",
+        intent=ExecutionIntent(
+            outcome="Implement auth flow without changing the public contract shape",
+            constraints=["Do not create a parallel auth stack"],
+            success_signals=["login/logout behavior implemented"],
+        ),
+        scope=PacketScope(
+            write_scope=["src/services/auth_service.py"],
+            read_scope=["src/contracts/auth.py"],
+        ),
+        context_bundle=[
+            ContextBundleItem(
+                path=".specify/project-cognition/status.json",
+                kind="project_cognition",
+                purpose="Project cognition freshness entrypoint",
+                required_for=["workflow_boundary"],
+                read_order=1,
+                must_read=True,
+                selection_reason="required runtime readiness source",
+            )
+        ],
+        required_references=[
+            PacketReference(path="src/contracts/auth.py", reason="preserve MP-002")
+        ],
+        hard_rules=["Every public function changed must have tests"],
+        forbidden_drift=["MP-002: Do not create a parallel auth stack"],
+        validation_gates=["pytest tests/unit/test_auth_service.py -q"],
+        done_criteria=["login/logout behavior implemented"],
+        handoff_requirements=["return changed files"],
+        must_preserve_obligations=[
+            MustPreserveObligation(
+                id="MP-002",
+                type="non_goal",
+                claim="Do not create a parallel auth stack.",
+                source="handoff-to-specify.json",
+                downstream_requirement="Keep auth implementation inside existing service boundary.",
+                mapped_to=["tasks.md#Task Guardrail Index"],
+                stop_and_reopen_condition="Implementation requires a parallel auth stack.",
+            )
+        ],
+    )
+
+    restored = worker_task_packet_from_json(json.dumps(worker_task_packet_payload(packet)))
+
+    assert restored.must_preserve_obligations[0].id == "MP-002"
+    assert restored.must_preserve_obligations[0].type == "non_goal"
+    assert restored.must_preserve_obligations[0].mapped_to == ["tasks.md#Task Guardrail Index"]
+
+
 def test_worker_task_packet_from_json_normalizes_legacy_project_map_context_kind() -> None:
     payload = {
         "feature_id": "001-feature",
@@ -221,6 +276,12 @@ def test_worker_task_result_round_trips_through_json() -> None:
             )
         ],
         summary="Implemented auth flow",
+        must_preserve_evidence=[
+            {
+                "mp_id": "MP-002",
+                "evidence": "No new auth stack files were added.",
+            }
+        ],
     )
 
     restored = worker_task_result_from_json(json.dumps(worker_task_result_payload(result)))
@@ -228,6 +289,12 @@ def test_worker_task_result_round_trips_through_json() -> None:
     assert restored.task_id == "T017"
     assert restored.summary == "Implemented auth flow"
     assert restored.validation_results[0].output == "1 passed"
+    assert restored.must_preserve_evidence == [
+        {
+            "mp_id": "MP-002",
+            "evidence": "No new auth stack files were added.",
+        }
+    ]
 
 
 def test_worker_task_result_round_trips_context_read_receipts() -> None:

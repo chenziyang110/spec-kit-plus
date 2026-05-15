@@ -1,9 +1,13 @@
+from pathlib import Path
+
 import pytest
 
+from specify_cli.execution.packet_compiler import compile_worker_task_packet
 from specify_cli.execution.packet_schema import (
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
+    MustPreserveObligation,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -138,3 +142,84 @@ def test_validate_worker_task_packet_rejects_missing_platform_guardrails(
         validate_worker_task_packet(sample_packet)
 
     assert exc.value.code == "DP2"
+
+
+def test_validate_worker_task_packet_rejects_malformed_must_preserve_obligation(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.must_preserve_obligations = [
+        MustPreserveObligation(
+            id="002",
+            type="decision",
+            claim="",
+            source="handoff-to-specify.json",
+            downstream_requirement="Preserve this decision.",
+        )
+    ]
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "must-preserve" in exc.value.message.lower()
+
+
+def test_compile_worker_task_packet_collects_must_preserve_obligations(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n',
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST preserve public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+                "",
+                "## Must-Preserve Carry-Forward",
+                "",
+                "- MP-002: Keep auth implementation inside existing service boundary",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- pytest tests/unit/test_auth_service.py -q",
+                "",
+                "## Task Guardrail Index",
+                "",
+                "- MP-003: Do not add a new auth provider abstraction",
+                "",
+                "- [ ] T017 [US1] Implement auth flow in src/services/auth_service.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T017",
+    )
+
+    assert [item.id for item in packet.must_preserve_obligations] == ["MP-002", "MP-003"]
+    assert packet.must_preserve_obligations[0].source == "plan.md"
+    assert packet.must_preserve_obligations[1].source == "tasks.md"
