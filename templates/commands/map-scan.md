@@ -32,6 +32,9 @@ Use `execution_surface: native-subagents`.
 
 - [AGENT] Run `{{specify-subcmd:learning start --command map-scan --format json}}` when available so passive learning files exist and repeated cognition-runtime scan blind spots can be promoted at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader scan context.
+- Passive learning files are workflow guidance, not scan evidence.
+- `.specify/**` must never enter the project cognition graph.
+- `.specify/memory/**` must not appear in repository-universe, coverage-ledger, evidence rows, provisional nodes, provisional edges, observations, path_index, alias_index, or graph claims.
 - Open only learning detail docs linked from map-scan-relevant index entries.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When scan friction exposes route changes, artifact rewrites, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `map-state.md` captures that durable context.
@@ -72,6 +75,8 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 - Do not publish final cognition truth from this command.
 - Do not treat raw inventory notes or raw chat summaries as accepted scan results.
 - Do not silently downgrade unknown or unclassified project-relevant surfaces.
+- `.specify/**` workflow/runtime state is excluded from default source/runtime scan targets; do not put `.specify/**` paths into project graph evidence.
+- Only read `.specify/**` for workflow operation, validation, migration, or when the requested scan is explicitly about generated workflow surfaces or spec-kit-plus itself; even then, classify it as workflow/reference support rather than source/runtime graph truth.
 - If the required scan lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 
 ## Project Cognition Workbench State Protocol

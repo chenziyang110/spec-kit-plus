@@ -68,9 +68,29 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "reference-only" in lowered
     assert "live surface" in lowered
     assert "must not become a scan target" in lowered
+    assert "`.specify/**` must never enter the project cognition graph" in content
+    assert "passive learning files are workflow guidance, not scan evidence" in lowered
+    assert (
+        "`.specify/memory/**` must not appear in repository-universe, coverage-ledger, evidence rows, "
+        "provisional nodes, provisional edges, observations, path_index, alias_index, or graph claims"
+    ) in content
+    assert "`.specify/**` workflow/runtime state is excluded from default source/runtime scan targets" in content
+    assert (
+        "only read `.specify/**` for workflow operation, validation, migration, or when the requested scan "
+        "is explicitly about generated workflow surfaces or spec-kit-plus itself"
+    ) in lowered
     assert "project-cognition validate-scan --format json" in content
     assert "validate-scan" in lowered
     assert "may report complete only after" in lowered
+
+
+def test_map_scan_shell_partial_keeps_specify_out_of_graph_inputs() -> None:
+    content = _read("templates/command-partials/map-scan/shell.md")
+    lowered = content.lower()
+
+    assert "passive learning files as read-only workflow guidance, not scan evidence" in lowered
+    assert "`.specify/**` is workflow/runtime state, not project graph evidence" in content
+    assert "must not become scan targets or graph paths" in lowered
 
 
 def test_map_scan_template_prefers_native_subagent_inventory_with_structured_handoffs() -> None:

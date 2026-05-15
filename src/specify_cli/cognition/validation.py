@@ -83,6 +83,50 @@ def _require_non_empty_list(payload: dict[str, Any], key: str, label: str, error
     return value
 
 
+def _is_specify_path(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip().replace("\\", "/")
+    return normalized == ".specify" or normalized.startswith(".specify/")
+
+
+def _collect_specify_paths(value: Any, *, parent_key: str = "") -> list[str]:
+    matches: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text.lower() in {
+                "path",
+                "paths",
+                "source_path",
+                "target_path",
+                "file",
+                "files",
+                "source",
+                "target",
+                "object_ref",
+                "subject_ref",
+            }:
+                matches.extend(_collect_specify_paths(item, parent_key=key_text))
+            elif isinstance(item, (dict, list)):
+                matches.extend(_collect_specify_paths(item, parent_key=key_text))
+    elif isinstance(value, list):
+        for item in value:
+            matches.extend(_collect_specify_paths(item, parent_key=parent_key))
+    elif _is_specify_path(value) and parent_key:
+        matches.append(str(value).strip().replace("\\", "/"))
+    return matches
+
+
+def _reject_specify_graph_paths(payload: dict[str, Any], label: str, errors: list[str]) -> None:
+    paths = sorted(set(_collect_specify_paths(payload)))
+    if paths:
+        errors.append(
+            f"{label} contains .specify/** paths: {', '.join(paths)}; "
+            ".specify/** must not enter project cognition graph evidence"
+        )
+
+
 def _directory_has_files(path: Path) -> bool:
     return path.exists() and path.is_dir() and any(child.is_file() for child in path.iterdir())
 
@@ -105,6 +149,8 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     checked_paths.append(_relative(root, evidence_path))
     if not _directory_has_files(evidence_path):
         errors.append(".specify/project-cognition/evidence/ must exist and contain at least one file")
+    else:
+        _reject_specify_evidence_file_paths(evidence_path, root, errors, checked_paths)
 
     for relative_path, key in (
         ("provisional/nodes.json", "nodes"),
@@ -116,6 +162,7 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
         checked_paths.append(_relative(root, path))
         payload = _read_json_object(path, label, errors)
         if payload:
+            _reject_specify_graph_paths(payload, label, errors)
             rows = _require_list(payload, key, label, errors)
             details[f"{key}_count"] = len(rows)
 
@@ -123,6 +170,7 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     checked_paths.append(_relative(root, coverage_path))
     coverage = _read_json_object(coverage_path, ".specify/project-cognition/coverage.json", errors)
     if coverage:
+        _reject_specify_graph_paths(coverage, ".specify/project-cognition/coverage.json", errors)
         rows = _require_non_empty_list(coverage, "rows", ".specify/project-cognition/coverage.json", errors)
         details["coverage_rows"] = len(rows)
 
@@ -130,6 +178,7 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     checked_paths.append(_relative(root, ledger_path))
     ledger = _read_json_object(ledger_path, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
     if ledger:
+        _reject_specify_graph_paths(ledger, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
         rows = _require_non_empty_list(
             ledger,
             "rows",
@@ -152,6 +201,22 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
         checked_paths=checked_paths,
         details=details,
     )
+
+
+def _reject_specify_evidence_file_paths(
+    evidence_path: Path,
+    root: Path,
+    errors: list[str],
+    checked_paths: list[str],
+) -> None:
+    for evidence_file in sorted(path for path in evidence_path.rglob("*") if path.is_file()):
+        checked_paths.append(_relative(root, evidence_file))
+        try:
+            payload = json.loads(evidence_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            _reject_specify_graph_paths(payload, _relative(root, evidence_file), errors)
 
 
 def _check_unresolved_scan_gaps(
@@ -264,6 +329,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
                     errors,
                     details,
                 )
+                _validate_no_specify_graph_store_paths(conn, active_generation_id, errors, details)
             if active_generation_id and not errors:
                 _validate_readonly_smoke_query(conn, active_generation_id, minimal_baseline, errors, details)
     except sqlite3.Error as exc:
@@ -368,6 +434,45 @@ def _validate_generation_content(
             warnings.append("active generation has no claims because status.json declares a minimal baseline")
         else:
             errors.append("active generation must contain at least one claim or an explicit minimal-baseline marker")
+
+
+def _validate_no_specify_graph_store_paths(
+    conn: sqlite3.Connection,
+    generation_id: str,
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    checks = (
+        ("evidence", "source_path"),
+        ("path_index", "path"),
+        ("symbol_index", "path"),
+        ("entrypoint_index", "path"),
+        ("test_index", "test_path"),
+        ("claims", "subject_ref"),
+        ("claims", "object_ref"),
+        ("claims", "object_value"),
+    )
+    offenders: list[str] = []
+    for table, column in checks:
+        try:
+            rows = conn.execute(
+                f"SELECT {column} AS value FROM {table} WHERE generation_id = ? AND "
+                f"({column} = '.specify' OR {column} LIKE '.specify/%') "
+                f"ORDER BY {column} LIMIT 5",
+                (generation_id,),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            errors.append(f"{table}.{column} could not be checked for .specify/** paths: {exc}")
+            continue
+        for row in rows:
+            offenders.append(f"{table}.{column}={row['value']}")
+
+    details["specify_graph_store_path_offenders"] = offenders
+    if offenders:
+        errors.append(
+            ".specify/** must not enter project cognition graph store; offending rows: "
+            + ", ".join(offenders[:10])
+        )
 
 
 def _validate_readonly_smoke_query(

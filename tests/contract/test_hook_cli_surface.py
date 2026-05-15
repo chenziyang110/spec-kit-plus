@@ -1175,6 +1175,46 @@ def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_ex
     assert payload["status"] == "ok"
 
 
+def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_graph_evidence(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "coverage.json").write_text(
+        '{"rows": [{"path": ".specify/memory/project-rules.md", "criticality": "critical"}]}\n',
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(".specify/** must not enter project cognition graph evidence" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_evidence_files(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "evidence" / "E-specify.json").write_text(
+        '{"id": "E-specify", "source_path": ".specify/memory/project-rules.md"}\n',
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(".specify/** must not enter project cognition graph evidence" in message for message in payload["errors"])
+
+
 def test_hook_validate_artifacts_blocks_map_scan_on_malformed_graph_shapes(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
@@ -1276,6 +1316,36 @@ def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_rea
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
     assert any("project-cognition.db" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_specify_paths_enter_graph_store(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+
+    with connect_cognition_db(project) as conn:
+        generation_id = conn.execute("SELECT id FROM generations WHERE state = 'active'").fetchone()["id"]
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-specify', ?, 'file', '.specify/memory/project-rules.md', 'abc123', '1-10', 'test', 'hash-specify', '2026-05-14T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-specify', ?, '.specify/memory/project-rules.md', 'capability:auth.login', 'documents', 'strong', 'E-specify', '2026-05-14T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(".specify/** must not enter project cognition graph store" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_empty(tmp_path: Path):
