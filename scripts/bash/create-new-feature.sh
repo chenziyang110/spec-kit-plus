@@ -331,6 +331,12 @@ BRAINSTORMING_FACTS_FILE="$FEATURE_DIR/brainstorming/facts.json"
 BRAINSTORMING_ROUTE_FILE="$FEATURE_DIR/brainstorming/route.json"
 BRAINSTORMING_INTENT_FILE="$FEATURE_DIR/brainstorming/intent.json"
 BRAINSTORMING_COMPLEXITY_FILE="$FEATURE_DIR/brainstorming/complexity.json"
+BRAINSTORMING_JOURNAL_FILE="$FEATURE_DIR/brainstorming/journal.ndjson"
+BRAINSTORMING_STAGE_MANIFEST_FILE="$FEATURE_DIR/brainstorming/stage-manifest.json"
+BRAINSTORMING_DOMAINS_FILE="$FEATURE_DIR/brainstorming/domains.json"
+BRAINSTORMING_EVIDENCE_INDEX_FILE="$FEATURE_DIR/brainstorming/evidence-index.json"
+BRAINSTORMING_EVIDENCE_DIR="$FEATURE_DIR/brainstorming/evidence"
+BRAINSTORMING_EVIDENCE_RECORD_TEMPLATE_FILE="$FEATURE_DIR/brainstorming/evidence/EVD-000-template.json"
 HANDOFF_TO_SPECIFY_FILE="$FEATURE_DIR/brainstorming/handoff-to-specify.json"
 LANE_ID="$BRANCH_NAME"
 LANE_WORKTREE="$REPO_ROOT/.specify/lanes/worktrees/$LANE_ID"
@@ -372,7 +378,7 @@ if [ "$DRY_RUN" != true ]; then
         >&2 echo "[specify] Warning: Git repository not detected; skipped branch creation for $BRANCH_NAME"
     fi
 
-    mkdir -p "$FEATURE_DIR" "$BRAINSTORMING_DIR"
+    mkdir -p "$FEATURE_DIR" "$BRAINSTORMING_DIR" "$BRAINSTORMING_EVIDENCE_DIR"
 
     if [ ! -f "$SPEC_FILE" ]; then
         TEMPLATE=$(resolve_template "spec-template" "$REPO_ROOT") || true
@@ -422,6 +428,13 @@ if [ "$DRY_RUN" != true ]; then
     scaffold_template_file "brainstorming-intent-template" "$BRAINSTORMING_INTENT_FILE"
     scaffold_template_file "brainstorming-complexity-template" "$BRAINSTORMING_COMPLEXITY_FILE"
     scaffold_template_file "brainstorming-handoff-specify-template" "$HANDOFF_TO_SPECIFY_FILE"
+    scaffold_template_file "brainstorming-stage-manifest-template" "$BRAINSTORMING_STAGE_MANIFEST_FILE"
+    scaffold_template_file "brainstorming-domains-template" "$BRAINSTORMING_DOMAINS_FILE"
+    scaffold_template_file "brainstorming-evidence-index-template" "$BRAINSTORMING_EVIDENCE_INDEX_FILE"
+    scaffold_template_file "brainstorming-evidence-record-template" "$BRAINSTORMING_EVIDENCE_RECORD_TEMPLATE_FILE"
+    if [ ! -f "$BRAINSTORMING_JOURNAL_FILE" ]; then
+        : > "$BRAINSTORMING_JOURNAL_FILE"
+    fi
 
     # Inform the user how to persist the feature variable in their own shell
     printf '# To persist: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME" >&2

@@ -296,6 +296,12 @@ $brainstormingFactsFile = Join-Path $featureDir 'brainstorming/facts.json'
 $brainstormingRouteFile = Join-Path $featureDir 'brainstorming/route.json'
 $brainstormingIntentFile = Join-Path $featureDir 'brainstorming/intent.json'
 $brainstormingComplexityFile = Join-Path $featureDir 'brainstorming/complexity.json'
+$BRAINSTORMING_JOURNAL_FILE = Join-Path $brainstormingDir 'journal.ndjson'
+$BRAINSTORMING_STAGE_MANIFEST_FILE = Join-Path $brainstormingDir 'stage-manifest.json'
+$BRAINSTORMING_DOMAINS_FILE = Join-Path $brainstormingDir 'domains.json'
+$BRAINSTORMING_EVIDENCE_INDEX_FILE = Join-Path $brainstormingDir 'evidence-index.json'
+$BRAINSTORMING_EVIDENCE_DIR = Join-Path $brainstormingDir 'evidence'
+$BRAINSTORMING_EVIDENCE_RECORD_TEMPLATE_FILE = Join-Path $BRAINSTORMING_EVIDENCE_DIR 'EVD-000-template.json'
 $handoffToSpecifyFile = Join-Path $featureDir 'brainstorming/handoff-to-specify.json'
 $laneId = $branchName
 $laneWorktree = Join-Path $repoRoot ".specify/lanes/worktrees/$laneId"
@@ -353,6 +359,7 @@ if (-not $DryRun) {
 
     New-Item -ItemType Directory -Path $featureDir -Force | Out-Null
     New-Item -ItemType Directory -Path $brainstormingDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $BRAINSTORMING_EVIDENCE_DIR -Force | Out-Null
 
     if (-not (Test-Path -PathType Leaf $specFile)) {
         $template = Resolve-Template -TemplateName 'spec-template' -RepoRoot $repoRoot
@@ -405,8 +412,16 @@ if (-not $DryRun) {
         @{ Template = 'brainstorming-intent-template'; Destination = $brainstormingIntentFile }
         @{ Template = 'brainstorming-complexity-template'; Destination = $brainstormingComplexityFile }
         @{ Template = 'brainstorming-handoff-specify-template'; Destination = $handoffToSpecifyFile }
+        @{ Template = 'brainstorming-stage-manifest-template'; Destination = $BRAINSTORMING_STAGE_MANIFEST_FILE }
+        @{ Template = 'brainstorming-domains-template'; Destination = $BRAINSTORMING_DOMAINS_FILE }
+        @{ Template = 'brainstorming-evidence-index-template'; Destination = $BRAINSTORMING_EVIDENCE_INDEX_FILE }
+        @{ Template = 'brainstorming-evidence-record-template'; Destination = $BRAINSTORMING_EVIDENCE_RECORD_TEMPLATE_FILE }
     ) | ForEach-Object {
         Copy-OrCreateTemplateFile -TemplateName $_.Template -Destination $_.Destination
+    }
+
+    if (-not (Test-Path -PathType Leaf $BRAINSTORMING_JOURNAL_FILE)) {
+        New-Item -ItemType File -Path $BRAINSTORMING_JOURNAL_FILE -Force | Out-Null
     }
 
     # Set the SPECIFY_FEATURE environment variable for the current session
