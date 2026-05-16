@@ -2611,6 +2611,43 @@ def test_feature_scaffolding_and_packaging_include_brainstorming_truth_templates
     assert "handoff-to-specify.json" in ps_create
 
 
+def test_lossless_specify_state_templates_are_packaged_and_scaffolded() -> None:
+    pyproject = _read("pyproject.toml")
+    sh_create = _read("scripts/bash/create-new-feature.sh")
+    ps_create = _read("scripts/powershell/create-new-feature.ps1")
+    sh_common = _read("scripts/bash/common.sh")
+    ps_common = _read("scripts/powershell/common.ps1")
+
+    for path in (
+        "templates/brainstorming-stage-manifest-template.json",
+        "templates/brainstorming-domains-template.json",
+        "templates/brainstorming-evidence-index-template.json",
+        "templates/brainstorming-evidence-record-template.json",
+    ):
+        assert path in pyproject
+
+    for token in (
+        "BRAINSTORMING_JOURNAL",
+        "BRAINSTORMING_STAGE_MANIFEST",
+        "BRAINSTORMING_DOMAINS",
+        "BRAINSTORMING_EVIDENCE_INDEX",
+        "BRAINSTORMING_EVIDENCE_DIR",
+    ):
+        assert token in sh_common
+        assert token in ps_common
+        assert token in sh_create
+        assert token in ps_create
+
+    assert "brainstorming-stage-manifest-template" in sh_create
+    assert "brainstorming-domains-template" in sh_create
+    assert "brainstorming-evidence-index-template" in sh_create
+    assert "brainstorming-evidence-record-template" in sh_create
+    assert "brainstorming-stage-manifest-template" in ps_create
+    assert "brainstorming-domains-template" in ps_create
+    assert "brainstorming-evidence-index-template" in ps_create
+    assert "brainstorming-evidence-record-template" in ps_create
+
+
 def test_brainstorming_handoff_template_supports_discussion_candidate_metadata() -> None:
     template = json.loads(_read("templates/brainstorming-handoff-specify-template.json"))
 

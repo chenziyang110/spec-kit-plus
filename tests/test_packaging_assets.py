@@ -66,6 +66,17 @@ def test_wheel_force_include_bundles_workflow_state_template() -> None:
     ) in pyproject
 
 
+def test_lossless_specify_state_templates_are_force_included() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    for template in (
+        "templates/brainstorming-stage-manifest-template.json",
+        "templates/brainstorming-domains-template.json",
+        "templates/brainstorming-evidence-index-template.json",
+        "templates/brainstorming-evidence-record-template.json",
+    ):
+        assert f'"{template}" = ' in pyproject
+
+
 def test_wheel_force_include_bundles_internal_codex_team_runtime_assets() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 

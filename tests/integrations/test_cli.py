@@ -885,6 +885,10 @@ def test_init_installs_brainstorming_truth_templates(tmp_path):
     assert (templates_dir / "brainstorming-intent-template.json").exists()
     assert (templates_dir / "brainstorming-complexity-template.json").exists()
     assert (templates_dir / "brainstorming-handoff-specify-template.json").exists()
+    assert (templates_dir / "brainstorming-stage-manifest-template.json").exists()
+    assert (templates_dir / "brainstorming-domains-template.json").exists()
+    assert (templates_dir / "brainstorming-evidence-index-template.json").exists()
+    assert (templates_dir / "brainstorming-evidence-record-template.json").exists()
 
 
 def test_check_reports_workflow_contract_drift(tmp_path):
