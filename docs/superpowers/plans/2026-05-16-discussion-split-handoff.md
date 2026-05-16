@@ -274,9 +274,10 @@ Run:
 
 ```powershell
 pytest tests/integrations/test_integration_base_markdown.py tests/integrations/test_integration_base_toml.py tests/integrations/test_integration_base_skills.py -q
+pytest tests/integrations/test_integration_codebuddy.py::TestCodebuddyIntegration::test_discussion_command_preserves_pre_specification_contract tests/integrations/test_integration_tabnine.py::TestTabnineIntegration::test_discussion_command_preserves_pre_specification_contract tests/integrations/test_integration_codex.py::TestCodexIntegration::test_discussion_skill_preserves_pre_specification_contract -q
 ```
 
-Expected: FAIL because generated discussion commands do not yet mention assessment, split plans, candidate handoffs, and JSON companions.
+Expected: the base mixin files may collect little or no concrete coverage by themselves; the concrete CodeBuddy, Tabnine, and Codex checks must FAIL because generated discussion commands do not yet mention assessment, split plans, candidate handoffs, and JSON companions.
 
 - [ ] **Step 5: Commit red tests**
 
