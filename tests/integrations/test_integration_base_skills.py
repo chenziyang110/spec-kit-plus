@@ -89,8 +89,10 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "discussion-state.md" in skill_content
     assert "handoff-assessment.md" in skill_content
     assert "split-plan.md" in skill_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in skill_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in skill_content
     assert "handoffs/CAND-001-handoff-to-specify.md" in skill_content
-    assert "handoffs/CAND-001-handoff-to-specify.json" in skill_content
+    assert "handoffs/CAND-002-handoff-to-specify.md" in skill_content
     assert "`handoff-to-specify.md`" in skill_content
     assert "`handoff-to-specify.json`" in skill_content
     assert (

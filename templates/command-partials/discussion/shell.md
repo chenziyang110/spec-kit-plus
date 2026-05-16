@@ -17,7 +17,7 @@ Drive a resumable product and technical discussion that matures a rough idea int
 - Preserve key decisions in `discussion-log.md`.
 - Keep `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` current.
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.
-- If assessment returns `split-required`, maintain `split-plan.md` as the candidate backlog and generate `handoffs/CAND-001-handoff-to-specify.md` and `handoffs/CAND-001-handoff-to-specify.json` only after the user selects a candidate.
+- If assessment returns `split-required`, maintain `split-plan.md` as the candidate backlog and generate `handoffs/<candidate_id>-handoff-to-specify.md` and `handoffs/<candidate_id>-handoff-to-specify.json` only after the user selects a stable candidate ID such as `CAND-001` or `CAND-002`.
 - Refresh latest selected candidate copy files `handoff-to-specify.md` and `handoff-to-specify.json` together for compatibility.
 
 ## Output Contract

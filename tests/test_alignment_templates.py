@@ -380,8 +380,11 @@ def test_discussion_command_supports_handoff_assessment_and_split_backlog() -> N
 
     assert "handoff-assessment.md" in content
     assert "split-plan.md" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.{md,json}" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
     assert "handoffs/CAND-001-handoff-to-specify.md" in content
-    assert "handoffs/CAND-001-handoff-to-specify.json" in content
+    assert "handoffs/CAND-002-handoff-to-specify.md" in content
     assert "`handoff-to-specify.json`" in content
     assert "ready-for-specify" in content
     assert "split-required" in content
@@ -400,7 +403,9 @@ def test_discussion_shell_partial_mentions_split_outputs_without_single_handoff_
 
     assert "handoff-assessment.md" in content
     assert "split-plan.md" in content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
+    assert "CAND-002" in content
     assert "`handoff-to-specify.md`" in content
     assert "`handoff-to-specify.json`" in content
     assert "candidate backlog" in lowered
@@ -462,8 +467,10 @@ def test_specify_consumes_explicit_discussion_handoff_without_bypassing_kernel()
     lowered = content.lower()
 
     assert ".specify/discussions/<slug>/handoff-to-specify.md" in content
-    assert ".specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md" in content
-    assert "CAND-001-handoff-to-specify.json" in content
+    assert ".specify/discussions/<slug>/handoffs/<candidate_id>-handoff-to-specify.md" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
+    assert "CAND-001" in content
+    assert "CAND-002" in content
     assert "candidate_id" in content
     assert "candidate_title" in content
     assert "source_split_plan" in content

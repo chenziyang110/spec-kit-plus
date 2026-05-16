@@ -3,7 +3,7 @@ description: Use when a rough idea or requirement needs a resumable senior produ
 workflow_contract:
   when_to_use: A rough idea or requirement needs product/technical discussion before it is ready for sp-specify.
   primary_objective: Build a durable discussion package that matures the idea into requirements and technical implementation options.
-  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, `split-plan.md` and `handoffs/CAND-001-handoff-to-specify.{md,json}` when splitting is required, plus latest-copy `handoff-to-specify.{md,json}` only after a bounded handoff or bounded candidate handoff is selected.'
+  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, `split-plan.md` and `handoffs/<candidate_id>-handoff-to-specify.{md,json}` for the selected stable candidate ID when splitting is required, plus latest-copy `handoff-to-specify.{md,json}` only after a bounded handoff or bounded candidate handoff is selected.'
   default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run handoff assessment and either write a bounded latest-copy handoff-to-specify.{md,json}, enter split mode, or continue discussion.
 ---
 
@@ -43,7 +43,7 @@ Required files:
 - `open-questions.md`
 - `handoff-assessment.md` only after explicit user request to hand off or continue to the next stage
 - `split-plan.md` only when handoff assessment returns `split-required`
-- `handoffs/CAND-001-handoff-to-specify.md` and `handoffs/CAND-001-handoff-to-specify.json` when a split candidate is selected
+- `handoffs/<candidate_id>-handoff-to-specify.md` and `handoffs/<candidate_id>-handoff-to-specify.json` when a split candidate is selected, using the selected stable ID such as `CAND-001` or `CAND-002`
 - latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` only after a bounded handoff or bounded candidate handoff is selected
 
 Use `templates/discussion-state-template.md` when initializing `discussion-state.md`.
@@ -141,7 +141,7 @@ When assessment returns `split-required`, write or refresh `split-plan.md`. The 
 
 Each candidate must have:
 
-- stable ID such as `CAND-001`
+- stable ID such as `CAND-001` or `CAND-002`
 - title
 - status: `not-started | handoff-ready | handed-off | in-progress | completed | deferred | blocked`
 - goal
@@ -167,10 +167,12 @@ Handoff is explicit-user-request only and follows handoff assessment.
 
 For `ready-for-specify`, write latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` with one bounded feature scope.
 
-For `split-required`, first write `split-plan.md`. After the user selects one candidate, write canonical candidate handoffs:
+For `split-required`, first write `split-plan.md`. After the user selects one candidate, write canonical candidate handoffs using the selected stable candidate ID from `split-plan.md`:
 
-- `handoffs/CAND-001-handoff-to-specify.md`
-- `handoffs/CAND-001-handoff-to-specify.json`
+- `handoffs/<candidate_id>-handoff-to-specify.md`
+- `handoffs/<candidate_id>-handoff-to-specify.json`
+
+For example, the first selected candidate might write `handoffs/CAND-001-handoff-to-specify.md` and `.json`; a later selected second-stage candidate writes `handoffs/CAND-002-handoff-to-specify.md` and `.json`.
 
 Then refresh latest selected candidate latest-copy compatibility files in the same operation:
 

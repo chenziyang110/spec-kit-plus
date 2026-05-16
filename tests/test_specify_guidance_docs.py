@@ -145,6 +145,25 @@ def test_guidance_docs_explain_discussion_split_continuation() -> None:
         assert "handoff-to-specify.json" in content
 
 
+def test_quickstart_and_installation_explain_discussion_candidate_handoffs() -> None:
+    quickstart = _read("docs/quickstart.md")
+    installation = _read("docs/installation.md")
+
+    for content in (quickstart, installation):
+        lowered = content.lower()
+        normalized = re.sub(r"\s+", " ", lowered)
+        assert "handoff-assessment.md" in content
+        assert "split-plan.md" in content
+        assert "candidate backlog" in lowered
+        assert "no separate split workflow" in normalized
+        assert "selected stable id" in lowered or "selected candidates" in lowered
+        assert "handoffs/CAND-001-handoff-to-specify" in content
+        assert "handoffs/CAND-002-handoff-to-specify" in content
+        assert "handoff-to-specify.md" in content
+        assert "handoff-to-specify.json" in content
+        assert "mirror" in lowered or "mirrors" in lowered
+
+
 def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
