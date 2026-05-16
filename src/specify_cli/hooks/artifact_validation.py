@@ -725,7 +725,7 @@ def _triggered_task_consequence_sources(feature_dir: Path) -> tuple[tuple[tuple[
         if read_errors:
             errors.extend(read_errors)
             continue
-        if not _json_gate_is_triggered(payload) or not _consequence_obligation_ids(payload):
+        if not _json_gate_is_triggered(payload):
             continue
         sources.append((payload, label))
     return tuple(sources), errors
@@ -740,6 +740,9 @@ def _validate_tasks_consequence_contract(feature_dir: Path) -> list[str]:
     for payload, label in sources:
         errors.extend(_validate_consequence_json_payload(payload, label))
         required_ids.update(_consequence_obligation_ids(payload))
+    if not required_ids:
+        return errors
+
     task_index_path = feature_dir / "task-index.json"
     if not task_index_path.exists():
         errors.append("task-index.json is required when upstream artifacts carry triggered consequence obligations")

@@ -1441,6 +1441,47 @@ def test_validate_artifacts_blocks_tasks_when_consequence_obligation_is_unmapped
     assert any("consequence" in message.lower() and "task-index.json" in message for message in result.errors)
 
 
+def test_validate_artifacts_blocks_tasks_when_triggered_handoff_has_no_consequence_details(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "tasks.md").write_text("- [ ] T001 Implement close team in src/team.py\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "handoff-to-tasks.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "consequence_gate": {
+                    "triggered": True,
+                    "trigger_reason": "running worker semantics must survive tasking",
+                    "status": "ready",
+                    "stand_down_reason": None,
+                },
+                "consequence_analysis": {
+                    "affected_object_map": [],
+                    "state_behavior_matrix": [],
+                    "dependency_impact": [],
+                    "recovery_and_validation": [],
+                    "coverage_gaps": [],
+                },
+                "consequence_obligations": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "tasks", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("affected_object_map" in message for message in result.errors)
+    assert any("consequence_obligations" in message for message in result.errors)
+
+
 def test_validate_artifacts_blocks_tasks_when_plan_contract_obligation_is_unmapped(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
