@@ -68,6 +68,10 @@ Use the returned readiness:
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-specify`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Write project-cognition ownership, affected surfaces,
+  reusable assets, verification routes, and known unknowns into `context.md`
+  and the brainstorming handoff where they materially shape the downstream
+  plan. Do not leave these facts only in the transient query output.
 
 ## Workflow Phase Lock
 
@@ -131,15 +135,39 @@ Use the returned readiness:
 
 ## Discussion Handoff Intake
 
-If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
+If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, `.specify/discussions/<slug>/handoffs/<candidate_id>-handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request. Selected candidate IDs are stable split-plan IDs such as `CAND-001` or `CAND-002`; do not assume only the first candidate can be handed off.
 
 - Treat the discussion handoff as an authoritative input to the brainstorming kernel, not a bypass around it.
+- When the supplied path is Markdown, look for the same-stem JSON companion first. For a candidate handoff, read `handoffs/<candidate_id>-handoff-to-specify.json` with the same selected candidate ID and filename stem, for example `handoffs/CAND-002-handoff-to-specify.json`. For the legacy latest handoff, read `handoff-to-specify.json` and treat both files as latest selected candidate copies.
+- If candidate Markdown and candidate JSON disagree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, or any Must-Preserve Ledger item `id`, `type`, `claim`, `blocking_level`, `owner`, `latest_resolve_phase`, or `status`, treat it as a Markdown/JSON mismatch, block with a handoff integrity error, set `coverage_status: blocked_by_handoff_integrity`, and tell the user to refresh the `sp-discussion` handoff.
+- If legacy latest Markdown and legacy latest JSON disagree on the selected `candidate_id`, block rather than choosing one representation.
+- If candidate Markdown exists but candidate JSON is missing, reconstruct the active feature copy into `brainstorming/handoff-to-specify.json`, record the reconstruction source, and report a handoff repair advisory.
+- If JSON exists but Markdown is missing, reject the handoff because the user-reviewable source is absent.
 - Record `entry_source: sp-discussion` and the handoff path or pasted discussion handoff marker in the generated feature artifacts.
-- Preserve confirmed requirements, confirmed non-goals, settled decisions, and selected technical direction in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing `sp-specify` artifact responsibilities.
-- Convert open questions from the handoff into explicit unknowns with `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, and `status`.
-- Cite the discussion handoff and relevant `project-context.md` evidence in `references.md` or `context.md`.
+- Copy the Must-Preserve Ledger into `FEATURE_DIR/brainstorming/handoff-to-specify.json`.
+- When `candidate_id` is present, record `discussion_slug`, `candidate_id`, `candidate_title`, `source_split_plan`, `source_handoff`, `source_handoff_json`, `prior_candidates`, `deferred_candidates`, `stage_scope_boundary`, and `reopen_condition` in `brainstorming/handoff-to-specify.json`; cite the handoff path or pasted marker in `context.md`, `references.md`, or `workflow-state.md` according to artifact responsibility.
+- The current feature spec covers one candidate. Sibling candidates named in `split-plan.md` are out of scope unless the user returns to `sp-discussion` and selects a new candidate handoff.
+- If the user asks inside `sp-specify` to include a sibling candidate, run the decomposition gate. Continue only for internal capability decomposition within the selected candidate. If the request crosses the candidate boundary, stop and tell the user to return to `sp-discussion` to update or select the candidate.
+- Preserve confirmed requirements, confirmed non-goals, settled decisions, selected technical direction, critical references, trade-off rationale, candidate boundaries, prior dependencies, and deferred sibling candidates in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing `sp-specify` artifact responsibilities.
+- Convert open questions from the handoff into explicit unknowns with `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, `status`, and a user-visible reopen reason when the unknown can reopen upstream discussion truth.
+- Cite the discussion handoff, candidate JSON companion when present, `source_split_plan`, and relevant `project-context.md` evidence in `references.md` or `context.md`.
 - Do not re-ask settled discussion questions unless repository evidence, constitution rules, or user correction contradicts the handoff.
+- If a settled discussion conclusion conflicts with repository evidence, constitution rules, project rules, project cognition evidence, or architecture constraints, block and ask the user to choose keep, revise, drop, or defer with an explicit risk contract. Do not silently reinterpret the ledger item.
 - If a settled discussion conclusion is reopened, record the reopen reason before changing the derived spec package.
+- Do not directly update `split-plan.md` from `sp-specify`; `sp-discussion` owns discussion backlog state.
+
+## Discussion Fidelity Coverage Gate
+
+When `entry_source` is `sp-discussion`, coverage and planning readiness are separate.
+
+- `coverage_status`: `not_started | incomplete | complete | blocked_by_handoff_integrity`
+- `planning_gate_status`: `ready | blocked_by_hard_unknowns | blocked_by_conflict | blocked_by_incomplete_coverage | blocked_by_handoff_integrity`
+
+Before recommending `/sp.plan`, write `hard_unknown_count` and `open_conflict_count` to `brainstorming/handoff-to-specify.json`.
+
+Coverage can be complete only when every active `MP-*` item is mapped to at least one artifact, and every resolved, superseded, dropped, or deferred item carries the required evidence fields.
+
+Planning can be ready only when coverage is complete, no hard unknowns remain open, and no conflicts remain open.
 
 ## Outline
 

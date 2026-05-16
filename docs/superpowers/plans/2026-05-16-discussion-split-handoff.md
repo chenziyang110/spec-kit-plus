@@ -55,9 +55,11 @@ def test_discussion_command_supports_handoff_assessment_and_split_backlog() -> N
 
     assert "handoff-assessment.md" in content
     assert "split-plan.md" in content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in content
-    assert "handoffs/CAND-001-handoff-to-specify.json" in content
-    assert "handoff-to-specify.json" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
+    assert "CAND-001" in content
+    assert "CAND-002" in content
+    assert "`handoff-to-specify.json`" in content
     assert "ready-for-specify" in content
     assert "split-required" in content
     assert "continue-discussion" in content
@@ -80,12 +82,14 @@ def test_discussion_shell_partial_mentions_split_outputs_without_single_handoff_
 
     assert "handoff-assessment.md" in content
     assert "split-plan.md" in content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in content
-    assert "handoff-to-specify.md" in content
-    assert "handoff-to-specify.json" in content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
+    assert "CAND-001" in content
+    assert "CAND-002" in content
+    assert "`handoff-to-specify.md`" in content
+    assert "`handoff-to-specify.json`" in content
     assert "candidate backlog" in lowered
     assert "latest selected candidate copy" in lowered
-    assert "only handoff output" not in lowered
+    assert "not the only handoff output" in lowered
 ```
 
 - [ ] **Step 3: Add failing tests for discussion state split fields**
@@ -111,8 +115,10 @@ Extend `test_discussion_state_template_is_independent_from_feature_workflow_stat
 Extend `test_specify_consumes_explicit_discussion_handoff_without_bypassing_kernel` with these assertions:
 
 ```python
-    assert ".specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md" in content
-    assert "CAND-001-handoff-to-specify.json" in content
+    assert ".specify/discussions/<slug>/handoffs/<candidate_id>-handoff-to-specify.md" in content
+    assert "<candidate_id>-handoff-to-specify.json" in content
+    assert "CAND-001" in content
+    assert "CAND-002" in content
     assert "candidate_id" in content
     assert "candidate_title" in content
     assert "source_split_plan" in content
@@ -197,10 +203,12 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "discussion-state.md" in command_content
     assert "handoff-assessment.md" in command_content
     assert "split-plan.md" in command_content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in command_content
-    assert "handoffs/CAND-001-handoff-to-specify.json" in command_content
-    assert "handoff-to-specify.md" in command_content
-    assert "handoff-to-specify.json" in command_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in command_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in command_content
+    assert "CAND-001" in command_content
+    assert "CAND-002" in command_content
+    assert "`handoff-to-specify.md`" in command_content
+    assert "`handoff-to-specify.json`" in command_content
     assert (
         "explicit user" in command_lower
         or "user explicitly" in command_lower
@@ -225,10 +233,12 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "discussion-state.md" in command_content
     assert "handoff-assessment.md" in command_content
     assert "split-plan.md" in command_content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in command_content
-    assert "handoffs/CAND-001-handoff-to-specify.json" in command_content
-    assert "handoff-to-specify.md" in command_content
-    assert "handoff-to-specify.json" in command_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in command_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in command_content
+    assert "CAND-001" in command_content
+    assert "CAND-002" in command_content
+    assert "`handoff-to-specify.md`" in command_content
+    assert "`handoff-to-specify.json`" in command_content
     assert (
         "explicit user" in command_lower
         or "user explicitly" in command_lower
@@ -253,10 +263,12 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "discussion-state.md" in skill_content
     assert "handoff-assessment.md" in skill_content
     assert "split-plan.md" in skill_content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in skill_content
-    assert "handoffs/CAND-001-handoff-to-specify.json" in skill_content
-    assert "handoff-to-specify.md" in skill_content
-    assert "handoff-to-specify.json" in skill_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in skill_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in skill_content
+    assert "CAND-001" in skill_content
+    assert "CAND-002" in skill_content
+    assert "`handoff-to-specify.md`" in skill_content
+    assert "`handoff-to-specify.json`" in skill_content
     assert (
         "explicit user" in skill_lower
         or "user explicitly" in skill_lower
@@ -274,9 +286,10 @@ Run:
 
 ```powershell
 pytest tests/integrations/test_integration_base_markdown.py tests/integrations/test_integration_base_toml.py tests/integrations/test_integration_base_skills.py -q
+pytest tests/integrations/test_integration_codebuddy.py::TestCodebuddyIntegration::test_discussion_command_preserves_pre_specification_contract tests/integrations/test_integration_tabnine.py::TestTabnineIntegration::test_discussion_command_preserves_pre_specification_contract tests/integrations/test_integration_codex.py::TestCodexIntegration::test_discussion_skill_preserves_pre_specification_contract -q
 ```
 
-Expected: FAIL because generated discussion commands do not yet mention assessment, split plans, candidate handoffs, and JSON companions.
+Expected: the base mixin files may collect little or no concrete coverage by themselves; the concrete CodeBuddy, Tabnine, and Codex checks must FAIL because generated discussion commands do not yet mention assessment, split plans, candidate handoffs, and JSON companions.
 
 - [ ] **Step 5: Commit red tests**
 
@@ -300,7 +313,7 @@ git commit -m "test: cover generated discussion split handoff contracts"
 In `templates/commands/discussion.md`, replace `primary_outputs` and `default_handoff` with:
 
 ```yaml
-  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, `split-plan.md` and `handoffs/CAND-001-handoff-to-specify.{md,json}` when splitting is required, plus latest-copy `handoff-to-specify.{md,json}` only after a bounded candidate is selected.'
+  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, `split-plan.md` and `handoffs/<candidate_id>-handoff-to-specify.{md,json}` when splitting is required, with `CAND-001` and `CAND-002` as example IDs, plus latest-copy `handoff-to-specify.{md,json}` only after a bounded candidate is selected.'
   default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run handoff assessment and either write a bounded latest-copy handoff-to-specify.{md,json}, enter split mode, or continue discussion.
 ```
 
@@ -327,7 +340,7 @@ Required files:
 - `open-questions.md`
 - `handoff-assessment.md` only after explicit user request to hand off or continue to the next stage
 - `split-plan.md` only when handoff assessment returns `split-required`
-- `handoffs/CAND-001-handoff-to-specify.md` and `handoffs/CAND-001-handoff-to-specify.json` when a split candidate is selected
+- `handoffs/<candidate_id>-handoff-to-specify.md` and `handoffs/<candidate_id>-handoff-to-specify.json` when a split candidate is selected, with `CAND-001` and `CAND-002` as example IDs
 - latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` only after a bounded handoff or bounded candidate handoff is selected
 ```
 
@@ -418,8 +431,8 @@ For `ready-for-specify`, write latest-copy `handoff-to-specify.md` and `handoff-
 
 For `split-required`, first write `split-plan.md`. After the user selects one candidate, write canonical candidate handoffs:
 
-- `handoffs/CAND-001-handoff-to-specify.md`
-- `handoffs/CAND-001-handoff-to-specify.json`
+- `handoffs/<candidate_id>-handoff-to-specify.md`
+- `handoffs/<candidate_id>-handoff-to-specify.json`
 
 Then refresh latest-copy compatibility files in the same operation:
 
@@ -462,7 +475,7 @@ In `templates/command-partials/discussion/shell.md`, update `## Process` to:
 - Preserve key decisions in `discussion-log.md`.
 - Keep `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` current.
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.
-- If assessment returns `split-required`, maintain `split-plan.md` as the candidate backlog and generate `handoffs/CAND-001-handoff-to-specify.{md,json}` only after the user selects a candidate.
+- If assessment returns `split-required`, maintain `split-plan.md` as the candidate backlog and generate `handoffs/<candidate_id>-handoff-to-specify.{md,json}` only after the user selects a candidate, with IDs such as `CAND-001` or `CAND-002`.
 - Refresh latest selected candidate copy files `handoff-to-specify.md` and `handoff-to-specify.json` together for compatibility.
 ```
 
@@ -599,10 +612,10 @@ In `templates/commands/specify.md`, replace the entire `## Discussion Handoff In
 ```markdown
 ## Discussion Handoff Intake
 
-If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, `.specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
+If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, `.specify/discussions/<slug>/handoffs/<candidate_id>-handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
 
 - Treat the discussion handoff as an authoritative input to the brainstorming kernel, not a bypass around it.
-- When the supplied path is Markdown, look for the same-stem JSON companion first. For a candidate handoff, read `handoffs/CAND-001-handoff-to-specify.json`. For the legacy latest handoff, read `handoff-to-specify.json`.
+- When the supplied path is Markdown, look for the same-stem JSON companion first. For a candidate handoff, read `handoffs/<candidate_id>-handoff-to-specify.json`. For the legacy latest handoff, read `handoff-to-specify.json`.
 - If candidate Markdown and candidate JSON disagree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, or Must-Preserve Ledger identity fields, block with a handoff integrity error and tell the user to refresh the `sp-discussion` handoff.
 - If legacy latest Markdown and legacy latest JSON disagree on the selected `candidate_id`, block rather than choosing one representation.
 - If candidate Markdown exists but candidate JSON is missing, reconstruct the active feature copy into `brainstorming/handoff-to-specify.json`, record the reconstruction source, and report a handoff repair advisory.
@@ -715,7 +728,9 @@ def test_guidance_docs_explain_discussion_split_continuation() -> None:
         assert "split-plan.md" in content
         assert "candidate backlog" in lowered
         assert "return to the same discussion" in lowered
-        assert "handoffs/CAND-001-handoff-to-specify.md" in content
+        assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
+        assert "CAND-001" in content
+        assert "CAND-002" in content
         assert "handoff-to-specify.json" in content
 ```
 
@@ -742,7 +757,7 @@ In `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`, add:
 Replace the README paragraph beginning ``- `discussion` to shape`` with:
 
 ```markdown
-- `discussion` to shape a rough idea through resumable senior product and technical discussion before formal specification. It writes `.specify/discussions/<slug>/` artifacts and, when the user explicitly requests handoff or the next stage, first writes `handoff-assessment.md`. If the result is one bounded feature, it creates latest-copy `handoff-to-specify.md` and `handoff-to-specify.json`. If the result is too broad for one spec, it maintains `split-plan.md` as a candidate backlog, writes canonical candidate handoffs such as `handoffs/CAND-001-handoff-to-specify.md` and `.json`, and lets the user return to the same discussion for second and later stages. It does not automatically invoke `specify`.
+- `discussion` to shape a rough idea through resumable senior product and technical discussion before formal specification. It writes `.specify/discussions/<slug>/` artifacts and, when the user explicitly requests handoff or the next stage, first writes `handoff-assessment.md`. If the result is one bounded feature, it creates latest-copy `handoff-to-specify.md` and `handoff-to-specify.json`. If the result is too broad for one spec, it maintains `split-plan.md` as a candidate backlog, writes canonical candidate handoffs such as `handoffs/<candidate_id>-handoff-to-specify.md` and `handoffs/<candidate_id>-handoff-to-specify.json`, with `CAND-001` and `CAND-002` as examples, and lets the user return to the same discussion for second and later stages. It does not automatically invoke `specify`.
 ```
 
 Also add this paragraph near the existing `Use discussion before specify` paragraph:
@@ -756,7 +771,7 @@ When a discussion covers a large direction, do not start a separate split workfl
 In `PROJECT-HANDBOOK.md`, replace the `Pre-spec discussion` bullet with:
 
 ```markdown
-- **Pre-spec discussion**: `sp-discussion` stores resumable product/technical discussions under `.specify/discussions/<slug>/`, produces technical options and requirements drafts, and only hands off after explicit user request. Handoff now begins with `handoff-assessment.md`: one bounded result writes latest-copy `handoff-to-specify.{md,json}`, while broad directions stay inside `sp-discussion` through `split-plan.md` candidate backlog entries and canonical `handoffs/CAND-001-handoff-to-specify.{md,json}` files. After one candidate ships, return to the same discussion slug to select the next stage.
+- **Pre-spec discussion**: `sp-discussion` stores resumable product/technical discussions under `.specify/discussions/<slug>/`, produces technical options and requirements drafts, and only hands off after explicit user request. Handoff now begins with `handoff-assessment.md`: one bounded result writes latest-copy `handoff-to-specify.{md,json}`, while broad directions stay inside `sp-discussion` through `split-plan.md` candidate backlog entries and canonical `handoffs/<candidate_id>-handoff-to-specify.{md,json}` files, with `CAND-001` and `CAND-002` as examples. After one candidate ships, return to the same discussion slug to select the next stage.
 ```
 
 In `templates/project-handbook-template.md`, replace its matching `Pre-spec discussion` bullet with the same text, preserving line wrapping.

@@ -374,8 +374,9 @@ class TestClaudeIntegration:
 
         assert managed_hooks
         for hook in managed_hooks:
-            assert hook["command"].startswith("node -e ")
-            assert " claude " in hook["command"]
+            assert hook["command"].startswith('node -e "')
+            assert '" specify-hook claude ' in hook["command"]
+            assert "specify-hook.mjs" in hook["command"]
             assert "args" not in hook
             hook_json = json.dumps(hook)
             assert "${CLAUDE_PROJECT_DIR}" not in hook_json
@@ -1841,7 +1842,9 @@ class TestClaudeIntegration:
         assert hooks
         assert all("args" not in hook for hook in hooks)
         assert all(
-            hook.get("command", "").startswith("node -e ") and " claude " in hook.get("command", "")
+            hook.get("command", "").startswith('node -e "')
+            and '" specify-hook claude ' in hook.get("command", "")
+            and "specify-hook.mjs" in hook.get("command", "")
             for hook in hooks
         )
         serialized = json.dumps(settings)
@@ -1951,6 +1954,12 @@ class TestClaudeIntegration:
         content = (project / "CLAUDE.md").read_text(encoding="utf-8")
         assert "## Active Technologies" in content
         assert SPEC_KIT_BLOCK_START in content
+        lower = content.lower()
+        assert "## project cognition usage" in lower
+        assert "mandatory when existing-system truth is required" in lower
+        assert "risk, context cost, and user goal" in lower
+        assert "a project-cognition query is not complete when it returns json" in lower
+        assert "do not assume every integration uses `agents.md`" in lower
         assert "[AGENT]" in content
         assert "specify -> plan" in content
         assert ".specify/project-cognition/status.json" in content

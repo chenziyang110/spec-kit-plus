@@ -78,6 +78,10 @@ Use `execution_surface: native-subagents`.
      - `needs_update`: route through `{{invoke:map-update}}`.
      - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
      - `blocked`: stop and report the blocking runtime issue.
+     - **CARRY FORWARD**: Carry project-cognition testing-surface ownership,
+       covered modules, verification nodes, coverage gaps, and required live reads
+       into `TEST_SCAN.md`, `TEST_BUILD_PLAN.md`,
+       `TEST_BUILD_PLAN.json`, and `testing-state.md`.
    - Read `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` when present; open only relevant linked learning detail docs.
 

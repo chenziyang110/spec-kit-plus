@@ -117,8 +117,11 @@ def _run_bash_update(repo: Path, agent_type: str = "codex") -> subprocess.Comple
 def _run_powershell_update(
     repo: Path, agent_type: str = "codex"
 ) -> subprocess.CompletedProcess[str]:
+    command = [POWERSHELL, "-NoProfile", "-File", str(POWERSHELL_SCRIPT)]
+    if agent_type:
+        command.extend(["-AgentType", agent_type])
     return subprocess.run(
-        [POWERSHELL, "-NoProfile", "-File", str(POWERSHELL_SCRIPT), "-AgentType", agent_type],
+        command,
         cwd=repo,
         text=True,
         errors="replace",
@@ -157,12 +160,34 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert "project-cognition validate-build --format json" in lower
     assert "project-cognition complete-refresh" in lower
     assert "project-cognition mark-dirty" in lower
+    assert "## project cognition usage" in lower
+    assert "agent context files" in lower
+    assert "existing-system truth" in lower
+    assert "changing existing functionality or behavior" in lower
+    assert "task decomposition" in lower
+    assert "debugging symptoms" in lower
+    assert "testing strategy" in lower
+    assert "closeout" in lower
+    assert "risk, context cost, and user goal" in lower
+    assert "a project-cognition query is not complete when it returns json" in lower
+    assert "readiness drives routing" in lower
+    assert "minimal_live_reads constrains inspection" in lower
+    assert "carried into the next workflow artifact or execution state" in lower
+    assert "--intent <workflow-intent>" in lower
+    assert "plan`, `implement`, `debug`, `test`, and `research`" in lower
+    assert "include them through `--paths`" in lower
+    assert "do not assume every integration uses `agents.md`" in lower
     assert ".specify/project-map/" not in lower
     assert "project-map complete-refresh" not in lower
     assert "project-map mark-dirty" not in lower
     assert "use that launcher instead of path `specify`" in lower
     assert "minimal_live_reads" in lower
     assert "sp-map-update" in lower
+    assert "project cognition baseline" in lower
+    assert "query-backed runtime" in lower
+    assert "project-cognition truth" in lower
+    assert "known-stale handbook state" not in lower
+    assert "map-level truth" not in lower
     assert "not the ordinary first-read runtime contract for workflow routing" in lower
     assert "`sp-teams` only" in lower
     assert "## lane recovery rules" in lower
@@ -510,6 +535,54 @@ def test_powershell_script_updates_vibe_root_agents_file(
     assert (repo / "AGENTS.md").exists()
     assert BLOCK_START in _read_utf8_without_bom(repo / "AGENTS.md")
     assert not (repo / ".vibe" / "agents" / "specify-agents.md").exists()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_update_all_migrates_legacy_vibe_file_to_root_agents(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    legacy_vibe = repo / ".vibe" / "agents" / "specify-agents.md"
+    legacy_vibe.parent.mkdir(parents=True)
+    legacy_content = "# Legacy Vibe\n\nKeep this file.\n"
+    legacy_vibe.write_text(legacy_content, encoding="utf-8")
+
+    result = _run_bash_update(repo, "")
+
+    assert result.returncode == 0, result.stderr
+    agents = repo / "AGENTS.md"
+    assert agents.exists()
+    assert BLOCK_START in agents.read_text(encoding="utf-8")
+    assert not (repo / "CLAUDE.md").exists()
+    assert legacy_vibe.read_text(encoding="utf-8") == legacy_content
+
+
+def test_powershell_update_all_migrates_legacy_vibe_file_to_root_agents(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    legacy_vibe = repo / ".vibe" / "agents" / "specify-agents.md"
+    legacy_vibe.parent.mkdir(parents=True)
+    legacy_content = "# Legacy Vibe\r\n\r\nKeep this file.\r\n"
+    legacy_vibe.write_bytes(legacy_content.encode("utf-8"))
+
+    result = _run_powershell_update(repo, "")
+
+    assert result.returncode == 0, result.stderr
+    agents = repo / "AGENTS.md"
+    assert agents.exists()
+    assert BLOCK_START in _read_utf8_without_bom(agents)
+    assert not (repo / "CLAUDE.md").exists()
+    assert _read_utf8_without_bom(legacy_vibe) == legacy_content
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")

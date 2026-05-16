@@ -68,6 +68,15 @@ standalone branch-creation command.
   product/technical exploration before formal specification. It preserves
   `.specify/discussions/<slug>/` state and only hands off to `sp-specify` on
   explicit user request through explicit handoff.
+- For large rough directions, stay in `sp-discussion` first. When the user asks
+  to hand off or continue, `sp-discussion` runs handoff assessment and decides
+  whether to write a bounded handoff, enter split mode with `split-plan.md`, or
+  continue discussion.
+- Do not route to `sp-split`; split-required work remains inside
+  `sp-discussion` as a candidate backlog.
+- After one candidate is implemented, route "continue next stage" requests back
+  to the same `sp-discussion` slug so the next candidate can be selected from
+  `split-plan.md`.
 - Use `sp-specify` for new capability, behavior, or requirement changes that are
   ready for an aligned spec package before implementation.
 - Use `sp-prd-scan -> sp-prd-build` when an existing repository needs a current-state PRD suite reverse-extracted from code, docs, tests, routes, UI/API surfaces, and project cognition evidence. Treat that pair as the canonical heavy reconstruction PRD lane, a peer workflow path to `sp-specify`, not as a pre-plan requirement, and do not automatically hand off to planning.

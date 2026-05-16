@@ -26,23 +26,6 @@ HOOK_LAUNCHER_POSIX = "specify-hook"
 HOOK_LAUNCHER_WINDOWS = "specify-hook.cmd"
 HOOK_LAUNCHER_NODE = "specify-hook.mjs"
 HOOK_LAUNCHER_PYTHON = "specify-hook.py"
-CLAUDE_HOOK_NODE_EVAL = (
-    "const fs=require('node:fs');"
-    "const path=require('node:path');"
-    "const cp=require('node:child_process');"
-    "let dir=process.cwd();"
-    "for(;;){"
-    "const launcher=path.join(dir,'.specify','bin','specify-hook.mjs');"
-    "if(fs.existsSync(launcher)){"
-    "const child=cp.spawnSync(process.execPath,[launcher,...process.argv.slice(1)],{cwd:dir,env:process.env,stdio:'inherit',shell:false});"
-    "if(child.error){console.error('Failed to start native hook launcher: '+child.error.message);process.exit(2)}"
-    "process.exit(child.status??2)"
-    "}"
-    "const parent=path.dirname(dir);"
-    "if(parent===dir){console.error('Missing .specify/bin/specify-hook.mjs. Run specify integration repair.');process.exit(2)}"
-    "dir=parent"
-    "}"
-)
 DIRECT_HOOK_DISPATCH_MARKERS = (
     "claude-hook-dispatch.py",
     "gemini-hook-dispatch.py",
@@ -232,9 +215,15 @@ def render_hook_launcher_command(
 def render_claude_hook_launcher(route: str) -> dict[str, Any]:
     """Render a Claude Code native-hook launcher entry."""
 
+    bootstrap = (
+        "let d=process.cwd(),p=require('path'),f=require('fs'),u=require('url');"
+        "while(!f.existsSync(p.join(d,'.specify','bin','specify-hook.mjs'))){"
+        "let n=p.dirname(d);if(n===d){console.error('Missing .specify/bin/specify-hook.mjs. Run specify integration repair.');process.exit(2)}d=n}"
+        "import(u.pathToFileURL(p.join(d,'.specify','bin','specify-hook.mjs')).href)"
+    )
     return {
         "type": "command",
-        "command": render_command(("node", "-e", CLAUDE_HOOK_NODE_EVAL, "claude", route)),
+        "command": f'node -e "{bootstrap}" specify-hook claude {route}',
     }
 
 

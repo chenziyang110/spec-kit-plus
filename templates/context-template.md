@@ -21,6 +21,13 @@
 - **Stop-And-Reopen Conditions**:
   - [condition that requires upstream truth to reopen]
 
+
+## Must-Preserve Execution Constraints
+
+- `MP-###`: [implementation-shaping decision, reference, non-goal, or trade-off]
+- Stop-and-reopen conditions:
+  - [condition tied to MP ID]
+
 ## Affected Surfaces
 
 - [Primary module, workflow, interface, or artifact this feature changes]

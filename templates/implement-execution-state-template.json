@@ -1,10 +1,13 @@
 {
-  "version": 1,
+  "version": 2,
   "status": "gathering",
   "current_batch": null,
   "complexity_level": null,
   "active_packet_ids": [],
   "must_preserve": [],
+  "applied_mp_obligations": [],
   "allowed_optimization_scope": [],
-  "open_reopen_conditions": []
+  "open_reopen_conditions": [],
+  "open_conflict_count": 0,
+  "hard_unknown_count": 0
 }

@@ -85,8 +85,10 @@ from specify_cli.codex_team.runtime_bridge import (
 from specify_cli.cli_output import print_json
 from specify_cli.cognition import (
     apply_cognition_update,
+    CognitionRuntimeMetadataError,
     cognition_db_path,
     cognition_status_path,
+    publish_cognition_runtime_metadata,
     project_cognition_lexicon,
     query_project_cognition,
     validate_build_acceptance,
@@ -956,9 +958,21 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.",
             "- Project cognition under `.specify/project-cognition/` is the runtime truth surface; legacy project-map exports are not the ordinary first-read runtime contract for workflow routing.",
             "- When a project launcher is configured in `.specify/config.json`, use that launcher instead of PATH `specify`.",
-            "- If the graph-native cognition baseline is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.",
-            "- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.",
-            '- Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, do it and invoke the project launcher with `project-cognition complete-refresh --format json` as the successful-refresh finalizer; otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.',
+            "- If the project cognition baseline is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.",
+            "- If the query-backed runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.",
+            '- Treat query-backed runtime freshness as the truth source. If a full refresh can be completed now, do it and invoke the project launcher with `project-cognition complete-refresh --format json` as the successful-refresh finalizer; otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.',
+            "",
+            "## Project Cognition Usage",
+            "",
+            "- Project cognition is mandatory when existing-system truth is required. If the task needs to know how this project is organized, implemented, owned, integrated, or verified, query project cognition before broad source inspection, planning, debugging, testing strategy, implementation, task decomposition, or subagent dispatch.",
+            "- The same rule applies across agent context files; do not assume every integration uses `AGENTS.md`.",
+            "- When the task does not require existing-system truth, decide based on risk, context cost, and user goal; this is not a bypass for existing-system judgment.",
+            "- Mandatory scenarios include changing existing functionality or behavior such as login, payment, routing, permissions, import/export, notifications, or background jobs; judging module ownership, truth owners, architecture boundaries, reuse points, integration points, state surfaces, or consumer impact; writing or updating `specify`, `plan`, or `tasks` outputs for the current project; running `implement`, `quick`, or `fast` work against existing code, tests, configuration, routes, protocols, data models, or workflows; debugging symptoms that map to existing capabilities, entrypoints, state surfaces, or test surfaces; decomposing tasks, compiling task packets, or dispatching subagents that need read scope, write scope, required references, or validation commands; choosing testing strategy, verification entry points, regression scope, or coverage-gap handling; changing architecture boundaries, workflow contracts, integration contracts, ownership, or verification entry points; and closeout when work changed project-cognition truth.",
+            '- Query through the project launcher or generated command renderer with `project-cognition query --intent <workflow-intent> --query "<task summary>" --format json`. Valid workflow intents include at least `plan`, `implement`, `debug`, `test`, and `research`. When relevant paths are known from the user request or upstream artifacts, include them through `--paths`.',
+            "- Use readiness for routing: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads` before trusting the runtime; `ambiguous` asks the user or upstream artifact to select the intended candidate; `needs_update` routes through `sp-map-update`; `needs_rebuild` routes through `sp-map-scan`, then `sp-map-build`; `blocked` stops with the runtime issue.",
+            "- Extract and carry forward the matched capability or symptom, affected nodes and subgraph, `minimal_live_reads`, missing coverage, evidence traces, verification routes, ambiguity, conflicts, and weak coverage.",
+            "- Constrain first live reads to `minimal_live_reads` plus directly relevant durable workflow artifacts. Expand search only when those reads do not answer the task.",
+            "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, minimal_live_reads constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.",
             "",
             "## Project Memory",
             "",
@@ -981,7 +995,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.",
             "- Use `sp-discussion` when a rough idea needs resumable senior product and technical discussion before formal specification.",
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
-            "- Use `sp-map-scan` when a graph-native cognition baseline must be created from project-internal evidence before deeper brownfield work.",
+            "- Use `sp-map-scan` when a query-backed cognition baseline must be created from project-internal evidence before deeper brownfield work.",
             "- Use `sp-map-build` when a completed graph-native evidence baseline must be reconstructed into graph nodes, claims, conflicts, and slices.",
             "- Use `sp-map-update` when an existing project cognition baseline must be refreshed incrementally for changed paths or user supplements.",
             "- Use `sp-prd-scan` when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis, and `sp-prd-build` once that `subagent-mandatory` package is ready to compile final PRD exports.",
@@ -1007,14 +1021,14 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
             "- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain testing-system construction and brownfield testing-program routing when present.",
-            "- `.specify/project-cognition/status.json` determines whether graph-native cognition coverage can be trusted as fresh and records the git-aligned baseline freshness truth source.",
+            "- `.specify/project-cognition/status.json` determines whether query-backed cognition coverage can be trusted as fresh and records the git-aligned baseline freshness truth source.",
             "",
             "## Map Maintenance",
             "",
-            "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the graph-native project cognition baseline.",
-            "- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation as the primary maintenance path.",
+            "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the query-backed project cognition baseline.",
+            "- If the query-backed runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation as the primary maintenance path.",
             '- Reserve `sp-map-scan` followed by `sp-map-build` for missing baselines or explicit full rebuild cases; when a full refresh can be completed now, invoke the project launcher with `project-cognition complete-refresh --format json` as the successful-refresh finalizer, otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.',
-            "- Do not treat consumed project cognition graph context as self-maintaining; the agent changing map-level truth is responsible for keeping the graph-native runtime current.",
+            "- Do not treat consumed project cognition query context as self-maintaining; the agent changing project-cognition truth is responsible for keeping the query-backed runtime current.",
             "",
             "- Preserve content outside this managed block.",
             SPEC_KIT_BLOCK_END,
@@ -1682,6 +1696,41 @@ def project_map_complete_refresh(
         print_json(result, indent=2)
         return
     _render_project_map_freshness(result)
+
+
+@project_cognition_app.command("publish-runtime-metadata")
+def project_cognition_publish_runtime_metadata_command(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Publish DB-derived project cognition runtime metadata into status.json."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        metadata = publish_cognition_runtime_metadata(project_root)
+    except CognitionRuntimeMetadataError as exc:
+        result = {
+            "status": "blocked",
+            "readiness": "blocked",
+            "errors": [str(exc)],
+            "status_path": str(cognition_status_path(project_root)),
+            "graph_store_path": str(cognition_db_path(project_root)),
+        }
+        if output_format.lower() == "json":
+            print_json(result, indent=2)
+            return
+        console.print(f"[red]Blocked:[/red] {exc}")
+        return
+    result = {
+        "status": "ok",
+        "readiness": "query_runtime_metadata_published",
+        "metadata": metadata,
+        "status_path": str(cognition_status_path(project_root)),
+        "graph_store_path": str(cognition_db_path(project_root)),
+    }
+    if output_format.lower() == "json":
+        print_json(result, indent=2)
+        return
+    console.print("[green]Project cognition runtime metadata published.[/green]")
 
 
 @project_map_app.command("refresh-topics")

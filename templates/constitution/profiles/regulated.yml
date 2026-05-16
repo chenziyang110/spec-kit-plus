@@ -1,6 +1,6 @@
 id: regulated
 name: Regulated Delivery
-version: 1.0.0
+version: 1.1.0
 description: Higher-control default for security, compliance, privacy, and auditability.
 core_principles: |
   ## Core Principles
@@ -81,6 +81,11 @@ conditional_guidance: |
 engineering_standards: |
   ## Engineering Standards
 
+  - **Project Cognition Before Existing-System Judgment**: When work depends on
+    existing project truth, agents MUST query project cognition before broad
+    source inspection, planning, debugging, implementation, task decomposition,
+    or subagent dispatch. The query result MUST guide routing, minimal live
+    reads, trust boundaries, control impact, and verification strategy.
   - **Control Documentation Sync**: When a change affects access, data handling,
     workflows, or operational controls, update the related runbooks, policies, or
     supporting docs in the same change.

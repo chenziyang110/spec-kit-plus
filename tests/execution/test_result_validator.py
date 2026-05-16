@@ -4,6 +4,7 @@ from specify_cli.execution.packet_schema import (
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
+    MustPreserveObligation,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -315,3 +316,97 @@ def test_validate_worker_task_result_rejects_missing_required_consumer_evidence(
 
     assert exc.value.code == "DP3"
     assert "consumer evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_requires_must_preserve_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.must_preserve_obligations = [
+        MustPreserveObligation(
+            id="MP-002",
+            type="non_goal",
+            claim="Do not create a parallel auth stack.",
+            source="handoff-to-specify.json",
+            downstream_requirement="Keep auth implementation inside existing service boundary.",
+            mapped_to=["tasks.md#Task Guardrail Index"],
+            stop_and_reopen_condition="Implementation requires a parallel auth stack.",
+        )
+    ]
+    sample_packet.required_evidence = ["must_preserve_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "must-preserve evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_accepts_must_preserve_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.must_preserve_obligations = [
+        MustPreserveObligation(
+            id="MP-002",
+            type="non_goal",
+            claim="Do not create a parallel auth stack.",
+            source="handoff-to-specify.json",
+            downstream_requirement="Keep auth implementation inside existing service boundary.",
+            mapped_to=["tasks.md#Task Guardrail Index"],
+            stop_and_reopen_condition="Implementation requires a parallel auth stack.",
+        )
+    ]
+    sample_packet.required_evidence = ["must_preserve_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        must_preserve_evidence=[
+            {
+                "mp_id": "MP-002",
+                "evidence": "No new auth stack files were added; implementation stayed in src/services/auth_service.py.",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.status == "success"

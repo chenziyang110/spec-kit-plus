@@ -66,6 +66,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
     assert "returned task-local bundle" in content
+    assert "fast-task state or report" in content
+    assert "verification route" in content
 
 
 def test_fast_template_uses_leader_direct_contract() -> None:

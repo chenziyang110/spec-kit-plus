@@ -189,6 +189,45 @@ def _write_valid_brainstorming_truth_files(feature_dir: Path) -> None:
     )
 
 
+def _valid_must_preserve_handoff_payload() -> str:
+    return """{
+      "version": 2,
+      "status": "ready",
+      "entry_source": "sp-discussion",
+      "source_handoff": ".specify/discussions/demo/handoff-to-specify.md",
+      "source_handoff_json": ".specify/discussions/demo/handoff-to-specify.json",
+      "facts_file": "brainstorming/facts.json",
+      "route_file": "brainstorming/route.json",
+      "intent_file": "brainstorming/intent.json",
+      "complexity_file": "brainstorming/complexity.json",
+      "soft_unknowns": [],
+      "unknowns": [],
+      "compile_ready": true,
+      "coverage_status": "complete",
+      "planning_gate_status": "ready",
+      "hard_unknown_count": 0,
+      "open_conflict_count": 0,
+      "must_preserve": [
+        {
+          "id": "MP-001",
+          "type": "goal",
+          "claim": "Preserve the agreed product outcome.",
+          "source": "requirements.md#feature-goal",
+          "downstream_requirement": "Carry into spec.md Feature Goal and plan.md Summary.",
+          "blocking_level": "hard",
+          "owner": "user",
+          "latest_resolve_phase": "specify-compile",
+          "status": "mapped",
+          "deferred_to": null,
+          "stop_and_reopen_condition": null,
+          "superseded_by": null,
+          "mapped_to": ["spec.md#Feature Goal"]
+        }
+      ],
+      "conflicts": []
+    }"""
+
+
 def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: str = "completed") -> None:
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -432,6 +471,191 @@ def test_specify_artifact_validation_requires_unknown_object_shape(tmp_path: Pat
     assert result.status == "blocked"
     assert any("facts.json unknowns[0] missing question" in message for message in result.errors)
     assert any("facts.json unknowns[0] missing status" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_accepts_complete_must_preserve_handoff(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        _valid_must_preserve_handoff_payload(),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+
+
+def test_specify_artifact_validation_blocks_ready_gate_with_open_conflict(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = _valid_must_preserve_handoff_payload().replace(
+        '"open_conflict_count": 0',
+        '"open_conflict_count": 1',
+    )
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(payload, encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("planning_gate_status" in message and "open conflicts" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_ready_gate_with_unreported_open_conflict(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = _valid_must_preserve_handoff_payload().replace(
+        '"conflicts": []',
+        '"conflicts": [{"id": "C-001", "mp_id": "MP-001", "status": "open", "resolution": "none"}]',
+    )
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(payload, encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("open_conflict_count" in message and "does not match" in message for message in result.errors)
+    assert any("planning_gate_status" in message and "open conflicts" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_ready_gate_with_unreported_hard_blocking_question(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = _valid_must_preserve_handoff_payload().replace('"type": "goal"', '"type": "blocking_question"')
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(payload, encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("hard_unknown_count" in message and "does not match" in message for message in result.errors)
+    assert any("planning_gate_status" in message and "hard unknowns" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_complete_coverage_with_unmapped_active_item(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = _valid_must_preserve_handoff_payload().replace(
+        '"mapped_to": ["spec.md#Feature Goal"]',
+        '"mapped_to": []',
+    )
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(payload, encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("MP-001" in message and "mapped_to" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_malformed_must_preserve_id(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = _valid_must_preserve_handoff_payload().replace('"id": "MP-001"', '"id": "MP-ABC"')
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(payload, encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("MP-ABC" in message and "MP-###" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_dropped_item_without_user_approval(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = (
+        _valid_must_preserve_handoff_payload()
+        .replace('"status": "mapped"', '"status": "dropped"')
+        .replace('"mapped_to": ["spec.md#Feature Goal"]', '"mapped_to": []')
+    )
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(payload, encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("MP-001" in message and "user_decision_source" in message for message in result.errors)
+    assert any("MP-001" in message and "approved_risk_contract" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_resolved_item_without_resolution_evidence(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = (
+        _valid_must_preserve_handoff_payload()
+        .replace('"status": "mapped"', '"status": "resolved"')
+        .replace('"mapped_to": ["spec.md#Feature Goal"]', '"mapped_to": []')
+    )
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(payload, encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("MP-001" in message and "resolution_evidence" in message for message in result.errors)
 
 
 def test_validate_artifacts_blocks_specify_when_draft_artifact_is_missing(tmp_path: Path):

@@ -17,6 +17,21 @@
 - Soft Unknowns Carried:
   - [field, owner, latest resolve phase, and risk if any]
 
+
+## Must-Preserve Discussion Inputs
+
+- **Source**: [Discussion handoff path when `entry_source: sp-discussion`]
+- **Coverage Status**: [coverage_status from `brainstorming/handoff-to-specify.json`]
+- **Planning Gate Status**: [planning_gate_status from `brainstorming/handoff-to-specify.json`]
+
+### Mapped Must-Preserve Items
+
+- `MP-###` [type]: [claim] -> [where this spec preserves it]
+
+### Discussion Conflicts
+
+- [Open conflict ID, MP ID, and required user decision; remove this section when none]
+
 ## Overview *(mandatory)*
 
 ### Feature Goal

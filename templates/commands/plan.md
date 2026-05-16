@@ -98,6 +98,9 @@ agent_scripts:
 3. **Load context**:
    - Read `FEATURE_SPEC`
    - Read `FEATURE_DIR/brainstorming/handoff-to-specify.json` when present and treat it as the authoritative pre-plan truth package.
+   - If `brainstorming/handoff-to-specify.json` contains `must_preserve`, treat those `MP-*` items as planning obligations, not background notes.
+   - If `planning_gate_status` is not `ready`, stop and route back to `{{invoke:specify}}` or to the user conflict decision named by the handoff.
+   - If any `conflicts` item has `status: open`, stop and ask the user to resolve the conflict before planning.
    - Read `plan-contract.json` when present and treat route, intent, complexity as authoritative planning inputs.
    - Read `FEATURE_DIR/alignment.md`
    - Read `FEATURE_DIR/context.md`
@@ -150,6 +153,9 @@ Use the returned readiness:
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-plan`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Promote project-cognition facts into planning constraints,
+  `Implementation Constitution`, boundary rules, verification strategy, and
+  `plan-contract.json` when they affect implementation shape.
 
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
@@ -226,6 +232,8 @@ Use the returned readiness:
      - every architecture, module-boundary, API/library, data-flow, validation, or residual-risk decision derived from deep research must cite at least one `PH-###` item
      - mark any `PH-###` item not consumed by the plan as `deferred`, `not applicable`, or `requires user decision`
    - Copy locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md` into planning constraints, assumptions, or design notes so they are not silently dropped
+   - Add each implementation-shaping `MP-*` item to `plan.md#Must-Preserve Carry-Forward`, `Locked Planning Decisions`, `Implementation Constitution`, or `Alignment Inputs`.
+   - Preserve `MP-*` IDs when the plan consumes goals, non-goals, references, decisions, trade-offs, and stop-and-reopen conditions.
    - Copy implementation-chain constraints and synthesis decisions from `deep-research.md` into the implementation plan instead of rediscovering or weakening them
    - If `.specify/testing/TESTING_CONTRACT.md` exists, copy the project-level testing rules into the implementation plan instead of treating tests as optional follow-up work. Preserve the stronger brownfield testing inputs carried from `sp-specify`: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`
    - If `.specify/testing/TESTING_PLAYBOOK.md` exists, preserve the canonical test, targeted-test, and coverage commands inside the generated plan artifacts

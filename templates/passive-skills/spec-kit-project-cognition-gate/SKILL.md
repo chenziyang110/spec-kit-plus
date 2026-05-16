@@ -31,9 +31,20 @@ judgment in an established Spec Kit Plus repository:
   source-grounded recommendations, use the active workflow's launcher-backed
   project cognition query planning flow to retrieve the task-local project
   cognition bundle.
+- In `sp-discussion` split mode, product-level candidate splitting may begin from
+  discussion artifacts, but source-grounded split rationale, affected-surface
+  claims, implementation dependency claims, and technical risk classification
+  still require the staged cognition gate.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.
+- A project-cognition query is not complete when it returns JSON. It is complete
+  only when readiness drives routing, `minimal_live_reads` constrains
+  inspection, and relevant facts are carried into the next workflow artifact or
+  execution state.
+- Extract and carry forward the matched capability or symptom, affected nodes
+  and subgraph, `minimal_live_reads`, missing coverage, evidence traces,
+  verification routes, ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as the runtime truth surface. Legacy project-map exports are not the default runtime truth path.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.

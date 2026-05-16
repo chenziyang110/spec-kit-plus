@@ -8,6 +8,13 @@
 - [source path or user-supplied reference]
 - [repository evidence, PRD input, existing implementation, policy, or user answer that justified a locked route, intent, invariant, or complexity rule]
 
+
+## Must-Preserve Reference Map
+
+| MP ID | Source | Why It Must Be Preserved | Downstream Consumer |
+| --- | --- | --- | --- |
+| MP-### | [source path or URL] | [constraint or evidence role] | [spec | context | plan | tasks | implement] |
+
 ## Reference Entries
 
 ## Truth Sources Used For Route And Intent Lock

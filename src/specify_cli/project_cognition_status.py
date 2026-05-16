@@ -22,6 +22,7 @@ from specify_cli.cognition import (
     cognition_db_path,
     cognition_status_path,
     read_cognition_status,
+    read_cognition_runtime_metadata,
     write_cognition_status,
 )
 from specify_cli.scan_freshness import (
@@ -1047,8 +1048,13 @@ def read_project_map_status(project_root: Path) -> ProjectMapStatus:
 def write_project_map_status(project_root: Path, status: ProjectMapStatus) -> Path:
     status_path = project_cognition_status_metadata_path(project_root)
     payload = status.to_dict()
-    write_scan_payload(status_path, payload)
-    _write_cognition_freshness_metadata(project_root, status, legacy_status_payload=payload)
+    existing_cognition_status = read_cognition_status(project_root)
+    _write_cognition_freshness_metadata(
+        project_root,
+        status,
+        cognition_status=existing_cognition_status,
+        legacy_status_payload=payload,
+    )
     return status_path
 
 
@@ -1056,21 +1062,24 @@ def _write_cognition_freshness_metadata(
     project_root: Path,
     status: ProjectMapStatus,
     *,
+    cognition_status: CognitionStatus | None = None,
     legacy_status_payload: dict[str, Any] | None = None,
 ) -> Path:
-    cognition_status = read_cognition_status(project_root)
+    cognition_status = cognition_status or read_cognition_status(project_root)
+    runtime_metadata = _status_runtime_metadata(cognition_status)
+    runtime_metadata.update(_usable_db_runtime_metadata(read_cognition_runtime_metadata(project_root)))
     merged = CognitionStatus(
         version=max(int(cognition_status.version or 1), 2),
-        baseline_state=cognition_status.baseline_state,
+        baseline_state=str(runtime_metadata.get("baseline_state") or cognition_status.baseline_state),
         baseline_commit=status.last_refresh_commit or cognition_status.baseline_commit,
         baseline_branch=status.last_mapped_branch or cognition_status.baseline_branch,
         baseline_built_at=status.last_mapped_at or cognition_status.baseline_built_at,
         last_update_id=cognition_status.last_update_id,
-        graph_ready=cognition_status.graph_ready,
-        graph_store_path=cognition_status.graph_store_path,
-        active_generation_id=cognition_status.active_generation_id,
-        query_contract_version=cognition_status.query_contract_version,
-        update_contract_version=cognition_status.update_contract_version,
+        graph_ready=bool(runtime_metadata.get("graph_ready", cognition_status.graph_ready)),
+        graph_store_path=str(runtime_metadata.get("graph_store_path") or cognition_status.graph_store_path),
+        active_generation_id=str(runtime_metadata.get("active_generation_id") or cognition_status.active_generation_id),
+        query_contract_version=int(runtime_metadata.get("query_contract_version") or cognition_status.query_contract_version),
+        update_contract_version=int(runtime_metadata.get("update_contract_version") or cognition_status.update_contract_version),
         stale_paths=list(cognition_status.stale_paths or []),
         stale_reasons=list(cognition_status.stale_reasons or []),
         freshness=status.freshness,
@@ -1094,7 +1103,46 @@ def _write_cognition_freshness_metadata(
         return write_cognition_status(project_root, merged)
     merged_payload = dict(legacy_status_payload)
     merged_payload.update(asdict(merged))
+    merged_payload["version"] = legacy_status_payload.get("version", merged.version)
     return write_scan_payload(cognition_status_path(project_root), merged_payload)
+
+
+def _status_runtime_metadata(status: CognitionStatus) -> dict[str, object]:
+    metadata: dict[str, object] = {}
+    if status.baseline_state and status.baseline_state != "missing":
+        metadata["baseline_state"] = status.baseline_state
+    if status.graph_ready:
+        metadata["graph_ready"] = True
+    if status.graph_store_path:
+        metadata["graph_store_path"] = status.graph_store_path
+    if status.active_generation_id:
+        metadata["active_generation_id"] = status.active_generation_id
+    if status.query_contract_version:
+        metadata["query_contract_version"] = status.query_contract_version
+    if status.update_contract_version:
+        metadata["update_contract_version"] = status.update_contract_version
+    return metadata
+
+
+def _usable_db_runtime_metadata(metadata: dict[str, object]) -> dict[str, object]:
+    usable: dict[str, object] = {}
+    if metadata.get("baseline_state") == "ready":
+        usable["baseline_state"] = "ready"
+    if metadata.get("graph_ready") is True:
+        usable["graph_ready"] = True
+    if metadata.get("graph_store_path") == ".specify/project-cognition/project-cognition.db":
+        usable["graph_store_path"] = ".specify/project-cognition/project-cognition.db"
+    active_generation_id = str(metadata.get("active_generation_id") or "")
+    if active_generation_id:
+        usable["active_generation_id"] = active_generation_id
+    for key in ("query_contract_version", "update_contract_version"):
+        try:
+            value = int(metadata.get(key) or 0)
+        except (TypeError, ValueError):
+            value = 0
+        if value:
+            usable[key] = value
+    return usable
 
 
 def mark_project_map_refreshed(

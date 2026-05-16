@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .packet_schema import WorkerTaskPacket
+
+
+MP_ID_RE = re.compile(r"^MP-\d{3}$")
 
 
 @dataclass(slots=True)
@@ -37,4 +41,14 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         raise PacketValidationError("DP1", "handoff_requirements must be present in the packet")
     if not packet.platform_guardrails:
         raise PacketValidationError("DP2", "platform_guardrails must be compiled into the packet")
+    for obligation in packet.must_preserve_obligations:
+        if not MP_ID_RE.match(obligation.id):
+            raise PacketValidationError("DP1", "must-preserve obligation id must use MP-### format")
+        if (
+            not obligation.type
+            or not obligation.claim
+            or not obligation.source
+            or not obligation.downstream_requirement
+        ):
+            raise PacketValidationError("DP1", "must-preserve obligation is missing required fields")
     return packet

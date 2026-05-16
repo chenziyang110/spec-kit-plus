@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-import shlex
 import stat
 import subprocess
 
@@ -543,12 +542,11 @@ def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(m
 
 def test_render_claude_hook_launcher_uses_single_command_string():
     hook = render_claude_hook_launcher("session-start")
-    argv = shlex.split(hook["command"], posix=os.name != "nt")
 
     assert hook["type"] == "command"
-    assert argv[:2] == ["node", "-e"]
-    assert hook["command"].endswith(" claude session-start")
-    assert ".specify\\\\bin\\\\specify-hook.mjs" in hook["command"] or ".specify/bin/specify-hook.mjs" in hook["command"]
+    assert hook["command"].startswith('node -e "')
+    assert hook["command"].endswith('" specify-hook claude session-start')
+    assert "specify-hook.mjs" in hook["command"]
     assert "args" not in hook
     assert "${CLAUDE_PROJECT_DIR}" not in json.dumps(hook)
     assert "$CLAUDE_PROJECT_DIR" not in json.dumps(hook)
@@ -612,10 +610,14 @@ def test_render_claude_hook_launcher_command_discovers_project_root_from_nested_
         "\n".join(
             [
                 "import { readFileSync } from 'node:fs';",
+                "import { dirname, resolve } from 'node:path';",
+                "import { fileURLToPath } from 'node:url';",
                 "const stdin = readFileSync(0, 'utf8');",
+                "const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');",
                 "console.log(JSON.stringify({",
                 "  argv: process.argv.slice(2),",
                 "  cwd: process.cwd(),",
+                "  scriptRoot,",
                 "  stdin: JSON.parse(stdin)",
                 "}));",
             ]
@@ -641,7 +643,8 @@ def test_render_claude_hook_launcher_command_discovers_project_root_from_nested_
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     assert payload["argv"] == ["claude", "stop-monitor"]
-    assert payload["cwd"] == str(project)
+    assert payload["cwd"] == str(nested_cwd)
+    assert payload["scriptRoot"] == str(project)
     assert payload["stdin"]["cwd"] == str(nested_cwd)
 
 

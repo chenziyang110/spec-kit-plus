@@ -1,6 +1,6 @@
 id: library
 name: Reusable Library
-version: 1.0.0
+version: 1.1.0
 description: Compatibility-focused default for packages, CLIs, SDKs, and shared libraries.
 core_principles: |
   ## Core Principles
@@ -88,6 +88,12 @@ conditional_guidance: |
 engineering_standards: |
   ## Engineering Standards
 
+  - **Project Cognition Before Existing-System Judgment**: When work depends on
+    existing project truth, agents MUST query project cognition before broad
+    source inspection, planning, debugging, implementation, task decomposition,
+    or subagent dispatch. The query result MUST guide routing, minimal live
+    reads, public-surface boundaries, compatibility constraints, and
+    verification strategy.
   - **Public API Inventory**: Keep the intended public entry points explicit in
     code, docs, or generated references so changes can be reviewed against the
     supported surface.

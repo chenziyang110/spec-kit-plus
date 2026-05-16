@@ -11,6 +11,10 @@ from specify_cli.extensions import CommandRegistrar
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _compact_assignment_text(text: str) -> str:
+    return re.sub(r"\s+", "", text)
+
+
 class TestAgentConfigConsistency:
     """Ensure agent config paths stay synchronized across runtime and registrar surfaces."""
 
@@ -100,10 +104,10 @@ class TestAgentConfigConsistency:
             REPO_ROOT / "src" / "specify_cli" / "integrations" / "vibe" / "scripts" / "update-context.ps1"
         ).read_text(encoding="utf-8")
 
-        assert 'VIBE_FILE="$AGENTS_FILE"' in bash_text
-        assert "$VIBE_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'" in pwsh_text
-        assert ".vibe/agents/specify-agents.md" not in bash_text
-        assert ".vibe/agents/specify-agents.md" not in pwsh_text
+        assert 'VIBE_FILE="$AGENTS_FILE"' in _compact_assignment_text(bash_text)
+        assert "$VIBE_FILE=Join-Path$REPO_ROOT'AGENTS.md'" in _compact_assignment_text(pwsh_text)
+        assert "VIBE_LEGACY_FILE" in bash_text
+        assert "VIBE_LEGACY_FILE" in pwsh_text
         assert "AGENTS.md" in bash_wrapper
         assert "AGENTS.md" in pwsh_wrapper
         assert ".vibe/agents/specify-agents.md" not in bash_wrapper
@@ -245,11 +249,11 @@ class TestAgentConfigConsistency:
 
         assert "trae" in bash_text
         assert "TRAE_FILE" in bash_text
-        assert 'TRAE_FILE="$REPO_ROOT/.trae/rules/project_rules.md"' in bash_text
+        assert 'TRAE_FILE="$REPO_ROOT/.trae/rules/project_rules.md"' in _compact_assignment_text(bash_text)
         assert ".trae/rules/AGENTS.md" not in bash_text
         assert "trae" in pwsh_text
         assert "TRAE_FILE" in pwsh_text
-        assert "$TRAE_FILE     = Join-Path $REPO_ROOT '.trae/rules/project_rules.md'" in pwsh_text
+        assert "$TRAE_FILE=Join-Path$REPO_ROOT'.trae/rules/project_rules.md'" in _compact_assignment_text(pwsh_text)
         assert ".trae/rules/AGENTS.md" not in pwsh_text
         assert ".trae/rules/project_rules.md" in bash_wrapper
         assert ".trae/rules/project_rules.md" in pwsh_wrapper

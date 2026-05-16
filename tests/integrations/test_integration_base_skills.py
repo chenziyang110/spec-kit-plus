@@ -87,7 +87,17 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "sp-discussion" in skill_content
     assert ".specify/discussions/<slug>/" in skill_content
     assert "discussion-state.md" in skill_content
-    assert "handoff-to-specify.md" in skill_content
+    assert "handoff-assessment.md" in skill_content
+    assert "split-plan.md" in skill_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.md" in skill_content
+    assert "handoffs/<candidate_id>-handoff-to-specify.json" in skill_content
+    assert "handoffs/CAND-001-handoff-to-specify.md" in skill_content
+    assert "handoffs/CAND-002-handoff-to-specify.md" in skill_content
+    assert "`handoff-to-specify.md`" in skill_content or "handoff-to-specify.md" in skill_content
+    assert "`handoff-to-specify.json`" in skill_content or "handoff-to-specify.json" in skill_content
+    assert "Must-Preserve Ledger" in skill_content
+    assert "coverage_status" in skill_content
+    assert "planning_gate_status" in skill_content
     assert (
         "explicit user" in skill_lower
         or "user explicitly" in skill_lower
@@ -95,6 +105,26 @@ def _assert_discussion_contract(skill_content: str) -> None:
     )
     assert "senior technical expert" in skill_lower
     assert "senior product manager" in skill_lower
+    assert "candidate backlog" in skill_lower
+    assert "latest selected candidate" in skill_lower
+
+
+def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
+    hard_gate_index = content.find("project cognition hard gate")
+    assert hard_gate_index != -1
+    assert "carry forward" in content
+    assert "next workflow artifact or execution state" in content
+
+    if command_name == "implement":
+        orchestration_index = content.find("## orchestration model")
+        if orchestration_index != -1:
+            assert hard_gate_index < orchestration_index
+        assert "implement-tracker.md" in content
+        assert "workertaskpacket" in content
+    elif command_name == "quick":
+        assert "status.md" in content
+    elif command_name == "debug":
+        assert "debug session state" in content
 
 
 class SkillsIntegrationTests:
@@ -133,6 +163,29 @@ class SkillsIntegrationTests:
         assert "minimal_live_reads" in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in generated
+
+    def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        skills_dir = i.skills_dest(tmp_path)
+        for name in ("implement", "debug", "quick"):
+            content = (skills_dir / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+            assert "crucial first step" in content
+            assert "project cognition" in content
+            assert "project-cognition query" in content
+            assert "minimal_live_reads" in content
+            assert "map-scan" in content
+            assert "map-build" in content
+            _assert_runtime_cognition_carry_forward(content, name)
+            if name == "debug":
+                assert "project-cognition query --intent debug" in content
+                assert "debug-handbook.md" not in content
+            else:
+                assert "build-handbook.md" not in content
+                assert "map-update" in content
 
     def test_is_skills_integration(self):
         assert isinstance(get_integration(self.KEY), SkillsIntegration)
@@ -256,6 +309,21 @@ class SkillsIntegrationTests:
         discussion_path = i.skills_dest(tmp_path) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists()
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+    def test_specify_skill_preserves_discussion_fidelity_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        content = (i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+        lowered = content.lower()
+
+        assert "Must-Preserve Ledger" in content
+        assert "coverage_status" in content
+        assert "planning_gate_status" in content
+        assert "blocked_by_handoff_integrity" in content
+        assert "entry_source: sp-discussion" in content
+        assert "do not silently" in lowered
 
     def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
         i = get_integration(self.KEY)
@@ -629,11 +697,23 @@ class SkillsIntegrationTests:
         content = (project / self.CONTEXT_FILE).read_text(encoding="utf-8")
         assert "## Active Technologies" in content
         assert SPEC_KIT_BLOCK_START in content
+        lower = content.lower()
+        assert "## project cognition usage" in lower
+        assert "mandatory when existing-system truth is required" in lower
+        assert "changing existing functionality or behavior" in lower
+        assert "debugging symptoms" in lower
+        assert "testing strategy" in lower
+        assert "risk, context cost, and user goal" in lower
+        assert "a project-cognition query is not complete when it returns json" in lower
+        assert "readiness drives routing" in lower
+        assert "minimal_live_reads constrains inspection" in lower
+        assert "carried into the next workflow artifact or execution state" in lower
+        assert "do not assume every integration uses `agents.md`" in lower
         assert "[AGENT]" in content
         assert "specify -> plan" in content
         assert ".specify/project-cognition/" in content
         assert "map-update" in content
-        assert "graph-native cognition baseline" in content.lower()
+        assert "project cognition baseline" in lower
         assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/learnings/INDEX.md" in content
         assert "Learning Reflex" in content or "future senior engineer" in content
@@ -659,7 +739,7 @@ class SkillsIntegrationTests:
         assert "## Map Maintenance" in content
         assert "project cognition" in content.lower()
         assert "map-update" in content
-        assert "graph-native cognition coverage can be trusted as fresh" in content.lower()
+        assert "query-backed cognition coverage can be trusted as fresh" in lower
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
 

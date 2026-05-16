@@ -1,6 +1,6 @@
 id: minimal
 name: Minimal Delivery
-version: 1.0.0
+version: 1.1.0
 description: Lean default for small repositories and low-ceremony teams.
 core_principles: |
   ## Core Principles
@@ -65,6 +65,11 @@ conditional_guidance: |
 engineering_standards: |
   ## Engineering Standards
 
+  - **Project Cognition Before Existing-System Judgment**: When work depends on
+    existing project truth, agents MUST query project cognition before broad
+    source inspection, planning, debugging, implementation, task decomposition,
+    or subagent dispatch. The query result MUST guide routing, minimal live
+    reads, scope boundaries, and verification strategy.
   - **Clear Naming**: Code, tasks, and docs SHOULD prefer descriptive names over
     terse shortcuts.
   - **Local Documentation Sync**: Update the nearest relevant README, inline

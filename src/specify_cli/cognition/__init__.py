@@ -3,10 +3,13 @@
 from .diff import build_diff_impact_payload
 from .discovery import discover_reference_projects
 from .db import (
+    CognitionRuntimeMetadataError,
     connect_cognition_db,
     cognition_transaction,
     ensure_cognition_db,
     get_active_generation_id,
+    publish_cognition_runtime_metadata,
+    read_cognition_runtime_metadata,
     seed_active_generation,
 )
 from .paths import (
@@ -59,6 +62,7 @@ from .validation import validate_build_acceptance, validate_scan_acceptance
 __all__ = [
     "ClaimRecord",
     "CognitionStatus",
+    "CognitionRuntimeMetadataError",
     "ConflictRecord",
     "EvidenceRecord",
     "GraphEdge",
@@ -91,7 +95,9 @@ __all__ = [
     "provisional_nodes_path",
     "provisional_observations_path",
     "project_cognition_lexicon",
+    "publish_cognition_runtime_metadata",
     "query_project_cognition",
+    "read_cognition_runtime_metadata",
     "read_cognition_status",
     "read_reference_project_cognition",
     "read_json_artifact",

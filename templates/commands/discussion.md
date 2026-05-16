@@ -3,8 +3,8 @@ description: Use when a rough idea or requirement needs a resumable senior produ
 workflow_contract:
   when_to_use: A rough idea or requirement needs product/technical discussion before it is ready for sp-specify.
   primary_objective: Build a durable discussion package that matures the idea into requirements and technical implementation options.
-  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, and explicit `handoff-to-specify.md` only when requested by the user.'
-  default_handoff: Stay in sp-discussion until the user explicitly asks to hand off; then write handoff-to-specify.md and tell the user how to invoke sp-specify.
+  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, `split-plan.md` and `handoffs/<candidate_id>-handoff-to-specify.{md,json}` for the selected stable candidate ID when splitting is required, plus latest-copy `handoff-to-specify.{md,json}` with Must-Preserve Ledger and coverage fields only after a bounded handoff or bounded candidate handoff is selected.'
+  default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run handoff assessment and either write a bounded latest-copy handoff-to-specify.{md,json}, enter split mode, or continue discussion.
 ---
 
 {{spec-kit-include: ../command-partials/discussion/shell.md}}
@@ -26,7 +26,8 @@ You are a senior technical expert and senior product manager working with the us
 - Do not edit tests.
 - Do not run implementation-oriented fix loops.
 - Do not automatically run, invoke, or route into `sp-specify`.
-- Do not create or refresh `handoff-to-specify.md` unless the user explicitly asks to hand off, feed, or pass the discussion to `sp-specify`.
+- Do not add, recommend, or route to `sp-split`, `sp-breakdown`, or any split-only workflow; split handling stays inside `sp-discussion`.
+- Do not create or refresh latest-copy `handoff-to-specify.md` or `handoff-to-specify.json` unless the user explicitly asks to hand off, feed or pass the discussion to `sp-specify`, or continue the next stage, and handoff assessment selects a bounded handoff or bounded candidate handoff.
 
 ## Session Store
 
@@ -40,7 +41,10 @@ Required files:
 - `technical-options.md`
 - `project-context.md`
 - `open-questions.md`
-- `handoff-to-specify.md` only after explicit user request
+- `handoff-assessment.md` only after explicit user request to hand off or continue to the next stage
+- `split-plan.md` only when handoff assessment returns `split-required`
+- `handoffs/<candidate_id>-handoff-to-specify.md` and `handoffs/<candidate_id>-handoff-to-specify.json` when a split candidate is selected, using the selected stable ID such as `CAND-001` or `CAND-002`
+- latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` only after a bounded handoff or bounded candidate handoff is selected; include Must-Preserve Ledger, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`
 
 Use `templates/discussion-state-template.md` when initializing `discussion-state.md`.
 
@@ -63,7 +67,10 @@ Use `templates/discussion-state-template.md` when initializing `discussion-state
 4. Keep `open-questions.md` grouped by blocking level.
 5. Refresh `requirements.md` whenever a material requirement decision changes.
 6. Enter technical options only when implementation strategy affects the requirement.
-7. Generate `handoff-to-specify.md` only after explicit user request.
+7. When the user explicitly asks to hand off, feed the discussion to `sp-specify`, or continue the next stage, run handoff assessment before writing any handoff.
+8. If assessment returns `ready-for-specify`, write a bounded `handoff-to-specify.md` and `handoff-to-specify.json` with Must-Preserve Ledger and coverage fields.
+9. If assessment returns `split-required`, write or refresh `split-plan.md`, keep the discussion incomplete, ask the user to select one candidate, and then write candidate-specific handoff files plus latest-copy handoff files.
+10. If assessment returns `continue-discussion`, return to the question loop.
 
 ## Staged Project Cognition Gate
 
@@ -111,19 +118,134 @@ When implementation strategy affects the requirement, present 2-3 options before
 
 For each option, include product behavior enabled, impacted modules or files, complexity, migration or compatibility concerns, testing strategy, risks, rollback or de-scope path, and recommendation rationale.
 
+## Handoff Assessment
+
+Handoff assessment is explicit-user-request only. Run it when the user says the discussion is done, asks to hand off, asks to feed the result to `sp-specify`, or asks to continue the next stage.
+
+Write or refresh `handoff-assessment.md` with:
+
+- decision status: `ready-for-specify`, `split-required`, or `continue-discussion`
+- rationale citing `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, or explicit user confirmation
+- assessment dimensions: feature coherence, independent value, planning shape, implementation dependency, validation split, and risk profile
+- required next action: `write-handoff`, `enter-split-mode`, or `continue-discussion`
+
+Assessment outcomes:
+
+- `ready-for-specify`: the mature discussion describes one coherent feature boundary. Write bounded latest-copy `handoff-to-specify.md` and `handoff-to-specify.json`.
+- `split-required`: the mature discussion contains multiple independently valuable candidates, release tracks, business domains, validation packages, or implementation chains. Enter split mode and write `split-plan.md`.
+- `continue-discussion`: the issue is missing clarity rather than overbreadth. Return to the question loop.
+
+## Split Mode Inside sp-discussion
+
+When assessment returns `split-required`, write or refresh `split-plan.md`. The split plan is a candidate backlog, not an implementation plan and not a task list.
+
+Each candidate must have:
+
+- stable ID such as `CAND-001` or `CAND-002`
+- title
+- status: `not-started | handoff-ready | handed-off | in-progress | completed | deferred | blocked`
+- goal
+- scope
+- non-goals
+- acceptance signals
+- dependencies
+- risks
+- recommended next step: `sp-specify | continue-discussion | deep-research-later | defer`
+- handoff path
+- optional feature directory
+- completion evidence
+
+`split-plan.md` must include `Original Direction`, `Split Rationale`, `Candidate Backlog`, `Recommended Sequence`, and `Resume Guidance`.
+
+A discussion with an active split backlog remains incomplete until every candidate is `completed`, `deferred`, or explicitly abandoned by the user. You must not mark the discussion `completed` merely because the first candidate handoff was written.
+
+When the user returns and asks for the next stage, read `split-plan.md`, inspect candidate statuses, recommend the next candidate whose dependencies are completed or waived, and ask the user to choose when more than one candidate is viable. If completion evidence for a previous candidate is missing, ask whether it is completed, in progress, blocked, or only handed off.
+
 ## Handoff To sp-specify
 
-Handoff is explicit-user-request only.
+Handoff is explicit-user-request only and follows handoff assessment.
 
-When requested, write or refresh `handoff-to-specify.md` with:
+For `ready-for-specify`, write latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` with one bounded feature scope.
 
-- frontmatter: `source_command: sp-discussion`, `discussion_slug`, `status: handoff-ready`, `updated_at`, and `source_files`
+For `split-required`, first write `split-plan.md`. After the user selects one candidate, write canonical candidate handoffs using the selected stable candidate ID from `split-plan.md`:
+
+- `handoffs/<candidate_id>-handoff-to-specify.md`
+- `handoffs/<candidate_id>-handoff-to-specify.json`
+
+For example, the first selected candidate might write `handoffs/CAND-001-handoff-to-specify.md` and `.json`; a later selected second-stage candidate writes `handoffs/CAND-002-handoff-to-specify.md` and `.json`.
+
+Then refresh latest selected candidate latest-copy compatibility files in the same operation:
+
+- `handoff-to-specify.md`
+- `handoff-to-specify.json`
+
+Each latest-copy file must be a full readable copy of the selected candidate handoff or JSON and must not be a pointer-only file because existing `sp-specify` intake expects the supplied path to contain the user-reviewable handoff artifact.
+
+Candidate handoff Markdown must include:
+
+- frontmatter: `source_command: sp-discussion`, `discussion_slug`, `candidate_id`, `candidate_title`, `status: handoff-ready`, `source_split_plan`, `updated_at`, and `source_files`
+- candidate scope
 - confirmed product goal and users
-- confirmed scope and non-goals
-- confirmed scenarios and acceptance signals
-- selected or still-open technical direction
+- in scope
+- out of scope
+- acceptance signals
+- prior candidates and dependencies
+- deferred candidates
 - project-context evidence and inference notes
-- unresolved questions with blocking levels
-- instructions for `sp-specify` about settled decisions and remaining decisions
+- open questions with blocking levels
+- Must-Preserve Ledger
+- instructions for `sp-specify`
+
+Candidate JSON must mirror the Markdown and include `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, `source_markdown`, `latest_legacy_markdown`, `prior_candidates`, `deferred_candidates`, `stage_scope_boundary`, `reopen_condition`, and `must_preserve`.
+
+Markdown and JSON must agree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, and every Must-Preserve Ledger item ID, type, claim, blocking level, owner, latest resolve phase, and status.
+
+
+## Must-Preserve Ledger
+
+When the user explicitly requests handoff, `handoff-to-specify.md` must include a Must-Preserve Ledger. The ledger preserves only semantic units that would cause product or implementation drift if lost.
+
+Ledger item types:
+
+- `goal`
+- `scope`
+- `non_goal`
+- `scenario`
+- `decision`
+- `reference`
+- `tradeoff`
+- `blocking_question`
+
+Each ledger item must include:
+
+- `id`: stable `MP-###`
+- `type`: one of the ledger item types
+- `claim`: the exact conclusion to preserve
+- `source`: source file, reference, or user confirmation
+- `downstream_requirement`: how later artifacts must carry this forward
+- `blocking_level`: `hard` or `soft`
+- `owner`: `user`, `evidence`, `downstream-contract`, or `risk-waiver`
+- `latest_resolve_phase`: latest phase allowed to resolve or carry the item
+- `status`: `pending`, `mapped`, `resolved`, `deferred`, `superseded`, or `dropped`
+- `deferred_to`: downstream phase when status is `deferred`
+- `stop_and_reopen_condition`: required for deferred items
+- `superseded_by`: replacement item or conflict resolution when status is `superseded`
+- `mapped_to`: empty in discussion handoff; populated by `sp-specify`
+
+Include ledger items for confirmed goals, selected scope, non-goals, acceptance-shaping scenarios, selected decisions, critical references, selected or rejected trade-offs whose rationale matters, and blocking open questions.
+
+## Handoff JSON Companion
+
+When `handoff-to-specify.md` is written, also write `.specify/discussions/<slug>/handoff-to-specify.json` with the same ledger item IDs and key fields.
+
+The Markdown and JSON forms must agree on every ledger item's `id`, `type`, `claim`, `blocking_level`, `owner`, `latest_resolve_phase`, and `status`.
+
+If an existing Markdown handoff and JSON companion disagree, block and refresh the handoff instead of choosing one silently.
+
+## Conflict Blocker
+
+If an `MP-*` item conflicts with repository evidence, constitution rules, project rules, project cognition evidence, or architecture constraints, do not silently reinterpret, downgrade, or replace the discussion conclusion. Block and ask the user to choose keep, revise, drop, or defer with an explicit risk contract.
+
+Do not mark the discussion `handoff-ready` until every confirmed or critical item is represented in the Must-Preserve Ledger. Deferred items require `deferred_to`, `owner`, `latest_resolve_phase`, and `stop_and_reopen_condition`. The handoff must preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` fields for downstream coverage.
 
 After writing the handoff, tell the user to invoke the generated integration's `sp-specify` command form with the handoff path. Do not invoke it yourself.
