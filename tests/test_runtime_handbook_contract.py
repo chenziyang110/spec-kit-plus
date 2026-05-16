@@ -66,6 +66,8 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "agent-planned `project-cognition query`" in lowered
     assert "project-cognition lexicon" in lowered
     assert "query_plan" in content
+    assert "normal code changes should use `sp-map-update` for bounded incremental refresh from changed paths" in lowered
+    assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in lowered
     assert "workflow-appropriate slices" not in lowered
 
 

@@ -62,8 +62,11 @@ judgment in an established Spec Kit Plus repository:
 - Preserve the distinction between the machine freshness field and public state
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.
-- If no usable localized baseline remains, route through
-  `{{invoke:map-scan}} -> {{invoke:map-build}}`.
+- Route through `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the
+  baseline is missing, unusable, schema-incompatible, explicitly being rebuilt,
+  or invalidated by broad architecture replacement. Uncertain closure should be
+  recorded by `sp-map-update` as partial/low-confidence facts, known unknowns,
+  and `minimal_live_reads`.
 - Treat that detour as a user-invoked workflow handoff. Do not silently switch into
   `sp-map-update`, `sp-map-scan`, or `sp-map-build` yourself from another workflow;
   stop and tell the user which map workflow to run.

@@ -89,9 +89,11 @@ from specify_cli.cognition import (
     cognition_status_path,
     project_cognition_lexicon,
     query_project_cognition,
+    read_cognition_status,
     validate_build_acceptance,
     validate_scan_acceptance,
 )
+from specify_cli.scan_freshness import collect_git_changed_files
 from specify_cli.execution import (
     build_result_handoff_path,
     write_normalized_result_handoff,
@@ -729,7 +731,7 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
             "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry."
         )
         console.print(
-            "If no usable baseline remains, rebuild the project cognition baseline."
+            "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
         )
         console.print(
             "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
@@ -1873,18 +1875,30 @@ def project_cognition_lexicon_command(
 
 @project_cognition_app.command("update")
 def project_cognition_update_command(
-    changed_paths: list[str] = typer.Option(..., "--changed-paths", help="Changed path; may be specified more than once"),
+    changed_paths: Optional[list[str]] = typer.Option(None, "--changed-paths", help="Changed path; may be specified more than once. If omitted, derive paths from git diff/status."),
     reason: str = typer.Option("manual", "--reason", help="Update trigger or reason"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
 ):
     """Apply a bounded transactional project cognition update for changed paths."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    payload = apply_cognition_update(project_root, changed_paths=changed_paths, reason=reason)
+    effective_changed_paths = changed_paths or _collect_project_cognition_update_paths(project_root)
+    payload = apply_cognition_update(project_root, changed_paths=effective_changed_paths, reason=reason)
     if output_format.lower() == "json":
         print_json(payload, indent=2)
         return
     console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Update", border_style="cyan"))
+
+
+def _collect_project_cognition_update_paths(project_root: Path) -> list[str]:
+    head_commit = git_head_commit(project_root)
+    status = read_cognition_status(project_root)
+    changed_paths = collect_git_changed_files(
+        project_root,
+        baseline_commit=status.baseline_commit or head_commit,
+        head_commit=head_commit or "HEAD",
+    )
+    return changed_paths
 
 
 @project_cognition_app.command("doctor")

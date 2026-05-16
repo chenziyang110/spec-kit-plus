@@ -126,8 +126,10 @@ engineering_standards: |
     `.specify/project-cognition/status.json` and workflow-appropriate cognition
     slices as the default brownfield runtime truth surface. Legacy handbook or
     project-map exports are compatibility surfaces only. Use `map-update` for
-    localized stale cognition runtime refresh; use `map-scan` followed by
-    `map-build` when no usable baseline remains or a full rebuild is required.
+    localized stale cognition runtime refresh and ordinary changed-path
+    maintenance; use `map-scan` followed by `map-build` only when the baseline is
+    missing, unusable, schema-incompatible, explicitly being rebuilt, or
+    invalidated by broad architecture replacement.
     Keep cognition status, slices, and freshness state in sync whenever
     navigation meaning changes. If the project cognition runtime is missing,
     generate it before structural work continues; if it is stale or too weak for

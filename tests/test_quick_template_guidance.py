@@ -78,6 +78,9 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "repository analysis" in content
     assert "read `.specify/memory/constitution.md` first" in content
     assert "summary artifact" in content or "final summary artifact" in content
+    assert "changed_code_paths" in content
+    assert "changed_behavior_surfaces" in content
+    assert "project_cognition_refresh" in content
 
 
 def test_quick_template_preserves_quality_guardrails() -> None:
@@ -258,8 +261,10 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
 def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
-    assert "rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
+    assert "ordinary uncertain closure" in content
+    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
+    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
     assert "complete-refresh" in content
     assert "project-cognition validate-build --format json" in content
     assert "only when build acceptance passes" in content

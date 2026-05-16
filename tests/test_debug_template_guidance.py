@@ -140,7 +140,14 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "dispatches bounded evidence-gathering subagents" in content
     assert "durable team workflow" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "changed_code_paths" in content
+    assert "changed_behavior_surfaces" in content
+    assert "verification_evidence" in content
+    assert "project_cognition_refresh" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "ordinary uncertain closure" in content
+    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
+    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
     assert "returned `project-cognition query` bundle and readiness as the truth source" in content
     assert "use only returned `minimal_live_reads` when needed" in content
     assert ".specify/project-map/index/status.json" not in content

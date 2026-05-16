@@ -93,9 +93,10 @@ standalone branch-creation command.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
   coverage is stale or too weak for a localized touched area.
-- Use `sp-map-scan -> sp-map-build` before other workflow steps when project
-  cognition runtime context for an existing codebase is missing or no usable
-  localized baseline remains.
+- Use `sp-map-scan -> sp-map-build` before other workflow steps only when
+  project cognition runtime context for an existing codebase is missing,
+  unusable, schema-incompatible, explicitly being rebuilt, or invalidated by
+  broad architecture replacement.
 - Use `sp-analyze` for drift, consistency, or readiness checks across existing
   spec/plan/tasks artifacts.
 - Use `sp-explain` when the user needs a plain-language explanation of current

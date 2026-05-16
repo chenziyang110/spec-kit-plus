@@ -141,11 +141,13 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
         assert "/sp-" not in section
 
     assert "`map-update` for localized stale cognition runtime refresh" in support_guidance
+    assert "changed-path maintenance" in support_guidance
     assert "recorded refresh and ready refresh" in readme.lower()
     assert "support drift is not runtime-truth staleness" in readme.lower()
     assert "`partial_refresh`" in readme
     assert "`support_drift`" in readme
-    assert "`map-scan` followed by `map-build` when no usable baseline remains" in support_guidance
+    assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in readme.lower()
+    assert "`map-scan` followed by `map-build` only when the baseline is missing, unusable, schema-incompatible" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance
     assert "heavy reconstruction workflow" in support_guidance

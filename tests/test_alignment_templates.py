@@ -1168,7 +1168,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "build-handbook.md" not in lowered
     assert ".specify/project-map/index/status.json" not in content
     assert "atlas.entry" not in lowered
-    assert "use `{{invoke:map-update}}` when the touched area is localized" in content
+    assert "use `{{invoke:map-update}}` with the changed paths" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -1809,7 +1809,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
-    assert "Use `/sp-map-update` when the touched area is localized" in content
+    assert "Use `/sp-map-update` with the changed paths" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -1896,7 +1896,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "exactly one safe validated packet is ready" in lowered
     assert "two or more safe validated packets with isolated write sets" in lowered
     assert "`subagent-blocked`" in lowered
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered

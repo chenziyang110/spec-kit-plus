@@ -124,7 +124,7 @@ Use `execution_surface: native-subagents`.
      - which test frameworks and conventions already govern those modules
      - which workflows or integration seams are regression-sensitive
      - which startup, CI, or operator commands are required to run tests safely
-   - [AGENT] If testing-surface cognition coverage is insufficient for the current repository, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If testing-surface cognition coverage is insufficient for the current repository, stop and tell the user to refresh through `{{invoke:map-update}}` with changed paths or affected surfaces; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement; wait for that refresh before continuing.
    - Read `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` when present; open only relevant linked learning detail docs.
 

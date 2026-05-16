@@ -59,8 +59,14 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "≤3 files touched" in content or "3 files touched" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
-    assert "rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required" in content
+    assert "changed_code_paths" in content
+    assert "changed_behavior_surfaces" in content
+    assert "verification_evidence" in content
+    assert "project_cognition_refresh" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
+    assert "ordinary uncertain closure" in content
+    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
+    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
     assert "complete-refresh" in content
     assert "manual override/fallback" in content
     assert "skip all learning hooks" in content
