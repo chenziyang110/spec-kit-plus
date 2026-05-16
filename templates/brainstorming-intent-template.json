@@ -1,10 +1,18 @@
 {
   "version": 1,
   "status": "pending",
+  "stage": "intent-lock",
   "goal": "",
   "non_goals": [],
   "success_criteria": [],
   "must_preserve": [],
   "allowed_optimization_scope": [],
-  "open_questions": []
+  "open_questions": [],
+  "compiled_from": {
+    "journal": "brainstorming/journal.ndjson",
+    "event_range": [],
+    "key_events": [],
+    "evidence_ids": [],
+    "compiled_at": null
+  }
 }

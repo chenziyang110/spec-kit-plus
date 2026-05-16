@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "status": "active",
+  "canonical_stage_enum": [
+    "intake",
+    "evidence-intake",
+    "facts-lock",
+    "route-lock",
+    "intent-lock",
+    "complexity-lock",
+    "domain-clarification",
+    "consequence-risk",
+    "specify-compile",
+    "release-decision"
+  ],
+  "journal": {
+    "path": "brainstorming/journal.ndjson",
+    "last_event_id": null,
+    "last_checkpoint_id": null
+  },
+  "stages": {
+    "intake": {
+      "artifact": "workflow-state.md",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "evidence-intake": {
+      "artifact": "brainstorming/evidence-index.json",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "facts-lock": {
+      "artifact": "brainstorming/facts.json",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "route-lock": {
+      "artifact": "brainstorming/route.json",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "intent-lock": {
+      "artifact": "brainstorming/intent.json",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "complexity-lock": {
+      "artifact": "brainstorming/complexity.json",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "domain-clarification": {
+      "artifact": "brainstorming/domains.json",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "consequence-risk": {
+      "artifact": "brainstorming/handoff-to-specify.json",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "specify-compile": {
+      "artifact": "spec.md",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    },
+    "release-decision": {
+      "artifact": "workflow-state.md",
+      "status": "pending",
+      "event_range": [],
+      "artifact_hash": null,
+      "last_compiled_event_id": null,
+      "recoverable": false
+    }
+  }
+}

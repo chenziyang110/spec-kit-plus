@@ -1,6 +1,7 @@
 {
   "version": 1,
   "status": "active",
+  "stage": "facts-lock",
   "fields": {
     "has_existing_repo": { "value": "unknown", "evidence": [] },
     "has_source_of_truth_code": { "value": "unknown", "evidence": [] },
@@ -12,5 +13,12 @@
     "has_compatibility_constraints": { "value": "unknown", "evidence": [] },
     "success_criteria_explicit": { "value": "unknown", "evidence": [] }
   },
-  "unknowns": []
+  "unknowns": [],
+  "compiled_from": {
+    "journal": "brainstorming/journal.ndjson",
+    "event_range": [],
+    "key_events": [],
+    "evidence_ids": [],
+    "compiled_at": null
+  }
 }

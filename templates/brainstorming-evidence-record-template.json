@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "evidence_id": "EVD-000",
+  "source_kind": "repo",
+  "source": null,
+  "source_path": null,
+  "source_url": null,
+  "excerpt": "",
+  "content_hash": null,
+  "captured_event_id": null,
+  "stage": "evidence-intake",
+  "domain": null,
+  "relevance": "",
+  "accepted_use": []
+}
