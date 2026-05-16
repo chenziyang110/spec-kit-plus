@@ -189,7 +189,7 @@ For compatibility, it also writes or refreshes:
 .specify/discussions/<slug>/handoff-to-specify.md
 ```
 
-The candidate-specific handoff is canonical. The legacy path is the latest selected candidate copy or pointer so existing `sp-specify` usage keeps working.
+The candidate-specific handoff is canonical. The legacy path is a full readable copy of the latest selected candidate handoff so existing `sp-specify` usage keeps working. It must not be a pointer-only file because existing intake expects the supplied path to contain the user-reviewable handoff artifact.
 
 Candidate handoff frontmatter:
 
@@ -226,6 +226,53 @@ Candidate handoff body:
 
 The Must-Preserve Ledger follows the existing discussion-to-specify fidelity design. Candidate handoffs should include only ledger items that shape the selected candidate plus any dependency, non-goal, or deferred-sibling item needed to prevent scope drift.
 
+## Candidate JSON Companions
+
+Candidate-specific handoffs must also have machine-readable JSON companions:
+
+```text
+.specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.json
+```
+
+For compatibility, `sp-discussion` also writes or refreshes the latest legacy JSON copy:
+
+```text
+.specify/discussions/<slug>/handoff-to-specify.json
+```
+
+The candidate JSON is canonical for that candidate. The legacy JSON is a full latest-candidate copy, not a pointer. Whenever `sp-discussion` refreshes `.specify/discussions/<slug>/handoff-to-specify.md` for the latest selected candidate, it must refresh `.specify/discussions/<slug>/handoff-to-specify.json` in the same operation. This prevents a stale legacy JSON mirror from describing a previous candidate while the legacy Markdown describes the current one.
+
+Candidate JSON should mirror the prior discussion-to-specify fidelity schema and add split metadata:
+
+```json
+{
+  "version": 1,
+  "source_command": "sp-discussion",
+  "discussion_slug": "<slug>",
+  "candidate_id": "CAND-001",
+  "candidate_title": "<title>",
+  "status": "handoff-ready",
+  "source_split_plan": ".specify/discussions/<slug>/split-plan.md",
+  "source_markdown": ".specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md",
+  "latest_legacy_markdown": ".specify/discussions/<slug>/handoff-to-specify.md",
+  "source_files": [
+    "requirements.md",
+    "technical-options.md",
+    "project-context.md",
+    "split-plan.md"
+  ],
+  "prior_candidates": [],
+  "deferred_candidates": [],
+  "stage_scope_boundary": "<current candidate boundary>",
+  "reopen_condition": "<when to return to sp-discussion>",
+  "must_preserve": []
+}
+```
+
+Markdown and JSON must agree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, and every Must-Preserve Ledger item ID, type, claim, blocking level, owner, latest resolve phase, and status. If candidate Markdown and candidate JSON disagree, `sp-specify` must block and tell the user to refresh the `sp-discussion` handoff. If the legacy Markdown and legacy JSON disagree on the selected candidate ID, `sp-specify` must block rather than choosing one representation.
+
+If a candidate Markdown handoff exists but the candidate JSON is missing, `sp-specify` may reconstruct the JSON into the active feature's `brainstorming/handoff-to-specify.json` and record the reconstruction source. If the legacy Markdown exists but the legacy JSON is stale or missing, `sp-specify` may continue only when it can read the candidate-specific JSON or reconstruct the JSON from the supplied Markdown; it must report the legacy mirror mismatch as a handoff repair advisory. If only JSON exists and Markdown is missing, the handoff is invalid because the user-reviewable source is absent.
+
 ## Multi-Stage Continuation
 
 The second-stage experience is part of the design.
@@ -254,6 +301,27 @@ First increment completion sync is low coupling:
 - `sp-discussion` updates `split-plan.md` from that evidence or user confirmation.
 
 This avoids requiring downstream workflows to write back into discussion artifacts.
+
+## Top-Level Discussion Status During Split Backlog
+
+A discussion with an active split backlog remains incomplete until every candidate is `completed`, `deferred`, or explicitly abandoned by the user. This keeps normal session resume behavior working for "continue the next stage" requests.
+
+Top-level `discussion-state.md` status should be derived from the backlog:
+
+- `handoff-ready`: at least one candidate handoff is ready for the user to pass to `sp-specify`, and no blocker prevents that candidate from being the recommended next stage.
+- `active`: split mode is active, there is remaining candidate work, and `sp-discussion` can continue selection, clarification, or backlog maintenance.
+- `blocked`: the next viable candidate is blocked by unresolved discussion, missing project grounding, or a dependency that the user has not waived.
+- `completed`: all candidates are completed or deferred, or the user explicitly closes the discussion as done.
+- `abandoned`: the user explicitly abandons the discussion.
+
+`split_plan_status` refines the top-level status:
+
+- `active`: a split plan exists and no candidate has been handed off yet.
+- `partially-handed-off`: at least one candidate is `handed-off`, `in-progress`, or `completed`, and at least one candidate remains `not-started`, `handoff-ready`, `deferred`, or `blocked`.
+- `completed`: all candidates are `completed` or `deferred`, or the user closes the backlog.
+- `blocked`: no next candidate can be selected without resolving a blocker.
+
+`sp-discussion` must not mark the discussion `completed` merely because the first candidate handoff was written.
 
 ## discussion-state.md Extensions
 
@@ -301,6 +369,8 @@ The existing `handoff_requested_by_user` field remains. Handoff assessment does 
 .specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md
 ```
 
+When the supplied path is Markdown, `sp-specify` should look for the same-stem JSON companion first. For a candidate handoff, that is `handoffs/CAND-001-handoff-to-specify.json`. For the legacy latest handoff, that is `handoff-to-specify.json`. If the Markdown frontmatter contains `candidate_id`, `sp-specify` may also use `source_split_plan` to locate and validate the candidate entry in `split-plan.md`.
+
 When a candidate handoff is present, `sp-specify` records these fields into the active feature artifacts, especially `brainstorming/handoff-to-specify.json`, `context.md`, `references.md`, and `workflow-state.md` where appropriate:
 
 - `entry_source: sp-discussion`
@@ -337,7 +407,8 @@ Compatibility:
 
 - Existing single-handoff discussions continue to work.
 - Candidate-specific handoffs are the preferred new path.
-- The legacy `handoff-to-specify.md` remains available as the latest selected candidate handoff.
+- The legacy `handoff-to-specify.md` remains available as a full readable latest selected candidate handoff copy.
+- The legacy `handoff-to-specify.json` remains available as a full latest selected candidate JSON copy and must be refreshed with the legacy Markdown.
 - Existing `sp-specify` discussion intake text should be expanded to mention candidate-specific handoff paths and latest-copy semantics.
 
 ## Error Handling
@@ -347,7 +418,9 @@ Compatibility:
 - If the user selects a candidate whose dependencies are not completed, `sp-discussion` allows override only after recording the risk in `split-plan.md` and the candidate handoff.
 - If a candidate handoff already exists, `sp-discussion` refreshes it only for that candidate and does not overwrite other candidate handoffs.
 - If the legacy latest `handoff-to-specify.md` exists, `sp-discussion` may replace it with the latest selected candidate copy, but the canonical candidate handoff remains under `handoffs/`.
+- If the legacy latest `handoff-to-specify.json` exists, `sp-discussion` must replace it with the latest selected candidate JSON copy in the same refresh operation as the legacy Markdown.
 - If `sp-specify` receives a candidate handoff whose scope is inconsistent with `split-plan.md`, it stops and asks the user to return to `sp-discussion` to repair the candidate or split plan.
+- If `sp-specify` receives mismatched candidate Markdown and JSON, or mismatched legacy Markdown and JSON, it blocks with a handoff integrity error unless it can safely reconstruct JSON from the supplied Markdown and record a repair advisory.
 - If `split-plan.md` records a completed candidate but no evidence is present, `sp-discussion` asks for user confirmation on resume before relying on that status.
 
 ## Implementation Surface
@@ -355,8 +428,11 @@ Compatibility:
 Implementation should update the normal generated workflow surfaces:
 
 - `templates/commands/discussion.md`: add handoff assessment, split mode, candidate selection, multi-stage continuation, candidate handoff creation, and split-plan ownership.
+- `templates/command-partials/discussion/shell.md`: ensure the discussion shell guidance names the new discussion artifacts and does not imply `handoff-to-specify.md` is the only handoff output.
 - `templates/discussion-state-template.md`: add assessment and split-plan state fields.
 - `templates/commands/specify.md`: expand discussion handoff intake to support candidate-specific handoff paths, selected candidate scope, sibling boundary checks, and legacy latest-copy behavior.
+- `templates/brainstorming-handoff-specify-template.json` or the current brainstorming handoff template surface: add candidate metadata, source split plan, sibling/deferred candidate fields, scope boundary, reopen condition, and JSON integrity expectations.
+- `src/specify_cli/hooks/artifact_validation.py` and related artifact validation tests when they validate discussion handoff or brainstorming handoff shapes: accept candidate metadata and reject ambiguous stale handoff mirrors where applicable.
 - `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`: route large rough directions to `sp-discussion`, then let `sp-discussion` assess whether split mode is needed.
 - `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`: keep the staged discussion cognition gate compatible with split mode when split rationale uses project-specific technical evidence.
 - `README.md`: document discussion assessment, split mode, candidate backlog, and next-stage continuation.
@@ -372,7 +448,10 @@ Tests should prove:
 - `templates/commands/discussion.md` includes `handoff-assessment`, `split-mode`, `candidate-selection`, `split-plan.md`, and `handoffs/CAND-xxx-handoff-to-specify.md`.
 - `templates/discussion-state-template.md` contains the new assessment and split-plan state fields.
 - `templates/commands/specify.md` accepts candidate-specific handoff paths and preserves `candidate_id`, `source_split_plan`, `stage_scope_boundary`, and deferred candidates.
+- Candidate handoffs include `.md` and `.json` companions under `handoffs/`, and the legacy latest `.md` and `.json` copies refresh together.
+- Mismatched candidate Markdown/JSON and stale legacy Markdown/JSON are blocked or reported according to the integrity rules.
 - `sp-specify` guidance says the current feature covers one candidate and must not silently include sibling candidates.
+- A split backlog keeps the top-level discussion status incomplete until every candidate is completed, deferred, or explicitly abandoned.
 - README and handbook text explain returning to the same discussion slug for second and later stages.
 - Generated command or skill surfaces include the new discussion split language for Markdown, TOML, and skills-based integrations.
 - Existing legacy handoff tests still pass for `.specify/discussions/<slug>/handoff-to-specify.md`.
@@ -384,6 +463,7 @@ Tests should prove:
 - A user can finish a large `sp-discussion`, request handoff, and receive either a direct bounded handoff or a split-plan-backed candidate selection.
 - A split-required discussion produces durable candidate IDs and statuses.
 - Selecting `CAND-001` creates a canonical candidate handoff and updates the legacy latest handoff path.
+- Selecting `CAND-001` creates canonical candidate Markdown and JSON handoffs, then refreshes both legacy latest handoff copies.
 - After `CAND-001` is implemented, the user can resume the same discussion and ask for the next stage without restating the original direction.
 - `sp-specify` can consume a candidate handoff and preserve the candidate boundary in feature artifacts.
 - `sp-specify` blocks instead of silently folding sibling candidates into the selected feature.
