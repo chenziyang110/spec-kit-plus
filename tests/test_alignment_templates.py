@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -373,6 +374,40 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "{{spec-kit-include: ../command-partials/discussion/shell.md}}" in content
 
 
+def test_discussion_command_supports_handoff_assessment_and_split_backlog() -> None:
+    content = _read_project_file("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "handoff-assessment.md" in content
+    assert "split-plan.md" in content
+    assert "handoffs/CAND-001-handoff-to-specify.md" in content
+    assert "handoffs/CAND-001-handoff-to-specify.json" in content
+    assert "handoff-to-specify.json" in content
+    assert "ready-for-specify" in content
+    assert "split-required" in content
+    assert "continue-discussion" in content
+    assert "candidate backlog" in lowered
+    assert "latest selected candidate" in lowered
+    assert "full readable copy" in lowered
+    assert "must not be a pointer-only file" in lowered
+    assert "must not mark the discussion `completed` merely because the first candidate handoff was written" in content
+    assert "Do not add, recommend, or route to `sp-split`" in content
+
+
+def test_discussion_shell_partial_mentions_split_outputs_without_single_handoff_assumption() -> None:
+    content = _read("templates/command-partials/discussion/shell.md")
+    lowered = content.lower()
+
+    assert "handoff-assessment.md" in content
+    assert "split-plan.md" in content
+    assert "handoffs/CAND-001-handoff-to-specify.md" in content
+    assert "handoff-to-specify.md" in content
+    assert "handoff-to-specify.json" in content
+    assert "candidate backlog" in lowered
+    assert "latest selected candidate copy" in lowered
+    assert "only handoff output" not in lowered
+
+
 def test_discussion_staged_cognition_gate_and_technical_options_contract() -> None:
     content = _read("templates/commands/discussion.md")
     lowered = content.lower()
@@ -406,6 +441,17 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "## Allowed Artifact Writes" in content
     assert "discussion-state.md" in content
     assert "handoff-to-specify.md" in content
+    assert "handoff-assessment" in content
+    assert "split-mode" in content
+    assert "candidate-selection" in content
+    assert "## Handoff Assessment" in content
+    assert "handoff_assessment_status: not-run | ready-for-specify | split-required | continue-discussion" in content
+    assert "## Split Plan" in content
+    assert "split_plan_status: none | active | partially-handed-off | completed | blocked" in content
+    assert "active_candidate: CAND-xxx | none" in content
+    assert "next_recommended_candidate: CAND-xxx | none" in content
+    assert "handoffs/*.md" in content
+    assert "handoffs/*.json" in content
     assert "sp-discussion" not in workflow_state
     assert '"discussion"' not in expected_workflow_state
     assert "sp-discussion" not in expected_workflow_state
@@ -416,6 +462,18 @@ def test_specify_consumes_explicit_discussion_handoff_without_bypassing_kernel()
     lowered = content.lower()
 
     assert ".specify/discussions/<slug>/handoff-to-specify.md" in content
+    assert ".specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md" in content
+    assert "CAND-001-handoff-to-specify.json" in content
+    assert "candidate_id" in content
+    assert "candidate_title" in content
+    assert "source_split_plan" in content
+    assert "stage_scope_boundary" in content
+    assert "deferred_candidates" in content
+    assert "latest selected candidate" in lowered
+    assert "same-stem JSON companion" in content
+    assert "current feature spec covers one candidate" in lowered
+    assert "sibling candidates" in lowered
+    assert "handoff integrity error" in lowered
     assert "pasted discussion handoff" in lowered
     assert "entry_source: sp-discussion" in content
     assert "authoritative input" in lowered
@@ -2410,6 +2468,27 @@ def test_feature_scaffolding_and_packaging_include_brainstorming_truth_templates
 
     assert "brainstorming\\facts.json" in ps_create or "brainstorming/facts.json" in ps_create
     assert "handoff-to-specify.json" in ps_create
+
+
+def test_brainstorming_handoff_template_supports_discussion_candidate_metadata() -> None:
+    template = json.loads(_read("templates/brainstorming-handoff-specify-template.json"))
+
+    assert template["version"] == 1
+    assert template["entry_source"] == "none"
+    assert template["discussion_slug"] is None
+    assert template["candidate_id"] is None
+    assert template["candidate_title"] is None
+    assert template["source_split_plan"] is None
+    assert template["source_handoff"] is None
+    assert template["source_handoff_json"] is None
+    assert template["prior_candidates"] == []
+    assert template["deferred_candidates"] == []
+    assert template["stage_scope_boundary"] is None
+    assert template["reopen_condition"] is None
+    assert template["must_preserve"] == []
+    assert template["conflicts"] == []
+    assert template["coverage_status"] == "not-applicable"
+    assert template["handoff_integrity"] == "not-checked"
 
 
 def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
