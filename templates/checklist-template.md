@@ -32,6 +32,12 @@
 - [ ] CHK005 Item with specific criteria
 - [ ] CHK006 Final item in this category
 
+## Lossless State Traceability
+
+- [ ] Final artifacts include a lossless source map for planning-critical claims
+- [ ] `compiled_from` references are present for structured stage artifacts
+- [ ] Major claims trace to `EVT-###` or `EVD-###` identifiers
+
 ## Notes
 
 - Check items off as completed: `[x]`

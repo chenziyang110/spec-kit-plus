@@ -22,6 +22,17 @@
   - [condition that requires upstream truth to reopen]
 
 
+## Lossless Source Map
+
+- Journal: `brainstorming/journal.ndjson`
+- Stage Manifest: `brainstorming/stage-manifest.json`
+- Source Event IDs:
+  - EVT-###: [Decision, evidence, answer, or checkpoint used]
+- Evidence IDs:
+  - EVD-###: [Evidence record used]
+- Compiled From:
+  - `compiled_from`: [journal range and stage artifact inputs]
+
 ## Must-Preserve Execution Constraints
 
 - `MP-###`: [implementation-shaping decision, reference, non-goal, or trade-off]

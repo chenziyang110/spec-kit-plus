@@ -116,6 +116,17 @@ naming the specific behaviors included in the current slice.
 - **Allowed Optimization Scope**:
   - [Explicit redesign latitude compiled from `brainstorming/intent.json`]
 
+## Lossless Source Map
+
+- Journal: `brainstorming/journal.ndjson`
+- Stage Manifest: `brainstorming/stage-manifest.json`
+- Source Event IDs:
+  - EVT-###: [Decision, evidence, answer, or checkpoint used]
+- Evidence IDs:
+  - EVD-###: [Evidence record used]
+- Compiled From:
+  - `compiled_from`: [journal range and stage artifact inputs]
+
 ## Scenarios and Usage Paths *(mandatory)*
 
 ### Primary Scenario - [Brief Title]

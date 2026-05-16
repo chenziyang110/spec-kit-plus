@@ -2807,6 +2807,25 @@ def test_compiled_artifact_templates_preserve_route_and_complexity_truth() -> No
     assert "## Truth Sources Used For Route And Intent Lock" in references
 
 
+def test_final_artifact_templates_preserve_lossless_source_map_guidance() -> None:
+    spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    references = _read("templates/references-template.md")
+    checklist = _read("templates/checklist-template.md")
+
+    for content in (spec, alignment, context, references):
+        assert "## Lossless Source Map" in content
+        assert "brainstorming/journal.ndjson" in content
+        assert "brainstorming/stage-manifest.json" in content
+        assert "EVT-" in content
+        assert "EVD-" in content
+        assert "`compiled_from`" in content
+
+    assert "lossless source map" in checklist.lower()
+    assert "compiled_from" in checklist
+
+
 def test_compiled_artifact_templates_preserve_must_preserve_ids() -> None:
     spec = _read("templates/spec-template.md")
     alignment = _read("templates/alignment-template.md")
