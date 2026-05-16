@@ -83,10 +83,34 @@ def _unique(values: list[str]) -> list[str]:
     return ordered
 
 
-def _parse_pipe_fields(line: str) -> dict[str, str]:
+def _normalized_header_name(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+    aliases = {
+        "affected_state_dependency": "affected_objects",
+        "affected_state": "affected_objects",
+        "affected_dependency": "affected_objects",
+        "task_ids": "task_ids",
+        "obligation_id": "obligation_id",
+        "required_references": "required_references",
+        "validation": "validation",
+        "stop_reopen_condition": "stop_and_reopen_condition",
+        "stop_and_reopen_condition": "stop_and_reopen_condition",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _is_table_separator(parts: list[str]) -> bool:
+    return bool(parts) and all(re.fullmatch(r":?-{3,}:?", part.strip()) for part in parts)
+
+
+def _parse_pipe_fields(line: str, headers: list[str] | None = None) -> dict[str, str]:
     fields: dict[str, str] = {}
     parts = [part.strip() for part in line.strip().strip("|").split("|")]
-    if len(parts) >= 6:
+    if headers:
+        for header, value in zip(headers, parts):
+            if header and value:
+                fields[header] = value
+    elif len(parts) >= 6:
         fields.update(
             {
                 "obligation_id": parts[0],
@@ -121,7 +145,15 @@ def _consequence_obligations_for_task(
     section = _section_body(tasks_text, "Consequence Obligation Mapping")
     obligations: list[ConsequenceObligation] = []
     seen: set[str] = set()
+    headers: list[str] | None = None
     for raw_line in section.splitlines():
+        if raw_line.strip().startswith("|"):
+            parts = [part.strip() for part in raw_line.strip().strip("|").split("|")]
+            if _is_table_separator(parts):
+                continue
+            if any(part.strip().lower() == "obligation id" for part in parts):
+                headers = [_normalized_header_name(part) for part in parts]
+                continue
         if not _line_mentions_task(raw_line, task_id):
             continue
         match = CONSEQUENCE_ID_RE.search(raw_line)
@@ -131,19 +163,24 @@ def _consequence_obligations_for_task(
         if obligation_id in seen:
             continue
         seen.add(obligation_id)
-        fields = _parse_pipe_fields(raw_line)
+        fields = _parse_pipe_fields(raw_line, headers)
+        affected_objects = _split_csv_field(fields.get("affected_objects", "")) or [task_id]
+        stop_and_reopen_condition = fields.get(
+            "stop_and_reopen_condition",
+            f"No validation evidence supplied for {obligation_id}",
+        )
         obligations.append(
             ConsequenceObligation(
                 obligation_id=obligation_id,
-                claim=fields.get("claim", raw_line.strip()),
-                affected_objects=_split_csv_field(fields.get("affected_objects", "")),
+                claim=fields.get("claim", f"{obligation_id} consequence obligation for {task_id}"),
+                affected_objects=affected_objects,
                 state_behavior_refs=_split_csv_field(fields.get("state_behavior_refs", "")),
                 dependency_refs=_split_csv_field(fields.get("dependency_refs", "")),
                 recovery_validation_refs=_split_csv_field(fields.get("validation", "")),
                 owner=fields.get("owner", "sp-tasks"),
                 latest_resolve_phase=fields.get("latest_resolve_phase", "tasks"),
                 status=fields.get("status", "open"),
-                stop_and_reopen_condition=fields.get("stop_and_reopen_condition", ""),
+                stop_and_reopen_condition=stop_and_reopen_condition,
             )
         )
     return obligations

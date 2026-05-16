@@ -250,6 +250,13 @@ def test_worker_task_result_round_trips_through_json() -> None:
             )
         ],
         summary="Implemented auth flow",
+        consequence_evidence=[
+            {
+                "obligation_id": "CA-001",
+                "validation_ref": "pytest tests/unit/test_auth_service.py -q",
+                "outcome": "recovery path validated",
+            }
+        ],
     )
 
     restored = worker_task_result_from_json(json.dumps(worker_task_result_payload(result)))
@@ -257,6 +264,13 @@ def test_worker_task_result_round_trips_through_json() -> None:
     assert restored.task_id == "T017"
     assert restored.summary == "Implemented auth flow"
     assert restored.validation_results[0].output == "1 passed"
+    assert restored.consequence_evidence == [
+        {
+            "obligation_id": "CA-001",
+            "validation_ref": "pytest tests/unit/test_auth_service.py -q",
+            "outcome": "recovery path validated",
+        }
+    ]
 
 
 def test_worker_task_result_round_trips_context_read_receipts() -> None:

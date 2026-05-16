@@ -22,6 +22,31 @@ def test_normalize_worker_task_result_payload_accepts_canonical_payload() -> Non
     assert result.changed_files == ["src/app.py"]
 
 
+def test_normalize_worker_task_result_payload_preserves_consequence_evidence() -> None:
+    result = normalize_worker_task_result_payload(
+        {
+            "task_id": "T104",
+            "status": "success",
+            "summary": "validated consequence obligation",
+            "consequence_evidence": [
+                {
+                    "obligation_id": "CA-001",
+                    "validation_ref": "pytest tests/unit/test_auth_service.py -q",
+                    "outcome": "recovery path validated",
+                }
+            ],
+        }
+    )
+
+    assert result.consequence_evidence == [
+        {
+            "obligation_id": "CA-001",
+            "validation_ref": "pytest tests/unit/test_auth_service.py -q",
+            "outcome": "recovery path validated",
+        }
+    ]
+
+
 def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success() -> None:
     result = normalize_worker_task_result_payload(
         {
