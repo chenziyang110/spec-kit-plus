@@ -1,6 +1,7 @@
 {
   "version": 2,
   "status": "pending",
+  "stage": "consequence-risk",
   "entry_source": null,
   "source_handoff": null,
   "source_handoff_json": null,
@@ -40,5 +41,12 @@
     "coverage_gaps": []
   },
   "consequence_obligations": [],
-  "stop_and_reopen_conditions": []
+  "stop_and_reopen_conditions": [],
+  "compiled_from": {
+    "journal": "brainstorming/journal.ndjson",
+    "event_range": [],
+    "key_events": [],
+    "evidence_ids": [],
+    "compiled_at": null
+  }
 }

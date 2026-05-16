@@ -1,8 +1,16 @@
 {
   "version": 1,
   "status": "pending",
+  "stage": "complexity-lock",
   "complexity_level": null,
   "scope": "capability",
   "matched_rules": [],
-  "execution_mode": null
+  "execution_mode": null,
+  "compiled_from": {
+    "journal": "brainstorming/journal.ndjson",
+    "event_range": [],
+    "key_events": [],
+    "evidence_ids": [],
+    "compiled_at": null
+  }
 }

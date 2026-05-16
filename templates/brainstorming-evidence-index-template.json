@@ -1,11 +1,9 @@
 {
   "version": 1,
   "status": "pending",
-  "stage": "route-lock",
-  "primary_route": null,
-  "matched_rules": [],
-  "rejected_routes": [],
-  "blocking_unknowns": [],
+  "stage": "evidence-intake",
+  "evidence": [],
+  "accepted_use": [],
   "compiled_from": {
     "journal": "brainstorming/journal.ndjson",
     "event_range": [],

@@ -264,6 +264,22 @@ def test_guidance_docs_teach_specify_as_public_shell_with_internal_brainstorming
         assert "sp-implement" in content
 
 
+def test_guidance_docs_explain_lossless_specify_state() -> None:
+    readme = _read("README.md")
+    handbook = _read("PROJECT-HANDBOOK.md")
+    quickstart = _read("docs/quickstart.md")
+    installation = _read("docs/installation.md")
+    generated_handbook = _read("templates/project-handbook-template.md")
+
+    for content in (readme, handbook, quickstart, installation, generated_handbook):
+        lowered = content.lower()
+        assert "journal.ndjson" in content
+        assert "stage-manifest.json" in content
+        assert "lossless" in lowered
+        assert "compiled_from" in content
+        assert "markdown is not a trusted recovery source" in lowered
+
+
 def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")

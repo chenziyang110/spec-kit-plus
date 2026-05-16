@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "status": "pending",
+  "stage": "domain-clarification",
+  "domains": {
+    "goal-and-users": {
+      "status": "not-started",
+      "question_ids": [],
+      "answer_event_ids": [],
+      "evidence_ids": [],
+      "reopen_event_ids": []
+    },
+    "triggers-and-primary-flow": {
+      "status": "not-started",
+      "question_ids": [],
+      "answer_event_ids": [],
+      "evidence_ids": [],
+      "reopen_event_ids": []
+    },
+    "boundaries-and-non-goals": {
+      "status": "not-started",
+      "question_ids": [],
+      "answer_event_ids": [],
+      "evidence_ids": [],
+      "reopen_event_ids": []
+    },
+    "failure-paths-exceptions-and-permissions": {
+      "status": "not-started",
+      "question_ids": [],
+      "answer_event_ids": [],
+      "evidence_ids": [],
+      "reopen_event_ids": []
+    },
+    "dependencies-constraints-and-upstream-downstream-impact": {
+      "status": "not-started",
+      "question_ids": [],
+      "answer_event_ids": [],
+      "evidence_ids": [],
+      "reopen_event_ids": []
+    },
+    "acceptance-and-completeness-gap-closure": {
+      "status": "not-started",
+      "question_ids": [],
+      "answer_event_ids": [],
+      "evidence_ids": [],
+      "reopen_event_ids": []
+    }
+  },
+  "questions": [],
+  "reopens": [],
+  "compiled_from": {
+    "journal": "brainstorming/journal.ndjson",
+    "event_range": [],
+    "key_events": [],
+    "evidence_ids": [],
+    "compiled_at": null
+  }
+}

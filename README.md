@@ -228,6 +228,12 @@ CLI family.
 compiling the traditional spec package and handing off through structured
 handoff contracts to `plan`, `tasks`, and `sp-implement`.
 
+`sp-specify` is lossless-state backed for new feature packages. The trusted
+recovery source is `brainstorming/journal.ndjson` plus JSON stage artifacts
+indexed by `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
+Final artifacts carry `compiled_from` / source-map references
+so planning can trace major claims to event IDs or evidence IDs.
+
 The deterministic lock sequence is `facts-lock`, `route-lock`, `intent-lock`,
 and `complexity-lock`.
 

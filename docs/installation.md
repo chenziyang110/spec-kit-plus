@@ -106,6 +106,12 @@ Invocation syntax depends on the integration:
 syntax generated for your selected integration rather than copying Claude-style
 examples into Codex or Kimi projects.
 
+`sp-specify` is lossless-state backed for new feature packages. The trusted
+recovery source is `brainstorming/journal.ndjson` plus JSON stage artifacts
+indexed by `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
+Final artifacts carry `compiled_from` / source-map references
+so planning can trace major claims to event IDs or evidence IDs.
+
 Use the canonical `prd-scan -> prd-build` workflow when an existing repository
 needs a repository-first current-state PRD reconstruction archive. It is the
 heavy reconstruction PRD lane: substantive `prd-scan` runs are
