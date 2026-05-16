@@ -27,7 +27,7 @@ You are a senior technical expert and senior product manager working with the us
 - Do not run implementation-oriented fix loops.
 - Do not automatically run, invoke, or route into `sp-specify`.
 - Do not add, recommend, or route to `sp-split`, `sp-breakdown`, or any split-only workflow; split handling stays inside `sp-discussion`.
-- Do not create or refresh `handoff-to-specify.md` unless the user explicitly asks to hand off, feed, or pass the discussion to `sp-specify`.
+- Do not create or refresh latest-copy `handoff-to-specify.md` or `handoff-to-specify.json` unless the user explicitly asks to hand off, feed or pass the discussion to `sp-specify`, or continue the next stage, and handoff assessment selects a bounded handoff or bounded candidate handoff.
 
 ## Session Store
 
@@ -194,7 +194,7 @@ Candidate handoff Markdown must include:
 - Must-Preserve Ledger
 - instructions for `sp-specify`
 
-Candidate JSON must mirror the Markdown and include `discussion_slug`, `candidate_id`, `candidate_title`, `source_split_plan`, `source_markdown`, `latest_legacy_markdown`, `prior_candidates`, `deferred_candidates`, `stage_scope_boundary`, `reopen_condition`, and `must_preserve`.
+Candidate JSON must mirror the Markdown and include `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, `source_markdown`, `latest_legacy_markdown`, `prior_candidates`, `deferred_candidates`, `stage_scope_boundary`, `reopen_condition`, and `must_preserve`.
 
 Markdown and JSON must agree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, and every Must-Preserve Ledger item ID, type, claim, blocking level, owner, latest resolve phase, and status.
 
