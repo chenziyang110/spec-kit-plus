@@ -99,6 +99,21 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
     assert "acceptance criteria" in content
 
 
+def test_fast_template_routes_consequence_triggers_out_of_fast_path() -> None:
+    content = read_template("templates/commands/fast.md").lower()
+
+    assert "senior consequence analysis gate" in content
+    assert "upgrade to `/sp-quick` immediately if the gate triggers" in content
+    assert "upgrade to `/sp-specify` immediately if" in content
+    assert "lifecycle" in content
+    assert "running-state" in content
+    assert "shared-state" in content
+    assert "destructive-operation" in content
+    assert "consumer impact" in content
+    assert "stand-down reason" in content
+    assert "do not add planning artifacts to satisfy this gate on the fast path" in content
+
+
 def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_marker() -> None:
     content = read_template("templates/commands/fast.md").lower()
 

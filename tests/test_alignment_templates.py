@@ -101,6 +101,36 @@ def _assert_reference_evidence_contract(text: str) -> None:
     assert "verification entry points" in lowered
 
 
+def _assert_senior_consequence_gate_contract(content: str) -> None:
+    lowered = content.lower()
+    assert "senior consequence analysis gate" in lowered
+    assert "project cognition first" in lowered
+    assert "senior consequence analysis second" in lowered
+    assert "affected object map" in lowered
+    assert "state-behavior matrix" in lowered
+    assert "dependency impact table" in lowered
+    assert "recovery and validation contract" in lowered
+    assert "coverage gaps" in lowered
+    assert "lifecycle operations" in lowered
+    assert "running" in lowered
+    assert "destructive" in lowered
+    assert "shared state" in lowered
+    assert "downstream consumers" in lowered
+    assert "stand-down reason" in lowered
+
+
+def _assert_consequence_json_contract(content: str) -> None:
+    assert '"consequence_gate"' in content
+    assert '"consequence_analysis"' in content
+    assert '"consequence_obligations"' in content
+    assert '"affected_object_map"' in content
+    assert '"state_behavior_matrix"' in content
+    assert '"dependency_impact"' in content
+    assert '"recovery_and_validation"' in content
+    assert '"coverage_gaps"' in content
+    assert '"stop_and_reopen_conditions"' in content
+
+
 def _extract_bash_managed_block(script: str) -> str:
     match = re.search(
         r"render_speckit_managed_block\(\)\s*\{\s*cat <<'EOF'\n(?P<block>.*?)\nEOF",
@@ -388,6 +418,49 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "architecture-correct path" in lowered
     assert "expansion-ready path" in lowered
     assert "2-3" in content
+
+
+def test_primary_workflows_include_senior_consequence_analysis_gate() -> None:
+    for rel_path in (
+        "templates/commands/discussion.md",
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/fast.md",
+        "templates/commands/quick.md",
+        "templates/commands/debug.md",
+    ):
+        _assert_senior_consequence_gate_contract(_read(rel_path))
+
+
+def test_adjacent_workflows_preserve_consequence_obligations() -> None:
+    for rel_path in (
+        "templates/commands/clarify.md",
+        "templates/commands/deep-research.md",
+        "templates/commands/analyze.md",
+        "templates/commands/implement.md",
+    ):
+        content = _read(rel_path)
+        lowered = content.lower()
+        assert "consequence obligation" in lowered
+        assert "ca-###" in lowered or "ca-*" in lowered
+        assert "stop-and-reopen" in lowered
+        assert "must not drop" in lowered or "cannot drop" in lowered
+
+
+def test_discussion_consequence_gate_covers_json_and_candidate_handoffs() -> None:
+    content = _read("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "Senior Maintainer Review" in content
+    assert "handoff-to-specify.md" in content
+    assert "handoff-to-specify.json" in content
+    assert "CAND-001-handoff-to-specify.md" in content
+    assert "CAND-001-handoff-to-specify.json" in content
+    assert "markdown and json handoffs must agree" in lowered
+    assert "consequence obligation ids" in lowered
+    assert "must not mark the discussion `handoff-ready`" in content
+    assert "selected candidate handoff" in lowered
 
 
 def test_discussion_state_template_is_independent_from_feature_workflow_state() -> None:
@@ -2478,6 +2551,38 @@ def test_compiled_artifact_templates_preserve_route_and_complexity_truth() -> No
     assert "Allowed Internal Redesign" in context
 
     assert "## Truth Sources Used For Route And Intent Lock" in references
+
+
+def test_specify_plan_tasks_artifact_templates_preserve_consequence_analysis() -> None:
+    spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    references = _read("templates/references-template.md")
+    plan = _read("templates/plan-template.md")
+    tasks = _read("templates/tasks-template.md")
+
+    for content in (spec, alignment, context, references, plan, tasks):
+        lowered = content.lower()
+        assert "consequence" in lowered
+        assert "ca-###" in lowered or "ca-*" in lowered
+
+    assert "Lifecycle And State Behavior" in spec
+    assert "Consequence Completeness" in alignment
+    assert "Affected Object Map" in context
+    assert "Consequence Evidence" in references
+    assert "Operational Consequence Design" in plan
+    assert "Consequence Obligation Mapping" in tasks
+
+
+def test_structured_consequence_json_templates_exist() -> None:
+    for rel_path in (
+        "templates/brainstorming-handoff-specify-template.json",
+        "templates/plan-contract-template.json",
+        "templates/task-index-template.json",
+        "templates/task-packet-template.json",
+        "templates/implement-execution-state-template.json",
+    ):
+        _assert_consequence_json_contract(_read(rel_path))
 
 
 def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts() -> None:

@@ -150,6 +150,14 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "blocked_dispatch:" in content
     assert "## validation" in content
     assert "## summary pointer" in content
+    assert "## senior consequence analysis" in content
+    assert "affected_objects:" in content
+    assert "state_behavior_matrix:" in content
+    assert "dependency_impact:" in content
+    assert "recovery_and_validation:" in content
+    assert "project_cognition_evidence:" in content
+    assert "coverage_gaps:" in content
+    assert "escalation_decision:" in content
 
 
 def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
@@ -166,6 +174,17 @@ def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
     assert "new durable spec" in content or "long-lived feature spec" in content
     assert "rollout" in content or "migration" in content
     assert "acceptance criteria" in content
+
+
+def test_quick_template_escalates_when_consequence_model_is_not_bounded() -> None:
+    content = read_template("templates/commands/quick.md").lower()
+
+    assert "senior consequence analysis gate" in content
+    assert "continue in quick only when the consequence model is bounded" in content
+    assert "upgrade to `{{invoke:specify}}` immediately if" in content or "upgrade to `/sp-specify` immediately if" in content
+    assert "user-level lifecycle decisions" in content
+    assert "broad compatibility handling" in content
+    assert "multi-capability scope" in content
 
 
 def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> None:

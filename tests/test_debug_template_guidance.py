@@ -154,6 +154,11 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "do not modify production behavior until the red state is proven" in content
     assert "if no reliable automated test surface exists for the failing behavior" in content
     assert "add the missing harness first or route through `/sp-test-scan`" in content
+    assert "senior consequence analysis gate" in content
+    assert "dependency loop" in content
+    assert "affected objects" in content
+    assert "adjacent risk targets" in content
+    assert "reject surface-only fixes" in content
     _assert_tier_roles(content)
     assert "record which plausible causes were considered and which were ruled out" in content
     assert "surface-only" in content
@@ -257,6 +262,13 @@ def test_debug_session_template_uses_canonical_intake_fields() -> None:
     assert "waiting_on_child_human_followup:" in content
     assert "human_verification_outcome:" in content
     assert "## Log Investigation Plan" in content
+    assert "## Senior Consequence Analysis" in content
+    assert "affected_objects:" in content
+    assert "dependency_loop:" in content
+    assert "control_state:" in content
+    assert "observation_state:" in content
+    assert "adjacent_risk_targets:" in content
+    assert "surface_only_fixes_rejected:" in content
     assert "no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`" in lowered
     assert "observer_mode:" not in content
     assert "skip_observer_reason:" not in content
