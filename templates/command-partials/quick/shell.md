@@ -13,3 +13,4 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 - Primary inputs: the user's request, quick-task workspace state, passive learning files, the task-local project cognition query bundle with readiness and returned `minimal_live_reads`, and the smallest workflow-local state files needed for the touched area.
 - The leader owns `STATUS.md`, lane selection, join points, validation, and final summary state.
 - Quick mode is the resumable middle lane between `sp-fast` and the full specification workflow.
+- Continue in quick only when any `CA-###` consequence obligations are bounded in `STATUS.md` with affected objects, lifecycle states, dependency impact, recovery/validation proof, coverage gaps, and stop-and-reopen conditions.

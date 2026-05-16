@@ -15,6 +15,7 @@ Translate the approved specification package into explicit implementation design
 - Recover the active feature context and validate that the specification package is ready for planning.
 - Refresh or inspect repository navigation artifacts until task-relevant coverage is sufficient.
 - Research, model, and document the implementation approach with explicit constraints and guardrails.
+- Design every carried `CA-###` consequence obligation into operational behavior, dependency impact, recovery/validation proof, and stop-and-reopen conditions before task handoff.
 - Validate the resulting plan package before handing off to task generation.
 
 ## Output Contract

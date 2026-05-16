@@ -11,3 +11,4 @@ Use this for small fixes that are faster to execute than to plan: typo fixes, ti
 - Primary inputs: the user's request, the smallest relevant local files, passive learning files, and the project cognition safety gate.
 - This path exists only for truly local work; the moment that assumption breaks, the task must leave the fast lane.
 - Fast-path output is intentionally small and should not spawn planning artifacts.
+- Upgrade out of fast immediately when senior consequence analysis triggers for lifecycle, running-state, destructive-operation, shared-state, downstream consumer, compatibility, security, or multiple-behavior impact; record only the stand-down reason if it does not trigger.

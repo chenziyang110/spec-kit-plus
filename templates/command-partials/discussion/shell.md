@@ -17,6 +17,7 @@ Drive a resumable product and technical discussion that matures a rough idea int
 - Preserve key decisions in `discussion-log.md`.
 - Keep `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` current.
 - Generate `handoff-to-specify.md` only after explicit user request.
+- When senior consequence analysis triggers, preserve `CA-###` obligations, affected objects, lifecycle states, dependency impact, recovery/validation needs, coverage gaps, and the stand-down reason or stop-and-reopen conditions in discussion handoffs.
 
 ## Output Contract
 

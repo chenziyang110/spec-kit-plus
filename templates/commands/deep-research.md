@@ -17,6 +17,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/deep-research/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -297,6 +299,13 @@ Use `execution_surface: native-subagents`.
    | `Not needed` | Mark `proven` or `not needed`, skip |
    | `Completed` | Preserve existing evidence, skip |
    | `Blocked` | Record blocker, do not research |
+
+5b. **Consequence-Sensitive Research Tracks**:
+   - If the Senior Consequence Analysis Gate is triggered or upstream artifacts carry `CA-###` consequence obligations, create research tracks for any unproven affected object, state-behavior matrix entry, dependency impact, recovery behavior, validation route, or coverage gap that planning would otherwise guess.
+   - Each consequence-sensitive `TRK-###` must name the linked `CA-###` obligation, the stop-and-reopen condition it can clear or confirm, the evidence needed, and the downstream workflow that must consume the result.
+   - Research outputs must not drop `CA-###` consequence obligations; carry them into `Planning Handoff`, `Synthesis Decisions`, `Validation implications`, and residual risks until they are resolved or explicitly deferred.
+   - If evidence disproves an upstream consequence assumption, preserve the obligation as blocked, record the stop-and-reopen condition, and route back to `/sp.clarify` instead of handing ambiguous semantics to `/sp.plan`.
+   - When a consequence obligation is proven enough for planning, record the evidence ID, affected objects, lifecycle states covered, dependency impact, recovery and validation contract, remaining coverage gaps, and whether the obligation is still open.
 
    For each capability or module slice, record:
    - stable capability ID (`CAP-###`) — mapped from spec capability name

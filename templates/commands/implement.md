@@ -12,6 +12,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/implement/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Orchestration Model
 
 This section is **mandatory**. Every `sp-implement` run MUST follow this model — deviation is not permitted.
@@ -299,6 +301,15 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
     - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
    - If a needed change would violate the current execution contract or require redefining the user's locked goal, stop and reopen the upstream truth layer instead of implementing through ambiguity.
+
+### Consequence Obligation Execution
+
+- Before choosing a batch, collect every `CA-###` consequence obligation from `tasks.md`, `task-index.json`, task packets, `handoff-to-implement.json`, `workflow-state.md`, and the plan package.
+- Each validated `WorkerTaskPacket` that touches an affected object must carry the relevant consequence obligation claim, affected objects, lifecycle states, dependency refs, recovery/validation refs, status, and stop-and-reopen condition.
+- Must not drop `CA-###` consequence obligations during packet repair, subagent dispatch, tracker updates, result acceptance, or final validation.
+- If implementation evidence proves a consequence obligation wrong, impossible, unmapped, or broader than the current packet, stop and reopen the highest valid upstream workflow instead of silently changing behavior.
+- Do not accept a successful worker result for a packet with consequence obligations unless it includes validation evidence for each obligation ID or records a blocked stop-and-reopen condition.
+- Keep unresolved consequence obligations visible in `implement-tracker.md` open gaps and final reporting until they are resolved, deferred by an upstream artifact, or routed to `/sp.debug`, `/sp.tasks`, `/sp.plan`, `/sp.deep-research`, or `/sp.clarify`.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 

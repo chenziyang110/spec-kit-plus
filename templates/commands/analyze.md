@@ -12,6 +12,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/analyze/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -251,6 +253,15 @@ Focus on high-signal findings in the report body. Limit the visible findings tab
   - `BG2` when the task layer fails to preserve that constitution as implementation guardrails
   - `BG3` when execution guidance fails to force pre-dispatch boundary confirmation
 - Report when a generic implementation instinct would likely drift away from the repository's established pattern because the plan left the constraint as background context only
+
+#### I. Consequence Preservation Analysis
+
+- Detect every `CA-###` consequence obligation in `spec.md`, `context.md`, `references.md`, `alignment.md`, `plan.md`, `tasks.md`, `plan-contract.json`, `task-index.json`, and task packets when present.
+- Verify each consequence obligation keeps its claim, affected objects, lifecycle state behavior, dependency impact, recovery and validation contract, owner workflow, latest resolve phase, status, and stop-and-reopen condition across downstream artifacts.
+- Flag any obligation that disappears, is renamed without traceability, loses validation evidence, lacks task or packet coverage, or is treated as resolved without proof.
+- Must not drop consequence obligations from the analysis report or blocker bundle. If an upstream artifact omitted one, report the omission and route to the highest invalid workflow stage that can restore it.
+- Treat unresolved or unmapped `CA-###` obligations as blockers when implementation would otherwise continue through lifecycle, running-state, destructive-operation, shared-state, or downstream-consumer ambiguity.
+- If the consequence model is complete and every stop-and-reopen condition is mapped or resolved, record the gate as cleared for implementation; otherwise keep implementation paused.
 
 ### 6. Severity Assignment
 

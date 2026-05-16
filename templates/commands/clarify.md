@@ -17,6 +17,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/clarify/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -165,6 +167,13 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - Prefer `/sp.deep-research` when a disposable demo under `FEATURE_DIR/research-spikes/` would prove the implementation chain before planning.
    - Record that `/sp.deep-research` must return a `Planning Handoff` with findings, demo evidence, constraints, rejected options, and recommended approach for `/sp.plan`.
    - Do not require `/sp.deep-research` for minor changes to existing capabilities that already have a clear implementation path in the repository.
+
+7b. Consequence Clarification Lane:
+   - If existing artifacts contain a triggered Senior Consequence Analysis Gate, preserve every `CA-###` consequence obligation from `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`.
+   - Use clarification questions to resolve product semantics for affected objects, lifecycle states, dependency impact, recovery behavior, validation proof, and coverage gaps that still block planning.
+   - For every clarified consequence obligation, record whether the obligation is resolved, deferred with a latest safe resolve phase, or converted into a stop-and-reopen condition.
+   - Must not drop `CA-###` consequence obligations, stop-and-reopen conditions, stand-down reasons, or coverage gaps just because the current clarification pass focuses on another requirement.
+   - If a consequence obligation cannot be answered from repository evidence or user clarification, preserve it as open and route to `/sp.deep-research` or `/sp.plan` only when that downstream workflow can carry the unresolved obligation safely.
 
 8. Delegate artifact enhancements through a validated subagent lane:
    - Build one bounded `WorkerTaskPacket` for the artifact update lane when the write scope is safe and packetized.
