@@ -49,7 +49,7 @@
 - technical-options.md
 - project-context.md
 - open-questions.md
-- handoff-to-specify.md only after explicit user request
+- handoff-to-specify.md only after explicit user request and bounded handoff selection
 - handoff-assessment.md only after explicit user request
 - split-plan.md only when handoff assessment returns split-required
 - handoffs/*.md only after candidate selection
