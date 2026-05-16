@@ -124,6 +124,13 @@ Required event envelope:
 }
 ```
 
+Checkpoint identity uses the same event identity model. A checkpoint is a
+`checkpoint_written` event, and its durable ID is that event's `event_id`, for
+example `EVT-000120`. Fields named `last_checkpoint_id` in
+`workflow-state.md` or `stage-manifest.json` must point to a
+`checkpoint_written` event ID present in `journal.ndjson`. Separate `CHK-*`
+aliases are not part of the first-release contract.
+
 The source excerpt should be compact but exact enough to recover meaning. Large
 documents should live in evidence files and be referenced by ID plus hash.
 
@@ -145,7 +152,7 @@ Recommended shape:
   "journal": {
     "path": "brainstorming/journal.ndjson",
     "last_event_id": "EVT-000120",
-    "last_checkpoint_id": "CHK-000009"
+    "last_checkpoint_id": "EVT-000120"
   },
   "stages": {
     "facts-lock": {
@@ -162,25 +169,48 @@ Recommended shape:
 
 Resume should read the manifest before scanning individual stage files.
 
-### 3. Stage Artifacts
+### 3. Canonical Stage Enum
+
+The first release should use one canonical stage enum everywhere:
+
+- `intake`
+- `evidence-intake`
+- `facts-lock`
+- `route-lock`
+- `intent-lock`
+- `complexity-lock`
+- `domain-clarification`
+- `consequence-risk`
+- `specify-compile`
+- `release-decision`
+
+These values are the manifest stage keys, valid `workflow-state.md`
+`current_stage` values, journal `stage` values, and validation stage values.
+Existing lock-oriented values map directly where possible. Compatibility labels
+such as `intent-analysis`, `intent-confirmation`, `question-batch`,
+`batch-adversarial-review`, `completeness-audit`, and
+`final-handoff-decision` may appear inside `specify-draft.md` or event payloads
+only as legacy detail labels; they are not canonical resume stages.
+
+### 4. Stage Artifacts
 
 Each phase has a structured landing point. These files are not optional summary
 notes; they are part of the recovery and compilation contract.
 
 | Stage | Landing Point | Responsibility |
 | --- | --- | --- |
-| Intake and workspace | `workflow-state.md`, `brainstorming/journal.ndjson`, `brainstorming/stage-manifest.json` | Original request, feature paths, current stage, next action, recovery pointer |
-| Evidence intake | `brainstorming/evidence-index.json`, `brainstorming/evidence/EVD-###.json` | Repo evidence, research findings, pasted materials, source hashes |
+| `intake` | `workflow-state.md`, `brainstorming/journal.ndjson`, `brainstorming/stage-manifest.json` | Original request, feature paths, current stage, next action, recovery pointer |
+| `evidence-intake` | `brainstorming/evidence-index.json`, `brainstorming/evidence/EVD-###.json` | Repo evidence, research findings, pasted materials, source hashes |
 | `facts-lock` | `brainstorming/facts.json` | Evidence-backed truth predicates and unknowns |
 | `route-lock` | `brainstorming/route.json` | Primary route, matched rules, rejected routes, blocking unknowns |
 | `intent-lock` | `brainstorming/intent.json` | Goal, non-goals, success criteria, must-preserve items, optimization scope |
 | `complexity-lock` | `brainstorming/complexity.json` | Complexity level, trigger rules, scope, execution mode |
-| Domain clarification | `brainstorming/domains.json`, `specify-draft.md` | Domain closure state, questions, answers, reopen history |
-| Consequence and risk | `brainstorming/handoff-to-specify.json` | Must-preserve coverage, conflicts, consequence obligations, stop-and-reopen conditions |
-| Compile | `spec.md`, `alignment.md`, `context.md`, `references.md` | Human-readable planning package compiled from structured inputs |
-| Release | `workflow-state.md`, `checklists/requirements.md` | Final next command and validation state |
+| `domain-clarification` | `brainstorming/domains.json`, `specify-draft.md` | Domain closure state, questions, answers, reopen history |
+| `consequence-risk` | `brainstorming/handoff-to-specify.json` | Must-preserve coverage, conflicts, consequence obligations, stop-and-reopen conditions |
+| `specify-compile` | `spec.md`, `alignment.md`, `context.md`, `references.md` | Human-readable planning package compiled from structured inputs |
+| `release-decision` | `workflow-state.md`, `checklists/requirements.md` | Final next command and validation state |
 
-### 4. Compiled Views
+### 5. Compiled Views
 
 Existing JSON files and Markdown artifacts remain important, but they become
 compiled views over the event source and stage data.
@@ -225,10 +255,54 @@ The first release should support these event types:
 - `reopen_requested`
 - `artifact_compiled`
 - `checkpoint_written`
+- `legacy_state_imported`
 
 This list should stay small enough for agents to follow. New event types should
 only be added when existing events cannot express a real recovery or compile
 need.
+
+`legacy_state_imported` is migration-only. It may appear when repairing or
+importing an older feature package that predates the lossless state contract. It
+must record the source files used for reconstruction and the explicit limitation
+that the imported journal is not a true lossless transcript of the original
+run.
+
+## Minimum Event Payloads
+
+The first implementation plan must define schemas for every event type before
+template work starts. At minimum:
+
+- `user_input_captured`: raw excerpt, content hash, input role, related
+  question ID when applicable.
+- `question_asked`: question ID, domain, field or unknown ID being resolved,
+  blocking level, options when structured, recommendation when present.
+- `answer_recorded`: question ID, answer excerpt, content hash, resolved field
+  or unknown ID, interpretation summary, confidence, follow-up action.
+- `repo_evidence_captured`: evidence ID, source path, line or span when
+  available, excerpt hash, relevance, captured-by event ID.
+- `research_evidence_captured`: evidence ID, source URL or local spike path,
+  excerpt hash, claim supported, confidence, reusable insight.
+- `unknown_opened`: unknown ID, field, question, blocking level, resolver,
+  latest resolve phase, status.
+- `unknown_resolved`, `unknown_deferred`, `unknown_waived`: unknown ID,
+  disposition, evidence or answer event IDs, risk contract when deferred or
+  waived.
+- `decision_locked`: decision ID, stage, field, locked value, basis event IDs,
+  rejected options, reopen condition.
+- `route_selected`: route ID, primary route, matched rule IDs, rejected routes,
+  blocking unknowns, evidence event IDs.
+- `complexity_selected`: complexity level, matched trigger IDs, execution mode,
+  scope, evidence event IDs.
+- `stage_artifact_compiled`: artifact path, stage, input event range,
+  key event IDs, evidence IDs, output hash.
+- `reopen_requested`: reopened stage, reason, triggering event ID, invalidated
+  decision or artifact IDs, required repair action.
+- `artifact_compiled`: artifact path, input stage artifacts, input event range,
+  output hash, source map path or embedded source map reference.
+- `checkpoint_written`: checkpoint event ID, current stage, current domain,
+  manifest hash, workflow-state hash, next action.
+- `legacy_state_imported`: legacy source files, imported artifact hashes,
+  reconstruction limits, operator-visible warning.
 
 ## Evidence Model
 
@@ -339,6 +413,8 @@ Validation should fail when:
 - a route or complexity decision lacks matched rule event IDs
 - final artifacts claim planning readiness while required stage artifacts are
   stale or unrecoverable
+- manifest stage keys, `workflow-state.md` `current_stage`, or journal `stage`
+  values use different stage names for the same phase
 
 Validation may warn, not fail, when:
 
@@ -358,6 +434,11 @@ The implementation should update these product surfaces together:
 - new `templates/brainstorming-domains-template.json`
 - new `templates/brainstorming-evidence-index-template.json`
 - new `templates/brainstorming-evidence-record-template.json`
+- `templates/spec-template.md`
+- `templates/alignment-template.md`
+- `templates/context-template.md`
+- `templates/references-template.md`
+- `templates/checklist-template.md`
 - `scripts/bash/create-new-feature.sh`
 - `scripts/powershell/create-new-feature.ps1`
 - `scripts/bash/common.sh`
