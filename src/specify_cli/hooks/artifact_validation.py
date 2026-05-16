@@ -26,6 +26,10 @@ FILE_REQUIRED_ARTIFACTS = {
         "brainstorming/intent.json",
         "brainstorming/complexity.json",
         "brainstorming/handoff-to-specify.json",
+        "brainstorming/journal.ndjson",
+        "brainstorming/stage-manifest.json",
+        "brainstorming/domains.json",
+        "brainstorming/evidence-index.json",
     ),
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
@@ -82,6 +86,7 @@ FILE_REQUIRED_ARTIFACTS = {
 }
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
+    "specify": ("brainstorming/evidence",),
     "map-scan": ("evidence",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
@@ -102,6 +107,11 @@ REQUIRED_ARTIFACTS = {
         "brainstorming/intent.json",
         "brainstorming/complexity.json",
         "brainstorming/handoff-to-specify.json",
+        "brainstorming/journal.ndjson",
+        "brainstorming/stage-manifest.json",
+        "brainstorming/domains.json",
+        "brainstorming/evidence-index.json",
+        "brainstorming/evidence",
     ),
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
@@ -341,6 +351,42 @@ REFERENCE_IMPLEMENTATION_SECTION_HEADINGS = {
     "required fidelity": "### Required Fidelity",
     "reference behavior inventory": "### Reference Behavior Inventory",
     "reference fidelity": "## Fidelity Requirements",
+}
+
+LOSSLESS_SPECIFY_STAGES = {
+    "intake",
+    "evidence-intake",
+    "facts-lock",
+    "route-lock",
+    "intent-lock",
+    "complexity-lock",
+    "domain-clarification",
+    "consequence-risk",
+    "specify-compile",
+    "release-decision",
+}
+
+LOSSLESS_SPECIFY_STAGE_ARTIFACTS = {
+    "intake": "workflow-state.md",
+    "evidence-intake": "brainstorming/evidence-index.json",
+    "facts-lock": "brainstorming/facts.json",
+    "route-lock": "brainstorming/route.json",
+    "intent-lock": "brainstorming/intent.json",
+    "complexity-lock": "brainstorming/complexity.json",
+    "domain-clarification": "brainstorming/domains.json",
+    "consequence-risk": "brainstorming/handoff-to-specify.json",
+    "specify-compile": "spec.md",
+    "release-decision": "workflow-state.md",
+}
+
+LOSSLESS_SPECIFY_ARTIFACT_STAGES = {
+    "brainstorming/facts.json": "facts-lock",
+    "brainstorming/route.json": "route-lock",
+    "brainstorming/intent.json": "intent-lock",
+    "brainstorming/complexity.json": "complexity-lock",
+    "brainstorming/domains.json": "domain-clarification",
+    "brainstorming/evidence-index.json": "evidence-intake",
+    "brainstorming/handoff-to-specify.json": "consequence-risk",
 }
 
 PRD_COVERAGE_REQUIRED_TOKENS = (
@@ -723,6 +769,166 @@ def _validate_brainstorming_json_artifact(feature_dir: Path, relative_path: str,
     if not isinstance(payload, dict):
         return [f"{relative_path} must be a JSON object"]
     return []
+
+
+def _read_journal_events(feature_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    journal_path = feature_dir / "brainstorming" / "journal.ndjson"
+    events: list[dict[str, Any]] = []
+    errors: list[str] = []
+    try:
+        lines = journal_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return events, [f"brainstorming/journal.ndjson could not be read: {exc}"]
+
+    for index, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            errors.append(f"brainstorming/journal.ndjson line {index} is invalid JSON: {exc.msg}")
+            continue
+        if not isinstance(event, dict):
+            errors.append(f"brainstorming/journal.ndjson line {index} must be an object")
+            continue
+
+        event_id = str(event.get("event_id") or "").strip()
+        event_type = str(event.get("type") or "").strip()
+        stage = str(event.get("stage") or "").strip()
+        if not event_id:
+            errors.append(f"brainstorming/journal.ndjson line {index} missing event_id")
+        if not event_type:
+            errors.append(f"brainstorming/journal.ndjson line {index} missing type")
+        if stage and stage not in LOSSLESS_SPECIFY_STAGES:
+            errors.append(f"brainstorming/journal.ndjson line {index} uses non-canonical stage: {stage}")
+        events.append(event)
+
+    return events, errors
+
+
+def _validate_compiled_from(payload: dict[str, Any], label: str) -> list[str]:
+    compiled_from = payload.get("compiled_from")
+    if not isinstance(compiled_from, dict):
+        return [f"{label} missing compiled_from"]
+
+    errors: list[str] = []
+    if str(compiled_from.get("journal") or "").strip() != "brainstorming/journal.ndjson":
+        errors.append(f"{label} compiled_from.journal must be brainstorming/journal.ndjson")
+    if not isinstance(compiled_from.get("event_range"), list):
+        errors.append(f"{label} compiled_from.event_range must be a list")
+    if not isinstance(compiled_from.get("key_events"), list):
+        errors.append(f"{label} compiled_from.key_events must be a list")
+    if not isinstance(compiled_from.get("evidence_ids"), list):
+        errors.append(f"{label} compiled_from.evidence_ids must be a list")
+    return errors
+
+
+def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    events, journal_errors = _read_journal_events(feature_dir)
+    errors.extend(journal_errors)
+    event_ids = {str(event.get("event_id") or "").strip() for event in events if str(event.get("event_id") or "").strip()}
+    checkpoint_ids = {
+        str(event.get("event_id") or "").strip()
+        for event in events
+        if str(event.get("type") or "").strip() == "checkpoint_written"
+        and str(event.get("event_id") or "").strip()
+    }
+
+    manifest, manifest_errors = _read_json_artifact(
+        feature_dir / "brainstorming" / "stage-manifest.json",
+        "brainstorming/stage-manifest.json",
+    )
+    errors.extend(manifest_errors)
+    if manifest_errors:
+        return errors
+    if not isinstance(manifest, dict):
+        errors.append("brainstorming/stage-manifest.json must contain a top-level object")
+        return errors
+
+    stages = manifest.get("stages")
+    if not isinstance(stages, dict):
+        errors.append("brainstorming/stage-manifest.json stages must be an object")
+    else:
+        stage_keys = {str(stage) for stage in stages}
+        missing_stages = sorted(LOSSLESS_SPECIFY_STAGES - stage_keys)
+        if missing_stages:
+            errors.append(
+                "brainstorming/stage-manifest.json stages missing canonical stages: "
+                f"{', '.join(missing_stages)}"
+            )
+        for stage in stages:
+            if stage not in LOSSLESS_SPECIFY_STAGES:
+                errors.append(f"brainstorming/stage-manifest.json uses non-canonical stage: {stage}")
+                continue
+            entry = stages[stage]
+            if not isinstance(entry, dict):
+                errors.append(f"brainstorming/stage-manifest.json stages.{stage} must be an object")
+                continue
+            expected_artifact = LOSSLESS_SPECIFY_STAGE_ARTIFACTS[stage]
+            actual_artifact = str(entry.get("artifact") or "").strip()
+            if actual_artifact != expected_artifact:
+                errors.append(
+                    f"brainstorming/stage-manifest.json stages.{stage}.artifact must be "
+                    f"{expected_artifact}, found {actual_artifact or 'missing'}"
+                )
+
+    canonical_stage_enum = manifest.get("canonical_stage_enum")
+    if not isinstance(canonical_stage_enum, list):
+        errors.append("brainstorming/stage-manifest.json canonical_stage_enum must be a list")
+    else:
+        canonical_stage_set = {str(item) for item in canonical_stage_enum}
+        missing = sorted(LOSSLESS_SPECIFY_STAGES - canonical_stage_set)
+        extra = sorted(canonical_stage_set - LOSSLESS_SPECIFY_STAGES)
+        if missing:
+            errors.append(f"brainstorming/stage-manifest.json canonical_stage_enum missing: {', '.join(missing)}")
+        if extra:
+            errors.append(
+                "brainstorming/stage-manifest.json canonical_stage_enum has unknown stages: "
+                f"{', '.join(extra)}"
+            )
+
+    journal = manifest.get("journal")
+    if not isinstance(journal, dict):
+        errors.append("brainstorming/stage-manifest.json journal must be an object")
+    else:
+        last_event_id = str(journal.get("last_event_id") or "").strip()
+        last_checkpoint_id = str(journal.get("last_checkpoint_id") or "").strip()
+        if last_event_id and last_event_id not in event_ids:
+            errors.append(f"brainstorming/stage-manifest.json last_event_id not found in journal: {last_event_id}")
+        if last_checkpoint_id and last_checkpoint_id not in checkpoint_ids:
+            errors.append(
+                "brainstorming/stage-manifest.json last_checkpoint_id not found as checkpoint_written "
+                f"event in journal: {last_checkpoint_id}"
+            )
+
+    for relative_path in (
+        "brainstorming/facts.json",
+        "brainstorming/route.json",
+        "brainstorming/intent.json",
+        "brainstorming/complexity.json",
+        "brainstorming/domains.json",
+        "brainstorming/evidence-index.json",
+        "brainstorming/handoff-to-specify.json",
+    ):
+        payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
+        errors.extend(read_errors)
+        if read_errors:
+            continue
+        if not isinstance(payload, dict):
+            errors.append(f"{relative_path} must be a JSON object")
+            continue
+        stage = str(payload.get("stage") or "").strip()
+        expected_stage = LOSSLESS_SPECIFY_ARTIFACT_STAGES[relative_path]
+        if stage != expected_stage:
+            errors.append(
+                f"{relative_path} stage must be {expected_stage}, found {stage or 'missing'}"
+            )
+        if stage and stage not in LOSSLESS_SPECIFY_STAGES:
+            errors.append(f"{relative_path} uses non-canonical stage: {stage}")
+        errors.extend(_validate_compiled_from(payload, relative_path))
+
+    return errors
 
 
 def _validate_capability_ledger(feature_dir: Path) -> list[str]:
@@ -1390,6 +1596,8 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
     else:
         errors.extend(_validate_handoff_to_specify_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
         errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
+
+    errors.extend(_validate_lossless_specify_state(feature_dir))
 
     return errors
 
