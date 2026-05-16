@@ -8,6 +8,8 @@ logic from ``MarkdownIntegrationTests``.
 import os
 import re
 
+import pytest
+
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import MarkdownIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
@@ -78,6 +80,42 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "senior consequence analysis gate" in command_lower
     assert "affected object map" in command_lower
     assert "state-behavior matrix" in command_lower
+
+
+MARKDOWN_INTEGRATION_KEYS = sorted(
+    key
+    for key, integration in INTEGRATION_REGISTRY.items()
+    if isinstance(integration, MarkdownIntegration) and key != "generic"
+)
+
+
+@pytest.mark.parametrize("integration_key", MARKDOWN_INTEGRATION_KEYS)
+def test_collected_markdown_integrations_render_consequence_gate(tmp_path, integration_key):
+    integration = get_integration(integration_key)
+    manifest = IntegrationManifest(integration_key, tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    generated = "\n".join(
+        path.read_text(encoding="utf-8").lower()
+        for path in integration.commands_dest(tmp_path).glob("**/*.md")
+    )
+
+    assert "senior consequence analysis gate" in generated
+    assert "affected object map" in generated
+    assert "state-behavior matrix" in generated
+    assert "dependency impact table" in generated
+    assert "ca-###" in generated
+
+
+@pytest.mark.parametrize("integration_key", MARKDOWN_INTEGRATION_KEYS)
+def test_collected_markdown_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
+    integration = get_integration(integration_key)
+    manifest = IntegrationManifest(integration_key, tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    discussion_path = integration.commands_dest(tmp_path) / integration.command_filename("discussion")
+    assert discussion_path.exists()
+    _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
 
 class MarkdownIntegrationTests:
