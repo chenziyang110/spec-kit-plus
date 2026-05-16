@@ -55,6 +55,31 @@ atlas_module_docs_read:
 atlas_status_basis: [fresh | missing | stale | possibly_stale plus the decision taken]
 atlas_blocked_reason: [why atlas gating blocked work, if it did]
 
+## Senior Consequence Analysis
+
+consequence_gate_status: not-triggered | triggered | ready | blocked | stood-down
+trigger_reason: none
+stand_down_reason: none
+consequence_obligations:
+  - id: CA-###
+    claim: [stable consequence claim]
+    affected_objects:
+      - [object or state surface]
+    owner_workflow: [discussion | specify | plan | tasks | debug | implement]
+    latest_resolve_phase: [discussion | specify | plan | tasks | implementation | verification]
+    status: open | resolved | deferred | stood-down
+    stop_and_reopen_condition: [condition that reopens upstream workflow]
+affected_objects:
+dependency_loop:
+control_state:
+observation_state:
+state_behavior_matrix:
+dependency_impact:
+recovery_and_validation:
+coverage_gaps:
+adjacent_risk_targets:
+surface_only_fixes_rejected:
+
 ## Causal Map
 <!-- OVERWRITE/REFINE before observer framing - Stage 1A system-map view -->
 

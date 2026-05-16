@@ -5,6 +5,35 @@
   "route_file": "brainstorming/route.json",
   "intent_file": "brainstorming/intent.json",
   "complexity_file": "brainstorming/complexity.json",
+  "entry_source": "none",
+  "discussion_slug": null,
+  "candidate_id": null,
+  "candidate_title": null,
+  "source_split_plan": null,
+  "source_handoff": null,
+  "source_handoff_json": null,
+  "prior_candidates": [],
+  "deferred_candidates": [],
+  "stage_scope_boundary": null,
   "soft_unknowns": [],
-  "compile_ready": false
+  "must_preserve": [],
+  "conflicts": [],
+  "coverage_status": "not-applicable",
+  "handoff_integrity": "not-checked",
+  "compile_ready": false,
+  "consequence_gate": {
+    "triggered": false,
+    "trigger_reason": null,
+    "status": "not-applicable",
+    "stand_down_reason": null
+  },
+  "consequence_analysis": {
+    "affected_object_map": [],
+    "state_behavior_matrix": [],
+    "dependency_impact": [],
+    "recovery_and_validation": [],
+    "coverage_gaps": []
+  },
+  "consequence_obligations": [],
+  "stop_and_reopen_conditions": []
 }

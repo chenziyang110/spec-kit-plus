@@ -28,6 +28,10 @@
 - **Compatibility / Impact Notes**:
   - [Any compatibility, dependency, or adjacent-effect takeaway preserved from this source]
 
+## Consequence Evidence
+
+- `CA-###`: project cognition query, returned `minimal_live_reads`, discussion handoff, source evidence, or research evidence that supports the obligation.
+
 ### Additional References
 
 Repeat the following entry structure once for each retained source:

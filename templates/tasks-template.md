@@ -36,6 +36,12 @@ description: "Task list template for feature implementation"
 - If a reference behavior is intentionally deferred, record that explicitly instead of silently omitting it.
 - If a reference behavior is intentionally redesigned, point to the task or review checkpoint that must acknowledge the divergence.
 
+## Consequence Obligation Mapping
+
+| Obligation ID | Task IDs | Affected State / Dependency | Required References | Validation | Stop And Reopen |
+| --- | --- | --- | --- | --- | --- |
+| CA-### | T### | [state or dependency] | [files or artifacts] | [command or manual check] | [condition] |
+
 ## Analyze Remediation Mapping
 
 Use this section only when regenerating tasks after a blocked `sp-analyze` gate. Leave it as `No prior analyze blockers for this task package.` for first-pass task generation.

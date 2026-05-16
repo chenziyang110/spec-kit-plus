@@ -117,6 +117,12 @@
 - [Specific architecture-drift check reviewers must perform]
 - [Compatibility, framework, or boundary check that must be verified before completion]
 
+## Operational Consequence Design
+
+| Obligation ID | State Machine / Ordering Decision | Concurrency And Idempotency | Recovery Path | Validation Evidence |
+| --- | --- | --- | --- | --- |
+| CA-### | [decision] | [lock, lease, queue, or ordering rule] | [retry, rollback, de-scope, or reopen path] | [command or manual check] |
+
 ## Dispatch Compilation Hints
 
 <!--

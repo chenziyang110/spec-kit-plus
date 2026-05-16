@@ -59,6 +59,14 @@ intent-analysis.]
 - [Critical gap that blocked closure] -> [Domain reopened or final disposition] -> [How it was resolved or why it remains carried]
 - [Missing capability, hidden dependency, or project-boundary conflict] -> [Action taken] -> [Evidence or remaining risk]
 
+## Consequence Completeness
+
+- Gate status: [not-triggered | ready | blocked | stood-down]
+- Resolved `CA-###` obligations:
+- Unresolved planning blockers:
+- Force-carried risks:
+- Required next workflow:
+
 ## Completeness Audit Outcome
 
 - **Audit status**: [passed | failed | force-carried-with-risk]
