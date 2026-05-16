@@ -476,3 +476,73 @@ def test_powershell_script_updates_agy_root_agents_file(
     assert result.returncode == 0, result.stderr
     assert (repo / "AGENTS.md").exists()
     assert not (repo / ".agent" / "rules" / "specify-rules.md").exists()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_script_updates_vibe_root_agents_file(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_bash_update(repo, "vibe")
+
+    assert result.returncode == 0, result.stderr
+    assert (repo / "AGENTS.md").exists()
+    assert BLOCK_START in (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert not (repo / ".vibe" / "agents" / "specify-agents.md").exists()
+
+
+def test_powershell_script_updates_vibe_root_agents_file(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_powershell_update(repo, "vibe")
+
+    assert result.returncode == 0, result.stderr
+    assert (repo / "AGENTS.md").exists()
+    assert BLOCK_START in _read_utf8_without_bom(repo / "AGENTS.md")
+    assert not (repo / ".vibe" / "agents" / "specify-agents.md").exists()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_script_updates_trae_project_rules_file(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_bash_update(repo, "trae")
+
+    assert result.returncode == 0, result.stderr
+    trae_rules = repo / ".trae" / "rules" / "project_rules.md"
+    assert trae_rules.exists()
+    assert BLOCK_START in trae_rules.read_text(encoding="utf-8")
+    assert not (repo / ".trae" / "rules" / "AGENTS.md").exists()
+
+
+def test_powershell_script_updates_trae_project_rules_file(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_powershell_update(repo, "trae")
+
+    assert result.returncode == 0, result.stderr
+    trae_rules = repo / ".trae" / "rules" / "project_rules.md"
+    assert trae_rules.exists()
+    assert BLOCK_START in _read_utf8_without_bom(trae_rules)
+    assert not (repo / ".trae" / "rules" / "AGENTS.md").exists()

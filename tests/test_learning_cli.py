@@ -1420,6 +1420,55 @@ def test_learning_start_filters_relevant_candidates_by_command(tmp_path: Path) -
     assert "Need explicit validation tasks" not in summaries
 
 
+def test_learning_start_reads_legacy_index_entries_without_problem_field(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": "LRN-legacy-quick-learning",
+                            "summary": "Legacy quick learning summary",
+                            "learning_type": "workflow_gap",
+                            "source_command": "sp-quick",
+                            "evidence": "Legacy evidence should become the index lesson.",
+                            "recurrence_key": "quick.legacy-index-shape",
+                            "default_scope": "quick-task",
+                            "applies_to": ["sp-quick"],
+                            "signal_strength": "medium",
+                            "status": "confirmed",
+                            "first_seen": "2026-05-14T00:00:00Z",
+                            "last_seen": "2026-05-14T00:00:00Z",
+                            "occurrence_count": 1,
+                        }
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "quick", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["relevant_index_entries"][0]["problem"] == "Legacy quick learning summary"
+    assert payload["relevant_index_entries"][0]["lesson"] == "Legacy evidence should become the index lesson."
+    assert payload["relevant_index_entries"][0]["detail"].startswith("./learn-")
+
+
 def test_learning_start_returns_relevant_index_entries_and_detail_refs(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)

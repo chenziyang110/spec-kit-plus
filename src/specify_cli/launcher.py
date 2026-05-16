@@ -26,6 +26,23 @@ HOOK_LAUNCHER_POSIX = "specify-hook"
 HOOK_LAUNCHER_WINDOWS = "specify-hook.cmd"
 HOOK_LAUNCHER_NODE = "specify-hook.mjs"
 HOOK_LAUNCHER_PYTHON = "specify-hook.py"
+CLAUDE_HOOK_NODE_EVAL = (
+    "const fs=require('node:fs');"
+    "const path=require('node:path');"
+    "const cp=require('node:child_process');"
+    "let dir=process.cwd();"
+    "for(;;){"
+    "const launcher=path.join(dir,'.specify','bin','specify-hook.mjs');"
+    "if(fs.existsSync(launcher)){"
+    "const child=cp.spawnSync(process.execPath,[launcher,...process.argv.slice(1)],{cwd:dir,env:process.env,stdio:'inherit',shell:false});"
+    "if(child.error){console.error('Failed to start native hook launcher: '+child.error.message);process.exit(2)}"
+    "process.exit(child.status??2)"
+    "}"
+    "const parent=path.dirname(dir);"
+    "if(parent===dir){console.error('Missing .specify/bin/specify-hook.mjs. Run specify integration repair.');process.exit(2)}"
+    "dir=parent"
+    "}"
+)
 DIRECT_HOOK_DISPATCH_MARKERS = (
     "claude-hook-dispatch.py",
     "gemini-hook-dispatch.py",
@@ -54,7 +71,7 @@ def render_command(argv: tuple[str, ...]) -> str:
 
     if os.name == "nt":
         return subprocess.list2cmdline(list(argv))
-    return " ".join(argv)
+    return " ".join(shlex.quote(item) for item in argv)
 
 
 def default_specify_launcher_spec() -> SpecifyLauncherSpec:
@@ -217,7 +234,7 @@ def render_claude_hook_launcher(route: str) -> dict[str, Any]:
 
     return {
         "type": "command",
-        "command": f'node ".specify/bin/{HOOK_LAUNCHER_NODE}" claude {route}',
+        "command": render_command(("node", "-e", CLAUDE_HOOK_NODE_EVAL, "claude", route)),
     }
 
 
@@ -505,6 +522,8 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                         command = str(hook.get("command") or "")
                         args = hook.get("args")
                         if "claude-hook-dispatch.py" in command:
+                            stale_claude_hook = True
+                        if command.startswith('node ".specify/bin/specify-hook.mjs" claude '):
                             stale_claude_hook = True
                         if ".specify/bin/specify-hook" in command and "claude" in command:
                             if "${CLAUDE_PROJECT_DIR}" in command or "$CLAUDE_PROJECT_DIR" in command:

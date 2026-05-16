@@ -592,7 +592,8 @@ class TestIntegrationRepair:
         assert _expected_claude_hook("session-start") in hooks
         assert all(
             isinstance(hook.get("command"), str)
-            and hook["command"].startswith('node ".specify/bin/specify-hook.mjs" claude ')
+            and hook["command"].startswith("node -e ")
+            and " claude " in hook["command"]
             for hook in hooks
         )
         assert all("args" not in hook for hook in hooks)

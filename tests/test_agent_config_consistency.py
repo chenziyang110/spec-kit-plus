@@ -89,6 +89,26 @@ class TestAgentConfigConsistency:
         assert cfg["vibe"]["dir"] == ".vibe/skills"
         assert cfg["vibe"]["extension"] == "/SKILL.md"
 
+    def test_vibe_agent_context_scripts_use_root_agents_file(self):
+        """Vibe context updates should target root AGENTS.md like its integration metadata."""
+        bash_text = (REPO_ROOT / "scripts" / "bash" / "update-agent-context.sh").read_text(encoding="utf-8")
+        pwsh_text = (REPO_ROOT / "scripts" / "powershell" / "update-agent-context.ps1").read_text(encoding="utf-8")
+        bash_wrapper = (
+            REPO_ROOT / "src" / "specify_cli" / "integrations" / "vibe" / "scripts" / "update-context.sh"
+        ).read_text(encoding="utf-8")
+        pwsh_wrapper = (
+            REPO_ROOT / "src" / "specify_cli" / "integrations" / "vibe" / "scripts" / "update-context.ps1"
+        ).read_text(encoding="utf-8")
+
+        assert 'VIBE_FILE="$AGENTS_FILE"' in bash_text
+        assert "$VIBE_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'" in pwsh_text
+        assert ".vibe/agents/specify-agents.md" not in bash_text
+        assert ".vibe/agents/specify-agents.md" not in pwsh_text
+        assert "AGENTS.md" in bash_wrapper
+        assert "AGENTS.md" in pwsh_wrapper
+        assert ".vibe/agents/specify-agents.md" not in bash_wrapper
+        assert ".vibe/agents/specify-agents.md" not in pwsh_wrapper
+
     def test_codex_includes_team_template_but_claude_does_not(self):
         """The Codex-only team surface should not leak into non-Codex template lists."""
         codex = get_integration("codex")
@@ -213,14 +233,28 @@ class TestAgentConfigConsistency:
         assert trae_cfg["extension"] == "/SKILL.md"
 
     def test_trae_in_agent_context_scripts(self):
-        """Agent context scripts should support trae agent type."""
+        """Agent context scripts should target Trae context updates to its rules file."""
         bash_text = (REPO_ROOT / "scripts" / "bash" / "update-agent-context.sh").read_text(encoding="utf-8")
         pwsh_text = (REPO_ROOT / "scripts" / "powershell" / "update-agent-context.ps1").read_text(encoding="utf-8")
+        bash_wrapper = (
+            REPO_ROOT / "src" / "specify_cli" / "integrations" / "trae" / "scripts" / "update-context.sh"
+        ).read_text(encoding="utf-8")
+        pwsh_wrapper = (
+            REPO_ROOT / "src" / "specify_cli" / "integrations" / "trae" / "scripts" / "update-context.ps1"
+        ).read_text(encoding="utf-8")
 
         assert "trae" in bash_text
         assert "TRAE_FILE" in bash_text
+        assert 'TRAE_FILE="$REPO_ROOT/.trae/rules/project_rules.md"' in bash_text
+        assert ".trae/rules/AGENTS.md" not in bash_text
         assert "trae" in pwsh_text
         assert "TRAE_FILE" in pwsh_text
+        assert "$TRAE_FILE     = Join-Path $REPO_ROOT '.trae/rules/project_rules.md'" in pwsh_text
+        assert ".trae/rules/AGENTS.md" not in pwsh_text
+        assert ".trae/rules/project_rules.md" in bash_wrapper
+        assert ".trae/rules/project_rules.md" in pwsh_wrapper
+        assert ".trae/rules/AGENTS.md" not in bash_wrapper
+        assert ".trae/rules/AGENTS.md" not in pwsh_wrapper
 
     def test_trae_in_powershell_validate_set(self):
         """PowerShell update-agent-context script should include 'trae' in ValidateSet."""

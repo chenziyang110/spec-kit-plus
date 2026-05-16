@@ -1847,6 +1847,23 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert no_safe_batch < one_subagent < parallel_subagents
 
 
+def test_map_update_template_does_not_rebuild_after_successful_incremental_update():
+    content = _read("templates/commands/map-update.md")
+    lowered = content.lower()
+
+    assert "do not tell the user to run" in lowered
+    assert "merely because refreshed source changes are not committed yet" in lowered
+    assert "after those source changes are committed" in lowered
+    assert "project-cognition record-refresh" in lowered
+    assert "without rerunning `{{invoke:map-scan}}` or `{{invoke:map-build}}`" in lowered
+
+    for path in ["README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"]:
+        doc = _read(path).lower()
+        assert "committing the refreshed source changes does not require a full rebuild by itself" in doc
+        assert "project-cognition record-refresh" in doc
+        assert "project-cognition complete-refresh" in doc
+
+
 def test_implement_template_requires_resume_audit_before_trusting_terminal_state():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
@@ -2175,6 +2192,8 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
             assert "map-update" in lowered
             assert "map-scan" in lowered
             assert "map-build" in lowered
+            if path == "README.md":
+                assert "committing the refreshed source changes does not require a full rebuild by itself" in lowered
         else:
             assert "git-baseline freshness" in lowered
             assert "truth source" in lowered

@@ -46,6 +46,8 @@ Use `execution_surface: native-subagents`.
 - If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report that the baseline is unusable and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If `validate-build` is blocked after update recording, report `partial_refresh` and preserve the validation errors instead of claiming the runtime is fresh.
 - If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:project-cognition complete-refresh --format json}}` so cognition freshness metadata cannot remain stale.
+- If the update helper returns `ready` and `validate-build` passes, but the shared freshness check still sees the same refreshed source paths only because those source changes are not committed yet, report the incremental update as recorded and baseline-finalization pending. Do not tell the user to run `{{invoke:map-scan}}` or `{{invoke:map-build}}` merely because refreshed source changes are not committed yet.
+- After those source changes are committed, update the git-baseline freshness metadata with `{{specify-subcmd:project-cognition record-refresh --reason "map-update" --format json}}` or `{{specify-subcmd:project-cognition complete-refresh --format json}}` without rerunning `{{invoke:map-scan}}` or `{{invoke:map-build}}`, unless validation reports `needs_rebuild`, the baseline is unusable, or the affected closure cannot be bounded safely.
 - Do not report refresh completion when the runtime remains blocked.
 - A recorded refresh is not automatically a ready refresh: `partial_refresh` means update metadata was written but readiness still failed.
 

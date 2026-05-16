@@ -1873,7 +1873,7 @@ def project_cognition_lexicon_command(
 
 @project_cognition_app.command("update")
 def project_cognition_update_command(
-    changed_paths: list[str] = typer.Option(..., "--changed-paths", help="Changed path; may be specified more than once"),
+    changed_paths: list[str] = typer.Option(..., "--changed-paths", "--scope", help="Changed path; may be specified more than once"),
     reason: str = typer.Option("manual", "--reason", help="Update trigger or reason"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
 ):

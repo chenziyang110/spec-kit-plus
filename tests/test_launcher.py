@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import shlex
 import stat
 import subprocess
 
@@ -438,6 +439,34 @@ def test_diagnose_project_runtime_compatibility_reports_stale_quoted_claude_node
     assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
 
 
+def test_diagnose_project_runtime_compatibility_reports_stale_relative_claude_node_launcher(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": 'node ".specify/bin/specify-hook.mjs" claude session-start',
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+
+
 def test_diagnose_project_runtime_compatibility_accepts_current_claude_node_launcher(tmp_path):
     settings_path = tmp_path / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
@@ -514,11 +543,12 @@ def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(m
 
 def test_render_claude_hook_launcher_uses_single_command_string():
     hook = render_claude_hook_launcher("session-start")
+    argv = shlex.split(hook["command"], posix=os.name != "nt")
 
-    assert hook == {
-        "type": "command",
-        "command": 'node ".specify/bin/specify-hook.mjs" claude session-start',
-    }
+    assert hook["type"] == "command"
+    assert argv[:2] == ["node", "-e"]
+    assert hook["command"].endswith(" claude session-start")
+    assert ".specify\\\\bin\\\\specify-hook.mjs" in hook["command"] or ".specify/bin/specify-hook.mjs" in hook["command"]
     assert "args" not in hook
     assert "${CLAUDE_PROJECT_DIR}" not in json.dumps(hook)
     assert "$CLAUDE_PROJECT_DIR" not in json.dumps(hook)
@@ -567,6 +597,52 @@ def test_render_claude_hook_launcher_command_runs_from_project_root_without_shel
     assert payload["argv"] == ["claude", "session-start"]
     assert payload["cwd"] == str(project)
     assert payload["stdin"]["cwd"] == str(project)
+
+
+def test_render_claude_hook_launcher_command_discovers_project_root_from_nested_cwd(tmp_path):
+    if shutil.which("node") is None:
+        return
+
+    project = tmp_path / "project"
+    nested_cwd = project / "apps" / "web"
+    nested_cwd.mkdir(parents=True)
+    launcher = project / ".specify" / "bin" / "specify-hook.mjs"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(
+        "\n".join(
+            [
+                "import { readFileSync } from 'node:fs';",
+                "const stdin = readFileSync(0, 'utf8');",
+                "console.log(JSON.stringify({",
+                "  argv: process.argv.slice(2),",
+                "  cwd: process.cwd(),",
+                "  stdin: JSON.parse(stdin)",
+                "}));",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    hook = render_claude_hook_launcher("stop-monitor")
+    env = os.environ.copy()
+    env.pop("CLAUDE_PROJECT_DIR", None)
+
+    result = subprocess.run(
+        hook["command"],
+        input=json.dumps({"cwd": str(nested_cwd), "hook_event_name": "Stop"}),
+        text=True,
+        capture_output=True,
+        cwd=nested_cwd,
+        env=env,
+        shell=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["argv"] == ["claude", "stop-monitor"]
+    assert payload["cwd"] == str(project)
+    assert payload["stdin"]["cwd"] == str(nested_cwd)
 
 
 def test_plain_node_hook_command_would_execute_hook_payload_as_javascript(tmp_path):
