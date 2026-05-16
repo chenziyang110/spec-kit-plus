@@ -23,8 +23,13 @@ and what sits clearly outside the system boundary.]
   read next.]
 - **Pre-spec discussion**: `sp-discussion` stores resumable product/technical
   discussions under `.specify/discussions/<slug>/`, produces technical options
-  and requirements drafts, and only hands off to `sp-specify` through explicit
-  `handoff-to-specify.md`.
+  and requirements drafts, and only hands off after explicit user request.
+  Handoff now begins with `handoff-assessment.md`: one bounded result writes
+  latest-copy `handoff-to-specify.md` and `handoff-to-specify.json`, while broad
+  directions stay inside `sp-discussion` through `split-plan.md` candidate backlog
+  entries and canonical `handoffs/CAND-001-handoff-to-specify.md` and
+  `handoffs/CAND-001-handoff-to-specify.json` files. After one candidate ships,
+  return to the same discussion slug to select the next stage.
 
 ## How To Read This Project
 

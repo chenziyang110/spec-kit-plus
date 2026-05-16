@@ -130,6 +130,21 @@ def test_guidance_docs_position_discussion_before_specify() -> None:
         assert matching_guidance
 
 
+def test_guidance_docs_explain_discussion_split_continuation() -> None:
+    readme = _read("README.md")
+    handbook = _read("PROJECT-HANDBOOK.md")
+    generated_handbook = _read("templates/project-handbook-template.md")
+
+    for content in (readme, handbook, generated_handbook):
+        lowered = content.lower()
+        assert "handoff-assessment.md" in content
+        assert "split-plan.md" in content
+        assert "candidate backlog" in lowered
+        assert "return to the same discussion" in lowered
+        assert "handoffs/CAND-001-handoff-to-specify.md" in content
+        assert "handoff-to-specify.json" in content
+
+
 def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

@@ -31,6 +31,10 @@ judgment in an established Spec Kit Plus repository:
   source-grounded recommendations, use the active workflow's launcher-backed
   project cognition query planning flow to retrieve the task-local project
   cognition bundle.
+- In `sp-discussion` split mode, product-level candidate splitting may begin from
+  discussion artifacts, but source-grounded split rationale, affected-surface
+  claims, implementation dependency claims, and technical risk classification
+  still require the staged cognition gate.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.
