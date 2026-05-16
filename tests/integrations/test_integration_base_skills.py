@@ -87,7 +87,12 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "sp-discussion" in skill_content
     assert ".specify/discussions/<slug>/" in skill_content
     assert "discussion-state.md" in skill_content
+    assert "handoff-assessment.md" in skill_content
+    assert "split-plan.md" in skill_content
+    assert "handoffs/CAND-001-handoff-to-specify.md" in skill_content
+    assert "handoffs/CAND-001-handoff-to-specify.json" in skill_content
     assert "handoff-to-specify.md" in skill_content
+    assert "handoff-to-specify.json" in skill_content
     assert (
         "explicit user" in skill_lower
         or "user explicitly" in skill_lower
@@ -95,6 +100,8 @@ def _assert_discussion_contract(skill_content: str) -> None:
     )
     assert "senior technical expert" in skill_lower
     assert "senior product manager" in skill_lower
+    assert "candidate backlog" in skill_lower
+    assert "latest selected candidate" in skill_lower
 
 
 class SkillsIntegrationTests:
