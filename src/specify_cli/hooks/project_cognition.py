@@ -28,7 +28,7 @@ from .types import HookResult, QualityHookError
 STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks", "debug"}
 STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale; refresh through /sp-map-update, "
-    "or rebuild through /sp-map-scan -> /sp-map-build if no usable baseline remains"
+    "and rebuild through /sp-map-scan -> /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement"
 )
 SUPPORT_DRIFT_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness has support-surface drift; resolve, commit, or intentionally ignore "

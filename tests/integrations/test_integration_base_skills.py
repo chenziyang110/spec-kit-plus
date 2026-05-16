@@ -11,6 +11,7 @@ adapted for the ``sp-<name>/SKILL.md`` skills layout.
 import os
 import re
 
+import pytest
 import yaml
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
@@ -107,6 +108,9 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "senior product manager" in skill_lower
     assert "candidate backlog" in skill_lower
     assert "latest selected candidate" in skill_lower
+    assert "senior consequence analysis gate" in skill_lower
+    assert "affected object map" in skill_lower
+    assert "state-behavior matrix" in skill_lower
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -125,6 +129,43 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "status.md" in content
     elif command_name == "debug":
         assert "debug session state" in content
+
+
+
+SKILLS_INTEGRATION_KEYS = sorted(
+    key
+    for key, integration in INTEGRATION_REGISTRY.items()
+    if isinstance(integration, SkillsIntegration)
+)
+
+
+@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_KEYS)
+def test_collected_skills_integrations_render_consequence_gate(tmp_path, integration_key):
+    integration = get_integration(integration_key)
+    manifest = IntegrationManifest(integration_key, tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    generated = "\n".join(
+        path.read_text(encoding="utf-8").lower()
+        for path in integration.skills_dest(tmp_path).glob("**/SKILL.md")
+    )
+
+    assert "senior consequence analysis gate" in generated
+    assert "affected object map" in generated
+    assert "state-behavior matrix" in generated
+    assert "dependency impact table" in generated
+    assert "ca-###" in generated
+
+
+@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_KEYS)
+def test_collected_skills_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
+    integration = get_integration(integration_key)
+    manifest = IntegrationManifest(integration_key, tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    discussion_path = integration.skills_dest(tmp_path) / "sp-discussion" / "SKILL.md"
+    assert discussion_path.exists()
+    _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
 
 class SkillsIntegrationTests:
@@ -324,6 +365,22 @@ class SkillsIntegrationTests:
         assert "blocked_by_handoff_integrity" in content
         assert "entry_source: sp-discussion" in content
         assert "do not silently" in lowered
+
+    def test_generated_primary_workflows_include_consequence_gate(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        generated = "\n".join(
+            path.read_text(encoding="utf-8").lower()
+            for path in i.skills_dest(tmp_path).glob("**/SKILL.md")
+        )
+
+        assert "senior consequence analysis gate" in generated
+        assert "affected object map" in generated
+        assert "state-behavior matrix" in generated
+        assert "dependency impact table" in generated
+        assert "ca-###" in generated
 
     def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
         i = get_integration(self.KEY)

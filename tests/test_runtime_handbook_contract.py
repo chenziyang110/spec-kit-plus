@@ -116,4 +116,24 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "agent-planned `project-cognition query`" in lowered
     assert "project-cognition lexicon" in lowered
     assert "query_plan" in content
+    assert "normal code changes should use `sp-map-update` for bounded incremental refresh from changed paths" in lowered
+    assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in lowered
     assert "workflow-appropriate slices" not in lowered
+
+
+def test_docs_explain_project_cognition_supports_but_does_not_replace_consequence_analysis() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    ):
+        content = _read(rel_path).lower()
+
+        assert "senior consequence analysis gate" in content
+        assert "project cognition" in content
+        assert "necessary but not sufficient" in content
+        assert "affected object map" in content
+        assert "state-behavior matrix" in content
+        assert "dependency impact" in content
+        assert "coverage gaps" in content

@@ -14,6 +14,7 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 
 - Recover or initialize the debug session and current hypothesis.
 - Gather evidence through the current investigation strategy.
+- For consequence-sensitive failures, trace affected objects, dependency loops, control/observation states, adjacent risk targets, and any `CA-###` stop-and-reopen conditions before accepting a fix.
 - Apply a fix only after the failure mechanism is understood well enough to justify it.
 - Verify the result and update the session state before any resolution claim.
 

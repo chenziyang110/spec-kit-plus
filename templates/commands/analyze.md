@@ -12,6 +12,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/analyze/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -118,11 +120,11 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 
 - Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
 - If readiness is `needs_rebuild`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
-- If readiness is `needs_update` or the returned bundle is too weak for the touched area, use `{{invoke:map-update}}` when the touched area is localized.
-- Escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required.
+- If readiness is `needs_update` or the returned bundle is too weak for the touched area, use `{{invoke:map-update}}` with the changed paths or affected surfaces.
+- Escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement.
 - If readiness is `review`, inspect only the returned `minimal_live_reads` before trusting the runtime for analysis.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-- If task-relevant coverage is insufficient for the current analysis request, inspect the returned targeted live evidence; refresh through `{{invoke:map-update}}` when localized, and rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before continuing when no usable localized baseline remains or a full rebuild is required.
+- If task-relevant coverage is insufficient for the current analysis request, inspect the returned targeted live evidence; refresh through `{{invoke:map-update}}` with changed paths or affected surfaces, and rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above.
 
 ### 3. Load Artifacts (Progressive Disclosure)
 
@@ -137,7 +139,7 @@ Load only the minimal necessary context from each artifact:
   capability, boundary fact, ambiguity, or verification evidence that justified
   the route.
 - Inspect only returned `minimal_live_reads` when the bundle does not fully cover ownership, propagation, or verification routes.
-- If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, use `/sp-map-update` when localized; rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required, then inspect the minimum live files still needed to replace guesswork with evidence
+- If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, use `/sp-map-update` with changed paths or affected surfaces; rebuild through `/sp-map-scan` followed by `/sp-map-build` only for the explicit rebuild conditions above, then inspect the minimum live files still needed to replace guesswork with evidence
 
 **From spec.md:**
 
@@ -256,6 +258,15 @@ Focus on high-signal findings in the report body. Limit the visible findings tab
   - `BG2` when the task layer fails to preserve that constitution as implementation guardrails
   - `BG3` when execution guidance fails to force pre-dispatch boundary confirmation
 - Report when a generic implementation instinct would likely drift away from the repository's established pattern because the plan left the constraint as background context only
+
+#### I. Consequence Preservation Analysis
+
+- Detect every `CA-###` consequence obligation in `spec.md`, `context.md`, `references.md`, `alignment.md`, `plan.md`, `tasks.md`, `plan-contract.json`, `task-index.json`, and task packets when present.
+- Verify each consequence obligation keeps its claim, affected objects, lifecycle state behavior, dependency impact, recovery and validation contract, owner workflow, latest resolve phase, status, and stop-and-reopen condition across downstream artifacts.
+- Flag any obligation that disappears, is renamed without traceability, loses validation evidence, lacks task or packet coverage, or is treated as resolved without proof.
+- Must not drop consequence obligations from the analysis report or blocker bundle. If an upstream artifact omitted one, report the omission and route to the highest invalid workflow stage that can restore it.
+- Treat unresolved or unmapped `CA-###` obligations as blockers when implementation would otherwise continue through lifecycle, running-state, destructive-operation, shared-state, or downstream-consumer ambiguity.
+- If the consequence model is complete and every stop-and-reopen condition is mapped or resolved, record the gate as cleared for implementation; otherwise keep implementation paused.
 
 ### 6. Severity Assignment
 

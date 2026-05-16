@@ -134,6 +134,11 @@ def test_map_scan_template_preserves_required_scan_dimensions() -> None:
     for phrase in required_phrases:
         assert phrase in lowered
 
+    assert "consequence substrate evidence" in lowered
+    assert "active/running actors" in lowered
+    assert "shared mutable state and destructive-operation surfaces" in lowered
+    assert "minimal live reads" in lowered
+
 
 def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     content = _read("templates/commands/map-build.md")
@@ -232,6 +237,11 @@ def test_map_build_template_requires_truth_layer_outputs() -> None:
 
     assert ".specify/project-cognition/project-cognition.db" in content
     assert "queryable task-oriented cognition bundles" in lowered
+    assert "consequence substrate synthesis" in lowered
+    assert "lifecycle/state edges" in lowered
+    assert "shared-state and destructive-operation edges" in lowered
+    assert "minimal_live_reads" in content
+    assert "which owners, consumers, state surfaces, generated surfaces, and verification routes are implicated" in lowered
     assert "DEBUG-HANDBOOK.md" not in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "DEBUG-WORKFLOW-CONTRACT" not in content

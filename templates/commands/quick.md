@@ -9,6 +9,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/quick/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Mandatory Subagent Execution
 
 {{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}
@@ -91,6 +93,7 @@ If the task is a bug fix or regression but the root cause is still unknown:
 ## Escalation Triggers
 
 Upgrade to `{{invoke:specify}}` immediately if:
+- The Senior Consequence Analysis Gate triggers and the work needs user-level lifecycle decisions, broad compatibility handling, multi-capability scope, destructive policy, shared-state semantics, downstream consumer negotiation, or acceptance criteria that cannot fit one bounded quick task.
 - The task changes architecture or introduces cross-cutting behavior across multiple modules, workflows, or shared surfaces.
 - The task touches a change-propagation hotspot, a truth-owning shared surface, or an area whose known unknowns make lightweight planning unsafe.
 - The request now spans multiple independent capabilities, release tracks, or user journeys that no longer fit one bounded quick-task workspace.
@@ -99,6 +102,15 @@ Upgrade to `{{invoke:specify}}` immediately if:
 - The change has rollout, migration, compatibility, or neighboring-workflow impact that must be locked before implementation.
 - The expected behavior cannot be stated with concrete acceptance criteria without first doing feature-level requirement alignment.
 - The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a bounded repair. In that case, route to `{{invoke:debug}}`.
+
+## Quick Consequence Boundary
+
+Continue in quick only when the consequence model is bounded: affected objects are few, lifecycle choices are local, dependency impact is limited, recovery is obvious, validation can run inside the quick-task loop, and every `CA-###` obligation can be recorded in `STATUS.md`.
+
+- If the gate stands down, record the stand-down reason in `STATUS.md`.
+- If the gate triggers but remains bounded, record affected objects, state behavior, dependency impact, recovery and validation, project cognition evidence, coverage gaps, and escalation decision before dispatch.
+- If consequence analysis reveals user-level lifecycle decisions, broad compatibility handling, multi-capability scope, destructive policy, shared-state semantics, or downstream consumer negotiation, upgrade to `{{invoke:specify}}` immediately.
+- If the task is a defect and the dependency loop is unknown, use `{{invoke:debug}}` rather than resolving consequence semantics inside `sp-quick`.
 
 ## Execution Modes
 
@@ -141,7 +153,7 @@ The following flags are available and composable:
 - If a matching active workspace already exists, resume it instead of creating a second parallel quick-task directory for the same goal.
 - The minimum artifact set is:
   - `STATUS.md`: the source of truth for the current quick-task state.
-  - `SUMMARY.md`: the final outcome, changed files, and verification evidence.
+  - `SUMMARY.md`: the final outcome, `changed_code_paths`, `changed_behavior_surfaces`, verification evidence, residual risk, and `project_cognition_refresh` recommendation.
   - Optional lightweight support artifacts only when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`.
 - `STATUS.md` is the lifecycle source of truth for the quick task. `.planning/quick/index.json` is a derived projection for management and recovery commands.
 - The quick-task directory format is `<id>-<slug>`. Do not use slug-only workspace names for the enhanced quick flow.
@@ -220,6 +232,27 @@ planned_checks:
   - [smallest meaningful verification command or manual check]
 completed_checks:
   - [verification already run]
+
+## Senior Consequence Analysis
+<!-- OVERWRITE/REFINE when the gate stands down, triggers, or escalates -->
+
+gate_status: not_evaluated | stand_down | triggered_bounded | escalated
+stand_down_reason: [why lifecycle, running-state, destructive, shared-state, downstream-consumer, compatibility, security, or multiple-behavior semantics do not apply]
+affected_objects:
+  - [object, state surface, consumer, command, API, artifact, or workflow]
+state_behavior_matrix:
+  - [state -> expected behavior]
+dependency_impact:
+  - [dependency or consumer -> impact]
+recovery_and_validation:
+  - [rollback, retry, cleanup, idempotency, observability, or validation requirement]
+project_cognition_evidence:
+  - [project cognition fact, live read, or coverage source]
+coverage_gaps:
+  - [gap, owner, latest safe resolve phase, stop-and-reopen condition]
+consequence_obligations:
+  - [CA-### claim, owner, mapped lane/task/check]
+escalation_decision: [stay quick | upgrade to specify | route to debug | blocked]
 
 ## Summary Pointer
 <!-- OVERWRITE when terminal state is reached -->
@@ -304,10 +337,11 @@ resume_decision: [resume here | blocked waiting | resolved]
   - the change itself is implemented in code, docs, config, or templates as needed
   - at least one smallest meaningful executable verification step has run
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
+- The final `SUMMARY.md` must include `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` recommending `{{invoke:map-update}}` with those changed paths whenever project cognition might be affected.
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before marking the quick task `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
-- If a refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback with command shape `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}`, and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before marking the quick task `resolved`. Do not rebuild for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
+- If a refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback with command shape `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}`, and tell the user to run `{{invoke:map-update}}` with the changed paths before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above.
 
 ## Propagating Change Rule
 
@@ -336,6 +370,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 - Keep `STATUS.md` accurate enough that another session can resume without chat memory.
 - Produce scoped implementation changes, verification evidence, and a truthful resolved/blocked state for the quick task.
+- `SUMMARY.md` reports changed code paths, changed behavior surfaces, verification evidence, residual risk, and the recommended `{{invoke:map-update}}` refresh when project cognition might be affected.
 - Preserve escalation history so it is clear why the task stayed quick or needed to grow.
 
 ## Passive Project Learning Layer

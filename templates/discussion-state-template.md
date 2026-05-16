@@ -85,6 +85,15 @@
 - handoffs/CAND-xxx-handoff-to-specify.md when present
 - handoffs/CAND-xxx-handoff-to-specify.json when present
 
+## Senior Consequence Analysis
+
+- consequence_gate_status: not-triggered | triggered | ready | blocked | stood-down
+- trigger_reason: none
+- stand_down_reason: none
+- active_consequence_obligations: []
+- latest_consequence_handoff: none
+- coverage_gap_count: 0
+
 ## Handoff
 
 - handoff_to_specify: none

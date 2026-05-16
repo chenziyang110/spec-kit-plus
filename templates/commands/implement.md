@@ -12,6 +12,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/implement/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Orchestration Model
 
 This section is **mandatory**. Every `sp-implement` run MUST follow this model — deviation is not permitted.
@@ -101,7 +103,7 @@ After checks complete, record results in `implement-tracker.md`:
 - Keep `workflow-state.md` and `implement-tracker.md` aligned so execution state, next batch, open blockers, and resume instructions stay durable.
 - Validate each `WorkerTaskPacket` before dispatch and require a `WorkerTaskResult` plus structured handoff before accepting a join point.
 - Update durable state before compaction-risk transitions, long validation phases, join points, subagent fan-out, or any stop where resume will depend on more than the visible conversation.
-- When execution changes map-level truth surfaces, refresh the project cognition runtime through `/sp-map-update` when the touched area is localized, then run `{{specify-subcmd:project-cognition validate-build --format json}}` and use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required.
+- When execution changes map-level truth surfaces, refresh the project cognition runtime through `/sp-map-update` using the changed paths, then run `{{specify-subcmd:project-cognition validate-build --format json}}` and use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement.
 - If a refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback. Preserve origin semantics in the dirty record when available: `origin-command=implement`, `origin-feature-dir=$FEATURE_DIR`, `origin-lane-id=$LANE_ID`, and the validated packet file. Only omit lane or packet details when the current runtime truly cannot resolve them, so a later same-lane `sp-implement` resume can warn while upstream brownfield entrypoints still refresh before continuing.
 
 ## Passive Project Learning Layer
@@ -268,10 +270,10 @@ human_needed_checks:
    - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
    - **REQUIRED**: Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
    - **IF READINESS IS `needs_rebuild`**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing.
-   - **IF READINESS IS `needs_update` OR TOO WEAK FOR THE TOUCHED AREA**: Use `/sp-map-update` when the touched area is localized. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required.
+   - **IF READINESS IS `needs_update` OR TOO WEAK FOR THE TOUCHED AREA**: Use `/sp-map-update` with the changed paths. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement.
    - **IF READINESS IS `review`**: Inspect only the returned `minimal_live_reads` before trusting the runtime for implementation decisions.
    - **TREAT TASK-RELEVANT COVERAGE AS INSUFFICIENT** when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: use returned testing artifacts, refresh through `/sp-map-update` when localized, or rebuild through `/sp-map-scan` followed by `/sp-map-build` only when needed; then inspect the returned minimum live files needed to replace guesswork with evidence.
+   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: use returned testing artifacts and refresh through `/sp-map-update` with changed paths or affected surfaces; rebuild through `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement; then inspect the returned minimum live files needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
    - **REQUIRED**: Read `.specify/memory/learnings/INDEX.md` if present.
@@ -303,6 +305,15 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
     - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
    - If a needed change would violate the current execution contract or require redefining the user's locked goal, stop and reopen the upstream truth layer instead of implementing through ambiguity.
+
+### Consequence Obligation Execution
+
+- Before choosing a batch, collect every `CA-###` consequence obligation from `tasks.md`, `task-index.json`, task packets, `handoff-to-implement.json`, `workflow-state.md`, and the plan package.
+- Each validated `WorkerTaskPacket` that touches an affected object must carry the relevant consequence obligation claim, affected objects, lifecycle states, dependency refs, recovery/validation refs, status, and stop-and-reopen condition.
+- Must not drop `CA-###` consequence obligations during packet repair, subagent dispatch, tracker updates, result acceptance, or final validation.
+- If implementation evidence proves a consequence obligation wrong, impossible, unmapped, or broader than the current packet, stop and reopen the highest valid upstream workflow instead of silently changing behavior.
+- Do not accept a successful worker result for a packet with consequence obligations unless it includes validation evidence for each obligation ID or records a blocked stop-and-reopen condition.
+- Keep unresolved consequence obligations visible in `implement-tracker.md` open gaps and final reporting until they are resolved, deferred by an upstream artifact, or routed to `/sp.debug`, `/sp.tasks`, `/sp.plan`, `/sp.deep-research`, or `/sp.clarify`.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
@@ -545,8 +556,9 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
      - `plan_gap`: the current plan/tasks do not cover the work needed to satisfy the feature goal; update `plan.md` and `tasks.md`, set tracker status to `replanning`, then continue from the next ready batch after the replan
      - `spec_gap`: the requirement itself is ambiguous, contradictory, or newly changed; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.clarify`
      - `feasibility_gap`: the requirement is clear but the implementation chain is unproven; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.deep-research`
-   - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
-   - If you cannot complete that refresh in the current pass, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback, preserve `origin-command=implement`, `origin-feature-dir=$FEATURE_DIR`, `origin-lane-id=$LANE_ID`, and the validated packet file when available, and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed. The same lane's later `sp-implement` resume may continue with a warning only when the recorded dirty scope overlaps the current packet scope, but upstream brownfield entrypoints and other features must refresh first.
+   - Before final completion reporting, record `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` recommending `{{invoke:map-update}}` with those changed paths whenever project cognition might be affected.
+   - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths. Do not rebuild for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
+   - If you cannot complete that refresh in the current pass, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback, preserve `origin-command=implement`, `origin-feature-dir=$FEATURE_DIR`, `origin-lane-id=$LANE_ID`, and the validated packet file when available, and tell the user to run `{{invoke:map-update}}` with the changed paths before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above. The same lane's later `sp-implement` resume may continue with a warning only when the recorded dirty scope overlaps the current packet scope, but upstream brownfield entrypoints and other features must refresh first.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
    - [AGENT] Before the final completion report, run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
 - [AGENT] If the closeout auto-capture pass produced no captured lesson but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface to create or merge an index/detail entry.
@@ -554,7 +566,7 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
 - [AGENT] Before the final completion report, apply the Learning Reflex and record any reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` in `.specify/memory/learnings/INDEX.md` plus a linked detail document when durable state did not already preserve it.
    - Treat one-off findings as no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
-   - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
+   - Report final status with summary of completed work, changed code paths, changed behavior surfaces, verification evidence, recommended `{{invoke:map-update}}` refresh when applicable, remaining human-needed checks, and any unresolved gaps
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/sp.tasks` first to regenerate the task list.
 

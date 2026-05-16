@@ -71,6 +71,12 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
                 "",
                 "- pytest tests/unit/test_auth_service.py -q",
                 "",
+                "## Consequence Obligation Mapping",
+                "",
+                "| Obligation ID | Task IDs | Affected State/Dependency | Required References | Validation | Stop/Reopen Condition |",
+                "| --- | --- | --- | --- | --- | --- |",
+                "| CA-001 | T017 | team, worker | src/contracts/auth.py | pytest tests/unit/test_auth_service.py -q | No validation proves drain behavior |",
+                "",
                 "- [ ] T017 [US1] Implement auth flow in src/services/auth_service.py",
             ]
         ),
@@ -116,6 +122,9 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
         "send task_started before long-running work",
         "write structured result handoff before idling",
     ]
+    assert packet.consequence_obligations[0].obligation_id == "CA-001"
+    assert packet.consequence_obligations[0].affected_objects == ["team", "worker"]
+    assert packet.consequence_obligations[0].recovery_validation_refs == ["pytest tests/unit/test_auth_service.py -q"]
 
 
 def test_compile_worker_task_packet_accepts_materialized_task_input(
@@ -170,6 +179,75 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
     assert packet.scope.write_scope == ["src/bll_manager.py"]
     assert packet.context_bundle[0].path == ".specify/project-cognition/status.json"
     assert packet.validation_gates == ["pytest tests/unit/test_bll_manager.py -q"]
+
+
+def test_compile_worker_task_packet_accepts_short_consequence_mapping_rows(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n',
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+                "",
+                "## Forbidden Implementation Drift",
+                "",
+                "- Do not create a parallel auth stack",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- pytest tests/unit/test_auth_service.py -q",
+                "",
+                "## Consequence Obligation Mapping",
+                "",
+                "| Obligation ID | Task IDs | Validation |",
+                "| --- | --- | --- |",
+                "| CA-001 | T017 | pytest tests/unit/test_auth_service.py -q |",
+                "",
+                "- [ ] T017 [US1] Implement auth flow in src/services/auth_service.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T017",
+    )
+
+    obligation = packet.consequence_obligations[0]
+    assert obligation.obligation_id == "CA-001"
+    assert obligation.claim == "CA-001 consequence obligation for T017"
+    assert obligation.affected_objects == ["T017"]
+    assert obligation.recovery_validation_refs == ["pytest tests/unit/test_auth_service.py -q"]
+    assert (
+        obligation.stop_and_reopen_condition
+        == "No validation evidence supplied for CA-001"
+    )
 
 
 def test_compile_worker_task_packet_preserves_testing_control_plane_context(

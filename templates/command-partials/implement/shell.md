@@ -14,6 +14,7 @@ Advance the current feature through tracked implementation batches while keeping
 
 - Recover tracker state and identify the current ready batch.
 - On resume, audit terminal-looking tracker/task state before trusting completion; checked tasks are claims until validation, handoff, join point, and consumer evidence prove them.
+- Carry every `CA-###` consequence obligation from packets into dispatch, implementation evidence, result acceptance, tracker open gaps, and stop-and-reopen routing.
 - Choose the execution strategy and dispatch subagents or a documented fallback path.
 - Integrate structured handoffs, update tracker truth, and keep verification evidence current.
 - Continue automatically until the feature is complete or blocked by a real blocker.

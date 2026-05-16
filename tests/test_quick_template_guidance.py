@@ -78,6 +78,9 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "repository analysis" in content
     assert "read `.specify/memory/constitution.md` first" in content
     assert "summary artifact" in content or "final summary artifact" in content
+    assert "changed_code_paths" in content
+    assert "changed_behavior_surfaces" in content
+    assert "project_cognition_refresh" in content
 
 
 def test_quick_template_preserves_quality_guardrails() -> None:
@@ -153,6 +156,14 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "blocked_dispatch:" in content
     assert "## validation" in content
     assert "## summary pointer" in content
+    assert "## senior consequence analysis" in content
+    assert "affected_objects:" in content
+    assert "state_behavior_matrix:" in content
+    assert "dependency_impact:" in content
+    assert "recovery_and_validation:" in content
+    assert "project_cognition_evidence:" in content
+    assert "coverage_gaps:" in content
+    assert "escalation_decision:" in content
 
 
 def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
@@ -169,6 +180,17 @@ def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
     assert "new durable spec" in content or "long-lived feature spec" in content
     assert "rollout" in content or "migration" in content
     assert "acceptance criteria" in content
+
+
+def test_quick_template_escalates_when_consequence_model_is_not_bounded() -> None:
+    content = read_template("templates/commands/quick.md").lower()
+
+    assert "senior consequence analysis gate" in content
+    assert "continue in quick only when the consequence model is bounded" in content
+    assert "upgrade to `{{invoke:specify}}` immediately if" in content or "upgrade to `/sp-specify` immediately if" in content
+    assert "user-level lifecycle decisions" in content
+    assert "broad compatibility handling" in content
+    assert "multi-capability scope" in content
 
 
 def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> None:
@@ -242,8 +264,10 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
 def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
-    assert "rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
+    assert "ordinary uncertain closure" in content
+    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
+    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
     assert "complete-refresh" in content
     assert "project-cognition validate-build --format json" in content
     assert "only when build acceptance passes" in content

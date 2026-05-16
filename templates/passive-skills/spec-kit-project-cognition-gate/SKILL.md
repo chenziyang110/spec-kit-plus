@@ -73,13 +73,22 @@ judgment in an established Spec Kit Plus repository:
 - Preserve the distinction between the machine freshness field and public state
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.
-- If no usable localized baseline remains, route through
-  `{{invoke:map-scan}} -> {{invoke:map-build}}`.
+- Route through `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the
+  baseline is missing, unusable, schema-incompatible, explicitly being rebuilt,
+  or invalidated by broad architecture replacement. Uncertain closure should be
+  recorded by `sp-map-update` as partial/low-confidence facts, known unknowns,
+  and `minimal_live_reads`.
 - Treat that detour as a user-invoked workflow handoff. Do not silently switch into
   `sp-map-update`, `sp-map-scan`, or `sp-map-build` yourself from another workflow;
   stop and tell the user which map workflow to run.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   project cognition runtime should be the source of truth.
+
+## Senior Consequence Analysis Relationship
+
+Project cognition is necessary but not sufficient. Use it first to identify ownership, consumers, state surfaces, verification routes, and coverage gaps. Then run the Senior Consequence Analysis Gate when lifecycle, running-state, destructive-operation, shared-state, downstream consumer, compatibility, or multiple-behavior semantics matter.
+
+The gate output must name affected objects, state behavior, dependency impact, recovery and validation, and coverage gaps. Preserve the Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery And Validation Contract, and Coverage Gaps. If project cognition cannot decide product semantics, record the gap and route to the appropriate workflow instead of treating the graph as authoritative.
 
 ## Scope Guard
 

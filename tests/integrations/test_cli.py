@@ -2900,6 +2900,8 @@ def test_project_cognition_cli_exposes_local_query_update_surface():
     assert "--limit" in lexicon_output
     assert "--changed-paths" in update_output
     assert "--scope" in update_output
+    assert "If omitted, derive paths" in update_output
+    assert "from git diff/status" in update_output
     assert "Discover and read fresh cross-project cognition references" in cognition_help.output
     assert "query" not in cognition_help.output.lower()
 
@@ -2932,6 +2934,37 @@ def test_project_cognition_update_accepts_scope_alias_for_changed_path(tmp_path)
     payload = json.loads(result.output)
     assert payload["readiness"] == "needs_rebuild"
     assert payload["changed_paths"] == ["bindings/c/demo.c"]
+
+
+def test_project_cognition_update_derives_changed_paths_from_git_diff(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "update-from-git-diff"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    (project / "src" / "auth").mkdir(parents=True)
+    (project / "src" / "auth" / "login.ts").write_text("export const login = true;\n", encoding="utf-8")
+    _create_git_head(project)
+    _seed_query_ready_runtime(project)
+    subprocess.run(["git", "add", "."], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "Seed cognition runtime"], cwd=project, check=True, capture_output=True, text=True)
+    (project / "src" / "auth" / "login.ts").write_text("export const login = 'changed';\n", encoding="utf-8")
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "update", "--reason", "git-diff-test", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["changed_paths"] == ["src/auth/login.ts"]
+    assert payload["affected_nodes"] == ["capability:auth.login"]
 
 
 def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):

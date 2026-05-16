@@ -19,6 +19,7 @@ Drive a resumable product and technical discussion that matures a rough idea int
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.
 - If assessment returns `split-required`, maintain `split-plan.md` as the candidate backlog and generate `handoffs/<candidate_id>-handoff-to-specify.md` and `handoffs/<candidate_id>-handoff-to-specify.json` only after the user selects a stable candidate ID such as `CAND-001` or `CAND-002`.
 - Refresh latest selected candidate copy files `handoff-to-specify.md` and `handoff-to-specify.json` together for compatibility and include Must-Preserve Ledger plus coverage fields.
+- When senior consequence analysis triggers, preserve `CA-###` obligations, affected objects, lifecycle states, dependency impact, recovery/validation needs, coverage gaps, and the stand-down reason or stop-and-reopen conditions in discussion handoffs.
 
 ## Output Contract
 

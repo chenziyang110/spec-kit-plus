@@ -76,6 +76,23 @@ def _normalize_validation_results(payload: dict[str, Any]) -> list[ValidationRes
     return results
 
 
+def _normalize_evidence_items(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        evidence = {
+            str(key).strip(): str(raw_value).strip()
+            for key, raw_value in item.items()
+            if str(key).strip() and str(raw_value).strip()
+        }
+        if evidence:
+            normalized.append(evidence)
+    return normalized
+
+
 def _normalize_rule_acknowledgement(payload: dict[str, Any]) -> RuleAcknowledgement:
     raw = _pick(payload, "rule_acknowledgement", "ruleAcknowledgement")
     if not isinstance(raw, dict):
@@ -153,4 +170,16 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
         failed_assumptions=failed_assumptions,
         suggested_recovery_actions=recovery_actions,
         rule_acknowledgement=_normalize_rule_acknowledgement(payload),
+        acceptance_evidence=_normalize_evidence_items(
+            _pick(payload, "acceptance_evidence", "acceptanceEvidence")
+        ),
+        consumer_evidence=_normalize_evidence_items(
+            _pick(payload, "consumer_evidence", "consumerEvidence")
+        ),
+        manual_evidence=_normalize_evidence_items(
+            _pick(payload, "manual_evidence", "manualEvidence")
+        ),
+        consequence_evidence=_normalize_evidence_items(
+            _pick(payload, "consequence_evidence", "consequenceEvidence")
+        ),
     )

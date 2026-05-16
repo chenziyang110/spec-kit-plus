@@ -58,5 +58,5 @@ guidance: consume `freshness` as the factual state and use
 ### Primary Read Restriction
 
 Do not treat handbook-first or layered project-map files as the primary runtime read surfaces. If query-returned
-coverage is insufficient, refresh the cognition runtime through `sp-map-update` or rebuild through `sp-map-scan -> sp-map-build`
+coverage is insufficient, refresh the cognition runtime through `sp-map-update`; reserve `sp-map-scan -> sp-map-build` for missing, unusable, schema-incompatible, explicitly rebuilt, or architecture-replaced baselines
 instead of forcing a second handbook traversal phase.

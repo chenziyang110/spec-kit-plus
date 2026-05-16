@@ -292,6 +292,27 @@ MP_VALID_PLANNING_GATE_STATUSES = frozenset(
 )
 GRAPH_UPDATE_REQUIRED_KEYS = frozenset({"updates"})
 
+CONSEQUENCE_ANALYSIS_REQUIRED_KEYS = (
+    "affected_object_map",
+    "state_behavior_matrix",
+    "dependency_impact",
+    "recovery_and_validation",
+    "coverage_gaps",
+)
+
+CONSEQUENCE_OBLIGATION_REQUIRED_KEYS = (
+    "obligation_id",
+    "claim",
+    "affected_objects",
+    "owner",
+    "latest_resolve_phase",
+    "status",
+    "stop_and_reopen_condition",
+)
+
+CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION = "## Operational Consequence Design"
+CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION = "## Consequence Obligation Mapping"
+
 PRD_RECONSTRUCTION_READY_STATUSES = frozenset(
     {
         "reconstruction-ready",
@@ -427,7 +448,6 @@ def _validate_unknown_objects(payload: Any, label: str) -> list[str]:
             if not str(item.get(key, "")).strip():
                 errors.append(f"{label} unknowns[{index}] missing {key}")
     return errors
-
 
 def _validate_must_preserve_items(payload: dict[str, Any], label: str) -> list[str]:
     errors: list[str] = []
@@ -614,6 +634,86 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
     return errors
 
 
+def _json_gate_is_triggered(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    gate = payload.get("consequence_gate")
+    if not isinstance(gate, dict):
+        return False
+    return gate.get("triggered") is True
+
+
+def _validate_consequence_json_payload(payload: Any, label: str) -> list[str]:
+    if not isinstance(payload, dict):
+        return [f"{label} must be a JSON object before consequence validation can run"]
+    if not _json_gate_is_triggered(payload):
+        return []
+
+    errors: list[str] = []
+    analysis = payload.get("consequence_analysis")
+    if not isinstance(analysis, dict):
+        return [f"{label} consequence_analysis must be an object when consequence_gate.triggered is true"]
+
+    for key in CONSEQUENCE_ANALYSIS_REQUIRED_KEYS:
+        value = analysis.get(key)
+        if not isinstance(value, list) or not value:
+            errors.append(f"{label} consequence_analysis.{key} must be a non-empty array when the gate is triggered")
+
+    obligations = payload.get("consequence_obligations")
+    if not isinstance(obligations, list) or not obligations:
+        errors.append(f"{label} consequence_obligations must be a non-empty array when the gate is triggered")
+        return errors
+
+    for index, obligation in enumerate(obligations):
+        if not isinstance(obligation, dict):
+            errors.append(f"{label} consequence_obligations[{index}] must be an object")
+            continue
+        for key in CONSEQUENCE_OBLIGATION_REQUIRED_KEYS:
+            value = obligation.get(key)
+            if isinstance(value, list):
+                if not value:
+                    errors.append(f"{label} consequence_obligations[{index}].{key} must not be empty")
+            elif not str(value or "").strip():
+                errors.append(f"{label} consequence_obligations[{index}].{key} must not be empty")
+
+    return errors
+
+
+def _consequence_obligation_ids(payload: Any) -> set[str]:
+    if not isinstance(payload, dict):
+        return set()
+    obligations = payload.get("consequence_obligations")
+    if not isinstance(obligations, list):
+        return set()
+    return {
+        str(item.get("obligation_id") or "").strip()
+        for item in obligations
+        if isinstance(item, dict) and str(item.get("obligation_id") or "").strip()
+    }
+
+
+def _consequence_contract_paths(feature_dir: Path) -> tuple[tuple[Path, str], ...]:
+    return (
+        (feature_dir / "plan-contract.json", "plan-contract.json"),
+        (feature_dir / "plan" / "plan-contract.json", "plan/plan-contract.json"),
+    )
+
+
+def _decision_consequence_obligation_ids(decision: Any) -> set[str]:
+    if not isinstance(decision, dict):
+        return set()
+    ids: set[str] = set()
+    raw_id = decision.get("obligation_id")
+    if isinstance(raw_id, str) and raw_id.strip():
+        ids.add(raw_id.strip())
+    raw_ids = decision.get("consequence_obligation_ids")
+    if isinstance(raw_ids, list):
+        ids.update(item.strip() for item in raw_ids if isinstance(item, str) and item.strip())
+    elif isinstance(raw_ids, str) and raw_ids.strip():
+        ids.add(raw_ids.strip())
+    return ids
+
+
 def _validate_brainstorming_json_artifact(feature_dir: Path, relative_path: str, *, validate_unknowns: bool) -> list[str]:
     payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
     if read_errors:
@@ -774,6 +874,118 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
     if missing_ids:
         joined = ", ".join(missing_ids)
         errors.append(f"plan.md does not consume deep-research Planning Handoff IDs: {joined}")
+
+    return errors
+
+
+def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    triggered_payloads: list[tuple[Any, str]] = []
+    for contract_path, label in _consequence_contract_paths(feature_dir):
+        if not contract_path.exists():
+            continue
+        payload, read_errors = _read_json_artifact(contract_path, label)
+        if read_errors:
+            errors.extend(read_errors)
+            continue
+        errors.extend(_validate_consequence_json_payload(payload, label))
+        if _json_gate_is_triggered(payload):
+            triggered_payloads.append((payload, label))
+
+    if not triggered_payloads:
+        return errors
+
+    plan_path = feature_dir / "plan.md"
+    plan_content = plan_path.read_text(encoding="utf-8", errors="replace")
+    for payload, label in triggered_payloads:
+        required_ids = _consequence_obligation_ids(payload)
+        ids = ", ".join(sorted(required_ids)) or "triggered consequence obligations"
+        if CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION not in plan_content:
+            errors.append(f"plan.md is missing {CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION} for {ids}")
+
+        operational_decisions = payload.get("operational_consequence_decisions") if isinstance(payload, dict) else None
+        if not isinstance(operational_decisions, list) or not operational_decisions:
+            errors.append(f"{label} operational_consequence_decisions must map {ids}")
+            continue
+        mapped_ids: set[str] = set()
+        for decision in operational_decisions:
+            mapped_ids.update(_decision_consequence_obligation_ids(decision))
+        missing_ids = sorted(required_ids - mapped_ids)
+        if missing_ids:
+            errors.append(
+                f"{label} operational_consequence_decisions must map consequence obligations: "
+                + ", ".join(missing_ids)
+            )
+
+    return errors
+
+
+def _task_index_consequence_ids(payload: Any) -> set[str]:
+    if not isinstance(payload, dict):
+        return set()
+    ids: set[str] = set()
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list):
+        return ids
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        raw_ids = task.get("consequence_obligation_ids")
+        if isinstance(raw_ids, list):
+            ids.update(str(item).strip() for item in raw_ids if str(item).strip())
+    return ids
+
+
+def _triggered_task_consequence_sources(feature_dir: Path) -> tuple[tuple[tuple[Any, str], ...], list[str]]:
+    sources: list[tuple[Any, str]] = []
+    errors: list[str] = []
+    for source_path, label in (
+        (feature_dir / "handoff-to-tasks.json", "handoff-to-tasks.json"),
+        *(_consequence_contract_paths(feature_dir)),
+        (feature_dir / "brainstorming" / "handoff-to-tasks.json", "brainstorming/handoff-to-tasks.json"),
+    ):
+        if not source_path.exists():
+            continue
+        payload, read_errors = _read_json_artifact(source_path, label)
+        if read_errors:
+            errors.extend(read_errors)
+            continue
+        if not _json_gate_is_triggered(payload):
+            continue
+        sources.append((payload, label))
+    return tuple(sources), errors
+
+
+def _validate_tasks_consequence_contract(feature_dir: Path) -> list[str]:
+    sources, errors = _triggered_task_consequence_sources(feature_dir)
+    if not sources:
+        return errors
+
+    required_ids: set[str] = set()
+    for payload, label in sources:
+        errors.extend(_validate_consequence_json_payload(payload, label))
+        required_ids.update(_consequence_obligation_ids(payload))
+    if not required_ids:
+        return errors
+
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.exists():
+        errors.append("task-index.json is required when upstream artifacts carry triggered consequence obligations")
+        return errors
+
+    task_index_payload, task_index_errors = _read_json_artifact(task_index_path, "task-index.json")
+    if task_index_errors:
+        errors.extend(task_index_errors)
+        return errors
+
+    mapped_ids = _task_index_consequence_ids(task_index_payload)
+    missing_ids = sorted(required_ids - mapped_ids)
+    if missing_ids:
+        errors.append("task-index.json is missing consequence mapping for: " + ", ".join(missing_ids))
+
+    tasks_content = (feature_dir / "tasks.md").read_text(encoding="utf-8", errors="replace")
+    if CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION not in tasks_content:
+        errors.append(f"tasks.md is missing {CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION}")
 
     return errors
 
@@ -1177,6 +1389,7 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
         errors.extend(handoff_errors)
     else:
         errors.extend(_validate_handoff_to_specify_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
+        errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
 
     return errors
 
@@ -1273,6 +1486,9 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+        validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
+    if command_name == "tasks":
+        validation_errors.extend(_validate_tasks_consequence_contract(feature_dir))
     if command_name == "map-scan":
         validation_errors.extend(_validate_map_scan_artifacts(feature_dir))
     if command_name == "map-build":

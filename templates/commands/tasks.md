@@ -17,6 +17,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/tasks/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 {{spec-kit-include: ../command-partials/common/subagent-execution.md}}
 
 
@@ -139,6 +141,18 @@ Use the returned readiness:
   `task-index.json`, and task packets.
 
 Task generation may stay focused on the plan artifacts afterward, but it may not skip the query-backed cognition gate.
+
+## Consequence Obligation Mapping
+
+Before the task package is complete, map every triggered `CA-###` consequence obligation into executable work or an explicit downstream stop condition.
+
+- Read upstream consequence analysis from `spec.md`, `alignment.md`, `context.md`, `references.md`, `plan.md`, `plan-contract.json`, and any handoff JSON present.
+- For each `CA-###`, name the affected objects, required state behavior, dependency impact, recovery and validation requirement, owning task or join point, and latest safe resolve phase.
+- Map each obligation to at least one task, packet field, join point, validation task, review checkpoint, or explicit deferral with a stop-and-reopen condition.
+- Each mapped task or packet must include objective, write set, affected state or dependency, required references, forbidden drift, validation command or concrete manual check, done condition, and stop-and-reopen condition.
+- Emit the mapping in `tasks.md`, `handoff-to-tasks.json`, `task-index.json`, and per-task JSON under `task-packets/` when those machine-readable artifacts are generated.
+- Preserve `CA-###` IDs verbatim in `tasks.md`, handoff-to-tasks metadata, task-index metadata, and worker packet shaping instructions so `sp-analyze` and `sp-implement` cannot drop them.
+- If a consequence obligation is unmapped, do not emit a normal `/sp.analyze` handoff. Repair the task package or route back to `{{invoke:plan}}`, `{{invoke:clarify}}`, or `{{invoke:deep-research}}` with the unmapped obligation named.
 
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, split work only into the supported task-generation lanes: `story and phase decomposition`, `dependency graph analysis`, and `write-set and parallel-safety analysis`.

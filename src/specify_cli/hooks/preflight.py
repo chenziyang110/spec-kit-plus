@@ -56,17 +56,17 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
             if dirty_scope_paths and current_scope_paths:
                 if _scope_paths_overlap(dirty_scope_paths, current_scope_paths):
                     warnings.append(
-                        "project cognition runtime is stale from the current lane's prior implement fallback and overlaps the current packet scope; resume may continue but refresh through sp-map-update or rebuild with sp-map-scan, then sp-map-build, before other brownfield entrypoints."
+                        "project cognition runtime is stale from the current lane's prior implement fallback and overlaps the current packet scope; resume may continue but refresh through sp-map-update before other brownfield entrypoints."
                     )
                     warnings.extend(freshness.errors)
                     errors.clear()
                 else:
                     errors.append(
-                        "project cognition runtime is stale from the current lane's prior implement fallback, but the recorded dirty scope does not overlap the current packet scope; refresh through sp-map-update or rebuild with sp-map-scan, then sp-map-build"
+                        "project cognition runtime is stale from the current lane's prior implement fallback, but the recorded dirty scope does not overlap the current packet scope; refresh through sp-map-update"
                     )
             else:
                 warnings.append(
-                    "project cognition runtime is stale from the current lane's prior implement fallback; resume may continue but refresh through sp-map-update or rebuild with sp-map-scan, then sp-map-build, before other brownfield entrypoints."
+                    "project cognition runtime is stale from the current lane's prior implement fallback; resume may continue but refresh through sp-map-update before other brownfield entrypoints."
                 )
                 warnings.extend(freshness.errors)
                 errors.clear()

@@ -92,6 +92,9 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "senior product manager" in command_lower
     assert "candidate backlog" in command_lower
     assert "latest selected candidate" in command_lower
+    assert "senior consequence analysis gate" in command_lower
+    assert "affected object map" in command_lower
+    assert "state-behavior matrix" in command_lower
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -110,6 +113,45 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "status.md" in content
     elif command_name == "debug":
         assert "debug session state" in content
+
+
+
+TOML_INTEGRATION_KEYS = sorted(
+    key
+    for key, integration in INTEGRATION_REGISTRY.items()
+    if isinstance(integration, TomlIntegration)
+)
+
+
+@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_KEYS)
+def test_collected_toml_integrations_render_consequence_gate(tmp_path, integration_key):
+    integration = get_integration(integration_key)
+    manifest = IntegrationManifest(integration_key, tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    prompts = []
+    for path in integration.commands_dest(tmp_path).glob("**/*.toml"):
+        parsed = tomllib.loads(path.read_text(encoding="utf-8"))
+        prompts.append(parsed["prompt"].lower())
+    generated = "\n".join(prompts)
+
+    assert "senior consequence analysis gate" in generated
+    assert "affected object map" in generated
+    assert "state-behavior matrix" in generated
+    assert "dependency impact table" in generated
+    assert "ca-###" in generated
+
+
+@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_KEYS)
+def test_collected_toml_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
+    integration = get_integration(integration_key)
+    manifest = IntegrationManifest(integration_key, tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    discussion_path = integration.commands_dest(tmp_path) / integration.command_filename("discussion")
+    assert discussion_path.exists()
+    parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
+    _assert_discussion_contract(parsed["prompt"])
 
 
 class TomlIntegrationTests:
@@ -301,6 +343,23 @@ class TomlIntegrationTests:
         assert discussion_path.exists()
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
         _assert_discussion_contract(parsed["prompt"])
+
+    def test_generated_primary_workflows_include_consequence_gate(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        generated = "\n".join(
+            path.read_text(encoding="utf-8").lower()
+            for path in i.commands_dest(tmp_path).glob("**/*")
+            if path.is_file()
+        )
+
+        assert "senior consequence analysis gate" in generated
+        assert "affected object map" in generated
+        assert "state-behavior matrix" in generated
+        assert "dependency impact table" in generated
+        assert "ca-###" in generated
 
     def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
         i = get_integration(self.KEY)

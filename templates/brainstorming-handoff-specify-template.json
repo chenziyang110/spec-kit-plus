@@ -25,5 +25,20 @@
   "handoff_integrity": "not-checked",
   "hard_unknown_count": 0,
   "open_conflict_count": 0,
-  "compile_ready": false
+  "compile_ready": false,
+  "consequence_gate": {
+    "triggered": false,
+    "trigger_reason": null,
+    "status": "not-applicable",
+    "stand_down_reason": null
+  },
+  "consequence_analysis": {
+    "affected_object_map": [],
+    "state_behavior_matrix": [],
+    "dependency_impact": [],
+    "recovery_and_validation": [],
+    "coverage_gaps": []
+  },
+  "consequence_obligations": [],
+  "stop_and_reopen_conditions": []
 }

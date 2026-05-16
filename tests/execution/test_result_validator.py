@@ -1,6 +1,7 @@
 import pytest
 
 from specify_cli.execution.packet_schema import (
+    ConsequenceObligation,
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
@@ -68,6 +69,22 @@ def sample_packet() -> WorkerTaskPacket:
         platform_guardrails=["supported_platforms: windows, linux"],
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
+
+
+def _add_sample_consequence_obligation(packet: WorkerTaskPacket) -> WorkerTaskPacket:
+    packet.consequence_obligations = [
+        ConsequenceObligation(
+            obligation_id="CA-001",
+            claim="Running workers drain before close completes",
+            affected_objects=["team", "worker"],
+            recovery_validation_refs=["pytest tests/unit/test_auth_service.py -q"],
+            owner="sp-tasks",
+            latest_resolve_phase="tasks",
+            status="open",
+            stop_and_reopen_condition="No validation proves drain behavior",
+        )
+    ]
+    return packet
 
 
 def test_validate_worker_task_result_accepts_acknowledged_result(
@@ -333,6 +350,7 @@ def test_validate_worker_task_result_requires_must_preserve_evidence(
         )
     ]
     sample_packet.required_evidence = ["must_preserve_evidence"]
+
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -363,6 +381,41 @@ def test_validate_worker_task_result_requires_must_preserve_evidence(
     assert "must-preserve evidence" in exc.value.message
 
 
+def test_validate_worker_task_result_rejects_success_without_consequence_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet = _add_sample_consequence_obligation(sample_packet)
+
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "consequence evidence" in exc.value.message
+
+
 def test_validate_worker_task_result_accepts_must_preserve_evidence(
     sample_packet: WorkerTaskPacket,
 ) -> None:
@@ -378,6 +431,7 @@ def test_validate_worker_task_result_accepts_must_preserve_evidence(
         )
     ]
     sample_packet.required_evidence = ["must_preserve_evidence"]
+
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -410,3 +464,42 @@ def test_validate_worker_task_result_accepts_must_preserve_evidence(
     validated = validate_worker_task_result(result, sample_packet)
 
     assert validated.status == "success"
+
+
+def test_validate_worker_task_result_accepts_success_with_consequence_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet = _add_sample_consequence_obligation(sample_packet)
+
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        consequence_evidence=[
+            {
+                "obligation_id": "CA-001",
+                "evidence": "pytest tests/unit/test_auth_service.py -q passed",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.consequence_evidence[0]["obligation_id"] == "CA-001"

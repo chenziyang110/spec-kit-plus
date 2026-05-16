@@ -34,18 +34,13 @@ def apply_cognition_update(
     normalized_paths = _normalize_paths(changed_paths)
     with cognition_transaction(project_root) as conn:
         affected_nodes, missing_paths = _resolve_path_coverage(conn, generation_id, normalized_paths)
-        if missing_paths:
-            conn.rollback()
-            return {
-                "readiness": "needs_update",
-                "recommended_next_action": "run_map_update",
-                "update_id": "",
-                "changed_paths": normalized_paths,
-                "affected_nodes": [],
-                "missing_coverage": [
-                    f"path not covered by project cognition index: {path}" for path in missing_paths
-                ],
-            }
+        missing_coverage = [f"path not covered by project cognition index: {path}" for path in missing_paths]
+        result_state = "partial_refresh" if missing_paths else "ready"
+        attrs = {
+            "known_unknowns": missing_coverage,
+            "minimal_live_reads": missing_paths,
+            "confidence": "partial" if missing_paths else "strong",
+        }
 
         update_id = f"UPDATE-{uuid4().hex}"
         conn.execute(
@@ -61,9 +56,9 @@ def apply_cognition_update(
                 json.dumps(affected_nodes, separators=(",", ": ")),
                 "[]",
                 "[]",
-                "ready",
+                result_state,
                 iso_now(),
-                "{}",
+                json.dumps(attrs, separators=(",", ": ")),
             ),
         )
 
@@ -78,12 +73,14 @@ def apply_cognition_update(
     write_cognition_status(project_root, status)
 
     return {
-        "readiness": "ready",
-        "recommended_next_action": "retry_current_workflow",
+        "readiness": result_state,
+        "recommended_next_action": "review_missing_coverage" if missing_paths else "retry_current_workflow",
         "update_id": update_id,
         "changed_paths": normalized_paths,
         "affected_nodes": affected_nodes,
-        "missing_coverage": [],
+        "missing_coverage": missing_coverage,
+        "known_unknowns": missing_coverage,
+        "minimal_live_reads": missing_paths,
     }
 
 

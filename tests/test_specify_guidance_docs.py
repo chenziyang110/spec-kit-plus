@@ -178,11 +178,13 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
         assert "/sp-" not in section
 
     assert "`map-update` for localized stale cognition runtime refresh" in support_guidance
+    assert "changed-path maintenance" in support_guidance
     assert "recorded refresh and ready refresh" in readme.lower()
     assert "support drift is not runtime-truth staleness" in readme.lower()
     assert "`partial_refresh`" in readme
     assert "`support_drift`" in readme
-    assert "`map-scan` followed by `map-build` when no usable baseline remains" in support_guidance
+    assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in readme.lower()
+    assert "`map-scan` followed by `map-build` only when the baseline is missing, unusable, schema-incompatible" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance
     assert "heavy reconstruction workflow" in support_guidance
@@ -273,3 +275,22 @@ def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
         assert "repeated `tasks -> analyze -> tasks` loops are abnormal" in content
         assert "No more than one task-layer remediation cycle is expected" in content
         assert "directly to `plan`, `clarify`, or `deep-research`" in content
+
+
+def test_guidance_docs_teach_consequence_gate_across_workflow_mainline() -> None:
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        lowered = content.lower()
+        assert "senior consequence analysis gate" in lowered
+        assert "`discussion`" in content
+        assert "`specify`" in content
+        assert "`plan`" in content
+        assert "`tasks`" in content
+        assert "`fast`" in content
+        assert "`quick`" in content
+        assert "`debug`" in content
+        assert "close team" in lowered
+        assert "running workers" in lowered
+        assert "ca-###" in lowered

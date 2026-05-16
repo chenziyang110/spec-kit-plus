@@ -199,6 +199,11 @@ naming the specific behaviors included in the current slice.
 - [Expected failure handling, retry/replay behavior, or degraded-mode rule]
 - [What users, operators, or support surfaces can observe when the happy path fails]
 
+### Lifecycle And State Behavior
+
+<!-- Consequence obligations use the canonical CA-### bullet shape below. -->
+- `CA-###`: [Affected object] -> [state] -> [required user-visible behavior]
+
 ### Configuration and Rollout Notes
 
 - [Relevant settings, toggles, or preference surfaces that change behavior]

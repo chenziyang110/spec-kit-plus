@@ -148,6 +148,18 @@ The scan must cover:
 - risk and fragility surfaces
 - high-value `.git` evolution surfaces
 
+## Consequence Substrate Evidence
+
+During the first baseline scan and rare full rebuilds, scan packets must collect the evidence that lets later workflows reason like a long-term project maintainer:
+
+- ownership evidence for files, modules, commands, APIs, generated assets, and workflow state
+- upstream and downstream consumers, including generated-surface propagation and adjacent workflow dependencies
+- lifecycle and state surfaces, including active/running actors, queues, sessions, locks, caches, persisted state, and cleanup paths
+- shared mutable state and destructive-operation surfaces where close/delete/archive/rename/migrate behavior can affect other work
+- compatibility, migration, rollback, retry, idempotency, and observability evidence
+- verification routes that prove affected owners, consumers, state transitions, and recovery paths
+- confidence notes, conflicts, known unknowns, and minimal live reads needed when later `sp-map-update` cannot fully prove an edge from existing evidence
+
 If project-relevant evidence cannot be classified, the scan must remain blocked instead of silently downgrading the gap.
 
 ## Dispatch Guidance

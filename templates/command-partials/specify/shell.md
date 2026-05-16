@@ -21,6 +21,7 @@ planning.
 - Progress through `facts-lock`, `route-lock`, `intent-lock`, and `complexity-lock`, asking deterministic questions only for unresolved fields or rule predicates.
 - Clarify planning-critical ambiguity and decompose the request into capabilities before compiling the locked truth layer into the specification artifact set.
 - Compile the locked truth into the specification artifact set.
+- Preserve triggered senior consequence analysis as `CA-###` obligations with affected objects, lifecycle states, dependency impact, recovery/validation needs, coverage gaps, and stop-and-reopen conditions.
 - Decide whether the package is ready for `/sp-plan` or still needs another clarification/enhancement pass.
 
 ## Output Contract

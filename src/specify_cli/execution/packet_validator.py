@@ -51,4 +51,22 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
             or not obligation.downstream_requirement
         ):
             raise PacketValidationError("DP1", "must-preserve obligation is missing required fields")
+    for obligation in packet.consequence_obligations:
+        if not obligation.obligation_id.strip():
+            raise PacketValidationError("DP2", "consequence obligation is missing obligation_id")
+        if not obligation.claim.strip():
+            raise PacketValidationError(
+                "DP2",
+                f"consequence obligation {obligation.obligation_id} is missing claim",
+            )
+        if not obligation.affected_objects:
+            raise PacketValidationError(
+                "DP2",
+                f"consequence obligation {obligation.obligation_id} is missing affected_objects",
+            )
+        if not obligation.stop_and_reopen_condition.strip():
+            raise PacketValidationError(
+                "DP2",
+                f"consequence obligation {obligation.obligation_id} is missing stop_and_reopen_condition",
+            )
     return packet

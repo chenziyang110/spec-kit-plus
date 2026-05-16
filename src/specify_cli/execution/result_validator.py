@@ -127,4 +127,22 @@ def validate_worker_task_result(
                     "DP3",
                     f"worker result is missing must-preserve evidence for: {joined}",
                 )
+        if packet.consequence_obligations:
+            evidence_ids = {
+                str(item.get("obligation_id") or "").strip()
+                for item in result.consequence_evidence
+                if isinstance(item, dict)
+            }
+            required_ids = {
+                obligation.obligation_id
+                for obligation in packet.consequence_obligations
+                if obligation.obligation_id.strip()
+            }
+            missing_ids = sorted(required_ids - evidence_ids)
+            if missing_ids:
+                raise PacketValidationError(
+                    "DP3",
+                    "worker result is missing consequence evidence for: "
+                    + ", ".join(missing_ids),
+                )
     return result

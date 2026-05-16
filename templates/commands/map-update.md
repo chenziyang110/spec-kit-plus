@@ -30,8 +30,23 @@ Use `execution_surface: native-subagents`.
 - Treat explicit user corrections and user-supplied scope as first-class routing input; user-supplied scope is authoritative for the touched area unless repository evidence disproves it.
 - Dispatch only validated incremental update lanes with bounded affected scope.
 - A tiny localized refresh may stay as one bounded lane even when native subagents are available.
-- If a safe update lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
-- Update only the affected runtime records when the evidence proves the scoped refresh is sufficient.
+- If a safe update lane cannot be packetized or delegated, record `subagent-blocked` with the affected paths and the smallest live-read recovery path; this is a dispatch/runtime blocker, not an excuse to skip the map-update duty.
+- Update the affected runtime records that can be proven, and explicitly mark uncertain edges as partial, low-confidence, stale, or known-unknown instead of claiming the update cannot be performed.
+
+## Git Delta Intake
+
+- Start from Git, not memory: collect modified, added, deleted, and renamed paths from the current diff, supplied commit range, or explicit changed-path list.
+- Treat user-supplied changed paths, behavior surfaces, and corrections as authoritative scope hints unless repository evidence contradicts them.
+- Query `project-cognition.db` for each changed path before deciding update scope.
+- For every changed path, look up current owner, consumers, lifecycle/state surfaces, shared mutable state, destructive-operation edges, generated-surface propagation, verification routes, conflicts, stale claims, and known unknowns.
+- Expand the update closure through owners, downstream consumers, state surfaces, workflow artifacts, generated surfaces, and verification routes that project cognition already knows.
+
+## Update-By-Default Rule
+
+- Ordinary uncertainty is not an update failure.
+- If the affected closure cannot be fully proven, still update the records that can be proven and record the rest as `partial_refresh`, low-confidence claims, conflicts, stale claims, `known_unknowns`, and `minimal_live_reads`.
+- `sp-map-update` must not route to `sp-map-scan -> sp-map-build` merely because the closure is wider than expected, some consumers are ambiguous, or extra live reads are needed.
+- Rebuild is reserved for missing baseline, unusable DB/status/schema, explicit rebuild request, or repository architecture replacement so broad that the baseline identity is invalid.
 
 ## Incremental Rule
 
@@ -43,7 +58,7 @@ Use `execution_surface: native-subagents`.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
 - After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.
-- If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report that the baseline is unusable and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete missing, unusable, schema-incompatible, explicitly-rebuild-required, or baseline-identity-invalid condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If `validate-build` is blocked after update recording, report `partial_refresh` and preserve the validation errors instead of claiming the runtime is fresh.
 - If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:project-cognition complete-refresh --format json}}` so cognition freshness metadata cannot remain stale.
 - If the update helper returns `ready` and `validate-build` passes, but the shared freshness check still sees the same refreshed source paths only because those source changes are not committed yet, report the incremental update as recorded and baseline-finalization pending. Do not tell the user to run `{{invoke:map-scan}}` or `{{invoke:map-build}}` merely because refreshed source changes are not committed yet.
@@ -76,16 +91,17 @@ The canonical outputs for this command are:
 ## Guardrails
 
 - Do not silently escalate to a full rebuild without recording why.
-- Do not refresh unaffected runtime records just because the touched area is ambiguous.
+- Do not refresh unaffected runtime records just because the touched area is ambiguous; record partial or low-confidence closure for the affected records instead.
 - Do not invent closure when changed paths or user supplements do not support the update.
 - Do not re-read or rewrite raw graph JSON artifacts; use the query/update helpers and the smallest affected runtime records that can truthfully restore readiness.
 - Do not split small localized updates into parallel scan-style lanes just because subagents are available.
-- If the affected update lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
+- If the affected update lane cannot be safely packetized or delegated, record `subagent-blocked` with affected paths and recovery evidence; do not describe ordinary ambiguous closure as impossible to update.
 
 ## Escalation Boundary
 
-- Escalate to `sp-map-scan`, then `sp-map-build` only when the current baseline is unusable or the affected closure cannot be bounded safely.
-- Record the exact reason for escalation, including which closure or readiness fact could not be resolved incrementally.
+- Escalate to `sp-map-scan`, then `sp-map-build` only when no query-backed baseline exists, the current baseline is unusable, DB/status/schema validation fails, the user explicitly requested a rebuild, or the repository architecture changed so broadly that the baseline identity is invalid.
+- Do not escalate merely because the affected closure is uncertain; record the uncertainty as partial/low-confidence update data with `known_unknowns` and `minimal_live_reads`.
+- Record the exact reason for escalation, including the failed baseline, DB, schema, explicit-request, or architecture-replacement fact.
 
 ## Update Duties
 
@@ -95,7 +111,7 @@ The canonical outputs for this command are:
 - refresh affected evidence
 - invalidate stale claims
 - update or create conflicts
-- update only affected runtime records when safe
+- update affected runtime records with proven facts, low-confidence claims, conflicts, stale markers, known unknowns, and minimal live reads
 - produce an incremental update record
 - verify the shared freshness contract after the update record is written
 - run the successful-refresh finalizer when that verification proves the runtime ready

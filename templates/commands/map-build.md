@@ -125,6 +125,19 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - must not guess and continue when required scan inputs are incomplete
 - maintain a scan gap report when unresolved critical rows remain
 
+## Consequence Substrate Synthesis
+
+`sp-map-build` must synthesize consequence-analysis substrate from scan evidence so downstream workflows can query dependency impact without rebuilding the map:
+
+- owner edges for files, modules, commands, APIs, templates, generated assets, state files, and verification entry points
+- consumer edges for direct callsites, generated-surface propagation, adjacent workflows, user-facing commands, and automation/runtime entry points
+- lifecycle/state edges for active actors, running work, queues, sessions, locks, caches, persisted state, cleanup, retry, rollback, and idempotency behavior
+- shared-state and destructive-operation edges where close/delete/archive/rename/migrate actions can affect members, consumers, or in-flight work
+- verification-route claims for the checks that prove owners, consumers, state transitions, and recovery behavior
+- conflict, known-unknown, stale-claim, confidence, and `minimal_live_reads` records that `sp-map-update` can preserve or narrow incrementally
+
+The resulting query-backed runtime must be able to answer which owners, consumers, state surfaces, generated surfaces, and verification routes are implicated by a changed path or requested behavior.
+
 ## Required Graph Semantics
 
 Every accepted graph build must make room for:

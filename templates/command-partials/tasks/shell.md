@@ -14,6 +14,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 
 - Load the current plan package and recover the active workflow-state context.
 - Carry locked planning decisions and implementation constitution rules forward into execution slices.
+- Map every open `CA-###` consequence obligation to tasks, packet fields, validation commands, join points, or explicit stop-and-reopen conditions.
 - Generate dependency ordering, parallel-safe batches, join points, and guardrail indexes.
 - Validate the resulting task graph before handing off to analysis or implementation.
 

@@ -9,6 +9,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/discussion/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Role
 
 You are a senior technical expert and senior product manager working with the user to shape an idea before formal specification.
@@ -44,7 +46,7 @@ Required files:
 - `handoff-assessment.md` only after explicit user request to hand off or continue to the next stage
 - `split-plan.md` only when handoff assessment returns `split-required`
 - `handoffs/<candidate_id>-handoff-to-specify.md` and `handoffs/<candidate_id>-handoff-to-specify.json` when a split candidate is selected, using the selected stable ID such as `CAND-001` or `CAND-002`
-- latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` only after a bounded handoff or bounded candidate handoff is selected; include Must-Preserve Ledger, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`
+- latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` only after a bounded handoff or bounded candidate handoff is selected; include Must-Preserve Ledger, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, `open_conflict_count`, and Senior Consequence Analysis Gate fields when triggered
 
 Use `templates/discussion-state-template.md` when initializing `discussion-state.md`.
 
@@ -161,6 +163,29 @@ A discussion with an active split backlog remains incomplete until every candida
 
 When the user returns and asks for the next stage, read `split-plan.md`, inspect candidate statuses, recommend the next candidate whose dependencies are completed or waived, and ask the user to choose when more than one candidate is viable. If completion evidence for a previous candidate is missing, ask whether it is completed, in progress, blocked, or only handed off.
 
+## Senior Maintainer Review
+
+Run the Senior Consequence Analysis Gate before technical options are finalized and again before marking the discussion `handoff-ready`. Consequence analysis must shape the option set, not merely review a selected option after the fact.
+
+Before any final option selection or `sp-specify` handoff, perform a maintainer-level consequence review of the selected product direction and any competing candidate option that could change lifecycle, running-state, destructive, shared-state, compatibility, or downstream consumer behavior.
+
+- Apply the Senior Consequence Analysis Gate before writing `handoff-to-specify.md`.
+- When the gate triggers, preserve the Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery And Validation Contract, Coverage Gaps, and `CA-###` consequence obligation IDs in the discussion artifacts.
+- Route consequence findings into discussion artifacts:
+  - `requirements.md`: user-visible state rules, scope, non-goals, acceptance signals, and open behavior choices.
+  - `technical-options.md`: 2-3 concrete handling strategies and trade-offs shaped by the consequence analysis.
+  - `project-context.md`: project cognition facts, returned `minimal_live_reads`, inference notes, and coverage gaps.
+  - `open-questions.md`: only decisions materially changing behavior, implementation shape, or validation.
+  - `handoff-to-specify.md`: human-readable `CA-###` obligations.
+  - `handoff-to-specify.json`: machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions.
+- If multiple candidate directions are still viable, write candidate handoffs such as `handoffs/CAND-001-handoff-to-specify.md` and `handoffs/CAND-001-handoff-to-specify.json` only when the user requests candidate handoff material; each candidate must carry its own consequence obligations.
+- When split mode selects a bounded candidate, write the selected candidate handoff at canonical paths such as `handoffs/CAND-001-handoff-to-specify.md` and `handoffs/CAND-001-handoff-to-specify.json` with the same consequence gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions.
+- The selected candidate handoff includes only consequence obligations that shape that candidate plus dependency, non-goal, or deferred-sibling obligations needed to prevent scope drift.
+- The selected candidate handoff must identify which candidate won, which consequence obligations survive, and which rejected candidate risks no longer apply.
+- Markdown and JSON handoffs must agree on triggered gate status, selected candidate handoff, obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition.
+- must not mark the discussion `handoff-ready` while triggered consequence obligations are missing from either Markdown or JSON handoff content.
+- Must not mark the discussion `handoff-ready` when the gate triggers and no concrete Affected Object Map, State-Behavior Matrix, Dependency Impact Table, or Recovery And Validation Contract exists.
+
 ## Handoff To sp-specify
 
 Handoff is explicit-user-request only and follows handoff assessment.
@@ -194,11 +219,12 @@ Candidate handoff Markdown must include:
 - project-context evidence and inference notes
 - open questions with blocking levels
 - Must-Preserve Ledger
-- instructions for `sp-specify`
+- Senior Maintainer Review outcome, selected candidate handoff when relevant, and all `CA-###` consequence obligation IDs when the gate triggers
+- instructions for `sp-specify` about settled decisions and remaining decisions
 
 Candidate JSON must mirror the Markdown and include `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, `source_markdown`, `latest_legacy_markdown`, `prior_candidates`, `deferred_candidates`, `stage_scope_boundary`, `reopen_condition`, and `must_preserve`.
 
-Markdown and JSON must agree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, and every Must-Preserve Ledger item ID, type, claim, blocking level, owner, latest resolve phase, and status.
+Markdown and JSON must agree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, every Must-Preserve Ledger item ID, type, claim, blocking level, owner, latest resolve phase, and status, plus every triggered `CA-###` obligation ID, claim, owner, latest resolve phase, status, and stop-and-reopen condition.
 
 
 ## Must-Preserve Ledger
@@ -247,5 +273,7 @@ If an existing Markdown handoff and JSON companion disagree, block and refresh t
 If an `MP-*` item conflicts with repository evidence, constitution rules, project rules, project cognition evidence, or architecture constraints, do not silently reinterpret, downgrade, or replace the discussion conclusion. Block and ask the user to choose keep, revise, drop, or defer with an explicit risk contract.
 
 Do not mark the discussion `handoff-ready` until every confirmed or critical item is represented in the Must-Preserve Ledger. Deferred items require `deferred_to`, `owner`, `latest_resolve_phase`, and `stop_and_reopen_condition`. The handoff must preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` fields for downstream coverage.
+
+When the Senior Consequence Analysis Gate triggers, also write or refresh `handoff-to-specify.json` as a mandatory machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions. Markdown and JSON handoffs must agree on obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition before the discussion can become `handoff-ready`.
 
 After writing the handoff, tell the user to invoke the generated integration's `sp-specify` command form with the handoff path. Do not invoke it yourself.

@@ -102,9 +102,10 @@ standalone branch-creation command.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
   coverage is stale or too weak for a localized touched area.
-- Use `sp-map-scan -> sp-map-build` before other workflow steps when project
-  cognition runtime context for an existing codebase is missing or no usable
-  localized baseline remains.
+- Use `sp-map-scan -> sp-map-build` before other workflow steps only when
+  project cognition runtime context for an existing codebase is missing,
+  unusable, schema-incompatible, explicitly being rebuilt, or invalidated by
+  broad architecture replacement.
 - Use `sp-analyze` for drift, consistency, or readiness checks across existing
   spec/plan/tasks artifacts.
 - Use `sp-explain` when the user needs a plain-language explanation of current
@@ -117,6 +118,10 @@ standalone branch-creation command.
   bundle. The agent must translate the raw user request into a `query_plan`
   using returned map terms before running `project-cognition query --query-plan`.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
+
+## Consequence-Aware Routing
+
+Route away from `fast` when a request triggers the Senior Consequence Analysis Gate. Use `quick` only for bounded consequence work with durable `STATUS.md` fields. Use `discussion` or `specify` when lifecycle semantics, running work, destructive policy, shared state, downstream consumers, or acceptance criteria need product decisions. Use `debug` when the issue is a failure with unknown root cause.
 
 ## User Invocation Examples
 

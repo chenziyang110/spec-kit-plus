@@ -17,7 +17,7 @@ Route project-level testing-system work into the right phase: `/sp-test-scan` fo
 - Inspect user intent and existing testing artifacts.
 - Route to `/sp-test-scan` when evidence, risk ranking, or build-ready lanes are missing or stale.
 - Route to `/sp-test-build` when scan/build-plan artifacts are ready and the user intends actual repository changes.
-- Route to `/sp-map-update` first when localized project cognition coverage is stale for a reliable testing-system decision; route to `/sp-map-scan` followed by `/sp-map-build` only when no usable cognition baseline remains.
+- Route to `/sp-map-update` first when localized project cognition coverage is stale for a reliable testing-system decision; route to `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement.
 - Persist the chosen route in `.specify/testing/testing-state.md`.
 
 ## Output Contract

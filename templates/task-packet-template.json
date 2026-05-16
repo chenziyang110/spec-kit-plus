@@ -7,5 +7,22 @@
   "must_preserve": [],
   "allowed_optimization_scope": [],
   "required_validation": [],
-  "stop_and_reopen_conditions": []
+  "stop_and_reopen_conditions": [],
+  "consequence_gate": {
+    "triggered": false,
+    "trigger_reason": null,
+    "status": "not-applicable",
+    "stand_down_reason": null
+  },
+  "consequence_analysis": {
+    "affected_object_map": [],
+    "state_behavior_matrix": [],
+    "dependency_impact": [],
+    "recovery_and_validation": [],
+    "coverage_gaps": []
+  },
+  "consequence_obligations": [],
+  "affected_states": [],
+  "dependency_guardrails": [],
+  "recovery_validation": []
 }

@@ -33,6 +33,18 @@
 - [Primary module, workflow, interface, or artifact this feature changes]
 - [Secondary surface that must change to preserve usability or correctness]
 
+## Affected Object Map
+
+| Obligation ID | Object / State Surface | Owner | Consumers | Evidence | Coverage Gap |
+| --- | --- | --- | --- | --- | --- |
+| CA-### | [object] | [owner] | [consumers] | [project cognition or live read] | [gap or none] |
+
+## Dependency Impact Table
+
+| Obligation ID | Upstream / Downstream Surface | Impact | Required Handling |
+| --- | --- | --- | --- |
+| CA-### | [surface] | [impact] | [handling] |
+
 ## Brainstorming-Derived Execution Context
 
 - **Truth Owner**: [Which locked brainstorming truth artifacts own the route, intent, and complexity decisions]
