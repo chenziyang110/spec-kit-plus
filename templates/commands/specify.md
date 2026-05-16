@@ -131,15 +131,24 @@ Use the returned readiness:
 
 ## Discussion Handoff Intake
 
-If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
+If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, `.specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
 
 - Treat the discussion handoff as an authoritative input to the brainstorming kernel, not a bypass around it.
+- When the supplied path is Markdown, look for the same-stem JSON companion first. For a candidate handoff, read `handoffs/CAND-001-handoff-to-specify.json`. For the legacy latest handoff, read `handoff-to-specify.json`.
+- If candidate Markdown and candidate JSON disagree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, or Must-Preserve Ledger identity fields, block with a handoff integrity error and tell the user to refresh the `sp-discussion` handoff.
+- If legacy latest Markdown and legacy latest JSON disagree on the selected `candidate_id`, block rather than choosing one representation.
+- If candidate Markdown exists but candidate JSON is missing, reconstruct the active feature copy into `brainstorming/handoff-to-specify.json`, record the reconstruction source, and report a handoff repair advisory.
+- If only JSON exists and Markdown is missing, reject the handoff because the user-reviewable source is absent.
 - Record `entry_source: sp-discussion` and the handoff path or pasted discussion handoff marker in the generated feature artifacts.
-- Preserve confirmed requirements, confirmed non-goals, settled decisions, and selected technical direction in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing `sp-specify` artifact responsibilities.
+- When `candidate_id` is present, record `discussion_slug`, `candidate_id`, `candidate_title`, `source_split_plan`, `handoff_path`, `prior_candidates`, `deferred_candidates`, `stage_scope_boundary`, and `reopen_condition` in `brainstorming/handoff-to-specify.json`, `context.md`, `references.md`, or `workflow-state.md` according to artifact responsibility.
+- The current feature spec covers one candidate. Sibling candidates named in `split-plan.md` are out of scope unless the user returns to `sp-discussion` and selects a new candidate handoff.
+- If the user asks inside `sp-specify` to include a sibling candidate, run the decomposition gate. Continue only for internal capability decomposition within the selected candidate. If the request crosses the candidate boundary, stop and tell the user to return to `sp-discussion` to update or select the candidate.
+- Preserve confirmed requirements, confirmed non-goals, settled decisions, selected technical direction, candidate boundaries, prior dependencies, and deferred sibling candidates in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing `sp-specify` artifact responsibilities.
 - Convert open questions from the handoff into explicit unknowns with `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, and `status`.
-- Cite the discussion handoff and relevant `project-context.md` evidence in `references.md` or `context.md`.
+- Cite the discussion handoff, candidate JSON companion when present, `source_split_plan`, and relevant `project-context.md` evidence in `references.md` or `context.md`.
 - Do not re-ask settled discussion questions unless repository evidence, constitution rules, or user correction contradicts the handoff.
 - If a settled discussion conclusion is reopened, record the reopen reason before changing the derived spec package.
+- Do not directly update `split-plan.md` from `sp-specify`; `sp-discussion` owns discussion backlog state.
 
 ## Outline
 
