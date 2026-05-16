@@ -424,6 +424,13 @@ def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: s
                 "- blocker_reason: `none`",
                 "- final_handoff_decision: `pending`",
                 "",
+                "## Lossless Resume State",
+                "",
+                "- journal_file: `brainstorming/journal.ndjson`",
+                "- stage_manifest: `brainstorming/stage-manifest.json`",
+                "- last_event_id: `EVT-000001`",
+                "- last_checkpoint_id: `EVT-000001`",
+                "",
                 "## Allowed Artifact Writes",
                 "",
                 "- spec.md",
@@ -470,6 +477,13 @@ def _write_valid_reference_specify_workflow_state(feature_dir: Path) -> None:
             "- next_action: `Run the completeness audit against the full discovery record.`",
             "- blocker_reason: `none`",
             "- final_handoff_decision: `pending`",
+            "",
+            "## Lossless Resume State",
+            "",
+            "- journal_file: `brainstorming/journal.ndjson`",
+            "- stage_manifest: `brainstorming/stage-manifest.json`",
+            "- last_event_id: `EVT-000001`",
+            "- last_checkpoint_id: `EVT-000001`",
             "",
             "## Allowed Artifact Writes",
             "",
@@ -540,6 +554,13 @@ def _write_fixed_lifecycle_specify_workflow_state(feature_dir: Path) -> None:
                 "- next_action: `Ask the next bounded domain question batch.`",
                 "- blocker_reason: `none`",
                 "- final_handoff_decision: `pending`",
+                "",
+                "## Lossless Resume State",
+                "",
+                "- journal_file: `brainstorming/journal.ndjson`",
+                "- stage_manifest: `brainstorming/stage-manifest.json`",
+                "- last_event_id: `EVT-000001`",
+                "- last_checkpoint_id: `EVT-000001`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
@@ -1329,6 +1350,349 @@ def test_validate_artifacts_blocks_specify_when_checkpoint_pointer_is_not_in_jou
 
     assert result.status == "blocked"
     assert any("last_checkpoint_id" in message and "EVT-999999" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_workflow_checkpoint_is_not_checkpoint_event(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    journal_path = feature_dir / "brainstorming" / "journal.ndjson"
+    events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    events.append(
+        {
+            "event_id": "EVT-000002",
+            "schema_version": 1,
+            "created_at": "2026-05-16T00:01:00Z",
+            "stage": "facts-lock",
+            "type": "user_input_captured",
+            "source": {"kind": "test-fixture"},
+            "payload": {
+                "raw_excerpt": "demo",
+                "content_hash": "sha256:demo",
+                "input_role": "user",
+            },
+            "writes": [],
+            "supersedes_event_id": None,
+        }
+    )
+    journal_path.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+
+    workflow_state_path = feature_dir / "workflow-state.md"
+    workflow_state_path.write_text(
+        workflow_state_path.read_text(encoding="utf-8").replace(
+            "- last_checkpoint_id: `EVT-000001`",
+            "- last_checkpoint_id: `EVT-000002`",
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("workflow-state.md" in message and "last_checkpoint_id" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_lossless_resume_state_field_is_missing(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    workflow_state_path = feature_dir / "workflow-state.md"
+    workflow_state_path.write_text(
+        workflow_state_path.read_text(encoding="utf-8").replace("- last_event_id: `EVT-000001`\n", ""),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Lossless Resume State last_event_id" in message and "required" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_journal_event_type_is_unknown(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    journal_path = feature_dir / "brainstorming" / "journal.ndjson"
+    event = json.loads(journal_path.read_text(encoding="utf-8").strip())
+    event["type"] = "made_up_event"
+    journal_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("unknown event type" in message and "made_up_event" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_journal_schema_version_is_boolean(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    journal_path = feature_dir / "brainstorming" / "journal.ndjson"
+    event = json.loads(journal_path.read_text(encoding="utf-8").strip())
+    event["schema_version"] = True
+    journal_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("schema_version" in message and "integer" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_checkpoint_payload_is_incomplete(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    journal_path = feature_dir / "brainstorming" / "journal.ndjson"
+    event = json.loads(journal_path.read_text(encoding="utf-8").strip())
+    event["payload"].pop("manifest_hash")
+    event["payload"]["checkpoint_event_id"] = "EVT-999999"
+    journal_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("checkpoint_written" in message and "manifest_hash" in message for message in result.errors)
+    assert any("checkpoint_event_id" in message and "event_id" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_stage_artifact_event_references_unknown_event(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    journal_path = feature_dir / "brainstorming" / "journal.ndjson"
+    events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    events.append(
+        {
+            "event_id": "EVT-000002",
+            "schema_version": 1,
+            "created_at": "2026-05-16T00:01:00Z",
+            "stage": "facts-lock",
+            "type": "stage_artifact_compiled",
+            "source": {"kind": "test-fixture"},
+            "payload": {
+                "artifact_path": "brainstorming/facts.json",
+                "stage": "facts-lock",
+                "input_event_range": ["EVT-000001", "EVT-999999"],
+                "key_event_ids": ["EVT-999998"],
+                "evidence_ids": [],
+                "output_hash": "sha256:facts",
+            },
+            "writes": ["brainstorming/facts.json"],
+            "supersedes_event_id": None,
+        }
+    )
+    journal_path.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("payload.input_event_range" in message and "EVT-999999" in message for message in result.errors)
+    assert any("payload.key_event_ids" in message and "EVT-999998" in message for message in result.errors)
+
+
+def test_validate_artifacts_accepts_decision_events_with_evidence_ids_without_basis(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    journal_path = feature_dir / "brainstorming" / "journal.ndjson"
+    events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    event_payloads = [
+        (
+            "decision_locked",
+            {
+                "decision_id": "DEC-001",
+                "locked_value": "Keep fixed lifecycle state.",
+                "evidence_ids": ["EVD-001"],
+            },
+        ),
+        (
+            "route_selected",
+            {
+                "route_id": "ROUTE-001",
+                "selected_route": "greenfield",
+                "evidence_ids": ["EVD-001"],
+            },
+        ),
+        (
+            "complexity_selected",
+            {
+                "complexity_id": "CPLX-001",
+                "selected_complexity": "T1 Local",
+                "evidence_ids": ["EVD-001"],
+            },
+        ),
+    ]
+    for index, (event_type, payload) in enumerate(event_payloads, start=2):
+        events.append(
+            {
+                "event_id": f"EVT-{index:06d}",
+                "schema_version": 1,
+                "created_at": f"2026-05-16T00:0{index}:00Z",
+                "stage": "facts-lock",
+                "type": event_type,
+                "source": {"kind": "test-fixture"},
+                "payload": payload,
+                "writes": [],
+                "supersedes_event_id": None,
+            }
+        )
+    journal_path.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_blocks_specify_when_compiled_from_references_unknown_event(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    facts_path = feature_dir / "brainstorming" / "facts.json"
+    facts = json.loads(facts_path.read_text(encoding="utf-8"))
+    facts["compiled_from"]["key_events"] = ["EVT-999998"]
+    facts["compiled_from"]["event_range"] = ["EVT-000001", "EVT-999999"]
+    facts_path.write_text(json.dumps(facts), encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("compiled_from.key_events" in message and "EVT-999998" in message for message in result.errors)
+    assert any("compiled_from.event_range" in message and "EVT-999999" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_manifest_stage_references_unknown_event(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["stages"]["facts-lock"]["event_range"] = ["EVT-000001", "EVT-999999"]
+    manifest["stages"]["facts-lock"]["last_compiled_event_id"] = "EVT-999998"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("stages.facts-lock.event_range" in message and "EVT-999999" in message for message in result.errors)
+    assert any(
+        "stages.facts-lock.last_compiled_event_id" in message and "EVT-999998" in message
+        for message in result.errors
+    )
+
+
+def test_validate_artifacts_blocks_specify_when_manifest_stage_source_map_keys_are_missing(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+
+    manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["stages"]["facts-lock"].pop("event_range")
+    manifest["stages"]["facts-lock"].pop("last_compiled_event_id")
+    manifest["stages"]["facts-lock"].pop("artifact_hash")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("stages.facts-lock.event_range" in message and "required" in message for message in result.errors)
+    assert any(
+        "stages.facts-lock.last_compiled_event_id" in message and "required" in message
+        for message in result.errors
+    )
+    assert any("stages.facts-lock.artifact_hash" in message and "required" in message for message in result.errors)
 
 
 def test_validate_artifacts_blocks_specify_when_stage_enum_drifts(tmp_path: Path) -> None:

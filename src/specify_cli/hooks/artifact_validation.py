@@ -400,6 +400,30 @@ LOSSLESS_SPECIFY_ARTIFACT_STAGES = {
     "brainstorming/handoff-to-specify.json": "consequence-risk",
 }
 
+LOSSLESS_SPECIFY_EVENT_TYPES = frozenset(
+    {
+        "session_started",
+        "feature_workspace_created",
+        "user_input_captured",
+        "question_asked",
+        "answer_recorded",
+        "repo_evidence_captured",
+        "research_evidence_captured",
+        "unknown_opened",
+        "unknown_resolved",
+        "unknown_deferred",
+        "unknown_waived",
+        "decision_locked",
+        "route_selected",
+        "complexity_selected",
+        "stage_artifact_compiled",
+        "reopen_requested",
+        "artifact_compiled",
+        "checkpoint_written",
+        "legacy_state_imported",
+    }
+)
+
 PRD_COVERAGE_REQUIRED_TOKENS = (
     "Tier",
     "Depth Status",
@@ -782,6 +806,151 @@ def _validate_brainstorming_json_artifact(feature_dir: Path, relative_path: str,
     return []
 
 
+def _is_non_empty_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _has_any_non_empty_key(payload: dict[str, Any], keys: tuple[str, ...]) -> bool:
+    return any(_is_non_empty_text(payload.get(key)) for key in keys)
+
+
+def _require_payload_keys(payload: dict[str, Any], label: str, keys: tuple[str, ...]) -> list[str]:
+    return [f"{label} payload missing {key}" for key in keys if not _is_non_empty_text(payload.get(key))]
+
+
+def _require_payload_any_key(payload: dict[str, Any], label: str, keys: tuple[str, ...], description: str) -> list[str]:
+    if _has_any_non_empty_key(payload, keys):
+        return []
+    return [f"{label} payload missing {description}"]
+
+
+def _require_payload_basis_or_evidence_ids(payload: dict[str, Any], label: str) -> list[str]:
+    if _is_non_empty_text(payload.get("basis")):
+        return []
+    evidence_ids = payload.get("evidence_ids")
+    if (
+        isinstance(evidence_ids, list)
+        and evidence_ids
+        and all(isinstance(item, str) and item.strip() for item in evidence_ids)
+    ):
+        return []
+    return [f"{label} payload missing basis or non-empty evidence_ids"]
+
+
+def _validate_journal_event_payload(event: dict[str, Any], line_label: str) -> list[str]:
+    event_type = str(event.get("type") or "").strip()
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return [f"{line_label} payload must be an object"]
+
+    errors: list[str] = []
+    payload_label = f"{line_label} {event_type}"
+    if event_type in {"session_started", "feature_workspace_created", "reopen_requested"}:
+        return errors
+    if event_type == "user_input_captured":
+        errors.extend(_require_payload_any_key(payload, payload_label, ("raw_excerpt", "excerpt"), "raw excerpt"))
+        errors.extend(_require_payload_keys(payload, payload_label, ("content_hash",)))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("input_role", "role"), "input role"))
+    elif event_type == "question_asked":
+        errors.extend(_require_payload_keys(payload, payload_label, ("question_id", "domain", "blocking_level")))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("field", "unknown_id"), "field or unknown_id"))
+    elif event_type == "answer_recorded":
+        errors.extend(_require_payload_keys(payload, payload_label, ("question_id", "content_hash", "interpretation_summary", "confidence")))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("answer_excerpt", "excerpt"), "answer excerpt"))
+    elif event_type == "repo_evidence_captured":
+        errors.extend(_require_payload_keys(payload, payload_label, ("evidence_id", "relevance", "claim")))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("source_path", "path"), "source path"))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("excerpt_hash", "content_hash"), "excerpt or content hash"))
+    elif event_type == "research_evidence_captured":
+        errors.extend(_require_payload_keys(payload, payload_label, ("evidence_id", "confidence")))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("source_url", "url", "source_path", "spike_path"), "source url/path/spike path"))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("excerpt_hash", "content_hash"), "excerpt or content hash"))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("relevance", "claim"), "relevance or claim"))
+    elif event_type == "unknown_opened":
+        errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("field", "domain", "question"), "field, domain, or question"))
+    elif event_type == "unknown_resolved":
+        errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("resolution", "resolved_value", "disposition"), "resolution"))
+    elif event_type == "unknown_deferred":
+        errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("deferred_to", "owner", "disposition"), "defer disposition"))
+    elif event_type == "unknown_waived":
+        errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("waiver_reason", "risk_acceptance", "disposition"), "waiver disposition"))
+    elif event_type == "decision_locked":
+        errors.extend(_require_payload_any_key(payload, payload_label, ("decision_id", "stable_id"), "stable decision ID"))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("locked_value", "selected_value", "decision"), "locked value"))
+        errors.extend(_require_payload_basis_or_evidence_ids(payload, payload_label))
+    elif event_type == "route_selected":
+        errors.extend(_require_payload_any_key(payload, payload_label, ("route_id", "stable_id"), "stable route ID"))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("selected_route", "selected_value", "route"), "selected route"))
+        errors.extend(_require_payload_basis_or_evidence_ids(payload, payload_label))
+    elif event_type == "complexity_selected":
+        errors.extend(_require_payload_any_key(payload, payload_label, ("complexity_id", "stable_id"), "stable complexity ID"))
+        errors.extend(_require_payload_any_key(payload, payload_label, ("selected_complexity", "complexity_level", "selected_value"), "selected complexity"))
+        errors.extend(_require_payload_basis_or_evidence_ids(payload, payload_label))
+    elif event_type == "stage_artifact_compiled":
+        errors.extend(_require_payload_keys(payload, payload_label, ("artifact_path", "stage", "output_hash")))
+        errors.extend(_validate_event_reference_list(payload.get("input_event_range"), f"{payload_label} payload.input_event_range", None, exact_len=2))
+        errors.extend(_validate_event_reference_list(payload.get("key_event_ids"), f"{payload_label} payload.key_event_ids", None))
+        if not isinstance(payload.get("evidence_ids"), list):
+            errors.append(f"{payload_label} payload.evidence_ids must be a list")
+    elif event_type == "artifact_compiled":
+        errors.extend(_require_payload_keys(payload, payload_label, ("artifact_path", "output_hash", "source_map_reference")))
+        if not isinstance(payload.get("input_stage_artifacts"), list):
+            errors.append(f"{payload_label} payload.input_stage_artifacts must be a list")
+        errors.extend(_validate_event_reference_list(payload.get("input_event_range"), f"{payload_label} payload.input_event_range", None, exact_len=2))
+    elif event_type == "checkpoint_written":
+        required = (
+            "checkpoint_event_id",
+            "current_stage",
+            "current_domain",
+            "manifest_hash",
+            "workflow_state_hash",
+            "next_action",
+        )
+        errors.extend(_require_payload_keys(payload, payload_label, required))
+        checkpoint_event_id = str(payload.get("checkpoint_event_id") or "").strip()
+        event_id = str(event.get("event_id") or "").strip()
+        if checkpoint_event_id and checkpoint_event_id != event_id:
+            errors.append(f"{payload_label} payload.checkpoint_event_id must equal event_id")
+    elif event_type == "legacy_state_imported":
+        if not isinstance(payload.get("legacy_source_files"), list) or not payload.get("legacy_source_files"):
+            errors.append(f"{payload_label} payload.legacy_source_files must be a non-empty list")
+        if not isinstance(payload.get("imported_artifact_hashes"), dict) or not payload.get("imported_artifact_hashes"):
+            errors.append(f"{payload_label} payload.imported_artifact_hashes must be a non-empty object")
+        errors.extend(_require_payload_keys(payload, payload_label, ("reconstruction_limits", "warning")))
+    return errors
+
+
+def _validate_journal_event_payload_references(event: dict[str, Any], line_label: str, event_ids: set[str]) -> list[str]:
+    event_type = str(event.get("type") or "").strip()
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return []
+
+    payload_label = f"{line_label} {event_type}"
+    if event_type == "stage_artifact_compiled":
+        return [
+            *_validate_event_reference_list(
+                payload.get("input_event_range"),
+                f"{payload_label} payload.input_event_range",
+                event_ids,
+                exact_len=2,
+            ),
+            *_validate_event_reference_list(payload.get("key_event_ids"), f"{payload_label} payload.key_event_ids", event_ids),
+        ]
+    if event_type == "artifact_compiled":
+        return _validate_event_reference_list(
+            payload.get("input_event_range"),
+            f"{payload_label} payload.input_event_range",
+            event_ids,
+            exact_len=2,
+        )
+    return []
+
+
 def _read_journal_events(feature_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
     journal_path = feature_dir / "brainstorming" / "journal.ndjson"
     events: list[dict[str, Any]] = []
@@ -810,14 +979,68 @@ def _read_journal_events(feature_dir: Path) -> tuple[list[dict[str, Any]], list[
             errors.append(f"brainstorming/journal.ndjson line {index} missing event_id")
         if not event_type:
             errors.append(f"brainstorming/journal.ndjson line {index} missing type")
+        elif event_type not in LOSSLESS_SPECIFY_EVENT_TYPES:
+            errors.append(f"brainstorming/journal.ndjson line {index} unknown event type: {event_type}")
+        if type(event.get("schema_version")) is not int:
+            errors.append(f"brainstorming/journal.ndjson line {index} schema_version must be an integer")
+        if not _is_non_empty_text(event.get("created_at")):
+            errors.append(f"brainstorming/journal.ndjson line {index} missing created_at")
+        if not stage:
+            errors.append(f"brainstorming/journal.ndjson line {index} missing stage")
         if stage and stage not in LOSSLESS_SPECIFY_STAGES:
             errors.append(f"brainstorming/journal.ndjson line {index} uses non-canonical stage: {stage}")
+        if not isinstance(event.get("source"), dict):
+            errors.append(f"brainstorming/journal.ndjson line {index} source must be an object")
+        if not isinstance(event.get("payload"), dict):
+            errors.append(f"brainstorming/journal.ndjson line {index} payload must be an object")
+        if not isinstance(event.get("writes"), list):
+            errors.append(f"brainstorming/journal.ndjson line {index} writes must be a list")
+        supersedes_event_id = event.get("supersedes_event_id")
+        if supersedes_event_id is not None and not isinstance(supersedes_event_id, str):
+            errors.append(f"brainstorming/journal.ndjson line {index} supersedes_event_id must be null or string")
+        if event_type in LOSSLESS_SPECIFY_EVENT_TYPES:
+            errors.extend(_validate_journal_event_payload(event, f"brainstorming/journal.ndjson line {index}"))
         events.append(event)
 
     return events, errors
 
 
-def _validate_compiled_from(payload: dict[str, Any], label: str) -> list[str]:
+def _validate_journal_event_references(events: list[dict[str, Any]], event_ids: set[str]) -> list[str]:
+    errors: list[str] = []
+    for index, event in enumerate(events, start=1):
+        if str(event.get("type") or "").strip() in LOSSLESS_SPECIFY_EVENT_TYPES:
+            errors.extend(
+                _validate_journal_event_payload_references(
+                    event,
+                    f"brainstorming/journal.ndjson line {index}",
+                    event_ids,
+                )
+            )
+    return errors
+
+
+def _validate_event_reference_list(
+    value: Any,
+    label: str,
+    event_ids: set[str] | None,
+    *,
+    exact_len: int | None = None,
+) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{label} must be a list"]
+    errors: list[str] = []
+    if exact_len is not None and value and len(value) != exact_len:
+        errors.append(f"{label} must contain exactly {exact_len} event IDs when non-empty")
+    for index, item in enumerate(value):
+        if not _is_non_empty_text(item):
+            errors.append(f"{label}[{index}] must be a non-empty event ID")
+            continue
+        if event_ids is not None and item.strip() not in event_ids:
+            errors.append(f"{label}[{index}] references unknown journal event: {item.strip()}")
+    return errors
+
+
+def _validate_compiled_from(payload: dict[str, Any], label: str, event_ids: set[str]) -> list[str]:
     compiled_from = payload.get("compiled_from")
     if not isinstance(compiled_from, dict):
         return [f"{label} missing compiled_from"]
@@ -825,12 +1048,71 @@ def _validate_compiled_from(payload: dict[str, Any], label: str) -> list[str]:
     errors: list[str] = []
     if str(compiled_from.get("journal") or "").strip() != "brainstorming/journal.ndjson":
         errors.append(f"{label} compiled_from.journal must be brainstorming/journal.ndjson")
-    if not isinstance(compiled_from.get("event_range"), list):
-        errors.append(f"{label} compiled_from.event_range must be a list")
-    if not isinstance(compiled_from.get("key_events"), list):
-        errors.append(f"{label} compiled_from.key_events must be a list")
+    errors.extend(
+        _validate_event_reference_list(
+            compiled_from.get("event_range"),
+            f"{label} compiled_from.event_range",
+            event_ids,
+            exact_len=2,
+        )
+    )
+    errors.extend(_validate_event_reference_list(compiled_from.get("key_events"), f"{label} compiled_from.key_events", event_ids))
     if not isinstance(compiled_from.get("evidence_ids"), list):
         errors.append(f"{label} compiled_from.evidence_ids must be a list")
+    return errors
+
+
+def _validate_lossless_resume_state(
+    feature_dir: Path,
+    event_ids: set[str],
+    checkpoint_ids: set[str],
+    manifest_last_checkpoint_id: str,
+) -> list[str]:
+    workflow_state_path = feature_dir / "workflow-state.md"
+    try:
+        workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return [f"workflow-state.md could not be read: {exc}"]
+    section = _extract_markdown_section(workflow_state_content, "Lossless Resume State")
+    if not section.strip():
+        return ["workflow-state.md is missing Lossless Resume State section"]
+
+    errors: list[str] = []
+    journal_file = extract_field(section, "journal_file")
+    stage_manifest = extract_field(section, "stage_manifest")
+    last_event_id = extract_field(section, "last_event_id")
+    last_checkpoint_id = extract_field(section, "last_checkpoint_id")
+    required_fields = {
+        "journal_file": journal_file,
+        "stage_manifest": stage_manifest,
+        "last_event_id": last_event_id,
+        "last_checkpoint_id": last_checkpoint_id,
+    }
+    for field, value in required_fields.items():
+        if not value.strip():
+            errors.append(f"workflow-state.md Lossless Resume State {field} is required")
+    if journal_file != "brainstorming/journal.ndjson":
+        errors.append("workflow-state.md Lossless Resume State journal_file must be brainstorming/journal.ndjson")
+    if stage_manifest != "brainstorming/stage-manifest.json":
+        errors.append("workflow-state.md Lossless Resume State stage_manifest must be brainstorming/stage-manifest.json")
+    if last_event_id and last_event_id != "none" and last_event_id not in event_ids:
+        errors.append(f"workflow-state.md Lossless Resume State last_event_id not found in journal: {last_event_id}")
+    if last_checkpoint_id and last_checkpoint_id != "none" and last_checkpoint_id not in checkpoint_ids:
+        errors.append(
+            "workflow-state.md Lossless Resume State last_checkpoint_id not found as checkpoint_written "
+            f"event in journal: {last_checkpoint_id}"
+        )
+    if (
+        last_checkpoint_id
+        and last_checkpoint_id != "none"
+        and manifest_last_checkpoint_id
+        and manifest_last_checkpoint_id != "none"
+        and last_checkpoint_id != manifest_last_checkpoint_id
+    ):
+        errors.append(
+            "workflow-state.md Lossless Resume State last_checkpoint_id must match "
+            f"brainstorming/stage-manifest.json journal.last_checkpoint_id: {manifest_last_checkpoint_id}"
+        )
     return errors
 
 
@@ -839,6 +1121,7 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
     events, journal_errors = _read_journal_events(feature_dir)
     errors.extend(journal_errors)
     event_ids = {str(event.get("event_id") or "").strip() for event in events if str(event.get("event_id") or "").strip()}
+    errors.extend(_validate_journal_event_references(events, event_ids))
     checkpoint_ids = {
         str(event.get("event_id") or "").strip()
         for event in events
@@ -883,6 +1166,35 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
                     f"brainstorming/stage-manifest.json stages.{stage}.artifact must be "
                     f"{expected_artifact}, found {actual_artifact or 'missing'}"
                 )
+            if "event_range" not in entry:
+                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.event_range is required")
+            else:
+                errors.extend(
+                    _validate_event_reference_list(
+                        entry.get("event_range"),
+                        f"brainstorming/stage-manifest.json stages.{stage}.event_range",
+                        event_ids,
+                        exact_len=2,
+                    )
+                )
+            if "last_compiled_event_id" not in entry:
+                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.last_compiled_event_id is required")
+            elif entry.get("last_compiled_event_id") is not None:
+                last_compiled_event_id = str(entry.get("last_compiled_event_id") or "").strip()
+                if not last_compiled_event_id:
+                    errors.append(
+                        f"brainstorming/stage-manifest.json stages.{stage}.last_compiled_event_id "
+                        "must be a non-empty string or null"
+                    )
+                elif last_compiled_event_id not in event_ids:
+                    errors.append(
+                        f"brainstorming/stage-manifest.json stages.{stage}.last_compiled_event_id "
+                        f"references unknown journal event: {last_compiled_event_id}"
+                    )
+            if "artifact_hash" not in entry:
+                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.artifact_hash is required")
+            elif entry.get("artifact_hash") is not None and not isinstance(entry.get("artifact_hash"), str):
+                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.artifact_hash must be a string or null")
 
     canonical_stage_enum = manifest.get("canonical_stage_enum")
     if not isinstance(canonical_stage_enum, list):
@@ -902,9 +1214,11 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
     journal = manifest.get("journal")
     if not isinstance(journal, dict):
         errors.append("brainstorming/stage-manifest.json journal must be an object")
+        manifest_last_checkpoint_id = ""
     else:
         last_event_id = str(journal.get("last_event_id") or "").strip()
         last_checkpoint_id = str(journal.get("last_checkpoint_id") or "").strip()
+        manifest_last_checkpoint_id = last_checkpoint_id
         if last_event_id and last_event_id not in event_ids:
             errors.append(f"brainstorming/stage-manifest.json last_event_id not found in journal: {last_event_id}")
         if last_checkpoint_id and last_checkpoint_id not in checkpoint_ids:
@@ -912,6 +1226,7 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
                 "brainstorming/stage-manifest.json last_checkpoint_id not found as checkpoint_written "
                 f"event in journal: {last_checkpoint_id}"
             )
+    errors.extend(_validate_lossless_resume_state(feature_dir, event_ids, checkpoint_ids, manifest_last_checkpoint_id))
 
     for relative_path in (
         "brainstorming/facts.json",
@@ -937,7 +1252,7 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
             )
         if stage and stage not in LOSSLESS_SPECIFY_STAGES:
             errors.append(f"{relative_path} uses non-canonical stage: {stage}")
-        errors.extend(_validate_compiled_from(payload, relative_path))
+        errors.extend(_validate_compiled_from(payload, relative_path, event_ids))
 
     return errors
 
