@@ -73,6 +73,7 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert ".specify/discussions/<slug>/" in command_content
     assert "discussion-state.md" in command_content
     assert "handoff-to-specify.md" in command_content
+    assert "handoff-to-specify.json" in command_content
     assert (
         "explicit user" in command_lower
         or "user explicitly" in command_lower
@@ -80,6 +81,9 @@ def _assert_discussion_contract(command_content: str) -> None:
     )
     assert "senior technical expert" in command_lower
     assert "senior product manager" in command_lower
+    assert "senior consequence analysis gate" in command_lower
+    assert "affected object map" in command_lower
+    assert "state-behavior matrix" in command_lower
 
 
 class TomlIntegrationTests:
@@ -271,6 +275,23 @@ class TomlIntegrationTests:
         assert discussion_path.exists()
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
         _assert_discussion_contract(parsed["prompt"])
+
+    def test_generated_primary_workflows_include_consequence_gate(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        generated = "\n".join(
+            path.read_text(encoding="utf-8").lower()
+            for path in i.commands_dest(tmp_path).glob("**/*")
+            if path.is_file()
+        )
+
+        assert "senior consequence analysis gate" in generated
+        assert "affected object map" in generated
+        assert "state-behavior matrix" in generated
+        assert "dependency impact table" in generated
+        assert "ca-###" in generated
 
     def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
         i = get_integration(self.KEY)

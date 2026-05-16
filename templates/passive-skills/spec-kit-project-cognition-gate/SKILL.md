@@ -70,6 +70,12 @@ judgment in an established Spec Kit Plus repository:
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   project cognition runtime should be the source of truth.
 
+## Senior Consequence Analysis Relationship
+
+Project cognition is necessary but not sufficient. Use it first to identify ownership, consumers, state surfaces, verification routes, and coverage gaps. Then run the Senior Consequence Analysis Gate when lifecycle, running-state, destructive-operation, shared-state, downstream consumer, compatibility, or multiple-behavior semantics matter.
+
+The gate output must name affected objects, state behavior, dependency impact, recovery and validation, and coverage gaps. Preserve the Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery And Validation Contract, and Coverage Gaps. If project cognition cannot decide product semantics, record the gap and route to the appropriate workflow instead of treating the graph as authoritative.
+
 ## Scope Guard
 
 - This gate applies even if the user asks for a direct code change without mentioning

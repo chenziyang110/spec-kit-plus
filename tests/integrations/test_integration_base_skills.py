@@ -88,6 +88,7 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert ".specify/discussions/<slug>/" in skill_content
     assert "discussion-state.md" in skill_content
     assert "handoff-to-specify.md" in skill_content
+    assert "handoff-to-specify.json" in skill_content
     assert (
         "explicit user" in skill_lower
         or "user explicitly" in skill_lower
@@ -95,6 +96,9 @@ def _assert_discussion_contract(skill_content: str) -> None:
     )
     assert "senior technical expert" in skill_lower
     assert "senior product manager" in skill_lower
+    assert "senior consequence analysis gate" in skill_lower
+    assert "affected object map" in skill_lower
+    assert "state-behavior matrix" in skill_lower
 
 
 class SkillsIntegrationTests:
@@ -256,6 +260,23 @@ class SkillsIntegrationTests:
         discussion_path = i.skills_dest(tmp_path) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists()
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+    def test_generated_primary_workflows_include_consequence_gate(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        generated = "\n".join(
+            path.read_text(encoding="utf-8").lower()
+            for path in i.skills_dest(tmp_path).glob("**/*")
+            if path.is_file()
+        )
+
+        assert "senior consequence analysis gate" in generated
+        assert "affected object map" in generated
+        assert "state-behavior matrix" in generated
+        assert "dependency impact table" in generated
+        assert "ca-###" in generated
 
     def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
         i = get_integration(self.KEY)

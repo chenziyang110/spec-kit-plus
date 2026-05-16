@@ -332,6 +332,22 @@ Conditional gates and follow-up commands:
 Already have code? Resolve `.specify/project-cognition/status.json` and the agent-planned task-local project cognition query bundle first. The workflow asks the runtime for a lexicon, the agent expands the user's natural-language request into a `query_plan`, and the runtime executes that plan. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`, and require `project-cognition validate-scan --format json` plus `project-cognition validate-build --format json` to pass before downstream work proceeds. Use `map-update` for localized stale cognition runtime refresh after that; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 Generated projects track cognition freshness in `.specify/project-cognition/status.json`, so brownfield workflows can decide whether the current cognition baseline is `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, or `possibly_stale` before proceeding. Ordinary `sp-*` workflows should treat cognition freshness as a hard gate before source-level work rather than a warn-only hint, while using `recommended_next_action` for public state guidance.
 
+## Senior Consequence Analysis Gate
+
+Project cognition is necessary but not sufficient for dependency analysis. It gives workflow agents ownership, consumers, state surfaces, change-propagation facts, verification routes, conflicts, and known unknowns. `sp-map-build` and the project cognition runtime provide the evidence layer, but the Senior Consequence Analysis Gate turns those facts into product and implementation obligations.
+
+When work involves lifecycle operations, running or concurrent objects, destructive actions, shared state, downstream consumers, compatibility, security, or multiple plausible behaviors, workflows must preserve:
+
+- Affected Object Map
+- State-Behavior Matrix
+- Dependency Impact Table
+- Recovery And Validation Contract
+- Coverage Gaps
+
+For example, "close team" must consider running workers, queued tasks, late result submission, heartbeat state, `status`, `await`, `resume`, `cleanup`, idempotency, and validation evidence before the workflow can claim the feature is ready for the next stage.
+
+Use `CA-###` IDs for consequence obligations that must survive handoff from `discussion` to `specify`, `plan`, `tasks`, `analyze`, and `implement`. `fast` upgrades when the gate triggers; `quick` may continue only when the consequence model is bounded; `debug` traces the dependency loop and rejects surface-only fixes.
+
 Routing guide for lightweight work:
 
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.

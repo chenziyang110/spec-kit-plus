@@ -58,6 +58,22 @@ Describe the handbook export model explicitly:
 The export model should help the reader distinguish compatibility views from
 the graph-native cognition runtime used before broader code reads begin.
 
+## Senior Consequence Analysis Gate
+
+Project cognition is necessary but not sufficient for dependency analysis. It gives workflow agents ownership, consumers, state surfaces, change-propagation facts, verification routes, conflicts, and known unknowns. `sp-map-build` and the project cognition runtime provide the evidence layer, but the Senior Consequence Analysis Gate turns those facts into product and implementation obligations.
+
+When work involves lifecycle operations, running or concurrent objects, destructive actions, shared state, downstream consumers, compatibility, security, or multiple plausible behaviors, workflows must preserve:
+
+- Affected Object Map
+- State-Behavior Matrix
+- Dependency Impact Table
+- Recovery And Validation Contract
+- Coverage Gaps
+
+For example, "close team" must consider running workers, queued tasks, late result submission, heartbeat state, `status`, `await`, `resume`, `cleanup`, idempotency, and validation evidence before the workflow can claim the feature is ready for the next stage.
+
+Use `CA-###` IDs for consequence obligations that must survive handoff from `discussion` to `specify`, `plan`, `tasks`, `analyze`, and `implement`. `fast` upgrades when the gate triggers; `quick` may continue only when the consequence model is bounded; `debug` traces the dependency loop and rejects surface-only fixes.
+
 ## Shared Surfaces
 
 - [Registries, routing files, template directories, config schemas, exported

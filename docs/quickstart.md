@@ -266,6 +266,22 @@ Generated project navigation now follows the project cognition runtime:
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. After that, normal code changes should use `sp-map-update` for bounded incremental refresh. Return to `sp-map-scan -> sp-map-build` only when the baseline is missing, unusable, schema-incompatible, or the changed closure cannot be bounded safely.
 - Any code change that alters navigation meaning must update the project cognition runtime.
 
+## Senior Consequence Analysis Gate
+
+Project cognition is necessary but not sufficient for dependency analysis. It gives workflow agents ownership, consumers, state surfaces, change-propagation facts, verification routes, conflicts, and known unknowns. `sp-map-build` and the project cognition runtime provide the evidence layer, but the Senior Consequence Analysis Gate turns those facts into product and implementation obligations.
+
+When work involves lifecycle operations, running or concurrent objects, destructive actions, shared state, downstream consumers, compatibility, security, or multiple plausible behaviors, workflows must preserve:
+
+- Affected Object Map
+- State-Behavior Matrix
+- Dependency Impact Table
+- Recovery And Validation Contract
+- Coverage Gaps
+
+For example, "close team" must consider running workers, queued tasks, late result submission, heartbeat state, `status`, `await`, `resume`, `cleanup`, idempotency, and validation evidence before the workflow can claim the feature is ready for the next stage.
+
+Use `CA-###` IDs for consequence obligations that must survive handoff from `discussion` to `specify`, `plan`, `tasks`, `analyze`, and `implement`. `fast` upgrades when the gate triggers; `quick` may continue only when the consequence model is bounded; `debug` traces the dependency loop and rejects surface-only fixes.
+
 Use support skills when they solve a specific gap:
 
 - `map-update` for localized stale cognition runtime refresh when you are working in an existing codebase with a usable baseline; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required

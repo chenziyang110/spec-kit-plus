@@ -236,3 +236,22 @@ def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
         assert "repeated `tasks -> analyze -> tasks` loops are abnormal" in content
         assert "No more than one task-layer remediation cycle is expected" in content
         assert "directly to `plan`, `clarify`, or `deep-research`" in content
+
+
+def test_guidance_docs_teach_consequence_gate_across_workflow_mainline() -> None:
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        lowered = content.lower()
+        assert "senior consequence analysis gate" in lowered
+        assert "`discussion`" in content
+        assert "`specify`" in content
+        assert "`plan`" in content
+        assert "`tasks`" in content
+        assert "`fast`" in content
+        assert "`quick`" in content
+        assert "`debug`" in content
+        assert "close team" in lowered
+        assert "running workers" in lowered
+        assert "ca-###" in lowered

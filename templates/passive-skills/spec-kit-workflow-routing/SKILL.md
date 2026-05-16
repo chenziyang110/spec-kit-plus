@@ -109,6 +109,10 @@ standalone branch-creation command.
   using returned map terms before running `project-cognition query --query-plan`.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
+## Consequence-Aware Routing
+
+Route away from `fast` when a request triggers the Senior Consequence Analysis Gate. Use `quick` only for bounded consequence work with durable `STATUS.md` fields. Use `discussion` or `specify` when lifecycle semantics, running work, destructive policy, shared state, downstream consumers, or acceptance criteria need product decisions. Use `debug` when the issue is a failure with unknown root cause.
+
 ## User Invocation Examples
 
 Use canonical workflow names above when describing routing semantics, workflow
