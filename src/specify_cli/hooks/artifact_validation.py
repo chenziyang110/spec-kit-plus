@@ -467,6 +467,28 @@ def _consequence_obligation_ids(payload: Any) -> set[str]:
     }
 
 
+def _consequence_contract_paths(feature_dir: Path) -> tuple[tuple[Path, str], ...]:
+    return (
+        (feature_dir / "plan-contract.json", "plan-contract.json"),
+        (feature_dir / "plan" / "plan-contract.json", "plan/plan-contract.json"),
+    )
+
+
+def _decision_consequence_obligation_ids(decision: Any) -> set[str]:
+    if not isinstance(decision, dict):
+        return set()
+    ids: set[str] = set()
+    raw_id = decision.get("obligation_id")
+    if isinstance(raw_id, str) and raw_id.strip():
+        ids.add(raw_id.strip())
+    raw_ids = decision.get("consequence_obligation_ids")
+    if isinstance(raw_ids, list):
+        ids.update(item.strip() for item in raw_ids if isinstance(item, str) and item.strip())
+    elif isinstance(raw_ids, str) and raw_ids.strip():
+        ids.add(raw_ids.strip())
+    return ids
+
+
 def _validate_brainstorming_json_artifact(feature_dir: Path, relative_path: str, *, validate_unknowns: bool) -> list[str]:
     payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
     if read_errors:
@@ -632,26 +654,43 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
 
 
 def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
-    contract_path = feature_dir / "plan-contract.json"
-    if not contract_path.exists():
-        return []
-    payload, read_errors = _read_json_artifact(contract_path, "plan-contract.json")
-    if read_errors:
-        return read_errors
-    errors = _validate_consequence_json_payload(payload, "plan-contract.json")
-    if not _json_gate_is_triggered(payload):
+    errors: list[str] = []
+    triggered_payloads: list[tuple[Any, str]] = []
+    for contract_path, label in _consequence_contract_paths(feature_dir):
+        if not contract_path.exists():
+            continue
+        payload, read_errors = _read_json_artifact(contract_path, label)
+        if read_errors:
+            errors.extend(read_errors)
+            continue
+        errors.extend(_validate_consequence_json_payload(payload, label))
+        if _json_gate_is_triggered(payload):
+            triggered_payloads.append((payload, label))
+
+    if not triggered_payloads:
         return errors
 
     plan_path = feature_dir / "plan.md"
     plan_content = plan_path.read_text(encoding="utf-8", errors="replace")
-    if CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION not in plan_content:
-        ids = ", ".join(sorted(_consequence_obligation_ids(payload))) or "triggered consequence obligations"
-        errors.append(f"plan.md is missing {CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION} for {ids}")
+    for payload, label in triggered_payloads:
+        required_ids = _consequence_obligation_ids(payload)
+        ids = ", ".join(sorted(required_ids)) or "triggered consequence obligations"
+        if CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION not in plan_content:
+            errors.append(f"plan.md is missing {CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION} for {ids}")
 
-    operational_decisions = payload.get("operational_consequence_decisions") if isinstance(payload, dict) else None
-    if not isinstance(operational_decisions, list) or not operational_decisions:
-        ids = ", ".join(sorted(_consequence_obligation_ids(payload))) or "triggered consequence obligations"
-        errors.append(f"plan-contract.json operational_consequence_decisions must map {ids}")
+        operational_decisions = payload.get("operational_consequence_decisions") if isinstance(payload, dict) else None
+        if not isinstance(operational_decisions, list) or not operational_decisions:
+            errors.append(f"{label} operational_consequence_decisions must map {ids}")
+            continue
+        mapped_ids: set[str] = set()
+        for decision in operational_decisions:
+            mapped_ids.update(_decision_consequence_obligation_ids(decision))
+        missing_ids = sorted(required_ids - mapped_ids)
+        if missing_ids:
+            errors.append(
+                f"{label} operational_consequence_decisions must map consequence obligations: "
+                + ", ".join(missing_ids)
+            )
 
     return errors
 
@@ -672,23 +711,38 @@ def _task_index_consequence_ids(payload: Any) -> set[str]:
     return ids
 
 
+def _triggered_task_consequence_sources(feature_dir: Path) -> tuple[tuple[tuple[Any, str], ...], list[str]]:
+    sources: list[tuple[Any, str]] = []
+    errors: list[str] = []
+    for source_path, label in (
+        (feature_dir / "handoff-to-tasks.json", "handoff-to-tasks.json"),
+        *(_consequence_contract_paths(feature_dir)),
+        (feature_dir / "brainstorming" / "handoff-to-tasks.json", "brainstorming/handoff-to-tasks.json"),
+    ):
+        if not source_path.exists():
+            continue
+        payload, read_errors = _read_json_artifact(source_path, label)
+        if read_errors:
+            errors.extend(read_errors)
+            continue
+        if not _json_gate_is_triggered(payload) or not _consequence_obligation_ids(payload):
+            continue
+        sources.append((payload, label))
+    return tuple(sources), errors
+
+
 def _validate_tasks_consequence_contract(feature_dir: Path) -> list[str]:
-    handoff_path = feature_dir / "handoff-to-tasks.json"
-    if not handoff_path.exists():
-        return []
-
-    handoff_payload, handoff_errors = _read_json_artifact(handoff_path, "handoff-to-tasks.json")
-    if handoff_errors:
-        return handoff_errors
-
-    errors = _validate_consequence_json_payload(handoff_payload, "handoff-to-tasks.json")
-    if not _json_gate_is_triggered(handoff_payload):
+    sources, errors = _triggered_task_consequence_sources(feature_dir)
+    if not sources:
         return errors
 
-    required_ids = _consequence_obligation_ids(handoff_payload)
+    required_ids: set[str] = set()
+    for payload, label in sources:
+        errors.extend(_validate_consequence_json_payload(payload, label))
+        required_ids.update(_consequence_obligation_ids(payload))
     task_index_path = feature_dir / "task-index.json"
     if not task_index_path.exists():
-        errors.append("task-index.json is required when handoff-to-tasks.json carries triggered consequence obligations")
+        errors.append("task-index.json is required when upstream artifacts carry triggered consequence obligations")
         return errors
 
     task_index_payload, task_index_errors = _read_json_artifact(task_index_path, "task-index.json")
