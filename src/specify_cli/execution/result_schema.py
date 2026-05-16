@@ -37,6 +37,7 @@ class WorkerTaskResult:
     acceptance_evidence: list[dict[str, str]] = field(default_factory=list)
     consumer_evidence: list[dict[str, str]] = field(default_factory=list)
     manual_evidence: list[dict[str, str]] = field(default_factory=list)
+    consequence_evidence: list[dict[str, str]] = field(default_factory=list)
 
 
 def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
@@ -100,6 +101,9 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     )
     result_payload["manual_evidence"] = _normalize_evidence_items(
         result_payload.get("manual_evidence", [])
+    )
+    result_payload["consequence_evidence"] = _normalize_evidence_items(
+        result_payload.get("consequence_evidence", [])
     )
     result_payload["validation_results"] = validation_results
     result_payload["rule_acknowledgement"] = rule_acknowledgement

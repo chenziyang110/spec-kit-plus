@@ -63,6 +63,20 @@ class ExecutionIntent:
 
 
 @dataclass(slots=True)
+class ConsequenceObligation:
+    obligation_id: str
+    claim: str = ""
+    affected_objects: list[str] = field(default_factory=list)
+    state_behavior_refs: list[str] = field(default_factory=list)
+    dependency_refs: list[str] = field(default_factory=list)
+    recovery_validation_refs: list[str] = field(default_factory=list)
+    owner: str = ""
+    latest_resolve_phase: str = ""
+    status: str = "open"
+    stop_and_reopen_condition: str = ""
+
+
+@dataclass(slots=True)
 class WorkerTaskPacket:
     feature_id: str
     task_id: str
@@ -87,6 +101,7 @@ class WorkerTaskPacket:
     acceptance_criteria: list[str] = field(default_factory=list)
     consumer_surfaces: list[str] = field(default_factory=list)
     required_evidence: list[str] = field(default_factory=list)
+    consequence_obligations: list[ConsequenceObligation] = field(default_factory=list)
     escalation_role: str = "debugger"
     retry_max: int = 2
     packet_version: int = 2
@@ -126,6 +141,11 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
         for item in payload.get("context_bundle", [])
         if isinstance(item, dict)
     ]
+    consequence_obligations = [
+        ConsequenceObligation(**_filter_dataclass_payload(ConsequenceObligation, item))
+        for item in payload.get("consequence_obligations", [])
+        if isinstance(item, dict)
+    ]
     intent = ExecutionIntent(
         **_filter_dataclass_payload(ExecutionIntent, payload.get("intent", {}))
     )
@@ -137,5 +157,6 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     packet_payload["scope"] = scope
     packet_payload["context_bundle"] = context_bundle
     packet_payload["required_references"] = required_references
+    packet_payload["consequence_obligations"] = consequence_obligations
     packet_payload["dispatch_policy"] = dispatch_policy
     return WorkerTaskPacket(**packet_payload)

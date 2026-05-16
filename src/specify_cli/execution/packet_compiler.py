@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from .packet_schema import (
+    ConsequenceObligation,
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
@@ -21,6 +22,7 @@ BULLET_RE = re.compile(r"(?m)^\s*-\s+`?(?P<value>.+?)`?\s*$")
 TASK_RE = re.compile(r"(?m)^\s*-\s\[[ xX]\]\s(?P<task_id>T\d+)(?P<body>.+)$")
 PATH_RE = re.compile(r"[\w./-]+/[\w./-]+")
 STORY_RE = re.compile(r"\[(US\d+)\]")
+CONSEQUENCE_ID_RE = re.compile(r"\bCA-\d{3}\b")
 
 
 def _read(path: Path) -> str:
@@ -79,6 +81,72 @@ def _unique(values: list[str]) -> list[str]:
             ordered.append(value)
             seen.add(value)
     return ordered
+
+
+def _parse_pipe_fields(line: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    parts = [part.strip() for part in line.strip().strip("|").split("|")]
+    if len(parts) >= 6:
+        fields.update(
+            {
+                "obligation_id": parts[0],
+                "task_ids": parts[1],
+                "affected_objects": parts[2],
+                "required_references": parts[3],
+                "validation": parts[4],
+                "stop_and_reopen_condition": parts[5],
+            }
+        )
+    for raw_part in parts:
+        part = raw_part.strip().strip("-").strip()
+        if ":" not in part:
+            continue
+        key, value = part.split(":", 1)
+        fields[key.strip().lower()] = value.strip()
+    return fields
+
+
+def _split_csv_field(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _line_mentions_task(line: str, task_id: str) -> bool:
+    return any(part.strip() == task_id for part in re.split(r"[,;\s]+", line) if part.strip())
+
+
+def _consequence_obligations_for_task(
+    tasks_text: str,
+    task_id: str,
+) -> list[ConsequenceObligation]:
+    section = _section_body(tasks_text, "Consequence Obligation Mapping")
+    obligations: list[ConsequenceObligation] = []
+    seen: set[str] = set()
+    for raw_line in section.splitlines():
+        if not _line_mentions_task(raw_line, task_id):
+            continue
+        match = CONSEQUENCE_ID_RE.search(raw_line)
+        if not match:
+            continue
+        obligation_id = match.group(0)
+        if obligation_id in seen:
+            continue
+        seen.add(obligation_id)
+        fields = _parse_pipe_fields(raw_line)
+        obligations.append(
+            ConsequenceObligation(
+                obligation_id=obligation_id,
+                claim=fields.get("claim", raw_line.strip()),
+                affected_objects=_split_csv_field(fields.get("affected_objects", "")),
+                state_behavior_refs=_split_csv_field(fields.get("state_behavior_refs", "")),
+                dependency_refs=_split_csv_field(fields.get("dependency_refs", "")),
+                recovery_validation_refs=_split_csv_field(fields.get("validation", "")),
+                owner=fields.get("owner", "sp-tasks"),
+                latest_resolve_phase=fields.get("latest_resolve_phase", "tasks"),
+                status=fields.get("status", "open"),
+                stop_and_reopen_condition=fields.get("stop_and_reopen_condition", ""),
+            )
+        )
+    return obligations
 
 
 def _section_or_subsection_values(text: str, *titles: str) -> list[str]:
@@ -262,6 +330,7 @@ def compile_worker_task_packet(
         done_criteria=done_criteria,
         handoff_requirements=handoff_requirements,
         platform_guardrails=platform_guardrails,
+        consequence_obligations=_consequence_obligations_for_task(tasks_text, task_id),
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
     return validate_worker_task_packet(packet)
