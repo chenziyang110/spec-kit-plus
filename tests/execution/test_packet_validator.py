@@ -1,6 +1,7 @@
 import pytest
 
 from specify_cli.execution.packet_schema import (
+    ConsequenceObligation,
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
@@ -63,6 +64,18 @@ def sample_packet() -> WorkerTaskPacket:
         handoff_requirements=["return changed files"],
         platform_guardrails=["supported_platforms: windows, linux"],
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
+        consequence_obligations=[
+            ConsequenceObligation(
+                obligation_id="CA-001",
+                claim="Running workers drain before close completes",
+                affected_objects=["team", "worker"],
+                recovery_validation_refs=["pytest tests/test_team_close.py -q"],
+                owner="sp-tasks",
+                latest_resolve_phase="tasks",
+                status="open",
+                stop_and_reopen_condition="No validation proves drain behavior",
+            )
+        ],
     )
 
 
@@ -138,3 +151,15 @@ def test_validate_worker_task_packet_rejects_missing_platform_guardrails(
         validate_worker_task_packet(sample_packet)
 
     assert exc.value.code == "DP2"
+
+
+def test_validate_worker_task_packet_rejects_incomplete_consequence_obligation(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.consequence_obligations[0].claim = ""
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP2"
+    assert "consequence obligation" in exc.value.message

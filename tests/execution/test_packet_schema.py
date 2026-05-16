@@ -1,4 +1,5 @@
 from specify_cli.execution.packet_schema import (
+    ConsequenceObligation,
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
@@ -66,6 +67,18 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
         handoff_requirements=["return changed files"],
         platform_guardrails=["supported_platforms: windows, linux"],
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
+        consequence_obligations=[
+            ConsequenceObligation(
+                obligation_id="CA-001",
+                claim="Running workers drain before close completes",
+                affected_objects=["team", "worker"],
+                recovery_validation_refs=["pytest tests/test_team_close.py -q"],
+                owner="sp-tasks",
+                latest_resolve_phase="tasks",
+                status="open",
+                stop_and_reopen_condition="No validation proves drain behavior",
+            )
+        ],
     )
 
     assert packet.packet_version == 2
@@ -73,6 +86,8 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
     assert packet.scope.write_scope == ["src/services/auth_service.py"]
     assert packet.dispatch_policy.mode == "hard_fail"
     assert packet.platform_guardrails == ["supported_platforms: windows, linux"]
+    assert packet.consequence_obligations[0].obligation_id == "CA-001"
+    assert packet.consequence_obligations[0].affected_objects == ["team", "worker"]
 
 
 def test_worker_task_result_requires_validation_records() -> None:
@@ -141,6 +156,18 @@ def test_worker_task_packet_round_trips_through_json() -> None:
         handoff_requirements=["return changed files"],
         platform_guardrails=["supported_platforms: windows, linux"],
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
+        consequence_obligations=[
+            ConsequenceObligation(
+                obligation_id="CA-001",
+                claim="Running workers drain before close completes",
+                affected_objects=["team", "worker"],
+                recovery_validation_refs=["pytest tests/test_team_close.py -q"],
+                owner="sp-tasks",
+                latest_resolve_phase="tasks",
+                status="open",
+                stop_and_reopen_condition="No validation proves drain behavior",
+            )
+        ],
     )
 
     restored = worker_task_packet_from_json(json.dumps(worker_task_packet_payload(packet)))
@@ -152,6 +179,8 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.context_bundle[1].path == ".specify/project-cognition/project-cognition.db"
     assert restored.required_references[0].path == "src/contracts/auth.py"
     assert restored.platform_guardrails == ["supported_platforms: windows, linux"]
+    assert restored.consequence_obligations[0].obligation_id == "CA-001"
+    assert restored.consequence_obligations[0].claim == "Running workers drain before close completes"
 
 
 def test_worker_task_packet_from_json_normalizes_legacy_project_map_context_kind() -> None:

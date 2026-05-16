@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from specify_cli.hooks.engine import run_quality_hook
@@ -1128,6 +1129,225 @@ def test_validate_artifacts_accepts_constitution_outputs_when_present(tmp_path: 
         project,
         "workflow.artifacts.validate",
         {"command_name": "constitution", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_blocks_triggered_consequence_handoff_without_analysis(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "consequence_gate": {
+                    "triggered": True,
+                    "trigger_reason": "close team touches running workers",
+                    "status": "ready",
+                    "stand_down_reason": None,
+                },
+                "consequence_analysis": {
+                    "affected_object_map": [],
+                    "state_behavior_matrix": [],
+                    "dependency_impact": [],
+                    "recovery_and_validation": [],
+                    "coverage_gaps": [],
+                },
+                "consequence_obligations": [],
+                "stop_and_reopen_conditions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("affected_object_map" in message for message in result.errors)
+    assert any("consequence_obligations" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_plan_when_consequence_contract_is_not_designed(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "plan.md").write_text("# Plan\n\n## Design\n\nClose the team.\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "consequence_gate": {
+                    "triggered": True,
+                    "trigger_reason": "team close has running-worker semantics",
+                    "status": "ready",
+                    "stand_down_reason": None,
+                },
+                "consequence_obligations": [
+                    {
+                        "obligation_id": "CA-001",
+                        "claim": "Define close behavior for running workers",
+                        "affected_objects": ["team", "worker", "task queue"],
+                        "owner": "sp-plan",
+                        "latest_resolve_phase": "plan",
+                        "status": "open",
+                        "stop_and_reopen_condition": "No drain/cancel/force policy is chosen",
+                    }
+                ],
+                "operational_consequence_decisions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Operational Consequence Design" in message for message in result.errors)
+    assert any("CA-001" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_tasks_when_consequence_obligation_is_unmapped(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "tasks.md").write_text("- [ ] T001 Implement close team in src/team.py\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "handoff-to-tasks.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "consequence_gate": {
+                    "triggered": True,
+                    "trigger_reason": "running worker semantics must survive tasking",
+                    "status": "ready",
+                    "stand_down_reason": None,
+                },
+                "consequence_analysis": {
+                    "affected_object_map": [{"object": "worker", "reason": "running workers are affected"}],
+                    "state_behavior_matrix": [{"state": "running", "behavior": "drain before close completes"}],
+                    "dependency_impact": [{"surface": "submit-result", "impact": "late result policy must be defined"}],
+                    "recovery_and_validation": [{"validation": "pytest tests/test_team_close.py -q"}],
+                    "coverage_gaps": [{"gap": "none", "decision": "covered by task mapping"}],
+                },
+                "consequence_obligations": [
+                    {
+                        "obligation_id": "CA-001",
+                        "claim": "Running workers drain before close completes",
+                        "affected_objects": ["worker", "team"],
+                        "owner": "sp-tasks",
+                        "latest_resolve_phase": "tasks",
+                        "status": "open",
+                        "stop_and_reopen_condition": "No task validates drain behavior",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {"version": 1, "status": "ready", "tasks": [{"task_id": "T001"}], "parallel_batches": [], "join_points": []}
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "tasks", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("CA-001" in message for message in result.errors)
+    assert any("consequence" in message.lower() and "task-index.json" in message for message in result.errors)
+
+
+def test_validate_artifacts_accepts_tasks_when_consequence_obligation_is_mapped(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "tasks.md").write_text(
+        "## Consequence Obligation Mapping\n\n"
+        "| Obligation ID | Task IDs | Validation |\n"
+        "| --- | --- | --- |\n"
+        "| CA-001 | T001 | pytest tests/test_team_close.py -q |\n\n"
+        "- [ ] T001 Implement close team drain behavior in src/team.py\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "handoff-to-tasks.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "consequence_gate": {
+                    "triggered": True,
+                    "trigger_reason": "running worker semantics must survive tasking",
+                    "status": "ready",
+                    "stand_down_reason": None,
+                },
+                "consequence_analysis": {
+                    "affected_object_map": [{"object": "worker", "reason": "running workers are affected"}],
+                    "state_behavior_matrix": [{"state": "running", "behavior": "drain before close completes"}],
+                    "dependency_impact": [{"surface": "submit-result", "impact": "late result policy must be defined"}],
+                    "recovery_and_validation": [{"validation": "pytest tests/test_team_close.py -q"}],
+                    "coverage_gaps": [{"gap": "none", "decision": "covered by task mapping"}],
+                },
+                "consequence_obligations": [
+                    {
+                        "obligation_id": "CA-001",
+                        "claim": "Running workers drain before close completes",
+                        "affected_objects": ["worker", "team"],
+                        "owner": "sp-tasks",
+                        "latest_resolve_phase": "tasks",
+                        "status": "open",
+                        "stop_and_reopen_condition": "No task validates drain behavior",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "consequence_obligation_ids": ["CA-001"],
+                    }
+                ],
+                "parallel_batches": [],
+                "join_points": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "tasks", "feature_dir": str(feature_dir)},
     )
 
     assert result.status == "ok"

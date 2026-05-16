@@ -71,6 +71,12 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
                 "",
                 "- pytest tests/unit/test_auth_service.py -q",
                 "",
+                "## Consequence Obligation Mapping",
+                "",
+                "| Obligation ID | Task IDs | Affected State/Dependency | Required References | Validation | Stop/Reopen Condition |",
+                "| --- | --- | --- | --- | --- | --- |",
+                "| CA-001 | T017 | team, worker | src/contracts/auth.py | pytest tests/unit/test_auth_service.py -q | No validation proves drain behavior |",
+                "",
                 "- [ ] T017 [US1] Implement auth flow in src/services/auth_service.py",
             ]
         ),
@@ -116,6 +122,9 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
         "send task_started before long-running work",
         "write structured result handoff before idling",
     ]
+    assert packet.consequence_obligations[0].obligation_id == "CA-001"
+    assert packet.consequence_obligations[0].affected_objects == ["team", "worker"]
+    assert packet.consequence_obligations[0].recovery_validation_refs == ["pytest tests/unit/test_auth_service.py -q"]
 
 
 def test_compile_worker_task_packet_accepts_materialized_task_input(
