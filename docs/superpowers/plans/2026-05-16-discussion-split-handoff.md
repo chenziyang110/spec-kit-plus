@@ -199,8 +199,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "split-plan.md" in command_content
     assert "handoffs/CAND-001-handoff-to-specify.md" in command_content
     assert "handoffs/CAND-001-handoff-to-specify.json" in command_content
-    assert "handoff-to-specify.md" in command_content
-    assert "handoff-to-specify.json" in command_content
+    assert "`handoff-to-specify.md`" in command_content
+    assert "`handoff-to-specify.json`" in command_content
     assert (
         "explicit user" in command_lower
         or "user explicitly" in command_lower
@@ -227,8 +227,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "split-plan.md" in command_content
     assert "handoffs/CAND-001-handoff-to-specify.md" in command_content
     assert "handoffs/CAND-001-handoff-to-specify.json" in command_content
-    assert "handoff-to-specify.md" in command_content
-    assert "handoff-to-specify.json" in command_content
+    assert "`handoff-to-specify.md`" in command_content
+    assert "`handoff-to-specify.json`" in command_content
     assert (
         "explicit user" in command_lower
         or "user explicitly" in command_lower
@@ -255,8 +255,8 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "split-plan.md" in skill_content
     assert "handoffs/CAND-001-handoff-to-specify.md" in skill_content
     assert "handoffs/CAND-001-handoff-to-specify.json" in skill_content
-    assert "handoff-to-specify.md" in skill_content
-    assert "handoff-to-specify.json" in skill_content
+    assert "`handoff-to-specify.md`" in skill_content
+    assert "`handoff-to-specify.json`" in skill_content
     assert (
         "explicit user" in skill_lower
         or "user explicitly" in skill_lower
