@@ -382,7 +382,7 @@ def test_discussion_command_supports_handoff_assessment_and_split_backlog() -> N
     assert "split-plan.md" in content
     assert "handoffs/CAND-001-handoff-to-specify.md" in content
     assert "handoffs/CAND-001-handoff-to-specify.json" in content
-    assert "handoff-to-specify.json" in content
+    assert "`handoff-to-specify.json`" in content
     assert "ready-for-specify" in content
     assert "split-required" in content
     assert "continue-discussion" in content
@@ -401,8 +401,8 @@ def test_discussion_shell_partial_mentions_split_outputs_without_single_handoff_
     assert "handoff-assessment.md" in content
     assert "split-plan.md" in content
     assert "handoffs/CAND-001-handoff-to-specify.md" in content
-    assert "handoff-to-specify.md" in content
-    assert "handoff-to-specify.json" in content
+    assert "`handoff-to-specify.md`" in content
+    assert "`handoff-to-specify.json`" in content
     assert "candidate backlog" in lowered
     assert "latest selected candidate copy" in lowered
     assert "not the only handoff output" in lowered
