@@ -12,11 +12,24 @@
 
 ## Fixed Lifecycle State
 
-- current_stage: [facts-lock | route-lock | intent-lock | complexity-lock | intent-analysis | intent-confirmation | question-batch | batch-adversarial-review | completeness-audit | final-handoff-decision]
+- current_stage: [intake | evidence-intake | facts-lock | route-lock | intent-lock | complexity-lock | domain-clarification | consequence-risk | specify-compile | release-decision | plan-design | task-generation | analysis | implementation | research]
 - current_domain: [goal-and-users | triggers-and-primary-flow | boundaries-and-non-goals | failure-paths-exceptions-and-permissions | dependencies-constraints-and-upstream-downstream-impact | acceptance-and-completeness-gap-closure | none]
 - next_action: [Smallest next discovery action to take]
 - blocker_reason: [None | Why progress is blocked or why a domain was reopened]
 - final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
+
+## Lossless Resume State
+
+- journal_file: [brainstorming/journal.ndjson | none]
+- stage_manifest: [brainstorming/stage-manifest.json | none]
+- last_event_id: [EVT-###### | none]
+- last_checkpoint_id: [EVT-###### | none]
+- resume_validation: [not-run | valid | repaired-from-journal | blocked]
+
+## Legacy Fixed-Heavy Compatibility Labels
+
+- compatibility_stage_aliases: [intent-analysis | intent-confirmation | question-batch | batch-adversarial-review | completeness-audit | final-handoff-decision]
+- compatibility_note: [Use only as draft-ledger or historical labels; canonical resume uses current_stage and the Lossless Resume State fields above.]
 
 ## Brainstorming Locks
 

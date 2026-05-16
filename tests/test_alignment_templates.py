@@ -802,13 +802,17 @@ def test_specify_template_uses_alignment_first_contract():
     assert "edge case or failure-path behavior" in content
     assert "compatibility, migration, or neighboring-workflow impact" in content
     assert "fixed heavy discovery lifecycle" in lowered
-    assert "always execute these six stages in order" in lowered
-    assert "intent-analysis" in content
-    assert "intent-confirmation" in content
-    assert "question-batch" in content
-    assert "batch-adversarial-review" in content
-    assert "completeness-audit" in content
-    assert "final-handoff-decision" in content
+    assert "always execute these ten canonical `sp-specify` stages in order" in lowered
+    assert "release-decision" in content
+    assert (
+        "The previous fixed heavy discovery lifecycle terms (`intent-analysis`, `intent-confirmation`, "
+        "`question-batch`, `batch-adversarial-review`, `completeness-audit`) may appear only as "
+        "compatibility labels inside the draft ledger"
+    ) in content
+    assert (
+        'Legacy compatibility wording may still describe the old fixed-heavy narrative as "always execute '
+        'these six stages in order"; treat that phrase as a historical label set'
+    ) in content
     assert "intent-analyst" in content
     assert "adversarial-reviewer" in content
     assert "completeness-auditor" in content
@@ -818,7 +822,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "failure-paths-exceptions-and-permissions" in content
     assert "dependencies-constraints-and-upstream-downstream-impact" in content
     assert "acceptance-and-completeness-gap-closure" in content
-    assert "Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in content
+    assert "Only `release-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in content
+    assert "Legacy compatibility wording: Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in content
     assert "## Scenario Profile Routing" not in content
     assert "active_profile" not in content
     assert "coverage_mode" not in content
@@ -1377,9 +1382,12 @@ def test_workflow_state_template_supports_analyze_gate_phase():
     lowered = content.lower()
 
     assert "fixed lifecycle state" in lowered
-    assert "intent-analysis" in content
-    assert "question-batch" in content
-    assert "final-handoff-decision" in content
+    assert "release-decision" in content
+    assert "## Legacy Fixed-Heavy Compatibility Labels" in content
+    assert (
+        "compatibility_stage_aliases: [intent-analysis | intent-confirmation | question-batch | "
+        "batch-adversarial-review | completeness-audit | final-handoff-decision]"
+    ) in content
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
@@ -1571,7 +1579,8 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
 
     assert "label: Prove Feasibility Before Plan" in specify
     assert "agent: sp.deep-research" in specify
-    assert "Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in specify
+    assert "Only `release-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in specify
+    assert "Legacy compatibility wording: Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in specify
     assert "Use `/sp.deep-research` when the requirements are clear enough but a planning-critical implementation chain still needs external proof or a disposable demo." in specify
     assert "Feasibility Evidence From Deep Research" in plan
     assert "Planning Handoff From Deep Research" in plan
@@ -1726,12 +1735,12 @@ def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     assert "next_action:" in content
     assert "blocker_reason:" in content
     assert "final_handoff_decision:" in content
-    assert "intent-analysis" in content
-    assert "intent-confirmation" in content
-    assert "question-batch" in content
-    assert "batch-adversarial-review" in content
-    assert "completeness-audit" in content
-    assert "final-handoff-decision" in content
+    assert "release-decision" in content
+    assert "## Legacy Fixed-Heavy Compatibility Labels" in content
+    assert (
+        "compatibility_stage_aliases: [intent-analysis | intent-confirmation | question-batch | "
+        "batch-adversarial-review | completeness-audit | final-handoff-decision]"
+    ) in content
     assert "goal-and-users" in content
     assert "acceptance-and-completeness-gap-closure" in content
     assert "/sp.plan" in content
@@ -2692,6 +2701,64 @@ def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     assert "release_blockers" in observer_prompt
 
 
+def test_specify_template_requires_lossless_journal_stage_manifest_and_checkpoints() -> None:
+    specify = _read("templates/commands/specify.md")
+    shell = _read("templates/command-partials/specify/shell.md")
+    workflow_state = _read("templates/workflow-state-template.md")
+    draft = _read("templates/specify-draft-template.md")
+
+    combined = "\n".join([specify, shell, workflow_state, draft])
+    for expected in (
+        "brainstorming/journal.ndjson",
+        "brainstorming/stage-manifest.json",
+        "brainstorming/domains.json",
+        "brainstorming/evidence-index.json",
+        "checkpoint_written",
+        "compiled_from",
+        "last_checkpoint_id",
+        "last_event_id",
+        "journal replay wins",
+        "Markdown is not a trusted recovery source",
+    ):
+        assert expected in combined
+
+    assert (
+        "Create or resume `BRAINSTORMING_JOURNAL_FILE` and `BRAINSTORMING_STAGE_MANIFEST_FILE` "
+        "immediately after `FEATURE_DIR` is known"
+    ) in shell
+    assert "before relying on workflow-state, draft Markdown, or chat history" in shell
+
+    assert "20. Apply `release-decision`." in specify
+    assert "20. Apply `final-handoff-decision`." not in specify
+    assert "until `release-decision` determines the appropriate next command" in specify
+    assert "until `final-handoff-decision` determines the appropriate next command" not in specify
+    assert "final_handoff_decision: undecided" in specify
+    assert (
+        "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]"
+        in workflow_state
+    )
+    assert "final_handoff_decision: pending" not in specify
+    assert "Legacy compatibility wording: Only `final-handoff-decision`" in specify
+    assert (
+        "final-handoff-decision` determines the appropriate next command" not in specify
+    )
+
+    for stage in (
+        "intake",
+        "evidence-intake",
+        "facts-lock",
+        "route-lock",
+        "intent-lock",
+        "complexity-lock",
+        "domain-clarification",
+        "consequence-risk",
+        "specify-compile",
+        "release-decision",
+    ):
+        assert stage in workflow_state
+        assert stage in specify
+
+
 def test_specify_template_requires_brainstorming_lock_flow_and_handoff_chain() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
@@ -2869,12 +2936,17 @@ def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> No
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert "intent-analysis" in content
-    assert "intent-confirmation" in content
-    assert "question-batch" in content
-    assert "batch-adversarial-review" in content
-    assert "completeness-audit" in content
-    assert "final-handoff-decision" in content
+    assert "release-decision" in content
+    assert (
+        "The previous fixed heavy discovery lifecycle terms (`intent-analysis`, `intent-confirmation`, "
+        "`question-batch`, `batch-adversarial-review`, `completeness-audit`) may appear only as "
+        "compatibility labels inside the draft ledger"
+    ) in content
+    assert "Legacy compatibility wording: Only `final-handoff-decision`" in content
+    assert (
+        'Legacy compatibility wording may still describe the old fixed-heavy narrative as "always execute '
+        'these six stages in order"; treat that phrase as a historical label set'
+    ) in content
 
     assert "intent-analyst" in content
     assert "adversarial-reviewer" in content

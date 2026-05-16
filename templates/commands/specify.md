@@ -3,8 +3,8 @@ description: Use when a new or changed feature request needs guided requirement 
 workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
   primary_objective: 'Produce a planning-ready specification package grounded in repository reality by first locking the deterministic brainstorming truth layer and then compiling the final specification artifact set.'
-  primary_outputs: '`FEATURE_DIR/brainstorming/facts.json`, `FEATURE_DIR/brainstorming/route.json`, `FEATURE_DIR/brainstorming/intent.json`, `FEATURE_DIR/brainstorming/complexity.json`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/specify-draft.md`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
-  default_handoff: '`final-handoff-decision` chooses `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` after facts-lock, route-lock, intent-lock, complexity-lock, and the compiled specification package complete cleanly.'
+  primary_outputs: '`FEATURE_DIR/brainstorming/journal.ndjson`, `FEATURE_DIR/brainstorming/stage-manifest.json`, `FEATURE_DIR/brainstorming/domains.json`, `FEATURE_DIR/brainstorming/evidence-index.json`, `FEATURE_DIR/brainstorming/facts.json`, `FEATURE_DIR/brainstorming/route.json`, `FEATURE_DIR/brainstorming/intent.json`, `FEATURE_DIR/brainstorming/complexity.json`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/specify-draft.md`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
+  default_handoff: '`release-decision` chooses `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` after facts-lock, route-lock, intent-lock, complexity-lock, and the compiled specification package complete cleanly.'
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -80,6 +80,10 @@ Use the returned readiness:
 - [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
 - Read `templates/workflow-state-template.md`.
 - Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth on resume after compaction for the current command, allowed artifact writes, forbidden actions, authoritative files, next action, and exit criteria.
+- Markdown is not a trusted recovery source; JSON stage artifacts plus `brainstorming/journal.ndjson` are the trusted recovery and compile contract.
+- [AGENT] Create or resume `BRAINSTORMING_JOURNAL_FILE` and `BRAINSTORMING_STAGE_MANIFEST_FILE` immediately after `FEATURE_DIR` is known, before relying on `WORKFLOW_STATE_FILE`, `SPECIFY_DRAFT_FILE`, or chat history.
+- On resume, replay `brainstorming/journal.ndjson`, reconcile `brainstorming/stage-manifest.json`, and validate every compiled stage artifact against the manifest before continuing.
+- If journal replay and a compiled stage artifact disagree, journal replay wins and the stage artifact must be regenerated before continuing.
 - Write `active_command` and `status` under `## Current Command`.
 - Write `phase_mode` and `summary` under `## Phase Mode`.
 - Write only lifecycle progression fields under `## Fixed Lifecycle State`, preserving the lock state for the brainstorming kernel.
@@ -87,28 +91,45 @@ Use the returned readiness:
   - `active_command: sp-specify`
   - `status: active`
   - `phase_mode: planning-only`
-  - `current_stage: facts-lock`
+  - `current_stage: intake`
   - `current_domain: none`
-
-  - `current_domain: request-truth`
+  - `journal_file: brainstorming/journal.ndjson`
+  - `stage_manifest: brainstorming/stage-manifest.json`
+  - `last_event_id`
+  - `last_checkpoint_id`
+  - `resume_validation`
   - `next_action`
   - `blocker_reason`
-  - `final_handoff_decision: pending`
+  - `final_handoff_decision: undecided`
   - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
 - Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+- When resuming after compaction, re-read `WORKFLOW_STATE_FILE`, replay `BRAINSTORMING_JOURNAL_FILE`, and trust the replayed JSON state over Markdown summaries before proceeding.
 - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
 ## Brainstorming Kernel
 
 - `sp-specify` is the public entry shell and must begin with the internal
   brainstorming kernel.
-- The kernel progresses through these deterministic locks in order:
-  1. `facts-lock`
-  2. `route-lock`
-  3. `intent-lock`
-  4. `complexity-lock`
-- Persist each lock result before progressing.
+- The kernel progresses through these deterministic stages in order:
+  1. `intake`
+  2. `evidence-intake`
+  3. `facts-lock`
+  4. `route-lock`
+  5. `intent-lock`
+  6. `complexity-lock`
+  7. `domain-clarification`
+  8. `consequence-risk`
+  9. `specify-compile`
+  10. `release-decision`
+- Persist each stage result before progressing.
+- Append one event to `brainstorming/journal.ndjson` for every user input, evidence intake, question, answer, decision, reopen, artifact compilation, and checkpoint.
+- Keep `brainstorming/stage-manifest.json` current with each stage artifact path, event range, last compiled event, artifact hash when available, `last_event_id`, and `last_checkpoint_id`.
+- Write a `checkpoint_written` event before every compaction-risk transition, before dispatching or waiting on a subagent, before asking the user to resume later, and before moving from `domain-clarification` to `consequence-risk`, `specify-compile`, or `release-decision`.
+- Treat `checkpoint_written.event_id` as `last_checkpoint_id` in both `brainstorming/stage-manifest.json` and `workflow-state.md`.
+- Validate stage artifacts against `brainstorming/stage-manifest.json`; a stage cannot close until its artifact exists, its event range is recorded, and its last compiled event matches the replayed journal state.
+- Journal replay wins over stale stage artifacts, compiled Markdown, and chat history.
+- Compile final artifacts only from structured stage artifacts plus cited journal and evidence events; every stage artifact that feeds compilation must record `compiled_from`.
 - If a conclusion is not written to the relevant truth file, it is not a valid
   workflow conclusion.
 - Conversation memory is not a valid handoff surface.
@@ -216,9 +237,16 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Set `BRAINSTORMING_ROUTE_FILE` to `FEATURE_DIR/brainstorming/route.json`.
    - Set `BRAINSTORMING_INTENT_FILE` to `FEATURE_DIR/brainstorming/intent.json`.
    - Set `BRAINSTORMING_COMPLEXITY_FILE` to `FEATURE_DIR/brainstorming/complexity.json`.
+   - Set `BRAINSTORMING_JOURNAL_FILE` to `FEATURE_DIR/brainstorming/journal.ndjson`.
+   - Set `BRAINSTORMING_STAGE_MANIFEST_FILE` to `FEATURE_DIR/brainstorming/stage-manifest.json`.
+   - Set `BRAINSTORMING_DOMAINS_FILE` to `FEATURE_DIR/brainstorming/domains.json`.
+   - Set `BRAINSTORMING_EVIDENCE_INDEX_FILE` to `FEATURE_DIR/brainstorming/evidence-index.json`.
+   - Set `BRAINSTORMING_EVIDENCE_DIR` to `FEATURE_DIR/brainstorming/evidence`.
    - Set `HANDOFF_TO_SPECIFY_FILE` to `FEATURE_DIR/brainstorming/handoff-to-specify.json`.
    - Register or refresh the lane immediately with `{{specify-subcmd:lane register --lane-id "$LANE_ID" --feature-dir "$FEATURE_DIR" --branch "$BRANCH_NAME" --worktree "$LANE_WORKTREE" --command specify}}`.
    - [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
+   - [AGENT] Create or resume `BRAINSTORMING_JOURNAL_FILE` and `BRAINSTORMING_STAGE_MANIFEST_FILE` immediately after `FEATURE_DIR` is known.
+   - On resume, replay `BRAINSTORMING_JOURNAL_FILE`; if replay and any compiled stage artifact disagree, journal replay wins and the stage artifact must be regenerated before continuing.
    - Read `templates/workflow-state-template.md`.
    - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
    - Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth for `sp-specify`.
@@ -230,21 +258,29 @@ Generate the pre-analysis output as the first section of `context.md`.
      - `active_command: sp-specify`
      - `status: active`
      - `phase_mode: planning-only`
-     - `current_stage: facts-lock`
+     - `current_stage: intake`
      - `current_domain: none`
-
-     - `current_domain: request-truth`
+     - `journal_file: brainstorming/journal.ndjson`
+     - `stage_manifest: brainstorming/stage-manifest.json`
+     - `last_event_id`
+     - `last_checkpoint_id`
+     - `resume_validation`
      - `next_action`
      - `blocker_reason`
-     - `final_handoff_decision: pending`
-     - `allowed_artifact_writes: brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
+     - `final_handoff_decision: undecided`
+     - `allowed_artifact_writes: brainstorming/journal.ndjson, brainstorming/stage-manifest.json, brainstorming/domains.json, brainstorming/evidence-index.json, brainstorming/evidence/*.json, brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
-     - `authoritative_files: brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md`
+     - `authoritative_files: brainstorming/journal.ndjson, brainstorming/stage-manifest.json, brainstorming/domains.json, brainstorming/evidence-index.json, brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+   - When resuming after compaction, re-read `WORKFLOW_STATE_FILE`, replay `BRAINSTORMING_JOURNAL_FILE`, validate `BRAINSTORMING_STAGE_MANIFEST_FILE`, and continue from the replayed JSON stage state.
    - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
 4. Create or resume the brainstorming truth layer.
    - Read or create:
+     - `FEATURE_DIR/brainstorming/journal.ndjson`
+     - `FEATURE_DIR/brainstorming/stage-manifest.json`
+     - `FEATURE_DIR/brainstorming/domains.json`
+     - `FEATURE_DIR/brainstorming/evidence-index.json`
      - `FEATURE_DIR/brainstorming/facts.json`
      - `FEATURE_DIR/brainstorming/route.json`
      - `FEATURE_DIR/brainstorming/intent.json`
@@ -252,6 +288,10 @@ Generate the pre-analysis output as the first section of `context.md`.
      - `FEATURE_DIR/brainstorming/handoff-to-specify.json`
    - Treat these files as the authoritative truth layer for lock-state
      progression before the final specification package is compiled.
+   - Append a journal event for the initial user request and any resumed user input before deriving facts, route, intent, or complexity.
+   - Record evidence reads in `brainstorming/evidence-index.json` and cite their event or evidence IDs from the relevant stage artifact.
+   - Validate `brainstorming/domains.json`, `facts.json`, `route.json`, `intent.json`, `complexity.json`, and `handoff-to-specify.json` against `brainstorming/stage-manifest.json` before treating a stage as closed.
+   - Write a `checkpoint_written` event after the truth layer is created or repaired; copy that `checkpoint_written.event_id` into `last_checkpoint_id`.
 
 5. Ensure project cognition runtime exists and record planning advisory state.
    - Check whether `.specify/project-cognition/status.json` exists.
@@ -308,22 +348,39 @@ Generate the pre-analysis output as the first section of `context.md`.
 ## Brainstorming Kernel Lock Flow
 - Treat `SPECIFY_DRAFT_FILE` as the human-readable companion ledger for the whole discovery run, but treat the JSON files under `FEATURE_DIR/brainstorming/` as the authoritative truth layer.
 - `sp-specify` is the public entry shell; internally it must complete the brainstorming kernel before writing or releasing the compiled specification package.
-- Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
-- Always execute these six stages in order:
-  1. `facts-lock`
-  2. `route-lock`
-  3. `intent-lock`
-  4. `complexity-lock`
-  5. `compile-to-specify`
-  6. `final-handoff-decision`
+- Only `release-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+- Legacy compatibility wording: Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`. In the lossless stage manifest, this maps to `release-decision`.
+- Always execute these ten canonical `sp-specify` stages in order:
+  1. `intake`
+  2. `evidence-intake`
+  3. `facts-lock`
+  4. `route-lock`
+  5. `intent-lock`
+  6. `complexity-lock`
+  7. `domain-clarification`
+  8. `consequence-risk`
+  9. `specify-compile`
+  10. `release-decision`
 - Lock the truth layer first, then compile the familiar specification package.
 - The previous fixed heavy discovery lifecycle terms (`intent-analysis`, `intent-confirmation`, `question-batch`, `batch-adversarial-review`, `completeness-audit`) may appear only as compatibility labels inside the draft ledger; the deterministic lock state is authoritative.
+- Legacy compatibility wording may still describe the old fixed-heavy narrative as "always execute these six stages in order"; treat that phrase as a historical label set, not the canonical `stage-manifest.json` enum.
 - Persist every lock update immediately:
+  - `intake` writes `workflow-state.md` and appends the initial user input event to `brainstorming/journal.ndjson`.
+  - `evidence-intake` writes `brainstorming/evidence-index.json` and any `brainstorming/evidence/EVD-*.json` records.
   - `facts-lock` writes `brainstorming/facts.json`.
   - `route-lock` writes `brainstorming/route.json`.
   - `intent-lock` writes `brainstorming/intent.json`.
   - `complexity-lock` writes `brainstorming/complexity.json`.
-  - `compile-to-specify` writes `brainstorming/handoff-to-specify.json` before `spec.md`, `alignment.md`, `context.md`, or `references.md` are treated as release candidates.
+  - `domain-clarification` writes `brainstorming/domains.json`.
+  - `consequence-risk` writes consequence obligations to `brainstorming/handoff-to-specify.json`.
+  - `specify-compile` writes `brainstorming/handoff-to-specify.json` before `spec.md`, `alignment.md`, `context.md`, or `references.md` are treated as release candidates.
+  - `release-decision` writes the final decision to `workflow-state.md`.
+- Every stage update must append an event to `brainstorming/journal.ndjson`, update `brainstorming/stage-manifest.json`, and refresh `last_event_id`.
+- Before a compaction-risk transition, write a `checkpoint_written` event, set `last_checkpoint_id` to `checkpoint_written.event_id`, and mirror that value into `workflow-state.md`.
+- Validate each stage artifact against `brainstorming/stage-manifest.json` before progressing to the next stage.
+- If the journal replay produces a different stage state than the compiled artifact, journal replay wins and the artifact must be regenerated before continuing.
+- Final `spec.md`, `alignment.md`, `context.md`, and `references.md` must be compiled from `brainstorming/facts.json`, `brainstorming/route.json`, `brainstorming/intent.json`, `brainstorming/complexity.json`, `brainstorming/domains.json`, `brainstorming/evidence-index.json`, and `brainstorming/handoff-to-specify.json` plus cited event IDs from `brainstorming/journal.ndjson`.
+- Each compiled structured stage artifact must include or preserve `compiled_from` metadata naming the source journal range, key events, evidence IDs, and input artifacts.
 - Use only these three bounded subagent roles for this command when the runtime supports them:
   - `intent-analyst`
   - `adversarial-reviewer`
@@ -352,8 +409,8 @@ Generate the pre-analysis output as the first section of `context.md`.
 - Soft unknowns may pass only when `handoff-to-specify.json`, `alignment.md`, and `context.md` name the owner, risk, latest resolve phase, and stop-and-reopen condition.
 - Reopen upstream truth instead of silently mutating compiled artifacts when later evidence contradicts a lock.
 - The compiled artifacts are projections of the lock truth. Conversation memory is not a valid handoff surface.
-- Compile the locked truth layer into `spec.md`, `alignment.md`, `context.md`, and `references.md` only after the required hard unknowns are resolved.
-- Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+- Compile the locked truth layer into `spec.md`, `alignment.md`, `context.md`, and `references.md` only after the required hard unknowns are resolved and the stage manifest validates the contributing artifacts.
+- Only `release-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 
 ## Adversarial Review Contract
 
@@ -364,6 +421,8 @@ Generate the pre-analysis output as the first section of `context.md`.
 ## Brainstorming Lock State
 
 - Preserve one deterministic lock flow for all `sp-specify` runs and persist lock state through `current_stage`, `current_domain`, `next_action`, `blocker_reason`, and `final_handoff_decision`.
+- Preserve lossless resume state through `journal_file`, `stage_manifest`, `last_event_id`, `last_checkpoint_id`, and `resume_validation`.
+- `last_checkpoint_id` must always equal the most recent `checkpoint_written.event_id`; if no checkpoint exists yet, create one before any compaction-risk transition.
 
 6. Run a codebase scout before clarification.
    - Treat the project cognition runtime as the default scout artifact for understanding the existing system shape.
@@ -532,7 +591,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - Treat deep research as the research-to-plan proof path when feasibility evidence is required: its `deep-research.md` must preserve findings, demo evidence, rejected options, constraints, and a `Planning Handoff` that `/sp.plan` can consume.
     - Do not require deep research for minor adjustments to capabilities that already exist in the project and have a clear implementation path.
     - Record feasibility status in `alignment.md` as `Not needed`, `Needed before plan`, `Completed`, or `Blocked`.
-    - If the issue is actually requirement ambiguity rather than implementation proof, keep resolving it inside `sp-specify` until `final-handoff-decision` determines the appropriate next command.
+    - If the issue is actually requirement ambiguity rather than implementation proof, keep resolving it inside `sp-specify` until `release-decision` determines the appropriate next command.
 
 19d. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
@@ -665,7 +724,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - Do not turn this into a freeform brainstorming workflow.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
 
-20. Apply `final-handoff-decision`.
+20. Apply `release-decision`.
     - Before releasing `Aligned: ready for plan`, provide a grouped recap that covers goal, users and roles, scope boundaries, locked decisions, technical constraints or assumptions, and outstanding questions.
     - Explicitly ask the user to confirm or correct the current understanding before the final handoff decision is locked.
     - Treat this as an explicit pre-release check rather than a courtesy recap.

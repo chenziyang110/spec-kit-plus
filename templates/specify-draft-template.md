@@ -51,6 +51,13 @@
 - planning_readiness_summary: [Why the package is or is not ready to leave discovery]
 - handoff_candidate: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
 
+## Lossless State Companion
+
+- Trusted recovery source: JSON stage artifacts plus `brainstorming/journal.ndjson`
+- Human-readable companion: this file
+- Markdown is not a trusted recovery source.
+- If this file disagrees with structured stage artifacts, regenerate or repair this file from the structured state.
+
 ## Facts Lock Notes
 
 - [field]: [current evidence-backed state]
