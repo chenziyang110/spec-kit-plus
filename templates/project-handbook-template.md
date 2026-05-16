@@ -21,6 +21,12 @@ and what sits clearly outside the system boundary.]
 - [List the highest-value capabilities a newcomer should understand first.]
 - [For each capability, state why it matters and which topical file should be
   read next.]
+- **Lossless `sp-specify` state**: `sp-specify` is lossless-state backed for
+  new feature packages. The trusted recovery source is
+  `brainstorming/journal.ndjson` plus JSON stage artifacts indexed by
+  `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
+  Final artifacts carry `compiled_from` / source-map references so
+  planning can trace major claims to event IDs or evidence IDs.
 - **Pre-spec discussion**: `sp-discussion` stores resumable product/technical
   discussions under `.specify/discussions/<slug>/`, produces technical options
   and requirements drafts, and only hands off after explicit user request.
