@@ -20,6 +20,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/specify/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 {{spec-kit-include: ../command-partials/common/subagent-execution.md}}
 
 
@@ -140,6 +142,16 @@ If the user invokes `sp-specify` with an explicit path to `.specify/discussions/
 - Cite the discussion handoff and relevant `project-context.md` evidence in `references.md` or `context.md`.
 - Do not re-ask settled discussion questions unless repository evidence, constitution rules, or user correction contradicts the handoff.
 - If a settled discussion conclusion is reopened, record the reopen reason before changing the derived spec package.
+
+## Consequence Completeness Gate
+
+Before releasing the specification package as planning-ready, verify that consequence-sensitive semantics are complete enough for `sp-plan`.
+
+- Consume any Senior Maintainer Review, `handoff-to-specify.md`, `handoff-to-specify.json`, selected candidate handoff, `CAND-001-handoff-to-specify.md`, or `CAND-001-handoff-to-specify.json` consequence obligations from `sp-discussion`.
+- If the Senior Consequence Analysis Gate triggers during `sp-specify`, write the Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery And Validation Contract, Coverage Gaps, and `CA-###` consequence obligations into `spec.md`, `alignment.md`, `context.md`, `references.md`, or `brainstorming/handoff-to-specify.json` according to each artifact's role.
+- Resolve or explicitly carry every lifecycle, running-state, destructive-operation, shared-state, downstream-consumer, compatibility, or security behavior choice.
+- `Aligned: ready for plan` is forbidden while any triggered consequence obligation lacks an owner, latest resolve phase, validation expectation, or stop-and-reopen condition.
+- If project cognition coverage gaps prevent consequence completeness, record them as planning-critical gaps and route to `{{invoke:clarify}}` or `{{invoke:deep-research}}` instead of releasing to `{{invoke:plan}}`.
 
 ## Outline
 

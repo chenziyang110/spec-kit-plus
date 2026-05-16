@@ -9,6 +9,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/discussion/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Role
 
 You are a senior technical expert and senior product manager working with the user to shape an idea before formal specification.
@@ -41,6 +43,7 @@ Required files:
 - `project-context.md`
 - `open-questions.md`
 - `handoff-to-specify.md` only after explicit user request
+- `handoff-to-specify.json` when the Senior Consequence Analysis Gate triggers and the user requests handoff
 
 Use `templates/discussion-state-template.md` when initializing `discussion-state.md`.
 
@@ -111,6 +114,29 @@ When implementation strategy affects the requirement, present 2-3 options before
 
 For each option, include product behavior enabled, impacted modules or files, complexity, migration or compatibility concerns, testing strategy, risks, rollback or de-scope path, and recommendation rationale.
 
+## Senior Maintainer Review
+
+Run the Senior Consequence Analysis Gate before technical options are finalized and again before marking the discussion `handoff-ready`. Consequence analysis must shape the option set, not merely review a selected option after the fact.
+
+Before any final option selection or `sp-specify` handoff, perform a maintainer-level consequence review of the selected product direction and any competing candidate option that could change lifecycle, running-state, destructive, shared-state, compatibility, or downstream consumer behavior.
+
+- Apply the Senior Consequence Analysis Gate before writing `handoff-to-specify.md`.
+- When the gate triggers, preserve the Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery And Validation Contract, Coverage Gaps, and `CA-###` consequence obligation IDs in the discussion artifacts.
+- Route consequence findings into discussion artifacts:
+  - `requirements.md`: user-visible state rules, scope, non-goals, acceptance signals, and open behavior choices.
+  - `technical-options.md`: 2-3 concrete handling strategies and trade-offs shaped by the consequence analysis.
+  - `project-context.md`: project cognition facts, returned `minimal_live_reads`, inference notes, and coverage gaps.
+  - `open-questions.md`: only decisions materially changing behavior, implementation shape, or validation.
+  - `handoff-to-specify.md`: human-readable `CA-###` obligations.
+  - `handoff-to-specify.json`: machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions.
+- If multiple candidate directions are still viable, write candidate handoffs such as `handoffs/CAND-001-handoff-to-specify.md` and `handoffs/CAND-001-handoff-to-specify.json` only when the user requests candidate handoff material; each candidate must carry its own consequence obligations.
+- When split mode selects a bounded candidate, write the selected candidate handoff at canonical paths such as `handoffs/CAND-001-handoff-to-specify.md` and `handoffs/CAND-001-handoff-to-specify.json` with the same consequence gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions.
+- The selected candidate handoff includes only consequence obligations that shape that candidate plus dependency, non-goal, or deferred-sibling obligations needed to prevent scope drift.
+- The selected candidate handoff must identify which candidate won, which consequence obligations survive, and which rejected candidate risks no longer apply.
+- Markdown and JSON handoffs must agree on triggered gate status, selected candidate handoff, obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition.
+- must not mark the discussion `handoff-ready` while triggered consequence obligations are missing from either Markdown or JSON handoff content.
+- Must not mark the discussion `handoff-ready` when the gate triggers and no concrete Affected Object Map, State-Behavior Matrix, Dependency Impact Table, or Recovery And Validation Contract exists.
+
 ## Handoff To sp-specify
 
 Handoff is explicit-user-request only.
@@ -123,7 +149,10 @@ When requested, write or refresh `handoff-to-specify.md` with:
 - confirmed scenarios and acceptance signals
 - selected or still-open technical direction
 - project-context evidence and inference notes
+- Senior Maintainer Review outcome, selected candidate handoff when relevant, and all `CA-###` consequence obligation IDs
 - unresolved questions with blocking levels
 - instructions for `sp-specify` about settled decisions and remaining decisions
+
+When the Senior Consequence Analysis Gate triggers, also write or refresh `handoff-to-specify.json` as a mandatory machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions. Markdown and JSON handoffs must agree on obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition before the discussion can become `handoff-ready`.
 
 After writing the handoff, tell the user to invoke the generated integration's `sp-specify` command form with the handoff path. Do not invoke it yourself.

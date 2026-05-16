@@ -9,6 +9,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/fast/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Execution Mode
 
 {{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}
@@ -31,9 +33,18 @@ Use `sp-fast` only when ALL of:
 If any check fails → upgrade to `/sp-quick`.
 If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
 
+## Fast Path Consequence Routing
+
+The fast path may continue only when the Senior Consequence Analysis Gate does not trigger, or when it stands down with a recorded stand-down reason. If the gate triggers, upgrade out of `sp-fast` instead of adding planning artifacts to satisfy this gate on the fast path.
+
+- Upgrade to `/sp-quick` immediately if the gate triggers with a bounded consequence model.
+- Triggered gate with product, lifecycle, running-state, destructive-operation, shared-state, downstream-consumer, compatibility, security, or multiple-behavior semantics → route to `/sp-specify`.
+- Stood-down or non-triggered gate → continue in `sp-fast` only after recording the stand-down reason in the fast-path closeout.
+
 ## Upgrade Triggers
 
 Upgrade to `/sp-quick` immediately if:
+- The Senior Consequence Analysis Gate triggers and the consequence model is bounded enough for lightweight tracking.
 - The work expands to more than 3 files.
 - The change touches a shared surface such as a router table, registration file, export barrel, template registry, or other coordination point.
 - The project cognition runtime or change slice shows the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make safe direct execution unavailable.
@@ -43,6 +54,7 @@ Upgrade to `/sp-quick` immediately if:
 - The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a truly local repair. In that case, route to `/sp-debug`.
 
 Upgrade to `/sp-specify` immediately if:
+- The Senior Consequence Analysis Gate triggers for lifecycle, running-state, shared-state, destructive-operation, downstream consumer impact, broad compatibility handling, security, or multiple plausible behavior choices that need product semantics.
 - The request introduces a new workflow, role boundary, or user-visible behavior that needs explicit acceptance criteria.
 - The change carries compatibility, migration, rollout, or neighboring-workflow risk.
 - The request is still a testing-system program from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` instead of a tiny local repair.
@@ -94,6 +106,8 @@ Fast path does not load the full passive learning layer.
    - If `.specify/testing/TESTING_PLAYBOOK.md` defines command-tier expectations for `fast smoke`, `focused`, and `full`, use fast smoke only as the cheapest early signal, run the focused tier as the fast-lane acceptance check, and reserve full for broader regression or final verification.
    - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
    - Keep the change as small and local as possible.
+   - If the Senior Consequence Analysis Gate stands down, record the stand-down reason before continuing in `sp-fast`.
+   - Do not add planning artifacts to satisfy this gate on the fast path. If required consequence outputs are needed, upgrade instead of manufacturing durable artifacts in `sp-fast`.
 
 4. **Verify**
    - If playbook command tiers exist, focused is the fast-lane acceptance check.

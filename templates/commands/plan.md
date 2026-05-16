@@ -23,6 +23,8 @@ agent_scripts:
 
 {{spec-kit-include: ../command-partials/plan/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 {{spec-kit-include: ../command-partials/common/subagent-execution.md}}
 
 
@@ -128,6 +130,17 @@ agent_scripts:
 - If the active profile is `Reference-Implementation`, add `Profile-Driven Implementation Constraints` to the generated plan and promote fidelity-preservation rules, reference-object constraints, and required evidence into `Implementation Constitution`.
 - If the active profile is `Standard Delivery`, keep the standard planning artifact contract and only add profile-driven constraints when `workflow-state.md` explicitly records them.
 - If `workflow-state.md` presents any other `active_profile` in first release, stop and tell the operator to repair or re-run upstream scenario profile routing state before planning; do not silently reinterpret unsupported profiles as a new planning mode.
+
+## Operational Consequence Design
+
+Before `sp-tasks`, convert every triggered `CA-###` consequence obligation into concrete operational design.
+
+- Preserve the upstream Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery And Validation Contract, and Coverage Gaps from `spec.md`, `alignment.md`, `context.md`, `references.md`, and machine-readable handoffs.
+- For each implementation-shaping `CA-###` obligation, define the operational state machine, ordering, locking or lease behavior, idempotency, concurrency hazards, recovery path, observability, rollout or migration notes, and verification strategy.
+- Name behavior for running-state objects explicitly: drain, cancel, force, wait, retry, resume, ignore late result, or preserve until a later lifecycle event.
+- Map every dependency impact to plan sections, design artifacts, contracts, data model notes, quickstart validation, or explicit deferrals with stop-and-reopen conditions.
+- Ensure `plan-contract.json` carries the same `CA-###` obligations, operational decisions, unresolved coverage gaps, and stop-and-reopen conditions as the Markdown plan.
+- If any `CA-###` obligation cannot be designed safely in `sp-plan`, stop before `sp-tasks` and route back to `{{invoke:specify}}`, `{{invoke:clarify}}`, or `{{invoke:deep-research}}` with the missing decision named.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 

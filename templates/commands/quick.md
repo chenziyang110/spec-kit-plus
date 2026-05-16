@@ -9,6 +9,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/quick/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Mandatory Subagent Execution
 
 {{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}
@@ -88,6 +90,7 @@ If the task is a bug fix or regression but the root cause is still unknown:
 ## Escalation Triggers
 
 Upgrade to `{{invoke:specify}}` immediately if:
+- The Senior Consequence Analysis Gate triggers and the work needs user-level lifecycle decisions, broad compatibility handling, multi-capability scope, destructive policy, shared-state semantics, downstream consumer negotiation, or acceptance criteria that cannot fit one bounded quick task.
 - The task changes architecture or introduces cross-cutting behavior across multiple modules, workflows, or shared surfaces.
 - The task touches a change-propagation hotspot, a truth-owning shared surface, or an area whose known unknowns make lightweight planning unsafe.
 - The request now spans multiple independent capabilities, release tracks, or user journeys that no longer fit one bounded quick-task workspace.
@@ -96,6 +99,15 @@ Upgrade to `{{invoke:specify}}` immediately if:
 - The change has rollout, migration, compatibility, or neighboring-workflow impact that must be locked before implementation.
 - The expected behavior cannot be stated with concrete acceptance criteria without first doing feature-level requirement alignment.
 - The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a bounded repair. In that case, route to `{{invoke:debug}}`.
+
+## Quick Consequence Boundary
+
+Continue in quick only when the consequence model is bounded: affected objects are few, lifecycle choices are local, dependency impact is limited, recovery is obvious, validation can run inside the quick-task loop, and every `CA-###` obligation can be recorded in `STATUS.md`.
+
+- If the gate stands down, record the stand-down reason in `STATUS.md`.
+- If the gate triggers but remains bounded, record affected objects, state behavior, dependency impact, recovery and validation, project cognition evidence, coverage gaps, and escalation decision before dispatch.
+- If consequence analysis reveals user-level lifecycle decisions, broad compatibility handling, multi-capability scope, destructive policy, shared-state semantics, or downstream consumer negotiation, upgrade to `{{invoke:specify}}` immediately.
+- If the task is a defect and the dependency loop is unknown, use `{{invoke:debug}}` rather than resolving consequence semantics inside `sp-quick`.
 
 ## Execution Modes
 
@@ -211,6 +223,27 @@ planned_checks:
   - [smallest meaningful verification command or manual check]
 completed_checks:
   - [verification already run]
+
+## Senior Consequence Analysis
+<!-- OVERWRITE/REFINE when the gate stands down, triggers, or escalates -->
+
+gate_status: not_evaluated | stand_down | triggered_bounded | escalated
+stand_down_reason: [why lifecycle, running-state, destructive, shared-state, downstream-consumer, compatibility, security, or multiple-behavior semantics do not apply]
+affected_objects:
+  - [object, state surface, consumer, command, API, artifact, or workflow]
+state_behavior_matrix:
+  - [state -> expected behavior]
+dependency_impact:
+  - [dependency or consumer -> impact]
+recovery_and_validation:
+  - [rollback, retry, cleanup, idempotency, observability, or validation requirement]
+project_cognition_evidence:
+  - [project cognition fact, live read, or coverage source]
+coverage_gaps:
+  - [gap, owner, latest safe resolve phase, stop-and-reopen condition]
+consequence_obligations:
+  - [CA-### claim, owner, mapped lane/task/check]
+escalation_decision: [stay quick | upgrade to specify | route to debug | blocked]
 
 ## Summary Pointer
 <!-- OVERWRITE when terminal state is reached -->

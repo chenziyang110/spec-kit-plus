@@ -9,6 +9,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/debug/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -56,6 +58,18 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Root-cause mode is mandatory after repeated failure**: After two automated verification failures, stop adding point fixes and switch the session into `root-cause mode`.
 - **Related-risk review is part of closeout**: Do not close the session until nearest-neighbor related risk targets have been reviewed.
 - **Execution intent stays explicit**: Record the current verification outcome, active constraints, and required success evidence in the session file before and during verification so resume decisions do not depend on chat memory.
+
+## Debug Consequence Loop
+
+When a defect touches lifecycle, running-state, shared-state, destructive behavior, downstream consumers, compatibility, security, or multiple plausible behavior choices, run the Senior Consequence Analysis Gate as part of the investigation contract.
+
+- Model the dependency loop from trigger to affected objects to control state to observation state to downstream consumers.
+- Use the Affected Object Map to separate truth owners, cached projections, queues, workers, artifacts, commands, APIs, and adjacent risk targets.
+- Extend the State-Behavior Matrix with the failing lifecycle state and the expected behavior after the fix.
+- Use the Dependency Impact Table to identify adjacent risk targets and related-risk review scope before closeout.
+- Preserve the Recovery And Validation Contract as loop restoration proof, including repro, regression tests, observability, cleanup, idempotency, and rollback evidence.
+- Record Coverage Gaps and `CA-###` obligations when the debug session exposes missing product semantics that must be reopened upstream.
+- Reject surface-only fixes: a fix that only changes observation state without repairing the dependency loop, affected objects, or owning control state cannot satisfy the debug consequence loop.
 
 ## Passive Project Learning Layer
 
