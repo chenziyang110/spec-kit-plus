@@ -9,6 +9,7 @@ from specify_cli.codex_team.state_paths import batch_record_path, dispatch_recor
 from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
 from specify_cli.project_map_status import ProjectMapStatus, write_project_map_status
+from tests.conftest import strip_ansi
 
 CONTEXT_BUNDLE_PATHS = [
     ".specify/project-cognition/status.json",
@@ -166,7 +167,8 @@ def test_team_auto_dispatch_subcommand_dispatches_ready_batch(tmp_path: Path):
     )
 
     assert result.exit_code == 0, result.output
-    assert "Parallel Batch 1.1" in result.output
+    output = strip_ansi(result.output)
+    assert "Parallel Batch 1.1" in output
     assert dispatch_record_path(project, "default-parallel-batch-1-1-t002").exists()
     assert dispatch_record_path(project, "default-parallel-batch-1-1-t003").exists()
 
@@ -235,7 +237,7 @@ def test_team_complete_batch_auto_dispatches_next_ready_batch(tmp_path: Path):
     )
 
     assert result.exit_code == 0, result.output
-    lowered = result.output.lower()
+    lowered = strip_ansi(result.output).lower()
     assert "auto-dispatched next batch" in lowered
     assert "parallel batch 2.1" in lowered
     assert dispatch_record_path(project, "default-parallel-batch-2-1-t005").exists()
@@ -341,8 +343,9 @@ def test_team_auto_dispatch_blocks_when_project_cognition_is_dirty(tmp_path: Pat
     )
 
     assert result.exit_code != 0
-    assert "Cognition Freshness" in result.output
-    assert "/sp-map-scan, then /sp-map-build" in result.output
+    output = strip_ansi(result.output)
+    assert "Cognition Freshness" in output
+    assert "/sp-map-scan, then /sp-map-build" in output
 
 
 def test_team_auto_dispatch_still_blocks_with_legacy_project_map_dirty_status(tmp_path: Path):
@@ -376,8 +379,9 @@ def test_team_auto_dispatch_still_blocks_with_legacy_project_map_dirty_status(tm
     )
 
     assert result.exit_code != 0
-    assert "Cognition Freshness" in result.output
-    assert "/sp-map-scan, then /sp-map-build" in result.output
+    output = strip_ansi(result.output)
+    assert "Cognition Freshness" in output
+    assert "/sp-map-scan, then /sp-map-build" in output
 
 
 def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path: Path):

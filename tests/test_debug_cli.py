@@ -5,6 +5,7 @@ import re
 import typer
 from specify_cli.debug.schema import CausalMapRiskTarget, DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
+from tests.conftest import strip_ansi
 from specify_cli.debug.schema import (
     DebugGraphState,
     ExpandedObserverEngineeringScores,
@@ -61,7 +62,7 @@ def test_debug_new_session(clean_debug_dir):
     result = runner.invoke(app, ["debug", "parser bug"])
 
     assert result.exit_code == 0
-    assert "starting new debug session: new-session" in result.stdout.lower()
+    assert "starting new debug session: new-session" in strip_ansi(result.stdout).lower()
     assert (clean_debug_dir / "new-session.md").exists()
 
 def test_debug_resumes_most_recent_session(clean_debug_dir, monkeypatch):
@@ -82,7 +83,7 @@ def test_debug_resumes_most_recent_session(clean_debug_dir, monkeypatch):
     result = runner.invoke(app, ["debug"])
 
     assert result.exit_code == 0
-    assert "resuming debug session: resume-me" in result.stdout.lower()
+    assert "resuming debug session: resume-me" in strip_ansi(result.stdout).lower()
     assert seen["slug"] == "resume-me"
     assert seen["resumed"] is True
 
@@ -178,7 +179,7 @@ def test_debug_same_issue_feedback_reopens_parent_session(clean_debug_dir, monke
     result = runner.invoke(app, ["debug"])
 
     assert result.exit_code == 0
-    assert "resuming debug session: parent-session" in result.stdout.lower()
+    assert "resuming debug session: parent-session" in strip_ansi(result.stdout).lower()
     assert seen["slug"] == "parent-session"
     assert seen["resumed"] is True
 
@@ -418,7 +419,7 @@ def test_debug_checkpoint_renders_canonical_log_investigation_plan_summary(clean
 
     result = runner.invoke(app, ["debug", "release retry remains stuck in queue"])
 
-    lowered = result.stdout.lower()
+    lowered = strip_ansi(result.stdout).lower()
     assert "starting new debug session: expanded-observer" in lowered
     assert "log investigation plan" in lowered
     assert "project runtime profile: full-stack/web-app" in lowered

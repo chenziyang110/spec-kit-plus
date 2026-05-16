@@ -466,7 +466,7 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
         os.chdir(old_cwd)
 
     assert result.exit_code == 0
-    output = " ".join(result.output.lower().split())
+    output = " ".join(strip_ansi(result.output).lower().split())
     assert "project compatibility" in output
     assert "persisted project launcher is configured but unavailable" in output
     assert "generated powershell workflow scripts are stale" in output

@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from specify_cli.learnings import read_learning_entries
+from tests.conftest import strip_ansi
 
 
 runner = CliRunner()
@@ -176,7 +177,7 @@ def test_quick_close_command_requires_resolved_or_blocked(tmp_path: Path):
     result = _invoke_in_project(project, ["quick", "close", "260417-001", "--status", "executing"])
 
     assert result.exit_code == 1
-    assert "--status must be 'resolved' or 'blocked'" in result.stdout.lower()
+    assert "--status must be 'resolved' or 'blocked'" in strip_ansi(result.stdout).lower()
 
 
 def test_quick_archive_command_rejects_active_tasks(tmp_path: Path):

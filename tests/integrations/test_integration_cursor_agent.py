@@ -99,8 +99,13 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         assert "map-scan" in content
         assert "map-build" in content
         if "sp-debug" in rel:
-            assert "debug-handbook.md" in content
-            assert "debug-workflow-contract" in content
+            assert "project-cognition query --intent debug" in content
+            assert "debug session state" in content
+            assert "debug-handbook.md" not in content
+            assert "debug-workflow-contract" not in content
         else:
-            assert "build-handbook.md" in content
-            assert "build-workflow-contract" in content
+            assert "project-cognition query --intent implement" in content
+            assert "task-local bundle" in content
+            assert "minimal_live_reads" in content
+            assert "build-handbook.md" not in content
+            assert "build-workflow-contract" not in content

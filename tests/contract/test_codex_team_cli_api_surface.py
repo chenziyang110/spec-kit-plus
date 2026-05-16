@@ -12,6 +12,7 @@ from specify_cli.codex_team.runtime_bridge import bootstrap_runtime_session, dis
 from specify_cli.codex_team.state_paths import dispatch_record_path, result_record_path
 from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
+from tests.conftest import strip_ansi
 
 
 def _create_codex_project(tmp_path: Path) -> Path:
@@ -287,7 +288,7 @@ def test_team_submit_result_reports_bom_payload_actionably(tmp_path: Path):
     )
 
     assert result.exit_code != 0
-    lowered = result.output.lower()
+    lowered = strip_ansi(result.output).lower()
     assert "utf-8 bom" in lowered
     assert "result-template" in lowered
 

@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.codex_team.runtime_bridge import RuntimeEnvironmentError
 from specify_cli.codex_team.state_paths import dispatch_record_path, runtime_session_path
+from tests.conftest import strip_ansi
 
 
 def test_team_command_bootstrap_dispatch_fail_cleanup(monkeypatch, codex_team_project_root):
@@ -111,5 +112,6 @@ def test_team_command_dispatch_blocks_when_project_cognition_is_dirty(monkeypatc
         )
 
     assert result.exit_code != 0
-    assert "Cognition Freshness" in result.output
-    assert "/sp-map-scan, then /sp-map-build" in result.output
+    output = strip_ansi(result.output)
+    assert "Cognition Freshness" in output
+    assert "/sp-map-scan, then /sp-map-build" in output
