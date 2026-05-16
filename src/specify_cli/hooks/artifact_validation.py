@@ -249,6 +249,47 @@ GRAPH_NODE_REQUIRED_KEYS = frozenset({"nodes"})
 GRAPH_EDGE_REQUIRED_KEYS = frozenset({"edges"})
 GRAPH_CLAIM_REQUIRED_KEYS = frozenset({"claims"})
 GRAPH_CONFLICT_REQUIRED_KEYS = frozenset({"conflicts"})
+MP_REQUIRED_KEYS = frozenset(
+    {
+        "id",
+        "type",
+        "claim",
+        "source",
+        "downstream_requirement",
+        "owner",
+        "latest_resolve_phase",
+        "status",
+        "mapped_to",
+    }
+)
+MP_ACTIVE_STATUSES = frozenset({"pending", "mapped"})
+MP_CLOSED_STATUSES = frozenset({"resolved", "superseded", "dropped", "deferred"})
+MP_VALID_STATUSES = MP_ACTIVE_STATUSES | MP_CLOSED_STATUSES
+MP_ID_RE = re.compile(r"^MP-\d{3}$")
+MP_VALID_TYPES = frozenset(
+    {
+        "goal",
+        "scope",
+        "non_goal",
+        "scenario",
+        "decision",
+        "reference",
+        "tradeoff",
+        "blocking_question",
+    }
+)
+MP_VALID_COVERAGE_STATUSES = frozenset(
+    {"not_started", "incomplete", "complete", "blocked_by_handoff_integrity"}
+)
+MP_VALID_PLANNING_GATE_STATUSES = frozenset(
+    {
+        "ready",
+        "blocked_by_hard_unknowns",
+        "blocked_by_conflict",
+        "blocked_by_incomplete_coverage",
+        "blocked_by_handoff_integrity",
+    }
+)
 GRAPH_UPDATE_REQUIRED_KEYS = frozenset({"updates"})
 
 PRD_RECONSTRUCTION_READY_STATUSES = frozenset(
@@ -385,6 +426,191 @@ def _validate_unknown_objects(payload: Any, label: str) -> list[str]:
         for key in required_keys:
             if not str(item.get(key, "")).strip():
                 errors.append(f"{label} unknowns[{index}] missing {key}")
+    return errors
+
+
+def _validate_must_preserve_items(payload: dict[str, Any], label: str) -> list[str]:
+    errors: list[str] = []
+    items = payload.get("must_preserve", [])
+    if items is None:
+        return errors
+    if not isinstance(items, list):
+        return [f"{label} must_preserve must be a list"]
+
+    coverage_status = str(payload.get("coverage_status") or "").strip()
+    for index, item in enumerate(items):
+        item_label = f"{label} must_preserve[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{item_label} must be an object")
+            continue
+        mp_id = str(item.get("id") or f"item {index}").strip()
+        missing = sorted(
+            key for key in MP_REQUIRED_KEYS if key != "mapped_to" and not str(item.get(key, "")).strip()
+        )
+        for key in missing:
+            errors.append(f"{item_label} {mp_id} missing {key}")
+        if not MP_ID_RE.match(str(item.get("id") or "").strip()):
+            errors.append(f"{item_label} {mp_id} id must use MP-### format")
+        if str(item.get("type") or "").strip() not in MP_VALID_TYPES:
+            errors.append(f"{item_label} {mp_id} has invalid type")
+        status = str(item.get("status") or "").strip()
+        if status not in MP_VALID_STATUSES:
+            errors.append(f"{item_label} {mp_id} has invalid status")
+        mapped_to = item.get("mapped_to")
+        if not isinstance(mapped_to, list):
+            errors.append(f"{item_label} {mp_id} mapped_to must be a list")
+            mapped_to = []
+        if coverage_status == "complete" and status in MP_ACTIVE_STATUSES and not mapped_to:
+            errors.append(f"{item_label} {mp_id} is active but missing mapped_to coverage")
+        if status == "deferred":
+            for key in ("deferred_to", "owner", "latest_resolve_phase", "stop_and_reopen_condition"):
+                if not str(item.get(key, "")).strip():
+                    errors.append(f"{item_label} {mp_id} deferred item missing {key}")
+            if not str(item.get("approved_risk_contract") or "").strip():
+                errors.append(f"{item_label} {mp_id} deferred item missing approved_risk_contract")
+        if status == "superseded" and not str(item.get("superseded_by") or "").strip():
+            errors.append(f"{item_label} {mp_id} superseded item missing superseded_by")
+        if status == "resolved" and not str(item.get("resolution_evidence") or "").strip():
+            errors.append(f"{item_label} {mp_id} resolved item missing resolution_evidence")
+        if status == "dropped":
+            if not str(item.get("user_decision_source") or "").strip():
+                errors.append(f"{item_label} {mp_id} dropped item missing user_decision_source")
+            if not str(item.get("approved_risk_contract") or "").strip():
+                errors.append(f"{item_label} {mp_id} dropped item missing approved_risk_contract")
+    return errors
+
+
+def _validate_conflict_records(payload: dict[str, Any], label: str) -> list[str]:
+    conflicts = payload.get("conflicts", [])
+    if conflicts is None:
+        return []
+    if not isinstance(conflicts, list):
+        return [f"{label} conflicts must be a list"]
+
+    errors: list[str] = []
+    for index, item in enumerate(conflicts):
+        conflict_label = f"{label} conflicts[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{conflict_label} must be an object")
+            continue
+        status = str(item.get("status") or "").strip()
+        resolution = str(item.get("resolution") or "none").strip()
+        if status not in {"open", "closed"}:
+            errors.append(f"{conflict_label} has invalid status")
+        if resolution not in {"keep", "revise", "drop", "defer", "none"}:
+            errors.append(f"{conflict_label} has invalid resolution")
+        if status == "closed":
+            if resolution == "none":
+                errors.append(f"{conflict_label} closed conflict missing resolution")
+            if not str(item.get("user_decision_source") or "").strip():
+                errors.append(f"{conflict_label} closed conflict missing user_decision_source")
+            if resolution == "revise" and not str(item.get("superseded_by") or "").strip():
+                errors.append(f"{conflict_label} revise resolution missing superseded_by")
+            if resolution in {"drop", "defer"} and not str(item.get("approved_risk_contract") or "").strip():
+                errors.append(f"{conflict_label} {resolution} resolution missing approved_risk_contract")
+    return errors
+
+
+def _derived_open_conflict_count(payload: dict[str, Any]) -> int:
+    conflicts = payload.get("conflicts", [])
+    if not isinstance(conflicts, list):
+        return 0
+    return sum(
+        1
+        for item in conflicts
+        if isinstance(item, dict) and str(item.get("status") or "").strip() == "open"
+    )
+
+
+def _is_validly_closed_hard_blocking_question(item: dict[str, Any]) -> bool:
+    status = str(item.get("status") or "").strip()
+    if status == "resolved":
+        return bool(str(item.get("resolution_evidence") or "").strip())
+    if status == "superseded":
+        return bool(str(item.get("superseded_by") or "").strip())
+    if status == "dropped":
+        return bool(
+            str(item.get("user_decision_source") or "").strip()
+            and str(item.get("approved_risk_contract") or "").strip()
+        )
+    if status == "deferred":
+        return bool(
+            str(item.get("deferred_to") or "").strip()
+            and str(item.get("owner") or "").strip()
+            and str(item.get("latest_resolve_phase") or "").strip()
+            and str(item.get("stop_and_reopen_condition") or "").strip()
+            and str(item.get("approved_risk_contract") or "").strip()
+        )
+    return False
+
+
+def _derived_hard_unknown_count(payload: dict[str, Any]) -> int:
+    count = 0
+    unknowns = payload.get("unknowns", [])
+    if isinstance(unknowns, list):
+        count += sum(
+            1
+            for item in unknowns
+            if isinstance(item, dict)
+            and str(item.get("blocking_level") or "").strip() == "hard"
+            and str(item.get("status") or "").strip() not in MP_CLOSED_STATUSES
+        )
+
+    must_preserve = payload.get("must_preserve", [])
+    if isinstance(must_preserve, list):
+        count += sum(
+            1
+            for item in must_preserve
+            if isinstance(item, dict)
+            and str(item.get("type") or "").strip() == "blocking_question"
+            and str(item.get("blocking_level") or "").strip() == "hard"
+            and not _is_validly_closed_hard_blocking_question(item)
+        )
+    return count
+
+
+def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
+    errors = _validate_unknown_objects(payload, label)
+    if not isinstance(payload, dict):
+        return errors
+
+    coverage_status = str(payload.get("coverage_status") or "").strip()
+    planning_gate_status = str(payload.get("planning_gate_status") or "").strip()
+    if coverage_status and coverage_status not in MP_VALID_COVERAGE_STATUSES:
+        errors.append(f"{label} has invalid coverage_status")
+    if planning_gate_status and planning_gate_status not in MP_VALID_PLANNING_GATE_STATUSES:
+        errors.append(f"{label} has invalid planning_gate_status")
+
+    errors.extend(_validate_must_preserve_items(payload, label))
+    errors.extend(_validate_conflict_records(payload, label))
+
+    hard_unknown_count = payload.get("hard_unknown_count", 0)
+    open_conflict_count = payload.get("open_conflict_count", 0)
+    derived_hard_unknown_count = _derived_hard_unknown_count(payload)
+    derived_open_conflict_count = _derived_open_conflict_count(payload)
+    if isinstance(hard_unknown_count, int) and hard_unknown_count != derived_hard_unknown_count:
+        errors.append(
+            f"{label} hard_unknown_count does not match open hard unknowns ({derived_hard_unknown_count})"
+        )
+    if isinstance(open_conflict_count, int) and open_conflict_count != derived_open_conflict_count:
+        errors.append(
+            f"{label} open_conflict_count does not match open conflicts ({derived_open_conflict_count})"
+        )
+    if planning_gate_status == "ready":
+        if isinstance(hard_unknown_count, int) and hard_unknown_count > 0:
+            errors.append(f"{label} planning_gate_status ready is invalid with open hard unknowns")
+        if derived_hard_unknown_count > 0:
+            errors.append(f"{label} planning_gate_status ready is invalid with open hard unknowns")
+        if isinstance(open_conflict_count, int) and open_conflict_count > 0:
+            errors.append(f"{label} planning_gate_status ready is invalid with open conflicts")
+        if derived_open_conflict_count > 0:
+            errors.append(f"{label} planning_gate_status ready is invalid with open conflicts")
+        if coverage_status != "complete":
+            errors.append(f"{label} planning_gate_status ready requires coverage_status complete")
+    if coverage_status == "blocked_by_handoff_integrity" and planning_gate_status != "blocked_by_handoff_integrity":
+        errors.append(
+            f"{label} handoff integrity blocks must also set planning_gate_status blocked_by_handoff_integrity"
+        )
     return errors
 
 
@@ -943,13 +1169,14 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
     errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/route.json", validate_unknowns=False))
     errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/intent.json", validate_unknowns=False))
     errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/complexity.json", validate_unknowns=False))
-    errors.extend(
-        _validate_brainstorming_json_artifact(
-            feature_dir,
-            "brainstorming/handoff-to-specify.json",
-            validate_unknowns=True,
-        )
+    handoff_payload, handoff_errors = _read_json_artifact(
+        feature_dir / "brainstorming" / "handoff-to-specify.json",
+        "brainstorming/handoff-to-specify.json",
     )
+    if handoff_errors:
+        errors.extend(handoff_errors)
+    else:
+        errors.extend(_validate_handoff_to_specify_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
 
     return errors
 

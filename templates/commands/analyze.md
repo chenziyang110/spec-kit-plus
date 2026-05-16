@@ -131,6 +131,11 @@ Load only the minimal necessary context from each artifact:
 **From project cognition runtime:**
 
 - Consume the `project-cognition query` bundle.
+- Preserve cognition-backed blocker evidence when classifying whether issues
+  belong to `plan`, `clarify`, `deep-research`, or task-layer remediation. The
+  analysis report and `workflow-state.md` blocker bundle must keep the selected
+  capability, boundary fact, ambiguity, or verification evidence that justified
+  the route.
 - Inspect only returned `minimal_live_reads` when the bundle does not fully cover ownership, propagation, or verification routes.
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, use `/sp-map-update` when localized; rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required, then inspect the minimum live files still needed to replace guesswork with evidence
 

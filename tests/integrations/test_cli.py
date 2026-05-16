@@ -10,7 +10,13 @@ import yaml
 from typer.testing import CliRunner
 
 from specify_cli import app
-from specify_cli.cognition import CognitionStatus, connect_cognition_db, seed_active_generation, write_cognition_status
+from specify_cli.cognition import (
+    CognitionStatus,
+    connect_cognition_db,
+    publish_cognition_runtime_metadata,
+    seed_active_generation,
+    write_cognition_status,
+)
 from tests.conftest import strip_ansi
 
 
@@ -69,6 +75,7 @@ def _seed_query_ready_runtime(project: Path) -> str:
             freshness="fresh",
         ),
     )
+    publish_cognition_runtime_metadata(project)
     return generation_id
 
 
@@ -762,6 +769,73 @@ def test_project_cognition_validate_build_accepts_seeded_query_ready_runtime_jso
     assert payload["gate"] == "build"
     assert payload["readiness"] == "query_ready"
     assert payload["details"]["active_generation_id"] == generation_id
+
+
+def test_project_cognition_publish_runtime_metadata_json(tmp_path):
+    project = tmp_path / "project-cognition-publish-runtime-metadata"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            ["init", "--here", "--ai", "claude", "--script", "sh", "--no-git", "--ignore-agent-tools"],
+            catch_exceptions=False,
+        )
+        generation_id = seed_active_generation(project, source_commit="abc123")
+        result = runner.invoke(
+            app,
+            ["project-cognition", "publish-runtime-metadata", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["metadata"]["baseline_state"] == "ready"
+    assert payload["metadata"]["graph_ready"] is True
+    assert payload["metadata"]["graph_store_path"] == ".specify/project-cognition/project-cognition.db"
+    assert payload["metadata"]["active_generation_id"] == generation_id
+
+    status_payload = json.loads((project / ".specify" / "project-cognition" / "status.json").read_text(encoding="utf-8"))
+    assert status_payload["baseline_state"] == "ready"
+    assert status_payload["graph_ready"] is True
+    assert status_payload["graph_store_path"] == ".specify/project-cognition/project-cognition.db"
+    assert status_payload["active_generation_id"] == generation_id
+
+
+def test_project_cognition_publish_runtime_metadata_blocks_without_active_generation_json(tmp_path):
+    project = tmp_path / "project-cognition-publish-runtime-metadata-blocked"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            ["init", "--here", "--ai", "claude", "--script", "sh", "--no-git", "--ignore-agent-tools"],
+            catch_exceptions=False,
+        )
+        result = runner.invoke(
+            app,
+            ["project-cognition", "publish-runtime-metadata", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert payload["readiness"] == "blocked"
+    assert any("active generation" in message for message in payload["errors"])
 
 
 def test_project_cognition_complete_refresh_blocks_without_query_ready_runtime_json(tmp_path):
@@ -2825,8 +2899,39 @@ def test_project_cognition_cli_exposes_local_query_update_surface():
     assert "--paths" in query_output
     assert "--limit" in lexicon_output
     assert "--changed-paths" in update_output
+    assert "--scope" in update_output
     assert "Discover and read fresh cross-project cognition references" in cognition_help.output
     assert "query" not in cognition_help.output.lower()
+
+
+def test_project_cognition_update_accepts_scope_alias_for_changed_path(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "cognition-update-scope-alias"
+    project.mkdir()
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "update",
+                "--scope",
+                "bindings/c/demo.c",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "needs_rebuild"
+    assert payload["changed_paths"] == ["bindings/c/demo.c"]
 
 
 def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):

@@ -52,6 +52,9 @@ Use the returned readiness:
 - `needs_update`: route through `{{invoke:map-update}}`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Write the selected capability, minimal reads, validation route,
+  and known risk into quick-task `STATUS.md` before implementation
+  proceeds.
 
 Treat task-relevant coverage as insufficient when the touched area still lacks
 ownership, placement, workflow, integration, or verification guidance before
@@ -191,6 +194,12 @@ intent_constraints:
   - [constraints, forbidden drift, or scope boundaries that must stay active]
 success_evidence:
   - [the checks or observations required before the quick task can be treated as resolved]
+cognition_facts:
+  selected_capability: [capability, route, symptom, or unknown]
+  minimal_reads:
+    - [project-cognition minimal_live_reads entry used before wider inspection]
+  validation_route: [test, command, manual check, or unknown]
+  known_risk: [ambiguity, weak coverage, forbidden drift, or none]
 
 ## Execution
 <!-- OVERWRITE/REFINE as the lane or batch changes -->

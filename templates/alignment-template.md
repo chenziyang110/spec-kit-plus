@@ -18,6 +18,18 @@
 - Reopen Required: [yes/no]
 - Structured Handoff: [brainstorming/handoff-to-specify.json status]
 
+
+## Must-Preserve Coverage
+
+- Coverage Status: [coverage_status]
+- Planning Gate Status: [planning_gate_status]
+- Hard Unknown Count: [hard_unknown_count]
+- Open Conflict Count: [open_conflict_count]
+
+| MP ID | Type | Coverage Disposition | Artifact Mapping | Notes |
+| --- | --- | --- | --- | --- |
+| MP-### | [type] | [mapped | resolved | deferred | superseded | dropped] | [artifact anchor] | [risk or reopen condition] |
+
 ## Initial Intent Analysis
 
 [Summarize the initial feature-shape hypothesis, the likely intended outcome,

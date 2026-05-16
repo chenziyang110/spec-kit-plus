@@ -57,15 +57,18 @@ $AUGGIE_FILE   = Join-Path $REPO_ROOT '.augment/rules/specify-rules.md'
 $ROO_FILE      = Join-Path $REPO_ROOT '.roo/rules/specify-rules.md'
 $CODEBUDDY_FILE = Join-Path $REPO_ROOT 'CODEBUDDY.md'
 $QODER_FILE    = Join-Path $REPO_ROOT 'QODER.md'
+# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, Pi, and Forge
+# all share root AGENTS.md.
 $AMP_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $SHAI_FILE     = Join-Path $REPO_ROOT 'SHAI.md'
 $TABNINE_FILE  = Join-Path $REPO_ROOT 'TABNINE.md'
 $KIRO_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'
 $AGY_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $BOB_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
-$VIBE_FILE     = Join-Path $REPO_ROOT '.vibe/agents/specify-agents.md'
+$VIBE_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'
+$VIBE_LEGACY_FILE = Join-Path $REPO_ROOT '.vibe/agents/specify-agents.md'
 $KIMI_FILE     = Join-Path $REPO_ROOT 'KIMI.md'
-$TRAE_FILE     = Join-Path $REPO_ROOT '.trae/rules/AGENTS.md'
+$TRAE_FILE     = Join-Path $REPO_ROOT '.trae/rules/project_rules.md'
 $IFLOW_FILE    = Join-Path $REPO_ROOT 'IFLOW.md'
 $FORGE_FILE    = Join-Path $REPO_ROOT 'AGENTS.md'
 
@@ -157,9 +160,21 @@ function Get-SpecKitManagedBlock {
             '- The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.'
             '- Project cognition under `.specify/project-cognition/` is the runtime truth surface; legacy project-map exports are not the ordinary first-read runtime contract for workflow routing.'
             '- When a project launcher is configured in `.specify/config.json`, use that launcher instead of PATH `specify`.'
-            '- If the graph-native cognition baseline is missing, stop and tell the user to run the runtime''s `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.'
-            '- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.'
-            '- Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, run `project-cognition validate-build --format json` first, then invoke the project launcher with `project-cognition complete-refresh --format json` only when build acceptance passes; otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.'
+            '- If the project cognition baseline is missing, stop and tell the user to run the runtime''s `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.'
+            '- If the query-backed runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.'
+            '- Treat query-backed runtime freshness as the truth source. If a full refresh can be completed now, run `project-cognition validate-build --format json` first, then invoke the project launcher with `project-cognition complete-refresh --format json` only when build acceptance passes; otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.'
+            ''
+            '## Project Cognition Usage'
+            ''
+            '- Project cognition is mandatory when existing-system truth is required. If the task needs to know how this project is organized, implemented, owned, integrated, or verified, query project cognition before broad source inspection, planning, debugging, testing strategy, implementation, task decomposition, or subagent dispatch.'
+            '- The same rule applies across agent context files; do not assume every integration uses `AGENTS.md`.'
+            '- When the task does not require existing-system truth, decide based on risk, context cost, and user goal; this is not a bypass for existing-system judgment.'
+            '- Mandatory scenarios include changing existing functionality or behavior such as login, payment, routing, permissions, import/export, notifications, or background jobs; judging module ownership, truth owners, architecture boundaries, reuse points, integration points, state surfaces, or consumer impact; writing or updating `specify`, `plan`, or `tasks` outputs for the current project; running `implement`, `quick`, or `fast` work against existing code, tests, configuration, routes, protocols, data models, or workflows; debugging symptoms that map to existing capabilities, entrypoints, state surfaces, or test surfaces; decomposing tasks, compiling task packets, or dispatching subagents that need read scope, write scope, required references, or validation commands; choosing testing strategy, verification entry points, regression scope, or coverage-gap handling; changing architecture boundaries, workflow contracts, integration contracts, ownership, or verification entry points; and closeout when work changed project-cognition truth.'
+            '- Query through the project launcher or generated command renderer with `project-cognition query --intent <workflow-intent> --query "<task summary>" --format json`. Valid workflow intents include at least `plan`, `implement`, `debug`, `test`, and `research`. When relevant paths are known from the user request or upstream artifacts, include them through `--paths`.'
+            '- Use readiness for routing: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads` before trusting the runtime; `ambiguous` asks the user or upstream artifact to select the intended candidate; `needs_update` routes through `sp-map-update`; `needs_rebuild` routes through `sp-map-scan`, then `sp-map-build`; `blocked` stops with the runtime issue.'
+            '- Extract and carry forward the matched capability or symptom, affected nodes and subgraph, `minimal_live_reads`, missing coverage, evidence traces, verification routes, ambiguity, conflicts, and weak coverage.'
+            '- Constrain first live reads to `minimal_live_reads` plus directly relevant durable workflow artifacts. Expand search only when those reads do not answer the task.'
+            '- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, minimal_live_reads constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.'
             ''
             '## Project Memory'
             ''
@@ -247,8 +262,8 @@ function Get-SpecKitManagedBlock {
             '- Use `sp-map-update` after baseline creation when the query-backed runtime is stale or too weak for the touched area.'
             '- `sp-map-update` is the primary maintenance path after a baseline exists.'
             '- Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, run `project-cognition validate-build --format json` first, then invoke the project launcher with `project-cognition complete-refresh --format json` only when build acceptance passes. Otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback before continuing. Fall back to PATH `specify` only when no project launcher is configured.'
-            '- Do not continue under known-stale handbook state without choosing one of those paths.'
-            '- Do not treat consumed project cognition query context as self-maintaining; the agent changing map-level truth is responsible for keeping the query-backed runtime current.'
+            '- Do not continue under stale project-cognition truth without choosing one of those paths.'
+            '- Do not treat consumed project cognition query context as self-maintaining; the agent changing project-cognition truth is responsible for keeping the query-backed runtime current.'
             ''
             '- Preserve content outside this managed block.'
             '<!-- SPEC-KIT:END -->'
@@ -716,7 +731,7 @@ function Update-AllExistingAgents {
         
         if (-not (Test-Path $FilePath)) { return $true }
         
-        # Get the real path to detect duplicates (e.g., AMP_FILE, KIRO_FILE, BOB_FILE all point to AGENTS.md)
+        # Get the real path to detect duplicate AGENTS.md aliases.
         $realPath = (Get-Item -LiteralPath $FilePath).FullName
         
         # Check if we've already updated this file
@@ -738,7 +753,7 @@ function Update-AllExistingAgents {
     if (-not (Update-IfNew -FilePath $COPILOT_FILE  -AgentName 'GitHub Copilot')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $CURSOR_FILE   -AgentName 'Cursor IDE')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $QWEN_FILE     -AgentName 'Qwen Code')) { $ok = $false }
-    if (-not (Update-IfNew -FilePath $AGENTS_FILE   -AgentName 'Codex/opencode/Amp/Kiro/Bob/Pi/Forge')) { $ok = $false }
+    if (-not (Update-IfNew -FilePath $AGENTS_FILE   -AgentName 'Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/Pi/Forge')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $WINDSURF_FILE -AgentName 'Windsurf')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $JUNIE_FILE    -AgentName 'Junie')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $KILOCODE_FILE -AgentName 'Kilo Code')) { $ok = $false }
@@ -753,6 +768,11 @@ function Update-AllExistingAgents {
     if (-not (Update-IfNew -FilePath $KIMI_FILE     -AgentName 'Kimi Code')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $TRAE_FILE     -AgentName 'Trae')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $IFLOW_FILE    -AgentName 'iFlow CLI')) { $ok = $false }
+
+    if (-not (Test-Path $AGENTS_FILE) -and (Test-Path $VIBE_LEGACY_FILE)) {
+        $found = $true
+        if (-not (Update-AgentFile -TargetFile $AGENTS_FILE -AgentName 'Mistral Vibe')) { $ok = $false }
+    }
     
     if (-not $found) {
         Write-Info 'No existing agent files found, creating default Claude file...'

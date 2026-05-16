@@ -81,6 +81,9 @@ Fast path does not load the full passive learning layer.
      - `needs_update`: route through `{{invoke:map-update}}`.
      - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
      - `blocked`: stop and report the blocking runtime issue.
+     - **CARRY FORWARD**: Use project-cognition signals to decide whether
+       fast-path execution is still safe. Carry the selected capability, minimal reads,
+       and verification route into the fast-task state or report.
    - Only after the cognition gate passes may you read the source files to change.
 
 3. **Execute the fast lane**

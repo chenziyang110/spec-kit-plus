@@ -37,6 +37,10 @@ All substantive implementation work defaults to and MUST use subagents. Substant
 - Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format
 - Use `dispatch_shape: one-subagent | parallel-subagents`
 - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
+- If a task packet contains `must_preserve_obligations`, the worker must preserve those `MP-*` items or return a blocked result with the exact stop-and-reopen condition.
+- Do not dispatch a packet that drops a discussion-derived `MP-*` obligation from `tasks.md`, `plan.md`, or `brainstorming/handoff-to-specify.json`.
+- A successful worker result must include `must_preserve_evidence` for every packet obligation that affects acceptance, references, forbidden drift, or conflict/reopen conditions.
+- If implementation discovers a conflict with an `MP-*` obligation, stop and return a blocked result; do not silently rewrite the product goal, non-goal, selected decision, or reference obligation.
 - [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution
 - Idle subagent is not an accepted result
 - Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success
@@ -321,6 +325,11 @@ Use the returned readiness:
 - `needs_update`: route through `{{invoke:map-update}}`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Before dispatch or code edits, write the selected
+  capability, minimal live reads, boundary constraints, required references,
+  validation route, and evidence gaps into `implement-tracker.md` or the current
+  `WorkerTaskPacket`. Do not dispatch from a packet that omits the relevant
+  project-cognition facts.
 
 Do not compile packets, dispatch subagents, or inspect implementation files
 until the cognition gate has passed.

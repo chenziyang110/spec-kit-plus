@@ -78,8 +78,11 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "handoffs/<candidate_id>-handoff-to-specify.json" in command_content
     assert "handoffs/CAND-001-handoff-to-specify.md" in command_content
     assert "handoffs/CAND-002-handoff-to-specify.md" in command_content
-    assert "`handoff-to-specify.md`" in command_content
-    assert "`handoff-to-specify.json`" in command_content
+    assert "`handoff-to-specify.md`" in command_content or "handoff-to-specify.md" in command_content
+    assert "`handoff-to-specify.json`" in command_content or "handoff-to-specify.json" in command_content
+    assert "Must-Preserve Ledger" in command_content
+    assert "coverage_status" in command_content
+    assert "planning_gate_status" in command_content
     assert (
         "explicit user" in command_lower
         or "user explicitly" in command_lower
@@ -89,6 +92,24 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "senior product manager" in command_lower
     assert "candidate backlog" in command_lower
     assert "latest selected candidate" in command_lower
+
+
+def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
+    hard_gate_index = content.find("project cognition hard gate")
+    assert hard_gate_index != -1
+    assert "carry forward" in content
+    assert "next workflow artifact or execution state" in content
+
+    if command_name == "implement":
+        orchestration_index = content.find("## orchestration model")
+        if orchestration_index != -1:
+            assert hard_gate_index < orchestration_index
+        assert "implement-tracker.md" in content
+        assert "workertaskpacket" in content
+    elif command_name == "quick":
+        assert "status.md" in content
+    elif command_name == "debug":
+        assert "debug session state" in content
 
 
 class TomlIntegrationTests:
@@ -297,6 +318,8 @@ class TomlIntegrationTests:
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
             assert "crucial first step" in content
+            command_name = f.stem.split(".")[1]
+            _assert_runtime_cognition_carry_forward(content, command_name)
             if "debug" in f.name:
                 assert "runtime handbook contract" in content
                 assert "debug-handbook.md" in content
@@ -780,6 +803,18 @@ class TomlIntegrationTests:
         content = (project / self.CONTEXT_FILE).read_text(encoding="utf-8")
         assert "## Active Technologies" in content
         assert SPEC_KIT_BLOCK_START in content
+        lower = content.lower()
+        assert "## project cognition usage" in lower
+        assert "mandatory when existing-system truth is required" in lower
+        assert "changing existing functionality or behavior" in lower
+        assert "debugging symptoms" in lower
+        assert "testing strategy" in lower
+        assert "risk, context cost, and user goal" in lower
+        assert "a project-cognition query is not complete when it returns json" in lower
+        assert "readiness drives routing" in lower
+        assert "minimal_live_reads constrains inspection" in lower
+        assert "carried into the next workflow artifact or execution state" in lower
+        assert "do not assume every integration uses `agents.md`" in lower
         assert "[AGENT]" in content
         assert "specify -> plan" in content
         assert ".specify/project-cognition/" in content

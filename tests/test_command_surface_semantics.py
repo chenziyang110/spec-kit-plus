@@ -530,9 +530,16 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "project-cognition validate-build --format json" in content
         assert "invoke the project launcher with `project-cognition complete-refresh --format json`" in content
         assert 'invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json`' in content
+        assert "## project cognition usage" in content
+        assert "mandatory when existing-system truth is required" in content
+        assert "risk, context cost, and user goal" in content
+        assert "a project-cognition query is not complete when it returns json" in content
+        assert "plan`, `implement`, `debug`, `test`, and `research`" in content
+        assert "do not assume every integration uses `agents.md`" in content
         assert ("use `" + "project" + "-map complete-refresh`") not in content
         assert ("use `" + "project" + "-map mark-dirty`") not in content
-        assert "do not continue under known-stale handbook state without choosing one of those paths" in content
+        assert "do not continue under known-stale handbook state without choosing one of those paths" not in content
+        assert "map-level truth" not in content
         assert "structured handoff, result file, or runtime-managed result" in content
         assert "`sp-teams` only" in content
         assert "possibly_stale" not in content

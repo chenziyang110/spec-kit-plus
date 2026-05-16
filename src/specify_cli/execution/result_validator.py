@@ -108,4 +108,23 @@ def validate_worker_task_result(
             raise PacketValidationError("DP3", "worker result is missing acceptance evidence")
         if "manual_evidence" in required_evidence and not result.manual_evidence:
             raise PacketValidationError("DP3", "worker result is missing manual evidence")
+        if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
+            if not result.must_preserve_evidence:
+                raise PacketValidationError("DP3", "worker result is missing must-preserve evidence")
+            evidence_ids = {
+                str(item.get("mp_id", "")).strip()
+                for item in result.must_preserve_evidence
+                if isinstance(item, dict)
+            }
+            missing_obligations = [
+                obligation.id
+                for obligation in packet.must_preserve_obligations
+                if obligation.id not in evidence_ids
+            ]
+            if missing_obligations:
+                joined = ", ".join(missing_obligations)
+                raise PacketValidationError(
+                    "DP3",
+                    f"worker result is missing must-preserve evidence for: {joined}",
+                )
     return result

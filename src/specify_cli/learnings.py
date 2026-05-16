@@ -205,20 +205,36 @@ class LearningIndexEntry:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "LearningIndexEntry":
+        learning_type = normalize_learning_type(str(payload["learning_type"]))
+        source_command = normalize_command_name(str(payload["source_command"]))
+        recurrence_key = str(payload["recurrence_key"]).strip().lower()
+        signal_strength = normalize_signal_strength(str(payload.get("signal_strength", "medium")))
+        problem = str(payload.get("problem") or payload.get("summary") or payload.get("id") or recurrence_key).strip()
+        lesson_source = str(payload.get("lesson") or payload.get("evidence") or problem).strip()
+        lesson = lesson_source.splitlines()[0] if lesson_source else problem
+        first_seen = str(payload.get("first_seen") or payload.get("last_seen") or "")
+        last_seen = str(payload.get("last_seen") or first_seen)
+        index_id = str(payload.get("id") or "").strip()
+        if not index_id.startswith("learn-"):
+            index_id = _learning_index_id(recurrence_key, first_seen)
+        detail = str(payload.get("detail") or _detail_ref_for_index_id(index_id)).strip()
+        trigger_signals = _coerce_str_list(payload.get("trigger_signals"))
+        if not trigger_signals:
+            trigger_signals = sorted(dict.fromkeys([learning_type, signal_strength]))
         return cls(
-            id=str(payload["id"]),
-            problem=str(payload["problem"]),
-            lesson=str(payload["lesson"]),
-            learning_type=normalize_learning_type(str(payload["learning_type"])),
-            source_command=normalize_command_name(str(payload["source_command"])),
-            recurrence_key=str(payload["recurrence_key"]),
+            id=index_id,
+            problem=problem,
+            lesson=lesson,
+            learning_type=learning_type,
+            source_command=source_command,
+            recurrence_key=recurrence_key,
             applies_to=[normalize_command_name(item) for item in _coerce_str_list(payload.get("applies_to"))],
-            trigger_signals=_coerce_str_list(payload.get("trigger_signals")),
-            detail=str(payload["detail"]),
-            first_seen=str(payload["first_seen"]),
-            last_seen=str(payload["last_seen"]),
-            occurrence_count=int(payload.get("occurrence_count", 1)),
-            signal_strength=normalize_signal_strength(str(payload.get("signal_strength", "medium"))),
+            trigger_signals=trigger_signals,
+            detail=detail,
+            first_seen=first_seen,
+            last_seen=last_seen,
+            occurrence_count=max(1, _coerce_int(payload.get("occurrence_count", 1))),
+            signal_strength=signal_strength,
         )
 
 

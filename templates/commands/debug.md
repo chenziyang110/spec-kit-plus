@@ -149,6 +149,9 @@ Use the returned readiness:
 - `needs_update`: route through `{{invoke:map-update}}`.
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: stop and report the blocking runtime issue.
+- **CARRY FORWARD**: Write the selected capability or symptom, evidence routes,
+  minimal reads, competing truths, and unresolved coverage gaps into debug
+  session state before making root-cause claims.
 
 ## Investigation Protocol
 

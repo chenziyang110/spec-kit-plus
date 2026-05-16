@@ -146,6 +146,9 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "intent_outcome:" in content
     assert "intent_constraints:" in content
     assert "success_evidence:" in content
+    assert "status.md" in content
+    assert "validation route" in content
+    assert "known risk" in content
     assert "## execution" in content
     assert "blocked_dispatch:" in content
     assert "## validation" in content

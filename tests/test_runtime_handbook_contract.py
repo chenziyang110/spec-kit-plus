@@ -37,6 +37,33 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "module overview document" not in lowered
 
 
+def test_context_loading_gradient_requires_cognition_carry_forward() -> None:
+    content = _read("templates/command-partials/common/context-loading-gradient.md").lower()
+
+    assert "a project-cognition query is not complete when it returns json" in content
+    assert "readiness drives routing" in content
+    assert "minimal_live_reads constrains inspection" in content
+    assert "next workflow artifact or execution state" in content
+
+
+def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> None:
+    content = " ".join(
+        _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
+        .lower()
+        .split()
+    )
+
+    assert "a project-cognition query is not complete when it returns json" in content
+    assert "readiness drives routing" in content
+    assert "minimal_live_reads" in content
+    assert "next workflow artifact or execution state" in content
+    assert "affected nodes" in content
+    assert "subgraph" in content
+    assert "missing coverage" in content
+    assert "verification routes" in content
+    assert "weak coverage" in content
+
+
 def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
     for rel_path in (
         "templates/commands/specify.md",
@@ -54,6 +81,29 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         assert "build-handbook.md" not in lowered
         assert "build-workflow-contract" not in lowered
         assert "runtime handbook" not in lowered
+
+
+def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
+    expectations = {
+        "templates/commands/specify.md": ("context.md", "ownership", "verification routes"),
+        "templates/commands/clarify.md": ("clarified spec package", "ownership", "verification"),
+        "templates/commands/deep-research.md": ("deep-research.md", "repository facts", "external research"),
+        "templates/commands/plan.md": ("Implementation Constitution", "verification strategy", "plan-contract.json"),
+        "templates/commands/tasks.md": ("tasks.md", "task-index.json", "task packets"),
+        "templates/commands/analyze.md": ("cognition-backed blocker evidence", "clarify", "deep-research"),
+        "templates/commands/implement.md": ("implement-tracker.md", "WorkerTaskPacket", "minimal live reads"),
+        "templates/commands/debug.md": ("debug session state", "competing truths", "coverage gaps"),
+        "templates/commands/fast.md": ("fast-task state or report", "verification route", "minimal reads"),
+        "templates/commands/quick.md": ("STATUS.md", "validation route", "known risk"),
+        "templates/commands/test-scan.md": ("TEST_SCAN.md", "TEST_BUILD_PLAN", "testing-surface ownership"),
+        "templates/commands/test-build.md": ("TEST_BUILD_PLAN", "testing-state.md", "coverage gaps"),
+    }
+
+    for rel_path, phrases in expectations.items():
+        content = _read(rel_path).lower()
+        assert "project-cognition query" in content, rel_path
+        for phrase in phrases:
+            assert phrase.lower() in content, f"{rel_path} missing {phrase!r}"
 
 
 def test_runtime_handbook_docs_are_query_backed() -> None:

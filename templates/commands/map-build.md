@@ -41,7 +41,8 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing `.specify/project-cognition/project-cognition.db`.
+- Run `{{specify-subcmd:project-cognition publish-runtime-metadata --format json}}` immediately after publishing `.specify/project-cognition/project-cognition.db` so DB metadata and `.specify/project-cognition/status.json` agree on `baseline_state`, `graph_ready`, `graph_store_path`, and `active_generation_id`.
+- Run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing runtime metadata.
 - Use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after `validate-build` returns `status=ok` and `readiness=query_ready`.
 
 ## Hard Boundary
@@ -103,6 +104,8 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - Structural-only refresh is a failed build.
 - The build phase is not a scaffold, migration, or file-moving command.
 - Treat scan artifacts as inputs, not evidence, until packet evidence is accepted.
+- `.specify/**` inputs are workbench/control artifacts, not graph evidence rows.
+- DB publication must not write `.specify/**` into `evidence.source_path`, `path_index.path`, `symbol_index.path`, `entrypoint_index.path`, `test_index.test_path`, or graph claims.
 
 ## Build Duties
 
@@ -150,7 +153,8 @@ At minimum, claims must include:
 
 Before reporting completion:
 
-- run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing `.specify/project-cognition/project-cognition.db`
+- run `{{specify-subcmd:project-cognition publish-runtime-metadata --format json}}` after publishing `.specify/project-cognition/project-cognition.db`
+- run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing runtime metadata
 - use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after `validate-build` returns `status=ok` and `readiness=query_ready`
 - confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`
 - if `validate-build` returns `status=blocked`, report the specific DB, schema, active generation, status, or smoke-query error and do not mark the baseline fresh

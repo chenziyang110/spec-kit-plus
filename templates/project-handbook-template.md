@@ -25,9 +25,11 @@ and what sits clearly outside the system boundary.]
   discussions under `.specify/discussions/<slug>/`, produces technical options
   and requirements drafts, and only hands off after explicit user request.
   Handoff now begins with `handoff-assessment.md`: one bounded result writes
-  latest-copy `handoff-to-specify.md` and `handoff-to-specify.json`, while broad
-  directions stay inside `sp-discussion` through `split-plan.md` candidate backlog
-  entries and canonical `handoffs/<candidate_id>-handoff-to-specify.md` and
+  latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` with a
+  Must-Preserve Ledger (`MP-*` items), coverage status, and planning gate status,
+  while broad directions stay inside `sp-discussion` through `split-plan.md`
+  candidate backlog entries and canonical
+  `handoffs/<candidate_id>-handoff-to-specify.md` and
   `handoffs/<candidate_id>-handoff-to-specify.json` files, with `CAND-001` and
   `CAND-002` as examples. After one candidate ships, return to the same
   discussion slug to select the next stage.
@@ -46,6 +48,7 @@ and what sits clearly outside the system boundary.]
 - Read this handbook only when a user or workflow explicitly asks for the compatibility/export view; it is not the default runtime truth path.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. After that, normal code changes should use `sp-map-update` for bounded incremental refresh. Return to `sp-map-scan -> sp-map-build` only when the baseline is missing, unusable, schema-incompatible, or the changed closure cannot be bounded safely.
+- After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
 - Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed.
 - Support drift is not runtime-truth staleness; resolve support-surface drift without reflexively routing to `map-update`.
 - Preserve the state vocabulary: `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, and `possibly_stale` are machine freshness states; `recommended_next_action` is the public operator guidance.

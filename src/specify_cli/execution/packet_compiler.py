@@ -9,6 +9,7 @@ from .packet_schema import (
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
+    MustPreserveObligation,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -21,6 +22,8 @@ BULLET_RE = re.compile(r"(?m)^\s*-\s+`?(?P<value>.+?)`?\s*$")
 TASK_RE = re.compile(r"(?m)^\s*-\s\[[ xX]\]\s(?P<task_id>T\d+)(?P<body>.+)$")
 PATH_RE = re.compile(r"[\w./-]+/[\w./-]+")
 STORY_RE = re.compile(r"\[(US\d+)\]")
+MP_LINE_RE = re.compile(r"\b(MP-\d{3})\b\s*:?\s*(?P<claim>.+)")
+MP_ID_ONLY_RE = re.compile(r"\bMP-\d{3}\b")
 
 
 def _read(path: Path) -> str:
@@ -86,6 +89,62 @@ def _section_or_subsection_values(text: str, *titles: str) -> list[str]:
     for title in titles:
         values.extend(_bullet_values(_section_body(text, title)))
     return _unique(values)
+
+
+def _must_preserve_obligations_from_text(text: str, *, source: str) -> list[MustPreserveObligation]:
+    obligations: list[MustPreserveObligation] = []
+    seen: set[str] = set()
+    for line in text.splitlines():
+        match = MP_LINE_RE.search(line)
+        if not match:
+            continue
+        mp_id = match.group(1)
+        if mp_id in seen:
+            continue
+        seen.add(mp_id)
+        claim = match.group("claim").strip(" -|")
+        obligations.append(
+            MustPreserveObligation(
+                id=mp_id,
+                type="execution",
+                claim=claim or line.strip(),
+                source=source,
+                downstream_requirement="Preserve this discussion-derived obligation during implementation.",
+                mapped_to=[source],
+            )
+        )
+    return obligations
+
+
+def _applicable_mp_ids_from_tasks(tasks_text: str, task_id: str, task_body: str) -> set[str]:
+    applicable = set(MP_ID_ONLY_RE.findall(task_body))
+    guardrail_body = _section_body(tasks_text, "Task Guardrail Index")
+    for line in guardrail_body.splitlines():
+        if task_id not in line:
+            continue
+        applicable.update(MP_ID_ONLY_RE.findall(line))
+    return applicable
+
+
+def _global_must_preserve_ids(plan_text: str) -> set[str]:
+    ids: set[str] = set()
+    for line in plan_text.splitlines():
+        lowered = line.lower()
+        if "applies to all" not in lowered and "all implementation tasks" not in lowered:
+            continue
+        ids.update(MP_ID_ONLY_RE.findall(line))
+    return ids
+
+
+def _unique_obligations(values: list[MustPreserveObligation]) -> list[MustPreserveObligation]:
+    seen: set[str] = set()
+    unique: list[MustPreserveObligation] = []
+    for value in values:
+        if value.id in seen:
+            continue
+        seen.add(value.id)
+        unique.append(value)
+    return unique
 
 
 def _context_bundle_from_project_docs(
@@ -239,6 +298,23 @@ def compile_worker_task_packet(
         required_references=required_references,
     )
     read_scope = _unique([item.path for item in context_bundle] + [ref.path for ref in required_references])
+    applicable_mp_ids = _applicable_mp_ids_from_tasks(tasks_text, task_id, resolved_task_body) | _global_must_preserve_ids(
+        plan_text
+    )
+    must_preserve_obligations = _unique_obligations(
+        [
+            *[
+                obligation
+                for obligation in _must_preserve_obligations_from_text(plan_text, source="plan.md")
+                if not applicable_mp_ids or obligation.id in applicable_mp_ids
+            ],
+            *[
+                obligation
+                for obligation in _must_preserve_obligations_from_text(tasks_text, source="tasks.md")
+                if not applicable_mp_ids or obligation.id in applicable_mp_ids
+            ],
+        ]
+    )
 
     packet = WorkerTaskPacket(
         feature_id=feature_dir.name,
@@ -262,6 +338,7 @@ def compile_worker_task_packet(
         done_criteria=done_criteria,
         handoff_requirements=handoff_requirements,
         platform_guardrails=platform_guardrails,
+        must_preserve_obligations=must_preserve_obligations,
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
     return validate_worker_task_packet(packet)

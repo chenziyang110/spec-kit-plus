@@ -118,13 +118,16 @@ peer workflow path to `specify` and does not automatically hand off to `plan`.
 Use the canonical `discussion` workflow for rough ideas that need resumable
 product and technical exploration before formal specification with `specify`. It
 stores `.specify/discussions/<slug>/` artifacts and only runs
-`handoff-assessment.md` when the user explicitly asks to hand off. If the
-assessment finds multiple independently valuable stages, split handling stays
-inside `discussion`: `split-plan.md` becomes the candidate backlog, there is no
-separate split workflow, and selected candidates get canonical handoffs such as
+`handoff-assessment.md` when the user explicitly asks to hand off. A bounded
+handoff writes latest-copy `handoff-to-specify.md` and
+`handoff-to-specify.json` with a Must-Preserve Ledger so protected goals,
+non-goals, decisions, references, trade-off rationale, and blocking questions
+carry forward without silent drift. If the assessment finds multiple
+independently valuable stages, split handling stays inside `discussion`:
+`split-plan.md` becomes the candidate backlog, there is no separate split
+workflow, and selected candidates get canonical handoffs such as
 `handoffs/CAND-001-handoff-to-specify.{md,json}` or
-`handoffs/CAND-002-handoff-to-specify.{md,json}` plus latest-copy
-`handoff-to-specify.md` and `handoff-to-specify.json` mirrors for
+`handoffs/CAND-002-handoff-to-specify.{md,json}` plus latest-copy mirrors for
 compatibility. It does not automatically invoke `specify`.
 
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.

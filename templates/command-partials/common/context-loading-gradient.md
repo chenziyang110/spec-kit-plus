@@ -22,6 +22,16 @@ Every workflow must consume the readiness and task-local bundle returned by the
 project cognition query explicitly required by its command contract.
 Do not replace bundle consumption with broad freeform repository rereads when the runtime already covers the touched area.
 
+### Query Completion
+
+A project-cognition query is not complete when it returns JSON. It is complete
+only when readiness drives routing, minimal_live_reads constrains inspection,
+and relevant facts are carried into the next workflow artifact or execution state.
+
+Extract and carry forward the matched capability or symptom, affected nodes and
+subgraph, `minimal_live_reads`, missing coverage, evidence traces, verification
+routes, ambiguity, conflicts, and weak coverage.
+
 ### Command Tier Depth
 
 Tier determines how deeply the workflow must continue through the returned bundle
