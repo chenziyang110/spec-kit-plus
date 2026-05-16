@@ -134,7 +134,7 @@ Use the returned readiness:
 If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, `.specify/discussions/<slug>/handoffs/CAND-001-handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
 
 - Treat the discussion handoff as an authoritative input to the brainstorming kernel, not a bypass around it.
-- When the supplied path is Markdown, look for the same-stem JSON companion first. For a candidate handoff, read `handoffs/CAND-001-handoff-to-specify.json`. For the legacy latest handoff, read `handoff-to-specify.json`.
+- When the supplied path is Markdown, look for the same-stem JSON companion first. For a candidate handoff, read `handoffs/CAND-001-handoff-to-specify.json`. For the legacy latest handoff, read `handoff-to-specify.json` and treat both files as latest selected candidate copies.
 - If candidate Markdown and candidate JSON disagree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, or Must-Preserve Ledger identity fields, block with a handoff integrity error and tell the user to refresh the `sp-discussion` handoff.
 - If legacy latest Markdown and legacy latest JSON disagree on the selected `candidate_id`, block rather than choosing one representation.
 - If candidate Markdown exists but candidate JSON is missing, reconstruct the active feature copy into `brainstorming/handoff-to-specify.json`, record the reconstruction source, and report a handoff repair advisory.
