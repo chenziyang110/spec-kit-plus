@@ -405,7 +405,7 @@ def test_discussion_shell_partial_mentions_split_outputs_without_single_handoff_
     assert "handoff-to-specify.json" in content
     assert "candidate backlog" in lowered
     assert "latest selected candidate copy" in lowered
-    assert "only handoff output" not in lowered
+    assert "not the only handoff output" in lowered
 
 
 def test_discussion_staged_cognition_gate_and_technical_options_contract() -> None:
