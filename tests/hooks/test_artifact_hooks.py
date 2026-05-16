@@ -1141,6 +1141,7 @@ def test_validate_artifacts_blocks_triggered_consequence_handoff_without_analysi
     feature_dir.mkdir(parents=True, exist_ok=True)
     _write_valid_specify_semantic_artifacts(feature_dir)
     _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
 
     (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
         json.dumps(

@@ -251,6 +251,27 @@ GRAPH_CLAIM_REQUIRED_KEYS = frozenset({"claims"})
 GRAPH_CONFLICT_REQUIRED_KEYS = frozenset({"conflicts"})
 GRAPH_UPDATE_REQUIRED_KEYS = frozenset({"updates"})
 
+CONSEQUENCE_ANALYSIS_REQUIRED_KEYS = (
+    "affected_object_map",
+    "state_behavior_matrix",
+    "dependency_impact",
+    "recovery_and_validation",
+    "coverage_gaps",
+)
+
+CONSEQUENCE_OBLIGATION_REQUIRED_KEYS = (
+    "obligation_id",
+    "claim",
+    "affected_objects",
+    "owner",
+    "latest_resolve_phase",
+    "status",
+    "stop_and_reopen_condition",
+)
+
+CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION = "## Operational Consequence Design"
+CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION = "## Consequence Obligation Mapping"
+
 PRD_RECONSTRUCTION_READY_STATUSES = frozenset(
     {
         "reconstruction-ready",
@@ -386,6 +407,64 @@ def _validate_unknown_objects(payload: Any, label: str) -> list[str]:
             if not str(item.get(key, "")).strip():
                 errors.append(f"{label} unknowns[{index}] missing {key}")
     return errors
+
+
+def _json_gate_is_triggered(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    gate = payload.get("consequence_gate")
+    if not isinstance(gate, dict):
+        return False
+    return gate.get("triggered") is True
+
+
+def _validate_consequence_json_payload(payload: Any, label: str) -> list[str]:
+    if not isinstance(payload, dict):
+        return [f"{label} must be a JSON object before consequence validation can run"]
+    if not _json_gate_is_triggered(payload):
+        return []
+
+    errors: list[str] = []
+    analysis = payload.get("consequence_analysis")
+    if not isinstance(analysis, dict):
+        return [f"{label} consequence_analysis must be an object when consequence_gate.triggered is true"]
+
+    for key in CONSEQUENCE_ANALYSIS_REQUIRED_KEYS:
+        value = analysis.get(key)
+        if not isinstance(value, list) or not value:
+            errors.append(f"{label} consequence_analysis.{key} must be a non-empty array when the gate is triggered")
+
+    obligations = payload.get("consequence_obligations")
+    if not isinstance(obligations, list) or not obligations:
+        errors.append(f"{label} consequence_obligations must be a non-empty array when the gate is triggered")
+        return errors
+
+    for index, obligation in enumerate(obligations):
+        if not isinstance(obligation, dict):
+            errors.append(f"{label} consequence_obligations[{index}] must be an object")
+            continue
+        for key in CONSEQUENCE_OBLIGATION_REQUIRED_KEYS:
+            value = obligation.get(key)
+            if isinstance(value, list):
+                if not value:
+                    errors.append(f"{label} consequence_obligations[{index}].{key} must not be empty")
+            elif not str(value or "").strip():
+                errors.append(f"{label} consequence_obligations[{index}].{key} must not be empty")
+
+    return errors
+
+
+def _consequence_obligation_ids(payload: Any) -> set[str]:
+    if not isinstance(payload, dict):
+        return set()
+    obligations = payload.get("consequence_obligations")
+    if not isinstance(obligations, list):
+        return set()
+    return {
+        str(item.get("obligation_id") or "").strip()
+        for item in obligations
+        if isinstance(item, dict) and str(item.get("obligation_id") or "").strip()
+    }
 
 
 def _validate_brainstorming_json_artifact(feature_dir: Path, relative_path: str, *, validate_unknowns: bool) -> list[str]:
@@ -548,6 +627,83 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
     if missing_ids:
         joined = ", ".join(missing_ids)
         errors.append(f"plan.md does not consume deep-research Planning Handoff IDs: {joined}")
+
+    return errors
+
+
+def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
+    contract_path = feature_dir / "plan-contract.json"
+    if not contract_path.exists():
+        return []
+    payload, read_errors = _read_json_artifact(contract_path, "plan-contract.json")
+    if read_errors:
+        return read_errors
+    errors = _validate_consequence_json_payload(payload, "plan-contract.json")
+    if not _json_gate_is_triggered(payload):
+        return errors
+
+    plan_path = feature_dir / "plan.md"
+    plan_content = plan_path.read_text(encoding="utf-8", errors="replace")
+    if CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION not in plan_content:
+        ids = ", ".join(sorted(_consequence_obligation_ids(payload))) or "triggered consequence obligations"
+        errors.append(f"plan.md is missing {CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION} for {ids}")
+
+    operational_decisions = payload.get("operational_consequence_decisions") if isinstance(payload, dict) else None
+    if not isinstance(operational_decisions, list) or not operational_decisions:
+        ids = ", ".join(sorted(_consequence_obligation_ids(payload))) or "triggered consequence obligations"
+        errors.append(f"plan-contract.json operational_consequence_decisions must map {ids}")
+
+    return errors
+
+
+def _task_index_consequence_ids(payload: Any) -> set[str]:
+    if not isinstance(payload, dict):
+        return set()
+    ids: set[str] = set()
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list):
+        return ids
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        raw_ids = task.get("consequence_obligation_ids")
+        if isinstance(raw_ids, list):
+            ids.update(str(item).strip() for item in raw_ids if str(item).strip())
+    return ids
+
+
+def _validate_tasks_consequence_contract(feature_dir: Path) -> list[str]:
+    handoff_path = feature_dir / "handoff-to-tasks.json"
+    if not handoff_path.exists():
+        return []
+
+    handoff_payload, handoff_errors = _read_json_artifact(handoff_path, "handoff-to-tasks.json")
+    if handoff_errors:
+        return handoff_errors
+
+    errors = _validate_consequence_json_payload(handoff_payload, "handoff-to-tasks.json")
+    if not _json_gate_is_triggered(handoff_payload):
+        return errors
+
+    required_ids = _consequence_obligation_ids(handoff_payload)
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.exists():
+        errors.append("task-index.json is required when handoff-to-tasks.json carries triggered consequence obligations")
+        return errors
+
+    task_index_payload, task_index_errors = _read_json_artifact(task_index_path, "task-index.json")
+    if task_index_errors:
+        errors.extend(task_index_errors)
+        return errors
+
+    mapped_ids = _task_index_consequence_ids(task_index_payload)
+    missing_ids = sorted(required_ids - mapped_ids)
+    if missing_ids:
+        errors.append("task-index.json is missing consequence mapping for: " + ", ".join(missing_ids))
+
+    tasks_content = (feature_dir / "tasks.md").read_text(encoding="utf-8", errors="replace")
+    if CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION not in tasks_content:
+        errors.append(f"tasks.md is missing {CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION}")
 
     return errors
 
@@ -943,13 +1099,15 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
     errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/route.json", validate_unknowns=False))
     errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/intent.json", validate_unknowns=False))
     errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/complexity.json", validate_unknowns=False))
-    errors.extend(
-        _validate_brainstorming_json_artifact(
-            feature_dir,
-            "brainstorming/handoff-to-specify.json",
-            validate_unknowns=True,
-        )
+    handoff_payload, handoff_errors = _read_json_artifact(
+        feature_dir / "brainstorming" / "handoff-to-specify.json",
+        "brainstorming/handoff-to-specify.json",
     )
+    if handoff_errors:
+        errors.extend(handoff_errors)
+    else:
+        errors.extend(_validate_unknown_objects(handoff_payload, "brainstorming/handoff-to-specify.json"))
+        errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
 
     return errors
 
@@ -1046,6 +1204,9 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+        validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
+    if command_name == "tasks":
+        validation_errors.extend(_validate_tasks_consequence_contract(feature_dir))
     if command_name == "map-scan":
         validation_errors.extend(_validate_map_scan_artifacts(feature_dir))
     if command_name == "map-build":
