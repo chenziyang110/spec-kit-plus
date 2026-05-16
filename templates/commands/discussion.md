@@ -3,7 +3,7 @@ description: Use when a rough idea or requirement needs a resumable senior produ
 workflow_contract:
   when_to_use: A rough idea or requirement needs product/technical discussion before it is ready for sp-specify.
   primary_objective: Build a durable discussion package that matures the idea into requirements and technical implementation options.
-  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, `split-plan.md` and `handoffs/CAND-001-handoff-to-specify.{md,json}` when splitting is required, plus latest-copy `handoff-to-specify.{md,json}` only after a bounded candidate is selected.'
+  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, `split-plan.md` and `handoffs/CAND-001-handoff-to-specify.{md,json}` when splitting is required, plus latest-copy `handoff-to-specify.{md,json}` only after a bounded handoff or bounded candidate handoff is selected.'
   default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run handoff assessment and either write a bounded latest-copy handoff-to-specify.{md,json}, enter split mode, or continue discussion.
 ---
 
