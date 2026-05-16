@@ -419,6 +419,33 @@ class IntegrationBase(ABC):
         )
         return content + addendum
 
+    def _append_planning_skill_cognition_refresh_guidance(
+        self,
+        *,
+        content: str,
+        command_name: str,
+    ) -> str:
+        """Append skill-only cognition freshness closeout guidance for planning artifacts."""
+
+        if command_name not in {"specify", "plan", "tasks"}:
+            return content
+
+        marker = "## Project Cognition Freshness Closeout"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            f"{marker}\n\n"
+            "- This workflow is artifact-only unless the user explicitly requested source/runtime changes; do not call `project-cognition mark-dirty`, `project-cognition complete-refresh`, or `project-cognition validate-build --format json` just because `sp-specify`, `sp-plan`, or `sp-tasks` wrote planning artifacts.\n"
+            "- When later actual source/runtime changes update truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, refresh through `/sp-map-update` using the changed paths.\n"
+            "- After a successful refresh, update git-baseline freshness with `project-cognition record-refresh` or `project-cognition complete-refresh`; use `complete-refresh` only after build acceptance passes.\n"
+            "- If a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then `project-cognition validate-build --format json`, and only then `project-cognition complete-refresh --format json` when validation is ready.\n"
+            "- If refresh cannot be completed now, use the manual override/fallback path with `project-cognition mark-dirty --reason \"<reason>\" --format json` and report the required follow-up.\n"
+            "- Run `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement.\n"
+        )
+        return content + addendum
+
     def _append_delegation_surface_contract(
         self,
         *,
@@ -1748,11 +1775,21 @@ class SkillsIntegration(IntegrationBase):
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             if command_name == "implement":
+                skill_content = self._append_runtime_project_cognition_gate(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=command_name,
+                )
                 skill_content = self._append_implement_leader_gate(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),
                 )
             if command_name == "debug":
+                skill_content = self._append_runtime_project_cognition_gate(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=command_name,
+                )
                 skill_content = self._append_debug_leader_gate(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -1763,6 +1800,11 @@ class SkillsIntegration(IntegrationBase):
                     snapshot=runtime_snapshot,
                 )
             if command_name == "quick":
+                skill_content = self._append_runtime_project_cognition_gate(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=command_name,
+                )
                 skill_content = self._append_quick_leader_gate(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -1795,6 +1837,10 @@ class SkillsIntegration(IntegrationBase):
                 skill_content = self._append_specify_brainstorming_kernel_guidance(
                     content=skill_content,
                 )
+            skill_content = self._append_planning_skill_cognition_refresh_guidance(
+                content=skill_content,
+                command_name=command_name,
+            )
             from specify_cli.launcher import render_project_launcher_placeholders
             skill_content = render_project_launcher_placeholders(project_root, skill_content)
 

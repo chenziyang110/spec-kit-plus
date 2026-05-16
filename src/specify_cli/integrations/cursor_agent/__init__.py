@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
 
 from ..base import IntegrationOption, SkillsIntegration
 from ..manifest import IntegrationManifest
@@ -44,33 +43,8 @@ class CursorAgentIntegration(SkillsIntegration):
         content: str,
         command_name: str,
     ) -> str:
-        if command_name not in {"implement", "debug", "quick"}:
-            return content
-
-        lowered = content.lower()
-        missing_lines: list[str] = []
-        if command_name == "debug":
-            if "debug-handbook.md" not in lowered:
-                missing_lines.append(
-                    "- Runtime handbook contract: read `DEBUG-HANDBOOK.md` when a compatibility/export debug view is needed alongside the graph-native runtime.\n"
-                )
-            if "debug-workflow-contract" not in lowered:
-                missing_lines.append("- Compatibility tag: `debug-workflow-contract`.\n")
-        else:
-            if "build-handbook.md" not in lowered:
-                missing_lines.append(
-                    "- Runtime handbook compatibility: read `BUILD-HANDBOOK.md` when a compatibility/export build/change view is needed alongside the graph-native runtime.\n"
-                )
-            if "build-workflow-contract" not in lowered:
-                missing_lines.append("- Compatibility tag: `build-workflow-contract`.\n")
-
-        if not missing_lines:
-            return content
-
-        frontmatter_match = re.match(r"(?s)\A---\n.*?\n---\n", content)
-        if frontmatter_match:
-            return content[: frontmatter_match.end()] + "".join(missing_lines) + content[frontmatter_match.end() :]
-        return "".join(missing_lines) + content
+        _ = command_name
+        return content
 
     def _cursor_capability_snapshot(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(
@@ -101,11 +75,6 @@ class CursorAgentIntegration(SkillsIntegration):
             "quick": skills_dir / "sp-quick" / "SKILL.md",
         }
         for command_name, path in runtime_skills.items():
-            self._append_project_cognition_gate_to_file(
-                project_root=project_root,
-                manifest=manifest,
-                path=path,
-            )
             self._append_runtime_handbook_compatibility_to_file(
                 project_root=project_root,
                 manifest=manifest,
@@ -129,18 +98,12 @@ class CursorAgentIntegration(SkillsIntegration):
         skills_dir = self.skills_dest(project_root)
         for stem in ("implement", "debug", "quick"):
             path = skills_dir / f"sp-{stem}" / "SKILL.md"
-            project_cognition_update = self._append_project_cognition_gate_to_file(
-                project_root=project_root,
-                manifest=manifest,
-                path=path,
-            )
             updated = self._append_runtime_handbook_compatibility_to_file(
                 project_root=project_root,
                 manifest=manifest,
                 path=path,
                 command_name=stem,
             )
-            updated = updated or project_cognition_update
             if updated is None:
                 continue
             updated_files.append(updated)
