@@ -94,6 +94,17 @@ DIRECTORY_REQUIRED_ARTIFACTS = {
 }
 
 
+SPECIFY_LOSSLESS_REQUIRED_ARTIFACTS = frozenset(
+    {
+        "brainstorming/journal.ndjson",
+        "brainstorming/stage-manifest.json",
+        "brainstorming/domains.json",
+        "brainstorming/evidence-index.json",
+        "brainstorming/evidence",
+    }
+)
+
+
 REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
     "specify": (
@@ -1554,7 +1565,7 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
     return errors
 
 
-def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
+def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_state: bool = True) -> list[str]:
     errors: list[str] = []
     draft_path = feature_dir / "specify-draft.md"
     alignment_path = feature_dir / "alignment.md"
@@ -1597,7 +1608,8 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
         errors.extend(_validate_handoff_to_specify_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
         errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
 
-    errors.extend(_validate_lossless_specify_state(feature_dir))
+    if validate_lossless_state:
+        errors.extend(_validate_lossless_specify_state(feature_dir))
 
     return errors
 
@@ -1678,17 +1690,27 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         constitution_path = project_root / ".specify" / "memory" / "constitution.md"
         if not constitution_path.exists():
             missing.append(".specify/memory/constitution.md")
+    legacy_lossless_missing = (
+        command_name == "specify"
+        and (feature_dir / "brainstorming" / "legacy-state.json").exists()
+        and missing
+        and not type_errors
+        and all(name in SPECIFY_LOSSLESS_REQUIRED_ARTIFACTS for name in missing)
+    )
     if missing or type_errors:
-        return HookResult(
-            event=WORKFLOW_ARTIFACTS_VALIDATE,
-            status="blocked",
-            severity="critical",
-            errors=[*([f"missing required artifact: {name}" for name in missing]), *type_errors],
-            data={"feature_dir": str(feature_dir)},
-        )
+        if not legacy_lossless_missing:
+            return HookResult(
+                event=WORKFLOW_ARTIFACTS_VALIDATE,
+                status="blocked",
+                severity="critical",
+                errors=[*([f"missing required artifact: {name}" for name in missing]), *type_errors],
+                data={"feature_dir": str(feature_dir)},
+            )
     validation_errors: list[str] = []
     if command_name == "specify":
-        validation_errors.extend(_validate_specify_draft_artifacts(feature_dir))
+        validation_errors.extend(
+            _validate_specify_draft_artifacts(feature_dir, validate_lossless_state=not legacy_lossless_missing)
+        )
         validation_errors.extend(_validate_reference_implementation_spec(feature_dir))
     if command_name == "deep-research":
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
@@ -1721,6 +1743,17 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
             severity="critical",
             errors=validation_errors,
             data={"feature_dir": str(feature_dir)},
+        )
+    if legacy_lossless_missing:
+        return HookResult(
+            event=WORKFLOW_ARTIFACTS_VALIDATE,
+            status="warn",
+            severity="warning",
+            warnings=[
+                "legacy sp-specify package lacks lossless state artifacts; do not treat this package as "
+                "lossless unless it is repaired with legacy_state_imported"
+            ],
+            data={"feature_dir": str(feature_dir), "legacy_lossless_state": False},
         )
     return HookResult(
         event=WORKFLOW_ARTIFACTS_VALIDATE,

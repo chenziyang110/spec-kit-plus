@@ -1207,6 +1207,108 @@ def test_validate_artifacts_blocks_specify_when_lossless_journal_is_missing(tmp_
     assert any("brainstorming/journal.ndjson" in message for message in result.errors)
 
 
+def test_validate_artifacts_warns_for_legacy_specify_package_without_lossless_files(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    for relative in (
+        "journal.ndjson",
+        "stage-manifest.json",
+        "domains.json",
+        "evidence-index.json",
+    ):
+        path = feature_dir / "brainstorming" / relative
+        if path.exists():
+            path.unlink()
+    evidence_dir = feature_dir / "brainstorming" / "evidence"
+    if evidence_dir.exists():
+        evidence_dir.rmdir()
+    legacy_marker = feature_dir / "brainstorming" / "legacy-state.json"
+    legacy_marker.write_text('{"version":1,"lossless_state":"legacy-unavailable"}', encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "warn"
+    assert any("legacy" in message.lower() and "lossless" in message.lower() for message in result.warnings)
+
+
+def test_validate_artifacts_blocks_legacy_specify_package_when_non_lossless_artifact_is_missing(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "spec.md").unlink()
+    for relative in (
+        "journal.ndjson",
+        "stage-manifest.json",
+        "domains.json",
+        "evidence-index.json",
+    ):
+        path = feature_dir / "brainstorming" / relative
+        if path.exists():
+            path.unlink()
+    evidence_dir = feature_dir / "brainstorming" / "evidence"
+    if evidence_dir.exists():
+        evidence_dir.rmdir()
+    legacy_marker = feature_dir / "brainstorming" / "legacy-state.json"
+    legacy_marker.write_text('{"version":1,"lossless_state":"legacy-unavailable"}', encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("missing required artifact: spec.md" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_legacy_specify_package_when_existing_artifact_is_invalid(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
+    for relative in (
+        "journal.ndjson",
+        "stage-manifest.json",
+        "domains.json",
+        "evidence-index.json",
+    ):
+        path = feature_dir / "brainstorming" / relative
+        if path.exists():
+            path.unlink()
+    evidence_dir = feature_dir / "brainstorming" / "evidence"
+    if evidence_dir.exists():
+        evidence_dir.rmdir()
+    legacy_marker = feature_dir / "brainstorming" / "legacy-state.json"
+    legacy_marker.write_text('{"version":1,"lossless_state":"legacy-unavailable"}', encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("alignment.md" in message and "Alignment Summary" in message for message in result.errors)
+
+
 def test_validate_artifacts_blocks_specify_when_checkpoint_pointer_is_not_in_journal(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
