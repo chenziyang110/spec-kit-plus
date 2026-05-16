@@ -27,9 +27,10 @@ and what sits clearly outside the system boundary.]
   Handoff now begins with `handoff-assessment.md`: one bounded result writes
   latest-copy `handoff-to-specify.md` and `handoff-to-specify.json`, while broad
   directions stay inside `sp-discussion` through `split-plan.md` candidate backlog
-  entries and canonical `handoffs/CAND-001-handoff-to-specify.md` and
-  `handoffs/CAND-001-handoff-to-specify.json` files. After one candidate ships,
-  return to the same discussion slug to select the next stage.
+  entries and canonical `handoffs/<candidate_id>-handoff-to-specify.md` and
+  `handoffs/<candidate_id>-handoff-to-specify.json` files, with `CAND-001` and
+  `CAND-002` as examples. After one candidate ships, return to the same
+  discussion slug to select the next stage.
 
 ## How To Read This Project
 

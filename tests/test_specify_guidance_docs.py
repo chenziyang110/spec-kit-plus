@@ -137,12 +137,15 @@ def test_guidance_docs_explain_discussion_split_continuation() -> None:
 
     for content in (readme, handbook, generated_handbook):
         lowered = content.lower()
+        normalized = re.sub(r"\s+", " ", lowered)
         assert "handoff-assessment.md" in content
         assert "split-plan.md" in content
         assert "candidate backlog" in lowered
-        assert "return to the same discussion" in lowered
-        assert "handoffs/CAND-001-handoff-to-specify.md" in content
-        assert "handoff-to-specify.json" in content
+        assert "return to the same discussion" in normalized
+        assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
+        assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
+        assert "CAND-001" in content
+        assert "CAND-002" in content
 
 
 def test_quickstart_and_installation_explain_discussion_candidate_handoffs() -> None:
