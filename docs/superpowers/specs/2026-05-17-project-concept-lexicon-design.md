@@ -92,6 +92,34 @@ Project Concept Lexicon is an API and indexing projection over the graph:
 
 This avoids dual truth while still allowing a refined consumer experience.
 
+## Runtime Contract Version
+
+This design changes the public query runtime contract. The implementation must
+bump `query_contract_version` from `1` to `2` when concept candidates,
+selected/rejected concepts, and route packs become required runtime behavior.
+
+Contract version `2` means:
+
+- `project-cognition lexicon` returns `concept_candidates` in addition to
+  compatibility `terms` and `available_terms`.
+- `project-cognition query --query-plan` accepts `selected_concepts`,
+  `rejected_concepts`, and `selection_reason`.
+- query results include `selected_concepts`, `rejected_concepts`, and
+  `route_pack`.
+- build validation rejects runtimes that publish version `2` metadata without
+  these behaviors.
+
+`update_contract_version` may stay at `1` only for an implementation that
+records retrieval-signal maintenance as update metadata without changing the
+update command payload. If `sp-map-update` gains new public update inputs or
+outputs for concept corrections, bump `update_contract_version` in the same
+implementation lane and validate it.
+
+Backward compatibility is read-only: generated consumers may tolerate older
+version `1` runtimes by routing to `sp-map-update` or `sp-map-scan ->
+sp-map-build`, but a version `1` runtime must not pass validation as
+concept-lexicon ready.
+
 ## Concept Candidate View
 
 `project-cognition lexicon` should return concept candidates, not only raw map
@@ -135,6 +163,26 @@ Required fields:
 - `disambiguation_hint`: explanation for ambiguous or overloaded terms.
 - `confidence`: ranked confidence derived from evidence quality and match type.
 - `evidence_ids`: evidence backing the candidate and its aliases.
+
+### Query Examples Evidence
+
+`query_examples` are retrieval signals, not standalone evidence. The current
+table records expected target metadata but does not include `evidence_id` or
+`confidence`. A concept candidate may use `query_examples` for
+`colloquial_matches` only when the candidate is also backed by node, alias,
+claim, path, symbol, or edge evidence.
+
+The implementation has two acceptable paths:
+
+- extend `query_examples` with `evidence_id` and `confidence`, then validate
+  those fields for version `2` runtimes; or
+- keep the table shape unchanged and treat query examples as annotations that
+  inherit evidence from the resolved target node's aliases, claims, paths,
+  symbols, or node evidence.
+
+The first version of this design should prefer the second path unless
+implementation discovers that query examples need independent provenance for
+correction workflows.
 
 ## Query Plan Contract
 
@@ -199,6 +247,38 @@ Required route pack fields:
 - `minimal_live_reads`: the smallest live read set required before trusting the
   route.
 - `why_these_reads`: evidence-backed explanation for each important route item.
+
+All route arrays except `minimal_live_reads` and `why_these_reads` use route
+item objects with the same schema:
+
+```json
+{
+  "path": "src/specify_cli/codex_team/",
+  "node_id": "capability:codex-team-runtime",
+  "claim_id": "claim:codex-team-runtime-owner",
+  "relation": "owner",
+  "reason": "Owns Codex team runtime state and operations.",
+  "evidence_ids": ["E-team-runtime"],
+  "confidence": "strong"
+}
+```
+
+Required route item fields:
+
+- `path`: repository-relative path, normalized with `/`.
+- `relation`: route relation such as `entry`, `owner`, `consumer`, `state`,
+  `workflow`, `test`, or `documentation`.
+- `reason`: concise explanation of why this item is relevant.
+- `evidence_ids`: non-empty evidence IDs backing the route.
+- `confidence`: `grounded`, `strong`, `partial`, or `weak`.
+
+At least one of `node_id` or `claim_id` is required. Both may be present when a
+route item is backed by a graph node and a specific claim.
+
+`minimal_live_reads` stays a string array for compatibility and ergonomic
+consumer prompts. Every `minimal_live_reads` path must correspond to at least one
+route item unless the path is a low-confidence fallback for `review` or
+`partial_refresh`; fallback paths must be explained in `why_these_reads`.
 
 Example:
 
@@ -293,6 +373,23 @@ signal, and evidence.
 
 `sp-map-update` is the normal maintenance path after the first baseline.
 
+The publishing model is patch-in-active-generation for this phase:
+
+- `sp-map-update` mutates or appends records in the current active generation
+  for the affected closure.
+- It appends an `updates` row describing changed paths, affected nodes, affected
+  claims, affected route-pack records, stale retrieval signals, known unknowns,
+  and confidence.
+- It does not create a new active generation for ordinary incremental updates.
+- It must invalidate or replace stale retrieval rows in the same transaction
+  that records the update.
+- It must update `status.json` refresh metadata only after the transactional DB
+  update succeeds.
+
+A new generation is reserved for `sp-map-scan -> sp-map-build` full baselines,
+schema-incompatible rebuilds, corruption recovery, explicit rebuilds, or broad
+architecture replacement.
+
 It must:
 
 - start from changed paths, changed commit range, or explicit user-supplied
@@ -306,6 +403,8 @@ It must:
 - preserve `minimal_live_reads` for uncertain concepts and uncovered paths
 - return `partial_refresh` when the update was recorded but readiness did not
   pass
+- preserve enough update metadata for a later full build to understand which
+  retrieval signals were patched, invalidated, or left low-confidence
 - escalate to `sp-map-scan -> sp-map-build` only for missing baseline, unusable
   DB/status/schema, explicit rebuild request, or broad architecture replacement
 
@@ -370,6 +469,14 @@ should only declare:
 - Use rejected concepts to avoid chasing generic aliases in the wrong domain.
 - Use route pack tests and state surfaces for root-cause verification.
 
+`sp-analyze` uses the same project cognition gate as the workflow it is
+analyzing. For task remediation and blocker analysis it normally uses
+`intent=implement`, because it is judging implementation readiness, blockers,
+and affected execution scope. If `sp-analyze` is invoked only to inspect
+planning artifacts before implementation scope exists, it may use `intent=plan`.
+In both cases it carries selected/rejected concepts, route pack, blocker
+evidence, and coverage gaps into its blocker bundle.
+
 `sp-test-scan` and `sp-test-build` use `intent=test`.
 
 - Carry selected concepts into testing scope, coverage gaps, and testing build
@@ -384,6 +491,10 @@ should only declare:
   handoff.
 - Use concept ambiguity to separate external feasibility research from internal
   project behavior.
+
+Other current or future `sp-*` workflows inherit the shared consumer gate by
+default. A workflow may opt out only if its command contract proves it does not
+consume brownfield project context.
 
 ## Ranking and Disambiguation
 
@@ -415,12 +526,16 @@ signal evidence:
 
 `validate-build` should check:
 
+- runtime metadata publishes `query_contract_version = 2` for concept lexicon
+  readiness
 - the active generation has aliases or query examples for important concepts
 - lexicon smoke query returns at least one concept candidate for a known indexed
   concept
 - query accepts `selected_concepts` and `rejected_concepts` in `query_plan`
 - query returns a route pack for a known selected concept
-- route pack entries are evidence-backed
+- route pack entries satisfy the route item schema and are evidence-backed
+- every ordinary `minimal_live_reads` path maps to at least one route item, and
+  every fallback read has a `why_these_reads` explanation
 - weak coverage returns `review`, `ambiguous`, `needs_update`, or
   `partial_refresh` rather than false `ready`
 - optional materialized lexicon caches are consistent with the active
@@ -431,18 +546,24 @@ from graph truth and retrieval indexes.
 
 ## Migration Strategy
 
-1. Extend the query plan parser and runtime query payload with
+1. Bump the public query runtime contract to `query_contract_version = 2` and
+   update runtime metadata publication plus build validation to require version
+   `2` for concept-lexicon readiness.
+2. Extend the query plan parser and runtime query payload with
    `selected_concepts`, `rejected_concepts`, and `selection_reason`.
-2. Extend `project-cognition lexicon` to return `concept_candidates` while
+3. Extend `project-cognition lexicon` to return `concept_candidates` while
    preserving existing `terms` and `available_terms` for compatibility.
-3. Extend `project-cognition query` to resolve selected concepts directly before
+4. Extend `project-cognition query` to resolve selected concepts directly before
    alias and FTS matching.
-4. Add route pack output derived from existing path, edge, claim, entrypoint,
-   test, and symbol indexes.
-5. Update `sp-map-scan`, `sp-map-build`, and `sp-map-update` prompt contracts to
+5. Add route pack output derived from existing path, edge, claim, entrypoint,
+   test, and symbol indexes using the route item schema.
+6. Implement the patch-in-active-generation update model for affected retrieval
+   signals, including update metadata for patched, invalidated, and
+   low-confidence concept routes.
+7. Update `sp-map-scan`, `sp-map-build`, and `sp-map-update` prompt contracts to
    maintain retrieval signals.
-6. Update the shared consumer gate and passive skill mirror.
-7. Add validation and integration tests for concept selection, rejected concept
+8. Update the shared consumer gate and passive skill mirror.
+9. Add validation and integration tests for concept selection, rejected concept
    suppression, route pack output, scan/build guidance, update guidance, and
    generated integration output.
 
@@ -468,10 +589,21 @@ from graph truth and retrieval indexes.
 - `project-cognition query --query-plan` accepts selected and rejected concepts.
 - Query results include a route pack with evidence-backed read routes and
   `why_these_reads`.
+- Runtime metadata and validation require `query_contract_version = 2` for the
+  concept lexicon contract.
+- Route pack entries follow the route item schema and can be validated against
+  evidence-backed node or claim references.
+- `sp-map-update` has an explicit patch-in-active-generation model with update
+  records for patched, invalidated, partial, and low-confidence retrieval
+  signals.
+- Query examples either carry direct evidence/confidence or are explicitly
+  treated as annotations over already evidence-backed targets.
 - `sp-map-scan`, `sp-map-build`, and `sp-map-update` templates describe their
   concept retrieval signal responsibilities.
 - `context-loading-gradient.md` defines the shared consumer protocol.
 - `spec-kit-project-cognition-gate` mirrors the shared protocol for skills.
+- `sp-analyze` and future `sp-*` consumers inherit the shared gate unless their
+  command contract proves no brownfield context is consumed.
 - At least one test proves colloquial language plus selected concepts can route
   to relevant code without broad source search.
 - At least one test proves rejected concepts suppress a plausible but wrong
