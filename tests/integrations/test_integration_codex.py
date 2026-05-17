@@ -565,13 +565,31 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_content
     assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_content
     assert "Dispatch Compilation Hints" in plan_content
+    assert "planning/handoffs/<lane-id>.json" in plan_content
+    assert "planning/evidence-index.json" in plan_content
+    assert "planning/checkpoints.ndjson" in plan_content
+    assert "Consume `planning/evidence-index.json` before final synthesis" in plan_content
+    assert "Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only lane results" in plan_content
     assert "heuristics" not in plan_content.lower()
+
+    clarify_content = (skills_dir / "sp-clarify" / "SKILL.md").read_text(encoding="utf-8")
+    assert "clarification/handoffs/<lane-id>.json" in clarify_content
+    assert "clarification/evidence-index.json" in clarify_content
+    assert "clarification/checkpoints.ndjson" in clarify_content
+    assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_content.lower()
+    assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_content.lower()
 
     tasks_content = (skills_dir / "sp-tasks" / "SKILL.md").read_text(encoding="utf-8")
     assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_content
     assert "implementation-guardrails phase before setup" in tasks_content
     assert "locked planning decision or implementation constitution rule" in tasks_content
     assert "Task Guardrail Index" in tasks_content
+    assert "task-generation/handoffs/<lane-id>.json" in tasks_content
+    assert "task-generation/evidence-index.json" in tasks_content
+    assert "task-generation/checkpoints.ndjson" in tasks_content
+    assert "Consume `task-generation/evidence-index.json` before final task synthesis" in tasks_content
+    assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_content
+    assert "Do not synthesize `tasks.md` from chat-only lane results" in tasks_content
 
     implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
     assert "Extract `Implementation Constitution` from `plan.md`" in implement_content
@@ -603,6 +621,10 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "analysis-only" in analyze_content.lower()
     assert "`next_command: /sp.implement`" in analyze_content
     assert "If the highest invalid stage is `clarify`" in analyze_content
+    assert "planning/evidence-index.json" in analyze_content
+    assert "task-generation/evidence-index.json" in analyze_content
+    assert "accepted planning handoff with no downstream consumer" in analyze_content.lower()
+    assert "accepted task-generation handoff with no downstream consumer" in analyze_content.lower()
     assert "If the remaining issue is execution-only, the re-entry chain MUST begin at `$sp-implement` or `$sp-debug`." in analyze_content
 
 

@@ -31,6 +31,7 @@ def _seed_login_graph(project_root: Path) -> str:
             "VALUES ('symbol:AuthService.login', ?, 'symbol', 'AuthService.login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
             (generation_id,),
         )
+        conn.execute("INSERT INTO node_evidence(node_id, evidence_id) VALUES ('capability:auth.login', 'E-login')")
         conn.execute(
             "INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) "
             "VALUES ('A-login', ?, 'login', 'login', 'capability', 'capability:auth.login', 'en', 'evidence', 'strong', 'E-login')",
@@ -57,6 +58,16 @@ def _seed_login_graph(project_root: Path) -> str:
             (generation_id,),
         )
         conn.execute(
+            "INSERT INTO entrypoint_index(id, generation_id, entrypoint_key, entrypoint_type, node_id, capability_id, path, evidence_id, confidence) "
+            "VALUES ('EP-login', ?, 'auth.login', 'handler', 'capability:auth.login', 'capability:auth.login', 'src/auth/login.ts', 'E-login', 'strong')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO test_index(id, generation_id, test_path, test_name, node_id, capability_id, verification_node_id, evidence_id, confidence) "
+            "VALUES ('T-login', ?, 'tests/auth/test_login.py', 'test_login_accepts_valid_credentials', 'capability:auth.login', 'capability:auth.login', 'verification:auth.login', 'E-login', 'strong')",
+            (generation_id,),
+        )
+        conn.execute(
             "INSERT INTO edges(id, generation_id, type, source_id, target_id, confidence, attrs_json, created_at, updated_at) "
             "VALUES ('edge:login-service', ?, 'implements', 'capability:auth.login', 'symbol:AuthService.login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
             (generation_id,),
@@ -71,6 +82,11 @@ def _seed_login_graph(project_root: Path) -> str:
         conn.execute(
             "INSERT INTO claim_fts(claim_id, subject_ref, predicate, object_text, content) "
             "VALUES ('claim:login-implementation', 'capability:auth.login', 'implemented_by', 'AuthService.login', 'login AuthService valid password')"
+        )
+        conn.execute(
+            "INSERT INTO query_examples(id, generation_id, query_text, intent, expected_target_type, expected_target_id, language, source, created_at) "
+            "VALUES ('Q-login-debug', ?, 'debug failed login', 'debug', 'capability', 'capability:auth.login', 'en', 'test', '2026-05-13T00:00:00Z')",
+            (generation_id,),
         )
         conn.commit()
     return generation_id
@@ -229,6 +245,155 @@ def test_query_consumes_agent_expanded_queries(tmp_path: Path) -> None:
     assert "api version" in result["query_plan"]["expanded_queries"]
     assert result["query_plan"]["paths"] == ["apps/relay-server/src/handlers/routes.ts"]
     assert result["minimal_live_reads"] == ["apps/relay-server/src/handlers/routes.ts"]
+
+
+def test_query_echoes_selected_and_rejected_concepts_in_query_plan(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(
+        tmp_path,
+        intent="debug",
+        query_text="login",
+        selected_concepts=["capability:auth.login"],
+        rejected_concepts=["capability:admin.sso_login"],
+        selection_reason="user selected the login capability from lexicon candidates",
+    )
+
+    assert result["readiness"] == "ready"
+    assert result["selected_concepts"] == ["capability:auth.login"]
+    assert result["rejected_concepts"] == ["capability:admin.sso_login"]
+    assert result["selection_reason"] == "user selected the login capability from lexicon candidates"
+    assert result["query_plan"]["selected_concepts"] == ["capability:auth.login"]
+    assert result["query_plan"]["rejected_concepts"] == ["capability:admin.sso_login"]
+    assert result["query_plan"]["selection_reason"] == "user selected the login capability from lexicon candidates"
+
+
+def test_query_unknown_selected_concept_routes_review_or_update(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    review = query_project_cognition(
+        tmp_path,
+        intent="debug",
+        query_text="",
+        selected_concepts=["capability:auth.missing"],
+    )
+    needs_update = query_project_cognition(
+        tmp_path,
+        intent="debug",
+        query_text="",
+        selected_concepts=["capability:auth.missing"],
+        paths=["src/auth/missing.ts"],
+    )
+
+    assert review["readiness"] == "review"
+    assert review["recommended_next_action"] == "perform_minimal_live_reads"
+    assert "selected concept not covered by active generation: capability:auth.missing" in review["missing_coverage"]
+    assert needs_update["readiness"] == "needs_update"
+    assert needs_update["recommended_next_action"] == "run_map_update"
+    assert "selected concept not covered by active generation: capability:auth.missing" in needs_update["missing_coverage"]
+
+
+def test_query_selected_and_rejected_conflict_is_ambiguous_without_affected_nodes(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(
+        tmp_path,
+        intent="debug",
+        query_text="login",
+        selected_concepts=["capability:auth.login"],
+        rejected_concepts=["capability:auth.login"],
+    )
+
+    assert result["readiness"] == "ambiguous"
+    assert result["recommended_next_action"] == "ask_user_to_select_candidate"
+    assert "concept selected and rejected: capability:auth.login" in result["missing_coverage"]
+    assert result["affected_nodes"] == []
+    assert result["route_pack"]["items"] == []
+
+
+def test_query_selected_concept_without_route_evidence_returns_review(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:route.missing', ?, 'capability', 'Missing route', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+
+    result = query_project_cognition(
+        tmp_path,
+        intent="implement",
+        query_text="missing route",
+        selected_concepts=["capability:route.missing"],
+    )
+
+    assert result["readiness"] == "review"
+    assert result["recommended_next_action"] == "perform_minimal_live_reads"
+    assert result["route_pack"]["items"] == []
+    assert "route_pack has no evidence-backed route items for affected nodes" in result["missing_coverage"]
+
+
+def test_query_rejected_concept_suppresses_alias_and_path_candidates(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(
+        tmp_path,
+        intent="debug",
+        query_text="login",
+        paths=["src/auth/login.ts"],
+        rejected_concepts=["capability:auth.login"],
+    )
+
+    assert result["readiness"] == "review"
+    assert result["capability_candidates"] == []
+    assert result["affected_nodes"] == []
+    assert result["minimal_live_reads"] == []
+    assert result["route_pack"]["items"] == []
+
+
+def test_lexicon_exposes_concept_candidates_with_examples_and_evidence(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = project_cognition_lexicon(tmp_path, intent="debug", query_text="login")
+
+    candidate = next(item for item in result["concept_candidates"] if item["concept_id"] == "capability:auth.login")
+    assert candidate["label"] == "User login"
+    assert candidate["kind"] == "capability"
+    assert candidate["domain"]
+    assert "login" in candidate["matched_terms"]
+    assert candidate["target_type"] == "capability"
+    assert "login" in candidate["aliases"]
+    assert "debug failed login" in candidate["colloquial_matches"]
+    assert "debug failed login" in candidate["query_examples"]
+    assert candidate["target_nodes"] == ["capability:auth.login"]
+    assert "symbol:AuthService.login" in candidate["related_concepts"]
+    assert candidate["disambiguation_hint"]
+    assert candidate["evidence_ids"] == ["E-login"]
+    assert candidate["agent_responsibility"] == "select concept_id values for query_plan selected_concepts or rejected_concepts"
+
+
+def test_query_route_pack_uses_object_route_items(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(tmp_path, intent="debug", query_text="login")
+
+    route_pack = result["route_pack"]
+    assert route_pack["minimal_live_reads"] == result["minimal_live_reads"]
+    assert route_pack["why_these_reads"]
+    assert "owner_files" in route_pack
+    assert "entry_files" in route_pack
+    assert "tests" in route_pack
+    assert route_pack["entry_files"]
+    assert route_pack["tests"]
+    item = route_pack["items"][0]
+    assert item["path"] == "src/auth/login.ts"
+    assert item["relation"] == "implements"
+    assert item["reason"]
+    assert item["evidence_ids"] == ["E-login"]
+    assert item["confidence"] == "strong"
+    assert item["node_id"] == "capability:auth.login"
 
 
 @pytest.mark.parametrize(

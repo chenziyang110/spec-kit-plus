@@ -116,7 +116,7 @@ def test_cognition_status_round_trips_database_runtime_fields(tmp_path: Path) ->
             graph_ready=True,
             graph_store_path=".specify/project-cognition/project-cognition.db",
             active_generation_id="GEN-0001",
-            query_contract_version=1,
+            query_contract_version=2,
             update_contract_version=1,
         ),
     )
@@ -126,7 +126,7 @@ def test_cognition_status_round_trips_database_runtime_fields(tmp_path: Path) ->
     assert status.graph_ready is True
     assert status.graph_store_path == ".specify/project-cognition/project-cognition.db"
     assert status.active_generation_id == "GEN-0001"
-    assert status.query_contract_version == 1
+    assert status.query_contract_version == 2
     assert status.update_contract_version == 1
 
 
@@ -154,7 +154,7 @@ def test_publish_cognition_runtime_metadata_writes_db_and_status_runtime_fields(
     assert status.graph_ready is True
     assert status.graph_store_path == ".specify/project-cognition/project-cognition.db"
     assert status.active_generation_id == generation_id
-    assert status.query_contract_version == 1
+    assert status.query_contract_version == 2
     assert status.update_contract_version == 1
 
     with closing(connect_cognition_db(tmp_path)) as conn:
@@ -170,7 +170,7 @@ def test_publish_cognition_runtime_metadata_writes_db_and_status_runtime_fields(
         "graph_ready": "true",
         "graph_store_path": '".specify/project-cognition/project-cognition.db"',
         "active_generation_id": '"GEN-0001"',
-        "query_contract_version": "1",
+        "query_contract_version": "2",
         "update_contract_version": "1",
     }
 
@@ -284,6 +284,13 @@ def test_apply_cognition_update_records_affected_path_update(tmp_path: Path) -> 
     assert updates[0]["changed_paths_json"] == '["src/auth/login.ts"]'
     assert updates[0]["affected_nodes_json"] == '["capability:auth.login"]'
     assert updates[0]["result_state"] == "ready"
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        update_row = conn.execute("SELECT attrs_json FROM updates WHERE id = ?", (result["update_id"],)).fetchone()
+    attrs = json.loads(update_row["attrs_json"])
+    assert attrs["publishing_model"] == "patch-in-active-generation"
+    assert attrs["patched_retrieval_signals"] == ["src/auth/login.ts"]
+    assert attrs["invalidated_retrieval_signals"] == []
+    assert attrs["affected_route_records"] == ["P-update"]
 
 
 def test_apply_cognition_update_records_duplicate_covered_path_once(tmp_path: Path) -> None:

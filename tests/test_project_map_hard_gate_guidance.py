@@ -41,7 +41,13 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     assert "project cognition runtime" in lowered_gate
     assert "launcher-backed project cognition query planning flow" in lowered_gate
     assert "lexicon" in lowered_gate
+    assert "concept_candidates" in shared_gate
+    assert "selected_concepts" in shared_gate
+    assert "rejected_concepts" in shared_gate
+    assert "selection_reason" in shared_gate
     assert "query_plan" in shared_gate
+    assert "route_pack" in shared_gate
+    assert "concept selection" in lowered_gate
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "`missing` -> block and refresh through `sp-map-scan -> sp-map-build`" in shared_gate
@@ -53,6 +59,8 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     assert "compatibility shim" in lowered_shim
     assert "context-loading-gradient.md" in navigation_shim
     assert "project cognition runtime" in lowered_shim
+    assert "concept selection" in lowered_shim
+    assert "route_pack" in navigation_shim
     assert "{{invoke:map-update}}" in navigation_shim
     assert "PROJECT-HANDBOOK.md" not in navigation_shim
     assert ".specify/project-map/index/" not in navigation_shim

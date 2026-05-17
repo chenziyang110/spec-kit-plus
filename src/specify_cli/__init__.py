@@ -954,9 +954,9 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "## Brownfield Context Gate",
             "",
-            "- The runtime atlas is query-backed and agent-planned: invoke the project launcher configured in `.specify/config.json` with `project-cognition lexicon --intent <workflow-intent> --query=\"$ARGUMENTS\" --format json`, translate the raw user intent into a `query_plan` using returned map terms, then run `project-cognition query --intent <workflow-intent> --query-plan \"<query_plan_json>\" --format json` before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.",
+            "- The runtime atlas is query-backed and agent-planned: invoke the project launcher configured in `.specify/config.json` with `project-cognition lexicon --intent <workflow-intent> --query=\"$ARGUMENTS\" --format json`, inspect returned `concept_candidates` including aliases, `colloquial_matches`, `matched_terms`, domain, evidence, and disambiguation hints, select `selected_concepts`, reject plausible wrong-domain `rejected_concepts`, write `selection_reason`, then run `project-cognition query --intent <workflow-intent> --query-plan \"<query_plan_json>\" --format json` before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.",
             "- Treat `.specify/project-cognition/project-cognition.db` as the canonical graph store and `.specify/project-cognition/status.json` as the lightweight freshness entrypoint.",
-            "- Use the returned readiness, task-local bundle, and `minimal_live_reads`; do not replace the query bundle with raw graph JSON or slice reads.",
+            "- Use the returned readiness, task-local bundle, `route_pack`, and `minimal_live_reads`; do not replace the query bundle with raw graph JSON or slice reads.",
             "- The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.",
             "- Project cognition under `.specify/project-cognition/` is the runtime truth surface; legacy project-map exports are not the ordinary first-read runtime contract for workflow routing.",
             "- When a project launcher is configured in `.specify/config.json`, use that launcher instead of PATH `specify`.",
@@ -970,9 +970,9 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- The same rule applies across agent context files; do not assume every integration uses `AGENTS.md`.",
             "- When the task does not require existing-system truth, decide based on risk, context cost, and user goal; this is not a bypass for existing-system judgment.",
             "- Mandatory scenarios include changing existing functionality or behavior such as login, payment, routing, permissions, import/export, notifications, or background jobs; judging module ownership, truth owners, architecture boundaries, reuse points, integration points, state surfaces, or consumer impact; writing or updating `specify`, `plan`, or `tasks` outputs for the current project; running `implement`, `quick`, or `fast` work against existing code, tests, configuration, routes, protocols, data models, or workflows; debugging symptoms that map to existing capabilities, entrypoints, state surfaces, or test surfaces; decomposing tasks, compiling task packets, or dispatching subagents that need read scope, write scope, required references, or validation commands; choosing testing strategy, verification entry points, regression scope, or coverage-gap handling; changing architecture boundaries, workflow contracts, integration contracts, ownership, or verification entry points; and closeout when work changed project-cognition truth.",
-            '- Query through the project launcher or generated command renderer with `project-cognition query --intent <workflow-intent> --query "<task summary>" --format json`. Valid workflow intents include at least `plan`, `implement`, `debug`, `test`, and `research`. When relevant paths are known from the user request or upstream artifacts, include them through `--paths`.',
+            '- Query through the project launcher or generated command renderer by first running `project-cognition lexicon --intent <workflow-intent> --query "<task summary>" --format json`, selecting and rejecting concept candidates with reasons, and then running `project-cognition query --intent <workflow-intent> --query-plan "<query_plan_json>" --format json`. Valid workflow intents include at least `plan`, `implement`, `debug`, `test`, and `research`. When relevant paths are known from the user request or upstream artifacts, include them in `paths` inside the query plan.',
             "- Use readiness for routing: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads` before trusting the runtime; `ambiguous` asks the user or upstream artifact to select the intended candidate; `needs_update` routes through `sp-map-update`; `needs_rebuild` routes through `sp-map-scan`, then `sp-map-build`; `blocked` stops with the runtime issue.",
-            "- Extract and carry forward the matched capability or symptom, affected nodes and subgraph, `minimal_live_reads`, missing coverage, evidence traces, verification routes, ambiguity, conflicts, and weak coverage.",
+            "- Extract and carry forward `selected_concepts`, `rejected_concepts`, `selection_reason`, matched capability or symptom, affected nodes and subgraph, `route_pack`, `minimal_live_reads`, missing coverage, evidence traces, verification routes, ambiguity, conflicts, and weak coverage.",
             "- Constrain first live reads to `minimal_live_reads` plus directly relevant durable workflow artifacts. Expand search only when those reads do not answer the task.",
             "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, minimal_live_reads constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.",
             "",
@@ -1838,7 +1838,14 @@ def project_cognition_query_command(
     expanded_queries: list[str] = typer.Option(
         [], "--expanded-query", help="Agent-planned query expansion; may be specified more than once"
     ),
-    query_plan: str = typer.Option("", "--query-plan", help="Agent-planned JSON with raw_query, expanded_queries, and paths"),
+    query_plan: str = typer.Option(
+        "",
+        "--query-plan",
+        help=(
+            "Agent-planned JSON with raw_query, expanded_queries, paths, selected_concepts, "
+            "rejected_concepts, and selection_reason"
+        ),
+    ),
     paths: list[str] = typer.Option([], "--paths", help="Known touched path; may be specified more than once"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
 ):
@@ -1847,14 +1854,28 @@ def project_cognition_query_command(
     _require_spec_kit_plus_project(project_root)
     planned_query = _parse_project_cognition_query_plan(query_plan)
     effective_query = str(planned_query.get("raw_query") or query_text)
-    effective_expanded_queries = [
-        *expanded_queries,
-        *[str(value) for value in planned_query.get("expanded_queries", []) if str(value).strip()],
-    ]
+    effective_expanded_queries = _dedupe_non_empty(
+        [
+            *expanded_queries,
+            *[str(value) for value in planned_query.get("expanded_queries", [])],
+        ]
+    )
     effective_paths = [
-        *paths,
-        *[str(value) for value in planned_query.get("paths", []) if str(value).strip()],
+        path.replace("\\", "/")
+        for path in _dedupe_non_empty(
+            [
+                *paths,
+                *[str(value) for value in planned_query.get("paths", [])],
+            ]
+        )
     ]
+    effective_selected_concepts = _dedupe_non_empty(
+        [str(value) for value in planned_query.get("selected_concepts", [])]
+    )
+    effective_rejected_concepts = _dedupe_non_empty(
+        [str(value) for value in planned_query.get("rejected_concepts", [])]
+    )
+    effective_selection_reason = str(planned_query.get("selection_reason") or "").strip()
     if cognition_db_path(project_root).exists():
         payload = query_project_cognition(
             project_root,
@@ -1862,18 +1883,28 @@ def project_cognition_query_command(
             query_text=effective_query,
             expanded_queries=effective_expanded_queries,
             paths=effective_paths,
+            selected_concepts=effective_selected_concepts,
+            rejected_concepts=effective_rejected_concepts,
+            selection_reason=effective_selection_reason,
         )
     else:
+        fallback_query_plan: dict[str, object] = {
+            "raw_query": effective_query,
+            "expanded_queries": effective_expanded_queries,
+            "paths": [path.replace("\\", "/") for path in effective_paths],
+            "selected_concepts": effective_selected_concepts,
+            "rejected_concepts": effective_rejected_concepts,
+            "selection_reason": effective_selection_reason,
+        }
         payload = {
             "readiness": "needs_rebuild",
             "recommended_next_action": "run_map_scan_build",
             "intent": intent,
             "query": effective_query,
-            "query_plan": {
-                "raw_query": effective_query,
-                "expanded_queries": effective_expanded_queries,
-                "paths": [path.replace("\\", "/") for path in effective_paths],
-            },
+            "query_plan": fallback_query_plan,
+            "selected_concepts": effective_selected_concepts,
+            "rejected_concepts": effective_rejected_concepts,
+            "selection_reason": effective_selection_reason,
             "capability_candidates": [],
             "symptom_candidates": [],
             "affected_nodes": [],
@@ -1881,6 +1912,19 @@ def project_cognition_query_command(
             "missing_coverage": [
                 ".specify/project-cognition/project-cognition.db is missing; run sp-map-scan followed by sp-map-build"
             ],
+            "route_pack": {
+                "entry_files": [],
+                "owner_files": [],
+                "consumer_files": [],
+                "state_surfaces": [],
+                "workflow_surfaces": [],
+                "tests": [],
+                "docs": [],
+                "items": [],
+                "routes": [],
+                "minimal_live_reads": [],
+                "why_these_reads": [],
+            },
             "subgraph": {"nodes": [], "edges": [], "claims": [], "conflicts": []},
         }
     if output_format.lower() == "json":
@@ -1898,11 +1942,26 @@ def _parse_project_cognition_query_plan(query_plan: str) -> dict[str, object]:
         raise typer.BadParameter(f"--query-plan must be valid JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise typer.BadParameter("--query-plan must be a JSON object")
-    for list_key in ("expanded_queries", "paths"):
+    for list_key in ("expanded_queries", "paths", "selected_concepts", "rejected_concepts"):
         value = payload.get(list_key, [])
         if value and not isinstance(value, list):
             raise typer.BadParameter(f"--query-plan {list_key} must be a list")
+    selection_reason = payload.get("selection_reason", "")
+    if selection_reason and not isinstance(selection_reason, str):
+        raise typer.BadParameter("--query-plan selection_reason must be a string")
     return payload
+
+
+def _dedupe_non_empty(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+    return result
 
 
 @project_cognition_app.command("lexicon")

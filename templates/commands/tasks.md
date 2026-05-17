@@ -3,7 +3,7 @@ description: Use when plan artifacts exist and execution needs dependency-aware 
 workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
   primary_objective: Produce `tasks.md` with dependency ordering, guardrail carry-forward, execution batches, and join points.
-  primary_outputs: '`FEATURE_DIR/tasks.md` and the task decomposition metadata needed for later analysis and implementation.'
+  primary_outputs: '`FEATURE_DIR/tasks.md`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/task-index.json`, `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/task-generation/handoffs/<lane-id>.json`, `FEATURE_DIR/task-generation/evidence-index.json`, `FEATURE_DIR/task-generation/checkpoints.ndjson`, and `workflow-state.md`.'
   default_handoff: '/sp.analyze for normal completed or non-escalated task generation; /sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth; only continue to /sp.implement after analyze clears upstream drift.'
 handoffs:
   - label: Analyze For Consistency
@@ -76,9 +76,9 @@ scripts:
    - Persist at least these fields for the active pass:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`
-     - `allowed_artifact_writes: tasks.md, workflow-state.md`
+     - `allowed_artifact_writes: tasks.md, handoff-to-tasks.json, task-index.json, task-packets/*.json, task-generation/handoffs/*.json, task-generation/evidence-index.json, task-generation/checkpoints.ndjson, workflow-state.md`
      - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from task-generation artifacts`
-     - `authoritative_files: spec.md, alignment.md, context.md, plan.md, tasks.md`
+     - `authoritative_files: spec.md, alignment.md, context.md, plan.md, tasks.md, handoff-to-tasks.json, task-index.json, task-packets/*.json, task-generation/handoffs/*.json, task-generation/evidence-index.json`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 2. **Ensure project cognition runtime exists and record planning advisory state**:
@@ -97,6 +97,7 @@ scripts:
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
    - **Required when present**: plan-contract.json (authoritative route, intent, complexity, must-preserve invariants, allowed optimization scope, and planning obligations)
+   - **Required when present**: planning/evidence-index.json and accepted planning/handoffs/*.json (planning lane decisions, constraints, generated artifact contributions, deferrals, and blockers that shaped the plan package)
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
    - **Required when present**: brainstorming/handoff-to-tasks.json (route, intent, complexity, task packet shaping, and handoff constraints)
    - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract, active profile, activated gates, task-shaping rules, and required evidence)
@@ -160,6 +161,12 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
     - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
     - The chosen dispatch shape applies to the **current ready batch**, not automatically to the entire feature or task graph.
     - Primary decomposition goal: maximize safe native-subagent throughput for later `sp-implement` runs by isolating write sets and turning ready work into a dispatch-ready lane packet instead of a vague checklist.
+    - Before dispatching any task-generation lane, persist a `task_generation_checkpoint` record to `task-generation/checkpoints.ndjson` with the lane id, dispatch shape, authoritative inputs, expected handoff path, and current workflow-state summary.
+   - Each delegated lane must persist the lane's structured handoff to `task-generation/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or synthesizes `tasks.md`.
+   - Update `task-generation/evidence-index.json` after each accepted lane handoff with lane id, handoff path, source artifacts inspected, decisions or constraints contributed, affected task IDs or batch IDs, blocker status, and integration status.
+    - Consume `task-generation/evidence-index.json` before final task synthesis: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target task ID, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or escalation that consumed it.
+    - Do not synthesize `tasks.md` from chat-only lane results. If a lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a valid handoff path.
+    - When resuming after compaction, re-read `workflow-state.md`, `task-generation/checkpoints.ndjson`, `task-generation/evidence-index.json`, and all accepted `task-generation/handoffs/<lane-id>.json` files before continuing task synthesis.
     - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
     - Decision order is fixed:
       - If exactly one validated isolated lane exists, dispatch `one-subagent`.
@@ -173,7 +180,10 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
     - Record the chosen dispatch shape, blocked reason if any, selected lanes, and join points in the generated report and implementation strategy section.
     - Extract the active profile, activated gates, task-shaping rules, and required evidence obligations from `workflow-state.md`; `sp-tasks` consumes the same profile contract or active profile that `sp-specify`/`sp-plan` persisted, not a newly invented taxonomy.
     - Read `plan-contract.json` as authoritative task-generation input when present.
+    - Read `planning/evidence-index.json` and all accepted `planning/handoffs/*.json` when present; treat accepted planning lane contributions as upstream planning inputs, not discarded background evidence.
     - Emit `handoff-to-tasks.json`, `task-index.json`, and per-task packet JSON under `task-packets/` alongside `tasks.md`.
+    - In `handoff-to-tasks.json` and `task-index.json`, include references to the accepted `task-generation/handoffs/<lane-id>.json` files that shaped each task, dependency edge, write-set decision, parallel batch, join point, guardrail, or escalation.
+    - Do not mark task generation complete while `task-generation/evidence-index.json` contains an accepted handoff without an explicit consuming task, packet field, dependency edge, deferral, escalation, or blocker reason.
     - Carry complexity level, must-preserve invariants, allowed optimization scope, and stop-and-reopen conditions into each task packet.
     - Keep `sp-tasks` aligned with the persisted first-release profile contract: `active_profile` must be one of the two supported profiles, `Standard Delivery` or `Reference-Implementation`.
     - If `workflow-state.md` presents an unsupported `active_profile` during first release, `sp-tasks` stops before decomposition and tells the operator to repair/re-run upstream routing state before task generation continues.
@@ -275,6 +285,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
 6. **Report**: Output path to generated tasks.md and summary:
     - Total task count
     - Task count per user story
+    - task-generation evidence paths: `task-generation/evidence-index.json`, `task-generation/checkpoints.ndjson`, and accepted `task-generation/handoffs/<lane-id>.json` files
     - Feature delivery shape (whole task graph)
     - Parallel opportunities identified
     - Parallel batch count and the join points that gate downstream work

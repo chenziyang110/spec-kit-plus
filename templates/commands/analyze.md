@@ -107,6 +107,8 @@ Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_
 - CONTEXT = FEATURE_DIR/context.md
 - PLAN = FEATURE_DIR/plan.md
 - TASKS = FEATURE_DIR/tasks.md
+- PLANNING_EVIDENCE_INDEX = FEATURE_DIR/planning/evidence-index.json when present
+- TASK_GENERATION_EVIDENCE_INDEX = FEATURE_DIR/task-generation/evidence-index.json when present
 
 Abort with an error message if any required file is missing (instruct the user to run missing prerequisite command).
 For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
@@ -118,11 +120,16 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 
 ### 2. Ensure project cognition runtime exists
 
-- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
+- Choose the cognition intent before querying: use `plan` when analyzing planning-only artifacts or upstream spec/plan drift, use `implement` when analyzing task execution, remediation, or code-change blockers, and preserve the originating workflow intent when this command is reviewing another `sp-*` workflow's output.
+- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}` or `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}` according to that chosen intent, inspect `concept_candidates`, choose `selected_concepts`, record `rejected_concepts` with `selection_reason`, then generate a query_plan from returned concept candidates containing `selected_concepts`, `rejected_concepts`, `expanded_queries`, and `paths`, then run `{{specify-subcmd:project-cognition query --intent <chosen-intent> --query-plan "<query_plan_json>" --format json}}`. For implementation or remediation analysis, the concrete query command is `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
 - If readiness is `needs_rebuild`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
 - If readiness is `needs_update` or the returned bundle is too weak for the touched area, use `{{invoke:map-update}}` with the changed paths or affected surfaces.
 - Escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement.
 - If readiness is `review`, inspect only the returned `minimal_live_reads` before trusting the runtime for analysis.
+- Carry selected/rejected concepts, `selection_reason`, `route_pack`, and
+  `minimal_live_reads` into the analysis report and `workflow-state.md`
+  blocker bundle whenever cognition evidence affects routing or blocker
+  severity.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - If task-relevant coverage is insufficient for the current analysis request, inspect the returned targeted live evidence; refresh through `{{invoke:map-update}}` with changed paths or affected surfaces, and rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above.
 
@@ -133,6 +140,8 @@ Load only the minimal necessary context from each artifact:
 **From project cognition runtime:**
 
 - Consume the `project-cognition query` bundle.
+- Preserve `selected_concepts`, `rejected_concepts`, `selection_reason`,
+  `route_pack`, and `minimal_live_reads` as blocker evidence inputs.
 - Preserve cognition-backed blocker evidence when classifying whether issues
   belong to `plan`, `clarify`, `deep-research`, or task-layer remediation. The
   analysis report and `workflow-state.md` blocker bundle must keep the selected
@@ -175,6 +184,18 @@ Load only the minimal necessary context from each artifact:
 - Phase grouping
 - Parallel markers [P]
 - Referenced file paths
+
+**From planning evidence when present:**
+
+- Read `planning/evidence-index.json` and accepted `planning/handoffs/*.json`.
+- Verify each accepted planning handoff is consumed by `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, `plan-contract.json`, or is explicitly deferred or blocked.
+- Treat an accepted planning handoff with no downstream consumer as a plan-layer blocker, not harmless leftover evidence.
+
+**From task-generation evidence when present:**
+
+- Read `task-generation/evidence-index.json` and accepted `task-generation/handoffs/*.json`.
+- Verify each accepted task-generation handoff is consumed by `tasks.md`, `handoff-to-tasks.json`, `task-index.json`, `task-packets/*.json`, or is explicitly deferred, escalated, or blocked.
+- Treat an accepted task-generation handoff with no downstream consumer as a task-layer blocker before implementation can proceed.
 
 **From constitution:**
 

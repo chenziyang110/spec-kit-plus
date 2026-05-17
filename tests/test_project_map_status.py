@@ -333,7 +333,7 @@ def test_complete_project_map_refresh_restores_runtime_fields_from_db_metadata(t
     assert payload["graph_ready"] is True
     assert payload["graph_store_path"] == ".specify/project-cognition/project-cognition.db"
     assert payload["active_generation_id"] == generation_id
-    assert payload["query_contract_version"] == 1
+    assert payload["query_contract_version"] == 2
     assert payload["update_contract_version"] == 1
 
 

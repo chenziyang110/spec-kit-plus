@@ -220,6 +220,131 @@ def test_validate_state_exposes_route_lock_and_reopen_fields(tmp_path: Path):
     assert checkpoint["handoff_to_implement"] == "handoff-to-implement.json"
 
 
+def test_validate_state_autofix_tasks_includes_task_generation_surfaces(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-tasks`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `task-generation-only`",
+                "- summary: demo",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.analyze`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "tasks", "feature_dir": str(feature_dir), "autofix": True},
+    )
+
+    assert result.status == "repaired"
+    content = (feature_dir / "workflow-state.md").read_text(encoding="utf-8")
+    assert "task-generation/handoffs/*.json" in content
+    assert "task-generation/evidence-index.json" in content
+    assert "task-generation/checkpoints.ndjson" in content
+    assert "task-packets/*.json" in content
+
+
+def test_validate_state_autofix_plan_includes_planning_surfaces(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-plan`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `design-only`",
+                "- summary: demo",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.tasks`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir), "autofix": True},
+    )
+
+    assert result.status == "repaired"
+    content = (feature_dir / "workflow-state.md").read_text(encoding="utf-8")
+    assert "planning/handoffs/*.json" in content
+    assert "planning/evidence-index.json" in content
+    assert "planning/checkpoints.ndjson" in content
+    assert "plan-contract.json" in content
+
+
+def test_validate_state_autofix_clarify_includes_clarification_surfaces(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-clarify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "clarify", "feature_dir": str(feature_dir), "autofix": True},
+    )
+
+    assert result.status == "repaired"
+    content = (feature_dir / "workflow-state.md").read_text(encoding="utf-8")
+    assert "clarification/handoffs/*.json" in content
+    assert "clarification/evidence-index.json" in content
+    assert "clarification/checkpoints.ndjson" in content
+
+
 def test_validate_state_profile_obligation_lists_respect_label_boundaries(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"

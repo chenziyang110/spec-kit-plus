@@ -461,11 +461,23 @@ class TestBuiltInSkillGeneration:
         assert "workflow-state.md" in plan_body
         assert "phase_mode: design-only" in plan_body
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
+        assert "planning/handoffs/<lane-id>.json" in plan_body
+        assert "planning/evidence-index.json" in plan_body
+        assert "planning/checkpoints.ndjson" in plan_body
+        assert "consume `planning/evidence-index.json` before final synthesis" in plan_body.lower()
+        assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only lane results" in plan_body.lower()
         assert "recommended follow-up quality check" in plan_body
         assert "git-baseline freshness" in plan_body.lower()
         assert "complete-refresh" in plan_body
         assert "manual override/fallback" in plan_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in plan_body
+
+        clarify_body = _body_without_frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
+        assert "clarification/handoffs/<lane-id>.json" in clarify_body
+        assert "clarification/evidence-index.json" in clarify_body
+        assert "clarification/checkpoints.ndjson" in clarify_body
+        assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_body.lower()
+        assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_body.lower()
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
@@ -475,6 +487,12 @@ class TestBuiltInSkillGeneration:
         assert "Task Guardrail Index" in tasks_body
         assert "workflow-state.md" in tasks_body
         assert "phase_mode: task-generation-only" in tasks_body
+        assert "task-generation/handoffs/<lane-id>.json" in tasks_body
+        assert "task-generation/evidence-index.json" in tasks_body
+        assert "task-generation/checkpoints.ndjson" in tasks_body
+        assert "consume `task-generation/evidence-index.json` before final task synthesis" in tasks_body.lower()
+        assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_body
+        assert "do not synthesize `tasks.md` from chat-only lane results" in tasks_body.lower()
         assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in tasks_body
         assert "whether or not `.specify/testing/testing_contract.md` exists" in tasks_body.lower()
         assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
@@ -519,6 +537,10 @@ class TestBuiltInSkillGeneration:
         assert "analysis-only" in analyze_body.lower()
         assert "`next_command: /sp.implement`" in analyze_body
         assert "If the highest invalid stage is `clarify`" in analyze_body
+        assert "planning/evidence-index.json" in analyze_body
+        assert "task-generation/evidence-index.json" in analyze_body
+        assert "accepted planning handoff with no downstream consumer" in analyze_body.lower()
+        assert "accepted task-generation handoff with no downstream consumer" in analyze_body.lower()
         assert "If the remaining issue is execution-only, the re-entry chain MUST begin at" in analyze_body
         assert "exact workflow re-entry path" in analyze_body
 

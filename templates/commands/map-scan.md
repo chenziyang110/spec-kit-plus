@@ -179,6 +179,19 @@ If project-relevant evidence cannot be classified, the scan must remain blocked 
 - Produce verification route candidates.
 - Produce propagation-risk route candidates.
 
+## Concept Retrieval Signal Evidence
+
+- Collect concept retrieval signals that let `project-cognition lexicon` surface
+  useful `concept_candidates` instead of only path or symbol matches.
+- Record colloquial user phrases, aliases, shorthand, command names, workflow
+  names, symptoms, and domain vocabulary that maintainers naturally use when
+  asking for work.
+- Attach domain ownership evidence to each retrieval signal, including owning
+  paths, modules, generated surfaces, workflow artifacts, tests, and supporting
+  evidence rows.
+- Preserve conflicts, weak ownership, and unknown mappings as scan evidence for
+  `sp-map-build` rather than flattening them into accepted keywords.
+
 ## Truth Layer Ledgers
 
 - Maintain file, entrypoint, branch, and control-node coverage.

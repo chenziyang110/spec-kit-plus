@@ -32,6 +32,14 @@ description: "Task list template for feature implementation"
 - Include `MP-*` IDs for any task that carries a discussion-derived goal, non-goal, decision, reference, trade-off, acceptance signal, or stop-and-reopen condition.
 - For each `[P]` task or explicit parallel batch, include enough detail that the leader can compile a bounded subagent execution packet: objective, write set, required references, forbidden drift, validation command, and done condition
 
+## Task-Generation Evidence Index
+
+- `task-generation/evidence-index.json`: accepted task-generation lane handoffs and the task, dependency, write-set, batch, join-point, guardrail, or escalation decisions each handoff shaped.
+- `task-generation/checkpoints.ndjson`: `task_generation_checkpoint` records written before delegated decomposition lanes, major synthesis points, and compaction-risk stops.
+- `task-generation/handoffs/`: one structured handoff per accepted task-generation lane, named by stable lane id.
+- Every task, dependency edge, write-set decision, parallel batch, join point, guardrail, or escalation below should be traceable to upstream artifacts and, when delegated lanes were used, to at least one accepted task-generation handoff.
+- Every accepted task-generation handoff must have a consumer recorded in `task-generation/evidence-index.json`: a task ID, packet field, dependency edge, write-set decision, join point, guardrail, deferral, escalation, or blocker reason.
+
 ## Reference Fidelity Mapping
 
 - Map each preserved or redesigned reference behavior inventory item to the task IDs, checkpoints, or join points that carry it forward.

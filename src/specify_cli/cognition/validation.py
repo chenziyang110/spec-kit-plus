@@ -8,8 +8,10 @@ from pathlib import Path
 import sqlite3
 from typing import Any
 
-from .db import SCHEMA_VERSION
+from .db import QUERY_CONTRACT_VERSION, SCHEMA_VERSION, UPDATE_CONTRACT_VERSION
+from .lexicon import _project_cognition_lexicon_payload
 from .paths import cognition_db_path, cognition_dir
+from .query import _query_plan_payload, _query_project_cognition_payload
 
 
 REQUIRED_TABLES = {
@@ -323,6 +325,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
             if active_generation_id:
                 _validate_runtime_metadata(conn, active_generation_id, errors, details)
             if active_generation_id:
+                _validate_query_contract_v2_smoke(conn, active_generation_id, errors, details)
                 _validate_generation_content(
                     conn,
                     active_generation_id,
@@ -331,6 +334,8 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
                     errors,
                     details,
                 )
+                _validate_route_pack_source_rows(conn, active_generation_id, errors, details)
+                _validate_query_examples(conn, active_generation_id, errors, details)
                 _validate_no_specify_graph_store_paths(conn, active_generation_id, errors, details)
             if active_generation_id and not errors:
                 _validate_readonly_smoke_query(conn, active_generation_id, minimal_baseline, errors, details)
@@ -423,8 +428,8 @@ def _validate_runtime_metadata(
         "graph_ready": True,
         "graph_store_path": EXPECTED_GRAPH_STORE_PATH,
         "active_generation_id": active_generation_id,
-        "query_contract_version": 1,
-        "update_contract_version": 1,
+        "query_contract_version": QUERY_CONTRACT_VERSION,
+        "update_contract_version": UPDATE_CONTRACT_VERSION,
     }
     try:
         rows = conn.execute(
@@ -454,6 +459,109 @@ def _validate_runtime_metadata(
             errors.append(f"metadata.{key} must equal {expected_value!r}")
 
 
+def _validate_query_contract_v2_smoke(
+    conn: sqlite3.Connection,
+    generation_id: str,
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    details["query_contract_version"] = QUERY_CONTRACT_VERSION
+    details["query_contract_v2_fields"] = [
+        "concept_candidates",
+        "selected_concepts",
+        "rejected_concepts",
+        "selection_reason",
+        "route_pack",
+    ]
+    lexicon = _project_cognition_lexicon_payload(
+        conn,
+        generation_id,
+        intent="validation",
+        query_text="",
+        limit=1,
+    )
+    candidates = lexicon.get("concept_candidates")
+    details["query_contract_v2_lexicon_smoke"] = bool(candidates)
+    if not isinstance(candidates, list) or not candidates:
+        errors.append("query contract v2 smoke requires project-cognition lexicon concept_candidates")
+        return
+    candidate = candidates[0]
+    required_candidate_fields = {
+        "concept_id",
+        "label",
+        "kind",
+        "domain",
+        "matched_terms",
+        "aliases",
+        "colloquial_matches",
+        "target_nodes",
+        "related_concepts",
+        "disambiguation_hint",
+        "confidence",
+        "evidence_ids",
+    }
+    missing_candidate_fields = sorted(required_candidate_fields - set(candidate.keys()))
+    if missing_candidate_fields:
+        errors.append(
+            "query contract v2 smoke concept_candidates missing fields: "
+            + ", ".join(missing_candidate_fields)
+        )
+        return
+
+    selected_concept = str(candidate["concept_id"])
+    query_plan = _query_plan_payload(
+        query_text=str(candidate["label"]),
+        expanded_queries=list(candidate.get("matched_terms", []))[:3],
+        paths=[],
+        selected_concepts=[selected_concept],
+        rejected_concepts=[],
+        selection_reason="validation smoke",
+    )
+    query_payload = _query_project_cognition_payload(
+        conn,
+        generation_id,
+        intent="validation",
+        query_text=str(query_plan["raw_query"]),
+        expanded_queries=list(query_plan["expanded_queries"]),
+        query_plan=query_plan,
+    )
+    details["query_contract_v2_query_smoke_readiness"] = query_payload.get("readiness")
+    for field in ("selected_concepts", "rejected_concepts", "selection_reason", "route_pack"):
+        if field not in query_payload:
+            errors.append(f"query contract v2 smoke query payload missing {field}")
+            return
+    if query_payload["selected_concepts"] != [selected_concept]:
+        errors.append("query contract v2 smoke query payload must echo selected_concepts")
+        return
+    route_pack = query_payload.get("route_pack")
+    if not isinstance(route_pack, dict):
+        errors.append("query contract v2 smoke query payload route_pack must be an object")
+        return
+    route_items = route_pack.get("items")
+    details["query_contract_v2_route_item_count"] = len(route_items) if isinstance(route_items, list) else 0
+    if query_payload.get("readiness") == "ready" and not route_items:
+        errors.append("query contract v2 smoke ready payload must include evidence-backed route_pack items")
+        return
+    if isinstance(route_items, list):
+        for item in route_items:
+            if not isinstance(item, dict):
+                errors.append("query contract v2 smoke route_pack items must be objects")
+                return
+            missing_route_fields = [
+                field
+                for field in ("path", "relation", "reason", "evidence_ids", "confidence")
+                if field not in item or not item[field]
+            ]
+            if not (item.get("node_id") or item.get("claim_id")):
+                missing_route_fields.append("node_id or claim_id")
+            if missing_route_fields:
+                errors.append(
+                    "query contract v2 smoke route_pack item missing fields: "
+                    + ", ".join(missing_route_fields)
+                )
+                return
+
+
 def _validate_generation_content(
     conn: sqlite3.Connection,
     generation_id: str,
@@ -478,6 +586,188 @@ def _validate_generation_content(
             warnings.append("active generation has no claims because status.json declares a minimal baseline")
         else:
             errors.append("active generation must contain at least one claim or an explicit minimal-baseline marker")
+
+
+def _validate_route_pack_source_rows(
+    conn: sqlite3.Connection,
+    generation_id: str,
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    invalid_rows: list[str] = []
+    try:
+        rows = conn.execute(
+            "SELECT id, path, node_id, relation, confidence, evidence_id "
+            "FROM path_index WHERE generation_id = ? AND ("
+            "trim(path) = '' OR trim(node_id) = '' OR trim(relation) = '' OR "
+            "trim(confidence) = '' OR trim(evidence_id) = ''"
+            ") ORDER BY id LIMIT 10",
+            (generation_id,),
+        ).fetchall()
+    except sqlite3.Error as exc:
+        errors.append(f"route-pack source rows could not be validated: {exc}")
+        return
+
+    for row in rows:
+        missing_fields = [
+            field
+            for field in ("path", "node_id", "relation", "confidence", "evidence_id")
+            if not str(row[field]).strip()
+        ]
+        invalid_rows.append(f"path_index.{row['id']} missing {', '.join(missing_fields)}")
+
+    invalid_rows.extend(_invalid_entrypoint_route_source_rows(conn, generation_id, errors))
+    invalid_rows.extend(_invalid_test_route_source_rows(conn, generation_id, errors))
+    details["route_pack_source_row_count"] = _count_generation_rows(conn, "path_index", generation_id)
+    details["route_pack_entrypoint_row_count"] = _count_generation_rows(conn, "entrypoint_index", generation_id)
+    details["route_pack_test_row_count"] = _count_generation_rows(conn, "test_index", generation_id)
+    details["route_pack_source_row_offenders"] = invalid_rows
+    if invalid_rows:
+        errors.append(
+            "route-pack source rows must have path, node or claim backing, relation, "
+            f"confidence, and evidence_id: {', '.join(invalid_rows)}"
+        )
+
+
+def _invalid_entrypoint_route_source_rows(
+    conn: sqlite3.Connection,
+    generation_id: str,
+    errors: list[str],
+) -> list[str]:
+    try:
+        rows = conn.execute(
+            "SELECT id, path, node_id, capability_id, entrypoint_type, confidence, evidence_id "
+            "FROM entrypoint_index WHERE generation_id = ? AND ("
+            "trim(path) = '' OR (trim(node_id) = '' AND trim(capability_id) = '') OR "
+            "trim(entrypoint_type) = '' OR trim(confidence) = '' OR trim(evidence_id) = ''"
+            ") ORDER BY id LIMIT 10",
+            (generation_id,),
+        ).fetchall()
+    except sqlite3.Error as exc:
+        errors.append(f"entrypoint route-pack source rows could not be validated: {exc}")
+        return []
+
+    invalid: list[str] = []
+    for row in rows:
+        missing_fields: list[str] = []
+        if not str(row["path"]).strip():
+            missing_fields.append("path")
+        if not (str(row["node_id"]).strip() or str(row["capability_id"]).strip()):
+            missing_fields.append("node_id or capability_id")
+        if not str(row["entrypoint_type"]).strip():
+            missing_fields.append("entrypoint_type")
+        if not str(row["confidence"]).strip():
+            missing_fields.append("confidence")
+        if not str(row["evidence_id"]).strip():
+            missing_fields.append("evidence_id")
+        invalid.append(f"entrypoint_index.{row['id']} missing {', '.join(missing_fields)}")
+    return invalid
+
+
+def _invalid_test_route_source_rows(
+    conn: sqlite3.Connection,
+    generation_id: str,
+    errors: list[str],
+) -> list[str]:
+    try:
+        rows = conn.execute(
+            "SELECT id, test_path, test_name, node_id, capability_id, confidence, evidence_id "
+            "FROM test_index WHERE generation_id = ? AND ("
+            "trim(test_path) = '' OR trim(test_name) = '' OR "
+            "(trim(node_id) = '' AND trim(capability_id) = '') OR "
+            "trim(confidence) = '' OR trim(evidence_id) = ''"
+            ") ORDER BY id LIMIT 10",
+            (generation_id,),
+        ).fetchall()
+    except sqlite3.Error as exc:
+        errors.append(f"test route-pack source rows could not be validated: {exc}")
+        return []
+
+    invalid: list[str] = []
+    for row in rows:
+        missing_fields: list[str] = []
+        if not str(row["test_path"]).strip():
+            missing_fields.append("test_path")
+        if not str(row["test_name"]).strip():
+            missing_fields.append("test_name")
+        if not (str(row["node_id"]).strip() or str(row["capability_id"]).strip()):
+            missing_fields.append("node_id or capability_id")
+        if not str(row["confidence"]).strip():
+            missing_fields.append("confidence")
+        if not str(row["evidence_id"]).strip():
+            missing_fields.append("evidence_id")
+        invalid.append(f"test_index.{row['id']} missing {', '.join(missing_fields)}")
+    return invalid
+
+
+def _validate_query_examples(
+    conn: sqlite3.Connection,
+    generation_id: str,
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    try:
+        rows = conn.execute(
+            "SELECT id, expected_target_id FROM query_examples WHERE generation_id = ? ORDER BY id",
+            (generation_id,),
+        ).fetchall()
+    except sqlite3.Error as exc:
+        errors.append(f"query_examples could not be validated for evidence-backed target coverage: {exc}")
+        return
+
+    invalid_examples: list[str] = []
+    for row in rows:
+        target_id = str(row["expected_target_id"])
+        if not _has_evidence_backed_target(conn, generation_id, target_id):
+            invalid_examples.append(f"{row['id']}->{target_id}")
+
+    details["query_examples_count"] = len(rows)
+    details["query_examples_without_evidence_backed_target"] = invalid_examples
+    if invalid_examples:
+        errors.append(
+            "query_examples expected_target_id must resolve to an evidence-backed target via "
+            f"alias_index, path_index, or claims + claim_evidence: {', '.join(invalid_examples[:10])}"
+        )
+
+
+def _has_evidence_backed_target(conn: sqlite3.Connection, generation_id: str, target_id: str) -> bool:
+    checks = (
+        (
+            "SELECT 1 FROM alias_index WHERE generation_id = ? AND target_id = ? "
+            "AND trim(evidence_id) <> '' LIMIT 1",
+            (generation_id, target_id),
+        ),
+        (
+            "SELECT 1 FROM path_index WHERE generation_id = ? AND node_id = ? "
+            "AND trim(evidence_id) <> '' LIMIT 1",
+            (generation_id, target_id),
+        ),
+        (
+            "SELECT 1 FROM node_evidence "
+            "JOIN nodes ON nodes.id = node_evidence.node_id "
+            "WHERE nodes.generation_id = ? AND node_evidence.node_id = ? "
+            "AND trim(node_evidence.evidence_id) <> '' LIMIT 1",
+            (generation_id, target_id),
+        ),
+        (
+            "SELECT 1 FROM claims "
+            "JOIN claim_evidence ON claim_evidence.claim_id = claims.id "
+            "WHERE claims.generation_id = ? AND claims.id = ? "
+            "AND trim(claim_evidence.evidence_id) <> '' LIMIT 1",
+            (generation_id, target_id),
+        ),
+        (
+            "SELECT 1 FROM claims "
+            "JOIN claim_evidence ON claim_evidence.claim_id = claims.id "
+            "WHERE claims.generation_id = ? AND claims.subject_ref = ? "
+            "AND trim(claim_evidence.evidence_id) <> '' LIMIT 1",
+            (generation_id, target_id),
+        ),
+    )
+    for query, params in checks:
+        if conn.execute(query, params).fetchone():
+            return True
+    return False
 
 
 def _validate_no_specify_graph_store_paths(
@@ -572,6 +862,16 @@ def _validate_status(status: dict[str, Any], active_generation_id: str, errors: 
         errors.append(
             ".specify/project-cognition/status.json graph_store_path must be "
             f"{EXPECTED_GRAPH_STORE_PATH}"
+        )
+    if status.get("query_contract_version") != QUERY_CONTRACT_VERSION:
+        errors.append(
+            ".specify/project-cognition/status.json query_contract_version must equal "
+            f"{QUERY_CONTRACT_VERSION!r}"
+        )
+    if status.get("update_contract_version") != UPDATE_CONTRACT_VERSION:
+        errors.append(
+            ".specify/project-cognition/status.json update_contract_version must equal "
+            f"{UPDATE_CONTRACT_VERSION!r}"
         )
     status_generation_id = str(status.get("active_generation_id", ""))
     if status_generation_id and active_generation_id and status_generation_id != active_generation_id:

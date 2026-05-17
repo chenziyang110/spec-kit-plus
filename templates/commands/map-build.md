@@ -121,9 +121,22 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - publish queryable task-oriented bundles for downstream agent work
 - produce workflow-operational reachability validation
 - produce reverse coverage validation
+- project graph truth into retrieval outputs by building evidence-backed route rows
+- publish `query_examples` that demonstrate common task, symptom, and workflow
+  phrases against the accepted graph truth
+- synthesize `concept_candidates` from graph-backed aliases, ownership,
+  capabilities, symptoms, generated surfaces, and verification routes
+- publish `route_pack` entries that connect selected concepts to owners,
+  consumers, affected paths, verification routes, conflicts, and
+  `minimal_live_reads`
 - do not rebuild the scan from chat memory
 - must not guess and continue when required scan inputs are incomplete
 - maintain a scan gap report when unresolved critical rows remain
+
+The build must keep graph truth projection explicit: every route row that feeds
+`concept_candidates`, `query_examples`, or `route_pack` must be evidence-backed,
+traceable to accepted scan evidence, and rejectable when confidence, ownership,
+or route semantics are weak.
 
 ## Consequence Substrate Synthesis
 

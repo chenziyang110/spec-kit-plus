@@ -33,10 +33,18 @@ def apply_cognition_update(
 
     normalized_paths = _normalize_paths(changed_paths)
     with cognition_transaction(project_root) as conn:
-        affected_nodes, missing_paths = _resolve_path_coverage(conn, generation_id, normalized_paths)
+        affected_nodes, missing_paths, affected_route_records, patched_retrieval_signals = _resolve_path_coverage(
+            conn,
+            generation_id,
+            normalized_paths,
+        )
         missing_coverage = [f"path not covered by project cognition index: {path}" for path in missing_paths]
         result_state = "partial_refresh" if missing_paths else "ready"
         attrs = {
+            "publishing_model": "patch-in-active-generation",
+            "patched_retrieval_signals": patched_retrieval_signals,
+            "invalidated_retrieval_signals": missing_paths,
+            "affected_route_records": affected_route_records,
             "known_unknowns": missing_coverage,
             "minimal_live_reads": missing_paths,
             "confidence": "partial" if missing_paths else "strong",
@@ -96,16 +104,24 @@ def _normalize_paths(paths: list[str]) -> list[str]:
     return normalized_paths
 
 
-def _resolve_path_coverage(conn: Any, generation_id: str, paths: list[str]) -> tuple[list[str], list[str]]:
+def _resolve_path_coverage(
+    conn: Any,
+    generation_id: str,
+    paths: list[str],
+) -> tuple[list[str], list[str], list[str], list[str]]:
     affected_nodes: set[str] = set()
+    affected_route_records: set[str] = set()
     missing_paths: list[str] = []
+    patched_retrieval_signals: list[str] = []
     for path in paths:
         rows = conn.execute(
-            "SELECT node_id FROM path_index WHERE generation_id = ? AND path = ?",
+            "SELECT id, node_id FROM path_index WHERE generation_id = ? AND path = ?",
             (generation_id, path),
         ).fetchall()
         if not rows:
             missing_paths.append(path)
             continue
+        patched_retrieval_signals.append(path)
         affected_nodes.update(str(row["node_id"]) for row in rows)
-    return sorted(affected_nodes), missing_paths
+        affected_route_records.update(str(row["id"]) for row in rows)
+    return sorted(affected_nodes), missing_paths, sorted(affected_route_records), patched_retrieval_signals

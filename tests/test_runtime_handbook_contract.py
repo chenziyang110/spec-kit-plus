@@ -25,7 +25,16 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
 
     assert "launcher-backed project cognition query planning flow" in lowered
     assert "project-cognition lexicon" in lowered
+    assert "concept_candidates" in content
+    assert "selected_concepts" in content
+    assert "rejected_concepts" in content
+    assert "selection_reason" in content
     assert "query_plan" in content
+    assert "expanded_queries" in content
+    assert "paths" in content
+    assert "route_pack" in content
+    assert "colloquial_matches" in content
+    assert "disambiguation" in lowered
     assert "task-local project" in lowered
     assert "raw" in lowered
     assert "graph json artifacts as obsolete runtime surfaces" in lowered
@@ -43,6 +52,9 @@ def test_context_loading_gradient_requires_cognition_carry_forward() -> None:
     assert "a project-cognition query is not complete when it returns json" in content
     assert "readiness drives routing" in content
     assert "minimal_live_reads constrains inspection" in content
+    assert "carry forward the selected concepts" in content
+    assert "rejected concepts" in content
+    assert "route_pack" in content
     assert "next workflow artifact or execution state" in content
 
 
@@ -54,7 +66,11 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
     )
 
     assert "a project-cognition query is not complete when it returns json" in content
+    assert "concept_candidates" in content
+    assert "selected_concepts" in content
+    assert "rejected_concepts" in content
     assert "readiness drives routing" in content
+    assert "route_pack" in content
     assert "minimal_live_reads" in content
     assert "next workflow artifact or execution state" in content
     assert "affected nodes" in content

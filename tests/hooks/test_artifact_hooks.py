@@ -11,6 +11,51 @@ def _create_project(tmp_path: Path) -> Path:
     return project
 
 
+def _write_minimal_task_generation_outputs(feature_dir: Path) -> None:
+    handoff_path = feature_dir / "handoff-to-tasks.json"
+    if not handoff_path.exists():
+        handoff_path.write_text('{"version": 1, "status": "ready"}\n', encoding="utf-8")
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.exists():
+        task_index_path.write_text(
+            '{"version": 1, "status": "ready", "tasks": [], "parallel_batches": [], "join_points": []}\n',
+            encoding="utf-8",
+        )
+    task_generation_dir = feature_dir / "task-generation"
+    task_generation_dir.mkdir(exist_ok=True)
+    (task_generation_dir / "evidence-index.json").write_text('{"version": 1, "lanes": []}\n', encoding="utf-8")
+    (task_generation_dir / "checkpoints.ndjson").write_text("", encoding="utf-8")
+    (task_generation_dir / "handoffs").mkdir(exist_ok=True)
+    (feature_dir / "task-packets").mkdir(exist_ok=True)
+
+
+def _write_minimal_planning_outputs(feature_dir: Path) -> None:
+    plan_contract_path = feature_dir / "plan-contract.json"
+    if not plan_contract_path.exists() and not (feature_dir / "plan" / "plan-contract.json").exists():
+        plan_contract_path.write_text('{"version": 1, "status": "ready"}\n', encoding="utf-8")
+    for filename in ("research.md", "quickstart.md"):
+        path = feature_dir / filename
+        if not path.exists():
+            path.write_text(f"# {path.stem.title()}\n", encoding="utf-8")
+    planning_dir = feature_dir / "planning"
+    planning_dir.mkdir(exist_ok=True)
+    (planning_dir / "evidence-index.json").write_text('{"version": 1, "lanes": []}\n', encoding="utf-8")
+    (planning_dir / "checkpoints.ndjson").write_text("", encoding="utf-8")
+    (planning_dir / "handoffs").mkdir(exist_ok=True)
+
+
+def _write_minimal_clarification_outputs(feature_dir: Path) -> None:
+    for filename in ("spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md"):
+        path = feature_dir / filename
+        if not path.exists():
+            path.write_text(f"# {path.stem.title()}\n", encoding="utf-8")
+    clarification_dir = feature_dir / "clarification"
+    clarification_dir.mkdir(exist_ok=True)
+    (clarification_dir / "evidence-index.json").write_text('{"version": 1, "lanes": []}\n', encoding="utf-8")
+    (clarification_dir / "checkpoints.ndjson").write_text("", encoding="utf-8")
+    (clarification_dir / "handoffs").mkdir(exist_ok=True)
+
+
 def _valid_deep_research_artifact() -> str:
     return """# Deep Research
 
@@ -2009,6 +2054,7 @@ def test_validate_artifacts_accepts_tasks_outputs_when_present(tmp_path: Path):
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "tasks.md").write_text("- [ ] T001 Demo task in src/demo.py\n", encoding="utf-8")
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_task_generation_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2018,6 +2064,121 @@ def test_validate_artifacts_accepts_tasks_outputs_when_present(tmp_path: Path):
 
     assert result.status == "ok"
     assert result.errors == []
+
+
+def test_validate_artifacts_blocks_tasks_without_task_generation_evidence_outputs(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "tasks.md").write_text("- [ ] T001 Demo task in src/demo.py\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "tasks", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("handoff-to-tasks.json" in message for message in result.errors)
+    assert any("task-generation/evidence-index.json" in message for message in result.errors)
+    assert any("task-generation/handoffs" in message for message in result.errors)
+
+
+def test_validate_artifacts_accepts_clarify_outputs_when_present(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    _write_minimal_clarification_outputs(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "clarify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_accepts_plan_outputs_when_present(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_blocks_plan_without_planning_evidence_outputs(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (feature_dir / "quickstart.md").write_text("# Quickstart\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "plan-contract.json").write_text('{"version": 1, "status": "ready"}\n', encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("planning/evidence-index.json" in message for message in result.errors)
+    assert any("planning/checkpoints.ndjson" in message for message in result.errors)
+    assert any("planning/handoffs" in message for message in result.errors)
+
+
+def test_validate_artifacts_accepts_plan_with_nested_plan_contract(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "plan").mkdir()
+    (feature_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
+    (feature_dir / "plan-contract.json").unlink()
+    (feature_dir / "plan" / "plan-contract.json").write_text('{"version": 1, "status": "ready"}\n', encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_blocks_clarify_without_clarification_evidence_outputs(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    for filename in ("spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md"):
+        (feature_dir / filename).write_text(f"# {filename}\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "clarify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("clarification/evidence-index.json" in message for message in result.errors)
+    assert any("clarification/checkpoints.ndjson" in message for message in result.errors)
+    assert any("clarification/handoffs" in message for message in result.errors)
 
 
 def test_validate_artifacts_accepts_deep_research_outputs_when_present(tmp_path: Path):
@@ -2118,6 +2279,7 @@ def test_validate_artifacts_blocks_plan_when_deep_research_handoff_is_not_consum
     (feature_dir / "deep-research.md").write_text(_valid_deep_research_artifact(), encoding="utf-8")
     (feature_dir / "plan.md").write_text("# Plan\n\n## Design\n\nUse the adapter boundary.\n", encoding="utf-8")
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2147,6 +2309,7 @@ def test_validate_artifacts_accepts_plan_consuming_deep_research_handoff(tmp_pat
         encoding="utf-8",
     )
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2177,6 +2340,7 @@ This prose mentions PH-001 but does not consume it in the required matrix.
         encoding="utf-8",
     )
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2209,6 +2373,7 @@ def test_validate_artifacts_ignores_non_handoff_ph_ids_when_validating_plan(tmp_
         encoding="utf-8",
     )
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2289,6 +2454,7 @@ def test_validate_artifacts_blocks_plan_when_consequence_contract_is_not_designe
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "plan.md").write_text("# Plan\n\n## Design\n\nClose the team.\n", encoding="utf-8")
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
     (feature_dir / "plan-contract.json").write_text(
         json.dumps(
             {
@@ -2335,6 +2501,7 @@ def test_validate_artifacts_blocks_plan_when_nested_consequence_contract_is_not_
     (feature_dir / "plan").mkdir()
     (feature_dir / "plan.md").write_text("# Plan\n\n## Design\n\nClose the team.\n", encoding="utf-8")
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
     (feature_dir / "plan" / "plan-contract.json").write_text(
         json.dumps(
             {
@@ -2383,6 +2550,7 @@ def test_validate_artifacts_blocks_plan_when_consequence_decision_does_not_cover
         encoding="utf-8",
     )
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
     (feature_dir / "plan-contract.json").write_text(
         json.dumps(
             {
@@ -2437,6 +2605,7 @@ def test_validate_artifacts_accepts_plan_when_decision_covers_obligation_id(tmp_
         encoding="utf-8",
     )
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_minimal_planning_outputs(feature_dir)
     (feature_dir / "plan-contract.json").write_text(
         json.dumps(
             {
@@ -2533,6 +2702,7 @@ def test_validate_artifacts_blocks_tasks_when_consequence_obligation_is_unmapped
         ),
         encoding="utf-8",
     )
+    _write_minimal_task_generation_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2574,6 +2744,7 @@ def test_validate_artifacts_blocks_tasks_when_triggered_handoff_has_no_consequen
         ),
         encoding="utf-8",
     )
+    _write_minimal_task_generation_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2624,6 +2795,7 @@ def test_validate_artifacts_blocks_tasks_when_plan_contract_obligation_is_unmapp
         ),
         encoding="utf-8",
     )
+    _write_minimal_task_generation_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2675,6 +2847,7 @@ def test_validate_artifacts_blocks_tasks_when_nested_plan_contract_obligation_is
         ),
         encoding="utf-8",
     )
+    _write_minimal_task_generation_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2726,6 +2899,7 @@ def test_validate_artifacts_blocks_tasks_when_brainstorming_handoff_obligation_i
         ),
         encoding="utf-8",
     )
+    _write_minimal_task_generation_outputs(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -2801,6 +2975,7 @@ def test_validate_artifacts_accepts_tasks_when_consequence_obligation_is_mapped(
         ),
         encoding="utf-8",
     )
+    _write_minimal_task_generation_outputs(feature_dir)
 
     result = run_quality_hook(
         project,

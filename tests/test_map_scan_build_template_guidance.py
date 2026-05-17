@@ -219,6 +219,31 @@ def test_map_scan_and_build_templates_require_layer1_route_material() -> None:
     assert "workflow-operational reachability validation" in build_content
 
 
+def test_map_workflow_templates_require_project_concept_lexicon_signals() -> None:
+    scan_content = _read("templates/commands/map-scan.md")
+    build_content = _read("templates/commands/map-build.md")
+    update_content = _read("templates/commands/map-update.md")
+
+    scan_lowered = scan_content.lower()
+    build_lowered = build_content.lower()
+    update_lowered = update_content.lower()
+
+    assert "Concept Retrieval Signal Evidence" in scan_content
+    assert "concept retrieval signals" in scan_lowered
+    assert "colloquial user phrases" in scan_lowered
+    assert "domain ownership evidence" in scan_lowered
+
+    assert "query_examples" in build_content
+    assert "concept_candidates" in build_content
+    assert "route_pack" in build_content
+    assert "graph truth projection" in build_lowered
+    assert "evidence-backed route rows" in build_lowered
+
+    assert "patch-in-active-generation" in update_content
+    assert "stale retrieval signals" in update_lowered
+    assert "selected_concepts" in update_content
+
+
 def test_map_scan_template_requires_truth_layer_ledgers() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()

@@ -109,8 +109,18 @@ The canonical outputs for this command are:
 
 - compute diff impact closure
 - refresh affected evidence
+- apply updates as a `patch-in-active-generation` operation against the current
+  query-backed baseline unless validation proves a rebuild is required
 - invalidate stale claims
+- detect and repair stale retrieval signals, including obsolete aliases,
+  colloquial user phrases, concept routes, and ownership hints
 - update or create conflicts
+- preserve or revise `selected_concepts` routing evidence when changed paths,
+  user supplements, or runtime validation show that prior concept selection
+  would now misroute a query
+- preserve or revise `rejected_concepts` routing evidence when user corrections
+  or repository evidence show that a plausible alias belongs to the wrong
+  domain
 - update affected runtime records with proven facts, low-confidence claims, conflicts, stale markers, known unknowns, and minimal live reads
 - produce an incremental update record
 - verify the shared freshness contract after the update record is written

@@ -42,6 +42,7 @@ def _seed_query_ready_runtime(project: Path) -> str:
             "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-14T00:00:00Z', '2026-05-14T00:00:00Z')",
             (generation_id,),
         )
+        conn.execute("INSERT INTO node_evidence(node_id, evidence_id) VALUES ('capability:auth.login', 'E-login')")
         conn.execute(
             "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
             "VALUES ('P-login', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-login', '2026-05-14T00:00:00Z')",
@@ -60,6 +61,11 @@ def _seed_query_ready_runtime(project: Path) -> str:
         conn.execute(
             "INSERT INTO claim_fts(claim_id, subject_ref, predicate, object_text, content) "
             "VALUES ('claim:login', 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', 'login capability')"
+        )
+        conn.execute(
+            "INSERT INTO query_examples(id, generation_id, query_text, intent, expected_target_type, expected_target_id, language, source, created_at) "
+            "VALUES ('Q-login-plan', ?, 'plan login change', 'plan', 'capability', 'capability:auth.login', 'en', 'test', '2026-05-14T00:00:00Z')",
+            (generation_id,),
         )
         conn.commit()
     write_cognition_status(
@@ -2993,7 +2999,14 @@ def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
     payload = json.loads(result.output)
     assert payload["readiness"] == "needs_rebuild"
     assert payload["recommended_next_action"] == "run_map_scan_build"
-    assert payload["query_plan"] == {"raw_query": "login", "expanded_queries": [], "paths": []}
+    assert payload["query_plan"] == {
+        "raw_query": "login",
+        "expanded_queries": [],
+        "paths": [],
+        "selected_concepts": [],
+        "rejected_concepts": [],
+        "selection_reason": "",
+    }
     assert (
         ".specify/project-cognition/project-cognition.db is missing; run sp-map-scan followed by sp-map-build"
         in payload["missing_coverage"]
@@ -3022,7 +3035,14 @@ def test_project_cognition_query_accepts_equals_empty_query(tmp_path):
     payload = json.loads(result.output)
     assert payload["readiness"] == "needs_rebuild"
     assert payload["query"] == ""
-    assert payload["query_plan"] == {"raw_query": "", "expanded_queries": [], "paths": []}
+    assert payload["query_plan"] == {
+        "raw_query": "",
+        "expanded_queries": [],
+        "paths": [],
+        "selected_concepts": [],
+        "rejected_concepts": [],
+        "selection_reason": "",
+    }
 
 
 def test_project_cognition_lexicon_accepts_equals_empty_query(tmp_path):
@@ -3082,6 +3102,10 @@ def test_project_cognition_lexicon_outputs_agent_terms(tmp_path):
     assert payload["terms"][0]["node_id"] == "capability:auth.login"
     assert "login" in payload["terms"][0]["aliases"]
     assert "src/auth/login.ts" in payload["terms"][0]["paths"]
+    assert payload["concept_candidates"][0]["concept_id"] == "capability:auth.login"
+    assert payload["concept_candidates"][0]["aliases"] == ["login"]
+    assert payload["concept_candidates"][0]["query_examples"] == ["plan login change"]
+    assert payload["concept_candidates"][0]["evidence_ids"] == ["E-login"]
     assert payload["query_planning_contract"]["agent_responsibility"] == "translate raw user intent using this lexicon"
 
 
@@ -3134,6 +3158,9 @@ def test_project_cognition_query_accepts_query_plan(tmp_path):
             "raw_query": "用户随口说登录这块要改",
             "expanded_queries": ["login"],
             "paths": ["src\\auth\\login.ts"],
+            "selected_concepts": ["capability:auth.login"],
+            "rejected_concepts": ["capability:legacy.login"],
+            "selection_reason": "selected from project-cognition lexicon",
         }
     )
 
@@ -3163,6 +3190,11 @@ def test_project_cognition_query_accepts_query_plan(tmp_path):
     assert payload["query"] == "用户随口说登录这块要改"
     assert payload["query_plan"]["expanded_queries"] == ["login"]
     assert payload["query_plan"]["paths"] == ["src/auth/login.ts"]
+    assert payload["query_plan"]["selected_concepts"] == ["capability:auth.login"]
+    assert payload["query_plan"]["rejected_concepts"] == ["capability:legacy.login"]
+    assert payload["query_plan"]["selection_reason"] == "selected from project-cognition lexicon"
+    assert payload["selected_concepts"] == ["capability:auth.login"]
+    assert payload["rejected_concepts"] == ["capability:legacy.login"]
     assert payload["minimal_live_reads"] == ["src/auth/login.ts"]
 
 

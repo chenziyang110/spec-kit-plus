@@ -1288,6 +1288,12 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
     assert ".specify/memory/constitution.md" in content
     assert "Consume the `project-cognition query` bundle." in content
+    assert "choose the cognition intent" in lowered
+    assert "--intent plan" in content
+    assert "--intent implement" in content
+    assert "selected_concepts" in content
+    assert "rejected_concepts" in content
+    assert "route_pack" in content
     assert "minimal_live_reads" in content
     assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" not in content
     assert "**From context.md:**" in content
@@ -1332,6 +1338,8 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "Closed-loop requirement" in content
     assert "complete blocker bundle" in lowered
     assert "Blocker Bundle" in content
+    assert "selected/rejected concepts" in lowered
+    assert "`route_pack`" in content
     assert "Limit the visible findings table to 50 rows for readability" in content
     assert "`Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding" in content
     assert "Do not place blocking findings only in overflow summaries" in content
@@ -2449,6 +2457,33 @@ def test_specify_plan_and_clarify_treat_needs_update_as_planning_advisory():
 
         assert "`needs_update`: record a planning advisory" in lowered
         assert "`needs_update`: route through `{{invoke:map-update}}`" not in lowered
+
+
+def test_clarify_command_requires_persisted_clarification_lane_handoffs():
+    content = _read("templates/commands/clarify.md")
+    lowered = content.lower()
+
+    assert "clarification/handoffs/<lane-id>.json" in content
+    assert "clarification/evidence-index.json" in content
+    assert "clarification/checkpoints.ndjson" in content
+    assert "persist a `clarification_checkpoint` record" in lowered
+    assert "persist the lane's structured handoff" in lowered
+    assert "consume `clarification/evidence-index.json` before final artifact updates" in lowered
+    assert "mark the handoff as `integrated`, `deferred`, or `blocked`" in lowered
+    assert "without an explicit consuming artifact section, deferral, or blocker reason" in lowered
+    assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in lowered
+
+
+def test_analyze_command_consumes_planning_and_task_generation_evidence():
+    content = _read("templates/commands/analyze.md")
+    lowered = content.lower()
+
+    assert "PLANNING_EVIDENCE_INDEX = FEATURE_DIR/planning/evidence-index.json when present" in content
+    assert "TASK_GENERATION_EVIDENCE_INDEX = FEATURE_DIR/task-generation/evidence-index.json when present" in content
+    assert "read `planning/evidence-index.json` and accepted `planning/handoffs/*.json`" in lowered
+    assert "read `task-generation/evidence-index.json` and accepted `task-generation/handoffs/*.json`" in lowered
+    assert "accepted planning handoff with no downstream consumer as a plan-layer blocker" in lowered
+    assert "accepted task-generation handoff with no downstream consumer as a task-layer blocker" in lowered
 
 
 def test_specify_and_plan_treat_stale_cognition_as_planning_advisory():

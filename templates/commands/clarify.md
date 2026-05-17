@@ -3,7 +3,7 @@ description: Use when an existing specification package has planning-critical ga
 workflow_contract:
   when_to_use: The current spec package exists, but planning-critical ambiguity or new evidence makes /sp-plan unreliable.
   primary_objective: Strengthen the existing spec package without rerunning the entire `sp-specify` flow from scratch.
-  primary_outputs: Updated `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` inside the active `FEATURE_DIR`.
+  primary_outputs: Updated `spec.md`, `alignment.md`, `context.md`, `references.md`, `workflow-state.md`, `clarification/handoffs/<lane-id>.json`, `clarification/evidence-index.json`, and `clarification/checkpoints.ndjson` inside the active `FEATURE_DIR`.
   default_handoff: /sp-plan if the package becomes planning-ready; otherwise continue clarification, run another repair pass, or route unproven feasibility through /sp-deep-research.
 handoffs:
   - label: Build Technical Plan
@@ -99,9 +99,9 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - Persist at least these fields for the active pass:
      - `active_command: sp-clarify`
      - `phase_mode: planning-only`
-     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, workflow-state.md`
+     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, clarification/handoffs/*.json, clarification/evidence-index.json, clarification/checkpoints.ndjson, workflow-state.md`
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
-     - `authoritative_files: spec.md, alignment.md, context.md, references.md`
+     - `authoritative_files: spec.md, alignment.md, context.md, references.md, clarification/handoffs/*.json, clarification/evidence-index.json`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 3. Load the current spec package and repo context:
@@ -164,6 +164,12 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - parallelize only when the work naturally separates into independent research tracks
    - examples: external references, local codebase context, risk analysis, comparison of alternatives
    - keep the final output synthesized back into the main spec package instead of returning raw research noise
+   - before dispatching any clarification lane, persist a `clarification_checkpoint` record to `clarification/checkpoints.ndjson` with the lane id, lane type, authoritative inputs, expected handoff path, and current workflow-state summary
+   - each delegated clarification lane must persist the lane's structured handoff to `clarification/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or updates `spec.md`, `alignment.md`, `context.md`, or `references.md`
+   - update `clarification/evidence-index.json` after each accepted lane handoff with lane id, handoff path, source artifacts inspected, questions or constraints resolved, affected artifact sections, blocker status, and integration status
+   - consume `clarification/evidence-index.json` before final artifact updates: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target `spec.md`, `alignment.md`, `context.md`, or `references.md` section that consumed it
+   - do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results; if a lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a valid handoff path
+   - when resuming after compaction, re-read `workflow-state.md`, `clarification/checkpoints.ndjson`, `clarification/evidence-index.json`, and all accepted `clarification/handoffs/<lane-id>.json` files before continuing clarification synthesis
 
 7a. Decide whether a separate feasibility gate is needed:
    - If the remaining issue is "what should the system do?", keep clarifying in this command.
@@ -181,7 +187,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 
 8. Delegate artifact enhancements through a validated subagent lane:
    - Build one bounded `WorkerTaskPacket` for the artifact update lane when the write scope is safe and packetized.
-   - Allowed writes are limited to `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` inside `FEATURE_DIR`.
+   - Allowed writes are limited to `spec.md`, `alignment.md`, `context.md`, `references.md`, `workflow-state.md`, and the clarification evidence files under `clarification/` inside `FEATURE_DIR`.
    - The packet must list authoritative inputs, exact artifact sections to strengthen, allowed writes, forbidden actions, acceptance checks, verification evidence, and structured handoff format.
    - The subagent updates `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` as needed.
    - The subagent strengthens `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` when relevant.
@@ -189,6 +195,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - The subagent strengthens feasibility / deep research gate status when an implementation-chain proof is needed before planning.
    - The subagent strengthens `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` in `context.md`.
    - The leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency.
+   - Each accepted artifact-update lane handoff must be referenced from `clarification/evidence-index.json`, and the final artifact updates must name the handoff paths that shaped resolved questions, retained risks, or escalations.
+   - Do not mark clarification complete while `clarification/evidence-index.json` contains an accepted handoff without an explicit consuming artifact section, deferral, or blocker reason.
    - If the artifact update lane cannot be safely packetized or delegated, record `subagent-blocked` in `workflow-state.md` with the escalation or recovery reason and stop instead of making the artifact edits.
 
 9. Maintain a clean output contract:
@@ -201,6 +209,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - sections touched
    - whether multi-agent research was used
    - updated paths
+   - clarification evidence paths: `clarification/evidence-index.json`, `clarification/checkpoints.ndjson`, and accepted `clarification/handoffs/<lane-id>.json` files
    - remaining planning risks
    - recommended next command
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first

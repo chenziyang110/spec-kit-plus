@@ -12,9 +12,27 @@ passed.
 
 Use the launcher-backed project cognition query planning flow required by this
 command's workflow contract to retrieve the task-local project cognition bundle:
-run `project-cognition lexicon`, translate raw user intent into a `query_plan`
-from returned map terms, then run `project-cognition query --query-plan`. Treat
-raw graph JSON artifacts as obsolete runtime surfaces.
+run `project-cognition lexicon`, inspect the returned `concept_candidates`,
+select the task-relevant `selected_concepts`, record non-selected or unsafe
+`rejected_concepts`, and write a `selection_reason` for both inclusion and
+exclusion choices. Then construct a `query_plan` containing
+`selected_concepts`, `rejected_concepts`, `expanded_queries`, and `paths`, and
+run `project-cognition query --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
+
+### Concept Selection
+
+`concept_candidates` are not a flat keyword list. Treat them as structured
+project concept candidates with ownership, route, alias, `matched_terms`,
+`colloquial_matches`, domain, disambiguation, and confidence signals.
+Select concepts that match the user's intent and the workflow objective, reject
+concepts that are unrelated or unsafe to assume, and preserve the
+`selection_reason` so downstream artifacts can understand why the query was
+bounded that way.
+
+When candidate concepts conflict, are too broad, or remain unknown, follow the
+returned readiness state instead of guessing. Do not bypass `route_pack` or
+`minimal_live_reads` by expanding into broad repository reads merely because a
+candidate concept looks interesting.
 
 ### Fixed Bundle Consumption
 
@@ -28,9 +46,10 @@ A project-cognition query is not complete when it returns JSON. It is complete
 only when readiness drives routing, minimal_live_reads constrains inspection,
 and relevant facts are carried into the next workflow artifact or execution state.
 
-Extract and carry forward the matched capability or symptom, affected nodes and
-subgraph, `minimal_live_reads`, missing coverage, evidence traces, verification
-routes, ambiguity, conflicts, and weak coverage.
+Extract and carry forward the selected concepts, rejected concepts,
+`selection_reason`, matched capability or symptom, affected nodes and subgraph,
+`route_pack`, `minimal_live_reads`, missing coverage, evidence traces,
+verification routes, ambiguity, conflicts, and weak coverage.
 
 ### Command Tier Depth
 

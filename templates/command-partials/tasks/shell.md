@@ -7,7 +7,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 ## Context
 
 - Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, `plan-contract.json` when present, and the task-local project cognition query bundle with readiness and returned `minimal_live_reads`.
-- Working state lives in `FEATURE_DIR/tasks.md` plus any decomposition metadata needed for later analysis or implementation routing.
+- Working state lives in `FEATURE_DIR/tasks.md` plus durable decomposition metadata for later analysis or implementation routing: `handoff-to-tasks.json`, `task-index.json`, `task-packets/`, `task-generation/handoffs/`, `task-generation/evidence-index.json`, and `task-generation/checkpoints.ndjson`.
 - This command is task-generation-only. It should not cross into execution.
 
 ## Process
@@ -22,6 +22,8 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 
 - Write `tasks.md` as the authoritative execution breakdown for the current feature.
 - Produce both human-readable `tasks.md` and machine-readable execution packets: `handoff-to-tasks.json`, `task-index.json`, and per-task JSON under `task-packets/` for downstream implementers.
+- Persist task-generation lane evidence before synthesis: every delegated decomposition lane writes `task-generation/handoffs/<lane-id>.json`, the leader updates `task-generation/evidence-index.json`, and checkpoint records go to `task-generation/checkpoints.ndjson`.
+- Consume every accepted task-generation handoff before final synthesis: each accepted handoff must shape at least one task, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or explicit escalation/deferral.
 - Make execution ordering, parallelization boundaries, and required verification steps explicit.
 - Preserve the guardrail information later subagent execution packets and leaders must consume.
 

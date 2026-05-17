@@ -47,6 +47,12 @@ def test_tasks_template_makes_parallel_tasks_packet_ready_for_leaders():
     assert "for each `[p]` task or explicit parallel batch" in lowered
     assert "objective, write set, required references, forbidden drift, validation command, and done condition" in lowered
     assert "leader can compile a bounded subagent execution packet" in lowered
+    assert "## Task-Generation Evidence Index" in content
+    assert "task-generation/evidence-index.json" in content
+    assert "task-generation/checkpoints.ndjson" in content
+    assert "task-generation/handoffs/" in content
+    assert "Every accepted task-generation handoff must have a consumer recorded" in content
+    assert "task ID, packet field, dependency edge, write-set decision" in content
 
 
 def test_tasks_template_includes_analyze_remediation_mapping_and_self_audit():
@@ -65,3 +71,27 @@ def test_tasks_template_includes_analyze_remediation_mapping_and_self_audit():
     assert "DP1" in content
     assert "DP2" in content
     assert "DP3" in content
+
+
+def test_tasks_command_requires_persisted_task_generation_handoffs():
+    content = _read("templates/commands/tasks.md")
+    lowered = content.lower()
+
+    assert "task-generation/handoffs/<lane-id>.json" in content
+    assert "task-generation/evidence-index.json" in content
+    assert "task-generation/checkpoints.ndjson" in content
+    assert "persist a `task_generation_checkpoint` record" in lowered
+    assert "persist the lane's structured handoff" in lowered
+    assert "consume `task-generation/evidence-index.json` before final task synthesis" in lowered
+    assert "mark the handoff as `integrated`, `deferred`, or `blocked`" in lowered
+    assert "without an explicit consuming task, packet field, dependency edge, deferral, escalation, or blocker reason" in lowered
+    assert "do not synthesize `tasks.md` from chat-only lane results" in lowered
+
+
+def test_tasks_command_consumes_upstream_planning_evidence():
+    content = _read("templates/commands/tasks.md")
+    lowered = content.lower()
+
+    assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in content
+    assert "Read `planning/evidence-index.json` and all accepted `planning/handoffs/*.json`" in content
+    assert "accepted planning lane contributions as upstream planning inputs" in lowered

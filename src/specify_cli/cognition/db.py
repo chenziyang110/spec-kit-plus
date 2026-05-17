@@ -13,6 +13,8 @@ from .paths import cognition_db_path, cognition_dir
 
 
 SCHEMA_VERSION = 1
+QUERY_CONTRACT_VERSION = 2
+UPDATE_CONTRACT_VERSION = 1
 
 
 class CognitionRuntimeMetadataError(RuntimeError):
@@ -79,8 +81,8 @@ def publish_cognition_runtime_metadata(project_root: Path) -> dict[str, object]:
         "graph_ready": True,
         "graph_store_path": ".specify/project-cognition/project-cognition.db",
         "active_generation_id": active_generation_id,
-        "query_contract_version": 1,
-        "update_contract_version": 1,
+        "query_contract_version": QUERY_CONTRACT_VERSION,
+        "update_contract_version": UPDATE_CONTRACT_VERSION,
     }
     with closing(connect_cognition_db(project_root)) as conn:
         for key, value in metadata.items():
@@ -109,8 +111,8 @@ def publish_cognition_runtime_metadata(project_root: Path) -> dict[str, object]:
             "graph_ready": True,
             "graph_store_path": ".specify/project-cognition/project-cognition.db",
             "active_generation_id": active_generation_id,
-            "query_contract_version": 1,
-            "update_contract_version": 1,
+            "query_contract_version": QUERY_CONTRACT_VERSION,
+            "update_contract_version": UPDATE_CONTRACT_VERSION,
             "stale_paths": list(current.stale_paths or []),
             "stale_reasons": list(current.stale_reasons or []),
             "freshness": current.freshness,

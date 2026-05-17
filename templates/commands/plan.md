@@ -3,7 +3,7 @@ description: Use when the current specification package is ready for implementat
 workflow_contract:
   when_to_use: The current spec package is ready for design work, but implementation should not start until explicit planning artifacts exist.
   primary_objective: Produce the planning artifact set that turns specification intent into an implementation-ready architecture and execution approach.
-  primary_outputs: '`plan.md`, `research.md`, `quickstart.md`, and `workflow-state.md` under the active `FEATURE_DIR`, plus `data-model.md` and `contracts/` when the feature scope demands them.'
+  primary_outputs: '`plan.md`, `research.md`, `quickstart.md`, `plan-contract.json`, `workflow-state.md`, `planning/handoffs/<lane-id>.json`, `planning/evidence-index.json`, and `planning/checkpoints.ndjson` under the active `FEATURE_DIR`, plus `data-model.md` and `contracts/` when the feature scope demands them.'
   default_handoff: '/sp.tasks for decomposition, optionally /sp.checklist for quality checks on the resulting plan package.'
 handoffs:
   - label: Create Tasks
@@ -78,9 +78,9 @@ agent_scripts:
    - Persist at least these fields for the active pass:
      - `active_command: sp-plan`
      - `phase_mode: design-only`
-     - `allowed_artifact_writes: plan.md, research.md, data-model.md, contracts/, quickstart.md, workflow-state.md`
+     - `allowed_artifact_writes: plan.md, research.md, data-model.md, contracts/, quickstart.md, plan-contract.json, planning/handoffs/*.json, planning/evidence-index.json, planning/checkpoints.ndjson, workflow-state.md`
      - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from plan artifacts`
-     - `authoritative_files: spec.md, alignment.md, context.md, plan.md, research.md`
+     - `authoritative_files: spec.md, alignment.md, context.md, plan.md, research.md, plan-contract.json, planning/handoffs/*.json, planning/evidence-index.json`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
    - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
@@ -209,6 +209,12 @@ Use the returned readiness:
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
    - [AGENT] Before plan synthesis begins, split the work only into the supported plan lanes: `research`, `data model`, `contracts`, and `quickstart and validation scenarios`.
    - [AGENT] Before dispatch begins, assess the current agent capability snapshot and apply the shared policy contract: `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)`.
+   - Before dispatching any planning lane, persist a `planning_checkpoint` record to `planning/checkpoints.ndjson` with the lane id, dispatch shape, authoritative inputs, expected handoff path, and current workflow-state summary.
+   - Each delegated planning lane must persist the lane's structured handoff to `planning/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or synthesizes `plan.md`, `research.md`, or `plan-contract.json`.
+   - Update `planning/evidence-index.json` after each accepted lane handoff with lane id, handoff path, source artifacts inspected, decisions or constraints contributed, affected plan sections or generated artifacts, blocker status, and integration status.
+   - Consume `planning/evidence-index.json` before final synthesis: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, or `plan-contract.json` section that consumed it.
+   - Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only lane results. If a lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a valid handoff path.
+   - When resuming after compaction, re-read `workflow-state.md`, `planning/checkpoints.ndjson`, `planning/evidence-index.json`, and all accepted `planning/handoffs/<lane-id>.json` files before continuing planning synthesis.
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
      - If exactly one validated isolated plan lane exists, dispatch `one-subagent`.
@@ -220,6 +226,8 @@ Use the returned readiness:
      - before final constitution and risk re-check
      - before writing the consolidated implementation plan
    - Record the chosen dispatch shape, blocked reason if any, selected lanes, and join points in the planning artifacts you generate.
+   - In `plan-contract.json`, include references to accepted `planning/handoffs/<lane-id>.json` files that shaped each major plan decision, research conclusion, generated artifact, risk, guardrail, or escalation.
+   - Do not mark planning complete while `planning/evidence-index.json` contains an accepted handoff without an explicit consuming artifact section, deferral, or blocker reason.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 6. **Execute the plan workflow** using the IMPL_PLAN template:
@@ -264,6 +272,7 @@ Use the returned readiness:
     - plan path
     - alignment status
     - generated artifacts
+    - planning evidence paths: `planning/evidence-index.json`, `planning/checkpoints.ndjson`, and accepted `planning/handoffs/<lane-id>.json` files
     - workflow-state path
     - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
     - cognition follow-up: if artifact-only planning work introduces or sharpens future architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `plan.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date

@@ -23,9 +23,17 @@ judgment in an established Spec Kit Plus repository:
 
 - Use the launcher-backed project cognition query planning flow required by the
   active workflow contract to retrieve the task-local project cognition bundle.
-  Run `project-cognition lexicon` first, translate the raw user request into a
-  `query_plan` using returned map terms, then run `project-cognition query
-  --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
+  Run `project-cognition lexicon` first, inspect the returned
+  `concept_candidates`, choose task-relevant `selected_concepts`, record
+  non-selected or unsafe `rejected_concepts`, and include a
+  `selection_reason`. Translate that bounded selection into a `query_plan`
+  containing `selected_concepts`, `rejected_concepts`, `expanded_queries`, and
+  `paths`, then run `project-cognition query --query-plan`. Treat raw graph JSON
+  artifacts as obsolete runtime surfaces.
+- Treat `concept_candidates` as structured project concept candidates, not a
+  flat keyword list. Resolve broad, conflicting, or unknown candidates through
+  the returned readiness state; do not widen live repository reads beyond the
+  returned `route_pack` and `minimal_live_reads`.
 - For `sp-discussion`, product framing may begin before the cognition gate. Before
   technical options, affected-surface claims, source-code reads, or
   source-grounded recommendations, use the active workflow's launcher-backed
@@ -42,9 +50,10 @@ judgment in an established Spec Kit Plus repository:
   only when readiness drives routing, `minimal_live_reads` constrains
   inspection, and relevant facts are carried into the next workflow artifact or
   execution state.
-- Extract and carry forward the matched capability or symptom, affected nodes
-  and subgraph, `minimal_live_reads`, missing coverage, evidence traces,
-  verification routes, ambiguity, conflicts, and weak coverage.
+- Extract and carry forward `selected_concepts`, `rejected_concepts`,
+  `selection_reason`, the matched capability or symptom, affected nodes and
+  subgraph, `route_pack`, `minimal_live_reads`, missing coverage, evidence
+  traces, verification routes, ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as the runtime truth surface. Legacy project-map exports are not the default runtime truth path.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.

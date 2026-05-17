@@ -31,9 +31,32 @@ FILE_REQUIRED_ARTIFACTS = {
         "brainstorming/domains.json",
         "brainstorming/evidence-index.json",
     ),
+    "clarify": (
+        "spec.md",
+        "alignment.md",
+        "context.md",
+        "references.md",
+        "workflow-state.md",
+        "clarification/evidence-index.json",
+        "clarification/checkpoints.ndjson",
+    ),
     "deep-research": ("deep-research.md", "workflow-state.md"),
-    "plan": ("plan.md", "workflow-state.md"),
-    "tasks": ("tasks.md", "workflow-state.md"),
+    "plan": (
+        "plan.md",
+        "research.md",
+        "quickstart.md",
+        "workflow-state.md",
+        "planning/evidence-index.json",
+        "planning/checkpoints.ndjson",
+    ),
+    "tasks": (
+        "tasks.md",
+        "workflow-state.md",
+        "handoff-to-tasks.json",
+        "task-index.json",
+        "task-generation/evidence-index.json",
+        "task-generation/checkpoints.ndjson",
+    ),
     "analyze": ("workflow-state.md",),
     "map-scan": (
         "status.json",
@@ -87,6 +110,9 @@ FILE_REQUIRED_ARTIFACTS = {
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
     "specify": ("brainstorming/evidence",),
+    "clarify": ("clarification/handoffs",),
+    "plan": ("planning/handoffs",),
+    "tasks": ("task-packets", "task-generation/handoffs"),
     "map-scan": ("evidence",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
@@ -124,9 +150,36 @@ REQUIRED_ARTIFACTS = {
         "brainstorming/evidence-index.json",
         "brainstorming/evidence",
     ),
+    "clarify": (
+        "spec.md",
+        "alignment.md",
+        "context.md",
+        "references.md",
+        "workflow-state.md",
+        "clarification/evidence-index.json",
+        "clarification/checkpoints.ndjson",
+        "clarification/handoffs",
+    ),
     "deep-research": ("deep-research.md", "workflow-state.md"),
-    "plan": ("plan.md", "workflow-state.md"),
-    "tasks": ("tasks.md", "workflow-state.md"),
+    "plan": (
+        "plan.md",
+        "research.md",
+        "quickstart.md",
+        "workflow-state.md",
+        "planning/evidence-index.json",
+        "planning/checkpoints.ndjson",
+        "planning/handoffs",
+    ),
+    "tasks": (
+        "tasks.md",
+        "workflow-state.md",
+        "handoff-to-tasks.json",
+        "task-index.json",
+        "task-generation/evidence-index.json",
+        "task-generation/checkpoints.ndjson",
+        "task-packets",
+        "task-generation/handoffs",
+    ),
     "analyze": ("workflow-state.md",),
     "map-scan": (
         "status.json",
@@ -1993,6 +2046,13 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
 
     missing = [name for name in REQUIRED_ARTIFACTS[command_name] if not (feature_dir / name).exists()]
     type_errors: list[str] = []
+    if command_name == "plan":
+        contract_paths = _consequence_contract_paths(feature_dir)
+        if not any(path.exists() for path, _label in contract_paths):
+            missing.append("plan-contract.json or plan/plan-contract.json")
+        for path, label in contract_paths:
+            if path.exists() and not path.is_file():
+                type_errors.append(f"required artifact must be a file: {label}")
     for relative_path in FILE_REQUIRED_ARTIFACTS.get(command_name, ()):
         target = feature_dir / relative_path
         if target.exists() and not target.is_file():

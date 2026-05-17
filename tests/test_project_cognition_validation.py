@@ -86,7 +86,7 @@ def _seed_query_ready_runtime(project_root: Path) -> str:
             graph_ready=True,
             graph_store_path=".specify/project-cognition/project-cognition.db",
             active_generation_id=generation_id,
-            query_contract_version=1,
+            query_contract_version=2,
             update_contract_version=1,
             freshness="fresh",
         ),
@@ -122,7 +122,7 @@ def _seed_runtime_without_claims(project_root: Path) -> str:
             graph_ready=True,
             graph_store_path=".specify/project-cognition/project-cognition.db",
             active_generation_id=generation_id,
-            query_contract_version=1,
+            query_contract_version=2,
             update_contract_version=1,
             freshness="fresh",
         ),
@@ -163,7 +163,7 @@ def _seed_runtime_without_smoke_signal(project_root: Path) -> str:
             graph_ready=True,
             graph_store_path=".specify/project-cognition/project-cognition.db",
             active_generation_id=generation_id,
-            query_contract_version=1,
+            query_contract_version=2,
             update_contract_version=1,
             freshness="fresh",
         ),
@@ -181,7 +181,7 @@ def _write_minimal_baseline_status(project_root: Path, generation_id: str) -> No
             "graph_ready": True,
             "graph_store_path": ".specify/project-cognition/project-cognition.db",
             "active_generation_id": generation_id,
-            "query_contract_version": 1,
+            "query_contract_version": 2,
             "update_contract_version": 1,
             "freshness": "fresh",
             "minimal_baseline": True,
@@ -419,7 +419,7 @@ def test_validate_build_blocks_when_db_runtime_metadata_is_missing(tmp_path: Pat
             graph_ready=True,
             graph_store_path=".specify/project-cognition/project-cognition.db",
             active_generation_id=generation_id,
-            query_contract_version=1,
+            query_contract_version=2,
             update_contract_version=1,
         ),
     )
@@ -432,6 +432,32 @@ def test_validate_build_blocks_when_db_runtime_metadata_is_missing(tmp_path: Pat
     assert any("metadata.graph_store_path" in message for message in result["errors"])
 
 
+def test_validate_build_blocks_legacy_query_contract_v1(tmp_path: Path) -> None:
+    generation_id = _seed_query_ready_runtime(tmp_path)
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "UPDATE metadata SET value_json = '1' WHERE key = 'query_contract_version'",
+        )
+        conn.commit()
+    write_cognition_status(
+        tmp_path,
+        CognitionStatus(
+            version=3,
+            baseline_state="ready",
+            graph_ready=True,
+            graph_store_path=".specify/project-cognition/project-cognition.db",
+            active_generation_id=generation_id,
+            query_contract_version=1,
+            update_contract_version=1,
+        ),
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("query_contract_version" in message and "2" in message for message in result["errors"])
+
+
 def test_validate_build_accepts_query_ready_runtime(tmp_path: Path) -> None:
     _seed_query_ready_runtime(tmp_path)
 
@@ -441,6 +467,85 @@ def test_validate_build_accepts_query_ready_runtime(tmp_path: Path) -> None:
     assert result["readiness"] == "query_ready"
     assert result["errors"] == []
     assert result["details"]["active_generation_id"] == "GEN-0001"
+
+
+def test_validate_build_blocks_path_index_route_pack_source_row_without_evidence_id(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "UPDATE path_index SET evidence_id = '' WHERE id = 'P-login'",
+        )
+        conn.commit()
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("route-pack source rows" in message and "evidence_id" in message for message in result["errors"])
+
+
+def test_validate_build_blocks_entrypoint_and_test_route_rows_without_evidence(tmp_path: Path) -> None:
+    generation_id = _seed_query_ready_runtime(tmp_path)
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO entrypoint_index(id, generation_id, entrypoint_key, entrypoint_type, node_id, capability_id, path, evidence_id, confidence) "
+            "VALUES ('EP-missing-evidence', ?, 'auth.login', 'handler', 'capability:auth.login', 'capability:auth.login', 'src/auth/login.ts', '', 'strong')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO test_index(id, generation_id, test_path, test_name, node_id, capability_id, verification_node_id, evidence_id, confidence) "
+            "VALUES ('T-missing-evidence', ?, 'tests/auth/test_login.py', 'test_login', 'capability:auth.login', 'capability:auth.login', 'verification:auth.login', '', 'strong')",
+            (generation_id,),
+        )
+        conn.commit()
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("entrypoint_index.EP-missing-evidence" in message for message in result["errors"])
+    assert any("test_index.T-missing-evidence" in message for message in result["errors"])
+
+
+def test_validate_build_blocks_query_example_without_evidence_backed_target(tmp_path: Path) -> None:
+    generation_id = _seed_query_ready_runtime(tmp_path)
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO query_examples("
+            "id, generation_id, query_text, intent, expected_target_type, expected_target_id, language, source, created_at"
+            ") VALUES ("
+            "'Q-missing', ?, 'Where is billing?', 'locate_capability', "
+            "'capability', 'capability:billing.missing', 'en', 'test', '2026-05-14T00:00:00Z'"
+            ")",
+            (generation_id,),
+        )
+        conn.commit()
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any(
+        "query_examples" in message and "evidence-backed target" in message
+        for message in result["errors"]
+    )
+
+
+def test_validate_build_records_v2_query_contract_smoke_details(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["details"]["query_contract_version"] == 2
+    assert result["details"]["query_contract_v2_fields"] == [
+        "concept_candidates",
+        "selected_concepts",
+        "rejected_concepts",
+        "selection_reason",
+        "route_pack",
+    ]
+    assert result["details"]["route_pack_source_row_count"] == 1
+    assert result["details"]["query_contract_v2_lexicon_smoke"] is True
+    assert result["details"]["query_contract_v2_query_smoke_readiness"] == "ready"
+    assert result["details"]["query_contract_v2_route_item_count"] >= 1
 
 
 def test_validate_build_blocks_when_smoke_probe_has_no_alias_or_claim_signal(tmp_path: Path) -> None:

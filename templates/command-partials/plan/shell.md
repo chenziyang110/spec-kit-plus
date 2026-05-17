@@ -7,7 +7,7 @@ Translate the approved specification package into explicit implementation design
 ## Context
 
 - Primary inputs: `spec.md`, `alignment.md`, `context.md`, `references.md`, the compiled brainstorming truth and any `plan-contract.json` contract, the task-local project cognition query bundle with readiness and returned `minimal_live_reads`, and passive learning files.
-- Working state lives in the active `FEATURE_DIR`, especially `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `workflow-state.md`.
+- Working state lives in the active `FEATURE_DIR`, especially `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `workflow-state.md`, `plan-contract.json`, `planning/handoffs/`, `planning/evidence-index.json`, and `planning/checkpoints.ndjson`.
 - This command is design-only. Planning does not grant permission to start execution.
 
 ## Process
@@ -22,6 +22,8 @@ Translate the approved specification package into explicit implementation design
 
 - Write the implementation plan artifact set needed by `/sp-tasks`.
 - Write `plan-contract.json` so route, intent, complexity, must-preserve invariants, and allowed optimization scope survive as machine-readable truth.
+- Persist planning lane evidence before synthesis: every delegated planning lane writes `planning/handoffs/<lane-id>.json`, the leader updates `planning/evidence-index.json`, and checkpoint records go to `planning/checkpoints.ndjson`.
+- Consume every accepted planning handoff before final synthesis: each accepted handoff must be integrated into `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, or `plan-contract.json`, or explicitly recorded as deferred or blocked with a reason.
 - Surface risks, unresolved decisions, and planning-time constitution/guardrail requirements explicitly.
 - Keep the resulting artifact set consistent enough that task generation does not need to rediscover obvious design decisions.
 
