@@ -8,6 +8,14 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
+import pathspec
+
+
+COGNITIONIGNORE_FILENAMES = (
+    ".cognitionignore",
+    ".specify/project-cognition/.cognitionignore",
+)
+
 
 @dataclass(slots=True)
 class ScanFreshnessStatus:
@@ -106,7 +114,13 @@ def _status_from_payload(payload: dict[str, Any], *, status_family: str) -> Scan
     )
 
 
-def collect_git_changed_files(project_root: Path, *, baseline_commit: str, head_commit: str = "HEAD") -> list[str]:
+def collect_git_changed_files(
+    project_root: Path,
+    *,
+    baseline_commit: str,
+    head_commit: str = "HEAD",
+    use_cognitionignore: bool = False,
+) -> list[str]:
     if not baseline_commit or not head_commit:
         return []
 
@@ -151,4 +165,61 @@ def collect_git_changed_files(project_root: Path, *, baseline_commit: str, head_
                 seen.add(normalized)
                 changed.append(normalized)
 
+    if use_cognitionignore:
+        return filter_cognition_ignored_paths(project_root, changed)
     return changed
+
+
+def filter_cognition_ignored_paths(project_root: Path, paths: list[str]) -> list[str]:
+    """Return paths not excluded by project cognition ignore rules."""
+
+    ignore_spec = load_cognition_ignore_spec(project_root)
+    if ignore_spec is None:
+        return list(paths)
+
+    filtered: list[str] = []
+    for path in paths:
+        normalized = _normalize_cognition_path(path)
+        if not normalized:
+            continue
+        if not ignore_spec.match_file(normalized):
+            filtered.append(normalized)
+    return filtered
+
+
+def cognition_ignored_paths(project_root: Path, paths: list[str]) -> list[str]:
+    """Return paths excluded by project cognition ignore rules."""
+
+    ignore_spec = load_cognition_ignore_spec(project_root)
+    if ignore_spec is None:
+        return []
+    ignored: list[str] = []
+    for path in paths:
+        normalized = _normalize_cognition_path(path)
+        if normalized and ignore_spec.match_file(normalized):
+            ignored.append(normalized)
+    return ignored
+
+
+def load_cognition_ignore_spec(project_root: Path) -> pathspec.GitIgnoreSpec | None:
+    """Load gitignore-compatible project cognition ignore patterns."""
+
+    lines: list[str] = []
+    for relative_ignore_path in COGNITIONIGNORE_FILENAMES:
+        ignore_path = project_root / relative_ignore_path
+        if not ignore_path.exists() or not ignore_path.is_file():
+            continue
+        for line in ignore_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                lines.append(stripped.replace("\\", "/"))
+            else:
+                lines.append(line)
+
+    if not lines:
+        return None
+    return pathspec.GitIgnoreSpec.from_lines(lines)
+
+
+def _normalize_cognition_path(path: str) -> str:
+    return str(path or "").strip().replace("\\", "/").strip("/")

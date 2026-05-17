@@ -28,8 +28,8 @@ judgment in an established Spec Kit Plus repository:
   non-selected or unsafe `rejected_concepts`, and include a
   `selection_reason`. Translate that bounded selection into a `query_plan`
   containing `selected_concepts`, `rejected_concepts`, `expanded_queries`, and
-  `paths`, then run `project-cognition query --query-plan`. Treat raw graph JSON
-  artifacts as obsolete runtime surfaces.
+  `paths`, then run `project-cognition query --query-plan`.
+  Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - Treat `concept_candidates` as structured project concept candidates, not a
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
   the returned readiness state; do not widen live repository reads beyond the
@@ -57,6 +57,29 @@ judgment in an established Spec Kit Plus repository:
 - Treat project cognition under `.specify/project-cognition/` as the runtime truth surface. Legacy project-map exports are not the default runtime truth path.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
+
+## Cross-Project Reference Directories
+
+- When inspecting or comparing another local directory, check whether that
+  directory or its children contain `.specify/` first. A referenced directory may
+  be a downstream Spec Kit project even when it is outside the current repo.
+- Prefer `cognition discover --root <path> --format json` to enumerate nested
+  `.specify/` candidates before broad live reads. Treat its `projects` entries as
+  project-cognition candidates and its `specify_candidates` entries as the
+  broader set of Spec Kit-shaped directories.
+- Use another project's cognition only when
+  `.specify/project-cognition/status.json` exists,
+  `.specify/project-cognition/project-cognition.db` exists,
+  `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
+  true.
+- For ready references, read only the fresh project cognition artifacts needed
+  for the comparison, then use the returned minimal read order before inspecting
+  more source files.
+- For blocked, stale, missing, or incomplete references, do not treat legacy
+  `.specify/project-map/**` outputs as current truth. Fall back to minimal live
+  reads, or ask the user to refresh that reference project with
+  `{{invoke:map-scan}} -> {{invoke:map-build}}` or `{{invoke:map-update}}` as
+  appropriate.
 
 ## Command Surface Discipline
 

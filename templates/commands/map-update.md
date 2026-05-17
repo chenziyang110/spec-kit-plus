@@ -36,6 +36,8 @@ Use `execution_surface: native-subagents`.
 ## Git Delta Intake
 
 - Start from Git, not memory: collect modified, added, deleted, and renamed paths from the current diff, supplied commit range, or explicit changed-path list.
+- Filter changed paths through `.cognitionignore` before querying or patching the runtime. Read root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`; both use gitignore-compatible syntax.
+- User-supplied changed paths that match `.cognitionignore` are scope notes, not update targets. Report them as ignored unless a later `!` rule re-includes the path or the user explicitly changes the ignore rule.
 - Treat user-supplied changed paths, behavior surfaces, and corrections as authoritative scope hints unless repository evidence contradicts them.
 - Query `project-cognition.db` for each changed path before deciding update scope.
 - For every changed path, look up current owner, consumers, lifecycle/state surfaces, shared mutable state, destructive-operation edges, generated-surface propagation, verification routes, conflicts, stale claims, and known unknowns.
@@ -96,6 +98,7 @@ The canonical outputs for this command are:
 - Do not re-read or rewrite raw graph JSON artifacts; use the query/update helpers and the smallest affected runtime records that can truthfully restore readiness.
 - Do not split small localized updates into parallel scan-style lanes just because subagents are available.
 - If the affected update lane cannot be safely packetized or delegated, record `subagent-blocked` with affected paths and recovery evidence; do not describe ordinary ambiguous closure as impossible to update.
+- Do not write `.cognitionignore`-excluded paths into update records, `known_unknowns`, or `minimal_live_reads`; report ignored paths separately so the operator can revise `.cognitionignore` when the exclusion is wrong.
 
 ## Escalation Boundary
 

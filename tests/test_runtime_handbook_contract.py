@@ -80,6 +80,25 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
     assert "weak coverage" in content
 
 
+def test_project_cognition_passive_skill_guides_cross_project_specify_reference_reads() -> None:
+    content = " ".join(
+        _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
+        .lower()
+        .split()
+    )
+
+    assert "when inspecting or comparing another local directory" in content
+    assert "check whether that directory or its children contain `.specify/` first" in content
+    assert "cognition discover --root" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/project-cognition.db" in content
+    assert "reference_readiness" in content
+    assert "freshness is `fresh`" in content
+    assert "`graph_ready` is true" in content
+    assert "do not treat legacy `.specify/project-map/**` outputs" in content
+    assert "fall back to minimal live reads" in content
+
+
 def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
     for rel_path in (
         "templates/commands/specify.md",
@@ -135,6 +154,33 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "normal code changes should use `sp-map-update` for bounded incremental refresh from changed paths" in lowered
     assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in lowered
     assert "workflow-appropriate slices" not in lowered
+
+
+def test_runtime_docs_explain_project_cognition_ignore_rules() -> None:
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert ".cognitionignore" in content
+        assert "gitignore-compatible" in lowered
+        assert "map-scan" in lowered
+        assert "map-build" in lowered
+        assert "map-update" in lowered
+        assert "excluded paths must not enter project cognition graph evidence" in lowered
+
+
+def test_runtime_docs_explain_cross_project_reference_cognition_gate() -> None:
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
+        content = _read(rel_path)
+        lowered = " ".join(content.lower().split())
+
+        assert "cognition discover --root" in lowered
+        assert ".specify/project-cognition/status.json" in content
+        assert ".specify/project-cognition/project-cognition.db" in content
+        assert "reference_readiness" in content
+        assert "freshness is `fresh`" in lowered
+        assert "`graph_ready` is true" in lowered
+        assert "do not treat legacy `.specify/project-map/**` outputs as current truth" in lowered
 
 
 def test_docs_explain_project_cognition_supports_but_does_not_replace_consequence_analysis() -> None:

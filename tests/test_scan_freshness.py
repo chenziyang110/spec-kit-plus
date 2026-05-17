@@ -4,6 +4,7 @@ import subprocess
 from specify_cli.scan_freshness import (
     ScanFreshnessStatus,
     collect_git_changed_files,
+    filter_cognition_ignored_paths,
     read_scan_status,
     write_scan_status,
 )
@@ -75,6 +76,70 @@ def test_collect_git_changed_files_includes_committed_staged_unstaged_and_untrac
     assert "staged.txt" in changed
     assert "unstaged.txt" in changed
     assert "untracked.txt" in changed
+
+
+def test_cognitionignore_filters_paths_with_gitignore_like_rules(tmp_path: Path) -> None:
+    repo = tmp_path
+    ignore_file = repo / ".specify" / "project-cognition" / ".cognitionignore"
+    ignore_file.parent.mkdir(parents=True)
+    ignore_file.write_text(
+        """
+# generated dependency projects
+vendor/
+examples/**/*.generated.ts
+*.snap
+!tests/fixtures/keep.snap
+""",
+        encoding="utf-8",
+    )
+
+    filtered = filter_cognition_ignored_paths(
+        repo,
+        [
+            "src/app.py",
+            "vendor/nested/project.py",
+            "examples/demo/app.generated.ts",
+            "tests/ui/home.snap",
+            "tests/fixtures/keep.snap",
+        ],
+    )
+
+    assert filtered == [
+        "src/app.py",
+        "tests/fixtures/keep.snap",
+    ]
+
+
+def test_collect_git_changed_files_applies_cognitionignore_when_enabled(tmp_path: Path) -> None:
+    repo = _init_git_repo(tmp_path)
+    (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=repo, check=True)
+    baseline = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    ignore_file = repo / ".specify" / "project-cognition" / ".cognitionignore"
+    ignore_file.parent.mkdir(parents=True)
+    ignore_file.write_text("vendor/\n*.snap\n!tests/fixtures/keep.snap\n", encoding="utf-8")
+
+    (repo / "src").mkdir()
+    (repo / "src" / "app.py").write_text("print('changed')\n", encoding="utf-8")
+    (repo / "vendor").mkdir()
+    (repo / "vendor" / "ignored.py").write_text("print('ignored')\n", encoding="utf-8")
+    (repo / "tests" / "fixtures").mkdir(parents=True)
+    (repo / "tests" / "fixtures" / "keep.snap").write_text("tracked fixture\n", encoding="utf-8")
+    (repo / "tests" / "ui.snap").write_text("ignored snapshot\n", encoding="utf-8")
+
+    changed = collect_git_changed_files(repo, baseline_commit=baseline, use_cognitionignore=True)
+
+    assert "src/app.py" in changed
+    assert "tests/fixtures/keep.snap" in changed
+    assert "vendor/ignored.py" not in changed
+    assert "tests/ui.snap" not in changed
 
 
 def test_read_scan_status_can_migrate_legacy_project_map_fields(tmp_path: Path) -> None:

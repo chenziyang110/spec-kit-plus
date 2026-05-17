@@ -23,6 +23,13 @@ workflow when it would materially improve the outcome.
 If the user already invoked an `sp-*` workflow, treat the routing check as
 complete and proceed under that workflow's generated contract.
 
+When there is even a 1% chance the current request is asking you to interpret,
+continue, or recommend a structured workflow, complete route selection before any response or action,
+including a clarifying question, file read, or shell command. The goal is to
+route into the right active `sp-*` workflow when one is already invoked, or to
+recommend the smallest safe workflow without silently entering it when ordinary
+chat or coding is enough.
+
 ## Command Surface Discipline
 
 Treat the live `specify --help` output as the only authoritative CLI command

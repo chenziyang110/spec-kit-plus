@@ -49,13 +49,22 @@ and what sits clearly outside the system boundary.]
   - the task-local project cognition query bundle, including readiness and `minimal_live_reads`
 - **Cross-project cognition reference**: use the project cognition runtime as
   explicit-only, supplemental-only, fresh-only context with a minimal read before
-  broader source inspection.
+  broader source inspection. When another local directory is used as a
+  reference, check for `.specify/` first, run
+  `cognition discover --root <path> --format json`, and use that project's
+  cognition only when `.specify/project-cognition/status.json` and
+  `.specify/project-cognition/project-cognition.db` exist,
+  `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
+  true. If the reference is stale, blocked, or incomplete, do not treat legacy
+  `.specify/project-map/**` outputs as current truth; fall back to minimal live
+  reads or refresh the reference project.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface.
 - Read this handbook only when a user or workflow explicitly asks for the compatibility/export view; it is not the default runtime truth path.
 - Use `map-update` for localized stale cognition runtime refresh and ordinary changed-path maintenance; use `map-scan` followed by `map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. After that, normal code changes should use `sp-map-update` for bounded incremental refresh. Uncertain closure is recorded by `map-update` as partial/low-confidence facts, known unknowns, and `minimal_live_reads`; it is not by itself a reason to rerun `sp-map-scan -> sp-map-build`.
 - After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
 - Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed.
+- Use `.cognitionignore` or `.specify/project-cognition/.cognitionignore` to exclude vendored, generated, archived, or nested-reference projects from project cognition. The rules are gitignore-compatible and affect `map-scan`, `map-build`, and `map-update`; excluded paths must not enter project cognition graph evidence, runtime route indexes, or `minimal_live_reads`.
 - Support drift is not runtime-truth staleness; resolve support-surface drift without reflexively routing to `map-update`.
 - Preserve the state vocabulary: `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, and `possibly_stale` are machine freshness states; `recommended_next_action` is the public operator guidance.
 - Use `Where To Read Next` for task-oriented routing.

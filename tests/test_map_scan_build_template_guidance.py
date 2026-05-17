@@ -93,6 +93,31 @@ def test_map_scan_shell_partial_keeps_specify_out_of_graph_inputs() -> None:
     assert "must not become scan targets or graph paths" in lowered
 
 
+def test_map_workflow_templates_use_cognitionignore_for_scan_build_and_update_scope() -> None:
+    scan_content = _read("templates/commands/map-scan.md")
+    build_content = _read("templates/commands/map-build.md")
+    update_content = _read("templates/commands/map-update.md")
+    scan_shell = _read("templates/command-partials/map-scan/shell.md")
+    build_shell = _read("templates/command-partials/map-build/shell.md")
+
+    for content in (scan_content, build_content, update_content, scan_shell, build_shell):
+        assert ".cognitionignore" in content
+
+    assert "gitignore-compatible" in scan_content.lower()
+    assert "repository-universe.json" in scan_content
+    assert "excluded_paths" in scan_content
+    assert "must not appear in coverage rows, evidence rows, provisional nodes, provisional edges, observations, or scan packets" in scan_content
+    assert "project-cognition validate-scan --format json" in scan_content
+
+    assert "must reject `.cognitionignore`-excluded paths" in build_content
+    assert "must not write `.cognitionignore`-excluded paths" in build_content
+    assert "project-cognition validate-build --format json" in build_content
+
+    assert "filter changed paths through `.cognitionignore`" in update_content.lower()
+    assert "user-supplied changed paths that match `.cognitionignore`" in update_content.lower()
+    assert "minimal_live_reads" in update_content
+
+
 def test_map_scan_template_prefers_native_subagent_inventory_with_structured_handoffs() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()

@@ -12,6 +12,7 @@ from .db import QUERY_CONTRACT_VERSION, SCHEMA_VERSION, UPDATE_CONTRACT_VERSION
 from .lexicon import _project_cognition_lexicon_payload
 from .paths import cognition_db_path, cognition_dir
 from .query import _query_plan_payload, _query_project_cognition_payload
+from specify_cli.scan_freshness import cognition_ignored_paths
 
 
 REQUIRED_TABLES = {
@@ -120,12 +121,57 @@ def _collect_specify_paths(value: Any, *, parent_key: str = "") -> list[str]:
     return matches
 
 
+def _collect_graph_paths(value: Any, *, parent_key: str = "") -> list[str]:
+    matches: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text.lower() in {
+                "path",
+                "paths",
+                "source_path",
+                "target_path",
+                "file",
+                "files",
+                "source",
+                "target",
+                "object_ref",
+                "subject_ref",
+                "test_path",
+            }:
+                matches.extend(_collect_graph_paths(item, parent_key=key_text))
+            elif isinstance(item, (dict, list)):
+                matches.extend(_collect_graph_paths(item, parent_key=key_text))
+    elif isinstance(value, list):
+        for item in value:
+            matches.extend(_collect_graph_paths(item, parent_key=parent_key))
+    elif isinstance(value, str) and parent_key:
+        normalized = value.strip().replace("\\", "/").strip("/")
+        if normalized:
+            matches.append(normalized)
+    return matches
+
+
 def _reject_specify_graph_paths(payload: dict[str, Any], label: str, errors: list[str]) -> None:
     paths = sorted(set(_collect_specify_paths(payload)))
     if paths:
         errors.append(
             f"{label} contains .specify/** paths: {', '.join(paths)}; "
             ".specify/** must not enter project cognition graph evidence"
+        )
+
+
+def _reject_cognitionignored_graph_paths(
+    project_root: Path,
+    payload: dict[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    ignored = sorted(set(cognition_ignored_paths(project_root, _collect_graph_paths(payload))))
+    if ignored:
+        errors.append(
+            f"{label} contains paths excluded by .cognitionignore: {', '.join(ignored)}; "
+            ".cognitionignore paths must not enter project cognition graph evidence"
         )
 
 
@@ -165,6 +211,7 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
         payload = _read_json_object(path, label, errors)
         if payload:
             _reject_specify_graph_paths(payload, label, errors)
+            _reject_cognitionignored_graph_paths(root, payload, label, errors)
             rows = _require_list(payload, key, label, errors)
             details[f"{key}_count"] = len(rows)
 
@@ -173,6 +220,7 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     coverage = _read_json_object(coverage_path, ".specify/project-cognition/coverage.json", errors)
     if coverage:
         _reject_specify_graph_paths(coverage, ".specify/project-cognition/coverage.json", errors)
+        _reject_cognitionignored_graph_paths(root, coverage, ".specify/project-cognition/coverage.json", errors)
         rows = _require_non_empty_list(coverage, "rows", ".specify/project-cognition/coverage.json", errors)
         details["coverage_rows"] = len(rows)
 
@@ -181,6 +229,12 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
     ledger = _read_json_object(ledger_path, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
     if ledger:
         _reject_specify_graph_paths(ledger, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
+        _reject_cognitionignored_graph_paths(
+            root,
+            ledger,
+            ".specify/project-cognition/workbench/coverage-ledger.json",
+            errors,
+        )
         rows = _require_non_empty_list(
             ledger,
             "rows",
@@ -219,6 +273,7 @@ def _reject_specify_evidence_file_paths(
             continue
         if isinstance(payload, dict):
             _reject_specify_graph_paths(payload, _relative(root, evidence_file), errors)
+            _reject_cognitionignored_graph_paths(root, payload, _relative(root, evidence_file), errors)
 
 
 def _check_unresolved_scan_gaps(
@@ -337,6 +392,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
                 _validate_route_pack_source_rows(conn, active_generation_id, errors, details)
                 _validate_query_examples(conn, active_generation_id, errors, details)
                 _validate_no_specify_graph_store_paths(conn, active_generation_id, errors, details)
+                _validate_no_cognitionignored_graph_store_paths(root, conn, active_generation_id, errors, details)
             if active_generation_id and not errors:
                 _validate_readonly_smoke_query(conn, active_generation_id, minimal_baseline, errors, details)
     except sqlite3.Error as exc:
@@ -805,6 +861,44 @@ def _validate_no_specify_graph_store_paths(
     if offenders:
         errors.append(
             ".specify/** must not enter project cognition graph store; offending rows: "
+            + ", ".join(offenders[:10])
+        )
+
+
+def _validate_no_cognitionignored_graph_store_paths(
+    project_root: Path,
+    conn: sqlite3.Connection,
+    generation_id: str,
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    checks = (
+        ("evidence", "source_path"),
+        ("path_index", "path"),
+        ("symbol_index", "path"),
+        ("entrypoint_index", "path"),
+        ("test_index", "test_path"),
+        ("claims", "object_ref"),
+        ("claims", "object_value"),
+    )
+    candidates: list[str] = []
+    for table, column in checks:
+        try:
+            rows = conn.execute(
+                f"SELECT {column} AS value FROM {table} WHERE generation_id = ? "
+                f"AND trim({column}) <> '' ORDER BY {column}",
+                (generation_id,),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            errors.append(f"{table}.{column} could not be checked against .cognitionignore: {exc}")
+            continue
+        candidates.extend(str(row["value"]) for row in rows)
+
+    offenders = sorted(set(cognition_ignored_paths(project_root, candidates)))
+    details["cognitionignored_graph_store_path_offenders"] = offenders
+    if offenders:
+        errors.append(
+            ".cognitionignore paths must not enter project cognition graph store; offending rows: "
             + ", ".join(offenders[:10])
         )
 

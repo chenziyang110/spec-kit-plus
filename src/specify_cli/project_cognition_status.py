@@ -1504,6 +1504,7 @@ def collect_changed_files(project_root: Path, *, last_mapped_commit: str, head_c
         project_root,
         baseline_commit=last_mapped_commit,
         head_commit=head_commit,
+        use_cognitionignore=True,
     )
 
 

@@ -210,6 +210,20 @@ def test_validate_scan_accepts_complete_scan_package(tmp_path: Path) -> None:
     assert ".specify/project-cognition/workbench/coverage-ledger.json" in result["checked_paths"]
 
 
+def test_validate_scan_blocks_cognitionignored_evidence_paths(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    (tmp_path / ".cognitionignore").write_text("vendor/\n", encoding="utf-8")
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "coverage.json",
+        {"rows": [{"path": "vendor/reference-app/app.py", "criticality": "critical"}]},
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any(".cognitionignore" in message and "vendor/reference-app/app.py" in message for message in result["errors"])
+
+
 def test_validate_scan_warns_for_non_critical_open_gaps(tmp_path: Path) -> None:
     _write_complete_scan_package(tmp_path)
     _write_json(
@@ -467,6 +481,16 @@ def test_validate_build_accepts_query_ready_runtime(tmp_path: Path) -> None:
     assert result["readiness"] == "query_ready"
     assert result["errors"] == []
     assert result["details"]["active_generation_id"] == "GEN-0001"
+
+
+def test_validate_build_blocks_cognitionignored_runtime_paths(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    (tmp_path / ".cognitionignore").write_text("src/auth/\n", encoding="utf-8")
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any(".cognitionignore" in message and "src/auth/login.ts" in message for message in result["errors"])
 
 
 def test_validate_build_blocks_path_index_route_pack_source_row_without_evidence_id(tmp_path: Path) -> None:

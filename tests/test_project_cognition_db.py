@@ -293,6 +293,45 @@ def test_apply_cognition_update_records_affected_path_update(tmp_path: Path) -> 
     assert attrs["affected_route_records"] == ["P-update"]
 
 
+def test_apply_cognition_update_reports_and_skips_cognitionignored_paths(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    (tmp_path / ".cognitionignore").write_text("vendor/\n", encoding="utf-8")
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-update', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'old', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-update', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-update', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+
+    result = apply_cognition_update(
+        tmp_path,
+        changed_paths=["src/auth/login.ts", "vendor/reference.ts"],
+        reason="unit-test",
+    )
+
+    assert result["readiness"] == "ready"
+    assert result["changed_paths"] == ["src/auth/login.ts"]
+    assert result["ignored_paths"] == ["vendor/reference.ts"]
+    assert result["minimal_live_reads"] == []
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        update_row = conn.execute("SELECT changed_paths_json, attrs_json FROM updates").fetchone()
+    assert update_row["changed_paths_json"] == '["src/auth/login.ts"]'
+    attrs = json.loads(update_row["attrs_json"])
+    assert attrs["ignored_paths"] == ["vendor/reference.ts"]
+
+
 def test_apply_cognition_update_records_duplicate_covered_path_once(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
     generation_id = seed_active_generation(tmp_path, source_commit="abc123")

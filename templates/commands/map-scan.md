@@ -77,6 +77,8 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 - Do not silently downgrade unknown or unclassified project-relevant surfaces.
 - `.specify/**` workflow/runtime state is excluded from default source/runtime scan targets; do not put `.specify/**` paths into project graph evidence.
 - Only read `.specify/**` for workflow operation, validation, migration, or when the requested scan is explicitly about generated workflow surfaces or spec-kit-plus itself; even then, classify it as workflow/reference support rather than source/runtime graph truth.
+- Respect project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. These files use gitignore-compatible syntax, including comments, directory patterns, globs, `**`, and `!` re-includes.
+- `.cognitionignore` excludes project cognition scan/build/update targets only; it does not replace `.gitignore` or prove that ignored code is irrelevant to other tooling.
 - If the required scan lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 
 ## Project Cognition Workbench State Protocol
@@ -87,6 +89,7 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 - `MapScanPacket` is the required packet contract for each delegated scan lane.
 - Each packet must declare `mode: read_only` and a `result_handoff_path`.
 - Prefer `rg --files` for inventory discovery before escalating to deeper reads.
+- Filter `rg --files`, Git-tracked file lists, and any user-provided scan hints through `.cognitionignore` before writing `.specify/project-cognition/workbench/repository-universe.json`.
 - Raw inventory notes or raw chat summaries are not sufficient.
 - Idle subagent output is not an accepted scan result.
 - The leader must wait for every dispatched scan lane to return a structured handoff before closing the scan stage.
@@ -99,6 +102,7 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 
 - enumerate project-internal evidence comprehensively
 - generate a full project-relevant inventory across nested directories and Git-tracked files
+- write `.specify/project-cognition/workbench/repository-universe.json` with `included_paths` and `excluded_paths`; every `.cognitionignore` match belongs in `excluded_paths` with the matched rule or a human-readable reason
 - classify project-relevant repository surfaces
 - gather evidence from committed source, tests, scripts, configs, docs, templates, generated-surface sources, and `.git` history
 - construct provisional nodes and candidate edges
@@ -110,6 +114,7 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 - `unknown` is a scan failure
 - maintain `excluded_from_deep_read` reasoning for `vendor-cache-build-output` and similar excluded roots
 - Git-tracked files remain the primary inventory boundary unless the scan explicitly records why untracked evidence matters.
+- `.cognitionignore`-excluded paths must not appear in coverage rows, evidence rows, provisional nodes, provisional edges, observations, or scan packets unless a later `!` rule re-includes the path.
 
 ## Coverage Classification
 

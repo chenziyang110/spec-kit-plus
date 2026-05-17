@@ -106,6 +106,8 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - Treat scan artifacts as inputs, not evidence, until packet evidence is accepted.
 - `.specify/**` inputs are workbench/control artifacts, not graph evidence rows.
 - DB publication must not write `.specify/**` into `evidence.source_path`, `path_index.path`, `symbol_index.path`, `entrypoint_index.path`, `test_index.test_path`, or graph claims.
+- Build intake must reject `.cognitionignore`-excluded paths from scan coverage, evidence rows, provisional nodes, provisional edges, observations, packet results, and `repository-universe.json` included paths.
+- DB publication must not write `.cognitionignore`-excluded paths into `evidence.source_path`, `path_index.path`, `symbol_index.path`, `entrypoint_index.path`, `test_index.test_path`, or graph claims.
 
 ## Build Duties
 
@@ -131,6 +133,7 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
   `minimal_live_reads`
 - do not rebuild the scan from chat memory
 - must not guess and continue when required scan inputs are incomplete
+- must reject `.cognitionignore`-excluded paths before graph reconstruction; if scan artifacts contain them, return a scan gap report instead of publishing runtime truth
 - maintain a scan gap report when unresolved critical rows remain
 
 The build must keep graph truth projection explicit: every route row that feeds

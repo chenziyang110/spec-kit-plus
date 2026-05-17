@@ -2947,6 +2947,40 @@ def test_project_cognition_update_accepts_scope_alias_for_changed_path(tmp_path)
     assert payload["changed_paths"] == ["bindings/c/demo.c"]
 
 
+def test_project_cognition_update_filters_explicit_scope_through_cognitionignore(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "cognition-update-scope-cognitionignore"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    (project / ".cognitionignore").write_text("vendor/\n", encoding="utf-8")
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "update",
+                "--scope",
+                "src/auth/login.ts",
+                "--scope",
+                "vendor/reference.ts",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "needs_rebuild"
+    assert payload["changed_paths"] == ["src/auth/login.ts"]
+    assert payload["ignored_paths"] == ["vendor/reference.ts"]
+
+
 def test_project_cognition_update_derives_changed_paths_from_git_diff(tmp_path):
     runner = CliRunner()
     project = tmp_path / "update-from-git-diff"
@@ -2976,6 +3010,47 @@ def test_project_cognition_update_derives_changed_paths_from_git_diff(tmp_path):
     assert payload["readiness"] == "ready"
     assert payload["changed_paths"] == ["src/auth/login.ts"]
     assert payload["affected_nodes"] == ["capability:auth.login"]
+
+
+def test_project_cognition_update_filters_git_diff_through_cognitionignore(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "update-from-git-diff-cognitionignore"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    (project / "src" / "auth").mkdir(parents=True)
+    (project / "src" / "auth" / "login.ts").write_text("export const login = true;\n", encoding="utf-8")
+    (project / "vendor").mkdir()
+    (project / "vendor" / "reference.ts").write_text("export const reference = true;\n", encoding="utf-8")
+    (project / ".cognitionignore").write_text("vendor/\n", encoding="utf-8")
+    _create_git_head(project)
+    _seed_query_ready_runtime(project)
+    subprocess.run(["git", "add", "."], cwd=project, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Seed cognition runtime"],
+        cwd=project,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (project / "src" / "auth" / "login.ts").write_text("export const login = 'changed';\n", encoding="utf-8")
+    (project / "vendor" / "reference.ts").write_text("export const reference = 'ignored';\n", encoding="utf-8")
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["project-cognition", "update", "--reason", "git-diff-test", "--format", "json"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["changed_paths"] == ["src/auth/login.ts"]
+    assert "vendor/reference.ts" not in json.dumps(payload)
 
 
 def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
@@ -3343,6 +3418,9 @@ def test_cognition_read_outputs_minimal_reference_read_order_without_project_map
     for root, freshness in ((project, "fresh"), (reference, "fresh"), (stale_reference, "stale")):
         (root / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
         (root / ".specify" / "project-cognition" / "graph").mkdir(parents=True)
+        (root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+            b"not-opened-by-cli-reference-read"
+        )
         (root / ".specify" / "project-cognition" / "status.json").write_text(
             json.dumps({"baseline_state": freshness, "freshness": freshness, "graph_ready": True}),
             encoding="utf-8",
@@ -3435,6 +3513,9 @@ def test_cognition_read_reports_controlled_errors_for_missing_or_malformed_refer
 
     (project / ".specify" / "project-cognition" / "status.json").parent.mkdir(parents=True)
     (reference / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
+    (reference / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"not-opened-by-cli-reference-read"
+    )
     (reference / ".specify" / "project-cognition" / "status.json").write_text(
         json.dumps({"baseline_state": "fresh", "freshness": "fresh", "graph_ready": True}),
         encoding="utf-8",

@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .db import cognition_transaction, ensure_cognition_db, get_active_generation_id, iso_now
 from .status import read_cognition_status, write_cognition_status
+from specify_cli.scan_freshness import cognition_ignored_paths, filter_cognition_ignored_paths
 
 
 def apply_cognition_update(
@@ -21,22 +22,25 @@ def apply_cognition_update(
 
     ensure_cognition_db(project_root)
     generation_id = get_active_generation_id(project_root)
+    normalized_paths = _normalize_paths(changed_paths)
+    ignored_paths = cognition_ignored_paths(project_root, normalized_paths)
+    update_paths = filter_cognition_ignored_paths(project_root, normalized_paths)
     if not generation_id:
         return {
             "readiness": "needs_rebuild",
             "recommended_next_action": "run_map_scan_build",
             "update_id": "",
-            "changed_paths": _normalize_paths(changed_paths),
+            "changed_paths": update_paths,
+            "ignored_paths": ignored_paths,
             "affected_nodes": [],
             "missing_coverage": ["project cognition database has no active generation"],
         }
 
-    normalized_paths = _normalize_paths(changed_paths)
     with cognition_transaction(project_root) as conn:
         affected_nodes, missing_paths, affected_route_records, patched_retrieval_signals = _resolve_path_coverage(
             conn,
             generation_id,
-            normalized_paths,
+            update_paths,
         )
         missing_coverage = [f"path not covered by project cognition index: {path}" for path in missing_paths]
         result_state = "partial_refresh" if missing_paths else "ready"
@@ -47,6 +51,7 @@ def apply_cognition_update(
             "affected_route_records": affected_route_records,
             "known_unknowns": missing_coverage,
             "minimal_live_reads": missing_paths,
+            "ignored_paths": ignored_paths,
             "confidence": "partial" if missing_paths else "strong",
         }
 
@@ -60,7 +65,7 @@ def apply_cognition_update(
                 update_id,
                 generation_id,
                 reason,
-                json.dumps(normalized_paths, separators=(",", ": ")),
+                json.dumps(update_paths, separators=(",", ": ")),
                 json.dumps(affected_nodes, separators=(",", ": ")),
                 "[]",
                 "[]",
@@ -77,14 +82,15 @@ def apply_cognition_update(
     status.last_refresh_reason = reason
     status.last_refresh_scope = "partial"
     status.last_refresh_basis = "project-cognition update"
-    status.last_refresh_changed_files_basis = list(normalized_paths)
+    status.last_refresh_changed_files_basis = list(update_paths)
     write_cognition_status(project_root, status)
 
     return {
         "readiness": result_state,
         "recommended_next_action": "review_missing_coverage" if missing_paths else "retry_current_workflow",
         "update_id": update_id,
-        "changed_paths": normalized_paths,
+        "changed_paths": update_paths,
+        "ignored_paths": ignored_paths,
         "affected_nodes": affected_nodes,
         "missing_coverage": missing_coverage,
         "known_unknowns": missing_coverage,

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .paths import cognition_status_path, graph_dir, graph_slices_dir
+from .paths import cognition_db_path, cognition_status_path, graph_dir, graph_slices_dir
 
 
 class ReferenceProjectReadError(RuntimeError):
@@ -67,6 +67,15 @@ def read_reference_project_cognition(
     if freshness != "fresh":
         raise ReferenceProjectReadError(
             f"fresh-only reference read rejected: project cognition freshness is {freshness}"
+        )
+    if status_payload.get("graph_ready") is not True:
+        raise ReferenceProjectReadError(
+            "fresh-only reference read rejected: project cognition graph_ready is not true"
+        )
+    db_path = cognition_db_path(project_root)
+    if not db_path.is_file():
+        raise ReferenceProjectReadError(
+            f"fresh-only reference read rejected: project-cognition.db is missing: {db_path.as_posix()}"
         )
 
     slice_artifact = _json_artifact_name(slice_name, kind="slice")

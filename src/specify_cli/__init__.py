@@ -2099,6 +2099,7 @@ def _collect_project_cognition_update_paths(project_root: Path) -> list[str]:
         project_root,
         baseline_commit=status.baseline_commit or head_commit,
         head_commit=head_commit or "HEAD",
+        use_cognitionignore=True,
     )
     return changed_paths
 
