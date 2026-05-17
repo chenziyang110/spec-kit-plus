@@ -56,6 +56,7 @@ For generated projects, use project cognition first:
 - `.specify/project-cognition/status.json` — freshness, coverage, stale paths, and refresh metadata
 - `.specify/project-cognition/project-cognition.db` — canonical SQLite graph store
 - `project-cognition lexicon` plus `project-cognition query --query-plan` bundle — map terms for agent query planning, task-local cognition bundles, readiness, and `minimal_live_reads`
+- When shell quoting makes inline JSON brittle, use `project-cognition query --query-plan-file <path>` instead. The query plan accepts `path_hints`/`reason` as aliases for `paths`/`selection_reason`.
 
 The cognition model should help answer:
 

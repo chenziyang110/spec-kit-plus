@@ -1774,9 +1774,14 @@ def project_cognition_query_command(
         "",
         "--query-plan",
         help=(
-            "Agent-planned JSON with raw_query, expanded_queries, paths, selected_concepts, "
-            "rejected_concepts, and selection_reason"
+            "Agent-planned JSON with raw_query, expanded_queries, paths/path_hints, selected_concepts, "
+            "rejected_concepts, and selection_reason/reason"
         ),
+    ),
+    query_plan_file: str = typer.Option(
+        "",
+        "--query-plan-file",
+        help="Path to an agent-planned query_plan JSON file; avoids shell quoting issues",
     ),
     paths: list[str] = typer.Option([], "--paths", help="Known touched path; may be specified more than once"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or text"),
@@ -1784,7 +1789,11 @@ def project_cognition_query_command(
     """Return a task-local project cognition bundle from the active project's graph store."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    planned_query = _parse_project_cognition_query_plan(query_plan)
+    planned_query = _parse_project_cognition_query_plan(
+        query_plan,
+        query_plan_file=query_plan_file,
+        project_root=project_root,
+    )
     effective_query = str(planned_query.get("raw_query") or query_text)
     effective_expanded_queries = _dedupe_non_empty(
         [
@@ -1865,23 +1874,171 @@ def project_cognition_query_command(
     console.print(_cli_panel(json.dumps(payload, indent=2), title="Project Cognition Query", border_style="cyan"))
 
 
-def _parse_project_cognition_query_plan(query_plan: str) -> dict[str, object]:
-    if not query_plan.strip():
+def _parse_project_cognition_query_plan(
+    query_plan: str,
+    *,
+    query_plan_file: str = "",
+    project_root: Path | None = None,
+) -> dict[str, object]:
+    query_plan_text = str(query_plan or "").strip()
+    query_plan_file_text = str(query_plan_file or "").strip()
+    if query_plan_text and query_plan_file_text:
+        raise typer.BadParameter("use either --query-plan or --query-plan-file, not both")
+    if query_plan_file_text:
+        query_plan_text = _read_project_cognition_query_plan_file(query_plan_file_text, project_root=project_root)
+    elif query_plan_text.startswith("@") and len(query_plan_text) > 1:
+        query_plan_text = _read_project_cognition_query_plan_file(query_plan_text[1:], project_root=project_root)
+    if not query_plan_text.strip():
         return {}
+    payload = _load_project_cognition_query_plan(query_plan_text)
+    return _normalize_project_cognition_query_plan_payload(payload)
+
+
+def _read_project_cognition_query_plan_file(query_plan_file: str, *, project_root: Path | None) -> str:
+    path = Path(query_plan_file).expanduser()
+    if not path.is_absolute() and project_root is not None:
+        path = project_root / path
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise typer.BadParameter(f"--query-plan-file could not be read: {exc}") from exc
+
+
+def _load_project_cognition_query_plan(query_plan: str) -> dict[str, object]:
+    json_error: Exception | None = None
     try:
         payload = json.loads(query_plan)
     except json.JSONDecodeError as exc:
-        raise typer.BadParameter(f"--query-plan must be valid JSON: {exc}") from exc
+        json_error = exc
+    else:
+        if not isinstance(payload, dict):
+            raise typer.BadParameter("--query-plan must be a JSON object")
+        return payload
+
+    try:
+        payload = json5.loads(query_plan)
+    except Exception as exc:
+        json_error = json_error or exc
+    else:
+        if not isinstance(payload, dict):
+            raise typer.BadParameter("--query-plan must be a JSON object")
+        return payload
+
+    try:
+        return _parse_shell_stripped_project_cognition_query_plan(query_plan)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            f"--query-plan must be valid JSON: {json_error}. "
+            "On shells that strip nested quotes, pass --query-plan-file <path>."
+        ) from exc
+
+
+def _parse_shell_stripped_project_cognition_query_plan(query_plan: str) -> dict[str, object]:
+    """Recover the fixed query_plan shape after native shell quote stripping.
+
+    This is intentionally not a general JSON parser. It only accepts the flat
+    object/list/string shape produced by the agent-planned query_plan contract.
+    """
+    stripped = query_plan.strip()
+    if not (stripped.startswith("{") and stripped.endswith("}")):
+        raise ValueError("query plan is not an object")
+    result: dict[str, object] = {}
+    body = stripped[1:-1].strip()
+    if not body:
+        return result
+    for item in _split_project_cognition_plan_items(body, delimiter=","):
+        if not item.strip():
+            continue
+        key, value = _split_project_cognition_plan_key_value(item)
+        normalized_key = _strip_project_cognition_plan_scalar(key)
+        if not normalized_key:
+            raise ValueError("query plan contains an empty key")
+        result[normalized_key] = _parse_project_cognition_plan_value(value)
+    return result
+
+
+def _split_project_cognition_plan_key_value(item: str) -> tuple[str, str]:
+    for index, char in enumerate(item):
+        if char == ":":
+            return item[:index], item[index + 1 :]
+    raise ValueError("query plan item is missing ':'")
+
+
+def _parse_project_cognition_plan_value(raw_value: str) -> object:
+    value = raw_value.strip()
+    if value.startswith("[") and value.endswith("]"):
+        return [
+            _strip_project_cognition_plan_scalar(item)
+            for item in _split_project_cognition_plan_items(value[1:-1], delimiter=",")
+            if _strip_project_cognition_plan_scalar(item)
+        ]
+    return _strip_project_cognition_plan_scalar(value)
+
+
+def _split_project_cognition_plan_items(value: str, *, delimiter: str) -> list[str]:
+    items: list[str] = []
+    start = 0
+    depth = 0
+    quote: str | None = None
+    escaped = False
+    for index, char in enumerate(value):
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            continue
+        if char in "[{":
+            depth += 1
+            continue
+        if char in "]}":
+            depth -= 1
+            if depth < 0:
+                raise ValueError("query plan has unbalanced brackets")
+            continue
+        if char == delimiter and depth == 0:
+            items.append(value[start:index])
+            start = index + 1
+    if quote or depth != 0:
+        raise ValueError("query plan has unbalanced quotes or brackets")
+    items.append(value[start:])
+    return items
+
+
+def _strip_project_cognition_plan_scalar(value: str) -> str:
+    stripped = value.strip()
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in {"'", '"'}:
+        return stripped[1:-1].strip()
+    return stripped
+
+
+def _normalize_project_cognition_query_plan_payload(payload: dict[str, object]) -> dict[str, object]:
+    normalized: dict[str, object] = {
+        "raw_query": payload.get("raw_query", payload.get("query", "")),
+        "expanded_queries": payload.get("expanded_queries", []),
+        "paths": payload.get("paths", payload.get("path_hints", [])),
+        "selected_concepts": payload.get("selected_concepts", []),
+        "rejected_concepts": payload.get("rejected_concepts", []),
+        "selection_reason": payload.get("selection_reason", payload.get("reason", "")),
+    }
     if not isinstance(payload, dict):
         raise typer.BadParameter("--query-plan must be a JSON object")
     for list_key in ("expanded_queries", "paths", "selected_concepts", "rejected_concepts"):
-        value = payload.get(list_key, [])
+        value = normalized.get(list_key, [])
         if value and not isinstance(value, list):
             raise typer.BadParameter(f"--query-plan {list_key} must be a list")
-    selection_reason = payload.get("selection_reason", "")
+    selection_reason = normalized.get("selection_reason", "")
     if selection_reason and not isinstance(selection_reason, str):
         raise typer.BadParameter("--query-plan selection_reason must be a string")
-    return payload
+    raw_query = normalized.get("raw_query", "")
+    if raw_query and not isinstance(raw_query, str):
+        raise typer.BadParameter("--query-plan raw_query must be a string")
+    return normalized
 
 
 def _dedupe_non_empty(values: list[str]) -> list[str]:

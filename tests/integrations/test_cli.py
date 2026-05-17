@@ -2906,6 +2906,7 @@ def test_project_cognition_cli_exposes_local_query_update_surface():
     assert "--query" in query_output
     assert "--expanded-query" in query_output
     assert "--query-plan" in query_output
+    assert "--query-plan-file" in query_output
     assert "--paths" in query_output
     assert "--limit" in lexicon_output
     assert "--changed-paths" in update_output
@@ -3196,6 +3197,140 @@ def test_project_cognition_query_accepts_query_plan(tmp_path):
     assert payload["selected_concepts"] == ["capability:auth.login"]
     assert payload["rejected_concepts"] == ["capability:legacy.login"]
     assert payload["minimal_live_reads"] == ["src/auth/login.ts"]
+
+
+def test_project_cognition_query_accepts_agent_plan_aliases(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "query-plan-aliases-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    _seed_query_ready_runtime(project)
+
+    query_plan = json.dumps(
+        {
+            "expanded_queries": ["login"],
+            "path_hints": ["src\\auth\\login.ts"],
+            "selected_concepts": ["capability:auth.login"],
+            "reason": "selected from project-cognition lexicon aliases",
+        }
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "query",
+                "--intent",
+                "implement",
+                "--query-plan",
+                query_plan,
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["query_plan"]["paths"] == ["src/auth/login.ts"]
+    assert payload["query_plan"]["selection_reason"] == "selected from project-cognition lexicon aliases"
+    assert payload["minimal_live_reads"] == ["src/auth/login.ts"]
+
+
+def test_project_cognition_query_accepts_query_plan_file(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "query-plan-file-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    _seed_query_ready_runtime(project)
+    plan_file = project / "query-plan.json"
+    plan_file.write_text(
+        json.dumps(
+            {
+                "expanded_queries": ["login"],
+                "path_hints": ["src/auth/login.ts"],
+                "selected_concepts": ["capability:auth.login"],
+                "reason": "file input avoids shell quoting issues",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "query",
+                "--intent",
+                "implement",
+                "--query-plan-file",
+                str(plan_file),
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["query_plan"]["paths"] == ["src/auth/login.ts"]
+    assert payload["query_plan"]["selection_reason"] == "file input avoids shell quoting issues"
+
+
+def test_project_cognition_query_accepts_powershell_quote_stripped_query_plan(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "query-plan-powershell-runtime"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    _seed_query_ready_runtime(project)
+    query_plan = (
+        "{selected_concepts:[capability:auth.login],"
+        "rejected_concepts:[capability:legacy.login],"
+        "expanded_queries:[login],"
+        "path_hints:[src\\auth\\login.ts],"
+        "reason:selected from project-cognition lexicon}"
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "project-cognition",
+                "query",
+                "--intent",
+                "implement",
+                "--query-plan",
+                query_plan,
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "ready"
+    assert payload["query_plan"]["expanded_queries"] == ["login"]
+    assert payload["query_plan"]["paths"] == ["src/auth/login.ts"]
+    assert payload["query_plan"]["selected_concepts"] == ["capability:auth.login"]
+    assert payload["query_plan"]["rejected_concepts"] == ["capability:legacy.login"]
+    assert payload["query_plan"]["selection_reason"] == "selected from project-cognition lexicon"
 
 
 def test_cognition_read_outputs_minimal_reference_read_order_without_project_map_fallback(tmp_path):
