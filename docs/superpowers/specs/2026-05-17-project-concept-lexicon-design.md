@@ -225,6 +225,19 @@ Example:
 Rejected concepts are not just comments. They lower or suppress candidates that
 would otherwise be pulled in by generic aliases.
 
+Unknown or conflicting concept selections are not ready states:
+
+- If a selected concept does not exist in the active generation, query readiness
+  must be `needs_update` when supplied paths suggest new coverage is needed, or
+  `review` when the runtime can only offer fallback reads.
+- If the same concept appears in both `selected_concepts` and
+  `rejected_concepts`, rejection wins for automatic expansion and readiness must
+  be `ambiguous` unless a path hint or another selected concept resolves the
+  conflict.
+- Query results must echo invalid or conflicting concept IDs in
+  `missing_coverage` or an equivalent conflict field so the consuming workflow
+  can correct the plan instead of silently continuing.
+
 ## Route Pack
 
 The query result should return a route pack that tells the workflow where to
@@ -288,15 +301,23 @@ Example:
     "entry_files": [
       {
         "path": "src/specify_cli/__init__.py",
+        "node_id": "capability:codex-team-runtime",
+        "claim_id": "claim:sp-teams-cli-entry",
+        "relation": "entry",
         "reason": "CLI entry point exposes sp-teams commands.",
-        "evidence_ids": ["E-cli-teams"]
+        "evidence_ids": ["E-cli-teams"],
+        "confidence": "strong"
       }
     ],
     "owner_files": [
       {
         "path": "src/specify_cli/codex_team/",
+        "node_id": "capability:codex-team-runtime",
+        "claim_id": "claim:codex-team-runtime-owner",
+        "relation": "owner",
         "reason": "Owns Codex team runtime state and operations.",
-        "evidence_ids": ["E-team-runtime"]
+        "evidence_ids": ["E-team-runtime"],
+        "confidence": "strong"
       }
     ],
     "consumer_files": [],
