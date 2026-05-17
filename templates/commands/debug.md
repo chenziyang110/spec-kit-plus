@@ -47,12 +47,14 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
-- **Begin as an observer**: Start by acting like a knowledgeable outsider who only has the user report plus the current system map. Do not rush into code-level detail just because implementation files exist.
-- **Stage 1A: Causal Map**: The first subagent builds a family-spanning causal map before contract generation begins.
-- **Stage 1B: Investigation Contract**: The second subagent converts the causal map into the minimum contract the investigator must consume.
-- **The second stage must consume the candidate queue**: Investigation cannot skip the Stage 1B contract and jump straight to freeform fixes.
-- **Family coverage is the quality bar**: Observer framing is not complete until the causal map spans enough failure families and each family includes a falsifier.
-- **Observer framing remains the bridge artifact**: Stage 1B still records `primary suspected loop`, `recommended first probe`, and a `contrarian candidate` before evidence collection begins.
+- **Project-map first**: When the project cognition query returns a usable task-local bundle, use it as the default intake surface instead of rebuilding a broad outsider map from scratch.
+- **Map-backed minimum intake**: A ready/review cognition bundle may directly populate a minimum causal map, investigation contract, log plan, transition memo, primary candidate, and contrarian candidate.
+- **Deep intake is fallback, not the default**: Use Stage 1A and Stage 1B only when project cognition is missing, stale, ambiguous, insufficient for the failing area, or the lightweight investigation exposes competing truth owners.
+- **Stage 1A: Causal Map**: In fallback/deep mode, the first subagent builds a family-spanning causal map before contract generation begins.
+- **Stage 1B: Investigation Contract**: In fallback/deep mode, the second subagent converts the causal map into the minimum contract the investigator must consume.
+- **The second stage must consume the candidate queue**: When deep intake is used, investigation cannot skip the Stage 1B contract and jump straight to freeform fixes.
+- **Family coverage scales with intake strength**: Map-backed intake needs a primary and contrarian candidate; deep fallback still needs broader family coverage and falsifiers.
+- **Observer framing remains the bridge artifact**: Whether map-backed or deep, record `primary suspected loop`, `recommended first probe`, and a `contrarian candidate` before evidence collection begins.
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
 - **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
 - **Root-cause mode is mandatory after repeated failure**: After two automated verification failures, stop adding point fixes and switch the session into `root-cause mode`.
@@ -116,7 +118,7 @@ When a defect touches lifecycle, running-state, shared-state, destructive behavi
    - Announce the current status, current hypothesis, and immediate next action.
 
 3. **Run the Investigation Protocol**
-   - Move through the investigation stages below, starting with the mandatory intake contract before evidence collection begins.
+   - Move through the investigation stages below, starting with the map-backed intake contract before evidence collection begins.
    - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
    - Update the debug file before each action.
    - Append every confirmed finding to `Evidence`.
@@ -197,12 +199,17 @@ Use the returned readiness:
 
 ## Mandatory Intake Contract
 
-All new `sp-debug` sessions follow this fixed intake path:
+All new `sp-debug` sessions follow this default intake path:
+
+`Project Cognition Query -> Map-Backed Minimum Intake -> Evidence Investigation -> Fixing -> Verifying -> Human Verify`
+
+Deep fallback path:
 
 `Stage 1A Causal Map -> Stage 1B Investigation Contract + Log Investigation Plan -> Evidence Investigation -> Fixing -> Verifying -> Human Verify`
 
 Canonical stage map:
 
+- `Default Intake: Map-Backed Minimum Intake`
 - `Stage 1A: Causal Map`
 - `Stage 1B: Investigation Contract + Log Investigation Plan`
 - `Stage 2: Evidence Investigation`
@@ -218,11 +225,26 @@ Do not enter reproduction, log review, test inspection, source-code reads, evide
 
 Repeated failure does not reopen observer-shape choices. It upgrades downstream investigation strength only, including `root_cause` mode and stronger instrumentation requirements.
 
-### Stage 1: Mandatory Intake
+### Default Intake: Map-Backed Minimum Intake
+
+- Use the returned project cognition task-local bundle as the default intake source when readiness is `ready` or `review`.
+- Write the selected capability/symptom, route pack, returned `minimal_live_reads`, competing truths, and coverage gaps into the debug session before source-level work.
+- Generate the smallest sufficient intake package:
+  - primary map-backed candidate,
+  - materially different contrarian candidate,
+  - first probe,
+  - existing logs or command output to inspect,
+  - candidate-separating signals,
+  - nearest-neighbor related-risk target.
+- Set `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true` from this package only when the map clearly names an owner, boundary, or minimal read path.
+- Record `skip_observer_reason: map-backed-minimum-intake` when the deep Stage 1A/1B subagents are not needed.
+- Do not use broad repository reads to compensate for a vague map. If the query bundle lacks ownership, placement, constraints, regression-sensitive tests, or minimal reads, route to `{{invoke:map-update}}` or use the deep fallback below.
+
+### Deep Fallback Intake
 
 ### Stage 1A: Causal Map (Think Subagent)
 
-- This stage is **mandatory**. The graph engine (GatheringNode) will return an `await_input` containing a `think_subagent_prompt` when `causal_map_completed` is not yet `true`.
+- This stage is **fallback/deep mode**, not the normal map-backed path. The graph engine (GatheringNode) will return an `await_input` containing a `think_subagent_prompt` when `causal_map_completed` is not yet `true`.
 - **Leader's responsibility**: When you receive the `think_subagent_prompt`:
   1. Dispatch a think subagent with the exact prompt text (use your runtime's subagent dispatch mechanism).
   2. Wait for the subagent's structured result.
@@ -245,11 +267,11 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
 - Produce at least 3 candidates.
 - Produce at least 3 alternative cause candidates.
 - Each family must include a falsifier, not just a plausible guess.
-- Stage 1A is still intake-only work: no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
+- Stage 1A is still intake-only fallback work: no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
 
 ### Stage 1B: Investigation Contract + Log Investigation Plan
 
-- After Stage 1A completes, Gathering returns an `await_input` containing `contract_subagent_prompt`.
+- After Stage 1A completes in fallback/deep mode, Gathering returns an `await_input` containing `contract_subagent_prompt`.
 - **Leader's responsibility**: When you receive `contract_subagent_prompt`:
   1. Dispatch a contract-planner subagent with the exact prompt text.
   2. Wait for the structured result.

@@ -572,7 +572,9 @@ def refresh_plan_for_changed_path(path: str) -> dict[str, list[str]]:
 
 def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str]) -> str:
     normalized = str(freshness or "").strip().lower()
-    reason_text = " ".join(reasons).lower()
+    reason_text = " ".join(str(reason or "") for reason in reasons).lower()
+    if _has_path_index_coverage_gap_reason(reasons):
+        return NEXT_ACTION_MAP_SCAN_BUILD
     if normalized == FRESHNESS_MISSING_STATE:
         return NEXT_ACTION_MAP_SCAN_BUILD
     if normalized == FRESHNESS_RUNTIME_STALE_STATE:
@@ -586,6 +588,18 @@ def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str])
     if normalized == FRESHNESS_POSSIBLY_STALE_STATE:
         return NEXT_ACTION_MAP_UPDATE
     return NEXT_ACTION_RETRY
+
+
+def _has_path_index_coverage_gap_reason(reasons: list[str]) -> bool:
+    reason_text = " ".join(str(reason or "") for reason in reasons).lower()
+    compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
+    return any(
+        token in compact_reason_text
+        for token in (
+            "path_index_coverage_missing",
+            "path_not_covered_by_project_cognition_index",
+        )
+    ) or ("path_index" in compact_reason_text and "missing" in compact_reason_text)
 
 
 def public_state_for_freshness(freshness: str) -> str:
@@ -1352,6 +1366,35 @@ def assess_project_map_freshness(
             missing_runtime_paths=[],
         )
 
+    explicit_blocking_freshness = _explicit_blocking_status_freshness(status, cognition_status)
+    if explicit_blocking_freshness:
+        explicit_reasons = _explicit_blocking_status_reasons(status, explicit_blocking_freshness)
+        explicit_topic_plan = _merged_dirty_reason_topics(explicit_reasons)
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=explicit_blocking_freshness,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=False,
+            manual_force_stale_reasons=[],
+            dirty=False,
+            dirty_reasons=[],
+            dirty_origin_command=status.dirty_origin_command,
+            dirty_origin_feature_dir=status.dirty_origin_feature_dir,
+            dirty_origin_lane_id=status.dirty_origin_lane_id,
+            dirty_scope_paths=status.dirty_scope_paths,
+            reasons=explicit_reasons,
+            changed_files=[],
+            must_refresh_topics=explicit_topic_plan["must_refresh_topics"],
+            review_topics=explicit_topic_plan["review_topics"],
+            suggested_topics=[
+                topic
+                for topic in TOPIC_FILES
+                if topic in (*explicit_topic_plan["must_refresh_topics"], *explicit_topic_plan["review_topics"])
+            ],
+            missing_runtime_paths=[],
+        )
+
     if has_status_metadata and (not has_git or not status.last_mapped_commit or not head_commit):
         return _freshness_payload(
             project_root=project_root,
@@ -1567,6 +1610,35 @@ def inspect_project_map_freshness_for_command(
         project_root,
         command_name=command_name,
     )
+
+
+def _explicit_blocking_status_freshness(
+    status: ProjectMapStatus,
+    cognition_status: CognitionStatus,
+) -> str:
+    freshness = str(status.freshness or "").strip().lower()
+    if freshness not in {
+        FRESHNESS_RUNTIME_STALE_STATE,
+        FRESHNESS_PARTIAL_REFRESH_STATE,
+        FRESHNESS_SUPPORT_DRIFT_STATE,
+    }:
+        return ""
+    if str(cognition_status.baseline_state or "").strip().lower() == "blocked":
+        return freshness
+    if status.dirty_origin_command or status.dirty_reasons:
+        return freshness
+    return ""
+
+
+def _explicit_blocking_status_reasons(status: ProjectMapStatus, freshness: str) -> list[str]:
+    reasons = list(status.dirty_reasons or [])
+    if reasons:
+        return reasons
+    if freshness == FRESHNESS_SUPPORT_DRIFT_STATE:
+        return [SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE]
+    if freshness == FRESHNESS_PARTIAL_REFRESH_STATE:
+        return [PARTIAL_REFRESH_COGNITION_BASELINE_GUIDANCE]
+    return [STALE_COGNITION_BASELINE_GUIDANCE]
 
 
 def _effective_project_map_status(project_root: Path, cognition_status: CognitionStatus | None = None) -> ProjectMapStatus:

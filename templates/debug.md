@@ -12,13 +12,14 @@ slug: [session slug]
 status: gathering | investigating | fixing | verifying | awaiting_human_verify | resolved
 trigger: "[verbatim user input]"
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
-causal_map_completed: [true only after the Stage 1A causal map is written]
-investigation_contract_completed: [true only after the Stage 1B contract planner finishes]
-log_investigation_plan_completed: [true only after the Stage 1B log plan is written]
-observer_framing_completed: [true only after the canonical intake package is complete]
+causal_map_completed: [true after map-backed minimum intake or the Stage 1A causal map is written]
+investigation_contract_completed: [true after map-backed minimum intake or the Stage 1B contract planner finishes]
+log_investigation_plan_completed: [true after map-backed minimum intake or the Stage 1B log plan is written]
+observer_framing_completed: [true after the map-backed or deep canonical intake package is complete]
 framing_gate_passed: [true only after family coverage, candidate queue, and related-risk gate checks pass]
 legacy_session_needs_reintake: [true only when a resumed legacy session cannot satisfy the new intake contract safely]
 waiting_on_child_human_followup: [true when a parent session is blocked on a derived child issue]
+skip_observer_reason: [map-backed-minimum-intake when deep Stage 1A/1B was not required]
 atlas_read_completed: [true only after the atlas gate is complete]
 current_node_id: [ID of the active graph node]
 created: [ISO timestamp]
@@ -81,7 +82,7 @@ adjacent_risk_targets:
 surface_only_fixes_rejected:
 
 ## Causal Map
-<!-- OVERWRITE/REFINE before observer framing - Stage 1A system-map view -->
+<!-- OVERWRITE/REFINE before evidence investigation - map-backed minimum intake or Stage 1A system-map view -->
 
 symptom_anchor: [where the symptom first appears]
 closed_loop_path:
@@ -178,7 +179,7 @@ top_candidates:
     recommended_log_probe: [candidate-specific log probe]
 
 ## Log Investigation Plan
-<!-- OVERWRITE/REFINE - Stage 1B plan for existing logs, candidate signals, and observability gaps -->
+<!-- OVERWRITE/REFINE - map-backed or Stage 1B plan for existing logs, candidate signals, and observability gaps -->
 
 existing_log_targets:
   - [existing runtime log, stderr/stdout, trace file, browser console, worker output, or prior artifact to inspect first]
@@ -329,8 +330,8 @@ loop_restoration_proof:
 - Fields: expected, actual, errors, reproduction, reproduction_command, started, reproduction_verified
 
 **Causal Map:**
-- OVERWRITE/REFINE during Stage 1A
-- Captures the system-map view before contract generation begins
+- OVERWRITE/REFINE during map-backed minimum intake or Stage 1A
+- Captures the project cognition/system-map view before evidence investigation begins
 - Tracks family coverage, broken edges, likely bypass paths, and nearest-neighbor risks
 
 **Observer Framing:**
@@ -355,15 +356,15 @@ loop_restoration_proof:
 - `causal_coverage_state.related_risk_scan_completed` should stay `false` until the nearest-neighbor review is actually complete
 
 **Log Investigation Plan:**
-- OVERWRITE/REFINE after Stage 1B
+- OVERWRITE/REFINE after map-backed minimum intake or Stage 1B
 - Records existing logs to inspect first, expected candidate-separating signals, sufficiency judgment, missing observability, instrumentation targets, and user log request packet
 - This section is incomplete until `existing_log_targets`, `candidate_signal_map`, and `log_sufficiency_judgment` are filled
 - Do not read logs while creating this plan; log review begins only after the canonical intake package is complete
 
 **Observer Gate:**
-- Set `observer_framing_completed: true` only after Stage 1A (`Causal Map`) and Stage 1B (`Observer Framing` + `Transition Memo` + `Investigation Contract` + `Log Investigation Plan`) are complete
+- Set `observer_framing_completed: true` only after map-backed minimum intake or Stage 1A (`Causal Map`) plus Stage 1B (`Observer Framing` + `Transition Memo` + `Investigation Contract` + `Log Investigation Plan`) are complete
 - The canonical intake completion fields are `causal_map_completed`, `investigation_contract_completed`, `log_investigation_plan_completed`, and derived `observer_framing_completed`
-- If `legacy_session_needs_reintake` is true, re-run Stage 1A and Stage 1B before evidence collection resumes
+- If `legacy_session_needs_reintake` is true, re-run map-backed intake or Stage 1A/1B before evidence collection resumes
 - No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`
 
 **Suggested Evidence Lanes:**

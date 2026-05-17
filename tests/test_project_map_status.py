@@ -474,6 +474,94 @@ def test_assess_project_map_freshness_reports_partial_refresh_when_recorded_upda
     assert any("partial" in reason.lower() for reason in result["reasons"])
 
 
+def test_assess_project_map_freshness_routes_path_index_dirty_gap_to_scan_build(tmp_path):
+    mod = _load_module()
+    _write_cognition_baseline(tmp_path)
+
+    mod.mark_project_map_dirty(
+        tmp_path,
+        "58 changed paths missing from project cognition path_index",
+        origin_command="sp-map-update",
+    )
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="head456",
+        changed_files=[],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "stale"
+    assert result["state"] == "runtime_stale"
+    assert result["readiness"] == "blocked"
+    assert result["dirty_origin_command"] == "sp-map-update"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+def test_assess_project_map_freshness_routes_coverage_reason_to_scan_build(tmp_path):
+    mod = _load_module()
+    _write_cognition_baseline(tmp_path)
+
+    mod.mark_project_map_dirty(
+        tmp_path,
+        "path not covered by project cognition index: src/auth/missing.ts",
+        origin_command="sp-map-update",
+    )
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="head456",
+        changed_files=[],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "stale"
+    assert result["readiness"] == "blocked"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+def test_assess_project_map_freshness_preserves_blocked_stale_status_without_dirty_flag(tmp_path):
+    mod = _load_module()
+    _write_cognition_status(
+        tmp_path,
+        """{
+  "version": 3,
+  "baseline_state": "blocked",
+  "baseline_commit": "base123",
+  "baseline_branch": "main",
+  "baseline_built_at": "2026-05-17T00:00:00Z",
+  "graph_ready": true,
+  "graph_store_path": ".specify/project-cognition/project-cognition.db",
+  "active_generation_id": "GEN-0001",
+  "query_contract_version": 2,
+  "update_contract_version": 1,
+  "freshness": "stale",
+  "dirty": false,
+  "dirty_origin_command": "sp-map-update",
+  "stale_reasons": ["58 changed paths missing from project cognition path_index"]
+}
+""",
+    )
+    (tmp_path / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="base123",
+        changed_files=[],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "stale"
+    assert result["state"] == "runtime_stale"
+    assert result["readiness"] == "blocked"
+    assert result["dirty"] is False
+    assert result["dirty_origin_command"] == "sp-map-update"
+    assert result["reasons"] == ["58 changed paths missing from project cognition path_index"]
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
 def test_assess_project_map_freshness_ignores_reference_only_project_map_changes(tmp_path):
     mod = _load_module()
     _write_cognition_baseline(tmp_path)

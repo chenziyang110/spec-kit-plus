@@ -726,7 +726,14 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
             "Refresh data was recorded, but runtime readiness is still blocked for the touched area."
         )
         console.print(
-            "Finish the localized runtime refresh before retrying."
+            f"Follow recommended_next_action={result.get('recommended_next_action') or 'unknown'} before retrying."
+        )
+    elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
+        console.print(
+            "Changed paths are missing from the project cognition path_index; repeating [cyan]/sp-map-update[/cyan] cannot create absent path coverage."
+        )
+        console.print(
+            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
         )
     else:
         console.print(

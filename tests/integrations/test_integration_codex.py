@@ -710,8 +710,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "symptom-to-surface-routing" not in content
     assert "system-topology-for-debug" not in content
     assert "observer framing" in content
-    assert "compressed observer framing" in content
-    assert "mandatory intake contract" in content
+    assert "map-backed minimum intake" in content
+    assert "deep debug intake dispatch" in content
     assert "stage 1a: causal map" in content
     assert "same_issue" in content
     assert "derived_issue" in content

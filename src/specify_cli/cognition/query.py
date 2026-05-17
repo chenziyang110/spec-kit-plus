@@ -161,9 +161,9 @@ def _query_project_cognition_payload(
     route_missing_nodes = sorted(node_id for node_id in affected_nodes if node_id not in route_item_node_ids)
 
     if unknown_selected_concepts:
-        readiness = "needs_update" if missing_paths else "review"
+        readiness = "needs_rebuild" if missing_paths else "review"
     elif missing_paths:
-        readiness = "needs_update"
+        readiness = "needs_rebuild"
     elif affected_nodes and not route_items:
         readiness = "review"
     elif query_missed_runtime_index or (suppressed_by_rejection and not path_nodes and not candidates):

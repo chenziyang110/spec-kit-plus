@@ -4,14 +4,20 @@ from typing import Union
 from pydantic_graph import BaseNode, Graph, GraphRunContext, End
 from .schema import (
     CandidateStatus,
+    CausalMapCandidate,
+    CausalMapRiskTarget,
     DebugGraphState,
     DebugStatus,
     EliminatedEntry,
     EvidenceEntry,
+    ExpandedObserverTopCandidate,
+    InvestigationCandidate,
     InvestigationMode,
+    LogCandidateSignalMapEntry,
     LogReadiness,
     ObserverCauseCandidate,
     ProjectRuntimeProfile,
+    RelatedRiskTarget,
     SuggestedEvidenceLane,
     SymptomShape,
     UserRequestPacketEntry,
@@ -22,6 +28,8 @@ from .context import ContextLoader
 from .utils import run_command, edit_file, read_file
 from .think_agent import build_think_subagent_prompt
 from .contract_agent import build_contract_subagent_prompt
+from specify_cli.cognition import query_project_cognition
+from specify_cli.cognition.paths import cognition_db_path
 import functools
 from specify_cli.verification import (
     ValidationResult as SharedValidationResult,
@@ -746,7 +754,336 @@ def _unique_strings(values: list[str]) -> list[str]:
     return ordered
 
 
+def _debug_query_paths(state: DebugGraphState) -> list[str]:
+    return _unique_strings(path.replace("\\", "/") for path in state.context.modified_files)[:8]
+
+
+def _query_backed_debug_bundle(state: DebugGraphState) -> dict | None:
+    project_root = Path.cwd()
+    if not cognition_db_path(project_root).exists():
+        return None
+    try:
+        payload = query_project_cognition(
+            project_root,
+            intent="debug",
+            query_text=state.trigger,
+            paths=_debug_query_paths(state),
+        )
+    except Exception:
+        return None
+    readiness = str(payload.get("readiness") or "").strip().lower()
+    if readiness not in {"ready", "review"}:
+        return None
+    if not any(
+        (
+            payload.get("capability_candidates"),
+            payload.get("symptom_candidates"),
+            payload.get("affected_nodes"),
+            payload.get("minimal_live_reads"),
+            (payload.get("route_pack") or {}).get("items"),
+        )
+    ):
+        return None
+    return payload
+
+
+def _candidate_label(candidate: dict) -> str:
+    return str(
+        candidate.get("label")
+        or candidate.get("title")
+        or candidate.get("node_id")
+        or "project cognition candidate"
+    )
+
+
+def _candidate_id(value: str, *, fallback: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return f"cand-{normalized[:40]}" if normalized else fallback
+
+
+def _path_family(path: str) -> str:
+    normalized = path.lower()
+    if normalized.startswith("tests/") or "/test" in normalized:
+        return "boundary_contract"
+    if any(token in normalized for token in ("template", "command", "workflow", "hook")):
+        return "boundary_contract"
+    if any(token in normalized for token in ("cache", "snapshot", "state", "status", "db", "database")):
+        return "cache_snapshot"
+    if any(token in normalized for token in ("ui", "view", "component", "frontend")):
+        return "projection_render"
+    return "truth_owner_logic"
+
+
+def _minimal_intake_summary_from_bundle(state: DebugGraphState, bundle: dict | None) -> str:
+    if state.context.project_cognition_summary:
+        return state.context.project_cognition_summary
+    if not bundle:
+        return "Project cognition context is available from the active feature state."
+    labels = [
+        _candidate_label(candidate)
+        for candidate in [
+            *(bundle.get("capability_candidates") or []),
+            *(bundle.get("symptom_candidates") or []),
+        ][:3]
+        if isinstance(candidate, dict)
+    ]
+    reads = [str(path) for path in bundle.get("minimal_live_reads") or []]
+    parts = []
+    if labels:
+        parts.append(f"matched candidates: {', '.join(labels)}")
+    if reads:
+        parts.append(f"minimal reads: {', '.join(reads[:5])}")
+    return "; ".join(parts) if parts else "Project cognition returned a task-local debug bundle."
+
+
+def _build_map_backed_candidates(
+    state: DebugGraphState,
+    bundle: dict | None,
+) -> tuple[list[dict[str, str]], list[str], list[str]]:
+    candidates: list[dict[str, str]] = []
+    seen_ids: set[str] = set()
+    cognition_candidates = []
+    if bundle:
+        cognition_candidates.extend(bundle.get("capability_candidates") or [])
+        cognition_candidates.extend(bundle.get("symptom_candidates") or [])
+
+    for index, candidate in enumerate(cognition_candidates[:2], start=1):
+        if not isinstance(candidate, dict):
+            continue
+        label = _candidate_label(candidate)
+        candidate_id = _candidate_id(str(candidate.get("node_id") or label), fallback=f"cand-map-{index}")
+        if candidate_id in seen_ids:
+            continue
+        seen_ids.add(candidate_id)
+        candidates.append(
+            {
+                "candidate_id": candidate_id,
+                "family": "truth_owner_logic" if index == 1 else "boundary_contract",
+                "candidate": f"Project cognition candidate `{label}` owns or constrains the failing behavior",
+                "why_it_fits": "Returned by the debug project cognition query for the reported symptom.",
+                "map_evidence": ", ".join(str(item) for item in candidate.get("matched_by", []))
+                or "project cognition task-local bundle",
+                "falsifier": "A focused repro or log trace shows this candidate's owning surface behaves correctly.",
+                "break_edge": "truth owner -> boundary handoff" if index == 1 else "boundary -> external observation",
+                "bypass_path": "downstream projection or compatibility path bypasses the expected owner",
+                "recommended_first_probe": "Inspect only the returned minimal_live_reads and run the cheapest focused repro.",
+            }
+        )
+
+    minimal_reads = [str(path) for path in ((bundle or {}).get("minimal_live_reads") or [])]
+    for path in minimal_reads[:2]:
+        candidate_id = _candidate_id(path, fallback=f"cand-path-{len(candidates) + 1}")
+        if candidate_id in seen_ids:
+            continue
+        seen_ids.add(candidate_id)
+        family = _path_family(path)
+        candidates.append(
+            {
+                "candidate_id": candidate_id,
+                "family": family,
+                "candidate": f"`{path}` contains the likely failing owner, boundary, or regression check",
+                "why_it_fits": "Project cognition selected this as a minimal live read for the debug scope.",
+                "map_evidence": "minimal_live_reads",
+                "falsifier": f"`{path}` has no relevant control, boundary, or verification path for this symptom.",
+                "break_edge": "mapped owner or boundary -> observed symptom",
+                "bypass_path": "adjacent mapped surface carries the behavior instead",
+                "recommended_first_probe": f"Read `{path}` and tie one observed fact back to the symptom.",
+            }
+        )
+
+    if state.context.project_cognition_summary and not candidates:
+        candidates.append(
+            {
+                "candidate_id": "cand-map-truth-owner",
+                "family": "truth_owner_logic",
+                "candidate": "The project cognition summary names the likely truth-owning surface for this symptom",
+                "why_it_fits": state.context.project_cognition_summary,
+                "map_evidence": "debug context project_cognition_summary",
+                "falsifier": "Focused evidence shows the named owner is not in the failing path.",
+                "break_edge": "truth owner -> observed behavior",
+                "bypass_path": "mapped boundary or projection bypasses the owner",
+                "recommended_first_probe": "Read the named owner surface and run the focused repro.",
+            }
+        )
+
+    if candidates and len(candidates) == 1:
+        candidates.append(
+            {
+                "candidate_id": "cand-map-boundary",
+                "family": "boundary_contract",
+                "candidate": "The mapped owner is correct but a nearby boundary, adapter, or test contract is broken",
+                "why_it_fits": "A map-backed debug path still needs one contrarian candidate before fixing.",
+                "map_evidence": "project cognition route pack or debug context",
+                "falsifier": "Boundary inputs and outputs match the owner truth during the repro.",
+                "break_edge": "owner output -> boundary consumer",
+                "bypass_path": "consumer uses stale or alternate boundary data",
+                "recommended_first_probe": "Compare owner output with the nearest consumer or regression test.",
+            }
+        )
+
+    families = _unique_strings([candidate["family"] for candidate in candidates])
+    evidence_unlock = _unique_strings(
+        [
+            "reproduction",
+            "existing logs or command output",
+            *minimal_reads[:5],
+            *state.context.modified_files[:5],
+        ]
+    )
+    return candidates[:3], families, evidence_unlock
+
+
+def _apply_map_backed_minimum_intake(
+    state: DebugGraphState,
+    bundle: dict | None,
+) -> bool:
+    if not (state.context.project_cognition_summary or bundle):
+        return False
+
+    candidates, families, evidence_unlock = _build_map_backed_candidates(state, bundle)
+    if len(candidates) < 2:
+        return False
+
+    summary = _minimal_intake_summary_from_bundle(state, bundle)
+    primary = candidates[0]
+    contrarian = candidates[1]
+
+    state.causal_map.symptom_anchor = state.trigger
+    state.causal_map.closed_loop_path = [
+        "reported trigger",
+        "mapped truth owner or boundary",
+        "state or contract transition",
+        "observable failure",
+    ]
+    state.causal_map.break_edges = [primary["break_edge"]]
+    state.causal_map.bypass_paths = _unique_strings(
+        [candidate["bypass_path"] for candidate in candidates if candidate.get("bypass_path")]
+    )
+    state.causal_map.family_coverage = families
+    state.causal_map.candidates = [
+        CausalMapCandidate(
+            candidate_id=candidate["candidate_id"],
+            family=candidate["family"],
+            candidate=candidate["candidate"],
+            why_it_fits=candidate["why_it_fits"],
+            map_evidence=candidate["map_evidence"],
+            falsifier=candidate["falsifier"],
+            break_edge=candidate["break_edge"],
+            bypass_path=candidate["bypass_path"],
+            recommended_first_probe=candidate["recommended_first_probe"],
+        )
+        for candidate in candidates
+    ]
+    state.causal_map.adjacent_risk_targets = [
+        CausalMapRiskTarget(
+            target="nearest mapped boundary or regression surface",
+            reason="Map-backed debug still reviews the closest consumer before closeout.",
+            family=contrarian["family"],
+            scope="nearest-neighbor",
+            falsifier="Focused evidence shows the adjacent surface is unaffected.",
+        )
+    ]
+    state.causal_map.dimension_scan.truth_owner_or_business_layer = summary
+    state.causal_map.dimension_scan.observability_layer = "Use existing logs, command output, or the focused repro before fixing."
+
+    state.observer_framing.summary = f"Map-backed minimum intake: {summary}"
+    state.observer_framing.primary_suspected_loop = state.diagnostic_profile or _debug_profile(state)
+    state.observer_framing.suspected_owning_layer = primary["candidate"]
+    state.observer_framing.suspected_truth_owner = primary["candidate"]
+    state.observer_framing.recommended_first_probe = primary["recommended_first_probe"]
+    state.observer_framing.contrarian_candidate = contrarian["candidate"]
+    state.observer_framing.alternative_cause_candidates = [
+        ObserverCauseCandidate(
+            candidate=candidate["candidate"],
+            failure_shape=candidate["family"],
+            why_it_fits=candidate["why_it_fits"],
+            map_evidence=candidate["map_evidence"],
+            would_rule_out=candidate["falsifier"],
+            recommended_first_probe=candidate["recommended_first_probe"],
+        )
+        for candidate in candidates
+    ]
+    state.transition_memo.first_candidate_to_test = primary["candidate_id"]
+    state.transition_memo.why_first = "Project cognition selected this as the smallest truth-owner or boundary probe for the symptom."
+    state.transition_memo.evidence_unlock = evidence_unlock
+    state.transition_memo.carry_forward_notes = [
+        "Use project cognition as the default context surface; avoid broad repository rereads.",
+        "Escalate to full Stage 1A/1B intake only if minimal reads expose competing owners or repeated verification fails.",
+    ]
+
+    state.investigation_contract.primary_candidate_id = primary["candidate_id"]
+    state.investigation_contract.candidate_queue = [
+        InvestigationCandidate(
+            candidate_id=candidate["candidate_id"],
+            candidate=candidate["candidate"],
+            family=candidate["family"],
+            status="pending",
+            why_it_fits=candidate["why_it_fits"],
+            map_evidence=candidate["map_evidence"],
+            would_rule_out=candidate["falsifier"],
+            recommended_first_probe=candidate["recommended_first_probe"],
+            evidence_needed=[candidate["recommended_first_probe"]],
+            evidence_found=[],
+            related_targets=["nearest mapped boundary or regression surface"],
+        )
+        for candidate in candidates
+    ]
+    state.investigation_contract.related_risk_targets = [
+        RelatedRiskTarget(
+            target="nearest mapped boundary or regression surface",
+            reason="Review the closest mapped consumer, adapter, test, or workflow surface before closeout.",
+            scope="nearest-neighbor",
+            status="pending",
+            evidence=[],
+        )
+    ]
+    state.investigation_contract.top_candidates = [
+        ExpandedObserverTopCandidate(
+            candidate_id=candidate["candidate_id"],
+            family=candidate["family"],
+            investigation_priority=index,
+            recommended_log_probe=candidate["recommended_first_probe"],
+        )
+        for index, candidate in enumerate(candidates, start=1)
+    ]
+
+    log_targets = _unique_strings(
+        [
+            "existing reproduction output or failing command stderr/stdout",
+            *[str(path) for path in ((bundle or {}).get("minimal_live_reads") or [])[:5]],
+        ]
+    )
+    state.log_investigation_plan.existing_log_targets = log_targets
+    state.log_investigation_plan.candidate_signal_map = [
+        LogCandidateSignalMapEntry(
+            candidate_id=candidate["candidate_id"],
+            signals=[
+                candidate["falsifier"],
+                candidate["recommended_first_probe"],
+            ],
+        )
+        for candidate in candidates
+    ]
+    state.log_investigation_plan.log_sufficiency_judgment = (
+        "Map-backed minimum intake: inspect existing repro output and returned minimal_live_reads first; "
+        "add instrumentation only if those signals cannot separate the primary and contrarian candidates."
+    )
+    state.investigation_contract.log_investigation_plan = state.log_investigation_plan
+
+    state.causal_map_completed = True
+    state.investigation_contract_completed = True
+    state.log_investigation_plan_completed = True
+    state.contract_generation_completed = True
+    state.observer_framing_completed = True
+    state.skip_observer_reason = "map-backed-minimum-intake"
+    state.think_subagent_prompt = None
+    state.contract_subagent_prompt = None
+    return True
+
+
 def _framing_gate_count_requirement(state: DebugGraphState) -> int:
+    if state.skip_observer_reason == "map-backed-minimum-intake":
+        return 2
     return 3
 
 
@@ -765,7 +1102,7 @@ def _framing_gate_gaps(state: DebugGraphState) -> list[str]:
     candidates = state.observer_framing.alternative_cause_candidates
     gaps: list[str] = []
     family_count = len(set(state.causal_map.family_coverage))
-    minimum_family_count = 3
+    minimum_family_count = 2 if state.skip_observer_reason == "map-backed-minimum-intake" else 3
     if family_count < minimum_family_count:
         gaps.append(
             f"Causal map must cover at least {minimum_family_count} distinct failure families before investigation."
@@ -978,6 +1315,15 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
 
         if not ctx.state.recently_modified:
             ctx.state.recently_modified = loader.get_recent_git_changes()
+
+        if (
+            not ctx.state.observer_framing_completed
+            and not ctx.state.legacy_session_needs_reintake
+        ):
+            _apply_map_backed_minimum_intake(
+                ctx.state,
+                _query_backed_debug_bundle(ctx.state),
+            )
 
         # 2. Stage 1A: causal map
         if not ctx.state.causal_map_completed:

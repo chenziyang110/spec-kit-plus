@@ -76,18 +76,34 @@ def apply_cognition_update(
         )
 
     status = read_cognition_status(project_root)
+    has_prior_path_coverage_gap = _has_path_coverage_gap([*status.dirty_reasons, *status.stale_reasons])
     status.last_update_id = update_id
-    status.stale_paths = []
-    status.stale_reasons = []
     status.last_refresh_reason = reason
     status.last_refresh_scope = "partial"
     status.last_refresh_basis = "project-cognition update"
     status.last_refresh_changed_files_basis = list(update_paths)
+    if missing_paths:
+        status.baseline_state = "blocked"
+        status.freshness = "stale"
+        status.stale_paths = list(missing_paths)
+        status.stale_reasons = list(missing_coverage)
+        status.dirty_reasons = list(missing_coverage)
+        status.dirty_origin_command = "sp-map-update"
+    elif (
+        status.baseline_state == "blocked"
+        and status.dirty_origin_command == "sp-map-update"
+        and not has_prior_path_coverage_gap
+    ):
+        status.baseline_state = "ready" if status.graph_ready else status.baseline_state
+        status.stale_paths = []
+        status.stale_reasons = []
+        status.dirty_reasons = []
+        status.dirty_origin_command = ""
     write_cognition_status(project_root, status)
 
     return {
         "readiness": result_state,
-        "recommended_next_action": "review_missing_coverage" if missing_paths else "retry_current_workflow",
+        "recommended_next_action": "run_map_scan_build" if missing_paths else "retry_current_workflow",
         "update_id": update_id,
         "changed_paths": update_paths,
         "ignored_paths": ignored_paths,
@@ -96,6 +112,18 @@ def apply_cognition_update(
         "known_unknowns": missing_coverage,
         "minimal_live_reads": missing_paths,
     }
+
+
+def _has_path_coverage_gap(reasons: list[str]) -> bool:
+    reason_text = " ".join(str(reason or "") for reason in reasons).lower()
+    compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
+    return any(
+        token in compact_reason_text
+        for token in (
+            "path_index_coverage_missing",
+            "path_not_covered_by_project_cognition_index",
+        )
+    ) or ("path_index" in compact_reason_text and "missing" in compact_reason_text)
 
 
 def _normalize_paths(paths: list[str]) -> list[str]:

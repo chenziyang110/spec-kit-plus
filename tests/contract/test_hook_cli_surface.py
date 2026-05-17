@@ -3142,6 +3142,36 @@ def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_bu
     assert "still blocked" in result.output.lower()
 
 
+def test_project_map_preflight_path_index_gap_routes_to_scan_build(tmp_path: Path, monkeypatch):
+    project = _create_project(tmp_path)
+    (project / ".specify" / "integration.json").write_text(
+        json.dumps({"integration": "codex"}),
+        encoding="utf-8",
+    )
+
+    def stale_path_index_gap(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_scan_build",
+            "status_path": str(project / ".specify" / "project-cognition" / "status.json"),
+            "reasons": ["58 changed paths missing from project cognition path_index"],
+            "changed_files": [],
+            "must_refresh_topics": [],
+            "review_topics": [],
+        }
+
+    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", stale_path_index_gap)
+
+    result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
+
+    assert result.exit_code == 1
+    assert "path_index" in result.output.lower()
+    assert "sp-map-scan" in result.output.lower()
+    assert "sp-map-build" in result.output.lower()
+
+
 def test_hook_capture_learning_records_candidate(tmp_path: Path):
     project = _create_project(tmp_path)
 

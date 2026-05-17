@@ -177,6 +177,34 @@ async def test_gathering_node_with_verified_reproduction():
 
 
 @pytest.mark.asyncio
+async def test_gathering_uses_project_cognition_summary_as_lightweight_intake() -> None:
+    state = DebugGraphState(slug="map-backed", trigger="login returns 500 after password submit")
+    state.context.project_cognition_summary = "Auth login capability owns password validation in src/auth/login.ts; API route projects auth errors to the UI."
+    state.context.modified_files = ["src/auth/login.ts", "tests/test_auth_login.py"]
+    state.symptoms.expected = "Login succeeds with the correct password"
+    state.symptoms.actual = "Login returns 500"
+    state.symptoms.errors = "ValueError from password validation"
+    state.symptoms.reproduction = "pytest tests/test_auth_login.py"
+    state.symptoms.reproduction_verified = True
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.causal_map_completed is True
+    assert state.investigation_contract_completed is True
+    assert state.log_investigation_plan_completed is True
+    assert state.observer_framing_completed is True
+    assert state.framing_gate_passed is True
+    assert state.think_subagent_prompt is None
+    assert state.contract_subagent_prompt is None
+    assert state.skip_observer_reason == "map-backed-minimum-intake"
+    assert state.investigation_contract.primary_candidate_id == "cand-map-truth-owner"
+    assert len(state.investigation_contract.candidate_queue) == 2
+    assert state.log_investigation_plan.existing_log_targets
+    assert "src/auth/login.ts" in state.transition_memo.evidence_unlock
+
+
+@pytest.mark.asyncio
 async def test_gathering_blocks_until_log_plan_completion() -> None:
     state = DebugGraphState(slug="test", trigger="queue stuck")
     state.symptoms.expected = "queue drains"

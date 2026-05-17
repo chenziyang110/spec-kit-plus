@@ -21,7 +21,7 @@ def _assert_tier_roles(content: str) -> None:
     assert "regression risk" in full_context or "broader regression" in full_context
 
 
-def test_debug_template_documents_single_path_intake_contract() -> None:
+def test_debug_template_documents_map_backed_intake_contract() -> None:
     content = read_template("templates/commands/debug.md").lower()
 
     assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in content
@@ -31,6 +31,9 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "execution_model: subagent-mandatory" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
+    assert "project-map first" in content
+    assert "map-backed minimum intake" in content
+    assert "deep intake is fallback, not the default" in content
     assert "stage 1a: causal map" in content
     assert "stage 1b: investigation contract + log investigation plan" in content
     assert "causal_map_completed" in content
@@ -43,6 +46,7 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "the think subagent uses only the user report plus the current system map" in content
     assert "automatically continue into evidence investigation" in content
     assert "hard gate" in content
+    assert "skip_observer_reason: map-backed-minimum-intake" in content
     assert "think subagent" in content
     assert "observer_framing_completed" in content
     assert "you are not the default evidence worker for every lane" in content
@@ -237,7 +241,7 @@ def test_debug_session_template_uses_canonical_intake_fields() -> None:
     assert "log_investigation_plan_completed:" in content
     assert "observer_framing_completed:" in content
     assert "legacy_session_needs_reintake:" in content
-    assert "true only after the canonical intake package is complete" in lowered
+    assert "map-backed or deep canonical intake package is complete" in lowered
     assert "## Observer Framing" in content
     assert "## Transition Memo" in content
     assert "## Truth Ownership" in content
@@ -281,5 +285,4 @@ def test_debug_session_template_uses_canonical_intake_fields() -> None:
     assert "surface_only_fixes_rejected:" in content
     assert "no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`" in lowered
     assert "observer_mode:" not in content
-    assert "skip_observer_reason:" not in content
     assert "## Expanded Observer" not in content

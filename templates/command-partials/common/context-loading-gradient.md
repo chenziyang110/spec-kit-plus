@@ -66,6 +66,7 @@ Treat runtime freshness as a gate:
 
 - `missing` -> block and refresh through `sp-map-scan -> sp-map-build`
 - `stale` -> block and refresh through `sp-map-update`
+- `stale` with changed paths missing from `path_index` -> block and rebuild through `sp-map-scan -> sp-map-build`; repeating `sp-map-update` cannot create absent path coverage
 - `support_drift` -> stop and tell the user to resolve support-surface drift; do not reflexively route to `sp-map-update`
 - `partial_refresh` -> tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`
 - `possibly_stale` -> inspect the returned affected scope; if the touched area is not safely covered, route through `sp-map-update`

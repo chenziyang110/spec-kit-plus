@@ -30,13 +30,17 @@ STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale; refresh through /sp-map-update, "
     "and rebuild through /sp-map-scan -> /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement"
 )
+PATH_INDEX_STALE_FALLBACK_GUIDANCE = (
+    "project cognition runtime freshness is stale because changed paths are missing from path_index; "
+    "rebuild through /sp-map-scan -> /sp-map-build because repeating /sp-map-update cannot create absent path coverage"
+)
 SUPPORT_DRIFT_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness has support-surface drift; resolve, commit, or intentionally ignore "
     "the support files before retrying"
 )
 PARTIAL_REFRESH_FALLBACK_GUIDANCE = (
-    "project cognition refresh data was recorded, but runtime readiness is still blocked; finish the runtime refresh "
-    "through /sp-map-update before retrying"
+    "project cognition refresh data was recorded, but runtime readiness is still blocked; follow recommended_next_action "
+    "before retrying"
 )
 NON_STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is {state}; create the initial baseline through "
@@ -75,14 +79,18 @@ def project_cognition_freshness_result(project_root: Path, *, command_name: str)
         state == "runtime_stale"
         and readiness == "blocked"
         and raw_freshness != "possibly_stale"
-        and next_action == "run_map_update"
         and normalized in STALE_BLOCK_COMMANDS
     ):
+        fallback_guidance = (
+            PATH_INDEX_STALE_FALLBACK_GUIDANCE
+            if next_action == "run_map_scan_build"
+            else STALE_FALLBACK_GUIDANCE
+        )
         return HookResult(
             event="project_cognition.refresh.validate",
             status="blocked",
             severity="critical",
-            errors=reasons or [STALE_FALLBACK_GUIDANCE],
+            errors=reasons or [fallback_guidance],
             data={"freshness": freshness},
         )
     if state == "support_drift" and normalized in STALE_BLOCK_COMMANDS:

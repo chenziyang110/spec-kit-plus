@@ -303,8 +303,8 @@ class IntegrationBase(ABC):
                 "resume selection when multiple unfinished quick tasks exist",
             ],
             "debug": [
-                "missing-information questions during observer framing",
-                "compressed observer framing when the user already supplied strong low-level evidence",
+                "missing-information questions during map-backed intake",
+                "deep Stage 1A/1B fallback when project cognition is insufficient",
             ],
         }
         return use_cases.get(command_name, [])
@@ -2054,14 +2054,19 @@ class SkillsIntegration(IntegrationBase):
             else:
                 content += gate_addendum
 
-        think_gate_marker = f"## {agent_name} Think Subagent Dispatch"
+        think_gate_marker = f"## {agent_name} Deep Debug Intake Dispatch"
         if think_gate_marker not in content:
             think_addendum = (
                 "\n"
-                f"## {agent_name} Think Subagent Dispatch\n\n"
-                f"When running `sp-debug` in {agent_name}, the **Gathering** stage may return an `await_input` "
-                "containing a `think_subagent_prompt`. This prompt is a self-contained reasoning task for a "
-                "fresh subagent.\n"
+                f"## {agent_name} Deep Debug Intake Dispatch\n\n"
+                f"When running `sp-debug` in {agent_name}, use the project cognition query bundle as the default "
+                "intake source. If the **Gathering** stage can build `map-backed-minimum-intake`, continue directly "
+                "into evidence investigation with the primary candidate, contrarian candidate, transition memo, "
+                "and log plan already recorded.\n"
+                "\n"
+                "If project cognition is missing, ambiguous, stale, or insufficient for the failing area, Gathering "
+                "may return an `await_input` containing a `think_subagent_prompt`. This prompt is a self-contained "
+                "deep fallback reasoning task for a fresh subagent.\n"
                 "\n"
                 "**When you receive a think_subagent_prompt:**\n"
                 "- Spawn a subagent with the exact prompt text via `spawn_agent`.\n"
@@ -2075,9 +2080,9 @@ class SkillsIntegration(IntegrationBase):
                 "- Set `causal_map_completed` to `True`.\n"
                 "- Then continue the debug session — the next GatheringNode run will request the contract planner stage.\n"
                 "- If Gathering returns `contract_subagent_prompt`, use it for the contract-planner subagent and feed its result back into `observer_framing`, `transition_memo`, `investigation_contract`, and top-level `log_investigation_plan`.\n"
-                "- Treat the causal-map output as Stage 1A and the contract-planner output as Stage 1B. Investigation starts only after both stages are complete.\n"
+                "- Treat the causal-map output as Stage 1A and the contract-planner output as Stage 1B. Investigation starts only after both stages are complete, unless map-backed minimum intake already completed those fields.\n"
                 "- Stage 1B must still produce a primary suspected loop, a contrarian candidate, and a recommended first probe before investigation begins.\n"
-                "- Do NOT skip the think subagent. Context isolation is the purpose of this step.\n"
+                "- Do NOT skip the think subagent once the runtime requested deep fallback. Context isolation is the purpose of that step.\n"
             )
             content = content.replace(
                 "**Hard rule:** During `investigating`",

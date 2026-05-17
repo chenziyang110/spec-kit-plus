@@ -3,6 +3,7 @@ from pathlib import Path
 from specify_cli.hooks.project_map import (
     MISSING_BASELINE_FALLBACK_GUIDANCE,
     NON_STALE_FALLBACK_GUIDANCE,
+    PATH_INDEX_STALE_FALLBACK_GUIDANCE,
     STALE_FALLBACK_GUIDANCE,
     SUPPORT_DRIFT_FALLBACK_GUIDANCE,
     project_cognition_freshness_result,
@@ -146,6 +147,27 @@ def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monke
     assert "project cognition runtime freshness" in unknown.warnings[0]
     assert "/sp-map-scan -> /sp-map-build" in unknown.warnings[0]
     assert "/sp-map-update" in unknown.warnings[0]
+
+
+def test_project_map_hook_blocks_path_index_stale_runtime_with_scan_build_guidance(monkeypatch) -> None:
+    def path_index_stale(_project_root: Path) -> dict[str, object]:
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_scan_build",
+            "reasons": [],
+        }
+
+    monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", path_index_stale)
+
+    blocked = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+
+    assert blocked.status == "blocked"
+    assert blocked.errors == [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
+    assert "path_index" in blocked.errors[0]
+    assert "/sp-map-scan -> /sp-map-build" in blocked.errors[0]
+    assert "cannot create absent path coverage" in blocked.errors[0]
 
 
 def test_project_cognition_gate_alias_matches_project_map_gate(monkeypatch) -> None:

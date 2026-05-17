@@ -440,7 +440,9 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "product framing may begin before project cognition" in lowered
     assert "forbidden before the cognition gate" in lowered
     assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "project-cognition lexicon" in content
+    assert "project-cognition query --intent plan" in content
+    assert ".specify/project-cognition/slices/change.json" not in content
     assert "clearly greenfield" in lowered
     assert "source-code reads" in lowered
     assert "technical options board" in lowered
@@ -1419,12 +1421,13 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
     assert "`context.md` exists for the active feature" in content
 
 
-def test_debug_templates_lock_single_path_intake_contract() -> None:
+def test_debug_templates_lock_map_backed_intake_contract() -> None:
     debug_command = _read("templates/commands/debug.md").lower()
     debug_thinker = _read("templates/worker-prompts/debug-thinker.md").lower()
     debug_contract_planner = _read("templates/worker-prompts/debug-contract-planner.md").lower()
 
-    assert "mandatory intake contract" in debug_command
+    assert "map-backed minimum intake" in debug_command
+    assert "deep intake is fallback, not the default" in debug_command
     assert "stage 1a: causal map" in debug_command
     assert "stage 1b: investigation contract + log investigation plan" in debug_command
     assert "log investigation plan" in debug_command
@@ -2082,6 +2085,7 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
+    assert "missing from `path_index`" in shared_gate
     assert "`support_drift` -> stop and tell the user to resolve support-surface drift" in shared_gate
     assert "`partial_refresh` -> tell the user the refresh was recorded but readiness did not pass" in shared_gate
     assert "`recommended_next_action`" in shared_gate

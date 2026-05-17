@@ -664,8 +664,8 @@ class TestBuiltInSkillGeneration:
         debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
         debug_lower = debug_body.lower()
         assert "observer framing" in debug_lower
-        assert "compressed observer framing" in debug_lower
-        assert "mandatory intake contract" in debug_lower
+        assert "map-backed minimum intake" in debug_lower
+        assert "deep fallback intake" in debug_lower
         assert "stage 1a: causal map" in debug_lower
         assert "same_issue" in debug_lower
         assert "derived_issue" in debug_lower
