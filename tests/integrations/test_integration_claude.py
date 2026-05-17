@@ -21,6 +21,46 @@ SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 
 
+def _assert_compact_managed_context(content: str) -> None:
+    lower = content.lower()
+
+    assert SPEC_KIT_BLOCK_START in content
+    assert "[AGENT]" in content
+    assert "## Always-On Context" in content
+    assert "project cognition and project memory are always available" in lower
+    assert "even without an active `sp-*` workflow" in lower
+    assert "when existing-system truth matters" in lower
+    assert "before broad source inspection" in lower
+    assert "narrow live reads" in lower
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "## Workflow Recommendations" in content
+    assert "do not auto-enter an `sp-*` workflow" in lower
+    assert "recommend `sp-discussion`" in lower
+    assert "`sp-specify` for formal alignment" in lower
+    assert "`sp-deep-research` for feasibility proof" in lower
+    assert "`sp-debug` for root-cause diagnosis" in lower
+    assert "## Command Surface Rules" in content
+    assert "specify --help" in content
+    assert "generated create-feature script" in lower
+    assert "## Durable State" in content
+    assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "project cognition freshness truthful" in lower
+    assert "store reusable lessons in project memory" in lower
+
+    assert "## Workflow Activation Discipline" not in content
+    assert "1% chance" not in content
+    assert "## Workflow Routing" not in content
+    assert "## Artifact Priority" not in content
+    assert "## Brownfield Context Gate" not in content
+    assert "## Project Cognition Usage" not in content
+    assert "## Map Maintenance" not in content
+    assert "sp-fast" not in lower
+    assert "sp-quick" not in lower
+    assert "sp-test-scan" not in lower
+    assert "sp-test-build" not in lower
+
+
 def _assert_downstream_testing_control_plane(skill_content: str) -> None:
     skill_lower = skill_content.lower()
 
@@ -1953,44 +1993,9 @@ class TestClaudeIntegration:
         assert result.exit_code == 0, result.output
         content = (project / "CLAUDE.md").read_text(encoding="utf-8")
         assert "## Active Technologies" in content
-        assert SPEC_KIT_BLOCK_START in content
-        lower = content.lower()
-        assert "## project cognition usage" in lower
-        assert "mandatory when existing-system truth is required" in lower
-        assert "risk, context cost, and user goal" in lower
-        assert "a project-cognition query is not complete when it returns json" in lower
-        assert "do not assume every integration uses `agents.md`" in lower
-        assert "[AGENT]" in content
-        assert "specify -> plan" in content
-        assert ".specify/project-cognition/status.json" in content
-        assert ".specify/project-cognition/" in content
-        assert "project cognition" in content.lower()
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/INDEX.md" in content
-        assert "Learning Reflex" in content or "future senior engineer" in content
-        assert "Shared project memory is always available" in content
-        assert "not just when a `sp-*` workflow is active" in content
-        assert "## Workflow Routing" in content
-        assert "sp-fast" in content
-        assert "sp-quick" in content
-        assert "sp-specify" in content
-        assert "sp-debug" in content
-        assert "sp-test-scan" in content
-        assert "sp-test-build" in content
-        assert "## Artifact Priority" in content
-        assert "workflow-state.md" in content
-        assert "alignment.md" in content
-        assert "context.md" in content
-        assert "plan.md" in content
-        assert "tasks.md" in content
-        assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-cognition/status.json" in content
-        assert "## Map Maintenance" in content
-        assert "sp-map-update" in content
+        _assert_compact_managed_context(content)
         assert "DEBUG-HANDBOOK.md" not in content
         assert "BUILD-HANDBOOK.md" not in content
-        assert "complete-refresh" in content
-        assert "manual override/fallback" in content.lower()
 
     def test_test_build_command_surfaces_downstream_testing_control_plane(self, tmp_path):
         claude = get_integration("claude")
@@ -2037,14 +2042,9 @@ class TestClaudeIntegration:
         assert result.exit_code == 0, result.output
         content = claude_file.read_text(encoding="utf-8")
         assert content.startswith(initial)
-        assert SPEC_KIT_BLOCK_START in content
-        assert ".specify/project-cognition/status.json" in content
-        assert ".specify/project-cognition/" in content
+        _assert_compact_managed_context(content)
         assert "DEBUG-HANDBOOK.md" not in content
         assert "BUILD-HANDBOOK.md" not in content
-        assert "## Workflow Routing" in content
-        assert "## Artifact Priority" in content
-        assert "## Map Maintenance" in content
 
     def test_integration_flag_creates_skill_files(self, tmp_path):
         from typer.testing import CliRunner

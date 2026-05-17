@@ -1,30 +1,27 @@
 ---
 name: "spec-kit-workflow-routing"
-description: "Use when working inside a Spec Kit Plus repository and the user asks for feature work, discussion, planning, implementation, explanation, debugging, or code changes without explicitly naming the right sp-* workflow. Route the request to the correct active skill before proceeding."
+description: "Use when working inside a Spec Kit Plus repository and the user asks whether a structured sp-* workflow would help, or when a manually invoked sp-* workflow needs routing context."
 origin: spec-kit-plus
 ---
 
 # Spec Kit Workflow Routing
 
-This repository's explicit `sp-*` workflow skills remain the primary execution surface.
-This passive skill exists to route ambiguous requests into the right active workflow
-instead of improvising a custom flow. Use it to route into the right active `sp-*` workflow
-before any complementary gate or learning layer runs. When giving a user an explicit
-next-step invocation, use the projected invocation placeholder, such as
-`{{invoke:specify}}`, rather than assuming one universal slash-style syntax.
+This repository's explicit `sp-*` workflow skills are structured entrypoints that
+users normally invoke manually. This passive skill helps recommend a workflow or
+interpret a manually invoked workflow; it should not auto-enter a workflow during
+ordinary chat or coding. When giving a user an explicit next-step invocation, use
+the projected invocation placeholder, such as `{{invoke:specify}}`, rather than
+assuming one universal slash-style syntax.
 
-## Workflow Activation Discipline
+## Workflow Recommendation Discipline
 
-If there is even a 1% chance that a user request belongs to an `sp-*` workflow,
-route to the right workflow before any response or action. "Action" includes a
-clarifying question, file read, shell command, repository inspection, code edit,
-test run, or design summary.
+Do not auto-enter an `sp-*` workflow unless the user invokes it. For ordinary
+natural-language tasks, answer or work in the current mode while using always-on
+project cognition and project memory when they matter. You may recommend a
+workflow when it would materially improve the outcome.
 
-Do not first "take a quick look" outside the workflow. Repository inspection is
-part of the selected workflow, not a pre-routing exception. State the selected
-workflow or passive skill in one concise line, then continue under that contract.
-If the user already invoked the correct `sp-*` skill, treat this routing check as
-complete and proceed.
+If the user already invoked an `sp-*` workflow, treat the routing check as
+complete and proceed under that workflow's generated contract.
 
 ## Command Surface Discipline
 
@@ -45,15 +42,15 @@ standalone branch-creation command.
 ## Complementary Passive Skills
 
 - `spec-kit-project-cognition-gate` is the hard brownfield context gate. Workflow routing
-  handles route selection into the right active `sp-*` workflow, while the cognition gate
-  decides whether an existing-code task can continue or must detour through
-  `sp-map-update` or `sp-map-scan -> sp-map-build` first.
+  can recommend a route or explain a manually invoked `sp-*` workflow, while the
+  cognition gate decides whether an existing-code task can continue or should
+  detour through `sp-map-update` or `sp-map-scan -> sp-map-build` first.
 - `spec-kit-project-learning` is the shared memory layer that applies after routing.
   Once the active workflow is selected, that complementary skill defines the
   workflow-specific learning-start and learning-capture behavior instead of leaving
   those triggers implicit.
 
-## Routing Rules
+## Recommendation Rules
 
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
@@ -121,7 +118,7 @@ standalone branch-creation command.
 
 ## Consequence-Aware Routing
 
-Route away from `fast` when a request triggers the Senior Consequence Analysis Gate. Use `quick` only for bounded consequence work with durable `STATUS.md` fields. Use `discussion` or `specify` when lifecycle semantics, running work, destructive policy, shared state, downstream consumers, or acceptance criteria need product decisions. Use `debug` when the issue is a failure with unknown root cause.
+Recommend against `fast` when a request triggers the Senior Consequence Analysis Gate. Use `quick` only for bounded consequence work with durable `STATUS.md` fields. Recommend `discussion` or `specify` when lifecycle semantics, running work, destructive policy, shared state, downstream consumers, or acceptance criteria need product decisions. Recommend `debug` when the issue is a failure with unknown root cause.
 
 ## User Invocation Examples
 
@@ -158,13 +155,13 @@ user what to type:
 
 ## Behavioral Rules
 
-- Do not replace a matching `sp-*` workflow with ad hoc implementation.
-- If multiple routes seem plausible, choose the smallest safe route and make the next
-  escalation trigger explicit.
+- Do not replace a user-invoked `sp-*` workflow with ad hoc implementation.
+- If multiple recommendations seem plausible, suggest the smallest safe route and
+  make the next escalation trigger explicit.
 - If the user intent is effectively "continue with the recommended next step",
   prefer `sp-auto` over guessing which canonical workflow they meant from chat alone.
-- Keep `sp-*` workflows as the visible daily surface. This passive skill should guide
-  into them, not become a competing workflow.
+- Keep `sp-*` workflows as visible optional entrypoints. This passive skill should
+  recommend them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.
 - Do not skip from `sp-discussion` into `sp-specify` unless the user explicitly
   requests handoff.
@@ -176,11 +173,12 @@ user what to type:
 
 ## Red Flags
 
-- You are about to ask a clarifying question before selecting a workflow.
-- You are about to run a file read, search, or shell command before selecting a workflow.
-- The request mentions planning, debugging, implementation, tests, or code changes,
-  but no `sp-*` workflow has been named yet.
-- You are treating "small" as a reason to skip routing instead of checking `sp-fast`
-  or `sp-quick`.
+- You are about to auto-enter an `sp-*` workflow that the user did not invoke.
+- You are presenting a workflow recommendation as mandatory when ordinary chat,
+  coding, or review would satisfy the request.
+- The user is exploring rough requirements, but you did not mention `sp-discussion`
+  as an optional structured path.
+- You are treating "small" as a reason to recommend `sp-fast` automatically instead
+  of staying in the user's requested mode.
 - You found independent lanes but have not considered `one-subagent` or
   `parallel-subagents` dispatch.

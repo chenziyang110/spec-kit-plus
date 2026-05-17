@@ -24,6 +24,46 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
 )
 
 
+def _assert_compact_managed_context(content: str) -> None:
+    lower = content.lower()
+
+    assert SPEC_KIT_BLOCK_START in content
+    assert "[AGENT]" in content
+    assert "## Always-On Context" in content
+    assert "project cognition and project memory are always available" in lower
+    assert "even without an active `sp-*` workflow" in lower
+    assert "when existing-system truth matters" in lower
+    assert "before broad source inspection" in lower
+    assert "narrow live reads" in lower
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "## Workflow Recommendations" in content
+    assert "do not auto-enter an `sp-*` workflow" in lower
+    assert "recommend `sp-discussion`" in lower
+    assert "`sp-specify` for formal alignment" in lower
+    assert "`sp-deep-research` for feasibility proof" in lower
+    assert "`sp-debug` for root-cause diagnosis" in lower
+    assert "## Command Surface Rules" in content
+    assert "specify --help" in content
+    assert "generated create-feature script" in lower
+    assert "## Durable State" in content
+    assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "project cognition freshness truthful" in lower
+    assert "store reusable lessons in project memory" in lower
+
+    assert "## Workflow Activation Discipline" not in content
+    assert "1% chance" not in content
+    assert "## Workflow Routing" not in content
+    assert "## Artifact Priority" not in content
+    assert "## Brownfield Context Gate" not in content
+    assert "## Project Cognition Usage" not in content
+    assert "## Map Maintenance" not in content
+    assert "sp-fast" not in lower
+    assert "sp-quick" not in lower
+    assert "sp-test-scan" not in lower
+    assert "sp-test-build" not in lower
+
+
 def _assert_downstream_testing_control_plane(command_content: str) -> None:
     command_lower = command_content.lower()
 
@@ -715,52 +755,7 @@ class MarkdownIntegrationTests:
         assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
         content = (project / self.CONTEXT_FILE).read_text(encoding="utf-8")
         assert "## Active Technologies" in content
-        assert SPEC_KIT_BLOCK_START in content
-        lower = content.lower()
-        assert "## project cognition usage" in lower
-        assert "mandatory when existing-system truth is required" in lower
-        assert "changing existing functionality or behavior" in lower
-        assert "debugging symptoms" in lower
-        assert "testing strategy" in lower
-        assert "risk, context cost, and user goal" in lower
-        assert "a project-cognition query is not complete when it returns json" in lower
-        assert "readiness drives routing" in lower
-        assert "minimal_live_reads constrains inspection" in lower
-        assert "carried into the next workflow artifact or execution state" in lower
-        assert "do not assume every integration uses `agents.md`" in lower
-        assert "[AGENT]" in content
-        assert "specify -> plan" in content
-        assert ".specify/project-cognition/" in content
-        assert "map-update" in content
-        assert "project cognition baseline" in lower
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/INDEX.md" in content
-        assert "Learning Reflex" in content or "future senior engineer" in content
-        assert "Shared project memory is always available" in content
-        assert "not just when a `sp-*` workflow is active" in content
-        assert "## Workflow Routing" in content
-        assert "sp-fast" in content
-        assert "sp-quick" in content
-        assert "sp-specify" in content
-        assert "sp-deep-research" in content
-        assert "sp-debug" in content
-        assert "sp-test-scan" in content
-        assert "sp-test-build" in content
-        assert "## Artifact Priority" in content
-        assert "workflow-state.md" in content
-        assert "alignment.md" in content
-        assert "context.md" in content
-        assert "deep-research.md" in content
-        assert "plan.md" in content
-        assert "tasks.md" in content
-        assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-cognition/" in content
-        assert "## Map Maintenance" in content
-        assert "project cognition" in content.lower()
-        assert "map-update" in content
-        assert "query-backed cognition coverage can be trusted as fresh" in lower
-        assert "complete-refresh" in content
-        assert "manual override/fallback" in content.lower()
+        _assert_compact_managed_context(content)
 
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner
@@ -786,12 +781,7 @@ class MarkdownIntegrationTests:
         assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
         content = context_path.read_text(encoding="utf-8")
         assert content.startswith(initial)
-        assert SPEC_KIT_BLOCK_START in content
-        assert ".specify/project-cognition/" in content
-        assert "graph" in content.lower()
-        assert "## Workflow Routing" in content
-        assert "## Artifact Priority" in content
-        assert "## Map Maintenance" in content
+        _assert_compact_managed_context(content)
 
     def test_complete_file_inventory_ps(self, tmp_path):
         """Every file produced by specify init --integration <key> --script ps."""

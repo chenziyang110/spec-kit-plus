@@ -169,69 +169,48 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     lowered = block.lower()
 
     assert "## Spec Kit Plus Managed Rules" in block
-    assert "## Workflow Activation Discipline" in block
-    assert "1% chance" in block
-    assert "route before any response or action" in lowered
-    assert "repository inspection belongs inside the selected workflow" in lowered
-    assert "Treat `sp-*` names as canonical workflow identities." in block
+    assert "## Always-On Context" in block
+    assert "project cognition and project memory are always available" in lowered
+    assert "even without an active `sp-*` workflow" in lowered
+    assert "when existing-system truth matters" in lowered
+    assert "before broad source inspection" in lowered
+    assert "narrow live reads" in lowered
+    assert ".specify/memory/project-rules.md" in block
+    assert ".specify/memory/learnings/INDEX.md" in block
 
-    assert "## Brownfield Context Gate" in block
-    assert "project-cognition lexicon --intent <workflow-intent>" in lowered
-    assert 'project-cognition lexicon --intent <workflow-intent> --query="$arguments"' in lowered
-    assert "project-cognition query --intent <workflow-intent>" in lowered
-    assert "query-plan" in lowered
-    assert "translate the raw user intent into a `query_plan`" in lowered
-    assert "project launcher configured in `.specify/config.json`" in lowered
-    assert "raw graph json artifacts as obsolete runtime surfaces" in lowered
-    assert "project cognition under `.specify/project-cognition/` is the runtime truth surface" in lowered
-    assert "legacy project-map exports are not the ordinary first-read runtime contract" in lowered
-    assert "retrieve the task-local project cognition bundle" in lowered
+    assert "## Workflow Recommendations" in block
+    assert "do not auto-enter an `sp-*` workflow" in lowered
+    assert "unless the user invokes it" in lowered
+    assert "recommend `sp-discussion`" in lowered
+    assert "`sp-specify` for formal alignment" in lowered
+    assert "`sp-deep-research` for feasibility proof" in lowered
+    assert "`sp-debug` for root-cause diagnosis" in lowered
 
-    assert "## Project Memory" in block
-    assert "Treat the learning layer as workflow-execution infrastructure, not as optional notes." in block
-    assert "`.specify/memory/constitution.md` is the principle-level source of truth when present." in block
-    assert "`.specify/memory/project-rules.md` holds stable defaults and reusable constraints." in block
-    _assert_learning_index_detail_model(block)
+    assert "## Command Surface Rules" in block
+    assert "specify --help" in block
+    assert "specify create-feature" in block
+    assert ".specify/scripts/bash/create-new-feature.sh" in block
+    assert ".specify/scripts/powershell/create-new-feature.ps1" in block
 
-    assert "## Delegated Execution Defaults" in block
-    assert "Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence." in block
-    assert "Use a validated `WorkerTaskPacket` or equivalent execution contract before subagent work begins." in block
-    assert "Wait for each subagent's structured handoff, result file, or runtime-managed result before integrating or marking work complete. Idle state or a chat summary is not completion evidence." in block
-    assert "Use the integration's durable team/runtime surface only when durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst is required." in block
-    assert "For integrations that expose `sp-teams`, use `sp-teams` only in those cases." in block
+    assert "## Durable State" in block
+    assert "prefer durable workflow state and explicit feature paths" in lowered
+    assert "over branch name or chat memory" in lowered
+    assert "project cognition freshness truthful" in lowered
+    assert "store reusable lessons in project memory" in lowered
 
-    assert "## Artifact Priority" in block
-    assert "`workflow-state.md` under the active feature directory is the stage/status source of truth" in block
-    assert "`alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning." in block
-    assert "`plan.md` under the active feature directory is the implementation design source of truth once planning begins." in block
-    assert "`tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins." in block
-    assert "Use `prd-scan -> prd-build` as the canonical existing-project reverse-PRD lane" in block
-    assert "`.specify/prd-runs/<run-id>/`, including its workflow state and scan/build artifacts, is the current-state PRD reconstruction truth surface." in block
-    assert "Treat it as documentation output unless later work explicitly adopts it as planning input." in block
-
-    assert "`.specify/testing/testing-state.md`" in block
-    assert "Treat testing artifacts by role:" in block
-    assert "`TEST_SCAN.md`: scan evidence and module risk findings, not the executable build contract." in block
-    assert "`TEST_BUILD_PLAN.md` / `.json`: build-ready testing-system lanes and validation commands; primary `sp-test-build` inputs." in block
-    assert "`UNIT_TEST_SYSTEM_REQUEST.md`: brownfield testing-program input for later scoped spec/planning work." in block
-    assert "`TESTING_CONTRACT.md`: durable downstream testing obligations that later workflows should honor automatically." in block
-    assert "`TESTING_PLAYBOOK.md`: operator and maintainer runbook for test execution." in block
-    assert "`COVERAGE_BASELINE.json`: observed baseline data, not acceptance proof by itself." in block
-
-    assert "## Execution and Closeout Rules" in block
-    assert "Do not substitute chat narration for workflow execution." in block
-    assert "read the relevant durable state surface first" in lowered
-    assert "do not claim completion until those artifacts exist" in lowered
-
-    assert "## Map Maintenance" in block
-    assert "Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline" in block
-    assert "project-cognition validate-scan --format json" in block
-    assert "project-cognition validate-build --format json" in block
-    assert "Use `sp-map-update` after baseline creation when the query-backed runtime is stale or too weak for the touched area." in block
-    assert "Do not treat consumed project cognition query context as self-maintaining" in block
-    assert "query-backed" in lowered
-    assert "project-cognition" in block
-    assert "map-update" in block
+    assert "## Workflow Activation Discipline" not in block
+    assert "1% chance" not in block
+    assert "route before any response or action" not in lowered
+    assert "## Workflow Routing" not in block
+    assert "## Artifact Priority" not in block
+    assert "## Brownfield Context Gate" not in block
+    assert "## Project Cognition Usage" not in block
+    assert "## Map Maintenance" not in block
+    assert "## Delegated Execution Defaults" not in block
+    assert "sp-fast" not in lowered
+    assert "sp-quick" not in lowered
+    assert "sp-test-scan" not in lowered
+    assert "sp-test-build" not in lowered
 
     assert "possibly_stale" not in lowered
     assert "must_refresh_topics" not in lowered
@@ -862,9 +841,10 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     plan_shell = _read("templates/command-partials/plan/shell.md")
     map_scan_shell = _read("templates/command-partials/map-scan/shell.md")
 
-    combined = "\n".join([managed_block, routing_skill, plan_shell, map_scan_shell])
+    combined = "\n".join([routing_skill, plan_shell, map_scan_shell])
     lowered = combined.lower()
 
+    assert "## Always-On Context" in managed_block
     assert "project cognition query" in lowered
     assert "task-local project" in lowered
     assert "cross-project cognition reference" in lowered
@@ -873,8 +853,8 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     assert "fresh-only" in lowered
     assert "minimal read" in lowered
     assert "runtime truth surface" in lowered
-    assert "legacy project-map exports are not the ordinary first-read runtime contract" in lowered
-    assert "primary runtime truth" in lowered or "primary brownfield context surface" in lowered
+    assert "ordinary first-read runtime contract" not in lowered
+    assert "runtime truth surface" in lowered
     assert "project-map" in lowered
     assert "project-map as primary truth" not in lowered
     assert "project-map primary truth" not in lowered
@@ -2392,14 +2372,10 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
             if path == "README.md":
                 assert "committing the refreshed source changes does not require a full rebuild by itself" in lowered
         else:
-            assert "git-baseline freshness" in lowered
-            assert "truth source" in lowered
-            assert "complete-refresh" in lowered
-            assert "validate-build --format json" in lowered
-            assert "only when build acceptance passes" in lowered
-            assert "manual override/fallback" in lowered
-            assert "if a full refresh can be completed now" in lowered
-            assert "otherwise" in lowered
+            assert "project cognition freshness truthful" in lowered
+            assert "architecture" in lowered
+            assert "ownership" in lowered
+            assert "verification entry points" in lowered
         for phrase in stale_normal_path_phrases:
             assert phrase not in lowered
 
@@ -3042,16 +3018,18 @@ def test_specify_artifact_templates_lock_fixed_heavy_discovery_shapes() -> None:
     assert "This layer captures the current project-bound delivery boundary" in spec
 
 
-def test_agent_file_template_captures_lane_recovery_rules():
+def test_agent_file_template_keeps_project_specific_context_only():
     content = _read("templates/agent-file-template.md")
     lowered = content.lower()
 
-    assert "## Workflow Recovery Rules" in content
-    assert "lane-first, not branch-first" in lowered
-    assert "durable lane state" in lowered
-    assert "explicit feature paths" in lowered
-    assert "/sp.plan" in content
-    assert ".specify/features/<feature>/" in content
+    assert "## Active Technologies" in content
+    assert "## Project Structure" in content
+    assert "## Commands" in content
+    assert "## Code Style" in content
+    assert "## Recent Changes" in content
+    assert "## Command Surface Rules" not in content
+    assert "## Workflow Recovery Rules" not in content
+    assert "workflow routing" not in lowered
 
 
 def test_prd_scan_template_uses_shared_subagent_dispatch_contract() -> None:

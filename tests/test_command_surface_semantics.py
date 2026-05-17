@@ -223,7 +223,6 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
         "README": (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower(),
         "quickstart": (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower(),
         "specify-template": (PROJECT_ROOT / "templates" / "commands" / "specify.md").read_text(encoding="utf-8").lower(),
-        "agent-template": (PROJECT_ROOT / "templates" / "agent-file-template.md").read_text(encoding="utf-8").lower(),
         "managed-bash": read_template("scripts/bash/update-agent-context.sh").lower(),
         "managed-powershell": read_template("scripts/powershell/update-agent-context.ps1").lower(),
     }
@@ -522,26 +521,35 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
     powershell = read_template("scripts/powershell/update-agent-context.ps1").lower()
 
     for content in (bash, powershell):
-        assert "treat `sp-*` names as canonical workflow identities" in content
-        assert "treat the learning layer as workflow-execution infrastructure" in content
-        assert "learning reflex" in content
+        assert "project cognition and project memory are always available" in content
+        assert "even without an active `sp-*` workflow" in content
+        assert "when existing-system truth matters" in content
+        assert "before broad source inspection" in content
         assert ".specify/memory/learnings/index.md" in content
-        assert "future senior engineer" in content
-        assert "project-cognition validate-build --format json" in content
-        assert "invoke the project launcher with `project-cognition complete-refresh --format json`" in content
-        assert 'invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json`' in content
-        assert "## project cognition usage" in content
-        assert "mandatory when existing-system truth is required" in content
-        assert "risk, context cost, and user goal" in content
-        assert "a project-cognition query is not complete when it returns json" in content
-        assert "plan`, `implement`, `debug`, `test`, and `research`" in content
-        assert "do not assume every integration uses `agents.md`" in content
+        assert ".specify/memory/project-rules.md" in content
+        assert "do not auto-enter an `sp-*` workflow" in content
+        assert "recommend `sp-discussion`" in content
+        assert "`sp-specify` for formal alignment" in content
+        assert "`sp-deep-research` for feasibility proof" in content
+        assert "`sp-debug` for root-cause diagnosis" in content
+        assert "generated create-feature script" in content
+        assert "prefer durable workflow state and explicit feature paths" in content
+        assert "project cognition freshness truthful" in content
+        assert "store reusable lessons in project memory" in content
+        assert "1% chance" not in content
+        assert "## workflow activation discipline" not in content
+        assert "## workflow routing" not in content
+        assert "## artifact priority" not in content
+        assert "## project cognition usage" not in content
+        assert "## map maintenance" not in content
+        assert "sp-fast" not in content
+        assert "sp-quick" not in content
+        assert "sp-test-scan" not in content
+        assert "sp-test-build" not in content
         assert ("use `" + "project" + "-map complete-refresh`") not in content
         assert ("use `" + "project" + "-map mark-dirty`") not in content
         assert "do not continue under known-stale handbook state without choosing one of those paths" not in content
         assert "map-level truth" not in content
-        assert "structured handoff, result file, or runtime-managed result" in content
-        assert "`sp-teams` only" in content
         assert "possibly_stale" not in content
         assert "must_refresh_topics" not in content
         assert "review_topics" not in content

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from .test_integration_base_skills import SkillsIntegrationTests
+from .test_integration_base_skills import SkillsIntegrationTests, _assert_compact_managed_context
 
 STALE_COGNITION_ADDENDUM_PHRASES = (
     "status and slice artifacts",
@@ -15,8 +15,6 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
 def _assert_stable_subagent_contract(content: str) -> None:
     lower = content.lower()
 
-    assert "1% chance" in lower
-    assert "before any response or action" in lower
     assert "native subagents" in lower
     assert "validated `workertaskpacket`" in lower
     assert "structured handoff" in lower
@@ -62,19 +60,7 @@ class TestCodexIntegration(SkillsIntegrationTests):
         assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
         content = (project / self.CONTEXT_FILE).read_text(encoding="utf-8")
         assert "## Active Technologies" in content
-        assert "<!-- SPEC-KIT:BEGIN -->" in content
-        assert "[AGENT]" in content
-        assert "specify -> plan" in content
-        assert ".specify/project-cognition/" in content
-        assert "map-update" in content
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/INDEX.md" in content
-        assert "Learning Reflex" in content or "future senior engineer" in content
-        assert "## Workflow Routing" in content
-        assert "sp-debug" in content
-        assert "sp-test-scan" in content
-        assert "sp-test-build" in content
-        assert "## Map Maintenance" in content
+        _assert_compact_managed_context(content)
 
     def test_codex_generated_skills_do_not_include_obsolete_cognition_addenda(self, tmp_path):
         from specify_cli.integrations import get_integration
@@ -124,7 +110,12 @@ class TestCodexAutoPromote:
         assert "project-cognition" in cognition_helper_text
         assert not (target / ".specify" / "scripts" / "bash" / "project-map-freshness.sh").exists()
 
-        _assert_stable_subagent_contract((target / "AGENTS.md").read_text(encoding="utf-8"))
+        _assert_compact_managed_context((target / "AGENTS.md").read_text(encoding="utf-8"))
+        _assert_stable_subagent_contract(
+            (target / ".codex" / "skills" / "subagent-driven-development" / "SKILL.md").read_text(
+                encoding="utf-8"
+            )
+        )
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
@@ -229,10 +220,11 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     subagent = (skills_dir / "subagent-driven-development" / "SKILL.md").read_text(encoding="utf-8").lower()
     parallel = (skills_dir / "dispatching-parallel-agents" / "SKILL.md").read_text(encoding="utf-8").lower()
 
-    assert "1% chance" in routing
-    assert "before any response or action" in routing
-    assert "clarifying question" in routing
-    assert "file read" in routing
+    assert "do not auto-enter an `sp-*` workflow unless the user invokes it" in routing
+    assert "you may recommend a" in routing
+    assert "natural-language tasks" in routing
+    assert "always-on" in routing
+    assert "project cognition and project memory" in routing
     assert "red flags" in routing
 
     assert "native subagents" in subagent

@@ -140,62 +140,51 @@ def _normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
+def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     lower = content.lower()
 
-    assert "## workflow activation discipline" in lower
-    assert "1% chance" in lower
-    assert "before any response or action" in lower
-    assert "clarifying question" in lower
-    assert "file read" in lower
-    assert "## delegated execution defaults" in lower
-    assert "native subagents" in lower
-    assert "validated `workertaskpacket`" in lower
-    assert "raw task text" in lower
-    assert "structured handoff" in lower
-    assert "runtime atlas is query-backed" in lower
-    assert ".specify/project-cognition/status.json" in lower
-    assert ".specify/project-cognition/project-cognition.db" in lower
-    assert "project-cognition query" in lower
-    assert "project-cognition validate-build --format json" in lower
-    assert "project-cognition complete-refresh" in lower
-    assert "project-cognition mark-dirty" in lower
-    assert "## project cognition usage" in lower
-    assert "agent context files" in lower
-    assert "existing-system truth" in lower
-    assert "changing existing functionality or behavior" in lower
-    assert "task decomposition" in lower
-    assert "debugging symptoms" in lower
-    assert "testing strategy" in lower
-    assert "closeout" in lower
-    assert "risk, context cost, and user goal" in lower
-    assert "a project-cognition query is not complete when it returns json" in lower
-    assert "readiness drives routing" in lower
-    assert "minimal_live_reads constrains inspection" in lower
-    assert "carried into the next workflow artifact or execution state" in lower
-    assert "--intent <workflow-intent>" in lower
-    assert "plan`, `implement`, `debug`, `test`, and `research`" in lower
-    assert "include them through `--paths`" in lower
-    assert "do not assume every integration uses `agents.md`" in lower
+    assert "## always-on context" in lower
+    assert "project cognition and project memory are always available" in lower
+    assert "even without an active `sp-*` workflow" in lower
+    assert "when existing-system truth matters" in lower
+    assert "before broad source inspection" in lower
+    assert "narrow live reads" in lower
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "## workflow recommendations" in lower
+    assert "do not auto-enter an `sp-*` workflow" in lower
+    assert "unless the user invokes it" in lower
+    assert "recommend `sp-discussion`" in lower
+    assert "`sp-specify` for formal alignment" in lower
+    assert "`sp-deep-research` for feasibility proof" in lower
+    assert "`sp-debug` for root-cause diagnosis" in lower
+    assert "## command surface rules" in lower
+    assert "specify --help" in lower
+    assert "specify create-feature" in lower
+    assert "generated create-feature script" in lower
+    assert "## durable state" in lower
+    assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "project cognition freshness truthful" in lower
+    assert "store reusable lessons in project memory" in lower
+
+    assert "## workflow activation discipline" not in lower
+    assert "1% chance" not in lower
+    assert "before any response or action" not in lower
+    assert "## workflow routing" not in lower
+    assert "## artifact priority" not in lower
+    assert "## brownfield context gate" not in lower
+    assert "## project cognition usage" not in lower
+    assert "## map maintenance" not in lower
+    assert "## delegated execution defaults" not in lower
+    assert "sp-fast" not in lower
+    assert "sp-quick" not in lower
+    assert "sp-test-scan" not in lower
+    assert "sp-test-build" not in lower
     assert ".specify/project-map/" not in lower
     assert "project-map complete-refresh" not in lower
     assert "project-map mark-dirty" not in lower
-    assert "use that launcher instead of path `specify`" in lower
-    assert "minimal_live_reads" in lower
-    assert "sp-map-update" in lower
-    assert "project cognition baseline" in lower
-    assert "query-backed runtime" in lower
-    assert "project-cognition truth" in lower
     assert "known-stale handbook state" not in lower
     assert "map-level truth" not in lower
-    assert "not the ordinary first-read runtime contract for workflow routing" in lower
-    assert "`sp-teams` only" in lower
-    assert "## lane recovery rules" in lower
-    assert "lane-first, not branch-first" in lower
-    assert "explicit `feature_dir`" in lower
-    assert "materialized worktree" in lower
-    assert "/sp.plan" in content
-    assert ".specify/features/<feature>/" in content
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
@@ -422,19 +411,10 @@ def test_bash_script_updates_existing_non_agents_file_with_managed_guidance(
     content = claude.read_text(encoding="utf-8")
     assert content.startswith(initial)
     assert BLOCK_START in content
-    assert ".specify/project-cognition/status.json" in content
-    assert "sp-map-update" in content
     assert "## Active Technologies" in content
     assert "Python 3.13" in content
     assert "Typer" in content
-    assert "## Workflow Routing" in content
-    assert "sp-fast" in content
-    assert "## Artifact Priority" in content
-    assert "workflow-state.md" in content
-    assert "Planning Handoff" in content
-    assert "## Map Maintenance" in content
-    assert ".specify/project-cognition/status.json" in content
-    _assert_managed_block_has_stable_subagent_routing(content)
+    _assert_managed_block_is_compact_always_on_context(content)
 
 
 def test_powershell_script_updates_existing_non_agents_file_with_managed_guidance(
@@ -457,18 +437,9 @@ def test_powershell_script_updates_existing_non_agents_file_with_managed_guidanc
     content = _read_utf8_without_bom(claude)
     assert _normalize_newlines(content).startswith(_normalize_newlines(initial))
     assert BLOCK_START in content
-    assert ".specify/project-cognition/status.json" in content
-    assert "sp-map-update" in content
     assert "## Active Technologies" in content
     assert "Python 3.13 + Typer" in content
-    assert "## Workflow Routing" in content
-    assert "sp-fast" in content
-    assert "## Artifact Priority" in content
-    assert "workflow-state.md" in content
-    assert "Planning Handoff" in content
-    assert "## Map Maintenance" in content
-    assert ".specify/project-cognition/status.json" in content
-    _assert_managed_block_has_stable_subagent_routing(content)
+    _assert_managed_block_is_compact_always_on_context(content)
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")

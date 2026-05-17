@@ -16,13 +16,6 @@ Auto-generated from all feature plans. Last updated: [DATE]
 
 [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]
 
-## Command Surface Rules
-
-- Treat the live `specify --help` output as the only authoritative CLI command surface.
-- Before suggesting a `specify <subcommand>` invocation, verify that `specify --help` or `specify <subcommand> --help` exposes it.
-- Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
-- Feature creation must follow `sp-specify` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate imagined branch-creation command family.
-
 ## Code Style
 
 [LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]
@@ -30,14 +23,6 @@ Auto-generated from all feature plans. Last updated: [DATE]
 ## Recent Changes
 
 [LAST 3 FEATURES AND WHAT THEY ADDED]
-
-## Workflow Recovery Rules
-
-- Treat concurrent feature work as lane-first, not branch-first.
-- Resolve resumable workflow targets through durable lane state or explicit feature paths before guessing from the current branch name.
-- If a workflow records canonical next-command tokens like `/sp.plan` or `/sp.implement`, normalize them before comparing against bare command names.
-- If lane resolution returns a unique safe candidate and a materialized worktree, continue from that isolated worktree context instead of assuming the current workspace is correct.
-- Prefer `.specify/features/<feature>/` as the canonical feature root. Preserve compatibility with legacy feature roots such as `specs/<feature>/` and `.specify/specs/<feature>/` when recovery logic or generated scripts need to reopen an existing feature package.
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

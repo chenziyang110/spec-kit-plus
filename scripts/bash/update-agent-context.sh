@@ -149,132 +149,30 @@ render_speckit_managed_block() {
 - `[AGENT]` marks an action the AI must explicitly execute.
 - `[AGENT]` is independent from `[P]`.
 
-## Workflow Mainline
+## Always-On Context
 
-- Treat `specify -> plan` as the default path.
-- Use `clarify` only when an existing spec needs deeper analysis before planning.
-- Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its findings, demo evidence, and Planning Handoff become inputs to `plan`.
-- Use `prd-scan -> prd-build` as the canonical existing-project reverse-PRD lane when the user needs repository-first current-state product documentation. Treat `prd` as deprecated compatibility-only routing into that pair.
+- Project cognition and project memory are always available, even without an active `sp-*` workflow.
+- When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
+- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before decisions that depend on local conventions, constraints, or past lessons.
 
-## Workflow Activation Discipline
+## Workflow Recommendations
 
-- If there is even a 1% chance an `sp-*` workflow or passive skill applies, route before any response or action, including a clarifying question, file read, shell command, repository inspection, code edit, test run, or summary.
-- Do not inspect first outside the workflow; repository inspection belongs inside the selected workflow.
-- Name the selected workflow or passive skill in one concise line, then continue under that contract.
-- Treat `sp-*` names as canonical workflow identities. Actual invocation syntax depends on the integration and should be taken from generated integration-specific surfaces rather than assumed from this managed block.
-
-## Brownfield Context Gate
-
-- The runtime atlas is query-backed and agent-planned: invoke the project launcher configured in `.specify/config.json` with `project-cognition lexicon --intent <workflow-intent> --query="$ARGUMENTS" --format json`, translate the raw user intent into a `query_plan` using returned map terms, then run `project-cognition query --intent <workflow-intent> --query-plan "<query_plan_json>" --format json` to retrieve the task-local project cognition bundle before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.
-- Treat `.specify/project-cognition/project-cognition.db` as the canonical graph store and `.specify/project-cognition/status.json` as the lightweight freshness entrypoint.
-- Use the returned readiness, task-local bundle, and `minimal_live_reads`; treat raw graph JSON artifacts as obsolete runtime surfaces, and do not replace the query bundle with raw graph JSON or slice reads.
-- The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.
-- Project cognition under `.specify/project-cognition/` is the runtime truth surface; legacy project-map exports are not the ordinary first-read runtime contract for workflow routing.
-- When a project launcher is configured in `.specify/config.json`, use that launcher instead of PATH `specify`.
-- If the project cognition baseline is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.
-- If the query-backed runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.
-- Treat query-backed runtime freshness as the truth source. If a full refresh can be completed now, run `project-cognition validate-build --format json` first, then invoke the project launcher with `project-cognition complete-refresh --format json` only when build acceptance passes; otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.
-
-## Project Cognition Usage
-
-- Project cognition is mandatory when existing-system truth is required. If the task needs to know how this project is organized, implemented, owned, integrated, or verified, query project cognition before broad source inspection, planning, debugging, testing strategy, implementation, task decomposition, or subagent dispatch.
-- The same rule applies across agent context files; do not assume every integration uses `AGENTS.md`.
-- When the task does not require existing-system truth, decide based on risk, context cost, and user goal; this is not a bypass for existing-system judgment.
-- Mandatory scenarios include changing existing functionality or behavior such as login, payment, routing, permissions, import/export, notifications, or background jobs; judging module ownership, truth owners, architecture boundaries, reuse points, integration points, state surfaces, or consumer impact; writing or updating `specify`, `plan`, or `tasks` outputs for the current project; running `implement`, `quick`, or `fast` work against existing code, tests, configuration, routes, protocols, data models, or workflows; debugging symptoms that map to existing capabilities, entrypoints, state surfaces, or test surfaces; decomposing tasks, compiling task packets, or dispatching subagents that need read scope, write scope, required references, or validation commands; choosing testing strategy, verification entry points, regression scope, or coverage-gap handling; changing architecture boundaries, workflow contracts, integration contracts, ownership, or verification entry points; and closeout when work changed project-cognition truth.
-- Query through the project launcher or generated command renderer with `project-cognition query --intent <workflow-intent> --query "<task summary>" --format json`. Valid workflow intents include at least `plan`, `implement`, `debug`, `test`, and `research`. When relevant paths are known from the user request or upstream artifacts, include them through `--paths`.
-- Use readiness for routing: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads` before trusting the runtime; `ambiguous` asks the user or upstream artifact to select the intended candidate; `needs_update` routes through `sp-map-update`; `needs_rebuild` routes through `sp-map-scan`, then `sp-map-build`; `blocked` stops with the runtime issue.
-- Extract and carry forward the matched capability or symptom, affected nodes and subgraph, `minimal_live_reads`, missing coverage, evidence traces, verification routes, ambiguity, conflicts, and weak coverage.
-- Constrain first live reads to `minimal_live_reads` plus directly relevant durable workflow artifacts. Expand search only when those reads do not answer the task.
-- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, minimal_live_reads constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.
-
-## Project Memory
-
-- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md`.
-- Treat the learning layer as workflow-execution infrastructure, not as optional notes.
-- `.specify/memory/constitution.md` is the principle-level source of truth when present.
-- `.specify/memory/project-rules.md` holds stable defaults and reusable constraints.
-- `.specify/memory/learnings/INDEX.md` is the searchable learning index for reusable lessons.
-- Open only learning detail docs linked from relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work.
-- If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- Do not bury reusable lessons only in chat, task files, or workflow-state.
-- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
-- Prefer generated project-local Spec Kit workflows, skills, and commands over ad-hoc execution when they fit the task.
-
-## Workflow Routing
-
-- Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.
-- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.
-- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.
-- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
-- Use `sp-map-scan` when a query-backed cognition baseline must be created from project-internal evidence before deeper brownfield work.
-- Use `sp-map-build` when refreshed query-backed cognition outputs must be compiled from scan inputs.
-- Use `sp-map-update` when an existing project cognition baseline must be refreshed incrementally for changed paths or user supplements.
-- Use `sp-prd-scan` when an existing repository needs the heavy read-only current-state reconstruction scan before final PRD synthesis, and `sp-prd-build` once that scan package is ready to compile.
-- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
-- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
-- Use `sp-debug`, `sp-analyze`, `sp-implement`, `sp-plan`, and `sp-tasks` as strong consumers of the capability flow and lifecycle truth layer when working against existing capabilities.
-- Use `sp-test-scan` for project-level testing evidence and build planning, and `sp-test-build` for leader-managed testing-system construction.
+- Do not auto-enter an `sp-*` workflow unless the user invokes it.
+- Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.
+- If the user invokes an `sp-*` workflow, follow that workflow's own contract.
 
 ## Command Surface Rules
 
-- Treat the live `specify --help` output as the only authoritative CLI command surface.
-- Before suggesting or running a `specify <subcommand>` invocation, verify that `specify --help` or `specify <subcommand> --help` exposes it.
-- Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
-- Feature creation must follow `sp-specify` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate imagined branch-creation command family.
+- Treat live `specify --help` output as the authoritative CLI surface.
+- Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.
+- Do not invent unsupported CLI names such as `specify create-feature`.
+- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`.
 
-## Delegated Execution Defaults
+## Durable State
 
-- Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence.
-- Use a validated `WorkerTaskPacket` or equivalent execution contract before subagent work begins.
-- Do not dispatch from raw task text alone.
-- Wait for each subagent's structured handoff, result file, or runtime-managed result before integrating or marking work complete. Idle state or a chat summary is not completion evidence.
-- Use the integration's durable team/runtime surface only when durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst is required. For integrations that expose `sp-teams`, use `sp-teams` only in those cases.
-
-## Lane Recovery Rules
-
-- Concurrent feature work is lane-first, not branch-first.
-- Do not assume the current branch name is the canonical feature directory slug.
-- For resumable `sp-*` commands, resolve the active feature through durable lane state or an explicit `feature_dir` before guessing from branch-only context.
-- If a workflow command can accept an explicit `feature_dir`, prefer that override over current-branch inference.
-- If lane resolution returns one safe candidate and a materialized worktree, continue from that isolated worktree context instead of the leader workspace.
-- Treat canonical workflow-state tokens such as `/sp.plan`, `/sp.tasks`, `/sp.deep-research`, and `/sp.implement` as normalized command identities during resume logic; never compare them as raw strings against bare command names.
-- Prefer `.specify/features/<feature>/` as the canonical generated-project feature root. Support legacy feature roots such as `specs/<feature>/` and `.specify/specs/<feature>/` during recovery and repair paths when durable lane state or prefix matching points there.
-- Do not fail a resumable workflow only because the current branch is not a feature branch when explicit `feature_dir` or unique lane recovery already identifies the target feature safely.
-
-## Artifact Priority
-
-- `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress. Read it before resume, next-step routing, or workflow closeout; do not continue from branch name or chat memory alone when it exists.
-- `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.
-- `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.
-- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
-- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
-- `.specify/prd-runs/<run-id>/`, including its workflow state and scan/build artifacts, is the current-state PRD reconstruction truth surface. Treat it as documentation output unless later work explicitly adopts it as planning input.
-- `.specify/testing/testing-state.md` is the recovery and next-step truth for `sp-test-*`.
-- Treat testing artifacts by role:
-  - `TEST_SCAN.md`: scan evidence and module risk findings, not the executable build contract.
-  - `TEST_BUILD_PLAN.md` / `.json`: build-ready testing-system lanes and validation commands; primary `sp-test-build` inputs.
-  - `UNIT_TEST_SYSTEM_REQUEST.md`: brownfield testing-program input for later scoped spec/planning work.
-  - `TESTING_CONTRACT.md`: durable downstream testing obligations that later workflows should honor automatically.
-  - `TESTING_PLAYBOOK.md`: operator and maintainer runbook for test execution.
-  - `COVERAGE_BASELINE.json`: observed baseline data, not acceptance proof by itself.
-
-## Execution and Closeout Rules
-
-- Do not substitute chat narration for workflow execution. If a workflow requires an artifact write, helper/hook execution, validation run, or state update, perform it explicitly rather than describing it as though it happened.
-- For resume, next-step routing, and closeout, read the relevant durable state surface first (`workflow-state.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, or project cognition freshness state) before deciding what happens next.
-- If the active workflow has a truth-owning artifact set, do not claim completion until those artifacts exist and any required validation or closeout mechanism has run truthfully.
-- The project cognition query determines whether query-backed cognition coverage can be trusted as fresh and records the git-aligned baseline freshness truth source.
-
-## Map Maintenance
-
-- Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline; the pair is complete only after `project-cognition validate-scan --format json` and `project-cognition validate-build --format json` pass.
-- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the query-backed project cognition baseline.
-- Use `sp-map-update` after baseline creation when the query-backed runtime is stale or too weak for the touched area.
-- `sp-map-update` is the primary maintenance path after a baseline exists.
-- Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, run `project-cognition validate-build --format json` first, then invoke the project launcher with `project-cognition complete-refresh --format json` only when build acceptance passes. Otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback before continuing. Fall back to PATH `specify` only when no project launcher is configured.
-- Do not continue under stale project-cognition truth without choosing one of those paths.
-- Do not treat consumed project cognition query context as self-maintaining; the agent changing project-cognition truth is responsible for keeping the query-backed runtime current.
+- When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.
+- Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.
+- Store reusable lessons in project memory, not only in chat or task artifacts.
 
 - Preserve content outside this managed block.
 <!-- SPEC-KIT:END -->
