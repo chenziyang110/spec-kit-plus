@@ -380,7 +380,7 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
             if active_generation_id:
                 _validate_runtime_metadata(conn, active_generation_id, errors, details)
             if active_generation_id:
-                _validate_query_contract_v2_smoke(conn, active_generation_id, errors, details)
+                _validate_query_contract_v2_smoke(root, conn, active_generation_id, errors, details)
                 _validate_generation_content(
                     conn,
                     active_generation_id,
@@ -516,6 +516,7 @@ def _validate_runtime_metadata(
 
 
 def _validate_query_contract_v2_smoke(
+    project_root: Path,
     conn: sqlite3.Connection,
     generation_id: str,
     errors: list[str],
@@ -566,6 +567,7 @@ def _validate_query_contract_v2_smoke(
 
     selected_concept = str(candidate["concept_id"])
     query_plan = _query_plan_payload(
+        project_root=project_root,
         query_text=str(candidate["label"]),
         expanded_queries=list(candidate.get("matched_terms", []))[:3],
         paths=[],

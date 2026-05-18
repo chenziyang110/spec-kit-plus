@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from contextlib import closing
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
 from typing import Any
@@ -32,6 +32,7 @@ def query_project_cognition(
     normalized_rejected_concepts = _normalize_concept_ids(rejected_concepts)
     normalized_selection_reason = str(selection_reason or "").strip()
     query_plan = _query_plan_payload(
+        project_root=project_root,
         query_text=query_text,
         expanded_queries=expanded_queries,
         paths=paths,
@@ -233,6 +234,7 @@ def _resolve_paths(conn: Any, generation_id: str, paths: list[str]) -> tuple[dic
 
 def _query_plan_payload(
     *,
+    project_root: Path,
     query_text: str,
     expanded_queries: list[str] | None,
     paths: list[str] | None,
@@ -243,11 +245,55 @@ def _query_plan_payload(
     return {
         "raw_query": query_text,
         "expanded_queries": [query for query in (expanded_queries or []) if normalize_query_token(query)],
-        "paths": [path.replace("\\", "/") for path in (paths or []) if normalize_query_token(path)],
+        "paths": [
+            normalized
+            for path in (paths or [])
+            if (normalized := _normalize_project_path_hint(project_root, path))
+        ],
         "selected_concepts": list(selected_concepts or []),
         "rejected_concepts": list(rejected_concepts or []),
         "selection_reason": selection_reason,
     }
+
+
+def _normalize_project_path_hint(project_root: Path, path: str) -> str:
+    raw_path = str(path or "").strip().strip("\"'")
+    if raw_path.startswith("@"):
+        raw_path = raw_path[1:].strip()
+    normalized = raw_path.replace("\\", "/")
+    if not normalize_query_token(normalized):
+        return ""
+
+    root = project_root.resolve(strict=False)
+    try:
+        path_obj = Path(raw_path)
+        if path_obj.is_absolute():
+            try:
+                return path_obj.resolve(strict=False).relative_to(root).as_posix()
+            except ValueError:
+                pass
+    except (OSError, ValueError):
+        pass
+
+    root_text = root.as_posix().rstrip("/")
+    candidate = normalized.rstrip("/")
+    if candidate == root_text:
+        return ""
+    root_prefix = f"{root_text}/"
+    if candidate.startswith(root_prefix):
+        return candidate[len(root_prefix) :]
+
+    windows_candidate = PureWindowsPath(raw_path).as_posix().rstrip("/")
+    windows_root = PureWindowsPath(str(root)).as_posix().rstrip("/")
+    if windows_candidate == windows_root:
+        return ""
+    windows_root_prefix = f"{windows_root}/"
+    if windows_candidate.casefold().startswith(windows_root_prefix.casefold()):
+        return windows_candidate[len(windows_root_prefix) :]
+
+    if candidate.startswith("./"):
+        return candidate[2:]
+    return candidate
 
 
 def _normalize_concept_ids(values: list[str] | None) -> list[str]:

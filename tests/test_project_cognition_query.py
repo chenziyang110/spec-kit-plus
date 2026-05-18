@@ -152,6 +152,19 @@ def test_query_resolves_by_path_when_paths_are_known(tmp_path: Path) -> None:
     assert result["minimal_live_reads"] == ["src/auth/login.ts"]
 
 
+def test_query_normalizes_project_absolute_paths_before_path_index_lookup(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+    absolute_path = tmp_path / "src" / "auth" / "login.ts"
+
+    result = query_project_cognition(tmp_path, intent="implement", query_text="", paths=[str(absolute_path)])
+
+    assert result["readiness"] == "ready"
+    assert result["query_plan"]["paths"] == ["src/auth/login.ts"]
+    assert result["affected_nodes"] == ["capability:auth.login"]
+    assert result["minimal_live_reads"] == ["src/auth/login.ts"]
+    assert result["missing_coverage"] == []
+
+
 def test_query_reports_needs_update_when_path_is_missing_from_index(tmp_path: Path) -> None:
     _seed_login_graph(tmp_path)
 
