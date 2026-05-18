@@ -58,27 +58,29 @@ def apply_cognition_update(
             missing_paths=missing_paths,
             requested_paths=update_paths,
         )
+        result_state = _result_state_for_update(missing_paths, classification)
+        adoptable_paths = list(classification.adoptable_paths)
+        adopted_items = adoptable_paths if classification.query_coverage == "adoptable_path_gap" else []
+        review_paths = _review_paths_for_update(classification)
+        unadoptable_paths = list(classification.unadoptable_paths)
         adopted_route_records = _adopt_paths(
             conn,
             project_root,
             generation_id,
             update_id,
-            classification.adoptable_paths,
+            adopted_items,
         )
-        affected_node_set.update(path.node_id for path in classification.adoptable_paths)
+        affected_node_set.update(path.node_id for path in adopted_items)
         affected_route_record_set.update(adopted_route_records)
         affected_nodes = sorted(affected_node_set)
         affected_route_records = sorted(affected_route_record_set)
-        adopted_paths = [path.path for path in classification.adoptable_paths]
-        review_paths = list(classification.review_paths)
-        unadoptable_paths = list(classification.unadoptable_paths)
+        adopted_paths = [path.path for path in adopted_items]
         minimal_live_reads = sorted(set(review_paths + unadoptable_paths))
         missing_coverage = _missing_coverage_for_gaps(
             review_paths=review_paths,
             unadoptable_paths=unadoptable_paths,
         )
         known_unknowns = list(missing_coverage)
-        result_state = _result_state_for_update(missing_paths, classification)
         attrs = {
             "publishing_model": "patch-in-active-generation",
             "patched_retrieval_signals": patched_retrieval_signals,
@@ -138,7 +140,7 @@ def apply_cognition_update(
         status.stale_reasons = list(missing_coverage)
         status.dirty_reasons = []
         status.dirty_origin_command = ""
-    elif result_state == "ready":
+    elif result_state == "ready" and not _has_unadoptable_path_gap([*status.dirty_reasons, *status.stale_reasons]):
         status.baseline_state = "ready" if status.graph_ready else status.baseline_state
         if adopted_paths or not missing_paths:
             status.freshness = "fresh"
@@ -150,6 +152,7 @@ def apply_cognition_update(
         status.baseline_state == "blocked"
         and status.dirty_origin_command == "sp-map-update"
         and not has_prior_path_coverage_gap
+        and not _has_unadoptable_path_gap([*status.dirty_reasons, *status.stale_reasons])
     ):
         status.baseline_state = "ready" if status.graph_ready else status.baseline_state
         status.stale_paths = []
@@ -184,6 +187,12 @@ def _has_path_coverage_gap(reasons: list[str]) -> bool:
             "path_not_covered_by_project_cognition_index",
         )
     ) or ("path_index" in compact_reason_text and "missing" in compact_reason_text)
+
+
+def _has_unadoptable_path_gap(reasons: list[str]) -> bool:
+    reason_text = " ".join(str(reason or "") for reason in reasons).lower()
+    compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
+    return "path_not_safely_adoptable_by_project_cognition_index" in compact_reason_text
 
 
 def _normalize_paths(paths: list[str]) -> list[str]:
@@ -288,6 +297,24 @@ def _result_state_for_update(
     if classification.query_coverage == "uncertain_path_gap":
         return "review"
     return "needs_rebuild"
+
+
+def _review_paths_for_update(classification: PathCoverageClassification) -> list[str]:
+    review_paths = list(classification.review_paths)
+    if classification.query_coverage == "uncertain_path_gap":
+        review_paths.extend(path.path for path in classification.adoptable_paths)
+    return _unique_ordered(review_paths)
+
+
+def _unique_ordered(paths: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        if path in seen:
+            continue
+        seen.add(path)
+        result.append(path)
+    return result
 
 
 def _missing_coverage_for_gaps(

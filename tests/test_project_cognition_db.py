@@ -19,6 +19,7 @@ from specify_cli.cognition import (
     seed_active_generation,
     write_cognition_status,
 )
+from specify_cli.cognition.path_adoption import AUTO_ADOPT_LIMIT
 
 
 def test_cognition_db_path_lives_under_project_cognition(tmp_path: Path) -> None:
@@ -479,11 +480,16 @@ def test_successful_cognition_update_preserves_prior_path_index_rebuild_block(tm
     assert ready_result["readiness"] == "ready"
     status = read_cognition_status(tmp_path)
     assert status.last_update_id == ready_result["update_id"]
-    assert status.freshness == "fresh"
-    assert status.stale_paths == []
-    assert status.stale_reasons == []
-    assert status.dirty_reasons == []
-    assert status.dirty_origin_command == ""
+    assert status.baseline_state == "blocked"
+    assert status.freshness == "stale"
+    assert status.stale_paths == ["scripts/release/package.ps1"]
+    assert status.stale_reasons == [
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1"
+    ]
+    assert status.dirty_reasons == [
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1"
+    ]
+    assert status.dirty_origin_command == "sp-map-update"
 
 
 def test_apply_cognition_update_returns_review_for_small_uncertain_gap(tmp_path: Path) -> None:
@@ -545,6 +551,63 @@ def test_apply_cognition_update_returns_review_for_small_uncertain_gap(tmp_path:
     ]
     assert status.dirty_reasons == []
     assert status.dirty_origin_command == ""
+
+
+def test_apply_cognition_update_does_not_adopt_over_limit_review_paths(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-update', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'old', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-update', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-update', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+    missing_paths = [
+        f"src/auth/session-{index}.ts"
+        for index in range(AUTO_ADOPT_LIMIT + 1)
+    ]
+
+    result = apply_cognition_update(tmp_path, changed_paths=missing_paths, reason="unit-test")
+
+    assert result["readiness"] == "review"
+    assert result["recommended_next_action"] == "perform_minimal_live_reads"
+    assert result["adopted_paths"] == []
+    assert result["review_paths"] == missing_paths
+    assert result["minimal_live_reads"] == sorted(missing_paths)
+    assert result["missing_coverage"] == [
+        f"path requires minimal live read before adoption: {path}"
+        for path in missing_paths
+    ]
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        rows = conn.execute(
+            "SELECT path FROM path_index WHERE path IN ({})".format(
+                ",".join("?" for _ in missing_paths)
+            ),
+            missing_paths,
+        ).fetchall()
+        adoption_evidence = conn.execute(
+            "SELECT id FROM evidence WHERE source_kind = 'path_adoption'"
+        ).fetchall()
+        update_row = conn.execute("SELECT result_state, attrs_json FROM updates").fetchone()
+    assert rows == []
+    assert adoption_evidence == []
+    assert update_row["result_state"] == "review"
+    attrs = json.loads(update_row["attrs_json"])
+    assert attrs["path_adoption"]["query_coverage"] == "uncertain_path_gap"
+    assert attrs["path_adoption"]["adopted_paths"] == []
+    assert attrs["path_adoption"]["review_paths"] == missing_paths
+    assert attrs["confidence"] == "weak"
 
 
 def test_apply_cognition_update_routes_unadoptable_core_surface_to_rebuild(tmp_path: Path) -> None:
