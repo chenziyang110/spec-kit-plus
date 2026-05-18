@@ -72,12 +72,12 @@ def apply_cognition_update(
         adopted_paths = [path.path for path in classification.adoptable_paths]
         review_paths = list(classification.review_paths)
         unadoptable_paths = list(classification.unadoptable_paths)
-        minimal_live_reads = [*review_paths, *unadoptable_paths]
-        missing_coverage = [
-            f"path not covered by project cognition index: {path}"
-            for path in [*review_paths, *unadoptable_paths]
-        ]
-        known_unknowns = [*missing_coverage, *classification.reasons]
+        minimal_live_reads = sorted(set(review_paths + unadoptable_paths))
+        missing_coverage = _missing_coverage_for_gaps(
+            review_paths=review_paths,
+            unadoptable_paths=unadoptable_paths,
+        )
+        known_unknowns = list(missing_coverage)
         result_state = _result_state_for_update(missing_paths, classification)
         attrs = {
             "publishing_model": "patch-in-active-generation",
@@ -85,16 +85,17 @@ def apply_cognition_update(
             "invalidated_retrieval_signals": minimal_live_reads,
             "affected_route_records": affected_route_records,
             "path_adoption": {
-                "classification": classification.query_coverage,
+                "query_coverage": classification.query_coverage,
                 "adopted_paths": adopted_paths,
                 "review_paths": review_paths,
                 "unadoptable_paths": unadoptable_paths,
+                "reasons": list(classification.reasons),
             },
             "adopted_paths": adopted_paths,
             "known_unknowns": known_unknowns,
             "minimal_live_reads": minimal_live_reads,
             "ignored_paths": ignored_paths,
-            "confidence": "strong" if result_state == "ready" else "partial",
+            "confidence": "weak" if adopted_paths or review_paths else "strong",
         }
 
         conn.execute(
@@ -127,14 +128,22 @@ def apply_cognition_update(
         status.baseline_state = "blocked"
         status.freshness = "stale"
         status.stale_paths = list(unadoptable_paths)
-        status.stale_reasons = list(known_unknowns)
-        status.dirty_reasons = list(known_unknowns)
+        status.stale_reasons = list(missing_coverage)
+        status.dirty_reasons = list(missing_coverage)
         status.dirty_origin_command = "sp-map-update"
     elif result_state == "review":
-        status.baseline_state = "ready" if status.graph_ready or status.baseline_state == "missing" else status.baseline_state
+        status.baseline_state = "ready" if status.graph_ready else status.baseline_state
         status.freshness = "possibly_stale"
         status.stale_paths = list(review_paths)
-        status.stale_reasons = list(known_unknowns)
+        status.stale_reasons = list(missing_coverage)
+        status.dirty_reasons = []
+        status.dirty_origin_command = ""
+    elif result_state == "ready":
+        status.baseline_state = "ready" if status.graph_ready else status.baseline_state
+        if adopted_paths or not missing_paths:
+            status.freshness = "fresh"
+        status.stale_paths = []
+        status.stale_reasons = []
         status.dirty_reasons = []
         status.dirty_origin_command = ""
     elif (
@@ -147,8 +156,6 @@ def apply_cognition_update(
         status.stale_reasons = []
         status.dirty_reasons = []
         status.dirty_origin_command = ""
-    elif adopted_paths and status.baseline_state == "missing":
-        status.baseline_state = "ready"
     write_cognition_status(project_root, status)
 
     return {
@@ -238,7 +245,9 @@ def _adopt_paths(
                 json.dumps(
                     {
                         "nearest_indexed_sibling": path.nearest_indexed_sibling,
-                        "reason": path.reason,
+                        "adoption_status": "provisional",
+                        "adoption_reason": path.reason,
+                        "update_id": update_id,
                     },
                     separators=(",", ": "),
                 ),
@@ -279,6 +288,23 @@ def _result_state_for_update(
     if classification.query_coverage == "uncertain_path_gap":
         return "review"
     return "needs_rebuild"
+
+
+def _missing_coverage_for_gaps(
+    *,
+    review_paths: list[str],
+    unadoptable_paths: list[str],
+) -> list[str]:
+    return [
+        *[
+            f"path requires minimal live read before adoption: {path}"
+            for path in review_paths
+        ],
+        *[
+            f"path not safely adoptable by project cognition index: {path}"
+            for path in unadoptable_paths
+        ],
+    ]
 
 
 def _recommended_action_for_update_result(result_state: str) -> str:

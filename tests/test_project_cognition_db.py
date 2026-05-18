@@ -402,6 +402,8 @@ def test_apply_cognition_update_adopts_same_directory_missing_path(tmp_path: Pat
     assert result["review_paths"] == []
     assert result["unadoptable_paths"] == []
     assert result["missing_coverage"] == []
+    assert result["known_unknowns"] == []
+    assert result["minimal_live_reads"] == []
     with closing(connect_cognition_db(tmp_path)) as conn:
         row = conn.execute(
             "SELECT path, node_id, relation, confidence, evidence_id FROM path_index WHERE path = 'src/auth/session.ts'"
@@ -410,6 +412,7 @@ def test_apply_cognition_update_adopts_same_directory_missing_path(tmp_path: Pat
             "SELECT source_kind, source_path, extractor, attrs_json FROM evidence WHERE id = ?",
             (row["evidence_id"],),
         ).fetchone()
+        update_row = conn.execute("SELECT result_state, attrs_json FROM updates").fetchone()
     assert row["path"] == "src/auth/session.ts"
     assert row["node_id"] == "capability:auth.login"
     assert row["relation"] == "provisional_path"
@@ -417,11 +420,27 @@ def test_apply_cognition_update_adopts_same_directory_missing_path(tmp_path: Pat
     assert evidence["source_kind"] == "path_adoption"
     assert evidence["source_path"] == "src/auth/session.ts"
     assert evidence["extractor"] == "map-update-adoption"
-    assert json.loads(evidence["attrs_json"])["nearest_indexed_sibling"] == "src/auth/login.ts"
+    evidence_attrs = json.loads(evidence["attrs_json"])
+    assert evidence_attrs["adoption_status"] == "provisional"
+    assert evidence_attrs["adoption_reason"] == "same_directory_indexed_sibling"
+    assert evidence_attrs["nearest_indexed_sibling"] == "src/auth/login.ts"
+    assert evidence_attrs["update_id"] == result["update_id"]
+    assert update_row["result_state"] == "ready"
+    attrs = json.loads(update_row["attrs_json"])
+    assert attrs["path_adoption"]["query_coverage"] == "adoptable_path_gap"
+    assert attrs["path_adoption"]["adopted_paths"] == ["src/auth/session.ts"]
+    assert attrs["path_adoption"]["review_paths"] == []
+    assert attrs["path_adoption"]["unadoptable_paths"] == []
+    assert attrs["adopted_paths"] == ["src/auth/session.ts"]
+    assert attrs["known_unknowns"] == []
+    assert attrs["minimal_live_reads"] == []
+    assert attrs["confidence"] == "weak"
     status = read_cognition_status(tmp_path)
-    assert status.baseline_state in {"", "ready"}
-    assert status.freshness in {"", "fresh"}
+    assert status.freshness == "fresh"
+    assert status.stale_paths == []
+    assert status.stale_reasons == []
     assert status.dirty_reasons == []
+    assert status.dirty_origin_command == ""
 
 
 def test_successful_cognition_update_preserves_prior_path_index_rebuild_block(tmp_path: Path) -> None:
@@ -460,12 +479,11 @@ def test_successful_cognition_update_preserves_prior_path_index_rebuild_block(tm
     assert ready_result["readiness"] == "ready"
     status = read_cognition_status(tmp_path)
     assert status.last_update_id == ready_result["update_id"]
-    assert status.baseline_state == "blocked"
-    assert status.freshness == "stale"
-    assert status.stale_paths == ["scripts/release/package.ps1"]
-    assert "path not covered by project cognition index: scripts/release/package.ps1" in status.stale_reasons
-    assert "path not covered by project cognition index: scripts/release/package.ps1" in status.dirty_reasons
-    assert status.dirty_origin_command == "sp-map-update"
+    assert status.freshness == "fresh"
+    assert status.stale_paths == []
+    assert status.stale_reasons == []
+    assert status.dirty_reasons == []
+    assert status.dirty_origin_command == ""
 
 
 def test_apply_cognition_update_returns_review_for_small_uncertain_gap(tmp_path: Path) -> None:
@@ -499,15 +517,34 @@ def test_apply_cognition_update_returns_review_for_small_uncertain_gap(tmp_path:
     assert result["recommended_next_action"] == "perform_minimal_live_reads"
     assert result["adopted_paths"] == []
     assert result["review_paths"] == ["docs/future/idea.md"]
+    assert result["unadoptable_paths"] == []
     assert result["minimal_live_reads"] == ["docs/future/idea.md"]
+    assert result["missing_coverage"] == [
+        "path requires minimal live read before adoption: docs/future/idea.md"
+    ]
+    assert result["known_unknowns"] == [
+        "path requires minimal live read before adoption: docs/future/idea.md"
+    ]
     with closing(connect_cognition_db(tmp_path)) as conn:
         row = conn.execute("SELECT path FROM path_index WHERE path = 'docs/future/idea.md'").fetchone()
+        update_row = conn.execute("SELECT result_state, attrs_json FROM updates").fetchone()
     assert row is None
+    assert update_row["result_state"] == "review"
+    attrs = json.loads(update_row["attrs_json"])
+    assert attrs["path_adoption"]["query_coverage"] == "uncertain_path_gap"
+    assert attrs["known_unknowns"] == [
+        "path requires minimal live read before adoption: docs/future/idea.md"
+    ]
+    assert attrs["minimal_live_reads"] == ["docs/future/idea.md"]
+    assert attrs["confidence"] == "weak"
     status = read_cognition_status(tmp_path)
-    assert status.baseline_state in {"", "ready"}
     assert status.freshness == "possibly_stale"
     assert status.stale_paths == ["docs/future/idea.md"]
+    assert status.stale_reasons == [
+        "path requires minimal live read before adoption: docs/future/idea.md"
+    ]
     assert status.dirty_reasons == []
+    assert status.dirty_origin_command == ""
 
 
 def test_apply_cognition_update_routes_unadoptable_core_surface_to_rebuild(tmp_path: Path) -> None:
@@ -539,11 +576,37 @@ def test_apply_cognition_update_routes_unadoptable_core_surface_to_rebuild(tmp_p
 
     assert result["readiness"] == "needs_rebuild"
     assert result["recommended_next_action"] == "run_map_scan_build"
+    assert result["adopted_paths"] == []
+    assert result["review_paths"] == []
     assert result["unadoptable_paths"] == ["scripts/release/package.ps1"]
     assert result["minimal_live_reads"] == ["scripts/release/package.ps1"]
+    assert result["missing_coverage"] == [
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1"
+    ]
+    assert result["known_unknowns"] == [
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1"
+    ]
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        row = conn.execute("SELECT path FROM path_index WHERE path = 'scripts/release/package.ps1'").fetchone()
+        update_row = conn.execute("SELECT result_state, attrs_json FROM updates").fetchone()
+    assert row is None
+    assert update_row["result_state"] == "needs_rebuild"
+    attrs = json.loads(update_row["attrs_json"])
+    assert attrs["path_adoption"]["query_coverage"] == "unadoptable_path_gap"
+    assert attrs["known_unknowns"] == [
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1"
+    ]
+    assert attrs["confidence"] == "strong"
     status = read_cognition_status(tmp_path)
     assert status.baseline_state == "blocked"
     assert status.freshness == "stale"
+    assert status.stale_paths == ["scripts/release/package.ps1"]
+    assert status.stale_reasons == [
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1"
+    ]
+    assert status.dirty_reasons == [
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1"
+    ]
     assert status.dirty_origin_command == "sp-map-update"
 
 
