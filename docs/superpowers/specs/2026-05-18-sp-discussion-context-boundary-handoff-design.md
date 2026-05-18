@@ -95,6 +95,8 @@ For spec-kit-plus, this maps to `sp-discussion` as:
   one Markdown handoff and one JSON companion.
 - Preserve Must-Preserve Ledger behavior while adding boundary and quality
   gates.
+- Keep `docs/quickstart.md` and `docs/installation.md` aligned with the same
+  boundary and handoff rules as README and the handbook.
 - Keep the first increment integration-neutral and template-testable.
 
 ## Non-Goals
@@ -128,6 +130,12 @@ The handoff must preserve the relationship explicitly so downstream workflows
 know whether they should plan against the active repository, another local
 repository, a supplied external source, or a target that is still blocked
 because no path or access was provided.
+
+`reference_sources` in `discussion-state.md` is the session-level summary of the
+same evidence family. `reference_projects` in the handoff is the downstream
+structured view of those sources that `sp-specify` needs to preserve. The names
+are different because one belongs to discussion state and the other belongs to
+the handoff contract, but they describe the same evidence family.
 
 ## Context Boundary Gate
 
@@ -489,6 +497,7 @@ First increment:
   files.
 - Update README, `PROJECT-HANDBOOK.md`, and
   `templates/project-handbook-template.md`.
+- Update `docs/quickstart.md` and `docs/installation.md`.
 - Add or update template and integration tests.
 
 Follow-up increment:
@@ -524,6 +533,8 @@ Template tests should verify:
   cross-project planning without target project context.
 - `tasks.md` and `templates/command-partials/tasks/shell.md` require target
   root and target-relative path inheritance.
+- `docs/quickstart.md` and `docs/installation.md` include the same discussion
+  boundary and handoff guidance as README and the handbook.
 - Generated Markdown, TOML, and skills-based integrations preserve the updated
   guidance.
 
@@ -558,6 +569,8 @@ Docs tests should verify:
   relevant `MP-*` obligations into execution tasks.
 - Tests prove that generated workflow guidance contains the boundary and
   handoff-quality contracts across supported integrations.
+- `docs/quickstart.md` and `docs/installation.md` carry the same user-facing
+  discussion guidance as README and the handbook.
 
 ## Risks And Mitigations
 
