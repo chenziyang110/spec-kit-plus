@@ -1798,7 +1798,21 @@ def project_cognition_query_command(
             "rejected_concepts": effective_rejected_concepts,
             "selection_reason": effective_selection_reason,
         }
+        workflow_requirement = (
+            "discussion"
+            if str(intent or "").strip().lower() == "discussion"
+            else "planning_or_implementation"
+        )
         payload = {
+            "baseline_health": "missing",
+            "query_coverage": "baseline_missing",
+            "workflow_requirement": workflow_requirement,
+            "path_adoption": {
+                "adoptable_paths": [],
+                "review_paths": [],
+                "unadoptable_paths": [],
+                "reasons": [],
+            },
             "readiness": "needs_rebuild",
             "recommended_next_action": "run_map_scan_build",
             "intent": intent,

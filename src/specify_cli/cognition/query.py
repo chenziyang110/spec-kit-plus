@@ -10,6 +10,7 @@ import sqlite3
 from typing import Any
 
 from .db import connect_cognition_db, ensure_cognition_db, get_active_generation_id
+from .path_adoption import PathCoverageClassification, classify_path_coverage
 
 
 def normalize_query_token(value: str) -> str:
@@ -43,7 +44,13 @@ def query_project_cognition(
     generation_id = get_active_generation_id(project_root)
     if not generation_id:
         minimal_live_reads: list[str] = []
+        workflow_requirement = _workflow_requirement(intent)
+        path_adoption = _empty_path_adoption_payload()
         return {
+            "baseline_health": "missing",
+            "query_coverage": "baseline_missing",
+            "workflow_requirement": workflow_requirement,
+            "path_adoption": path_adoption,
             "readiness": "needs_rebuild",
             "recommended_next_action": "run_map_scan_build",
             "intent": intent,
@@ -86,10 +93,16 @@ def _query_project_cognition_payload(
     normalized_selection_reason = str(query_plan["selection_reason"])
     normalized_paths = list(query_plan["paths"])
     rejected_concept_set = set(normalized_rejected_concepts)
+    workflow_requirement = _workflow_requirement(intent)
     concept_conflicts = sorted(set(normalized_selected_concepts) & rejected_concept_set)
     if concept_conflicts:
         minimal_live_reads: list[str] = []
+        path_adoption = _empty_path_adoption_payload()
         return {
+            "baseline_health": "healthy",
+            "query_coverage": "ambiguous_selection",
+            "workflow_requirement": workflow_requirement,
+            "path_adoption": path_adoption,
             "readiness": "ambiguous",
             "recommended_next_action": "ask_user_to_select_candidate",
             "intent": intent,
@@ -115,6 +128,13 @@ def _query_project_cognition_payload(
         concept_id for concept_id in normalized_selected_concepts if concept_id not in selected_node_records
     ]
     path_nodes, missing_paths = _resolve_paths(conn, generation_id, normalized_paths)
+    path_classification = classify_path_coverage(
+        conn,
+        generation_id,
+        missing_paths=missing_paths,
+        requested_paths=normalized_paths,
+    )
+    path_adoption = _path_adoption_payload(path_classification)
     filtered_path_nodes = {
         node_id: evidence_ids for node_id, evidence_ids in path_nodes.items() if node_id not in rejected_concept_set
     }
@@ -160,11 +180,16 @@ def _query_project_cognition_payload(
         if str(item.get("node_id", "")).strip()
     }
     route_missing_nodes = sorted(node_id for node_id in affected_nodes if node_id not in route_item_node_ids)
+    has_known_candidates = bool(path_nodes or candidates or known_selected_concepts)
 
-    if unknown_selected_concepts:
-        readiness = "needs_rebuild" if missing_paths else "review"
-    elif missing_paths:
-        readiness = "needs_rebuild"
+    if missing_paths:
+        readiness = _readiness_for_path_classification(
+            path_classification,
+            workflow_requirement=workflow_requirement,
+            has_known_candidates=has_known_candidates,
+        )
+    elif unknown_selected_concepts:
+        readiness = "review"
     elif affected_nodes and not route_items:
         readiness = "review"
     elif query_missed_runtime_index or (suppressed_by_rejection and not path_nodes and not candidates):
@@ -198,6 +223,10 @@ def _query_project_cognition_payload(
     )
 
     return {
+        "baseline_health": "healthy",
+        "query_coverage": path_classification.query_coverage,
+        "workflow_requirement": workflow_requirement,
+        "path_adoption": path_adoption,
         "readiness": readiness,
         "recommended_next_action": _recommended_action(readiness),
         "intent": intent,
@@ -473,6 +502,45 @@ def _readiness_for_candidates(candidates: list[dict[str, Any]]) -> str:
     ):
         return "ambiguous"
     return "ready"
+
+
+def _workflow_requirement(intent: str) -> str:
+    return "discussion" if intent == "discussion" else "planning_or_implementation"
+
+
+def _empty_path_adoption_payload() -> dict[str, Any]:
+    return {
+        "adoptable_paths": [],
+        "review_paths": [],
+        "unadoptable_paths": [],
+        "reasons": [],
+    }
+
+
+def _path_adoption_payload(classification: PathCoverageClassification) -> dict[str, Any]:
+    return {
+        "adoptable_paths": [item.path for item in classification.adoptable_paths],
+        "review_paths": list(classification.review_paths),
+        "unadoptable_paths": list(classification.unadoptable_paths),
+        "reasons": list(classification.reasons),
+    }
+
+
+def _readiness_for_path_classification(
+    classification: PathCoverageClassification,
+    *,
+    workflow_requirement: str,
+    has_known_candidates: bool,
+) -> str:
+    if classification.query_coverage == "unadoptable_path_gap":
+        return "needs_rebuild"
+    if classification.query_coverage == "adoptable_path_gap":
+        return "needs_update"
+    if classification.query_coverage == "uncertain_path_gap":
+        return "review" if workflow_requirement == "discussion" else "needs_update"
+    if classification.query_coverage == "covered" and has_known_candidates:
+        return "ready"
+    return "review"
 
 
 def _recommended_action(readiness: str) -> str:
