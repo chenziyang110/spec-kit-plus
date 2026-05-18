@@ -11,6 +11,13 @@
   "open_conflicts": [],
   "hard_unknown_count": 0,
   "planning_gate_status": null,
+  "context_boundary": {},
+  "implementation_target": {},
+  "target_project_root": null,
+  "target_relative_paths": [],
+  "target_evidence_status": null,
+  "reference_projects": [],
+  "boundary_constraints": [],
   "handoff_to_tasks_ready": false,
   "consequence_gate": {
     "triggered": false,

@@ -13,6 +13,10 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 ## Process
 
 - Load the current plan package and recover the active workflow-state context.
+- Load implementation target boundary from `plan.md`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`.
+- Carry target root, target-relative paths or discovery steps, evidence status, relevant `MP-*` obligations, and boundary constraints into every implementation-shaping task.
+- Reject task packages that silently use the current repository when the handoff identifies another implementation target.
+- Mark reference project paths as reference-only or transfer evidence instead of implementation paths.
 - Carry locked planning decisions and implementation constitution rules forward into execution slices.
 - Map every open `CA-###` consequence obligation to tasks, packet fields, validation commands, join points, or explicit stop-and-reopen conditions.
 - Generate dependency ordering, parallel-safe batches, join points, and guardrail indexes.

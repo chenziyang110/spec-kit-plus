@@ -37,6 +37,18 @@
 | --- | --- | --- | --- | --- |
 | MP-### | [goal | scope | non_goal | scenario | decision | reference | tradeoff] | [what the plan must preserve] | [section anchor] | [condition, conflict decision, or none] |
 
+## Implementation Target Boundary
+
+- **Current project root**: [copy from `brainstorming/handoff-to-specify.json` `context_boundary.current_project_root`]
+- **Current project roles**: [copy role objects with `role`, `scope`, `evidence_source`, and `notes`]
+- **Target project root**: [copy from `context_boundary.target_project_root` or record why no external target exists]
+- **Target project roles**: [copy role objects with `role`, `scope`, `evidence_source`, and `notes`]
+- **Target paths/modules**: [copy verified target paths or required target paths still to verify]
+- **Target evidence status**: [target cognition, minimal live reads, user confirmation, external source, or explicit assumption]
+- **Reference sources**: [copy discussion `reference_projects` / discussion-state `reference_sources` as reference-only evidence]
+- **Cognition scope rule**: Current project cognition cannot prove another project's implementation facts.
+- **Stop condition**: If a required target root or target-relative path cannot be confirmed before implementation-shaping design, stop and return to `sp-discussion` or the user for boundary repair.
+
 ## Reference Fidelity Inputs
 
 <!--
