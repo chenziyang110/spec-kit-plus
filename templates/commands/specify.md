@@ -156,28 +156,32 @@ Use the returned readiness:
 - Reopen upstream truth explicitly when later discovery invalidates a locked
   conclusion; reopen is a first-class workflow action.
 
+
 ## Discussion Handoff Intake
 
-If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, `.specify/discussions/<slug>/handoffs/<candidate_id>-handoff-to-specify.md`, or pastes a discussion handoff block, read that handoff before parsing the feature request. Selected candidate IDs are stable split-plan IDs such as `CAND-001` or `CAND-002`; do not assume only the first candidate can be handed off.
+If the user invokes `sp-specify` with an explicit path to `.specify/discussions/<slug>/handoff-to-specify.md`, `.specify/discussions/<slug>/handoff-to-specify.json`, or pastes a discussion handoff block, read that handoff before parsing the feature request.
 
 - Treat the discussion handoff as an authoritative input to the brainstorming kernel, not a bypass around it.
-- When the supplied path is Markdown, look for the same-stem JSON companion first. For a candidate handoff, read `handoffs/<candidate_id>-handoff-to-specify.json` with the same selected candidate ID and filename stem, for example `handoffs/CAND-002-handoff-to-specify.json`. For the legacy latest handoff, read `handoff-to-specify.json` and treat both files as latest selected candidate copies.
-- If candidate Markdown and candidate JSON disagree on `discussion_slug`, `candidate_id`, `candidate_title`, `status`, `source_split_plan`, or any Must-Preserve Ledger item `id`, `type`, `claim`, `blocking_level`, `owner`, `latest_resolve_phase`, or `status`, treat it as a Markdown/JSON mismatch, block with a handoff integrity error, set `coverage_status: blocked_by_handoff_integrity`, and tell the user to refresh the `sp-discussion` handoff.
-- If legacy latest Markdown and legacy latest JSON disagree on the selected `candidate_id`, block rather than choosing one representation.
-- If candidate Markdown exists but candidate JSON is missing, reconstruct the active feature copy into `brainstorming/handoff-to-specify.json`, record the reconstruction source, and report a handoff repair advisory.
-- If JSON exists but Markdown is missing, reject the handoff because the user-reviewable source is absent.
+- Accept only the unified handoff pair for the discussion: `handoff-to-specify.md` plus same-directory `handoff-to-specify.json`.
+- Reject candidate-specific handoff files under `handoffs/`, `split-plan.md`, and deprecated compatibility metadata such as `candidate_id` or `source_split_plan` as active discussion handoff inputs. Those fields may remain null in JSON templates for compatibility, but they are not the current handoff route.
+- When the supplied path is Markdown, read the same-directory `handoff-to-specify.json` companion before proceeding.
+- Missing Markdown is invalid because the user-reviewable source is absent.
+- Missing JSON is a hard handoff integrity blocker. Do not reconstruct the JSON companion from Markdown. Return to `sp-discussion` and refresh the handoff so Markdown and JSON are produced and reviewed together.
+- If Markdown and JSON disagree on `handoff_goal`, `discussion_slug`, `context_boundary`, `implementation_target`, `quality_gate`, Must-Preserve item identity fields, or Senior Consequence Analysis fields, treat it as a Markdown/JSON mismatch, set `coverage_status: blocked_by_handoff_integrity`, block with a handoff integrity error, and tell the user to refresh the `sp-discussion` handoff.
+- Require `quality_gate.status` to be `user_confirmed` or require equivalent `quality_gate.user_confirmed_at` evidence. Draft and self-review-only handoffs are not accepted.
+- Require a concrete `handoff_goal`. Generic language such as "continue the discussion result" is invalid.
+- Require complete `context_boundary` fields, including `current_project_roles` and required `target_project_roles`. Each role object must include `role`, `scope`, `evidence_source`, and `notes`.
+- Require `target_project_root` when the request is cross-project, transfers functionality into another project, or names an external implementation target.
+- Require hard unknowns to be closed before planning readiness. Soft unknowns must carry owner, latest resolve phase, and stop-and-reopen condition.
 - Record `entry_source: sp-discussion` and the handoff path or pasted discussion handoff marker in the generated feature artifacts.
-- Copy the Must-Preserve Ledger into `FEATURE_DIR/brainstorming/handoff-to-specify.json`.
-- When `candidate_id` is present, record `discussion_slug`, `candidate_id`, `candidate_title`, `source_split_plan`, `source_handoff`, `source_handoff_json`, `prior_candidates`, `deferred_candidates`, `stage_scope_boundary`, and `reopen_condition` in `brainstorming/handoff-to-specify.json`; cite the handoff path or pasted marker in `context.md`, `references.md`, or `workflow-state.md` according to artifact responsibility.
-- The current feature spec covers one candidate. Sibling candidates named in `split-plan.md` are out of scope unless the user returns to `sp-discussion` and selects a new candidate handoff.
-- If the user asks inside `sp-specify` to include a sibling candidate, run the decomposition gate. Continue only for internal capability decomposition within the selected candidate. If the request crosses the candidate boundary, stop and tell the user to return to `sp-discussion` to update or select the candidate.
-- Preserve confirmed requirements, confirmed non-goals, settled decisions, selected technical direction, critical references, trade-off rationale, candidate boundaries, prior dependencies, and deferred sibling candidates in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing `sp-specify` artifact responsibilities.
+- Copy `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and the Must-Preserve Ledger into `FEATURE_DIR/brainstorming/handoff-to-specify.json`.
+- Preserve boundary facts, capability map, delivery sequence, dependencies, deferred scope, confirmed requirements, confirmed non-goals, settled decisions, selected technical direction, critical references, trade-off rationale, and path constraints in `facts.json`, `intent.json`, `complexity.json`, `handoff-to-specify.json`, `specify-draft.md`, `spec.md`, `alignment.md`, `context.md`, or `references.md` according to the existing artifact responsibilities.
 - Convert open questions from the handoff into explicit unknowns with `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, `status`, and a user-visible reopen reason when the unknown can reopen upstream discussion truth.
-- Cite the discussion handoff, candidate JSON companion when present, `source_split_plan`, and relevant `project-context.md` evidence in `references.md` or `context.md`.
+- Cite the discussion handoff, JSON companion, `source_evidence`, and relevant `project-context.md` evidence in `references.md` or `context.md`.
 - Do not re-ask settled discussion questions unless repository evidence, constitution rules, or user correction contradicts the handoff.
+- If `target_project_root` differs from `current_project_root`, state that the current project's cognition is not proof of target-project implementation facts. Record whether target evidence comes from target cognition, minimal live reads, user confirmation, or explicit assumptions.
 - If a settled discussion conclusion conflicts with repository evidence, constitution rules, project rules, project cognition evidence, or architecture constraints, block and ask the user to choose keep, revise, drop, or defer with an explicit risk contract. Do not silently reinterpret the ledger item.
 - If a settled discussion conclusion is reopened, record the reopen reason before changing the derived spec package.
-- Do not directly update `split-plan.md` from `sp-specify`; `sp-discussion` owns discussion backlog state.
 
 ## Discussion Fidelity Coverage Gate
 
@@ -190,13 +194,15 @@ Before recommending `/sp.plan`, write `hard_unknown_count` and `open_conflict_co
 
 Coverage can be complete only when every active `MP-*` item is mapped to at least one artifact, and every resolved, superseded, dropped, or deferred item carries the required evidence fields.
 
-Planning can be ready only when coverage is complete, no hard unknowns remain open, and no conflicts remain open.
+Planning can be ready only when the handoff integrity check passes, `quality_gate` is user-confirmed, coverage is complete, no hard unknowns remain open, no conflicts remain open, and the context boundary is complete enough for `sp-plan` to choose the correct project context.
+
+For cross-project handoffs, do not route the user to current-project `sp-map-scan -> sp-map-build` to prove target files. The correct recovery is target project path confirmation, target project cognition, minimal live reads in the target, or return to `sp-discussion` for missing boundary facts.
 
 ## Consequence Completeness Gate
 
 Before releasing the specification package as planning-ready, verify that consequence-sensitive semantics are complete enough for `sp-plan`.
 
-- Consume any Senior Maintainer Review, `handoff-to-specify.md`, `handoff-to-specify.json`, selected candidate handoff, `CAND-001-handoff-to-specify.md`, or `CAND-001-handoff-to-specify.json` consequence obligations from `sp-discussion`.
+- Consume any Senior Maintainer Review, `handoff-to-specify.md`, or `handoff-to-specify.json` consequence obligations from `sp-discussion`.
 - If the Senior Consequence Analysis Gate triggers during `sp-specify`, write the Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery And Validation Contract, Coverage Gaps, and `CA-###` consequence obligations into `spec.md`, `alignment.md`, `context.md`, `references.md`, or `brainstorming/handoff-to-specify.json` according to each artifact's role.
 - Resolve or explicitly carry every lifecycle, running-state, destructive-operation, shared-state, downstream-consumer, compatibility, or security behavior choice.
 - `Aligned: ready for plan` is forbidden while any triggered consequence obligation lacks an owner, latest resolve phase, validation expectation, or stop-and-reopen condition.
