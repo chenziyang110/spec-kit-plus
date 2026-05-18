@@ -91,13 +91,14 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert ".specify/discussions/<slug>/" in skill_content
     assert "discussion-state.md" in skill_content
     assert "handoff-assessment.md" in skill_content
-    assert "split-plan.md" in skill_content
-    assert "handoffs/<candidate_id>-handoff-to-specify.md" in skill_content
-    assert "handoffs/<candidate_id>-handoff-to-specify.json" in skill_content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in skill_content
-    assert "handoffs/CAND-002-handoff-to-specify.md" in skill_content
-    assert "`handoff-to-specify.md`" in skill_content or "handoff-to-specify.md" in skill_content
-    assert "`handoff-to-specify.json`" in skill_content or "handoff-to-specify.json" in skill_content
+    assert "Context Boundary Gate" in skill_content
+    assert "target project root" in skill_lower
+    assert "high-impact question" in skill_lower
+    assert "one unified" in skill_lower or "single unified" in skill_lower
+    assert "handoff-to-specify.md" in skill_content
+    assert "handoff-to-specify.json" in skill_content
+    assert "quality_gate" in skill_content
+    assert "user confirmation" in skill_lower
     assert "Must-Preserve Ledger" in skill_content
     assert "coverage_status" in skill_content
     assert "planning_gate_status" in skill_content
@@ -108,11 +109,12 @@ def _assert_discussion_contract(skill_content: str) -> None:
     )
     assert "senior technical expert" in skill_lower
     assert "senior product manager" in skill_lower
-    assert "candidate backlog" in skill_lower
-    assert "latest selected candidate" in skill_lower
     assert "senior consequence analysis gate" in skill_lower
     assert "affected object map" in skill_lower
     assert "state-behavior matrix" in skill_lower
+    assert "split-plan.md" not in skill_content
+    assert "handoffs/<candidate_id>" not in skill_content
+    assert "CAND-001" not in skill_content
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -366,6 +368,14 @@ class SkillsIntegrationTests:
         assert "planning_gate_status" in content
         assert "blocked_by_handoff_integrity" in content
         assert "entry_source: sp-discussion" in content
+        assert "missing json is a hard handoff integrity blocker" in lowered
+        assert "quality_gate.status" in content
+        assert "current_project_roles" in content
+        assert "target_project_roles" in content
+        assert "target_project_root" in content
+        assert "current project's cognition is not proof of target-project implementation facts" in lowered
+        assert "do not reconstruct" in lowered
+        assert "handoffs/<candidate_id>" not in content
         assert "do not silently" in lowered
 
     def test_generated_primary_workflows_include_consequence_gate(self, tmp_path):

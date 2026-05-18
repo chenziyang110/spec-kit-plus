@@ -75,13 +75,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert ".specify/discussions/<slug>/" in command_content
     assert "discussion-state.md" in command_content
     assert "handoff-assessment.md" in command_content
-    assert "split-plan.md" in command_content
-    assert "handoffs/<candidate_id>-handoff-to-specify.md" in command_content
-    assert "handoffs/<candidate_id>-handoff-to-specify.json" in command_content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in command_content
-    assert "handoffs/CAND-002-handoff-to-specify.md" in command_content
-    assert "`handoff-to-specify.md`" in command_content or "handoff-to-specify.md" in command_content
-    assert "`handoff-to-specify.json`" in command_content or "handoff-to-specify.json" in command_content
+    assert "Context Boundary Gate" in command_content
+    assert "target project root" in command_lower
+    assert "high-impact question" in command_lower
+    assert "one unified" in command_lower or "single unified" in command_lower
+    assert "handoff-to-specify.md" in command_content
+    assert "handoff-to-specify.json" in command_content
+    assert "quality_gate" in command_content
+    assert "user confirmation" in command_lower
     assert "Must-Preserve Ledger" in command_content
     assert "coverage_status" in command_content
     assert "planning_gate_status" in command_content
@@ -92,11 +93,12 @@ def _assert_discussion_contract(command_content: str) -> None:
     )
     assert "senior technical expert" in command_lower
     assert "senior product manager" in command_lower
-    assert "candidate backlog" in command_lower
-    assert "latest selected candidate" in command_lower
     assert "senior consequence analysis gate" in command_lower
     assert "affected object map" in command_lower
     assert "state-behavior matrix" in command_lower
+    assert "split-plan.md" not in command_content
+    assert "handoffs/<candidate_id>" not in command_content
+    assert "CAND-001" not in command_content
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -345,6 +347,24 @@ class TomlIntegrationTests:
         assert discussion_path.exists()
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
         _assert_discussion_contract(parsed["prompt"])
+
+    def test_specify_command_rejects_bad_discussion_handoffs(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        parsed = tomllib.loads((i.commands_dest(tmp_path) / i.command_filename("specify")).read_text(encoding="utf-8"))
+        content = parsed["prompt"]
+        lowered = content.lower()
+
+        assert "missing json is a hard handoff integrity blocker" in lowered
+        assert "quality_gate.status" in content
+        assert "current_project_roles" in content
+        assert "target_project_roles" in content
+        assert "target_project_root" in content
+        assert "current project's cognition is not proof of target-project implementation facts" in lowered
+        assert "do not reconstruct" in lowered
+        assert "handoffs/<candidate_id>" not in content
 
     def test_generated_primary_workflows_include_consequence_gate(self, tmp_path):
         i = get_integration(self.KEY)
