@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from .db import cognition_transaction, ensure_cognition_db, get_active_generation_id, iso_now
+from .path_adoption import AdoptablePath, PathCoverageClassification, classify_path_coverage
 from .status import read_cognition_status, write_cognition_status
 from specify_cli.scan_freshness import cognition_ignored_paths, filter_cognition_ignored_paths
 
@@ -34,28 +36,67 @@ def apply_cognition_update(
             "ignored_paths": ignored_paths,
             "affected_nodes": [],
             "missing_coverage": ["project cognition database has no active generation"],
+            "adopted_paths": [],
+            "review_paths": [],
+            "unadoptable_paths": update_paths,
+            "known_unknowns": ["project cognition database has no active generation"],
+            "minimal_live_reads": update_paths,
         }
 
+    update_id = f"UPDATE-{uuid4().hex}"
     with cognition_transaction(project_root) as conn:
         affected_nodes, missing_paths, affected_route_records, patched_retrieval_signals = _resolve_path_coverage(
             conn,
             generation_id,
             update_paths,
         )
-        missing_coverage = [f"path not covered by project cognition index: {path}" for path in missing_paths]
-        result_state = "partial_refresh" if missing_paths else "ready"
+        affected_node_set = set(affected_nodes)
+        affected_route_record_set = set(affected_route_records)
+        classification = classify_path_coverage(
+            conn,
+            generation_id,
+            missing_paths=missing_paths,
+            requested_paths=update_paths,
+        )
+        adopted_route_records = _adopt_paths(
+            conn,
+            project_root,
+            generation_id,
+            update_id,
+            classification.adoptable_paths,
+        )
+        affected_node_set.update(path.node_id for path in classification.adoptable_paths)
+        affected_route_record_set.update(adopted_route_records)
+        affected_nodes = sorted(affected_node_set)
+        affected_route_records = sorted(affected_route_record_set)
+        adopted_paths = [path.path for path in classification.adoptable_paths]
+        review_paths = list(classification.review_paths)
+        unadoptable_paths = list(classification.unadoptable_paths)
+        minimal_live_reads = [*review_paths, *unadoptable_paths]
+        missing_coverage = [
+            f"path not covered by project cognition index: {path}"
+            for path in [*review_paths, *unadoptable_paths]
+        ]
+        known_unknowns = [*missing_coverage, *classification.reasons]
+        result_state = _result_state_for_update(missing_paths, classification)
         attrs = {
             "publishing_model": "patch-in-active-generation",
             "patched_retrieval_signals": patched_retrieval_signals,
-            "invalidated_retrieval_signals": missing_paths,
+            "invalidated_retrieval_signals": minimal_live_reads,
             "affected_route_records": affected_route_records,
-            "known_unknowns": missing_coverage,
-            "minimal_live_reads": missing_paths,
+            "path_adoption": {
+                "classification": classification.query_coverage,
+                "adopted_paths": adopted_paths,
+                "review_paths": review_paths,
+                "unadoptable_paths": unadoptable_paths,
+            },
+            "adopted_paths": adopted_paths,
+            "known_unknowns": known_unknowns,
+            "minimal_live_reads": minimal_live_reads,
             "ignored_paths": ignored_paths,
-            "confidence": "partial" if missing_paths else "strong",
+            "confidence": "strong" if result_state == "ready" else "partial",
         }
 
-        update_id = f"UPDATE-{uuid4().hex}"
         conn.execute(
             "INSERT INTO updates("
             "id, generation_id, trigger, changed_paths_json, affected_nodes_json, "
@@ -82,13 +123,20 @@ def apply_cognition_update(
     status.last_refresh_scope = "partial"
     status.last_refresh_basis = "project-cognition update"
     status.last_refresh_changed_files_basis = list(update_paths)
-    if missing_paths:
+    if result_state == "needs_rebuild":
         status.baseline_state = "blocked"
         status.freshness = "stale"
-        status.stale_paths = list(missing_paths)
-        status.stale_reasons = list(missing_coverage)
-        status.dirty_reasons = list(missing_coverage)
+        status.stale_paths = list(unadoptable_paths)
+        status.stale_reasons = list(known_unknowns)
+        status.dirty_reasons = list(known_unknowns)
         status.dirty_origin_command = "sp-map-update"
+    elif result_state == "review":
+        status.baseline_state = "ready" if status.graph_ready or status.baseline_state == "missing" else status.baseline_state
+        status.freshness = "possibly_stale"
+        status.stale_paths = list(review_paths)
+        status.stale_reasons = list(known_unknowns)
+        status.dirty_reasons = []
+        status.dirty_origin_command = ""
     elif (
         status.baseline_state == "blocked"
         and status.dirty_origin_command == "sp-map-update"
@@ -99,18 +147,23 @@ def apply_cognition_update(
         status.stale_reasons = []
         status.dirty_reasons = []
         status.dirty_origin_command = ""
+    elif adopted_paths and status.baseline_state == "missing":
+        status.baseline_state = "ready"
     write_cognition_status(project_root, status)
 
     return {
         "readiness": result_state,
-        "recommended_next_action": "run_map_scan_build" if missing_paths else "retry_current_workflow",
+        "recommended_next_action": _recommended_action_for_update_result(result_state),
         "update_id": update_id,
         "changed_paths": update_paths,
         "ignored_paths": ignored_paths,
         "affected_nodes": affected_nodes,
         "missing_coverage": missing_coverage,
-        "known_unknowns": missing_coverage,
-        "minimal_live_reads": missing_paths,
+        "adopted_paths": adopted_paths,
+        "review_paths": review_paths,
+        "unadoptable_paths": unadoptable_paths,
+        "known_unknowns": known_unknowns,
+        "minimal_live_reads": minimal_live_reads,
     }
 
 
@@ -159,3 +212,78 @@ def _resolve_path_coverage(
         affected_nodes.update(str(row["node_id"]) for row in rows)
         affected_route_records.update(str(row["id"]) for row in rows)
     return sorted(affected_nodes), missing_paths, sorted(affected_route_records), patched_retrieval_signals
+
+
+def _adopt_paths(
+    conn: Any,
+    project_root: Path,
+    generation_id: str,
+    update_id: str,
+    adoptable_paths: list[AdoptablePath],
+) -> list[str]:
+    route_records: list[str] = []
+    for index, path in enumerate(adoptable_paths, start=1):
+        now = iso_now()
+        evidence_id = f"{update_id}-E-{index}"
+        path_index_id = f"{update_id}-P-{index}"
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES (?, ?, 'path_adoption', ?, '', '', 'map-update-adoption', ?, ?, ?)",
+            (
+                evidence_id,
+                generation_id,
+                path.path,
+                _adoption_content_hash(project_root, update_id, path.path),
+                now,
+                json.dumps(
+                    {
+                        "nearest_indexed_sibling": path.nearest_indexed_sibling,
+                        "reason": path.reason,
+                    },
+                    separators=(",", ": "),
+                ),
+            ),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES (?, ?, ?, ?, 'provisional_path', ?, ?, ?)",
+            (
+                path_index_id,
+                generation_id,
+                path.path,
+                path.node_id,
+                path.confidence,
+                evidence_id,
+                now,
+            ),
+        )
+        route_records.append(path_index_id)
+    return route_records
+
+
+def _adoption_content_hash(project_root: Path, update_id: str, path: str) -> str:
+    file_path = project_root / path
+    if file_path.exists() and file_path.is_file():
+        return hashlib.sha256(file_path.read_bytes()).hexdigest()
+    return hashlib.sha256(f"{update_id}:{path}".encode("utf-8")).hexdigest()
+
+
+def _result_state_for_update(
+    missing_paths: list[str],
+    classification: PathCoverageClassification,
+) -> str:
+    if not missing_paths:
+        return "ready"
+    if classification.query_coverage == "adoptable_path_gap":
+        return "ready"
+    if classification.query_coverage == "uncertain_path_gap":
+        return "review"
+    return "needs_rebuild"
+
+
+def _recommended_action_for_update_result(result_state: str) -> str:
+    if result_state == "review":
+        return "perform_minimal_live_reads"
+    if result_state == "needs_rebuild":
+        return "run_map_scan_build"
+    return "retry_current_workflow"

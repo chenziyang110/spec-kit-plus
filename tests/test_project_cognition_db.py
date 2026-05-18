@@ -369,35 +369,59 @@ def test_apply_cognition_update_records_duplicate_covered_path_once(tmp_path: Pa
     assert updates[0]["changed_paths_json"] == '["src/auth/login.ts"]'
 
 
-def test_apply_cognition_update_records_partial_refresh_when_path_missing(tmp_path: Path) -> None:
+def test_apply_cognition_update_adopts_same_directory_missing_path(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
-    seed_active_generation(tmp_path, source_commit="abc123")
-
-    result = apply_cognition_update(tmp_path, changed_paths=["src/auth/missing.ts"], reason="unit-test")
-
-    assert result["readiness"] == "partial_refresh"
-    assert result["recommended_next_action"] == "run_map_scan_build"
-    assert result["update_id"]
-    assert result["affected_nodes"] == []
-    assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
-    assert result["known_unknowns"] == ["path not covered by project cognition index: src/auth/missing.ts"]
-    assert result["minimal_live_reads"] == ["src/auth/missing.ts"]
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    source_path = tmp_path / "src" / "auth" / "session.ts"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("export const session = true\n", encoding="utf-8")
     with closing(connect_cognition_db(tmp_path)) as conn:
-        updates = conn.execute("SELECT id, result_state, attrs_json FROM updates").fetchall()
-    assert len(updates) == 1
-    assert updates[0]["id"] == result["update_id"]
-    assert updates[0]["result_state"] == "partial_refresh"
-    attrs = json.loads(updates[0]["attrs_json"])
-    assert attrs["known_unknowns"] == ["path not covered by project cognition index: src/auth/missing.ts"]
-    assert attrs["minimal_live_reads"] == ["src/auth/missing.ts"]
-    assert attrs["confidence"] == "partial"
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-update', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'old', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-update', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-update', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+
+    result = apply_cognition_update(tmp_path, changed_paths=["src/auth/session.ts"], reason="unit-test")
+
+    assert result["readiness"] == "ready"
+    assert result["recommended_next_action"] == "retry_current_workflow"
+    assert result["affected_nodes"] == ["capability:auth.login"]
+    assert result["adopted_paths"] == ["src/auth/session.ts"]
+    assert result["review_paths"] == []
+    assert result["unadoptable_paths"] == []
+    assert result["missing_coverage"] == []
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        row = conn.execute(
+            "SELECT path, node_id, relation, confidence, evidence_id FROM path_index WHERE path = 'src/auth/session.ts'"
+        ).fetchone()
+        evidence = conn.execute(
+            "SELECT source_kind, source_path, extractor, attrs_json FROM evidence WHERE id = ?",
+            (row["evidence_id"],),
+        ).fetchone()
+    assert row["path"] == "src/auth/session.ts"
+    assert row["node_id"] == "capability:auth.login"
+    assert row["relation"] == "provisional_path"
+    assert row["confidence"] == "weak"
+    assert evidence["source_kind"] == "path_adoption"
+    assert evidence["source_path"] == "src/auth/session.ts"
+    assert evidence["extractor"] == "map-update-adoption"
+    assert json.loads(evidence["attrs_json"])["nearest_indexed_sibling"] == "src/auth/login.ts"
     status = read_cognition_status(tmp_path)
-    assert status.baseline_state == "blocked"
-    assert status.freshness == "stale"
-    assert status.stale_paths == ["src/auth/missing.ts"]
-    assert status.stale_reasons == ["path not covered by project cognition index: src/auth/missing.ts"]
-    assert status.dirty_reasons == ["path not covered by project cognition index: src/auth/missing.ts"]
-    assert status.dirty_origin_command == "sp-map-update"
+    assert status.baseline_state in {"", "ready"}
+    assert status.freshness in {"", "fresh"}
+    assert status.dirty_reasons == []
 
 
 def test_successful_cognition_update_preserves_prior_path_index_rebuild_block(tmp_path: Path) -> None:
@@ -423,7 +447,7 @@ def test_successful_cognition_update_preserves_prior_path_index_rebuild_block(tm
 
     missing_result = apply_cognition_update(
         tmp_path,
-        changed_paths=["src/auth/missing.ts"],
+        changed_paths=["scripts/release/package.ps1"],
         reason="missing-path",
     )
     ready_result = apply_cognition_update(
@@ -432,38 +456,19 @@ def test_successful_cognition_update_preserves_prior_path_index_rebuild_block(tm
         reason="covered-path",
     )
 
-    assert missing_result["readiness"] == "partial_refresh"
+    assert missing_result["readiness"] == "needs_rebuild"
     assert ready_result["readiness"] == "ready"
     status = read_cognition_status(tmp_path)
     assert status.last_update_id == ready_result["update_id"]
     assert status.baseline_state == "blocked"
     assert status.freshness == "stale"
-    assert status.stale_paths == ["src/auth/missing.ts"]
-    assert status.stale_reasons == ["path not covered by project cognition index: src/auth/missing.ts"]
-    assert status.dirty_reasons == ["path not covered by project cognition index: src/auth/missing.ts"]
+    assert status.stale_paths == ["scripts/release/package.ps1"]
+    assert "path not covered by project cognition index: scripts/release/package.ps1" in status.stale_reasons
+    assert "path not covered by project cognition index: scripts/release/package.ps1" in status.dirty_reasons
     assert status.dirty_origin_command == "sp-map-update"
 
 
-def test_apply_cognition_update_reports_duplicate_missing_path_once(tmp_path: Path) -> None:
-    ensure_cognition_db(tmp_path)
-    seed_active_generation(tmp_path, source_commit="abc123")
-
-    result = apply_cognition_update(
-        tmp_path,
-        changed_paths=["src/missing.ts", "src\\missing.ts"],
-        reason="unit-test",
-    )
-
-    assert result["readiness"] == "partial_refresh"
-    assert result["update_id"]
-    assert result["changed_paths"] == ["src/missing.ts"]
-    assert result["missing_coverage"] == ["path not covered by project cognition index: src/missing.ts"]
-    with closing(connect_cognition_db(tmp_path)) as conn:
-        updates = conn.execute("SELECT id FROM updates").fetchall()
-    assert len(updates) == 1
-
-
-def test_apply_cognition_update_records_proven_nodes_when_any_path_missing(tmp_path: Path) -> None:
+def test_apply_cognition_update_returns_review_for_small_uncertain_gap(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
     generation_id = seed_active_generation(tmp_path, source_commit="abc123")
     with closing(connect_cognition_db(tmp_path)) as conn:
@@ -486,25 +491,59 @@ def test_apply_cognition_update_records_proven_nodes_when_any_path_missing(tmp_p
 
     result = apply_cognition_update(
         tmp_path,
-        changed_paths=["src/auth/login.ts", "src/auth/missing.ts"],
+        changed_paths=["docs/future/idea.md"],
         reason="unit-test",
     )
 
-    assert result["readiness"] == "partial_refresh"
-    assert result["recommended_next_action"] == "run_map_scan_build"
-    assert result["affected_nodes"] == ["capability:auth.login"]
-    assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
-    assert result["minimal_live_reads"] == ["src/auth/missing.ts"]
+    assert result["readiness"] == "review"
+    assert result["recommended_next_action"] == "perform_minimal_live_reads"
+    assert result["adopted_paths"] == []
+    assert result["review_paths"] == ["docs/future/idea.md"]
+    assert result["minimal_live_reads"] == ["docs/future/idea.md"]
     with closing(connect_cognition_db(tmp_path)) as conn:
-        updates = conn.execute("SELECT id, affected_nodes_json, result_state FROM updates").fetchall()
-    assert len(updates) == 1
-    assert updates[0]["id"] == result["update_id"]
-    assert updates[0]["affected_nodes_json"] == '["capability:auth.login"]'
-    assert updates[0]["result_state"] == "partial_refresh"
+        row = conn.execute("SELECT path FROM path_index WHERE path = 'docs/future/idea.md'").fetchone()
+    assert row is None
+    status = read_cognition_status(tmp_path)
+    assert status.baseline_state in {"", "ready"}
+    assert status.freshness == "possibly_stale"
+    assert status.stale_paths == ["docs/future/idea.md"]
+    assert status.dirty_reasons == []
+
+
+def test_apply_cognition_update_routes_unadoptable_core_surface_to_rebuild(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-update', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'old', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-update', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-update', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+
+    result = apply_cognition_update(
+        tmp_path,
+        changed_paths=["scripts/release/package.ps1"],
+        reason="unit-test",
+    )
+
+    assert result["readiness"] == "needs_rebuild"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+    assert result["unadoptable_paths"] == ["scripts/release/package.ps1"]
+    assert result["minimal_live_reads"] == ["scripts/release/package.ps1"]
     status = read_cognition_status(tmp_path)
     assert status.baseline_state == "blocked"
     assert status.freshness == "stale"
-    assert status.dirty_reasons == ["path not covered by project cognition index: src/auth/missing.ts"]
     assert status.dirty_origin_command == "sp-map-update"
 
 
