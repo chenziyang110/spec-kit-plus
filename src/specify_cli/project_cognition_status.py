@@ -130,7 +130,7 @@ MISSING_COGNITION_BASELINE_GUIDANCE = (
 )
 STALE_COGNITION_BASELINE_GUIDANCE = (
     "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. "
-    "Rebuild with /sp-map-scan followed by /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
+    "Rebuild with /sp-map-scan followed by /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps."
 )
 SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE = (
     "Resolve or intentionally ignore project cognition support-surface drift before retrying; "

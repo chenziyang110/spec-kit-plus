@@ -75,7 +75,7 @@ def _project_map_preflight_for_debug() -> None:
             )
         else:
             console.print(
-                "[red]Error:[/red] Project cognition runtime is stale. Refresh through `sp-map-update` before debug; rebuild with `sp-map-scan`, then `sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
+                "[red]Error:[/red] Project cognition runtime is stale. Refresh through `sp-map-update` before debug; rebuild with `sp-map-scan`, then `sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps."
             )
         for reason in result.get("reasons", []):
             console.print(f"- {reason}")

@@ -134,7 +134,8 @@ engineering_standards: |
     localized stale cognition runtime refresh and ordinary changed-path
     maintenance; use `map-scan` followed by `map-build` only when the baseline is
     missing, unusable, schema-incompatible, explicitly being rebuilt, or
-    invalidated by broad architecture replacement.
+    invalidated by broad architecture replacement, or when coverage gaps are
+    unadoptable after update classification.
     Keep cognition status, slices, and freshness state in sync whenever
     navigation meaning changes. If the project cognition runtime is missing,
     generate it before structural work continues; if it is stale or too weak for

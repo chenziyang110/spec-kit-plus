@@ -160,8 +160,8 @@ Use the returned readiness:
 - `ready`: continue with the returned task-local bundle.
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
-- `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-plan`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-plan`; this includes adoptable missing path-index coverage.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for missing/unusable/schema-incompatible baselines, explicit rebuild, baseline identity invalidation, or unadoptable coverage gaps.
 - `blocked`: stop and report the blocking runtime issue.
 - **CARRY FORWARD**: Promote project-cognition facts into planning constraints,
   `Implementation Constitution`, boundary rules, verification strategy, and

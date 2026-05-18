@@ -723,7 +723,7 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
         )
     elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
         console.print(
-            "Changed paths are missing from the project cognition path_index; repeating [cyan]/sp-map-update[/cyan] cannot create absent path coverage."
+            "Changed paths include an unadoptable project cognition path_index gap, or the baseline needs structural repair."
         )
         console.print(
             "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
@@ -733,7 +733,7 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
             "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry."
         )
         console.print(
-            "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
+            "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps."
         )
         console.print(
             "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."

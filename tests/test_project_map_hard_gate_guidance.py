@@ -167,7 +167,8 @@ def test_project_map_hook_blocks_path_index_stale_runtime_with_scan_build_guidan
     assert blocked.errors == [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
     assert "path_index" in blocked.errors[0]
     assert "/sp-map-scan -> /sp-map-build" in blocked.errors[0]
-    assert "cannot create absent path coverage" in blocked.errors[0]
+    assert "adoptable paths can receive provisional coverage" in blocked.errors[0]
+    assert "only when the path-index gap is unadoptable" in blocked.errors[0]
 
 
 def test_project_cognition_gate_alias_matches_project_map_gate(monkeypatch) -> None:

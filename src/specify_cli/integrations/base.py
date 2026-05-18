@@ -442,7 +442,7 @@ class IntegrationBase(ABC):
             "- After a successful refresh, update git-baseline freshness with `project-cognition record-refresh` or `project-cognition complete-refresh`; use `complete-refresh` only after build acceptance passes.\n"
             "- If a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then `project-cognition validate-build --format json`, and only then `project-cognition complete-refresh --format json` when validation is ready.\n"
             "- If refresh cannot be completed now, use the manual override/fallback path with `project-cognition mark-dirty --reason \"<reason>\" --format json` and report the required follow-up.\n"
-            "- Run `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement.\n"
+            "- Run `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps.\n"
         )
         return content + addendum
 
@@ -515,7 +515,7 @@ class IntegrationBase(ABC):
             "\n"
             f"## {agent_name} Project Cognition Hard Gate\n\n"
             f"{query_gate}\n"
-            "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` routes through `{{invoke:map-update}}`; `needs_rebuild` routes through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` stops with the runtime issue.\n"
+            "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` routes through `{{invoke:map-update}}` and includes adoptable missing path-index coverage; `needs_rebuild` routes through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` and is reserved for missing/unusable/schema-incompatible baselines, explicit rebuild, baseline identity invalidation, or unadoptable coverage gaps; `blocked` stops with the runtime issue.\n"
             "- Treat the project cognition query bundle as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when query-backed runtime coverage should be the source of truth.\n"
             "- Treat this as a hard gate, not a best-effort reminder; do not continue until the returned readiness and task-local bundle are strong enough for the workflow.\n"
             "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.\n"

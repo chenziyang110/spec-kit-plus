@@ -28,11 +28,11 @@ from .types import HookResult, QualityHookError
 STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks", "debug"}
 STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale; refresh through /sp-map-update, "
-    "and rebuild through /sp-map-scan -> /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement"
+    "and rebuild through /sp-map-scan -> /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or the path-index gap is unadoptable"
 )
 PATH_INDEX_STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale because changed paths are missing from path_index; "
-    "rebuild through /sp-map-scan -> /sp-map-build because repeating /sp-map-update cannot create absent path coverage"
+    "run /sp-map-update first so adoptable paths can receive provisional coverage; rebuild through /sp-map-scan -> /sp-map-build only when the path-index gap is unadoptable"
 )
 SUPPORT_DRIFT_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness has support-surface drift; resolve, commit, or intentionally ignore "
