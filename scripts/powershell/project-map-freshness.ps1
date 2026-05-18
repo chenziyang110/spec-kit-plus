@@ -335,6 +335,27 @@ function Get-RefreshPlanForDirtyReason {
     }
 }
 
+function Test-PathGapRequiresRebuild {
+    param([object[]]$Reasons)
+
+    $reasonText = ($Reasons | ForEach-Object { [string]$_ }) -join " "
+    $lowerReasonText = $reasonText.ToLowerInvariant()
+    if ($lowerReasonText.Contains("path not safely adoptable by project cognition index")) {
+        return $true
+    }
+    if ($lowerReasonText.Contains("unadoptable") -and $lowerReasonText.Contains("path")) {
+        return $true
+    }
+
+    foreach ($match in [regex]::Matches($lowerReasonText, "([0-9]+)\s+changed\s+paths\s+missing")) {
+        if ([int]$match.Groups[1].Value -gt 25) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Emit-CheckResult {
     param(
         [string]$Freshness,
@@ -366,6 +387,9 @@ function Emit-CheckResult {
             $state = "runtime_stale"
             $readiness = "blocked"
             $recommendedNextAction = "run_map_update"
+            if (Test-PathGapRequiresRebuild @($Reasons + $DirtyReasons)) {
+                $recommendedNextAction = "run_map_scan_build"
+            }
         }
         "possibly_stale" {
             $state = "runtime_stale"

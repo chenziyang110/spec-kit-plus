@@ -498,13 +498,35 @@ def test_assess_project_map_freshness_routes_path_index_dirty_gap_to_scan_build(
     assert result["recommended_next_action"] == "run_map_scan_build"
 
 
-def test_assess_project_map_freshness_routes_coverage_reason_to_scan_build(tmp_path):
+def test_assess_project_map_freshness_routes_singular_coverage_reason_to_map_update(tmp_path):
     mod = _load_module()
     _write_cognition_baseline(tmp_path)
 
     mod.mark_project_map_dirty(
         tmp_path,
         "path not covered by project cognition index: src/auth/missing.ts",
+        origin_command="sp-map-update",
+    )
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="head456",
+        changed_files=[],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "stale"
+    assert result["readiness"] == "blocked"
+    assert result["recommended_next_action"] == "run_map_update"
+
+
+def test_assess_project_map_freshness_routes_unadoptable_coverage_reason_to_scan_build(tmp_path):
+    mod = _load_module()
+    _write_cognition_baseline(tmp_path)
+
+    mod.mark_project_map_dirty(
+        tmp_path,
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
         origin_command="sp-map-update",
     )
 

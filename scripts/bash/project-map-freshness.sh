@@ -533,6 +533,28 @@ refresh_plan_for_dirty_reason() {
     esac
 }
 
+path_gap_requires_rebuild() {
+    local reasons_text="$1"
+    local lower_reasons
+    lower_reasons="$(printf '%s' "$reasons_text" | tr '[:upper:]' '[:lower:]')"
+
+    if [[ "$lower_reasons" == *"path not safely adoptable by project cognition index"* ]]; then
+        return 0
+    fi
+    if [[ "$lower_reasons" == *"unadoptable"* && "$lower_reasons" == *"path"* ]]; then
+        return 0
+    fi
+
+    while [[ "$lower_reasons" =~ ([0-9]+)[[:space:]]+changed[[:space:]]+paths[[:space:]]+missing ]]; do
+        if (( BASH_REMATCH[1] > 25 )); then
+            return 0
+        fi
+        lower_reasons="${lower_reasons#*"${BASH_REMATCH[0]}"}"
+    done
+
+    return 1
+}
+
 emit_check_json() {
     local freshness="$1"
     local head_commit="$2"
@@ -562,6 +584,9 @@ emit_check_json() {
             state="runtime_stale"
             readiness="blocked"
             recommended_next_action="run_map_update"
+            if path_gap_requires_rebuild "$reasons_json $dirty_reasons_json"; then
+                recommended_next_action="run_map_scan_build"
+            fi
             ;;
         possibly_stale)
             state="runtime_stale"

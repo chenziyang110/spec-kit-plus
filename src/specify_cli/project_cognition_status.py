@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 
@@ -569,11 +570,11 @@ def refresh_plan_for_changed_path(path: str) -> dict[str, list[str]]:
 def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str]) -> str:
     normalized = str(freshness or "").strip().lower()
     reason_text = " ".join(str(reason or "") for reason in reasons).lower()
-    if _has_path_index_coverage_gap_reason(reasons):
-        return NEXT_ACTION_MAP_SCAN_BUILD
     if normalized == FRESHNESS_MISSING_STATE:
         return NEXT_ACTION_MAP_SCAN_BUILD
     if normalized == FRESHNESS_RUNTIME_STALE_STATE:
+        if _has_unadoptable_path_index_gap_reason(reasons):
+            return NEXT_ACTION_MAP_SCAN_BUILD
         return NEXT_ACTION_MAP_UPDATE
     if normalized == FRESHNESS_SUPPORT_DRIFT_STATE:
         if "policy" in reason_text:
@@ -586,16 +587,17 @@ def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str])
     return NEXT_ACTION_RETRY
 
 
-def _has_path_index_coverage_gap_reason(reasons: list[str]) -> bool:
+def _has_unadoptable_path_index_gap_reason(reasons: list[str]) -> bool:
     reason_text = " ".join(str(reason or "") for reason in reasons).lower()
     compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
-    return any(
-        token in compact_reason_text
-        for token in (
-            "path_index_coverage_missing",
-            "path_not_covered_by_project_cognition_index",
-        )
-    ) or ("path_index" in compact_reason_text and "missing" in compact_reason_text)
+    if "path_not_safely_adoptable_by_project_cognition_index" in compact_reason_text:
+        return True
+    if "unadoptable" in compact_reason_text and "path" in compact_reason_text:
+        return True
+    for match in re.finditer(r"(\d+)(?:\s+|_)changed(?:\s+|_)paths(?:\s+|_)missing", compact_reason_text):
+        if int(match.group(1)) > 25:
+            return True
+    return False
 
 
 def public_state_for_freshness(freshness: str) -> str:
