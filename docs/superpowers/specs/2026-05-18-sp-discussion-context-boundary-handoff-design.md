@@ -119,7 +119,8 @@ The workflow tracks three separate concepts:
    external artifact used for inspiration, comparison, or transfer evidence.
 
 The current project may be the implementation target, a reference source, both,
-or neither. The workflow must not infer that relationship silently.
+or neither. Roles are therefore explicit multi-role lists, not a single enum
+field. The workflow must not infer that relationship silently.
 
 The handoff must preserve the relationship explicitly so downstream workflows
 know whether they should plan against the active repository, another local
@@ -227,6 +228,14 @@ For the cross-project case, the default rule is strict:
 `handoff-to-specify.json` remains the machine-readable companion. Both forms
 must agree on shared identity and status fields.
 
+Both files are mandatory for a valid discussion handoff. A missing Markdown
+handoff is invalid because the user-reviewable source is absent. A missing JSON
+companion is also invalid because downstream workflows need the structured
+contract to validate boundary, review, and Must-Preserve status. The first
+increment must remove any implementation space that reconstructs a missing JSON
+companion during `sp-specify` intake; missing JSON is a hard handoff integrity
+blocker, not a repair path.
+
 The handoff should include at least:
 
 - `handoff_goal`
@@ -235,11 +244,13 @@ The handoff should include at least:
 
 - `context_boundary`
   - `current_project_root`
-  - `current_project_role`: `implementation_target`, `reference_source`,
-    `template_source`, `discussion_host`, `unrelated`, or a clearly explained
-    equivalent
+  - `current_project_roles`: explicit list of role objects. Each role includes
+    `role` (`implementation_target`, `reference_source`, `template_source`,
+    `discussion_host`, `unrelated`, or a clearly explained equivalent),
+    `scope`, `evidence_source`, and `notes`.
   - `target_project_root`
-  - `target_project_role`
+  - `target_project_roles`: explicit list of role objects using the same shape
+    as `current_project_roles`
   - `reference_projects`
   - `external_systems`
   - `path_status`
@@ -294,8 +305,9 @@ ready when any of these checks fail:
 - Context Boundary Gate still unresolved
 - cross-project request lacks `target_project_root`
 - target path exists but evidence source is not named
-- current repository role is not stated
-- target project role is not stated
+- current repository roles are not stated as an explicit list
+- target project roles are not stated as an explicit list when a target exists
+- Markdown or JSON companion is missing
 - Markdown and JSON disagree on shared fields
 - hard unknowns remain open
 - soft unknowns lack owner, latest resolve phase, or stop-and-reopen condition
@@ -321,11 +333,18 @@ authoritative input to the brainstorming kernel, not a bypass around it.
 - `handoff_goal` is missing or vague
 - `context_boundary` is incomplete
 - `target_project_root` is required but missing
-- `current_project_role` or `target_project_role` is missing
+- `current_project_roles` or required `target_project_roles` are missing
+- Markdown or JSON companion is missing
 - hard unknowns are still open
 - Markdown and JSON disagree
 - the handoff asks `sp-specify` to include sibling candidates outside the
   selected candidate boundary
+
+The existing `sp-specify` repair behavior that reconstructs a missing JSON
+companion from Markdown must be replaced for discussion handoffs. Once the
+quality gate exists, reconstruction would let an unreviewed or lossy handoff
+advance. The valid recovery is to return to `sp-discussion` and refresh the
+handoff so Markdown and JSON are produced and reviewed together.
 
 When accepted, `sp-specify` must persist the boundary facts into
 `brainstorming/handoff-to-specify.json`, `facts.json`, `context.md`,
@@ -399,9 +418,9 @@ prove paths in another project.
 - `context_boundary_status`: `not-started`, `needs-user-input`, `locked`, or
   `blocked`
 - `current_project_root`
-- `current_project_role`
+- `current_project_roles`
 - `target_project_root`
-- `target_project_role`
+- `target_project_roles`
 - `reference_sources`
 - `external_systems`
 - `boundary_blockers`
@@ -432,8 +451,11 @@ First increment:
 - Update `templates/discussion-state-template.md`.
 - Update `templates/brainstorming-handoff-specify-template.json`.
 - Update `templates/commands/specify.md`.
+- Update `templates/command-partials/specify/shell.md`.
 - Update `templates/commands/plan.md`.
+- Update `templates/command-partials/plan/shell.md`.
 - Update `templates/commands/tasks.md`.
+- Update `templates/command-partials/tasks/shell.md`.
 - Update passive skill guidance for workflow routing and project cognition gate
   if needed.
 - Update README, `PROJECT-HANDBOOK.md`, and
@@ -463,9 +485,14 @@ Template tests should verify:
 - `brainstorming-handoff-specify-template.json` includes `handoff_goal`,
   `context_boundary`, `implementation_target`, `source_evidence`,
   `blocking_unknowns`, `downstream_instructions`, and `quality_gate`.
-- `specify.md` rejects incomplete or unconfirmed discussion handoffs.
-- `plan.md` refuses cross-project planning without target project context.
-- `tasks.md` requires target root and target-relative path inheritance.
+- `specify.md` and `templates/command-partials/specify/shell.md` reject
+  incomplete or unconfirmed discussion handoffs.
+- `specify.md` and `templates/command-partials/specify/shell.md` treat missing
+  handoff JSON as a hard integrity blocker, not a reconstructable condition.
+- `plan.md` and `templates/command-partials/plan/shell.md` refuse
+  cross-project planning without target project context.
+- `tasks.md` and `templates/command-partials/tasks/shell.md` require target
+  root and target-relative path inheritance.
 - Generated Markdown, TOML, and skills-based integrations preserve the updated
   guidance.
 
@@ -488,6 +515,8 @@ Docs tests should verify:
 - A handoff cannot be `handoff-ready` until self-review passes and the user
   confirms the handoff.
 - `sp-specify` refuses unconfirmed or boundary-incomplete handoffs.
+- `sp-specify` refuses discussion handoffs when the JSON companion is missing;
+  it does not reconstruct the companion from Markdown.
 - `sp-plan` does not use current project cognition as proof for an external
   implementation target.
 - `sp-tasks` carries target root, target-relative path, evidence status, and
