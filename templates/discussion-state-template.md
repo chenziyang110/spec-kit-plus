@@ -15,11 +15,24 @@
 
 ## Session Routing
 
-- current_stage: session-intake | idea-framing | context-grounding | question-loop | technical-options | requirements-synthesis | handoff-assessment | split-mode | candidate-selection | handoff-on-request
+- current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | handoff-assessment | handoff-draft | handoff-self-review | handoff-user-review | handoff-ready
 - current_topic: [Short topic label]
-- next_question: [One high-impact question or none]
+- next_question: [One boundary or high-impact question, or none]
 - blocker_reason: none
 - readiness_note: [why the discussion is or is not ready for explicit handoff]
+
+## Context Boundary
+
+- context_boundary_status: not-started | needs-user-input | locked | blocked
+- current_project_root: [absolute path or none]
+- current_project_roles: []
+- target_project_root: [absolute path, external target, or none]
+- target_project_roles: []
+- reference_sources: []
+- external_systems: []
+- boundary_blockers: []
+- path_status: unknown | user-confirmed | target-read-confirmed | blocked
+- boundary_confidence: unknown | low | medium | high
 
 ## Session Selection
 
@@ -29,17 +42,17 @@
 
 ## Handoff Assessment
 
-- handoff_assessment_status: not-run | ready-for-specify | split-required | continue-discussion
+- handoff_assessment_status: not-run | ready-for-specify | continue-discussion
 - handoff_assessment_path: handoff-assessment.md | none
 - handoff_assessment_decided_at: [ISO-8601 timestamp or none]
+- handoff_scope_shape: unified | blocked
 
-## Split Plan
+## Handoff Review
 
-- split_plan_status: none | active | partially-handed-off | completed | blocked
-- split_plan_path: split-plan.md | none
-- active_candidate: CAND-xxx | none
-- next_recommended_candidate: CAND-xxx | none
-- backlog_completion_rule: discussion remains incomplete until every candidate is completed, deferred, or explicitly abandoned
+- handoff_review_status: not-started | draft | self-review-passed | user-confirmed | blocked
+- handoff_user_confirmed_at: [ISO-8601 timestamp or none]
+- handoff_blocker_reason: none
+- handoff_quality_gate: draft | self_review_passed | user_confirmed | blocked
 
 ## Allowed Artifact Writes
 
@@ -49,12 +62,9 @@
 - technical-options.md
 - project-context.md
 - open-questions.md
-- handoff-to-specify.md only after explicit user request and bounded handoff selection
 - handoff-assessment.md only after explicit user request
-- split-plan.md only when handoff assessment returns split-required
-- handoffs/*.md only after candidate selection
-- handoffs/*.json only after candidate selection
-- handoff-to-specify.json only after explicit user request and bounded handoff selection
+- handoff-to-specify.md only after explicit user request, boundary lock, self-review pass, and user confirmation
+- handoff-to-specify.json only after explicit user request, boundary lock, self-review pass, and user confirmation
 
 ## Forbidden Actions
 
@@ -69,8 +79,10 @@
 - automatically invoke sp-specify
 - infer handoff readiness without explicit user instruction
 - add, recommend, or route to sp-split
-- mark discussion completed while split-plan.md has unfinished candidates
+- write separate split planning artifacts
+- write candidate-specific handoff Markdown or JSON
 - write pointer-only handoff-to-specify.md or handoff-to-specify.json
+- use current project cognition to prove another project's implementation facts
 
 ## Authoritative Files
 
@@ -81,9 +93,8 @@
 - project-context.md
 - open-questions.md
 - handoff-assessment.md when present
-- split-plan.md when present
-- handoffs/CAND-xxx-handoff-to-specify.md when present
-- handoffs/CAND-xxx-handoff-to-specify.json when present
+- handoff-to-specify.md when user-confirmed
+- handoff-to-specify.json when user-confirmed
 
 ## Senior Consequence Analysis
 
@@ -98,7 +109,7 @@
 
 - handoff_to_specify: none
 - handoff_to_specify_json: none
-- active_candidate_handoff: none
-- active_candidate_handoff_json: none
+- handoff_goal: none
+- quality_gate_status: draft | self_review_passed | user_confirmed | blocked
 - handoff_requested_by_user: false
 - next_command: none
