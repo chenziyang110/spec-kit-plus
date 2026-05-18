@@ -121,6 +121,7 @@ def apply_cognition_update(
 
     status = read_cognition_status(project_root)
     has_prior_path_coverage_gap = _has_path_coverage_gap([*status.dirty_reasons, *status.stale_reasons])
+    has_prior_unadoptable_path_gap = _has_unadoptable_path_gap([*status.dirty_reasons, *status.stale_reasons])
     status.last_update_id = update_id
     status.last_refresh_reason = reason
     status.last_refresh_scope = "partial"
@@ -133,14 +134,14 @@ def apply_cognition_update(
         status.stale_reasons = list(missing_coverage)
         status.dirty_reasons = list(missing_coverage)
         status.dirty_origin_command = "sp-map-update"
-    elif result_state == "review":
+    elif result_state == "review" and not has_prior_unadoptable_path_gap:
         status.baseline_state = "ready" if status.graph_ready else status.baseline_state
         status.freshness = "possibly_stale"
         status.stale_paths = list(review_paths)
         status.stale_reasons = list(missing_coverage)
         status.dirty_reasons = []
         status.dirty_origin_command = ""
-    elif result_state == "ready" and not _has_unadoptable_path_gap([*status.dirty_reasons, *status.stale_reasons]):
+    elif result_state == "ready" and not has_prior_unadoptable_path_gap:
         status.baseline_state = "ready" if status.graph_ready else status.baseline_state
         if adopted_paths or not missing_paths:
             status.freshness = "fresh"
@@ -152,7 +153,7 @@ def apply_cognition_update(
         status.baseline_state == "blocked"
         and status.dirty_origin_command == "sp-map-update"
         and not has_prior_path_coverage_gap
-        and not _has_unadoptable_path_gap([*status.dirty_reasons, *status.stale_reasons])
+        and not has_prior_unadoptable_path_gap
     ):
         status.baseline_state = "ready" if status.graph_ready else status.baseline_state
         status.stale_paths = []
