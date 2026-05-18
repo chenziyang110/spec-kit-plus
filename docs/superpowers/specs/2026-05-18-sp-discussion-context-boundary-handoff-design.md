@@ -28,8 +28,8 @@ first increment.
 ## Problem
 
 `sp-discussion` already has useful structure: resumable discussion artifacts,
-handoff assessment, split candidate handoffs, Must-Preserve Ledger fields, and
-downstream discussion intake in `sp-specify`.
+handoff assessment, Must-Preserve Ledger fields, and downstream discussion
+intake in `sp-specify`.
 
 The remaining failure mode is more fundamental: the workflow does not lock the
 context boundary early enough. A discussion can mention "add this capability to
@@ -91,8 +91,10 @@ For spec-kit-plus, this maps to `sp-discussion` as:
   `handoff-ready`.
 - Make downstream workflows reject incomplete or unconfirmed handoffs instead
   of silently interpreting them.
-- Preserve existing split-mode and Must-Preserve Ledger behavior while adding
-  boundary and quality gates.
+- Replace multi-candidate handoff output with one complete handoff package:
+  one Markdown handoff and one JSON companion.
+- Preserve Must-Preserve Ledger behavior while adding boundary and quality
+  gates.
 - Keep the first increment integration-neutral and template-testable.
 
 ## Non-Goals
@@ -200,13 +202,16 @@ For the cross-project case, the default rule is strict:
      unresolved.
 
 6. `handoff-assessment`
-   - Decide whether the discussion is one bounded feature, split-required, or
+   - Decide whether the discussion can produce one complete handoff package or
      still needs discussion.
-   - Preserve existing split-plan behavior for broad directions.
+   - Do not split the result into multiple candidate handoff files. If the
+     direction is broad, keep one handoff with an internal capability map,
+     delivery sequence, dependencies, and deferred scope, or continue the
+     discussion until the user confirms the unified scope.
 
 7. `handoff-draft`
    - Write Markdown and JSON only after explicit user request and a bounded
-     handoff or selected candidate exists.
+     unified handoff scope exists.
    - The handoff is a contract, not a prose summary.
 
 8. `handoff-self-review`
@@ -236,6 +241,22 @@ increment must remove any implementation space that reconstructs a missing JSON
 companion during `sp-specify` intake; missing JSON is a hard handoff integrity
 blocker, not a repair path.
 
+`sp-discussion` should not create multiple downstream handoff files for one
+discussion. The valid handoff output is exactly one current handoff pair:
+
+```text
+.specify/discussions/<slug>/handoff-to-specify.md
+.specify/discussions/<slug>/handoff-to-specify.json
+```
+
+Complex directions are represented inside that single pair. The handoff may
+include `capability_map`, `recommended_sequence`, `dependencies`,
+`deferred_scope`, and `reopen_conditions`, but it must not write
+`handoffs/<candidate_id>-handoff-to-specify.md` or
+`handoffs/<candidate_id>-handoff-to-specify.json`. If the direction is too
+broad to express as one coherent handoff, the correct outcome is
+`continue-discussion`, not fragmented handoff output.
+
 The handoff should include at least:
 
 - `handoff_goal`
@@ -260,7 +281,7 @@ The handoff should include at least:
 - `implementation_target`
   - actual project to change
   - target root path when local
-  - target candidate paths or modules
+  - target paths or modules
   - required target paths still to verify
   - target project cognition status when available
   - statement that current project cognition cannot prove another project's
@@ -288,6 +309,8 @@ The handoff should include at least:
   - Assumptions that must be preserved as assumptions.
   - Conflicts that require returning to `sp-discussion` or the user instead of
     silent reinterpretation.
+  - Capability sequence and deferred scope when the complete handoff is larger
+    than one local implementation step.
 
 - `quality_gate`
   - `status`: `draft`, `self_review_passed`, `user_confirmed`, or `blocked`
@@ -337,8 +360,8 @@ authoritative input to the brainstorming kernel, not a bypass around it.
 - Markdown or JSON companion is missing
 - hard unknowns are still open
 - Markdown and JSON disagree
-- the handoff asks `sp-specify` to include sibling candidates outside the
-  selected candidate boundary
+- the handoff references candidate-specific handoff files instead of the single
+  unified handoff package
 
 The existing `sp-specify` repair behavior that reconstructs a missing JSON
 companion from Markdown must be replaced for discussion handoffs. Once the
@@ -346,7 +369,8 @@ quality gate exists, reconstruction would let an unreviewed or lossy handoff
 advance. The valid recovery is to return to `sp-discussion` and refresh the
 handoff so Markdown and JSON are produced and reviewed together.
 
-When accepted, `sp-specify` must persist the boundary facts into
+When accepted, `sp-specify` must persist the boundary facts, capability map,
+delivery sequence, and deferred scope into
 `brainstorming/handoff-to-specify.json`, `facts.json`, `context.md`,
 `references.md`, and `workflow-state.md` according to each artifact's role.
 
@@ -439,8 +463,10 @@ prove paths in another project.
 - `downstream_instructions`
 - `quality_gate`
 
-The existing candidate, split-plan, Must-Preserve, consequence analysis,
-coverage, and planning gate fields remain.
+Existing candidate and split-plan fields in older JSON templates should be left
+null or treated as deprecated compatibility fields for this workflow path. The
+active contract is the single unified handoff pair plus Must-Preserve,
+consequence analysis, coverage, and planning gate fields.
 
 ## Implementation Scope
 
@@ -458,6 +484,9 @@ First increment:
 - Update `templates/command-partials/tasks/shell.md`.
 - Update passive skill guidance for workflow routing and project cognition gate
   if needed.
+- Remove or supersede generated-workflow guidance that tells `sp-discussion` to
+  create `split-plan.md` or `handoffs/<candidate_id>-handoff-to-specify.*`
+  files.
 - Update README, `PROJECT-HANDBOOK.md`, and
   `templates/project-handbook-template.md`.
 - Add or update template and integration tests.
@@ -481,6 +510,8 @@ Template tests should verify:
 - `discussion.md` requires handoff self-review and user review.
 - `discussion.md` forbids recommending `sp-specify` before user-confirmed
   handoff readiness.
+- `discussion.md` requires one unified handoff pair and forbids
+  candidate-specific handoff files.
 - `discussion-state-template.md` includes boundary and review status fields.
 - `brainstorming-handoff-specify-template.json` includes `handoff_goal`,
   `context_boundary`, `implementation_target`, `source_evidence`,
@@ -509,6 +540,8 @@ Docs tests should verify:
   cross-project, reference, external-system, or existing-module requests.
 - A request to add functionality to another project cannot reach technical
   options or handoff readiness without a target project root.
+- `sp-discussion` produces one complete handoff pair for the discussion rather
+  than multiple candidate handoff files.
 - Handoffs include a concrete goal, target context, current repository role,
   evidence provenance, unknowns, downstream instructions, quality gate, and
   Must-Preserve obligations.
@@ -517,6 +550,8 @@ Docs tests should verify:
 - `sp-specify` refuses unconfirmed or boundary-incomplete handoffs.
 - `sp-specify` refuses discussion handoffs when the JSON companion is missing;
   it does not reconstruct the companion from Markdown.
+- `sp-specify` refuses candidate-specific discussion handoff files and consumes
+  only the unified handoff pair for the discussion.
 - `sp-plan` does not use current project cognition as proof for an external
   implementation target.
 - `sp-tasks` carries target root, target-relative path, evidence status, and
@@ -550,7 +585,9 @@ Docs tests should verify:
 
 - Keep the wording integration-neutral. Do not make the workflow depend on
   Codex-specific tooling.
-- Preserve split-mode behavior from the existing discussion handoff design.
+- Treat prior split-mode guidance as superseded for new handoffs. Broad work is
+  handled inside one handoff through capability map, sequence, dependencies,
+  deferred scope, and reopen conditions.
 - Preserve Senior Consequence Analysis Gate fields and `CA-###` obligations in
   both Markdown and JSON handoffs.
 - Prefer additive JSON fields so existing consumers can tolerate the new
