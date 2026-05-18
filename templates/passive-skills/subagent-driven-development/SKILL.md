@@ -7,7 +7,7 @@ description: "Use when executing implementation plans, working on independent ta
 Spec Kit Plus keeps workflow state in `sp-*` artifacts, but it should still use
 native subagents aggressively once the work is safely packetized. Subagents are
 not a competing workflow; they are the execution workers behind `sp-quick`,
-`sp-debug`, `sp-test-build`, `sp-map-scan`, `sp-map-build`, and `sp-implement`.
+`sp-debug`, `sp-map-scan`, `sp-map-build`, and `sp-implement`.
 
 ## Core Rule
 

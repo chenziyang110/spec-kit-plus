@@ -34,9 +34,6 @@ _ORDINARY_SP_COMMANDS = frozenset(
         "specify",
         "tasks",
         "taskstoissues",
-        "test",
-        "test-build",
-        "test-scan",
     }
 )
 

@@ -433,21 +433,8 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "workflow_state_file" in content
         assert "re-read `workflow_state_file`" in content or "re-read `workflow-state-file`" in content
 
-    test_scan_content = (skills_dir / "sp-test-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "testscanpacket" in test_scan_content
-    assert "read-only scout work" in test_scan_content
-    assert "spawn_agent" in test_scan_content
-    assert "wait_agent" in test_scan_content
-    assert "test_build_plan.json" in test_scan_content
-
-    test_build_content = (skills_dir / "sp-test-build" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "testbuildpacket" in test_build_content
-    assert "manually execute the canonical test commands" in test_build_content
-    assert "most recent manual validation run" in test_build_content
-    assert "run coverage after the first meaningful test pass" in test_build_content
-    assert "iterate on uncovered critical paths" in test_build_content
-    assert "spawn_agent" in test_build_content
-    assert "wait_agent" in test_build_content
+    assert not (skills_dir / "sp-test-scan" / "SKILL.md").exists()
+    assert not (skills_dir / "sp-test-build" / "SKILL.md").exists()
 
     prd_content = (skills_dir / "sp-prd" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "deprecated compatibility entrypoint" in prd_content

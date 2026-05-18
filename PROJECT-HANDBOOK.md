@@ -190,4 +190,3 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - The runtime atlas is being rewritten around `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon`, and agent-planned `project-cognition query --query-plan` task-local bundles.
 - Ordinary `sp-*` workflows should treat project cognition consumption as the hard gate before source-level work.
 - Supporting handbook artifacts remain available as compatibility/export surfaces, but are no longer the primary runtime truth path.
-- Testing workflow guidance now centers `sp-test-scan` and `sp-test-build`.

@@ -52,7 +52,7 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 ## Guardrails
 
-- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-debug`, `sp-quick`, `sp-fast`, `sp-test-scan`, or `sp-test-build`.
+- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-debug`, `sp-quick`, or `sp-fast`.
 - `sp-auto` must never invent a new phase progression from chat memory when repository state already records the next step.
 - Always obey the recorded upstream gate.
 - Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.analyze`, `/sp.implement`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`.
@@ -75,16 +75,12 @@ Inspect the available state surfaces in this order and prefer the most specific 
    - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume the canonical `/sp.implement` route.
    - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, obey that recorded upstream gate before resuming implementation.
 
-3. Project-level testing state
-   - Read `.specify/testing/testing-state.md`.
-   - If it records a clear `next_command`, route to that command exactly as written.
-
-4. Quick-task state
+3. Quick-task state
    - Read unfinished `.planning/quick/*/STATUS.md` files.
    - If one active quick task clearly owns the next action, route to the canonical `/sp.quick` token.
    - If the recorded next command is a bounded local repair lane, canonical `/sp.fast` is allowed only when the state explicitly justifies that smaller route.
 
-5. Debug session state
+4. Debug session state
    - Read active `.planning/debug/*.md` session files.
    - If a live investigation owns the current next action, route to the canonical `/sp.debug` token.
 

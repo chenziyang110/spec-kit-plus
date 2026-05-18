@@ -116,14 +116,14 @@ def test_apply_skill_invocation_conventions_projects_user_facing_examples_by_age
 
 def test_apply_skill_invocation_conventions_preserves_hyphenated_canonical_state_tokens():
     body = (
-        "- **Default handoff**: /sp-test-scan\n"
-        "- State token remains `next_command: /sp-test-scan`.\n"
+        "- **Default handoff**: /sp-map-scan\n"
+        "- State token remains `next_command: /sp-map-scan`.\n"
     )
 
     codex = CommandRegistrar.apply_skill_invocation_conventions("codex", body)
 
-    assert "- **Default handoff**: $sp-test-scan" in codex
-    assert "`next_command: /sp-test-scan`" in codex
+    assert "- **Default handoff**: $sp-map-scan" in codex
+    assert "`next_command: /sp-map-scan`" in codex
 
 
 def test_apply_skill_invocation_conventions_supports_agy_surface():
@@ -147,12 +147,12 @@ def test_invoke_placeholder_projects_codex_skill_surface():
 
 def test_invoke_placeholder_projects_kimi_skill_surface():
     rendered = IntegrationBase.process_template(
-        "---\n---\nRun {{invoke:test-scan}} next.",
+        "---\n---\nRun {{invoke:map-scan}} next.",
         "kimi",
         "sh",
     )
 
-    assert rendered.endswith("Run /skill:sp-test-scan next.")
+    assert rendered.endswith("Run /skill:sp-map-scan next.")
 
 
 def test_invoke_placeholder_projects_markdown_command_surface():
@@ -168,12 +168,12 @@ def test_invoke_placeholder_projects_markdown_command_surface():
 def test_invoke_placeholder_does_not_rewrite_canonical_tokens():
     rendered = CommandRegistrar.render_invocation_placeholders(
         "codex",
-        "Run {{invoke:plan}} next; keep `/sp.plan` and `/sp-test-scan` unchanged.",
+        "Run {{invoke:plan}} next; keep `/sp.plan` and `/sp-map-scan` unchanged.",
     )
 
     assert "Run $sp-plan next" in rendered
     assert "`/sp.plan`" in rendered
-    assert "`/sp-test-scan`" in rendered
+    assert "`/sp-map-scan`" in rendered
 
 
 def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_examples():
@@ -420,8 +420,6 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
         PROJECT_ROOT / "templates" / "commands" / "quick.md",
         PROJECT_ROOT / "templates" / "commands" / "specify.md",
         PROJECT_ROOT / "templates" / "commands" / "tasks.md",
-        PROJECT_ROOT / "templates" / "commands" / "test-build.md",
-        PROJECT_ROOT / "templates" / "commands" / "test-scan.md",
     )
 
     forbidden_fragments = (
@@ -437,8 +435,6 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
         "capture-learning --command plan ...",
         "capture-learning --command specify ...",
         "capture-learning --command tasks ...",
-        "capture-learning --command test-build ...",
-        "capture-learning --command test-scan ...",
         "learning capture --command fast ...",
         "hook review-learning --command quick",
     )

@@ -3,8 +3,6 @@
 **日期：** 2026-04-30
 **状态：** 待审批
 **前序设计：**
-- [2026-04-30-subagents-first-workflow-design.md](./2026-04-30-subagents-first-workflow-design.md)
-- [2026-04-30-sp-subagent-mandatory-design.md](./2026-04-30-sp-subagent-mandatory-design.md)
 - [2026-04-23-multi-agent-task-shaping-design.md](./2026-04-23-multi-agent-task-shaping-design.md)
 
 ## 目标

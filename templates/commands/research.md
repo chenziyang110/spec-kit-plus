@@ -57,4 +57,4 @@ Route immediately to the canonical deep-research workflow without creating a sep
 ## Guardrails
 
 - If this command was invoked for generic web research rather than a planning-ready spec feasibility gate, route to the passive external/web research skill instead of writing Spec Kit feature artifacts.
-- Do not treat `sp-research` as a replacement for `sp-plan`, `sp-test-scan`, or any implementation workflow.
+- Do not treat `sp-research` as a replacement for `sp-plan` or any implementation workflow.

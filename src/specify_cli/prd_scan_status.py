@@ -61,7 +61,6 @@ FULL_STALE_PREFIXES = (
     "templates/command-partials/",
     "templates/passive-skills/",
     "templates/project-map/",
-    "templates/testing/",
     "templates/worker-prompts/",
 )
 

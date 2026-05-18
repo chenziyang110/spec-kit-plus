@@ -130,8 +130,6 @@ def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
         "templates/commands/debug.md": ("debug session state", "competing truths", "coverage gaps"),
         "templates/commands/fast.md": ("fast-task state or report", "verification route", "minimal reads"),
         "templates/commands/quick.md": ("STATUS.md", "validation route", "known risk"),
-        "templates/commands/test-scan.md": ("TEST_SCAN.md", "TEST_BUILD_PLAN", "testing-surface ownership"),
-        "templates/commands/test-build.md": ("TEST_BUILD_PLAN", "testing-state.md", "coverage gaps"),
     }
 
     for rel_path, phrases in expectations.items():

@@ -61,8 +61,6 @@ CORE_WORKFLOW_TEMPLATES = (
     "templates/commands/checklist.md",
     "templates/commands/map-scan.md",
     "templates/commands/map-build.md",
-    "templates/commands/test-scan.md",
-    "templates/commands/test-build.md",
 )
 
 PLANNING_TEMPLATE_EXPECTED_FRAGMENTS = {

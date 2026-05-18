@@ -184,7 +184,6 @@ Typical durable-state sources include:
 - `implement-tracker.md`
 - quick-task `STATUS.md`
 - debug session files
-- `testing-state.md`
 - `workflow-state.md` when it preserves route reasons, false starts, hidden
   dependencies, validation gaps, or reusable constraints
 

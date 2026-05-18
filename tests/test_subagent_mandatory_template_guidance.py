@@ -21,8 +21,6 @@ ORDINARY_COMMANDS = (
     "specify",
     "tasks",
     "taskstoissues",
-    "test-build",
-    "test-scan",
 )
 
 TEAM_COMMANDS = ("implement-teams", "team")
@@ -85,8 +83,6 @@ def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() ->
         "prd-build",
         "prd-scan",
         "quick",
-        "test-build",
-        "test-scan",
     )
     forbidden_phrases = (
         "keep it leader path",
@@ -123,7 +119,6 @@ def test_ordinary_templates_do_not_record_subagent_blocks_as_fallbacks() -> None
         "quick",
         "specify",
         "tasks",
-        "test-build",
     )
     forbidden_phrases = (
         "execution fallback",
@@ -177,24 +172,6 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
         assert (PROJECT_ROOT / "templates" / "commands" / f"{team_command}.md").exists()
 
 
-def test_test_build_template_delegates_shared_and_high_risk_serial_lanes() -> None:
-    content = _read_command("test-build").lower()
-
-    assert "packetize it as a validated serial subagent lane" in content
-    assert "leader owns only the coordination, sequencing, review, and acceptance gate" in content
-    assert "the leader owns coordination, review, and acceptance only" in content
-    assert "record `subagent-blocked` with the escalation or recovery reason and stop instead of making the edit directly" in content
-    assert "record `subagent-blocked` and stop for escalation or recovery" in content
-
-    forbidden_phrases = (
-        "treat that work as a leader-owned coordination gate",
-        "production-code edits are leader-owned",
-        "leader-owned unless the packet explicitly grants a serial lane",
-    )
-    for phrase in forbidden_phrases:
-        assert phrase not in content, phrase
-
-
 def test_clarify_template_delegates_artifact_update_lanes() -> None:
     content = _read_command("clarify").lower()
 
@@ -231,7 +208,6 @@ def test_fast_and_debug_templates_do_not_frame_fixes_as_direct_leader_implementa
     assert "apply the smallest direct change" not in fast_content
     assert "the leader performs the change directly" in fast_content
     assert "no subagent dispatch" in fast_content
-    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in fast_content
 
     assert "apply the smallest fix that addresses the confirmed root cause" not in debug_content
     assert "packetize the smallest safe fix that addresses the confirmed root cause" in debug_content

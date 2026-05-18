@@ -167,13 +167,12 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "write a failing automated repro test before changing production code" in content
     assert "do not modify production behavior until the red state is proven" in content
     assert "if no reliable automated test surface exists for the failing behavior" in content
-    assert "add the missing harness first or route through `/sp-test-scan`" in content
+    assert "add the missing harness first or route through `/sp-quick` or `/sp-specify`" in content
     assert "senior consequence analysis gate" in content
     assert "dependency loop" in content
     assert "affected objects" in content
     assert "adjacent risk targets" in content
     assert "reject surface-only fixes" in content
-    _assert_tier_roles(content)
     assert "record which plausible causes were considered and which were ruled out" in content
     assert "surface-only" in content
     assert "cannot satisfy the debug contract" in content

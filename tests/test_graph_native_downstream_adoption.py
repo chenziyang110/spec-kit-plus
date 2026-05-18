@@ -14,8 +14,6 @@ SCANNED_FILES = [
     "templates/commands/analyze.md",
     "templates/commands/debug.md",
     "templates/commands/explain.md",
-    "templates/commands/test-scan.md",
-    "templates/commands/test-build.md",
     "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
     "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 ]

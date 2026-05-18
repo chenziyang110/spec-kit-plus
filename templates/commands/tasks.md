@@ -101,9 +101,6 @@ scripts:
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
    - **Required when present**: brainstorming/handoff-to-tasks.json (route, intent, complexity, task packet shaping, and handoff constraints)
    - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract, active profile, activated gates, task-shaping rules, and required evidence)
-   - **Required when present**: `.specify/testing/TESTING_CONTRACT.md` (project-level testing rules and required regression behavior)
-   - **Required when present**: `.specify/testing/TESTING_PLAYBOOK.md` (canonical test and coverage commands)
-   - **Required when present**: `.specify/testing/COVERAGE_BASELINE.json` (baseline or threshold context by module)
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Required when present**: `plan.md#Must-Preserve Carry-Forward` and `MP-*` obligations from `brainstorming/handoff-to-specify.json`
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
@@ -213,8 +210,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
     - Do not generate `tasks.md` from an artifact set that is missing required design inputs.
     - Only optional artifacts may be absent without blocking task generation.
     - Generate tasks organized by user story (see Task Generation Rules below)
-    - Whether or not `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for behavior changes, bug fixes, and refactors
-    - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
+    - Treat tests as default deliverables for behavior changes, bug fixes, and refactors
     - If the touched area lacks a reliable automated test surface, add explicit bootstrap tasks to establish the smallest runnable test surface first before implementation tasks for that slice
     - Top-level tasks should fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path
     - A subagent can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks
@@ -333,14 +329,7 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
-**Tests are contract-driven**: If `.specify/testing/TESTING_CONTRACT.md` exists, generate test tasks by default for affected behavior changes, bug fixes, and regression-sensitive modules. Only omit tests when the change is clearly docs-only/process-only or the testing contract explicitly allows the omission.
-
-When the testing control plane is present, generate test work that preserves its terminology:
-- `small tests`: narrow unit or helper-level checks that give cheap local confidence.
-- `medium tests`: local integration checks around adapter, filesystem, process, network, database, CLI, or workflow seams.
-- `fast smoke`: the cheapest command-tier signal for a lane or touched module.
-- `focused`: the lane acceptance command; validation_command remains the focused lane acceptance command.
-- `full`: the broader regression command for final or risk-sensitive verification.
+**Tests are default deliverables**: Generate test tasks by default for affected behavior changes, bug fixes, and regression-sensitive modules. Only omit tests when the change is clearly docs-only/process-only or the plan explicitly allows the omission.
 
 ### Checklist Format (REQUIRED)
 

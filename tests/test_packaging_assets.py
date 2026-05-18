@@ -11,12 +11,12 @@ def test_wheel_force_include_bundles_passive_skills() -> None:
     assert '"templates/passive-skills" = "specify_cli/core_pack/passive-skills"' in pyproject
 
 
-def test_wheel_force_include_bundles_command_partials_and_testing_templates() -> None:
+def test_wheel_force_include_bundles_command_partials_and_prd_templates() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"templates/command-partials" = "specify_cli/core_pack/command-partials"' in pyproject
     assert '"templates/prd" = "specify_cli/core_pack/templates/prd"' in pyproject
-    assert '"templates/testing" = "specify_cli/core_pack/templates/testing"' in pyproject
+    assert '"templates/testing" = "specify_cli/core_pack/templates/testing"' not in pyproject
 
 
 def test_wheel_force_include_covers_deep_research_planning_handoff_contract() -> None:

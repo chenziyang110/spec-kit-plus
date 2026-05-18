@@ -168,7 +168,6 @@ function Classify-Path {
         '^project-handbook\.md$' { return "ignore" }
         '^\.specify/project-map/' { return "ignore" }
         '^\.specify/prd-runs/' { return "ignore" }
-        '^\.specify/testing/worker-results/' { return "ignore" }
         '^\.git/' { return "ignore" }
         '^\.venv/' { return "ignore" }
         '^\.pytest_cache/' { return "ignore" }
@@ -176,7 +175,6 @@ function Classify-Path {
         '^dist/' { return "ignore" }
         '^build/' { return "ignore" }
         '^\.specify/templates/runtime-config\.template\.json$' { return "support_drift" }
-        '^\.specify/templates/testing/support/' { return "support_drift" }
         '^\.specify/templates/project-map/' { return "stale" }
         '^\.specify/templates/' { return "ignore" }
         '^\.specify/memory/' { return "stale" }

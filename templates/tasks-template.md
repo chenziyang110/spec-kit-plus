@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/.specify/features/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), alignment.md and context.md when present or required for scenario profile inputs, research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. If `.specify/testing/TESTING_CONTRACT.md` exists, tests are expected by default for affected behavior changes and bug fixes. Only omit them when the contract or plan explicitly justifies the omission.
+**Tests**: The examples below include test tasks. Tests are expected by default for affected behavior changes and bug fixes. Only omit them when the plan explicitly justifies the omission.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -467,7 +467,7 @@ npx tsc --noEmit
 - [P] tasks = isolated write set, stable inputs, no incomplete dependencies, independent verification
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
-- Tests are default deliverables for behavior changes, bug fixes, and refactors whether or not `.specify/testing/TESTING_CONTRACT.md` exists
+- Tests are default deliverables for behavior changes, bug fixes, and refactors
 - If the touched area lacks a reliable automated test surface, add bootstrap tasks before implementation so RED can be proven honestly
 - Verify tests fail before implementing
 - Commit after each task or logical group

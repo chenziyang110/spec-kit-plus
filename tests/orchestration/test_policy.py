@@ -57,7 +57,6 @@ def test_choose_subagent_dispatch_uses_one_subagent_for_ordinary_sp_commands() -
         "explain",
         "debug",
         "quick",
-        "test-scan",
         "map-build",
     ):
         decision = choose_subagent_dispatch(

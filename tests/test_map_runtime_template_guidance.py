@@ -21,8 +21,6 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
         "tasks.md": "plan",
         "implement.md": "implement",
         "debug.md": "debug",
-        "test-scan.md": "test",
-        "test-build.md": "test",
         "prd-scan.md": "research",
     }
     readiness_states = ["ready", "review", "ambiguous", "needs_update", "needs_rebuild", "blocked"]
@@ -65,8 +63,6 @@ def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
         "templates/command-partials/tasks/shell.md",
         "templates/command-partials/implement/shell.md",
         "templates/command-partials/debug/shell.md",
-        "templates/command-partials/test/shell.md",
-        "templates/command-partials/test-scan/shell.md",
         "templates/command-partials/quick/shell.md",
         "templates/command-partials/analyze/shell.md",
         "templates/command-partials/common/navigation-check.md",

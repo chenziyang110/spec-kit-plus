@@ -32,7 +32,7 @@ class DelegationSurfaceDescriptor:
 
 def _command_intent(command_name: str) -> DelegationIntent:
     normalized = command_name.strip().lower()
-    return "evidence" if normalized in {"debug", "test-scan"} else "implementation"
+    return "evidence" if normalized == "debug" else "implementation"
 
 def describe_delegation_surface(
     *,

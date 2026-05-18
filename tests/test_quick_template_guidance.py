@@ -62,8 +62,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "review_topics" not in content
     assert "task-relevant coverage as insufficient" in content
     assert "ownership, placement, workflow, integration, or verification guidance" in content
-    assert ".specify/testing/unit_test_system_request.md" in content or ".specify/testing/unit-test-system-request.md" in content
-    assert "risk tranche" in content or "coverage wave" in content
+    assert ".specify/testing/" not in content
     assert "shared surface" in content or "multiple modules" in content or "shared surfaces" in content
     assert "lane shape" in content or "execution strategy" in content
     assert "ad-hoc task" in content or "small, ad-hoc task" in content
@@ -170,7 +169,6 @@ def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
     assert "upgrade to `{{invoke:specify}}` immediately if" in content or "upgrade to `/sp-specify` immediately if" in content
-    assert "unit test system program" in content or "testing-system program" in content
     assert "architecture" in content
     assert "cross-cutting" in content
     assert "change-propagation hotspot" in content
@@ -327,8 +325,8 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "do not write production code until the red state is captured" in content
     assert "if no reliable automated test surface exists for the touched behavior" in content
     assert "bootstrap the smallest viable test surface first" in content
-    assert "{{invoke:test-scan}}" in content or "/sp-test-scan" in content or "/sp-test" in content
-    _assert_tier_roles(content)
+    assert "{{invoke:specify}}" in content
+    assert "sp-test" not in content
 
 
 def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:

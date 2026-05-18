@@ -242,8 +242,6 @@ def test_core_sp_templates_use_direct_passive_learning_without_hook_gates():
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
         "templates/commands/analyze.md",
-        "templates/commands/test-scan.md",
-        "templates/commands/test-build.md",
         "templates/commands/implement.md",
         "templates/commands/debug.md",
         "templates/commands/map-scan.md",
@@ -300,8 +298,6 @@ def test_owned_workflow_templates_use_learning_index_reflex() -> None:
         "templates/commands/implement.md",
         "templates/commands/debug.md",
         "templates/commands/quick.md",
-        "templates/commands/test-scan.md",
-        "templates/commands/test-build.md",
         "templates/commands/map-scan.md",
         "templates/commands/map-build.md",
     )
@@ -329,29 +325,14 @@ def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_
         "templates/commands/quick.md": ["/sp.specify"],
         "templates/commands/specify.md": ["/sp.plan", "/sp.clarify", "/sp.deep-research"],
         "templates/commands/tasks.md": ["/sp.analyze", "/sp.implement"],
-        "templates/commands/test-scan.md": ["/sp-test-build", "/sp.specify", "/sp.quick", "/sp.fast"],
-        "templates/commands/test-build.md": [
-            "/sp.specify",
-            "/sp.plan",
-            "/sp.tasks",
-            "/sp.implement",
-            "/sp.debug",
-            "/sp-test-build",
-        ],
     }
 
-    assert len(task3_owned_handoffs) == 8
+    assert len(task3_owned_handoffs) == 6
 
     for template_path, expected_fragments in task3_owned_handoffs.items():
         content = _read(template_path)
         for expected_fragment in expected_fragments:
             _assert_default_handoff_contract(content, expected_fragment)
-
-    for template_path in ("templates/commands/test-scan.md", "templates/commands/test-build.md"):
-        content = _read(template_path)
-        assert "/sp.test-build" not in content
-        assert "/sp.test-scan" not in content
-
 
 def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates():
     content = _read("templates/passive-skills/spec-kit-project-learning/SKILL.md")
@@ -645,15 +626,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Use `Topic Map` to choose the smallest relevant topical documents" not in content
     assert "artifact-only `sp-specify` work" in lowered
     assert "record a planning advisory" in lowered
-    assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md" in content
-    assert "primary brownfield testing-program input" in content
-    assert "module priority waves" in content
-    assert "covered-module policy" in lowered
-    assert "small / medium / large" in lowered
-    assert "local integration seam expectations" in lowered
-    assert "fast smoke" in lowered
-    assert "focused" in lowered
-    assert "full" in lowered
+    assert ".specify/testing/" not in lowered
     assert "project cognition freshness helper" in lowered
     assert "freshness is `missing`" in lowered
     assert "freshness is `stale`" in lowered
@@ -1758,7 +1731,7 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "launcher/router" in lowered or "routing entrypoint" in lowered or "resume entrypoint" in lowered
     assert "workflow-state.md" in content
     assert "implement-tracker.md" in content
-    assert "testing-state.md" in content
+    assert "testing-state.md" not in content
     assert "status.md" in lowered
     assert "debug" in lowered
     assert "next_command" in content
@@ -1782,45 +1755,10 @@ def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeo
         ("templates/commands/plan.md", "plan"),
         ("templates/commands/tasks.md", "tasks"),
         ("templates/commands/analyze.md", "analyze"),
-        ("templates/commands/test-scan.md", "test-scan"),
-        ("templates/commands/test-build.md", "test-build"),
     ):
         content = _read(rel_path).lower()
         assert f"capture-auto --command {cli_name}" in content
-        assert "workflow-state.md" in content or "testing-state.md" in content
-
-
-def test_testing_workflow_commands_preserve_downstream_control_plane_semantics() -> None:
-    build_content = _read("templates/commands/test-build.md")
-    asset_block = _extract_outline_step_block(
-        build_content,
-        "11. **Generate durable testing assets**",
-        "12. **Push the contract back into the main workflow**",
-    ).lower()
-
-    contract_start = asset_block.find("write `.specify/testing/testing_contract.md` with:")
-    playbook_start = asset_block.find("write `.specify/testing/testing_playbook.md` with:")
-    baseline_start = asset_block.find("write `.specify/testing/coverage_baseline.json`", playbook_start)
-    assert contract_start != -1
-    assert playbook_start != -1
-    assert baseline_start != -1
-
-    contract_block = asset_block[contract_start:playbook_start]
-    playbook_block = asset_block[playbook_start:baseline_start]
-    assert "covered-module rules" in contract_block
-    assert "covered-module status values" in contract_block
-    assert "local integration seam expectations" in contract_block
-    assert "covered-module rules" in playbook_block
-    assert "adding or changing tests" in playbook_block
-    assert "local integration seam expectations and examples" in playbook_block
-    assert "preserve each lane's canonical `validation_command`" in asset_block
-    assert re.search(r"`validation_command`\s+remains the lane acceptance command", asset_block)
-    assert "compatibility field for existing packet consumers" in asset_block
-    assert "do not replace it with a command-tier map" in asset_block
-    assert re.search(r"`focused`\s+command should mirror the canonical `validation_command`", asset_block)
-    assert "unless the build plan records an explicit exception" in asset_block
-    assert "`full` command is the broader regression/final-verification tier" in asset_block
-    assert "must not be treated as the lane acceptance command" in asset_block
+        assert "workflow-state.md" in content
 
 
 def test_tasks_templates_default_to_phased_delivery_not_mvp():

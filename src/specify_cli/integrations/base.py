@@ -1300,7 +1300,7 @@ class MarkdownIntegration(IntegrationBase):
                     agent_name=agent_name.replace(" CLI", ""),
                     snapshot=runtime_snapshot,
                 )
-            if src_file.stem in {"implement", "debug", "quick", "test-scan", "test-build"}:
+            if src_file.stem in {"implement", "debug", "quick"}:
                 processed = self._append_delegation_surface_contract(
                     content=processed,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -1503,7 +1503,7 @@ class TomlIntegration(IntegrationBase):
                     agent_name=agent_name.replace(" CLI", ""),
                     snapshot=runtime_snapshot,
                 )
-            if src_file.stem in {"implement", "debug", "quick", "test-scan", "test-build"}:
+            if src_file.stem in {"implement", "debug", "quick"}:
                 processed = self._append_delegation_surface_contract(
                     content=processed,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -1814,7 +1814,7 @@ class SkillsIntegration(IntegrationBase):
                     agent_name=agent_name.replace(" CLI", ""),
                     snapshot=runtime_snapshot,
                 )
-            if command_name in {"implement", "debug", "quick", "test-scan", "test-build"}:
+            if command_name in {"implement", "debug", "quick"}:
                 skill_content = self._append_delegation_surface_contract(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),

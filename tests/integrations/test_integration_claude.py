@@ -61,44 +61,6 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "sp-test-build" not in lower
 
 
-def _assert_downstream_testing_control_plane(skill_content: str) -> None:
-    skill_lower = skill_content.lower()
-
-    assert "preserve each lane's canonical `validation_command`" in skill_lower
-    assert "`validation_command` remains the lane acceptance command" in skill_lower
-    assert "do not replace it with a command-tier map" in skill_lower
-    assert "lane's `focused` command should mirror the canonical `validation_command`" in skill_lower
-    assert "focused` command should mirror the canonical `validation_command`" in skill_lower
-    assert "unless the build plan records an explicit exception" in skill_lower
-
-    assert "validation_command` remains the lane acceptance command" in skill_lower
-    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in skill_lower
-    assert "including when each tier should be run" in skill_lower
-    assert re.search(
-        r"command-tier expectations for `fast smoke`, `focused`, and `full`,"
-        r" including when each tier should be run.*coverage commands.*ci commands",
-        skill_lower,
-        re.S,
-    )
-    assert "successful manual validation evidence" in skill_lower
-    assert re.search(
-        r"`full`[^.\n]*(broader regression|final verification|final or regression-sensitive)",
-        skill_lower,
-    )
-    for forbidden_full_acceptance in (
-        "`full` remains the lane acceptance command",
-        "`full` is the lane acceptance command",
-        "`full` command is the lane acceptance command",
-    ):
-        assert forbidden_full_acceptance not in skill_lower
-    assert "ci/presubmit gate policy" in skill_lower
-
-    assert "covered-module rules" in skill_lower
-    assert "mandatory testing rules for future work" in skill_lower
-    assert "coverage baseline and threshold policy" in skill_lower
-    assert "covered-module status values and the minimum evidence required" in skill_lower
-
-
 def _load_claude_hook_dispatch_module():
     repo_root = Path(__file__).resolve().parents[2]
     hook_path = repo_root / "src" / "specify_cli" / "integrations" / "claude" / "hooks" / "claude-hook-dispatch.py"
@@ -1997,16 +1959,6 @@ class TestClaudeIntegration:
         assert "DEBUG-HANDBOOK.md" not in content
         assert "BUILD-HANDBOOK.md" not in content
 
-    def test_test_build_command_surfaces_downstream_testing_control_plane(self, tmp_path):
-        claude = get_integration("claude")
-        manifest = IntegrationManifest("claude", tmp_path)
-        claude.setup(tmp_path, manifest)
-
-        skill_content = (tmp_path / ".claude" / "skills" / "sp-test-build" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
-        _assert_downstream_testing_control_plane(skill_content)
-
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -2500,8 +2452,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert ".specify/project-cognition/slices/change.json" not in lower
     assert "project-handbook.md" in lower
     assert ".specify/project-map/*.md" not in lower
-    assert ".specify/testing/TESTING_CONTRACT.md".lower() in lower
-    assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lower
+    assert ".specify/testing/" not in lower
     assert "read-order" in lower or "read order" in lower
     assert "ack the context bundle before claiming work" in lower
     assert "sendmessage" in lower and "context_ack" in lower

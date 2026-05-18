@@ -48,8 +48,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "change-propagation hotspot" in content
     assert "verification entry points" in content
     assert "known unknowns" in content
-    assert ".specify/testing/unit_test_system_request.md" in content or ".specify/testing/unit-test-system-request.md" in content
-    assert "tiny harness, command, fixture, or helper repair" in content
+    assert "tiny harness, command, fixture, or helper repair" not in content
     assert "## workflow contract summary" in content
     assert "leader performs the change directly" in content
     assert "no subagent dispatch" in content
@@ -101,7 +100,6 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
     assert "safe packetized delegation unavailable" not in content
     assert "needs research" in content or "research or clarification" in content
     assert "upgrade to `/sp-specify` immediately if" in content
-    assert "unit test system program" in content or "testing-system program" in content
     assert "new workflow" in content
     assert "compatibility" in content
     assert "acceptance criteria" in content
@@ -139,8 +137,8 @@ def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "do not use manual sanity checks as a substitute for red" in content
     assert "docs-only" in content or "docs only" in content
     assert "if no reliable automated test surface exists" in content
-    assert "/sp-test-scan" in content
-    _assert_tier_roles(content)
+    assert "/sp-quick" in content
+    assert "/sp-test-scan" not in content
     assert "use the fast smoke tier as the default fast-path verification" not in content
     assert "if playbook command tiers exist" in content
     assert "otherwise run the smallest meaningful local verification" in content

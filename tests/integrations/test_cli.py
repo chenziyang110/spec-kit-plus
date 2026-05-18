@@ -297,7 +297,7 @@ class TestInitIntegrationFlag:
 
         skills_dir = project / ".claude" / "skills"
         assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
-        for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks", "sp-explain", "sp-debug"):
+        for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "execution_model: subagent-mandatory" in content
             assert "dispatch_shape: one-subagent | parallel-subagents" in content
@@ -1154,8 +1154,8 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "$sp-implement-teams" in result.output
         assert "$sp-checklist" in result.output
         assert "$sp-test" not in result.output
-        assert "$sp-test-scan" in result.output
-        assert "$sp-test-build" in result.output
+        assert "$sp-test-scan" not in result.output
+        assert "$sp-test-build" not in result.output
         assert "$sp-analyze" in result.output
         assert "$sp-auto" in result.output
         assert "$sp-explain" in result.output
@@ -1223,8 +1223,8 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "/sp-implement-teams" in result.output
         assert "/sp-checklist" in result.output
         assert "/sp-test" not in result.output
-        assert "/sp-test-scan" in result.output
-        assert "/sp-test-build" in result.output
+        assert "/sp-test-scan" not in result.output
+        assert "/sp-test-build" not in result.output
         assert "/sp-analyze" in result.output
         assert "/sp-auto" in result.output
         assert "seeded default constitution" in result.output.lower()

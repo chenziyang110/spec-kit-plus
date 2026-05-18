@@ -324,7 +324,6 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/learnings/INDEX.md` if present.
    - Open only linked learning detail docs relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
    - [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
-   - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
    - From the project cognition runtime, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, record a planning advisory in the feature artifacts, inspect the minimum live files still needed to replace guesswork with evidence, and ask targeted planning-critical questions instead of requiring a project cognition refresh during artifact-only specification work.
    - Read repository context relevant to the request.
@@ -528,7 +527,6 @@ Generate the pre-analysis output as the first section of `context.md`.
 16. Capability decomposition.
     - Decompose the request into capabilities before detailed gray-area questioning.
     - Decompose the analyzed feature into bounded capabilities.
-    - For brownfield testing-system work seeded by `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, default capability decomposition to foundation work plus module priority waves instead of vague subsystem buckets.
     - Record the purpose of each capability, what scenarios it supports, and how it depends on other capabilities or prerequisites.
     - Separate user-visible capabilities from enabling/supporting capabilities where that improves planning clarity.
     - Note whether each capability is:

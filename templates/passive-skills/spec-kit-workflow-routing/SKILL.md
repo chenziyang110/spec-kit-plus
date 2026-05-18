@@ -62,10 +62,6 @@ standalone branch-creation command.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
-- Use `sp-test-scan` when the repository needs read-only testing-system evidence,
-  module risk tiers, coverage-gap analysis, or build-ready test lanes.
-- Use `sp-test-build` when `TEST_SCAN.md` and `TEST_BUILD_PLAN.md/json` exist and
-  scan-approved lanes should construct or refresh the unit testing system.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
 - Use `sp-discussion` for rough ideas, not-yet-ready requirements, or multi-turn
@@ -154,7 +150,7 @@ user what to type:
 - Do not use old strategy labels as routing choices.
 - `sp-fast` is the main leader-inline route; use it only when the work is
   trivial, local, low risk, and does not benefit from delegated verification.
-- For `sp-quick`, `sp-debug`, `sp-test-build`, `sp-map-scan`, `sp-map-build`, and
+- For `sp-quick`, `sp-debug`, `sp-map-scan`, `sp-map-build`, and
   `sp-implement`, leader + subagents is the default execution shape for
   independent bounded lanes when the current runtime supports delegation.
 - Use `sp-teams` only when Codex work needs durable team state, explicit join-point

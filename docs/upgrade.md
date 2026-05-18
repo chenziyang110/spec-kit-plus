@@ -36,7 +36,7 @@ Use `--refresh` when testing the latest fork without relying on whatever
 
 ```powershell
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify --help
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify testing inventory --format json
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify check
 ```
 
 ### Verify the upgrade

@@ -97,7 +97,6 @@ Upgrade to `{{invoke:specify}}` immediately if:
 - The task changes architecture or introduces cross-cutting behavior across multiple modules, workflows, or shared surfaces.
 - The task touches a change-propagation hotspot, a truth-owning shared surface, or an area whose known unknowns make lightweight planning unsafe.
 - The request now spans multiple independent capabilities, release tracks, or user journeys that no longer fit one bounded quick-task workspace.
-- The request is still a testing-system program from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` rather than one bounded module, risk tranche, or coverage wave. In that case, route to `{{invoke:test-scan}}` or `{{invoke:test-build}}` instead of keeping it in `sp-quick`.
 - The work needs a new durable spec package, a long-lived feature boundary, or planning artifacts intended to survive beyond the quick task.
 - The change has rollout, migration, compatibility, or neighboring-workflow impact that must be locked before implementation.
 - The expected behavior cannot be stated with concrete acceptance criteria without first doing feature-level requirement alignment.
@@ -407,15 +406,13 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Produce only the plan needed to execute this ad-hoc task safely.
    - Keep the work atomic and self-contained.
    - Keep local planning shallow until the first subagent batch has been launched.
-   - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` is the upstream source, record which single module, risk tranche, or coverage wave this quick-task pass is consuming before implementation starts.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
    - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
    - Do not write production code until the RED state is captured and recorded in `STATUS.md`.
-   - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `{{invoke:test-scan}}`.
+   - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `{{invoke:specify}}`.
    - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `{{invoke:debug}}` instead of applying a quick symptom patch.
    - A `surface-only` or symptom-only change cannot satisfy the quick-task contract for a bug fix unless the user explicitly scoped the work to temporary mitigation.
    - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
-   - If `.specify/testing/TESTING_PLAYBOOK.md` defines command-tier expectations for `fast smoke`, `focused`, and `full`, use the focused tier as the default quick-task acceptance check, run fast smoke first when it gives useful early signal, and reserve the full tier for final or regression-sensitive verification.
    - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel subagents instead of defaulting to serial execution.
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 

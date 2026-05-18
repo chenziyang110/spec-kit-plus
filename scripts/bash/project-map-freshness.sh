@@ -42,7 +42,6 @@ SCAN_SCOPE_RUNTIME_LIVE_PREFIXES=(
 SCAN_SCOPE_REFERENCE_ONLY_PREFIXES=(
     ".specify/project-map/"
     ".specify/prd-runs/"
-    ".specify/testing/worker-results/"
 )
 SCAN_SCOPE_HARD_EXCLUDED_PREFIXES=(
     ".git/"
@@ -251,7 +250,6 @@ classify_path() {
         project-handbook.md|\
         .specify/project-map/*|\
         .specify/prd-runs/*|\
-        .specify/testing/worker-results/*|\
         .git/*|\
         .venv/*|\
         .pytest_cache/*|\
@@ -261,8 +259,7 @@ classify_path() {
             echo "ignore"
             return 0
             ;;
-        .specify/templates/runtime-config.template.json|\
-        .specify/templates/testing/support/*)
+        .specify/templates/runtime-config.template.json)
             echo "support_drift"
             return 0
             ;;

@@ -16,15 +16,12 @@ HIGH_RISK_TEMPLATE_FILES = [
     Path("templates/commands/constitution.md"),
     Path("templates/commands/map-scan.md"),
     Path("templates/commands/map-build.md"),
-    Path("templates/commands/test-scan.md"),
-    Path("templates/commands/test-build.md"),
     Path("templates/command-partials/common/learning-layer.md"),
-    Path("templates/command-partials/test-scan/shell.md"),
 ]
 
 
 def test_high_risk_templates_do_not_use_bare_runtime_specify_calls():
-    forbidden = re.compile(r"`?specify (hook|learning|result|testing inventory)\b", re.IGNORECASE)
+    forbidden = re.compile(r"`?specify (hook|learning|result)\b", re.IGNORECASE)
     offenders = []
 
     for path in HIGH_RISK_TEMPLATE_FILES:

@@ -37,8 +37,6 @@
 
 - `docs/superpowers/specs/2026-05-11-sp-implement-wave-budget-design.md`
   - Approved design. Treat this as the source of truth for requirements.
-- `docs/superpowers/specs/2026-04-30-subagents-first-workflow-design.md`
-  - Existing execution vocabulary contract.
 - `docs/superpowers/specs/2026-04-23-multi-agent-task-shaping-design.md`
   - Existing task-shaping and batch/join-point guidance.
 

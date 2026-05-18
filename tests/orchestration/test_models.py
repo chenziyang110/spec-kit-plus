@@ -144,9 +144,6 @@ def test_one_subagent_attempt_default_applies_to_ordinary_sp_commands():
         "specify",
         "tasks",
         "taskstoissues",
-        "test",
-        "test-build",
-        "test-scan",
     ):
         assert should_attempt_one_subagent(command_name) is True
 

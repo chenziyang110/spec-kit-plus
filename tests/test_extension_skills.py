@@ -30,44 +30,6 @@ from specify_cli import SKILL_DESCRIPTIONS
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _assert_downstream_testing_control_plane(skill_body: str) -> None:
-    skill_lower = skill_body.lower()
-
-    assert "preserve each lane's canonical `validation_command`" in skill_lower
-    assert "`validation_command` remains the lane acceptance command" in skill_lower
-    assert "do not replace it with a command-tier map" in skill_lower
-    assert "lane's `focused` command should mirror the canonical `validation_command`" in skill_lower
-    assert "focused` command should mirror the canonical `validation_command`" in skill_lower
-    assert "unless the build plan records an explicit exception" in skill_lower
-
-    assert "validation_command` remains the lane acceptance command" in skill_lower
-    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in skill_lower
-    assert "including when each tier should be run" in skill_lower
-    assert re.search(
-        r"command-tier expectations for `fast smoke`, `focused`, and `full`,"
-        r" including when each tier should be run.*coverage commands.*ci commands",
-        skill_lower,
-        re.S,
-    )
-    assert "successful manual validation evidence" in skill_lower
-    assert re.search(
-        r"`full`[^.\n]*(broader regression|final verification|final or regression-sensitive)",
-        skill_lower,
-    )
-    for forbidden_full_acceptance in (
-        "`full` remains the lane acceptance command",
-        "`full` is the lane acceptance command",
-        "`full` command is the lane acceptance command",
-    ):
-        assert forbidden_full_acceptance not in skill_lower
-    assert "ci/presubmit gate policy" in skill_lower
-
-    assert "covered-module rules" in skill_lower
-    assert "mandatory testing rules for future work" in skill_lower
-    assert "coverage baseline and threshold policy" in skill_lower
-    assert "covered-module status values and the minimum evidence required" in skill_lower
-
-
 def _body_without_frontmatter(skill_path: Path) -> str:
     content = skill_path.read_text(encoding="utf-8")
     match = re.match(r"\A---\s*\r?\n.*?\r?\n---\s*\r?\n", content, re.S)
@@ -304,8 +266,8 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-build" / "SKILL.md").exists()
         assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
-        assert (skills_dir / "sp-test-scan" / "SKILL.md").exists()
-        assert (skills_dir / "sp-test-build" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-test-scan" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-test-build" / "SKILL.md").exists()
         assert not (skills_dir / "sp-test" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
@@ -315,16 +277,12 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learnings-index-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learning-detail-template.md").exists()
-        assert (project_dir / ".specify" / "templates" / "testing" / "testing-contract-template.md").exists()
-        assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
-        assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()
+        assert not (project_dir / ".specify" / "templates" / "testing").exists()
 
         for skill_name in (
             "sp-specify",
             "sp-deep-research",
             "sp-plan",
-            "sp-test-scan",
-            "sp-test-build",
             "sp-implement",
             "sp-debug",
             "sp-quick",
@@ -494,7 +452,7 @@ class TestBuiltInSkillGeneration:
         assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_body
         assert "do not synthesize `tasks.md` from chat-only lane results" in tasks_body.lower()
         assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in tasks_body
-        assert "whether or not `.specify/testing/testing_contract.md` exists" in tasks_body.lower()
+        assert "tests as default deliverables" in tasks_body.lower()
         assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
         assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in tasks_body.lower()
         assert "recommended next command" in tasks_body.lower()
@@ -573,59 +531,10 @@ class TestBuiltInSkillGeneration:
         assert "create explicit conflict records" in build_body
         assert "status.json` reflects a query-ready baseline" in build_body
 
-        test_scan_body = _body_without_frontmatter(skills_dir / "sp-test-scan" / "SKILL.md")
-        assert ".specify/testing/TEST_SCAN.md" in test_scan_body
-        assert ".specify/testing/TEST_BUILD_PLAN.md" in test_scan_body
-        assert ".specify/testing/TEST_BUILD_PLAN.json" in test_scan_body
-        assert "testscanpacket" in test_scan_body.lower()
-        assert 'choose_subagent_dispatch(command_name="test-scan"' in test_scan_body.lower()
-        assert "parallel-subagents" in test_scan_body.lower()
-        assert "native-subagents" in test_scan_body.lower()
-        assert "read-only scan subagents" in test_scan_body.lower()
-        assert "project-cognition lexicon --intent test" in test_scan_body.lower()
-        assert "project-cognition query --intent test" in test_scan_body.lower()
-        assert "--query-plan" in test_scan_body.lower()
-        assert "minimal_live_reads" in test_scan_body
-        assert "`needs_update`: route through `/sp-map-update`" in test_scan_body.lower()
-        assert "`needs_rebuild`: route through `/sp-map-scan`, then `/sp-map-build`" in test_scan_body.lower()
-        assert "read `build-handbook.md`." not in test_scan_body.lower()
-
-        test_build_body = _body_without_frontmatter(skills_dir / "sp-test-build" / "SKILL.md")
-        assert ".specify/testing/TESTING_CONTRACT.md" in test_build_body
-        assert ".specify/testing/TESTING_PLAYBOOK.md" in test_build_body
-        assert ".specify/testing/COVERAGE_BASELINE.json" in test_build_body
-        assert "bootstrap" in test_build_body.lower()
-        assert "refresh" in test_build_body.lower()
-        assert 'choose_subagent_dispatch(command_name="test-build"' in test_build_body.lower()
-        assert "one-subagent" in test_build_body.lower()
-        assert "parallel-subagents" in test_build_body.lower()
-        assert "validated `testbuildpacket` with all required fields" in test_build_body.lower()
-        assert "native-subagents" in test_build_body.lower()
-        assert "managed-team" in test_build_body.lower()
-        assert "testbuildpacket" in test_build_body.lower()
-        assert "before mutating shared repository test framework/config files" in test_build_body.lower()
-        assert "project-cognition lexicon --intent test" in test_build_body.lower()
-        assert "project-cognition query --intent test" in test_build_body.lower()
-        assert "--query-plan" in test_build_body.lower()
-        assert "minimal_live_reads" in test_build_body
-        assert "`needs_update`: route through `/sp-map-update`" in test_build_body.lower()
-        assert "if testing-surface cognition coverage is insufficient for the current repository" in test_build_body.lower()
-        assert "read `build-handbook.md`." not in test_build_body.lower()
-        assert "classify the next workflow recommendation before the final report" in test_build_body.lower()
-        assert "recommend exactly one next command" in test_build_body.lower()
-        assert "recommend `/sp-quick`" in test_build_body.lower()
-        assert "recommend `/sp-specify`" in test_build_body.lower()
-        assert "recommend `/sp-debug`" in test_build_body.lower()
-        assert "resume `/sp-implement`" in test_build_body.lower()
-        assert "manually execute the canonical test commands" in test_build_body.lower()
-        assert "most recent manual validation run" in test_build_body.lower()
-        assert "run coverage after the first meaningful test pass" in test_build_body.lower()
-        assert "iterate on uncovered critical paths" in test_build_body.lower()
-
         fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")
         assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()
         assert "do not use manual sanity checks as a substitute for red" in fast_body.lower()
-        assert "/sp-test-scan" in fast_body.lower()
+        assert "/sp-quick" in fast_body.lower()
         assert "/sp-debug" in fast_body.lower()
         assert "root cause is still unknown" in fast_body.lower() or "root cause is not yet known" in fast_body.lower()
 
@@ -633,7 +542,7 @@ class TestBuiltInSkillGeneration:
         assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
         assert "do not write production code until the red state is captured" in quick_body.lower()
         assert "bootstrap the smallest viable test surface first" in quick_body.lower()
-        assert "/sp-test-scan" in quick_body.lower()
+        assert "/sp-specify" in quick_body.lower()
         assert "/sp-debug" in quick_body.lower()
         assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
         assert "surface-only" in quick_body.lower() or "symptom-only" in quick_body.lower()
@@ -682,7 +591,7 @@ class TestBuiltInSkillGeneration:
         assert "automatically continue into evidence investigation" in debug_lower
         assert "write a failing automated repro test before changing production code" in debug_lower
         assert "do not modify production behavior until the red state is proven" in debug_lower
-        assert "add the missing harness first or route through `/sp-test-scan`" in debug_lower
+        assert "add the missing harness first or route through `/sp-quick` or `/sp-specify`" in debug_lower
         assert "alternative_hypotheses_considered" in debug_lower
         assert "alternative_hypotheses_ruled_out" in debug_lower
         assert "root_cause_confidence" in debug_lower
@@ -695,41 +604,6 @@ class TestBuiltInSkillGeneration:
 
 class TestSkillDescriptions:
     """Built-in command descriptions should stay aligned with bundled templates."""
-
-    def test_claude_test_build_skill_surfaces_downstream_testing_control_plane(self, temp_dir):
-        from typer.testing import CliRunner
-        from specify_cli import app
-
-        project_dir = temp_dir / "claude-test-build-control-plane"
-        project_dir.mkdir()
-
-        old_cwd = Path.cwd()
-        try:
-            os.chdir(project_dir)
-            result = CliRunner().invoke(
-                app,
-                [
-                    "init",
-                    "--here",
-                    "--ai",
-                    "claude",
-                    "--ai-skills",
-                    "--script",
-                    "sh",
-                    "--no-git",
-                    "--ignore-agent-tools",
-                ],
-                catch_exceptions=False,
-            )
-        finally:
-            os.chdir(old_cwd)
-
-        assert result.exit_code == 0, result.output
-
-        test_build_body = _body_without_frontmatter(
-            project_dir / ".claude" / "skills" / "sp-test-build" / "SKILL.md"
-        )
-        _assert_downstream_testing_control_plane(test_build_body)
 
     def test_skill_descriptions_include_new_surfaces(self):
         for name, description in SKILL_DESCRIPTIONS.items():
@@ -751,8 +625,6 @@ class TestSkillDescriptions:
         assert "boundary-guardrail analysis" in SKILL_DESCRIPTIONS["analyze"].lower()
         assert "development rules" in SKILL_DESCRIPTIONS["constitution"].lower()
         assert "checklist" in SKILL_DESCRIPTIONS["checklist"].lower()
-        assert "unit-test system plan" in SKILL_DESCRIPTIONS["test-scan"].lower()
-        assert "unit testing system" in SKILL_DESCRIPTIONS["test-build"].lower()
         assert "truly trivial" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "lightweight tracked planning" in SKILL_DESCRIPTIONS["quick"].lower()
         assert "graph-native cognition baseline" in SKILL_DESCRIPTIONS["map-scan"].lower()

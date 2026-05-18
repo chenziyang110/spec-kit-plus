@@ -327,8 +327,6 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
   - and what state changed immediately before failure.
 - Read the active feature's `spec.md`, `plan.md`, and `tasks.md` when available to recover intended behavior, locked planning decisions, and implementation boundaries relevant to the bug.
 - If `context.md` exists for the active feature, read it before proposing a fix so locked decisions, canonical references, and user-signaled constraints are not bypassed during debugging.
-- Read `.specify/testing/TESTING_CONTRACT.md` if present before validating a fix so bug-resolution expectations include any project-wide regression-test requirements.
-- Read `.specify/testing/TESTING_PLAYBOOK.md` if present before final verification so the canonical debug-side test commands come from the repository playbook.
 - For runtime bugs, use the investigation contract's `log_investigation_plan` log investigation plan to decide:
   - which existing log targets to inspect first,
   - which candidate-specific signals should appear there,
@@ -467,7 +465,7 @@ The session file must always make it clear:
 - Enter `fixing` only after the root cause is confirmed.
 - Write a failing automated repro test before changing production code.
 - Do not modify production behavior until the RED state is proven.
-- If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-test-scan` before code changes.
+- If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-quick` or `/sp-specify` before code changes.
 - Apply the minimum code change needed to address that root cause.
 - Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
 - Classify the fix before verification:
@@ -481,8 +479,6 @@ The session file must always make it clear:
   - the reproduction path,
   - the most relevant tests,
   - and any logging-enhanced repro flow needed to prove the mechanism changed.
-- If `.specify/testing/TESTING_CONTRACT.md` exists and the bug touches a covered module, add or update a regression test before considering the session resolved.
-- If `.specify/testing/TESTING_PLAYBOOK.md` defines command-tier expectations for `fast smoke`, `focused`, and `full`, use the fast smoke tier for the cheapest repro check, run the focused tier before accepting the fix, and use the full tier when regression risk remains.
 - Verify the full control loop, not only one function or field:
   - triggering input,
   - control decision,

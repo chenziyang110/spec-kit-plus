@@ -14,8 +14,8 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "spec-kit-project-cognition-gate" in content
     assert "spec-kit-project-map-gate" not in content
     assert "spec-kit-project-learning" in content
-    assert "sp-test-scan" in content
-    assert "sp-test-build" in content
+    assert "sp-test-scan" not in content
+    assert "sp-test-build" not in content
     assert "{{invoke:test}}" not in content
     assert "sp-auto" in content
     assert "sp-prd-scan" in content
@@ -180,7 +180,7 @@ def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> 
     assert "without native hooks" in content
     assert "candidate/confirmed" not in content
     assert "candidate layer" not in content
-    assert "testing-state.md" in content
+    assert "testing-state.md" not in content
     assert "workflow-state.md" in content
 
 

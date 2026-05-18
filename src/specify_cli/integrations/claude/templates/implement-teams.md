@@ -72,7 +72,6 @@ TeamCreate({
    - include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane
    - include `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` as the runtime freshness/store boundary when the teammate must acknowledge the underlying cognition runtime
    - include compatibility/export files such as `PROJECT-HANDBOOK.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported handbook wording
-   - include `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present
    - for each bundled item, preserve the path or query source, why it matters, and a read order so the teammate knows which query results are primary and which compatibility/export artifacts are supplementary
 8. Convert the ready implementation slices into explicit shared tasks with `TaskCreate`.
    - every shared task must carry the execution context bundle, not just the task summary

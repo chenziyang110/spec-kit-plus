@@ -109,7 +109,6 @@ SCAN_SCOPE_REFERENCE_ONLY_PREFIXES = (
     ".specify/project-cognition/",
     ".specify/project-map/",
     ".specify/prd-runs/",
-    ".specify/testing/worker-results/",
 )
 
 SCAN_SCOPE_REFERENCE_ONLY_FILES = {
@@ -384,10 +383,7 @@ def classify_changed_path_details(path: str) -> dict[str, str]:
     support_exact = {
         ".specify/templates/runtime-config.template.json",
     }
-    support_prefixes = (
-        ".specify/templates/testing/support/",
-    )
-    if lower in support_exact or lower.startswith(support_prefixes):
+    if lower in support_exact:
         return {"layer": "support", "severity": FRESHNESS_SUPPORT_DRIFT_STATE}
     if lower.startswith(".specify/templates/project-map/"):
         return {"layer": "runtime_truth", "severity": FRESHNESS_RUNTIME_STALE_STATE}

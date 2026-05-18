@@ -317,7 +317,7 @@ class CommandRegistrar:
         """Render ``{{invoke:<workflow>}}`` placeholders for an integration.
 
         This intentionally only matches the explicit placeholder form so
-        canonical state tokens such as ``/sp.plan`` and ``/sp-test-scan``
+        canonical state tokens such as ``/sp.plan`` and ``/sp-map-scan``
         remain untouched when templates include them alongside placeholders.
         """
         if not isinstance(body, str) or "{{invoke:" not in body:

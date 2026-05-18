@@ -18,30 +18,30 @@ def _init_git_repo(tmp_path: Path) -> Path:
 
 
 def test_scan_status_round_trip_uses_shared_refresh_fields(tmp_path: Path) -> None:
-    status_path = tmp_path / ".specify" / "testing" / "status.json"
+    status_path = tmp_path / ".specify" / "project-cognition" / "status.json"
     status = ScanFreshnessStatus(
-        status_family="testing",
+        status_family="project-cognition",
         version=1,
         freshness="fresh",
         last_refresh_commit="abc123",
         last_refresh_branch="main",
         last_refresh_at="2026-05-04T00:00:00Z",
         last_refresh_scope="full",
-        last_refresh_basis="test-scan",
+        last_refresh_basis="map-scan",
         last_refresh_changed_files_basis=["src/app.py"],
         manual_force_stale=False,
         manual_force_stale_reasons=[],
     )
 
     write_scan_status(status_path, status)
-    loaded = read_scan_status(status_path, status_family="testing")
+    loaded = read_scan_status(status_path, status_family="project-cognition")
 
-    assert loaded.status_family == "testing"
+    assert loaded.status_family == "project-cognition"
     assert loaded.last_refresh_commit == "abc123"
     assert loaded.last_refresh_branch == "main"
     assert loaded.last_refresh_at == "2026-05-04T00:00:00Z"
     assert loaded.last_refresh_scope == "full"
-    assert loaded.last_refresh_basis == "test-scan"
+    assert loaded.last_refresh_basis == "map-scan"
     assert loaded.last_refresh_changed_files_basis == ["src/app.py"]
     assert loaded.manual_force_stale is False
 

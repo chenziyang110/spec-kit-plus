@@ -236,47 +236,6 @@ class CodexIntegration(SkillsIntegration):
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )
-        self._augment_shared_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-test-scan" / "SKILL.md",
-            f"## {agent_name} Subagents-First Dispatch",
-            (
-                "\n"
-                f"## {agent_name} Subagents-First Dispatch\n\n"
-                f"When running `sp-test-scan` in {agent_name}, use the subagents-first dispatch model for read-only scout work.\n"
-                "- Use `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
-                "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
-                "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
-                "- Suggested bounded lanes include module, framework, coverage-command, and risk-review scan lanes.\n"
-                "- Each scan subagent is read-only and must return inspected files, public entrypoints, existing tests, missing scenarios, recommended build lanes, validation commands, and blockers.\n"
-                f"- Use `wait_agent` only at the documented scan join points before final risk ranking, before writing `TEST_BUILD_PLAN.md` / `TEST_BUILD_PLAN.json`, and before marking scan complete.\n"
-                f"- Use `close_agent` after integrating finished scout results.\n"
-                "- Do not let scan subagents edit repository files or `.specify/testing/*` artifacts directly.\n"
-            ),
-        )
-        self._augment_shared_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-test-build" / "SKILL.md",
-            f"## {agent_name} Subagents-First Dispatch",
-            (
-                "\n"
-                f"## {agent_name} Subagents-First Dispatch\n\n"
-                f"When running `sp-test-build` in {agent_name}, use the subagents-first dispatch model.\n"
-                "- Use `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
-                "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
-                "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
-                "- Dispatch validated `TestBuildPacket` lanes with isolated write sets.\n"
-                "- Keep shared config, global fixture, CI, dependency, and production-code testability lanes on the leader path unless the packet explicitly authorizes a serial lane.\n"
-                f"- Use `wait_agent` only at the documented build join points after each parallel wave and before consolidated testing artifacts are updated.\n"
-                f"- Use `close_agent` after integrating finished build or review results.\n"
-                "- Wait for every subagent's structured handoff before accepting a lane, starting the next wave, or marking build complete.\n"
-            ),
-        )
-
         self._augment_implement_skill(
             created,
             project_root,

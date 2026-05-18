@@ -232,77 +232,6 @@ def _write_resolved_debug_session(project: Path, slug: str) -> Path:
     return debug_dir / f"{slug}.md"
 
 
-def _write_testing_state(
-    project: Path,
-    *,
-    status: str,
-    mode: str,
-    next_action: str,
-    next_command: str,
-    handoff_reason: str,
-    unit_test_system_request: str = ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md",
-    validation_commands: list[str] | None = None,
-    validation_exit_status: str = "passed",
-    validation_summary: str = "testing contract validated",
-    open_gaps: list[dict[str, str]] | None = None,
-) -> Path:
-    testing_dir = project / ".specify" / "testing"
-    testing_dir.mkdir(parents=True, exist_ok=True)
-    validation_commands = validation_commands or []
-    open_gaps = open_gaps or []
-    lines = [
-        "---",
-        f"status: {status}",
-        f"mode: {mode}",
-        'updated: "2026-04-29T00:00:00Z"',
-        "---",
-        "",
-        "# Testing State",
-        "",
-        "## Current Focus",
-        f"- next_action: {next_action}",
-        f"- next_command: {next_command}",
-        f"- handoff_reason: {handoff_reason}",
-        "- selected_modules: core-module",
-        "- selected_language_skills: python-testing",
-        "- inventory_source: specify testing inventory --format json",
-        "",
-        "## Testing Assets",
-        "- testing_contract: .specify/testing/TESTING_CONTRACT.md",
-        "- testing_playbook: .specify/testing/TESTING_PLAYBOOK.md",
-        "- coverage_baseline: .specify/testing/COVERAGE_BASELINE.json",
-        f"- unit_test_system_request: {unit_test_system_request}",
-        "",
-        "## Validation Evidence",
-        "- last_manual_validation:",
-    ]
-    if validation_commands:
-        lines.append("  - commands:")
-        for command in validation_commands:
-            lines.append(f"    - {command}")
-        lines.append('  - run_at: "2026-04-29T00:10:00Z"')
-        lines.append(f"  - exit_status: {validation_exit_status}")
-        lines.append(f"  - summary: {validation_summary}")
-    else:
-        lines.append("  - commands:")
-        lines.append("  - run_at:")
-        lines.append("  - exit_status:")
-        lines.append("  - summary:")
-    lines.extend(["", "## Open Gaps"])
-    for item in open_gaps:
-        lines.extend(
-            [
-                "- module:",
-                f"  - summary: {item['summary']}",
-                f"  - next_action: {item['next_action']}",
-            ]
-        )
-    lines.append("")
-    path = testing_dir / "testing-state.md"
-    path.write_text("\n".join(lines), encoding="utf-8")
-    return path
-
-
 def test_learning_ensure_creates_stable_and_runtime_files(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
@@ -1642,8 +1571,6 @@ def test_learning_start_exposes_confirmed_project_constraint_warning_for_all_wor
         "checklist",
         "tasks",
         "analyze",
-        "test-scan",
-        "test-build",
         "implement",
         "debug",
         "fast",
@@ -1961,8 +1888,8 @@ def test_project_constraint_default_applies_to_includes_test_and_map_codebase(tm
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     applies_to = payload["entry"]["applies_to"]
-    assert "sp-test-scan" in applies_to
-    assert "sp-test-build" in applies_to
+    assert "sp-implement" in applies_to
+    assert "sp-debug" in applies_to
     assert "sp-map-scan" in applies_to
     assert "sp-map-build" in applies_to
 
@@ -2326,49 +2253,6 @@ def test_learning_capture_auto_quick_extracts_fallback_constraint(tmp_path: Path
     payload = json.loads(result.stdout)
     keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
     assert "quick.leader-inline-fallback-preserves-runtime-unavailability-reason" in keys
-
-
-def test_learning_capture_auto_test_extracts_followup_route_and_validation_gaps(tmp_path: Path) -> None:
-    project = tmp_path
-    (project / ".specify").mkdir(parents=True, exist_ok=True)
-    _seed_learning_templates(project)
-    _write_testing_state(
-        project,
-        status="complete",
-        mode="bootstrap",
-        next_action="Route the brownfield testing program into specification",
-        next_command="/sp-specify",
-        handoff_reason="Multiple uncovered module waves still need scoped planning.",
-        validation_commands=[],
-        validation_exit_status="",
-        validation_summary="",
-        open_gaps=[
-            {
-                "summary": "Core module still lacks the baseline public-contract tests.",
-                "next_action": "Plan the first coverage uplift wave before implementation resumes.",
-            }
-        ],
-    )
-
-    result = _invoke_in_project(
-        project,
-        [
-            "learning",
-            "capture-auto",
-            "--command",
-            "test-scan",
-            "--format",
-            "json",
-        ],
-    )
-
-    assert result.exit_code == 0, result.stdout
-    payload = json.loads(result.stdout)
-    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
-    assert payload["status"] == "captured"
-    assert "test-scan.open-gaps-require-explicit-follow-up-route" in keys
-    assert "test-scan.complete-state-requires-manual-validation-evidence" in keys
-    assert "test-scan.brownfield-programs-start-from-unit-test-system-request" in keys
 
 
 def test_learning_capture_auto_workflow_state_records_blocked_reason(tmp_path: Path) -> None:

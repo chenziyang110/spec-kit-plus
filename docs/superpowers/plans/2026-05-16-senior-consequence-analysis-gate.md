@@ -16,7 +16,6 @@
 - Related existing plans:
   - `docs/superpowers/plans/2026-05-16-discussion-split-handoff.md`
   - `docs/superpowers/plans/2026-05-15-discussion-to-specify-fidelity-implementation.md`
-  - `docs/superpowers/plans/2026-05-15-project-cognition-usage-guidance.md`
 
 ## Scope Check
 

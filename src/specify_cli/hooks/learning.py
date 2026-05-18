@@ -182,11 +182,9 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
             "sp-specify",
         ],
         "verification_gap": [
-            "sp-test-scan",
-            "sp-test-build",
             "sp-implement",
             "sp-debug",
-            ".specify/testing/TESTING_CONTRACT.md",
+            "sp-quick",
         ],
         "state_surface_gap": [
             "workflow-state.md",

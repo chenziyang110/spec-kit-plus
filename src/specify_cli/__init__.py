@@ -484,13 +484,6 @@ implement_app = typer.Typer(
 )
 app.add_typer(implement_app, name="implement")
 
-testing_app = typer.Typer(
-    name="testing",
-    help="Inspect repository testing inventory and test-system surfaces",
-    add_completion=False,
-)
-app.add_typer(testing_app, name="testing")
-
 project_cognition_app = typer.Typer(
     name="project-cognition",
     help="Inspect project cognition freshness and finalize or override refresh state",
@@ -1440,45 +1433,6 @@ def implement_resume_audit(
         console.print(f"- {gap}")
     if audit_failed:
         raise typer.Exit(1)
-
-
-@testing_app.command("inventory")
-def testing_inventory_command(
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
-):
-    """Scan the current repository and summarize test-system modules and frameworks."""
-    from .testing_inventory import build_testing_inventory
-
-    project_root = Path.cwd()
-    payload = build_testing_inventory(project_root)
-    if output_format.lower() == "json":
-        print_json(payload, indent=2)
-        return
-
-    rows = [
-        ("Project Root", payload["project_root"]),
-        ("Module Count", str(payload["module_count"])),
-        ("Languages", ", ".join(payload["languages"]) if payload["languages"] else "none"),
-    ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Testing Inventory", border_style="cyan"))
-
-    table = Table(title="Modules")
-    table.add_column("Module", style="cyan")
-    table.add_column("Language")
-    table.add_column("Kind")
-    table.add_column("Framework")
-    table.add_column("State")
-    table.add_column("Skill")
-    for module in payload["modules"]:
-        table.add_row(
-            str(module.get("module_root", "")),
-            str(module.get("language", "")),
-            str(module.get("module_kind", "")),
-            str(module.get("framework", "")),
-            str(module.get("state", "")),
-            str(module.get("selected_skill", "") or ""),
-        )
-    console.print(table)
 
 
 @project_map_app.command("check")
@@ -3472,8 +3426,6 @@ SKILL_DESCRIPTIONS = {
     "analyze": "Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.",
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
-    "test-scan": "Use when you need a deep, read-only scan that turns a repository's testing gaps into a build-ready unit-test system plan.",
-    "test-build": "Use when a completed test-system scan exists and you need to build or refresh the repository's unit testing system through leader-managed execution waves.",
     "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction.",
     "map-build": "Use when map-scan has produced a full evidence baseline and you need to reconstruct the project cognition graph, claims, conflicts, slices, and query-backed runtime outputs.",
     "map-update": "Use when a graph-native project cognition baseline exists and diff-based evidence refresh or user-supplied corrections must update the cognition runtime incrementally.",
@@ -4126,8 +4078,6 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Scan the complete project tree and produce the graph-native evidence baseline for brownfield cognition")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the project cognition graph, claims, conflicts, and slices from the scan baseline")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-update')}[/] - Refresh the cognition runtime incrementally after the baseline exists")
-    steps_lines.append(f"   - [cyan]{_display_cmd('test-scan')}[/] - Deep-scan the testing surface and produce build-ready lanes")
-    steps_lines.append(f"   - [cyan]{_display_cmd('test-build')}[/] - Build the unit testing system from scan-approved lanes with leader/subagent coordination")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
     steps_lines.append(f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable product and technical discussion before formal specification")
     steps_lines.append(f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json")

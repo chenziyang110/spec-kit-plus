@@ -50,8 +50,6 @@ KNOWN_COMMANDS = (
     "sp-checklist",
     "sp-tasks",
     "sp-analyze",
-    "sp-test-scan",
-    "sp-test-build",
     "sp-implement",
     "sp-debug",
     "sp-fast",
@@ -310,7 +308,7 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type == "routing_mistake":
         return ["sp-fast", "sp-quick", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
     if normalized_type == "verification_gap":
-        return ["sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-quick"]
+        return ["sp-implement", "sp-debug", "sp-quick", "sp-fast"]
     if normalized_type == "state_surface_gap":
         return [
             "sp-specify",
@@ -1274,101 +1272,6 @@ def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCapture
     return status_path, suggestions
 
 
-def _suggest_test_auto_capture(project_root: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
-    state_path = project_root / ".specify" / "testing" / "testing-state.md"
-    if not state_path.exists():
-        return state_path, []
-
-    frontmatter, sections = _load_sectioned_markdown(state_path)
-    status = str(frontmatter.get("status", "")).strip().lower()
-    mode = str(frontmatter.get("mode", "")).strip().lower()
-    current_focus = _coerce_section_mapping(sections.get("Current Focus"))
-    testing_assets = _coerce_section_mapping(sections.get("Testing Assets"))
-    validation_evidence = _coerce_section_mapping(sections.get("Validation Evidence"))
-    last_manual_validation = _coerce_section_mapping(validation_evidence.get("last_manual_validation"))
-    open_gaps = _coerce_grouped_mapping_list(sections.get("Open Gaps"), group_key="module")
-
-    next_action = str(current_focus.get("next_action") or "").strip()
-    next_command = str(current_focus.get("next_command") or "").strip()
-    handoff_reason = str(current_focus.get("handoff_reason") or "").strip()
-    unit_test_system_request = str(testing_assets.get("unit_test_system_request") or "").strip()
-    validation_commands = _coerce_str_list(last_manual_validation.get("commands"))
-    validation_exit_status = str(last_manual_validation.get("exit_status") or "").strip()
-    validation_summary = str(last_manual_validation.get("summary") or "").strip()
-    gap_summaries = [
-        str(item.get("summary") or "").strip()
-        for item in open_gaps
-        if str(item.get("summary") or "").strip()
-    ]
-    gap_next_actions = [
-        str(item.get("next_action") or "").strip()
-        for item in open_gaps
-        if str(item.get("next_action") or "").strip()
-    ]
-
-    suggestions: list[AutoCaptureSuggestion] = []
-    if open_gaps and next_command:
-        suggestions.append(
-            AutoCaptureSuggestion(
-                learning_type="workflow_gap",
-                summary="Testing-system open gaps should drive an explicit follow-up route before later workflows resume",
-                recurrence_key="test-scan.open-gaps-require-explicit-follow-up-route",
-                evidence=_format_evidence(
-                    "Observed auto-capture evidence from testing-state.md",
-                    [
-                        ("state_path", state_path),
-                        ("status", status),
-                        ("mode", mode),
-                        ("next_action", next_action),
-                        ("next_command", next_command),
-                        ("handoff_reason", handoff_reason),
-                        ("open_gap_summaries", gap_summaries),
-                        ("open_gap_next_actions", gap_next_actions),
-                    ],
-                ),
-            )
-        )
-    if unit_test_system_request and next_command.lower() in {"/sp-specify", "/sp.specify"}:
-        suggestions.append(
-            AutoCaptureSuggestion(
-                learning_type="project_constraint",
-                summary="Brownfield testing programs should start from UNIT_TEST_SYSTEM_REQUEST instead of ad-hoc implementation work",
-                recurrence_key="test-scan.brownfield-programs-start-from-unit-test-system-request",
-                evidence=_format_evidence(
-                    "Observed auto-capture evidence from testing-state.md",
-                    [
-                        ("state_path", state_path),
-                        ("mode", mode),
-                        ("next_action", next_action),
-                        ("next_command", next_command),
-                        ("handoff_reason", handoff_reason),
-                        ("unit_test_system_request", unit_test_system_request),
-                    ],
-                ),
-            )
-        )
-    if status in {"complete", "completed"} and (not validation_commands or not validation_exit_status or not validation_summary):
-        suggestions.append(
-            AutoCaptureSuggestion(
-                learning_type="verification_gap",
-                summary="Testing-system completion requires explicit manual validation evidence in testing-state",
-                recurrence_key="test-scan.complete-state-requires-manual-validation-evidence",
-                evidence=_format_evidence(
-                    "Observed auto-capture evidence from testing-state.md",
-                    [
-                        ("state_path", state_path),
-                        ("status", status),
-                        ("mode", mode),
-                        ("validation_commands", validation_commands),
-                        ("validation_exit_status", validation_exit_status),
-                        ("validation_summary", validation_summary),
-                    ],
-                ),
-            )
-        )
-    return state_path, suggestions
-
-
 WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS = {
     "sp-constitution",
     "sp-specify",
@@ -1867,8 +1770,6 @@ def capture_auto_learning(
         if workspace is None:
             raise ValueError("workspace is required for quick auto-capture")
         source_path, suggestions = _suggest_quick_auto_capture(workspace)
-    elif normalized_command in {"sp-test-scan", "sp-test-build"}:
-        source_path, suggestions = _suggest_test_auto_capture(project_root)
     elif normalized_command in WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS:
         if feature_dir is None:
             raise ValueError("feature_dir is required for workflow-state auto-capture")

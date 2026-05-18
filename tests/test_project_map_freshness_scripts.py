@@ -563,7 +563,6 @@ def test_project_map_freshness_helpers_ignore_reference_only_atlas_changes(git_r
         "PROJECT-HANDBOOK.md",
         ".specify/project-map/root/STRUCTURE.md",
         ".specify/prd-runs/001-demo/research.json",
-        ".specify/testing/worker-results/SCAN-unit.json",
         ".venv/lib/site-packages/pkg.py",
         ".pytest_cache/v/cache/nodeids",
         ".ruff_cache/0.11.0/cache",
