@@ -30,6 +30,7 @@ The current project cognition contract treats the runtime as a hard pre-source g
 - Do not redesign the SQLite graph schema.
 - Do not prevent users from explicitly asking for a full map refresh.
 - Do not make agents ignore project cognition when it is available and useful.
+- Do not remove readiness fields from existing command payloads when consumers may rely on their shape.
 
 ## Design
 
@@ -76,6 +77,32 @@ For ordinary `sp-*` workflows:
 - Do not block planning, implementation, debugging, or review solely because the map asks for update or rebuild.
 - Do not call `complete-refresh`, `validate-build`, or `mark-dirty` as a routine requirement of artifact-only work.
 
+### Runtime And Hook Consumers
+
+This policy applies to generated workflow guidance, shared hooks and preflights, direct CLI workflow helpers, Codex team dispatch checks, and integration-specific generated guidance.
+
+Ordinary consumers include planning, specification, tasking, implementation, debugging, analysis, checklist, deep-research, PRD extraction, direct debug helpers, Codex team auto-dispatch, preflight checks, and integration guidance that is using project cognition to navigate a separate task. These consumers may warn on missing, stale, `needs_update`, `needs_rebuild`, blocked, or incompatible cognition state, but they must not block ordinary work solely for map maintenance. When cognition is not usable enough, they should continue by reading the live repository surfaces needed for the task.
+
+Map-specific workflows and commands remain allowed to validate, block, and fail on their own artifacts:
+
+- `sp-map-scan`
+- `sp-map-build`
+- `sp-map-update`
+- explicit user-requested map repair or rebuild
+- direct validation commands such as `project-cognition validate-scan` and `project-cognition validate-build`
+- map finalization helpers such as `project-cognition complete-refresh` when invoked as part of map maintenance
+
+### Readiness API Compatibility
+
+Existing readiness fields can remain in CLI and query payloads for compatibility. `ready`, `review`, `ambiguous`, `needs_update`, `needs_rebuild`, `blocked`, `recommended_next_action`, and related diagnostics may still be emitted.
+
+The compatibility rule is interpretation, not payload removal:
+
+- Inside map-maintenance workflows, readiness can drive validation and repair flow.
+- Outside map-maintenance workflows, readiness is advisory and must not force update or rebuild.
+- Ordinary consumers should treat `recommended_next_action` as a map maintenance recommendation, not a command that supersedes the user's current task.
+- If a consumer needs stronger evidence than the map provides, it should inspect live code, tests, scripts, configuration, or authoritative docs.
+
 ### Completion Behavior
 
 When a completed task changes structural, workflow, template, API, verification, runtime, or ownership surfaces, the workflow should recommend maintaining the map:
@@ -85,6 +112,8 @@ Project cognition may be stale for the changed surfaces. Recommended follow-up: 
 ```
 
 This recommendation is advisory. The task can still complete when source-level verification is complete.
+
+Ordinary source/runtime changes should not automatically mutate project cognition freshness state with `mark-dirty` as a completion requirement. They should report the changed paths and recommend `sp-map-update`. `mark-dirty`, `complete-refresh`, and validation finalizers belong to map-maintenance flows or explicit user-requested repair, not routine completion of unrelated work.
 
 ### Map Update
 
@@ -126,8 +155,23 @@ The implementation should update these surfaces together:
 - `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`.
 - `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`.
 - `src/specify_cli/integrations/base.py` generated guidance.
+- Runtime and hook consumers, including `src/specify_cli/hooks/project_cognition.py`, `src/specify_cli/hooks/preflight.py`, `src/specify_cli/__init__.py`, `src/specify_cli/debug/cli.py`, `src/specify_cli/codex_team/api_surface.py`, and integration-specific guidance such as `src/specify_cli/integrations/cursor_agent/__init__.py`.
 - `README.md` and `PROJECT-HANDBOOK.md`.
 - Tests that encode the old hard-gate contract.
+
+## Implementation Surfaces
+
+The implementation is not a wording-only change. It must sweep every consumer that turns project cognition readiness into workflow control:
+
+- Generated command templates and passive skills.
+- Shared command partials that describe context loading, consequence analysis, or workflow routing.
+- Integration renderers and integration-specific instruction injection.
+- Hook and preflight runtime code that currently errors on map freshness, missing baseline, stale state, or rebuild/update recommendations for ordinary consumers.
+- Direct CLI helper commands that currently block on project cognition state before doing their task.
+- Codex team dispatch and API-surface checks that currently require a fresh cognition baseline before dispatch.
+- Tests for both generated guidance and runtime behavior.
+
+Map-maintenance internals should keep their artifact validation behavior. The implementation should adjust only ordinary consumer interpretation and completion policy.
 
 ## Acceptance Criteria
 
