@@ -930,6 +930,84 @@ class TestClaudeIntegration:
 
         assert result is None
 
+    def test_claude_hook_dispatch_allows_repairable_implement_tracker_write(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        tracker_path = feature_dir / "implement-tracker.md"
+        tracker_path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "status: executing",
+                    "resume_decision: resume-here",
+                    "---",
+                    "",
+                    "## Current Focus",
+                    "",
+                    "- current_batch: batch-a",
+                    "- goal: finish demo",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        module = _load_claude_hook_dispatch_module()
+        env = os.environ.copy()
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(tracker_path)}}
+        old_env = os.environ.copy()
+        try:
+            os.environ.update(env)
+            result = module._handle_pre_tool_write(Path(tmp_path), payload)
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+
+        assert result is None
+
+    def test_claude_hook_dispatch_allows_repairable_implement_tracker_read(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        tracker_path = feature_dir / "implement-tracker.md"
+        tracker_path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "status: executing",
+                    "resume_decision: resume-here",
+                    "---",
+                    "",
+                    "## Current Focus",
+                    "",
+                    "- current_batch: batch-a",
+                    "- goal: finish demo",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        module = _load_claude_hook_dispatch_module()
+        env = os.environ.copy()
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+        payload = {"tool_name": "Read", "tool_input": {"file_path": str(tracker_path)}}
+        old_env = os.environ.copy()
+        try:
+            os.environ.update(env)
+            result = module._handle_pre_tool_read(Path(tmp_path), payload)
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+
+        assert result is None
+
     def test_claude_hook_dispatch_prefers_project_launcher_config(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)

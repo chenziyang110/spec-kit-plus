@@ -536,9 +536,18 @@ def _is_repairable_block(shared_payload: dict[str, Any] | None) -> bool:
     return str((shared_payload or {}).get("status") or "").strip().lower() == "repairable-block"
 
 
-def _is_workflow_state_repair_read(target_path: str) -> bool:
-    normalized = target_path.replace("\\", "/").lower()
-    return normalized.endswith("/workflow-state.md") or normalized == "workflow-state.md"
+def _normalized_path_for_compare(project_root: Path, raw_path: str) -> str:
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = project_root / path
+    return str(path.resolve()).replace("\\", "/").lower()
+
+
+def _is_state_repair_path(project_root: Path, context: dict[str, str] | None, target_path: str) -> bool:
+    state_file = str((context or {}).get("state_file") or "").strip()
+    if not state_file or not target_path:
+        return False
+    return _normalized_path_for_compare(project_root, target_path) == _normalized_path_for_compare(project_root, state_file)
 
 
 def _is_validate_state_autofix_command(command: str) -> bool:
@@ -722,7 +731,7 @@ def _handle_pre_tool_read(project_root: Path, payload: dict[str, Any]) -> dict[s
     target_path = _extract_read_path(_extract_tool_input(payload))
     if not target_path:
         return policy_output
-    if _is_repairable_block(policy_shared) and not _is_workflow_state_repair_read(target_path):
+    if _is_repairable_block(policy_shared) and not _is_state_repair_path(project_root, context, target_path):
         return {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -748,7 +757,7 @@ def _handle_pre_tool_write(project_root: Path, payload: dict[str, Any]) -> dict[
     if not target_path:
         return None
     if _is_repairable_block(policy_shared):
-        if _is_workflow_state_repair_read(target_path):
+        if _is_state_repair_path(project_root, context, target_path):
             return None
         return {
             "hookSpecificOutput": {

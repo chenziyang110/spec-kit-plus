@@ -345,6 +345,100 @@ class TestGeminiIntegration(TomlIntegrationTests):
         assert payload["decision"] == "deny"
         assert "workflow-state repair" in payload["reason"]
 
+    def test_gemini_hook_dispatch_allows_repairable_implement_tracker_write(self, tmp_path):
+        integration = get_integration("gemini")
+        manifest = IntegrationManifest("gemini", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        tracker_path = feature_dir / "implement-tracker.md"
+        tracker_path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "status: executing",
+                    "resume_decision: resume-here",
+                    "---",
+                    "",
+                    "## Current Focus",
+                    "",
+                    "- current_batch: batch-a",
+                    "- goal: finish demo",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["GEMINI_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "before-tool"],
+            input=json.dumps({"tool_name": "write_file", "tool_input": {"file_path": str(tracker_path)}}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout.strip()) == {}
+
+    def test_gemini_hook_dispatch_allows_repairable_implement_tracker_read(self, tmp_path):
+        integration = get_integration("gemini")
+        manifest = IntegrationManifest("gemini", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        tracker_path = feature_dir / "implement-tracker.md"
+        tracker_path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "status: executing",
+                    "resume_decision: resume-here",
+                    "---",
+                    "",
+                    "## Current Focus",
+                    "",
+                    "- current_batch: batch-a",
+                    "- goal: finish demo",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["GEMINI_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "before-tool"],
+            input=json.dumps({"tool_name": "read_file", "tool_input": {"file_path": str(tracker_path)}}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout.strip()) == {}
+
     def test_gemini_hook_dispatch_prefers_project_launcher_config(self, tmp_path):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)

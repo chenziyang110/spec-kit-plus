@@ -231,9 +231,18 @@ def _is_repairable_block(shared_payload: dict[str, Any] | None) -> bool:
     return str((shared_payload or {}).get("status") or "").strip().lower() == "repairable-block"
 
 
-def _is_workflow_state_repair_read(target_path: str) -> bool:
-    normalized = target_path.replace("\\", "/").lower()
-    return normalized.endswith("/workflow-state.md") or normalized == "workflow-state.md"
+def _normalized_path_for_compare(project_root: Path, raw_path: str) -> str:
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = project_root / path
+    return str(path.resolve()).replace("\\", "/").lower()
+
+
+def _is_state_repair_path(project_root: Path, context: dict[str, str] | None, target_path: str) -> bool:
+    state_file = str((context or {}).get("state_file") or "").strip()
+    if not state_file or not target_path:
+        return False
+    return _normalized_path_for_compare(project_root, target_path) == _normalized_path_for_compare(project_root, state_file)
 
 
 def _is_validate_state_autofix_command(command: str) -> bool:
@@ -615,8 +624,13 @@ def _workflow_policy_block(project_root: Path, *, trigger: str, requested_action
     return _shared_block_to_gemini(shared)
 
 
-def _workflow_policy_shared(project_root: Path, *, trigger: str) -> dict[str, Any] | None:
-    context = _infer_active_context(project_root)
+def _workflow_policy_shared(
+    project_root: Path,
+    *,
+    trigger: str,
+    context: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
+    context = context or _infer_active_context(project_root)
     if not context:
         return None
     args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
@@ -720,13 +734,14 @@ def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[st
 def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     tool_name = _extract_tool_name(payload).lower()
     tool_input = _extract_tool_input(payload)
-    policy_shared = _workflow_policy_shared(project_root, trigger="pre_tool")
+    context = _infer_active_context(project_root)
+    policy_shared = _workflow_policy_shared(project_root, trigger="pre_tool", context=context)
 
     if tool_name in {"read_file", "read", "read-file"}:
         target_path = _extract_read_path(tool_input)
         if not target_path:
             return {}
-        if _is_repairable_block(policy_shared) and _is_workflow_state_repair_read(target_path):
+        if _is_repairable_block(policy_shared) and _is_state_repair_path(project_root, context, target_path):
             return {}
         if _is_repairable_block(policy_shared):
             return {"decision": "deny", "reason": "workflow-state repair is required before reading other files"}
@@ -749,7 +764,7 @@ def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str
 
     if tool_name in {"write_file", "write", "edit_file", "edit", "multi_edit", "multiedit"}:
         target_path = _extract_read_path(tool_input)
-        if _is_repairable_block(policy_shared) and _is_workflow_state_repair_read(target_path):
+        if _is_repairable_block(policy_shared) and _is_state_repair_path(project_root, context, target_path):
             return {}
         if _is_repairable_block(policy_shared):
             return {"decision": "deny", "reason": "workflow-state repair is required before writing other files"}
