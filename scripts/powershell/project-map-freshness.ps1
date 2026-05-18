@@ -340,14 +340,15 @@ function Test-PathGapRequiresRebuild {
 
     $reasonText = ($Reasons | ForEach-Object { [string]$_ }) -join " "
     $lowerReasonText = $reasonText.ToLowerInvariant()
-    if ($lowerReasonText.Contains("path not safely adoptable by project cognition index")) {
+    $normalizedReasonText = $lowerReasonText.Replace("-", " ").Replace("_", " ")
+    if ($normalizedReasonText.Contains("path not safely adoptable by project cognition index")) {
         return $true
     }
-    if ($lowerReasonText.Contains("unadoptable") -and $lowerReasonText.Contains("path")) {
+    if ($normalizedReasonText.Contains("unadoptable") -and $normalizedReasonText.Contains("path")) {
         return $true
     }
 
-    foreach ($match in [regex]::Matches($lowerReasonText, "([0-9]+)\s+changed\s+paths\s+missing")) {
+    foreach ($match in [regex]::Matches($normalizedReasonText, "([0-9]+)\s+changed\s+paths\s+missing")) {
         if ([int]$match.Groups[1].Value -gt 25) {
             return $true
         }

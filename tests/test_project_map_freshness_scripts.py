@@ -384,6 +384,24 @@ def test_bash_project_map_freshness_routes_unadoptable_path_gap_to_scan_build(gi
     assert result["recommended_next_action"] == "run_map_scan_build"
 
 
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "58 changed paths missing from project cognition path_index",
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
+    ],
+)
+def test_bash_mark_dirty_routes_normalized_rebuild_path_gaps_to_scan_build(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "manual")
+
+    result = _run_bash(git_repo, "mark-dirty", reason)
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
 def test_bash_project_cognition_helper_uses_launcher_without_project_map(git_repo: Path):
     launcher = _write_bash_source_launcher(git_repo)
     if launcher is None:
@@ -488,6 +506,24 @@ def test_powershell_project_map_freshness_routes_unadoptable_path_gap_to_scan_bu
     )
 
     result = _run_powershell(git_repo, "check")
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "58 changed paths missing from project cognition path_index",
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
+    ],
+)
+def test_powershell_mark_dirty_routes_normalized_rebuild_path_gaps_to_scan_build(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_powershell(git_repo, "record-refresh", "manual")
+
+    result = _run_powershell(git_repo, "mark-dirty", reason)
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_scan_build"

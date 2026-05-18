@@ -535,21 +535,22 @@ refresh_plan_for_dirty_reason() {
 
 path_gap_requires_rebuild() {
     local reasons_text="$1"
-    local lower_reasons
+    local lower_reasons normalized_reasons
     lower_reasons="$(printf '%s' "$reasons_text" | tr '[:upper:]' '[:lower:]')"
+    normalized_reasons="$(printf '%s' "$lower_reasons" | tr '_-' '  ')"
 
-    if [[ "$lower_reasons" == *"path not safely adoptable by project cognition index"* ]]; then
+    if [[ "$normalized_reasons" == *"path not safely adoptable by project cognition index"* ]]; then
         return 0
     fi
-    if [[ "$lower_reasons" == *"unadoptable"* && "$lower_reasons" == *"path"* ]]; then
+    if [[ "$normalized_reasons" == *"unadoptable"* && "$normalized_reasons" == *"path"* ]]; then
         return 0
     fi
 
-    while [[ "$lower_reasons" =~ ([0-9]+)[[:space:]]+changed[[:space:]]+paths[[:space:]]+missing ]]; do
+    while [[ "$normalized_reasons" =~ ([0-9]+)[[:space:]]+changed[[:space:]]+paths[[:space:]]+missing ]]; do
         if (( BASH_REMATCH[1] > 25 )); then
             return 0
         fi
-        lower_reasons="${lower_reasons#*"${BASH_REMATCH[0]}"}"
+        normalized_reasons="${normalized_reasons#*"${BASH_REMATCH[0]}"}"
     done
 
     return 1
