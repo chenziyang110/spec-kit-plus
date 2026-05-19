@@ -13,6 +13,10 @@ Translate the approved specification package into explicit implementation design
 ## Process
 
 - Recover the active feature context and validate that the specification package is ready for planning.
+- Validate `FEATURE_DIR/brainstorming/handoff-to-specify.json` before planning from a discussion handoff.
+- Stop when `planning_gate_status` is not `ready`, `quality_gate.user_confirmed` is missing, `context_boundary` is incomplete, target project root is required but missing, hard unknowns remain open, or conflicts remain open.
+- For cross-project implementation, plan from the target project context and record that current project cognition cannot prove target-project implementation facts.
+- Use target cognition, minimal live reads in the target, user confirmation, or explicit assumptions for target evidence; do not ask the user to rebuild current-project cognition for target files.
 - Refresh or inspect repository navigation artifacts until task-relevant coverage is sufficient.
 - Research, model, and document the implementation approach with explicit constraints and guardrails.
 - Design every carried `CA-###` consequence obligation into operational behavior, dependency impact, recovery/validation proof, and stop-and-reopen conditions before task handoff.

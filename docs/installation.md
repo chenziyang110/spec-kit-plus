@@ -121,20 +121,7 @@ compiles from the scan package without a second repository scan. It remains a
 peer workflow path to `specify` and does not automatically hand off to `plan`.
 `prd` remains a deprecated compatibility entrypoint only.
 
-Use the canonical `discussion` workflow for rough ideas that need resumable
-product and technical exploration before formal specification with `specify`. It
-stores `.specify/discussions/<slug>/` artifacts and only runs
-`handoff-assessment.md` when the user explicitly asks to hand off. A bounded
-handoff writes latest-copy `handoff-to-specify.md` and
-`handoff-to-specify.json` with a Must-Preserve Ledger so protected goals,
-non-goals, decisions, references, trade-off rationale, and blocking questions
-carry forward without silent drift. If the assessment finds multiple
-independently valuable stages, split handling stays inside `discussion`:
-`split-plan.md` becomes the candidate backlog, there is no separate split
-workflow, and selected candidates get canonical handoffs such as
-`handoffs/CAND-001-handoff-to-specify.{md,json}` or
-`handoffs/CAND-002-handoff-to-specify.{md,json}` plus latest-copy mirrors for
-compatibility. It does not automatically invoke `specify`.
+Use the canonical `discussion` workflow for rough ideas that need resumable product/technical discussion before formal specification. `discussion` stores `.specify/discussions/<slug>/` artifacts, asks one high-impact question at a time, and runs the Context Boundary Gate before technical options or handoff generation. If the request crosses projects, references another codebase, names an external system, or depends on an existing module, lock the target project root, current project role, reference source, and evidence source before making project-specific claims. When the user explicitly asks to hand off, `discussion` writes exactly one single unified handoff: `handoff-to-specify.md` plus `handoff-to-specify.json` only after self-review and user confirmation. Missing JSON is a hard integrity blocker for downstream intake. Broad directions stay in `discussion` until they can be expressed as one handoff with a capability map, recommended sequence, dependencies, deferred scope, and reopen conditions. It does not automatically invoke `specify`.
 
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 

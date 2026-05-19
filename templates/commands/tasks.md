@@ -103,6 +103,11 @@ scripts:
    - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract, active profile, activated gates, task-shaping rules, and required evidence)
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Required when present**: `plan.md#Must-Preserve Carry-Forward` and `MP-*` obligations from `brainstorming/handoff-to-specify.json`
+   - Read the implementation target boundary from `plan.md#Implementation Target Boundary`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`.
+   - Every implementation-shaping task must state target root, target-relative path or path discovery step, evidence status, relevant `MP-*` obligations, boundary constraints, and forbidden drift.
+   - Must not silently point to the current repository unless the handoff says the current repository is the implementation target.
+   - If a task uses a reference project path, state why that path is reference-only or transfer evidence.
+   - Stop task generation when the target root is required but missing or when target-relative paths cannot be discovered without guessing.
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)

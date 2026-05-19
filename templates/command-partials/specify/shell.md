@@ -19,6 +19,11 @@ planning.
 - Establish or resume the active feature workspace, workflow-state file, `BRAINSTORMING_JOURNAL_FILE`, `BRAINSTORMING_STAGE_MANIFEST_FILE`, and brainstorming truth files.
 - Create or resume `BRAINSTORMING_JOURNAL_FILE` and `BRAINSTORMING_STAGE_MANIFEST_FILE` immediately after `FEATURE_DIR` is known, before relying on workflow-state, draft Markdown, or chat history.
 - Markdown is not a trusted recovery source; JSON stage artifacts plus `brainstorming/journal.ndjson` are the trusted recovery and compile contract.
+- When invoked with a discussion handoff, accept only the unified `.specify/discussions/<slug>/handoff-to-specify.md` plus `.json` pair.
+- Reject missing JSON as a hard handoff integrity blocker; do not reconstruct the JSON companion from Markdown.
+- Require `handoff_goal`, complete `context_boundary`, role objects with `role`, `scope`, `evidence_source`, and `notes`, target root when cross-project, closed hard unknowns, and user-confirmed `quality_gate`.
+- Reject candidate-specific handoff paths and return to `sp-discussion` to refresh the unified handoff.
+- When target differs from current project, record that current project cognition cannot prove target-project implementation facts.
 - On resume, replay `brainstorming/journal.ndjson`, validate `brainstorming/stage-manifest.json`, and regenerate stale stage artifacts before continuing.
 - If journal replay and a compiled stage artifact disagree, journal replay wins and the stage artifact must be regenerated before continuing.
 - Load just enough repository context to understand ownership, constraints, and adjacent surfaces.
@@ -42,6 +47,7 @@ planning.
   when needed.
 - Treat structured handoff truth as authoritative when it exists; do not rely on
   chat-only conclusions.
+- Preserve discussion boundary facts, implementation target, source evidence, capability map, delivery sequence, deferred scope, quality gate, and Must-Preserve obligations in the brainstorming truth package and compiled spec artifacts.
 - Preserve `compiled_from`, `last_event_id`, and `last_checkpoint_id` metadata so the final package can be reconstructed from JSON stage artifacts and the journal.
 - Report what was locked, what remains open, and the recommended next command.
 - Do not imply planning readiness when planning-critical ambiguity still remains.

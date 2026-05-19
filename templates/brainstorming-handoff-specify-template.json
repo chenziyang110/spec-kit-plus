@@ -13,6 +13,60 @@
   "deferred_candidates": [],
   "stage_scope_boundary": null,
   "reopen_condition": null,
+  "handoff_goal": null,
+  "context_boundary": {
+    "current_project_root": null,
+    "current_project_roles": [],
+    "target_project_root": null,
+    "target_project_roles": [],
+    "reference_projects": [],
+    "external_systems": [],
+    "path_status": "unknown",
+    "boundary_confidence": "unknown",
+    "boundary_unknowns": [],
+    "role_object_contract": {
+      "required_fields": [
+        "role",
+        "scope",
+        "evidence_source",
+        "notes"
+      ],
+      "allowed_roles": [
+        "implementation_target",
+        "reference_source",
+        "template_source",
+        "discussion_host",
+        "unrelated"
+      ]
+    }
+  },
+  "implementation_target": {
+    "actual_project": null,
+    "target_root": null,
+    "target_paths": [],
+    "required_target_paths_to_verify": [],
+    "target_project_cognition_status": null,
+    "current_project_cognition_scope_note": "Current project cognition cannot prove another project's implementation facts."
+  },
+  "source_evidence": [],
+  "blocking_unknowns": [],
+  "downstream_instructions": {
+    "settled_decisions": [],
+    "preserved_assumptions": [],
+    "conflicts_requiring_return": [],
+    "capability_map": [],
+    "recommended_sequence": [],
+    "dependencies": [],
+    "deferred_scope": [],
+    "reopen_conditions": []
+  },
+  "quality_gate": {
+    "status": "draft",
+    "self_reviewed_at": null,
+    "user_review_required": true,
+    "user_confirmed_at": null,
+    "blocked_reasons": []
+  },
   "facts_file": "brainstorming/facts.json",
   "route_file": "brainstorming/route.json",
   "intent_file": "brainstorming/intent.json",

@@ -375,43 +375,20 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "{{spec-kit-include: ../command-partials/discussion/shell.md}}" in content
 
 
-def test_discussion_command_supports_handoff_assessment_and_split_backlog() -> None:
+def test_discussion_command_locks_context_boundary_before_technicalization() -> None:
     content = _read_project_file("templates/commands/discussion.md")
     lowered = content.lower()
 
-    assert "handoff-assessment.md" in content
-    assert "split-plan.md" in content
-    assert "handoffs/<candidate_id>-handoff-to-specify.{md,json}" in content
-    assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
-    assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
-    assert "handoffs/CAND-001-handoff-to-specify.md" in content
-    assert "handoffs/CAND-002-handoff-to-specify.md" in content
-    assert "`handoff-to-specify.json`" in content
-    assert "ready-for-specify" in content
-    assert "split-required" in content
+    assert "product manager perspective" in lowered
+    assert "technical expert perspective" in lowered
+    assert "context-grounding" in content
+    assert "technical-options" in content
+    assert "handoff-assessment" in content
+    assert "context_boundary" in content
+    assert "implementation_target" in content
+    assert "quality_gate" in content
     assert "continue-discussion" in content
-    assert "candidate backlog" in lowered
-    assert "latest selected candidate" in lowered
-    assert "full readable copy" in lowered
-    assert "must not be a pointer-only file" in lowered
-    assert "must not mark the discussion `completed` merely because the first candidate handoff was written" in content
-    assert "Do not add, recommend, or route to `sp-split`" in content
-
-
-def test_discussion_shell_partial_mentions_split_outputs_without_single_handoff_assumption() -> None:
-    content = _read("templates/command-partials/discussion/shell.md")
-    lowered = content.lower()
-
-    assert "handoff-assessment.md" in content
-    assert "split-plan.md" in content
-    assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
-    assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
-    assert "CAND-002" in content
-    assert "`handoff-to-specify.md`" in content
-    assert "`handoff-to-specify.json`" in content
-    assert "candidate backlog" in lowered
-    assert "latest selected candidate copy" in lowered
-    assert "not the only handoff output" in lowered
+    assert "split-plan.md" not in content
 
 
 def test_discussion_staged_cognition_gate_and_technical_options_contract() -> None:
@@ -461,19 +438,15 @@ def test_adjacent_workflows_preserve_consequence_obligations() -> None:
         assert "must not drop" in lowered or "cannot drop" in lowered
 
 
-def test_discussion_consequence_gate_covers_json_and_candidate_handoffs() -> None:
-    content = _read("templates/commands/discussion.md")
+def test_discussion_shell_partial_summarizes_boundary_and_single_handoff_contract() -> None:
+    content = _read("templates/command-partials/discussion/shell.md")
     lowered = content.lower()
 
-    assert "Senior Maintainer Review" in content
+    assert "high-impact question" in lowered
     assert "handoff-to-specify.md" in content
     assert "handoff-to-specify.json" in content
-    assert "CAND-001-handoff-to-specify.md" in content
-    assert "CAND-001-handoff-to-specify.json" in content
-    assert "markdown and json handoffs must agree" in lowered
-    assert "consequence obligation ids" in lowered
-    assert "must not mark the discussion `handoff-ready`" in content
-    assert "selected candidate handoff" in lowered
+    assert "handoffs/<candidate_id>" not in content
+    assert "split-plan.md" not in content
 
 
 def test_discussion_state_template_is_independent_from_feature_workflow_state() -> None:
@@ -492,50 +465,48 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "## Allowed Artifact Writes" in content
     assert "discussion-state.md" in content
     assert "handoff-to-specify.md" in content
-    assert "handoff-assessment" in content
-    assert "split-mode" in content
-    assert "candidate-selection" in content
-    assert "## Handoff Assessment" in content
-    assert "handoff_assessment_status: not-run | ready-for-specify | split-required | continue-discussion" in content
-    assert "## Split Plan" in content
-    assert "split_plan_status: none | active | partially-handed-off | completed | blocked" in content
-    assert "active_candidate: CAND-xxx | none" in content
-    assert "next_recommended_candidate: CAND-xxx | none" in content
-    assert "handoffs/*.md" in content
-    assert "handoffs/*.json" in content
+    assert "## Context Boundary" in content
+    assert "context_boundary_status: not-started | needs-user-input | locked | blocked" in content
+    assert "current_project_root:" in content
+    assert "current_project_roles:" in content
+    assert "target_project_root:" in content
+    assert "target_project_roles:" in content
+    assert "reference_sources:" in content
+    assert "external_systems:" in content
+    assert "boundary_blockers:" in content
+    assert "## Handoff Review" in content
+    assert "handoff_review_status: not-started | draft | self-review-passed | user-confirmed | blocked" in content
+    assert "handoff_user_confirmed_at:" in content
+    assert "handoff_blocker_reason:" in content
+    assert "handoff-to-specify.md only after explicit user request, boundary lock, self-review pass, and user confirmation" in content
+    assert "handoff-to-specify.json only after explicit user request, boundary lock, self-review pass, and user confirmation" in content
+    assert "handoffs/*.md" not in content
+    assert "handoffs/*.json" not in content
+    assert "split_plan_status" not in content
+    assert "active_candidate" not in content
     assert "sp-discussion" not in workflow_state
     assert '"discussion"' not in expected_workflow_state
     assert "sp-discussion" not in expected_workflow_state
 
 
-def test_specify_consumes_explicit_discussion_handoff_without_bypassing_kernel() -> None:
+def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert ".specify/discussions/<slug>/handoff-to-specify.md" in content
-    assert ".specify/discussions/<slug>/handoffs/<candidate_id>-handoff-to-specify.md" in content
-    assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
-    assert "CAND-001" in content
-    assert "CAND-002" in content
-    assert "candidate_id" in content
-    assert "candidate_title" in content
-    assert "source_split_plan" in content
-    assert "stage_scope_boundary" in content
-    assert "deferred_candidates" in content
-    assert "latest selected candidate" in lowered
-    assert "same-stem JSON companion" in content
-    assert "current feature spec covers one candidate" in lowered
-    assert "sibling candidates" in lowered
-    assert "handoff integrity error" in lowered
-    assert "pasted discussion handoff" in lowered
-    assert "entry_source: sp-discussion" in content
     assert "authoritative input" in lowered
     assert "not a bypass" in lowered
-    assert "confirmed requirements" in lowered
-    assert "open questions" in lowered
-    assert "blocking_level" in content
-    assert "references.md" in content
-    assert "reopen reason" in lowered
+    assert "discussion handoff" in lowered
+    assert "entry_source: sp-discussion" in content
+    assert "coverage_status" in content
+    assert "planning_gate_status" in content
+    assert "hard_unknown_count" in content
+    assert "open_conflict_count" in content
+    assert "blocked_by_handoff_integrity" in content
+    assert "handoff integrity error" in lowered
+    assert (
+        "if candidate markdown exists but candidate json is missing, reconstruct the active feature copy into `brainstorming/handoff-to-specify.json`"
+        not in lowered
+    )
 
 
 def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
@@ -2612,28 +2583,52 @@ def test_lossless_specify_state_templates_are_packaged_and_scaffolded() -> None:
     assert "brainstorming-evidence-record-template" in ps_create
 
 
-def test_brainstorming_handoff_template_supports_discussion_candidate_metadata() -> None:
+def test_brainstorming_handoff_template_supports_context_boundary_quality_gate() -> None:
     template = json.loads(_read("templates/brainstorming-handoff-specify-template.json"))
 
     assert template["version"] == 2
     assert template["entry_source"] is None
-    assert template["discussion_slug"] is None
-    assert template["candidate_id"] is None
-    assert template["candidate_title"] is None
-    assert template["source_split_plan"] is None
-    assert template["source_handoff"] is None
-    assert template["source_handoff_json"] is None
-    assert template["prior_candidates"] == []
-    assert template["deferred_candidates"] == []
-    assert template["stage_scope_boundary"] is None
-    assert template["reopen_condition"] is None
-    assert template["must_preserve"] == []
-    assert template["conflicts"] == []
-    assert template["coverage_status"] == "not_started"
-    assert template["planning_gate_status"] == "blocked_by_incomplete_coverage"
-    assert template["handoff_integrity"] == "not-checked"
-    assert template["hard_unknown_count"] == 0
-    assert template["open_conflict_count"] == 0
+    boundary = template.get("context_boundary")
+    assert isinstance(boundary, dict)
+    assert boundary.get("current_project_root") is None
+    assert boundary.get("current_project_roles") == []
+    assert boundary.get("target_project_root") is None
+    assert boundary.get("target_project_roles") == []
+    assert boundary.get("reference_projects") == []
+    assert boundary.get("external_systems") == []
+    assert boundary.get("path_status") == "unknown"
+    assert boundary.get("boundary_confidence") == "unknown"
+    assert boundary.get("boundary_unknowns") == []
+    role_contract = boundary.get("role_object_contract")
+    assert isinstance(role_contract, dict)
+    assert role_contract.get("required_fields") == [
+        "role",
+        "scope",
+        "evidence_source",
+        "notes",
+    ]
+    implementation_target = template.get("implementation_target")
+    assert isinstance(implementation_target, dict)
+    assert implementation_target.get("target_root") is None
+    assert implementation_target.get("target_paths") == []
+    assert "current project cognition cannot prove another project's implementation facts" in (
+        implementation_target.get("current_project_cognition_scope_note") or ""
+    ).lower()
+    assert template.get("source_evidence") == []
+    assert template.get("blocking_unknowns") == []
+    downstream_instructions = template.get("downstream_instructions")
+    assert isinstance(downstream_instructions, dict)
+    assert downstream_instructions.get("capability_map") == []
+    assert downstream_instructions.get("recommended_sequence") == []
+    assert downstream_instructions.get("deferred_scope") == []
+    quality_gate = template.get("quality_gate")
+    assert isinstance(quality_gate, dict)
+    assert quality_gate.get("status") == "draft"
+    assert quality_gate.get("user_review_required") is True
+    assert quality_gate.get("user_confirmed_at") is None
+    assert quality_gate.get("blocked_reasons") == []
+    assert template.get("candidate_id") is None
+    assert template.get("source_split_plan") is None
 
 
 def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
@@ -2862,6 +2857,50 @@ def test_plan_tasks_and_implement_preserve_discussion_fidelity_obligations() -> 
     assert "Task Guardrail Index" in tasks_template
     assert "WorkerTaskPacket" in implement
     assert "result handoff" in implement_shell.lower()
+
+
+def test_plan_template_rejects_cross_project_handoff_without_target_context() -> None:
+    plan = _read("templates/commands/plan.md")
+    shell = _read("templates/command-partials/plan/shell.md")
+    plan_template = _read("templates/plan-template.md")
+    contract = json.loads(_read("templates/plan-contract-template.json"))
+    combined = "\n".join([plan, shell, plan_template])
+    lowered = combined.lower()
+
+    assert "target_project_root" in combined
+    assert "quality_gate.user_confirmed" in combined
+    assert "hard unknowns" in lowered
+    assert "current project's cognition" in lowered
+    assert "not proof of target-project implementation facts" in lowered
+    assert "artifact-only planning may proceed only with explicit minimal live reads" in lowered
+    assert "must not tell the user to run current-project" in lowered
+    assert isinstance(contract.get("context_boundary"), dict)
+    assert isinstance(contract.get("implementation_target"), dict)
+    assert contract.get("target_project_root") is None
+    assert contract.get("target_evidence_status") is None
+
+
+def test_tasks_template_inherits_implementation_target_boundary() -> None:
+    tasks = _read("templates/commands/tasks.md")
+    shell = _read("templates/command-partials/tasks/shell.md")
+    task_template = _read("templates/tasks-template.md")
+    packet = json.loads(_read("templates/task-packet-template.json"))
+    combined = "\n".join([tasks, shell, task_template])
+    lowered = combined.lower()
+
+    assert "target root" in lowered
+    assert "target-relative path" in lowered
+    assert "evidence status" in lowered
+    assert "mp-*" in lowered
+    assert "boundary constraints" in lowered
+    assert "forbidden drift" in lowered
+    assert "must not silently point to the current repository" in lowered
+    assert "reference-only" in lowered
+    assert isinstance(packet.get("implementation_target"), dict)
+    assert packet.get("target_root") is None
+    assert packet.get("target_relative_paths") == []
+    assert packet.get("evidence_status") is None
+    assert packet.get("boundary_constraints") == []
 
 
 def test_structured_json_templates_preserve_fidelity_status_fields() -> None:

@@ -129,41 +129,44 @@ def test_guidance_docs_position_discussion_before_specify() -> None:
         assert matching_guidance
 
 
-def test_guidance_docs_explain_discussion_split_continuation() -> None:
+def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
     generated_handbook = _read("templates/project-handbook-template.md")
 
     for content in (readme, handbook, generated_handbook):
         lowered = content.lower()
-        normalized = re.sub(r"\s+", " ", lowered)
-        assert "handoff-assessment.md" in content
-        assert "split-plan.md" in content
-        assert "candidate backlog" in lowered
-        assert "return to the same discussion" in normalized
-        assert "handoffs/<candidate_id>-handoff-to-specify.md" in content
-        assert "handoffs/<candidate_id>-handoff-to-specify.json" in content
-        assert "CAND-001" in content
-        assert "CAND-002" in content
+        assert "Context Boundary Gate" in content
+        assert "target project root" in lowered
+        assert "current project cognition cannot prove another project's" in lowered
+        assert "handoff-to-specify.md" in content
+        assert "handoff-to-specify.json" in content
+        assert "single unified handoff" in lowered or "one unified handoff" in lowered
+        assert "quality_gate" in content
+        assert "user confirmation" in lowered
+        assert "split-plan.md" not in content
+        assert "handoffs/<candidate_id>" not in content
+        assert "CAND-001" not in content
+        assert "CAND-002" not in content
 
 
-def test_quickstart_and_installation_explain_discussion_candidate_handoffs() -> None:
+def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> None:
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
 
     for content in (quickstart, installation):
         lowered = content.lower()
-        normalized = re.sub(r"\s+", " ", lowered)
-        assert "handoff-assessment.md" in content
-        assert "split-plan.md" in content
-        assert "candidate backlog" in lowered
-        assert "no separate split workflow" in normalized
-        assert "selected stable id" in lowered or "selected candidates" in lowered
-        assert "handoffs/CAND-001-handoff-to-specify" in content
-        assert "handoffs/CAND-002-handoff-to-specify" in content
+        assert "Context Boundary Gate" in content
+        assert "target project root" in lowered
+        assert "reference source" in lowered
         assert "handoff-to-specify.md" in content
         assert "handoff-to-specify.json" in content
-        assert "mirror" in lowered or "mirrors" in lowered
+        assert "single unified handoff" in lowered or "one unified handoff" in lowered
+        assert "missing json" in lowered
+        assert "user confirmation" in lowered
+        assert "split-plan.md" not in content
+        assert "handoffs/CAND-001-handoff-to-specify" not in content
+        assert "handoffs/CAND-002-handoff-to-specify" not in content
 
 
 def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax():

@@ -102,6 +102,14 @@ agent_scripts:
    - Read `FEATURE_DIR/brainstorming/handoff-to-specify.json` when present and treat it as the authoritative pre-plan truth package.
    - If `brainstorming/handoff-to-specify.json` contains `must_preserve`, treat those `MP-*` items as planning obligations, not background notes.
    - If `planning_gate_status` is not `ready`, stop and route back to `{{invoke:specify}}` or to the user conflict decision named by the handoff.
+   - If `quality_gate.user_confirmed` or equivalent user-confirmed `quality_gate.status` is missing, stop and route back to `{{invoke:specify}}` or `sp-discussion` according to the recorded blocker.
+   - If `handoff_goal` is missing or vague, stop and route back to `sp-discussion` for handoff refresh.
+   - If `context_boundary` is incomplete, stop before structural planning.
+   - If `target_project_root` is required but missing, stop before structural planning.
+   - If hard unknowns or open conflicts remain, stop and report the named blocker.
+   - If `target_project_root` differs from `current_project_root`, plan from the target project context. Current project's cognition is not proof of target-project implementation facts.
+   - For cross-project implementation, artifact-only planning may proceed only with explicit minimal live reads, target path confirmation, and recorded risk when target cognition is stale or missing.
+   - Must not tell the user to run current-project `{{invoke:map-scan}} -> {{invoke:map-build}}` to fix target-project coverage.
    - If any `conflicts` item has `status: open`, stop and ask the user to resolve the conflict before planning.
    - Read `plan-contract.json` when present and treat route, intent, complexity as authoritative planning inputs.
    - Read `FEATURE_DIR/alignment.md`

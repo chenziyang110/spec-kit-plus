@@ -27,18 +27,7 @@ and what sits clearly outside the system boundary.]
   `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
   Final artifacts carry `compiled_from` / source-map references so
   planning can trace major claims to event IDs or evidence IDs.
-- **Pre-spec discussion**: `sp-discussion` stores resumable product/technical
-  discussions under `.specify/discussions/<slug>/`, produces technical options
-  and requirements drafts, and only hands off after explicit user request.
-  Handoff now begins with `handoff-assessment.md`: one bounded result writes
-  latest-copy `handoff-to-specify.md` and `handoff-to-specify.json` with a
-  Must-Preserve Ledger (`MP-*` items), coverage status, and planning gate status,
-  while broad directions stay inside `sp-discussion` through `split-plan.md`
-  candidate backlog entries and canonical
-  `handoffs/<candidate_id>-handoff-to-specify.md` and
-  `handoffs/<candidate_id>-handoff-to-specify.json` files, with `CAND-001` and
-  `CAND-002` as examples. After one candidate ships, return to the same
-  discussion slug to select the next stage.
+- **Pre-spec discussion**: `sp-discussion` stores resumable product/technical discussions under `.specify/discussions/<slug>/`, runs a Context Boundary Gate before technical options or handoff generation, and only hands off after explicit user request, self-review, and user confirmation. Cross-project requests must lock the target project root (`target_project_root`); current project cognition cannot prove another project's implementation facts. The valid handoff is one unified handoff pair: `handoff-to-specify.md` plus `handoff-to-specify.json`, with `handoff_goal`, `context_boundary`, `implementation_target`, evidence provenance, `quality_gate`, Must-Preserve Ledger, coverage status, and planning gate status. Downstream workflows must preserve each protected item or block for a user decision.
 
 ## How To Read This Project
 

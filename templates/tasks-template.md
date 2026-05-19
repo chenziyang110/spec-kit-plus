@@ -32,6 +32,15 @@ description: "Task list template for feature implementation"
 - Include `MP-*` IDs for any task that carries a discussion-derived goal, non-goal, decision, reference, trade-off, acceptance signal, or stop-and-reopen condition.
 - For each `[P]` task or explicit parallel batch, include enough detail that the leader can compile a bounded subagent execution packet: objective, write set, required references, forbidden drift, validation command, and done condition
 
+## Implementation Target Boundary
+
+- **Target root**: [copy from plan-contract.json / plan.md]
+- **Target-relative paths**: [verified paths or explicit path discovery tasks]
+- **Evidence status**: [target cognition | minimal live reads | user confirmation | explicit assumption | blocked]
+- **Boundary constraints**: [current project role, target role, reference-only sources, forbidden drift]
+- **MP obligations**: [MP-* IDs that shape implementation location, scope, validation, or stop conditions]
+- **Reference-only paths**: [paths used only as transfer evidence, not as implementation write targets]
+
 ## Task-Generation Evidence Index
 
 - `task-generation/evidence-index.json`: accepted task-generation lane handoffs and the task, dependency, write-set, batch, join-point, guardrail, or escalation decisions each handoff shaped.
