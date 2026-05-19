@@ -260,7 +260,7 @@ Use `execution_surface: native-subagents`.
      - If the checklist reveals planning-critical requirement gaps, contradictory behavior, or missing acceptance criteria, recommend `/sp-specify` (or `/sp-clarify` when the spec package already exists and only needs deeper analysis).
      - If the checklist reveals a clear requirement whose implementation chain is still unproven, recommend `/sp-deep-research` before `/sp-plan`.
      - If the checklist exposes plan-shaping technical or artifact completeness gaps, recommend `/sp-plan`.
-     - If the checklist is materially satisfied and execution preparation should continue through cross-artifact validation, recommend `/sp-analyze`.
+     - If the checklist is materially satisfied and execution preparation should continue, recommend `/sp-tasks` so task generation can perform its built-in implementation-readiness gate.
 
 **Important**: Each `/sp.checklist` command invocation uses a short, descriptive checklist filename and either creates a new file or appends to an existing one. This allows:
 

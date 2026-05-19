@@ -59,6 +59,7 @@ standalone branch-creation command.
 
 ## Recommendation Rules
 
+- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
@@ -98,7 +99,7 @@ standalone branch-creation command.
   `sp-research` artifacts or workflow state.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
-- Use `sp-implement` only after tasks are ready and execution should begin.
+- Use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
   coverage is stale or too weak for a localized touched area.
@@ -106,8 +107,7 @@ standalone branch-creation command.
   project cognition runtime context for an existing codebase is missing,
   unusable, schema-incompatible, explicitly being rebuilt, or invalidated by
   broad architecture replacement.
-- Use `sp-analyze` for drift, consistency, or readiness checks across existing
-  spec/plan/tasks artifacts.
+- Use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.
 - For brownfield debug or extension work, the selected workflow must consume the
@@ -163,6 +163,7 @@ user what to type:
   make the next escalation trigger explicit.
 - If the user intent is effectively "continue with the recommended next step",
   prefer `sp-auto` over guessing which canonical workflow they meant from chat alone.
+- Clean completed `sp-tasks` state with `/sp.implement` should route through `sp-auto` to `sp-implement`.
 - Keep `sp-*` workflows as visible optional entrypoints. This passive skill should
   recommend them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.

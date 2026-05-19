@@ -456,12 +456,15 @@ class TestBuiltInSkillGeneration:
         assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
         assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in tasks_body.lower()
         assert "recommended next command" in tasks_body.lower()
-        assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
-        assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
         assert "git-baseline freshness" in tasks_body.lower()
         assert "complete-refresh" in tasks_body
         assert "manual override/fallback" in tasks_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
+        routing_body = _body_without_frontmatter(PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-workflow-routing" / "SKILL.md").lower()
+        assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in routing_body
+        assert "use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`." in routing_body
+        assert "use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state." in routing_body
+        assert "clean completed `sp-tasks` state with `/sp.implement` should route through `sp-auto` to `sp-implement`." in routing_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
@@ -474,7 +477,6 @@ class TestBuiltInSkillGeneration:
         assert "dispatch only from validated `workertaskpacket`" in implement_body.lower() or "raw task text alone" in implement_body.lower()
         assert "write the failing test first for every behavior-changing task, bug fix, or refactor" in implement_body.lower()
         assert "do not write production code for the batch until the red state is verified" in implement_body.lower()
-        assert "if `workflow_state_file` still points to `/sp.analyze`" in implement_body.lower()
         assert "do not self-authorize an `/sp-implement` start from chat memory alone" in implement_body.lower()
 
         analyze_body = _body_without_frontmatter(skills_dir / "sp-analyze" / "SKILL.md")
@@ -568,7 +570,7 @@ class TestBuiltInSkillGeneration:
         assert "`needs_update`: route through `{{invoke:map-update}}`" in checklist_body or "`needs_update`: route through `/sp-map-update`" in checklist_body
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
-        assert "recommend `/sp-analyze`" in checklist_lower
+        assert "optional" in checklist_lower
 
         debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
         debug_lower = debug_body.lower()

@@ -192,11 +192,11 @@ When `specify` records an unproven implementation chain after the fixed heavy di
 /sp-tasks
 ```
 
-Before implementation, run `analyze`. Treat it as the required gate before implementation once `tasks.md` exists. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
+Optional diagnostics:
 
-```markdown
-/sp-analyze
-```
+- Run `/sp-checklist` when you want a requirements-quality checklist before planning or task generation continues.
+- Run `/sp-analyze` when you explicitly need read-only cross-artifact diagnostics, are resuming a legacy `/sp.analyze` state, or need drift revalidation after implementation has started.
+
 
 Then, run the `implement` workflow to execute the plan.
 
@@ -299,7 +299,7 @@ Use support skills when they solve a specific gap:
 - `clarify` when an existing spec still needs deeper analysis before planning
 - `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
 - `checklist` when you want to audit requirement quality after planning
-- `analyze` as the required gate before implementation once `tasks.md` exists
+- `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` only when explicitly requested or recorded by existing state
 - `debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - When you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
@@ -477,8 +477,11 @@ Validate the specification checklist using the `checklist` workflow:
 ```bash
 /sp-checklist
 ```
+After planning, continue with:
 
-### Step 5: Define Tasks
+```text
+specify -> plan -> tasks -> implement
+```
 
 Generate an actionable task list using the `tasks` workflow:
 
@@ -487,20 +490,6 @@ Generate an actionable task list using the `tasks` workflow:
 ```
 
 ### Step 6: Validate and Implement
-
-Have your AI agent audit the implementation plan using `analyze`:
-
-```bash
-/sp-analyze
-```
-
-If `analyze` finds issues, do not treat the report as informational only:
-
-- If the problem is in `spec.md` or `context.md`, return to `clarify`, then rerun `plan`, `tasks`, and `analyze`.
-- If the problem is in `plan.md`, return to `plan`, then rerun `tasks` and `analyze`.
-- If the problem is only in `tasks.md`, rerun `tasks`, then `analyze`.
-- If the problem is execution-only with no upstream artifact drift, continue in `implement` or route into `debug`.
-- If analysis happens after implementation has already started or finished, treat the current implementation as provisional until the highest invalid stage has been repaired and downstream artifacts have been regenerated.
 
 Finally, implement the solution:
 

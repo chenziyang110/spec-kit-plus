@@ -75,9 +75,9 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 - If the active profile has a reference fidelity contract, add an explicit Fidelity Checkpoint before any implementation batch that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
 - Any task that intentionally departs from the reference object MUST name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
 
-## Analyze-Compatible Task Self-Audit
+## Implementation-Readiness Task Self-Audit
 
-Before final handoff to `sp-analyze`, confirm:
+Before final handoff to `sp-implement`, confirm:
 
 - Buildable `FR-*` and buildable success criteria have task, checkpoint, or deferred-note coverage.
 - Locked planning decisions that affect implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails are preserved in this task package.

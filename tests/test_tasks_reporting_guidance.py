@@ -65,7 +65,7 @@ def test_tasks_template_includes_analyze_remediation_mapping_and_self_audit():
     assert "deferred" in lowered
     assert "not_applicable" in content
     assert "escalated" in lowered
-    assert "## Analyze-Compatible Task Self-Audit" in content
+    assert "## Implementation-Readiness Task Self-Audit" in content
     assert "buildable `FR-*`" in content
     assert "Task Guardrail Index" in content
     assert "DP1" in content
