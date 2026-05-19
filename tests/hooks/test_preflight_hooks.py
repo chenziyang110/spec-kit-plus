@@ -753,7 +753,7 @@ def test_preflight_uses_cognition_status_metadata_before_stale_project_map_statu
     assert result.status == "ok"
 
 
-def test_preflight_blocks_support_drift_with_support_specific_guidance(monkeypatch, tmp_path: Path):
+def test_preflight_warns_support_drift_with_support_specific_guidance(monkeypatch, tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "003-new"
     _write_workflow_state(
