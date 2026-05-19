@@ -46,8 +46,8 @@ Required context inputs:
   - `ready`: continue with the returned task-local bundle.
   - `review`: perform only the returned `minimal_live_reads` before continuing.
   - `ambiguous`: ask the user to select the intended candidate.
-  - `needs_update`: route through `{{invoke:map-update}}`.
-  - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+  - `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage.
+  - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for missing/unusable/schema-incompatible baselines, explicit rebuild, baseline identity invalidation, or unadoptable coverage gaps.
   - `blocked`: stop and report the blocking runtime issue.
 - `PROJECT-HANDBOOK.md` only when compatibility/export evidence is explicitly relevant.
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.

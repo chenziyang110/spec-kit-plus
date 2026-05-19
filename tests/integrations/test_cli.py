@@ -3073,6 +3073,15 @@ def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    assert payload["baseline_health"] == "missing"
+    assert payload["query_coverage"] == "baseline_missing"
+    assert payload["workflow_requirement"] == "planning_or_implementation"
+    assert payload["path_adoption"] == {
+        "adoptable_paths": [],
+        "review_paths": [],
+        "unadoptable_paths": [],
+        "reasons": [],
+    }
     assert payload["readiness"] == "needs_rebuild"
     assert payload["recommended_next_action"] == "run_map_scan_build"
     assert payload["query_plan"] == {

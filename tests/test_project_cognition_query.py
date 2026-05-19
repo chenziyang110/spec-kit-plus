@@ -165,13 +165,33 @@ def test_query_normalizes_project_absolute_paths_before_path_index_lookup(tmp_pa
     assert result["missing_coverage"] == []
 
 
-def test_query_reports_needs_update_when_path_is_missing_from_index(tmp_path: Path) -> None:
+def test_query_reports_baseline_missing_when_no_active_generation(tmp_path: Path) -> None:
+    result = query_project_cognition(tmp_path, intent="discussion", query_text="", paths=[])
+
+    assert result["baseline_health"] == "missing"
+    assert result["query_coverage"] == "baseline_missing"
+    assert result["workflow_requirement"] == "discussion"
+    assert result["path_adoption"] == {
+        "adoptable_paths": [],
+        "review_paths": [],
+        "unadoptable_paths": [],
+        "reasons": [],
+    }
+    assert result["readiness"] == "needs_rebuild"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+def test_query_reports_needs_update_when_path_is_adoptable_from_index(tmp_path: Path) -> None:
     _seed_login_graph(tmp_path)
 
     result = query_project_cognition(tmp_path, intent="debug", query_text="", paths=["src/auth/missing.ts"])
 
-    assert result["readiness"] == "needs_rebuild"
-    assert result["recommended_next_action"] == "run_map_scan_build"
+    assert result["baseline_health"] == "healthy"
+    assert result["query_coverage"] == "adoptable_path_gap"
+    assert result["workflow_requirement"] == "planning_or_implementation"
+    assert result["readiness"] == "needs_update"
+    assert result["recommended_next_action"] == "run_map_update"
+    assert result["path_adoption"]["adoptable_paths"] == ["src/auth/missing.ts"]
     assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
 
 
@@ -180,9 +200,44 @@ def test_query_reports_needs_update_when_path_is_missing_even_with_query_candida
 
     result = query_project_cognition(tmp_path, intent="debug", query_text="login", paths=["src/auth/missing.ts"])
 
+    assert result["baseline_health"] == "healthy"
+    assert result["query_coverage"] == "adoptable_path_gap"
+    assert result["workflow_requirement"] == "planning_or_implementation"
+    assert result["readiness"] == "needs_update"
+    assert result["recommended_next_action"] == "run_map_update"
+    assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
+
+
+def test_query_keeps_discussion_allowed_for_uncertain_path_gap(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(tmp_path, intent="discussion", query_text="", paths=["docs/future/idea.md"])
+
+    assert result["baseline_health"] == "healthy"
+    assert result["query_coverage"] == "uncertain_path_gap"
+    assert result["workflow_requirement"] == "discussion"
+    assert result["readiness"] == "review"
+    assert result["recommended_next_action"] == "perform_minimal_live_reads"
+    assert result["minimal_live_reads"] == ["docs/future/idea.md"]
+    assert result["path_adoption"]["review_paths"] == ["docs/future/idea.md"]
+
+
+def test_query_routes_unadoptable_core_surface_gap_to_rebuild(tmp_path: Path) -> None:
+    _seed_login_graph(tmp_path)
+
+    result = query_project_cognition(
+        tmp_path,
+        intent="implement",
+        query_text="release packaging",
+        paths=["scripts/release/package.ps1"],
+    )
+
+    assert result["baseline_health"] == "healthy"
+    assert result["query_coverage"] == "unadoptable_path_gap"
+    assert result["workflow_requirement"] == "planning_or_implementation"
     assert result["readiness"] == "needs_rebuild"
     assert result["recommended_next_action"] == "run_map_scan_build"
-    assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
+    assert result["path_adoption"]["unadoptable_paths"] == ["scripts/release/package.ps1"]
 
 
 def test_query_returns_review_when_text_misses_but_runtime_has_baseline(tmp_path: Path) -> None:
@@ -301,8 +356,8 @@ def test_query_unknown_selected_concept_routes_review_or_update(tmp_path: Path) 
     assert review["readiness"] == "review"
     assert review["recommended_next_action"] == "perform_minimal_live_reads"
     assert "selected concept not covered by active generation: capability:auth.missing" in review["missing_coverage"]
-    assert needs_update["readiness"] == "needs_rebuild"
-    assert needs_update["recommended_next_action"] == "run_map_scan_build"
+    assert needs_update["readiness"] == "needs_update"
+    assert needs_update["recommended_next_action"] == "run_map_update"
     assert "selected concept not covered by active generation: capability:auth.missing" in needs_update["missing_coverage"]
 
 
@@ -317,6 +372,15 @@ def test_query_selected_and_rejected_conflict_is_ambiguous_without_affected_node
         rejected_concepts=["capability:auth.login"],
     )
 
+    assert result["baseline_health"] == "healthy"
+    assert result["query_coverage"] == "ambiguous_selection"
+    assert result["workflow_requirement"] == "planning_or_implementation"
+    assert result["path_adoption"] == {
+        "adoptable_paths": [],
+        "review_paths": [],
+        "unadoptable_paths": [],
+        "reasons": [],
+    }
     assert result["readiness"] == "ambiguous"
     assert result["recommended_next_action"] == "ask_user_to_select_candidate"
     assert "concept selected and rejected: capability:auth.login" in result["missing_coverage"]

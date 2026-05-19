@@ -66,7 +66,8 @@ Treat runtime freshness as a gate:
 
 - `missing` -> block and refresh through `sp-map-scan -> sp-map-build`
 - `stale` -> block and refresh through `sp-map-update`
-- `stale` with changed paths missing from `path_index` -> block and rebuild through `sp-map-scan -> sp-map-build`; repeating `sp-map-update` cannot create absent path coverage
+- `stale` with adoptable or uncertain path-index gaps -> route through `sp-map-update` or perform returned `minimal_live_reads`; do not rebuild solely because a path is new
+- `stale` with unadoptable path-index gaps, missing baseline, unusable DB, schema mismatch, explicit rebuild, or baseline identity invalidation -> rebuild through `sp-map-scan -> sp-map-build`; only unadoptable coverage gaps should rebuild solely due to path coverage
 - `support_drift` -> stop and tell the user to resolve support-surface drift; do not reflexively route to `sp-map-update`
 - `partial_refresh` -> tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`
 - `possibly_stale` -> inspect the returned affected scope; if the touched area is not safely covered, route through `sp-map-update`
@@ -78,5 +79,5 @@ guidance: consume `freshness` as the factual state and use
 ### Primary Read Restriction
 
 Do not treat handbook-first or layered project-map files as the primary runtime read surfaces. If query-returned
-coverage is insufficient, refresh the cognition runtime through `sp-map-update`; reserve `sp-map-scan -> sp-map-build` for missing, unusable, schema-incompatible, explicitly rebuilt, or architecture-replaced baselines
+coverage is insufficient, refresh the cognition runtime through `sp-map-update`; reserve `sp-map-scan -> sp-map-build` for missing, unusable, schema-incompatible, explicitly rebuilt, architecture-replaced baselines, or unadoptable coverage gaps
 instead of forcing a second handbook traversal phase.

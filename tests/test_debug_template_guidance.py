@@ -151,7 +151,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before moving to `awaiting_human_verify` or `resolved`" in content
     assert "ordinary uncertain closure" in content
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
-    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
+    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps" in content
     assert "returned `project-cognition query` bundle and readiness as the truth source" in content
     assert "use only returned `minimal_live_reads` when needed" in content
     assert "debug session state" in content

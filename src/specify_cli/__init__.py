@@ -731,7 +731,7 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
         )
     elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
         console.print(
-            "Changed paths are missing from the project cognition path_index; repeating [cyan]/sp-map-update[/cyan] cannot create absent path coverage."
+            "Changed paths include an unadoptable project cognition path_index gap, or the baseline needs structural repair."
         )
         console.print(
             "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] if you need to rebuild the baseline."
@@ -741,7 +741,7 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
             "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area when you need an updated map."
         )
         console.print(
-            "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
+            "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps."
         )
         console.print(
             "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] when a rebuild is actually required."
@@ -1800,7 +1800,21 @@ def project_cognition_query_command(
             "rejected_concepts": effective_rejected_concepts,
             "selection_reason": effective_selection_reason,
         }
+        workflow_requirement = (
+            "discussion"
+            if str(intent or "").strip().lower() == "discussion"
+            else "planning_or_implementation"
+        )
         payload = {
+            "baseline_health": "missing",
+            "query_coverage": "baseline_missing",
+            "workflow_requirement": workflow_requirement,
+            "path_adoption": {
+                "adoptable_paths": [],
+                "review_paths": [],
+                "unadoptable_paths": [],
+                "reasons": [],
+            },
             "readiness": "needs_rebuild",
             "recommended_next_action": "run_map_scan_build",
             "intent": intent,

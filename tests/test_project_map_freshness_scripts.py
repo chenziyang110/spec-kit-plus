@@ -290,6 +290,38 @@ def _seed_legacy_status(repo: Path, *, dirty: bool = True, dirty_reasons: list[s
     return status_path
 
 
+def _seed_graph_ready_stale_status(repo: Path, reason: str) -> Path:
+    status_path = _project_cognition_status_path(repo)
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    (status_path.parent / "project-cognition.db").write_bytes(b"SQLite test database marker")
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 3,
+                "baseline_state": "ready",
+                "baseline_commit": "",
+                "baseline_branch": "main",
+                "baseline_built_at": "2026-05-17T00:00:00Z",
+                "graph_ready": True,
+                "graph_store_path": ".specify/project-cognition/project-cognition.db",
+                "active_generation_id": "GEN-0001",
+                "query_contract_version": 2,
+                "update_contract_version": 1,
+                "freshness": "stale",
+                "dirty": True,
+                "dirty_reasons": [reason],
+                "manual_force_stale": True,
+                "manual_force_stale_reasons": [reason],
+                "dirty_origin_command": "sp-map-update",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return status_path
+
+
 def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     missing = _run_bash(git_repo, "check")
     assert missing["freshness"] == "missing"
@@ -326,6 +358,48 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     assert dirty["dirty_scope_paths"] == []
     assert dirty["must_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md"]
     assert dirty["review_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_bash_project_map_freshness_routes_singular_path_gap_to_map_update(git_repo: Path):
+    _seed_graph_ready_stale_status(
+        git_repo,
+        "path not covered by project cognition index: src/auth/missing.ts",
+    )
+
+    result = _run_bash(git_repo, "check")
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_update"
+
+
+def test_bash_project_map_freshness_routes_unadoptable_path_gap_to_scan_build(git_repo: Path):
+    _seed_graph_ready_stale_status(
+        git_repo,
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
+    )
+
+    result = _run_bash(git_repo, "check")
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "58 changed paths missing from project cognition path_index",
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
+    ],
+)
+def test_bash_mark_dirty_routes_normalized_rebuild_path_gaps_to_scan_build(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "manual")
+
+    result = _run_bash(git_repo, "mark-dirty", reason)
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
 
 
 def test_bash_project_cognition_helper_uses_launcher_without_project_map(git_repo: Path):
@@ -411,6 +485,48 @@ def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_powershell_project_map_freshness_routes_singular_path_gap_to_map_update(git_repo: Path):
+    _seed_graph_ready_stale_status(
+        git_repo,
+        "path not covered by project cognition index: src/auth/missing.ts",
+    )
+
+    result = _run_powershell(git_repo, "check")
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_update"
+
+
+def test_powershell_project_map_freshness_routes_unadoptable_path_gap_to_scan_build(git_repo: Path):
+    _seed_graph_ready_stale_status(
+        git_repo,
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
+    )
+
+    result = _run_powershell(git_repo, "check")
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "58 changed paths missing from project cognition path_index",
+        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
+    ],
+)
+def test_powershell_mark_dirty_routes_normalized_rebuild_path_gaps_to_scan_build(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_powershell(git_repo, "record-refresh", "manual")
+
+    result = _run_powershell(git_repo, "mark-dirty", reason)
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
 
 
 def test_project_map_freshness_helpers_classify_support_drift_with_next_action(git_repo: Path):

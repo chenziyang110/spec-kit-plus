@@ -106,6 +106,10 @@ judgment in an established Spec Kit Plus repository:
 - If the project cognition runtime is stale for a localized touched area, route
   through `sp-map-update` first. When giving the user an explicit
   command to type, write `{{invoke:map-update}}`.
+- If changed paths are missing from project cognition `path_index`, let
+  `sp-map-update` classify the gap first. Adoptable paths get provisional
+  coverage, uncertain paths return `minimal_live_reads`, and only unadoptable
+  gaps require `{{invoke:map-scan}} -> {{invoke:map-build}}`.
 - If the freshness state is `support_drift`, stop and tell the user to resolve
   support-surface drift; do not reflexively route to `sp-map-update`.
 - If the freshness state is `partial_refresh`, tell the user the refresh was
@@ -116,7 +120,8 @@ judgment in an established Spec Kit Plus repository:
   tells the operator what to do next.
 - Route through `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the
   baseline is missing, unusable, schema-incompatible, explicitly being rebuilt,
-  or invalidated by broad architecture replacement. Uncertain closure should be
+  invalidated by broad architecture replacement, or a path-index coverage gap is
+  unadoptable after update classification. Uncertain closure should be
   recorded by `sp-map-update` as partial/low-confidence facts, known unknowns,
   and `minimal_live_reads`.
 - Treat that detour as a user-invoked workflow handoff. Do not silently switch into

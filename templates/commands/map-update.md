@@ -57,6 +57,8 @@ Use `execution_surface: native-subagents`.
 - It must update the query-backed cognition runtime incrementally.
 - It must treat `.specify/project-cognition/status.json` plus `.specify/project-cognition/project-cognition.db` as the runtime truth source for post-update readiness.
 - It must not silently escalate to a full rebuild without recording why.
+- When changed paths are missing from `path_index`, classify them before escalating: adoptable paths get provisional `path_index` coverage, uncertain paths return `review` with `minimal_live_reads`, and only unadoptable gaps route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- Provisional adoption must write valid graph records: an adoption `evidence` row plus a `path_index` row with `relation="provisional_path"` and graph confidence `weak` or `partial`.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
 - After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.

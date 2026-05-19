@@ -1994,7 +1994,9 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
-    assert "missing from `path_index`" in shared_gate
+    assert "adoptable or uncertain path-index gaps" in shared_gate
+    assert "only unadoptable" in shared_gate
+    assert "cannot create absent path coverage" not in shared_gate
     assert "`support_drift` -> stop and tell the user to resolve support-surface drift" in shared_gate
     assert "`partial_refresh` -> tell the user the refresh was recorded but readiness did not pass" in shared_gate
     assert "`recommended_next_action`" in shared_gate

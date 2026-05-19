@@ -160,9 +160,9 @@ Treat `.specify/project-cognition/project-cognition.db` plus the query bundle as
 Freshness handling:
 
 - `missing`: stop and tell the user to run `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- `stale`: stop and tell the user to follow `recommended_next_action`; if the blocker is changed paths missing from `path_index`, route to `{{invoke:map-scan}} -> {{invoke:map-build}}` because incremental update cannot create absent path coverage.
+- `stale`: continue discussion when the conversation is exploratory and the runtime returns `review` or `perform_minimal_live_reads`; route to `{{invoke:map-update}}` when the user asks to write project facts that need proof; route to `{{invoke:map-scan}} -> {{invoke:map-build}}` only for missing/unusable/schema-incompatible baselines, explicit rebuild, baseline identity invalidation, or unadoptable path-index gaps.
 - `support_drift`: stop for support-surface cleanup without reflexively routing to `{{invoke:map-update}}`.
-- `partial_refresh`: stop and follow `recommended_next_action`.
+- `partial_refresh`: continue discussion only with unknowns and confidence labels; before handoff or source-changing planning, follow `recommended_next_action`.
 - `possibly_stale`: inspect affected graph scope and route to localized refresh if coverage is not safe enough.
 
 If the idea is clearly greenfield or does not depend on existing project structure, record the stand-down reason in `project-context.md` and avoid existing-code placement claims.

@@ -88,8 +88,8 @@ Fast path does not load the full passive learning layer.
      - `ready`: continue with the returned task-local bundle.
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+     - `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for missing/unusable/schema-incompatible baselines, explicit rebuild, baseline identity invalidation, or unadoptable coverage gaps.
      - `blocked`: stop and report the blocking runtime issue.
      - **CARRY FORWARD**: Use project-cognition signals to decide whether
        fast-path execution is still safe. Carry the selected capability, minimal reads,
@@ -121,7 +121,7 @@ Fast path does not load the full passive learning layer.
    - Include `changed_behavior_surfaces` for commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions affected by the change.
    - Include `verification_evidence` with the exact checks run and the result.
    - Include `project_cognition_refresh` recommending `{{invoke:map-update}}` with the changed paths whenever project cognition might be affected.
-   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths. Do not route to `{{invoke:map-scan}}` or `{{invoke:map-build}}` for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths. Do not route to `{{invoke:map-scan}}` or `{{invoke:map-build}}` for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
    - If a refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback and recommend `{{invoke:map-update}}` with the changed paths; escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above.
 
 ## Output Contract
