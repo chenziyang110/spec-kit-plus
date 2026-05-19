@@ -17,6 +17,7 @@ ALLOWED_WORKFLOW_TRANSITIONS = {
     ("deep-research", "clarify"),
     ("plan", "tasks"),
     ("plan", "checklist"),
+    ("tasks", "implement"),
     ("tasks", "analyze"),
     ("analyze", "implement"),
     ("implement", "debug"),
@@ -29,6 +30,7 @@ ALLOWED_PHASE_TRANSITIONS = {
     ("planning-only", "research-only"),
     ("research-only", "design-only"),
     ("design-only", "task-generation-only"),
+    ("task-generation-only", "execution-only"),
     ("task-generation-only", "analysis-only"),
     ("analysis-only", "execution-only"),
 }

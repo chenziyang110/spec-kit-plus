@@ -22,6 +22,32 @@ def test_workflow_boundary_allows_mainline_transition(tmp_path: Path):
     assert result.status == "ok"
 
 
+def test_workflow_boundary_allows_tasks_to_implement_mainline(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "tasks", "to_command": "implement"},
+    )
+
+    assert result.status == "ok"
+    assert result.data == {"from_command": "tasks", "to_command": "implement"}
+
+
+def test_workflow_boundary_keeps_tasks_to_analyze_legacy_route(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "tasks", "to_command": "analyze"},
+    )
+
+    assert result.status == "ok"
+    assert result.data == {"from_command": "tasks", "to_command": "analyze"}
+
+
 def test_workflow_boundary_normalizes_research_alias(tmp_path: Path):
     project = _create_project(tmp_path)
 
