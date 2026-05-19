@@ -191,13 +191,9 @@ def test_team_api_auto_dispatch_returns_json_payload(tmp_path: Path):
     assert envelope["payload"]["batch_name"] == "Parallel Batch 1.1"
     assert envelope["payload"]["join_point_name"] == "Join Point 1.1"
     assert envelope["payload"]["dispatched_task_ids"] == ["T002", "T003"]
-    assert envelope["payload"].get("project_cognition_advisory", {}).get("freshness") in {
-        None,
-        "missing",
-        "stale",
-        "fresh",
-        "possibly_stale",
-    }
+    advisory = envelope["payload"]["project_cognition_advisory"]
+    assert set(advisory) >= {"freshness", "state", "readiness", "recommended_next_action", "reasons"}
+    assert advisory["freshness"] in {None, "missing", "stale", "fresh", "possibly_stale"}
 
 
 def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
@@ -414,6 +410,31 @@ def test_team_api_auto_dispatch_returns_advisory_when_cognition_is_stale(tmp_pat
     advisory = envelope["payload"]["project_cognition_advisory"]
     assert advisory["freshness"] == "stale"
     assert "shared_surface_changed" in advisory["reasons"]
+
+
+def test_team_api_auto_dispatch_returns_advisory_when_cognition_is_possibly_stale(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    status_path = project / ".specify" / "project-cognition" / "status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload["freshness"] = "possibly_stale"
+    payload["dirty"] = True
+    payload["dirty_reasons"] = ["reviewable advisory state"]
+    status_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    envelope = json.loads(result.output.strip())
+    assert envelope["status"] == "ok"
+    advisory = envelope["payload"]["project_cognition_advisory"]
+    assert advisory["freshness"] == "stale"
+    assert "reviewable advisory state" in advisory["reasons"]
 
 
 def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path: Path):

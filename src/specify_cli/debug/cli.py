@@ -60,9 +60,11 @@ def _project_map_preflight_for_debug() -> None:
 
     result = inspect_project_cognition_freshness(project_root)
     state = str(result.get("state", result["freshness"])).strip().lower()
-    if state in {"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"}:
+    readiness = str(result.get("readiness", "")).strip().lower()
+
+    if state == "runtime_stale" and readiness == "review":
         console.print(
-            "[yellow]Warning:[/yellow] Project cognition is degraded or unavailable; debug will continue with live repository evidence. Treat map output as advisory."
+            "[yellow]Warning:[/yellow] Project cognition runtime may be stale for the current debug scope. Debug will continue with live repository evidence and map output remains advisory."
         )
         next_action = str(result.get("recommended_next_action", "")).strip()
         if next_action:
@@ -71,9 +73,9 @@ def _project_map_preflight_for_debug() -> None:
             console.print(f"- {reason}")
         return
 
-    if state == "runtime_stale" and str(result.get("readiness", "")).strip().lower() == "review":
+    if state in {"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"}:
         console.print(
-            "[yellow]Warning:[/yellow] Project cognition runtime may be stale for the current debug scope. Debug will continue with live repository evidence and map output remains advisory."
+            "[yellow]Warning:[/yellow] Project cognition is degraded or unavailable; debug will continue with live repository evidence. Treat map output as advisory."
         )
         next_action = str(result.get("recommended_next_action", "")).strip()
         if next_action:

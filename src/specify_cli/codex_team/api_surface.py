@@ -124,7 +124,7 @@ def run_team_api_operation(
             )
         except AutoDispatchError as exc:
             envelope["status"] = "error"
-            envelope["payload"] = {"message": str(exc)}
+            envelope["payload"] = {"message": str(exc), "project_cognition_advisory": project_cognition_advisory}
         else:
             envelope["payload"] = {
                 "feature_dir": str(result.feature_dir),
