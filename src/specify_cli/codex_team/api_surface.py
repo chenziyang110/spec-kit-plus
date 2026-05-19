@@ -109,14 +109,13 @@ def run_team_api_operation(
             project_root,
             command_name="team auto-dispatch",
         )
-        if freshness["freshness"] in {"missing", "stale"}:
-            envelope["status"] = "error"
-            envelope["payload"] = {
-                "message": f"Project cognition freshness is {freshness['freshness']}. Run map-scan then map-build before auto-dispatch.",
-                "freshness": freshness["freshness"],
-                "reasons": freshness.get("reasons", []),
-            }
-            return envelope
+        project_cognition_advisory = {
+            "freshness": freshness.get("freshness"),
+            "state": freshness.get("state", freshness.get("freshness")),
+            "readiness": freshness.get("readiness"),
+            "recommended_next_action": freshness.get("recommended_next_action"),
+            "reasons": freshness.get("reasons", []),
+        }
         try:
             result = route_ready_parallel_batch(
                 project_root,
@@ -134,6 +133,7 @@ def run_team_api_operation(
                 "join_point_name": result.join_point_name,
                 "dispatched_task_ids": result.dispatched_task_ids,
                 "request_ids": result.request_ids,
+                "project_cognition_advisory": project_cognition_advisory,
             }
         return envelope
 

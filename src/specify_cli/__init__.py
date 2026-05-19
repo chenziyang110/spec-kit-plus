@@ -704,39 +704,31 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
 def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_name: str) -> None:
     state = str(result.get("state", result.get("freshness", ""))).strip().lower()
     console.print(
-        f"[red]Error:[/red] Project cognition freshness is {state or 'unknown'} for [cyan]{command_name}[/cyan]."
+        f"[yellow]Warning:[/yellow] Project cognition is {state or 'unknown'} for [cyan]{command_name}[/cyan]. "
+        "Treat map output as advisory and use live repository evidence for conclusions."
     )
     if state == "missing_baseline":
         console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to create the graph-native project cognition baseline, then retry."
+            "Recommended map maintenance: run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] when you want a project cognition baseline."
         )
     elif state == "support_drift":
         console.print(
-            "Resolve, commit, or intentionally ignore the support-surface drift before retrying."
+            "Recommended map maintenance: resolve, commit, or intentionally ignore the support-surface drift."
         )
     elif state == "partial_refresh":
         console.print(
-            "Refresh data was recorded, but runtime readiness is still blocked for the touched area."
+            "Refresh data was recorded, but runtime readiness did not pass. Continue this task from live repository evidence."
         )
         console.print(
-            f"Follow recommended_next_action={result.get('recommended_next_action') or 'unknown'} before retrying."
+            f"Recommended map maintenance: {result.get('recommended_next_action') or 'none'}."
         )
     elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
         console.print(
-            "Changed paths are missing from the project cognition path_index; repeating [cyan]/sp-map-update[/cyan] cannot create absent path coverage."
-        )
-        console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
+            "Recommended map maintenance: run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] if you want to repair missing path_index coverage."
         )
     else:
         console.print(
-            "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry."
-        )
-        console.print(
-            "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
-        )
-        console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
+            "Recommended map maintenance: run [cyan]/sp-map-update[/cyan] with changed paths after the current task."
         )
 
 
@@ -757,7 +749,7 @@ def _project_map_preflight(
     if freshness in block_levels and readiness == "blocked":
         _render_project_map_freshness(result)
         _render_project_map_preflight_guidance(result, command_name=command_name)
-        raise typer.Exit(1)
+        return result
 
     if freshness == "runtime_stale" and readiness == "review":
         _render_project_map_freshness(result)
