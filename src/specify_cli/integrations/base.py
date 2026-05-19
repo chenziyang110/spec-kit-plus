@@ -438,11 +438,10 @@ class IntegrationBase(ABC):
             "\n"
             f"{marker}\n\n"
             "- This workflow is artifact-only unless the user explicitly requested source/runtime changes; do not call `project-cognition mark-dirty`, `project-cognition complete-refresh`, or `project-cognition validate-build --format json` just because `sp-specify`, `sp-plan`, or `sp-tasks` wrote planning artifacts.\n"
-            "- When later actual source/runtime changes update truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, refresh through `/sp-map-update` using the changed paths.\n"
-            "- After a successful refresh, update git-baseline freshness with `project-cognition record-refresh` or `project-cognition complete-refresh`; use `complete-refresh` only after build acceptance passes.\n"
-            "- If a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then `project-cognition validate-build --format json`, and only then `project-cognition complete-refresh --format json` when validation is ready.\n"
-            "- If refresh cannot be completed now, use the manual override/fallback path with `project-cognition mark-dirty --reason \"<reason>\" --format json` and report the required follow-up.\n"
-            "- Run `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement.\n"
+            "- When later actual source/runtime changes update truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, report the changed paths and recommend `/sp-map-update` as follow-up map maintenance.\n"
+            "- Keep completion evidence grounded in live code, tests, scripts, configuration, or authoritative docs. Project cognition can support route selection but cannot be the sole evidence for completion.\n"
+            "- Recommend `/sp-map-scan` followed by `/sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement.\n"
+            "- Map-specific workflows and validation commands remain allowed to run `project-cognition validate-build --format json`, `project-cognition complete-refresh --format json`, or `project-cognition mark-dirty --reason \"<reason>\" --format json` when the user explicitly requested map maintenance or repair.\n"
         )
         return content + addendum
 
@@ -516,7 +515,7 @@ class IntegrationBase(ABC):
             f"## {agent_name} Project Cognition Advisory Gate\n\n"
             f"{query_gate}\n"
             "- Interpret returned readiness as advisory routing: `ready` continues with the task-local bundle; `review` constrains inspection to returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` recommends `{{invoke:map-update}}`; `needs_rebuild` recommends `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` still reflects the runtime issue.\n"
-            "- Treat the project cognition query bundle as the primary brownfield context surface, but use live repository evidence as the final proof when the bundle is incomplete or stale.\n"
+            "- Treat the project cognition query bundle as an advisory brownfield navigation surface, and use live repository evidence as the final proof when the bundle is incomplete or stale.\n"
             "- Treat this as an advisory navigation layer, not a hard gate; do not stop ordinary work solely because the map says to refresh.\n"
             "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness informs routing, `minimal_live_reads` constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.\n"
             f"{carry_forward}"

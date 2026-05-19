@@ -46,9 +46,9 @@ Required context inputs:
   - `ready`: continue with the returned task-local bundle.
   - `review`: perform only the returned `minimal_live_reads` before continuing.
   - `ambiguous`: ask the user to select the intended candidate.
-  - `needs_update`: route through `{{invoke:map-update}}`.
-  - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-  - `blocked`: stop and report the blocking runtime issue.
+  - `needs_update`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-update}}` as follow-up map maintenance.
+  - `needs_rebuild`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+  - `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
 - `PROJECT-HANDBOOK.md` only when compatibility/export evidence is explicitly relevant.
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.
 - Current repository evidence from code, docs, tests, routes, UI surfaces, service surfaces, data models, integrations, configuration, and deployment surfaces.

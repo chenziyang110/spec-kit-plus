@@ -410,6 +410,31 @@ def test_team_api_auto_dispatch_returns_advisory_when_cognition_is_stale(tmp_pat
     advisory = envelope["payload"]["project_cognition_advisory"]
     assert advisory["freshness"] == "stale"
     assert "shared_surface_changed" in advisory["reasons"]
+    assert "batch_id" in envelope["payload"]
+
+
+def test_team_auto_dispatch_treats_project_cognition_as_advisory_consumer_state(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    status_path = project / ".specify" / "project-cognition" / "status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload["freshness"] = "stale"
+    payload["dirty"] = True
+    payload["dirty_reasons"] = ["ordinary-consumer-advisory"]
+    status_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    output = strip_ansi(result.output)
+    assert "Cognition Freshness" in output
+    assert "Auto-dispatched" in output
+    assert "Recommended map maintenance" in output
 
 
 def test_team_api_auto_dispatch_returns_advisory_when_cognition_is_possibly_stale(tmp_path: Path):

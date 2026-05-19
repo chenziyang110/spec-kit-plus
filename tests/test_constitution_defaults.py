@@ -61,8 +61,9 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "Encoding Preservation" in content
     assert "preserve the file's existing character encoding and BOM behavior" in content
     assert ".specify/project-cognition/status.json" in content
-    assert "workflow-appropriate cognition" in content
-    assert "default brownfield runtime truth surface" in content
+    assert "workflow-appropriate cognition query bundles" in content
+    assert "advisory project cognition index" in content
+    assert "Map points, code proves" in content
     assert "Project Cognition Before Existing-System Judgment" in content
     assert "agents MUST query project cognition before broad source inspection" in compact_content
     assert "query result MUST guide routing, minimal live reads" in compact_content
@@ -73,7 +74,8 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "map-scan" in content
     assert "map-build" in content
     assert "Maintain `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` as the primary runtime atlas" not in content
-    assert "generate it before structural work continues" in content
+    assert "Recommend `map-update`" in content
+    assert "recommend `map-scan` followed by `map-build` only when the user" in compact_content
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
     assert "**Version**: 1.2.0" in content

@@ -44,7 +44,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "linked detail markdown document" in content
     assert "passive project learning layer" in content
     assert "passive project learning layer" in content
-    assert "project cognition gate" in content
+    assert "project cognition" in content
     assert "project-cognition lexicon --intent implement" in content
     assert "project-cognition query --intent implement" in content
     assert "--query-plan" in content
@@ -55,8 +55,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
-    assert "`needs_update`: route through `{{invoke:map-update}}`" in content
+    assert "`needs_rebuild`: treat map output as advisory" in content
+    assert "`needs_update`: treat map output as advisory" in content
     assert "returned task-local bundle" in content
     assert "must_refresh_topics" not in content
     assert "review_topics" not in content
@@ -196,7 +196,8 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
 
     assert ".specify/memory/constitution.md" in content
     assert "constitution first" in content
-    assert "before `status.md` initialization or touched-area analysis proceeds" in content
+    assert "record that as advisory map state" in content
+    assert "continue quick-task setup from live repository evidence" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert "dispatch that subagent path before doing any further local repository deep dive" in content
     assert "resolved" in content
@@ -256,22 +257,17 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "which surfaces were left unverified" in content
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
-    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "verification_evidence" in content
 
 
-def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change() -> None:
+def test_quick_template_recommends_project_cognition_followup_when_truth_surfaces_change() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
-    assert "ordinary uncertain closure" in content
-    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
-    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
-    assert "complete-refresh" in content
-    assert "project-cognition validate-build --format json" in content
-    assert "only when build acceptance passes" in content
-    assert "if a refresh cannot be completed now" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
-    assert "manual override/fallback" in content
+    assert "report the changed paths and recommend `{{invoke:map-update}}` as follow-up map maintenance" in content
+    assert "do not call `project-cognition mark-dirty`" in content
+    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content
+    assert "do it, run `{{specify-subcmd:project-cognition validate-build --format json}}`" not in content
+    assert "use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes" not in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:
@@ -304,8 +300,8 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     content = read_template("templates/commands/quick.md")
     lowered = content.lower()
 
-    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in lowered
-    assert "`needs_update`: route through `{{invoke:map-update}}`" in lowered
+    assert "`needs_rebuild`: treat map output as advisory" in lowered
+    assert "`needs_update`: treat map output as advisory" in lowered
     assert "must_refresh_topics" not in lowered
     assert "review_topics" not in lowered
     assert "ownership, placement, workflow, integration, or verification guidance" in content

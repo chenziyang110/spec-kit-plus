@@ -57,17 +57,17 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "scope gate" in content
     assert "≤3 files touched" in content or "3 files touched" in content
     assert "verify" in content
-    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content
     assert "changed_code_paths" in content
     assert "changed_behavior_surfaces" in content
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
-    assert "ordinary uncertain closure" in content
-    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
-    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
-    assert "complete-refresh" in content
-    assert "manual override/fallback" in content
+    assert "recommend `{{invoke:map-update}}` as follow-up map maintenance" in content
+    assert "do not call `project-cognition mark-dirty`" in content
+    assert "`needs_rebuild`: treat map output as advisory" in content
+    assert "when the user wants map repair" in content
+    assert "completion requirement for this ordinary workflow" in content
+    assert "manual override/fallback" not in content
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
     assert "returned task-local bundle" in content

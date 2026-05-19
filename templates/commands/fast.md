@@ -88,13 +88,13 @@ Fast path does not load the full passive learning layer.
      - `ready`: continue with the returned task-local bundle.
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-     - `blocked`: stop and report the blocking runtime issue.
+     - `needs_update`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-update}}` as follow-up map maintenance.
+     - `needs_rebuild`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+     - `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
      - **CARRY FORWARD**: Use project-cognition signals to decide whether
        fast-path execution is still safe. Carry the selected capability, minimal reads,
        and verification route into the fast-task state or report.
-   - Only after the cognition gate passes may you read the source files to change.
+   - Use the cognition result as advisory navigation before reading the source files to change; live code, tests, scripts, configuration, and authoritative docs remain the evidence sources.
 
 3. **Execute the fast lane**
    - Perform the fast-path change directly.
@@ -121,8 +121,8 @@ Fast path does not load the full passive learning layer.
    - Include `changed_behavior_surfaces` for commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions affected by the change.
    - Include `verification_evidence` with the exact checks run and the result.
    - Include `project_cognition_refresh` recommending `{{invoke:map-update}}` with the changed paths whenever project cognition might be affected.
-   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths. Do not route to `{{invoke:map-scan}}` or `{{invoke:map-build}}` for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
-   - If a refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback and recommend `{{invoke:map-update}}` with the changed paths; escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, report the changed paths and recommend `{{invoke:map-update}}` as follow-up map maintenance. Do not call `project-cognition mark-dirty`, `project-cognition validate-build`, `project-cognition complete-refresh`, `{{invoke:map-update}}`, or `{{invoke:map-scan}} -> {{invoke:map-build}}` as a completion requirement for this ordinary workflow unless the user explicitly requested map maintenance.
+   - The completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs. Project cognition can support route selection but cannot be the sole evidence for completion.
 
 ## Output Contract
 

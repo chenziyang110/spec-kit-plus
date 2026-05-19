@@ -1167,7 +1167,8 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "$sp-teams" in result.output
         assert "seeded default constitution" in result.output.lower()
         assert "project-specific changes" in result.output.lower()
-        assert "required for existing code" in result.output
+        assert "optional map baseline" in result.output
+        assert "ordinary workflows can continue from live repository evidence" in result.output
         assert "default gate before" in result.output
         assert "The Codex team skill is available as" not in result.output
         assert "clarify" in result.output
@@ -1235,7 +1236,8 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "/sp-map-codebase" not in result.output
         assert "/sp-clarify" in result.output
         assert "/sp-deep-research" in result.output
-        assert "required for existing code" in result.output
+        assert "optional map baseline" in result.output
+        assert "ordinary workflows can continue from live repository evidence" in result.output
         assert "default gate before" in result.output
         assert "/sp-learnings" not in result.output
         assert "Codex-only runtime" not in result.output
@@ -1452,7 +1454,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                             "required_for": ["workflow_boundary"],
                             "read_order": 1,
                             "must_read": True,
-                            "selection_reason": "cognition status is the primary runtime truth surface",
+                            "selection_reason": "cognition status is advisory navigation before live evidence reads",
                         },
                         {
                             "path": ".specify/project-cognition/project-cognition.db",

@@ -141,7 +141,8 @@ def test_project_handbook_template_points_readers_to_project_cognition_first():
     assert "`.specify/project-cognition/status.json` for freshness" in content
     assert "`.specify/project-cognition/project-cognition.db` as the canonical graph store" in content
     assert "task-local project cognition query bundle" in content
-    assert "runtime truth surface" in content
+    assert "Advisory project cognition index" in content
+    assert "Map points, code proves" in content
     assert "new workflows should not read or require `.specify/project-map/**`" in content
     assert "Use `Where To Read Next` for task-oriented routing." in content
 

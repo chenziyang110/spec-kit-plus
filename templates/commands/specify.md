@@ -68,8 +68,8 @@ Use the returned readiness:
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-specify`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-- `blocked`: stop and report the blocking runtime issue.
+- `needs_rebuild`: record a planning advisory, perform the returned `minimal_live_reads`, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+- `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
 - **CARRY FORWARD**: Write project-cognition ownership, affected surfaces,
   reusable assets, verification routes, and known unknowns into `context.md`
   and the brainstorming handoff where they materially shape the downstream
@@ -296,13 +296,13 @@ Generate the pre-analysis output as the first section of `context.md`.
 5. Ensure project cognition runtime exists and record planning advisory state.
    - Check whether `.specify/project-cognition/status.json` exists.
    - If it exists, use the project cognition freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
-   - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+   - [AGENT] If freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance.
    - [AGENT] If freshness is `stale`, record a planning advisory, continue with minimal live reads from the query result, and do not require `{{invoke:map-update}}` during artifact-only `sp-specify` work.
    - [AGENT] If freshness is `support_drift`, record a planning advisory about support-surface drift and continue only with evidence-backed reads; do not reflexively route to `{{invoke:map-update}}`.
    - [AGENT] If freshness is `partial_refresh`, record a planning advisory that the refresh was incomplete, preserve `recommended_next_action`, and continue only when query results plus minimal live reads are sufficient for requirement discovery.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. For artifact-only `sp-specify` work, record a planning advisory for any overlapping topics, review those topic files and minimal live reads, and continue without requiring `{{invoke:map-scan}}`/`{{invoke:map-build}}`.
    - Check whether `.specify/project-cognition/status.json` exists at the repository root.
-   - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If the project cognition runtime is missing, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the project cognition runtime cannot yet tell you:
      - owning surfaces and truth locations
@@ -1011,7 +1011,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - release decision
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
-    - cognition follow-up: if artifact-only specification work identifies future modules, workflows, integration boundaries, verification surfaces, or ownership facts that the current query-backed runtime does not yet encode, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date
+    - cognition follow-up: if artifact-only specification work identifies future modules, workflows, integration boundaries, verification surfaces, or ownership facts that the current query-backed runtime does not yet encode, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes mean the advisory map may no longer reflect live project state
     - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `user_preference`, or `project_constraint`, use the manual `learning capture` helper surface.
       Required options: `--command`, `--type`, `--summary`, `--evidence`
     - leave one-off runs as `--decision none` with no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence

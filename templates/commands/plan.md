@@ -87,13 +87,13 @@ agent_scripts:
 2. **Ensure project cognition runtime exists and record planning advisory state**:
    - Check whether `.specify/project-cognition/status.json` exists.
    - If it exists, use the project cognition freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
-   - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+   - [AGENT] If freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance.
    - [AGENT] If freshness is `stale`, record a planning advisory, continue with minimal live reads from the query result, and do not require `{{invoke:map-update}}` during artifact-only `sp-plan` work.
    - [AGENT] If freshness is `support_drift`, record a planning advisory about support-surface drift and continue only with evidence-backed reads; do not reflexively route to `{{invoke:map-update}}`.
    - [AGENT] If freshness is `partial_refresh`, record a planning advisory that the refresh was incomplete, preserve `recommended_next_action`, and continue only when query results plus minimal live reads are sufficient for implementation planning.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. For artifact-only `sp-plan` work, record a planning advisory for any overlapping topics, review those topic files and minimal live reads, and continue without requiring `{{invoke:map-scan}}`/`{{invoke:map-build}}`.
    - Check whether `.specify/project-cognition/status.json` exists at the repository root.
-   - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If the project cognition runtime is missing, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - [AGENT] If task-relevant coverage is insufficient for the current planning request, record a planning advisory, continue with minimal live reads and targeted planning assumptions, and do not require a project cognition refresh during `sp-plan`.
 
@@ -161,8 +161,8 @@ Use the returned readiness:
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-plan`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-- `blocked`: stop and report the blocking runtime issue.
+- `needs_rebuild`: record a planning advisory, perform the returned `minimal_live_reads`, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+- `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
 - **CARRY FORWARD**: Promote project-cognition facts into planning constraints,
   `Implementation Constitution`, boundary rules, verification strategy, and
   `plan-contract.json` when they affect implementation shape.
@@ -270,7 +270,7 @@ Use the returned readiness:
     - planning evidence paths: `planning/evidence-index.json`, `planning/checkpoints.ndjson`, and accepted `planning/handoffs/<lane-id>.json` files
     - workflow-state path
     - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
-    - cognition follow-up: if artifact-only planning work introduces or sharpens future architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `plan.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date
+    - cognition follow-up: if artifact-only planning work introduces or sharpens future architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `plan.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes mean the advisory map may no longer reflect live project state
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`
       - `phase_mode: design-only`

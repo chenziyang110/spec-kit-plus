@@ -1,6 +1,6 @@
 ---
 name: spec-kit-project-cognition-gate
-description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require the agent-planned project cognition query bundle first, or route to map refresh when cognition coverage is missing or stale."
+description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Consult project cognition when available; when coverage is missing or stale, continue with live evidence and recommend map maintenance as follow-up."
 origin: spec-kit-plus
 ---
 
@@ -91,9 +91,10 @@ judgment in an established Spec Kit Plus repository:
 
 ## Freshness State Guidance
 
-- If the project cognition runtime is missing, recommend the canonical
-  `sp-map-scan -> sp-map-build` workflow detour before continuing. When giving
-  the user an explicit command to type, write
+- If the project cognition runtime is missing, continue with live repository
+  evidence and recommend the canonical `sp-map-scan -> sp-map-build` workflow as
+  follow-up map maintenance unless the user requested map repair first. When
+  giving the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
 - If the project cognition runtime is stale for a localized touched area, recommend
   `sp-map-update` first. When giving the user an explicit

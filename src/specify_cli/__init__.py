@@ -757,7 +757,7 @@ def _project_map_preflight(
             f"[yellow]Warning:[/yellow] Project cognition freshness is runtime_stale for [cyan]{command_name}[/cyan]."
         )
         console.print(
-            "Continue only if the current task is still local; otherwise refresh the project cognition runtime first, typically through [cyan]/sp-map-update[/cyan]."
+            "Treat the map as advisory, continue from live repository evidence, and recommend [cyan]/sp-map-update[/cyan] as follow-up map maintenance unless the user explicitly requested map repair first."
         )
 
     return result
@@ -4107,7 +4107,7 @@ def init(
         )
     enhancement_lines.extend(
         [
-            f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Produce the graph-native evidence baseline before deeper brownfield specification, planning, task generation, or implementation resumes",
+            f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](optional map baseline)[/bright_black] - Produce the graph-native evidence baseline when the user wants brownfield map maintenance; ordinary workflows can continue from live repository evidence when the map is missing or stale",
             f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the project cognition graph, claims, conflicts, and slices from the scan baseline",
             f"○ [cyan]{_display_cmd('map-update')}[/] [bright_black](after baseline)[/bright_black] - Refresh the project cognition runtime incrementally when changed areas or user supplements land",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",

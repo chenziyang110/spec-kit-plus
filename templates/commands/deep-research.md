@@ -248,9 +248,9 @@ Use `execution_surface: native-subagents`.
      - `ready`: continue with the returned task-local bundle.
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-     - `blocked`: stop and report the blocking runtime issue.
+     - `needs_update`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-update}}` as follow-up map maintenance.
+     - `needs_rebuild`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+     - `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
      - **CARRY FORWARD**: Treat project-cognition results as repository-grounded
        starting context. Preserve cited capabilities, constraints, affected
        surfaces, and verification routes in `deep-research.md`, and distinguish

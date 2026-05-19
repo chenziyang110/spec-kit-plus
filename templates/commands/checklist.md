@@ -71,10 +71,10 @@ Use `execution_surface: native-subagents`.
      - `ready`: continue with the returned task-local bundle.
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-     - `blocked`: stop and report the blocking runtime issue.
-   - Treat this as a coverage-model check, not a file-presence check. If the returned task-local bundle cannot identify the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, route through the returned `recommended_next_action`.
+     - `needs_update`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-update}}` as follow-up map maintenance.
+     - `needs_rebuild`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+     - `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
+   - Treat this as a coverage-model check, not a file-presence check. If the returned task-local bundle cannot identify the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, record an advisory and recommend the returned `recommended_next_action` as follow-up map maintenance.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
    - Be generated from the user's phrasing + extracted signals from spec/plan/tasks

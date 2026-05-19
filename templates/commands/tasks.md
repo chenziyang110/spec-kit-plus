@@ -133,12 +133,12 @@ Use the returned readiness:
 - `ambiguous`: ask the user to select the intended candidate.
 - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-tasks`.
 - `needs_rebuild`: record a planning advisory, perform the returned `minimal_live_reads`, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
-- `blocked`: stop and report the blocking runtime issue.
+- `blocked`: record a planning advisory, continue with live repository evidence or returned `minimal_live_reads` when sufficient for task generation, and recommend map repair as follow-up; stop only when the runtime issue prevents task generation itself.
 - **CARRY FORWARD**: Carry cognition-derived required references, write scopes,
   validation commands, forbidden drift, and known unknowns into `tasks.md`,
   `task-index.json`, and task packets.
 
-Task generation may stay focused on the plan artifacts afterward, but it may not skip the query-backed cognition gate.
+Task generation may stay focused on the plan artifacts afterward, but it may not skip the advisory cognition pass when project cognition is available.
 
 ## Consequence Obligation Mapping
 
@@ -307,7 +307,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
       - write-set conflict status
     - Recommended next command: `{{invoke:analyze}}` for normal completed or non-escalated task generation.
     - For escalated remediation: preserve the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stop without an analyze handoff.
-    - cognition follow-up: if artifact-only task generation exposes future shared surfaces, workflow joins, or validation entry points that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `tasks.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
+    - cognition follow-up: if artifact-only task generation exposes future shared surfaces, workflow joins, or validation entry points that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `tasks.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes mean the advisory map may no longer reflect live project state.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

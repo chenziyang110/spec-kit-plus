@@ -309,7 +309,8 @@ class TestBuiltInSkillGeneration:
         assert "specify learning start --command constitution --format json" in constitution_body
         assert ".specify/project-cognition/status.json" in constitution
         assert "workflow-appropriate cognition" in constitution
-        assert "default brownfield runtime truth surface" in constitution
+        assert "advisory project cognition index" in constitution
+        assert "map points, code proves" in constitution
         assert "map-update" in constitution
         assert "/sp-map-scan" in constitution_body
         assert "/sp-map-build" in constitution_body
@@ -393,10 +394,10 @@ class TestBuiltInSkillGeneration:
         assert "recommended review follow-up" in specify_body
         assert "final-handoff-decision" in specify_body
         assert "/sp.deep-research" in specify_body or "{{invoke:deep-research}}" in specify_body
-        assert "git-baseline freshness" in specify_body.lower()
-        assert "complete-refresh" in specify_body
-        assert "manual override/fallback" in specify_body.lower()
-        assert "run `/sp-map-scan` followed by `/sp-map-build`" in specify_body
+        assert "recommend `/sp-map-update` as follow-up map maintenance" in specify_body
+        assert "project cognition can support route selection but cannot be the sole evidence for completion" in specify_body.lower()
+        assert "map-specific workflows and validation commands remain allowed" in specify_body.lower()
+        assert "manual override/fallback" not in specify_body.lower()
 
         prd_body = _body_without_frontmatter(skills_dir / "sp-prd" / "SKILL.md")
         prd_lower = prd_body.lower()
@@ -425,10 +426,10 @@ class TestBuiltInSkillGeneration:
         assert "consume `planning/evidence-index.json` before final synthesis" in plan_body.lower()
         assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only lane results" in plan_body.lower()
         assert "recommended follow-up quality check" in plan_body
-        assert "git-baseline freshness" in plan_body.lower()
-        assert "complete-refresh" in plan_body
-        assert "manual override/fallback" in plan_body.lower()
-        assert "run `/sp-map-scan` followed by `/sp-map-build`" in plan_body
+        assert "recommend `/sp-map-update` as follow-up map maintenance" in plan_body
+        assert "project cognition can support route selection but cannot be the sole evidence for completion" in plan_body.lower()
+        assert "map-specific workflows and validation commands remain allowed" in plan_body.lower()
+        assert "manual override/fallback" not in plan_body.lower()
 
         clarify_body = _body_without_frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
         assert "clarification/handoffs/<lane-id>.json" in clarify_body
@@ -458,10 +459,10 @@ class TestBuiltInSkillGeneration:
         assert "recommended next command" in tasks_body.lower()
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
-        assert "git-baseline freshness" in tasks_body.lower()
-        assert "complete-refresh" in tasks_body
-        assert "manual override/fallback" in tasks_body.lower()
-        assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
+        assert "recommend `/sp-map-update` as follow-up map maintenance" in tasks_body
+        assert "project cognition can support route selection but cannot be the sole evidence for completion" in tasks_body.lower()
+        assert "map-specific workflows and validation commands remain allowed" in tasks_body.lower()
+        assert "manual override/fallback" not in tasks_body.lower()
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
@@ -565,7 +566,8 @@ class TestBuiltInSkillGeneration:
         assert "build-handbook.md" not in checklist_lower
         assert "touched area's owning surfaces" in checklist_lower
         assert "recommended_next_action" in checklist_lower
-        assert "`needs_update`: route through `{{invoke:map-update}}`" in checklist_body or "`needs_update`: route through `/sp-map-update`" in checklist_body
+        assert "`needs_update`: treat map output as advisory" in checklist_lower
+        assert "follow-up map maintenance" in checklist_lower
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "recommend `/sp-analyze`" in checklist_lower

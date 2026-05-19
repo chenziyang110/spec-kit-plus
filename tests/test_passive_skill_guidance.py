@@ -26,7 +26,7 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "implementation chain" in content or "implementation-chain" in content
     assert "planning handoff" in content
     assert "route into the right active `sp-*` workflow" in content
-    assert "hard brownfield context gate" in content
+    assert "brownfield advisory navigation layer" in content
     assert "learning-start" in content
     assert "learning-capture" in content
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
@@ -144,11 +144,11 @@ def test_project_cognition_gate_references_routing_and_learning_roles() -> None:
     assert "query_plan" in content
     assert "task-local project" in content
     assert "raw graph json artifacts as obsolete runtime surfaces" in content
-    assert "runtime truth surface" in content
-    assert "legacy project-map exports are not the default runtime truth path" in content
+    assert "advisory navigation surface" in content
+    assert "legacy project-map exports are not evidence for current project behavior" in content
     assert "read `debug-handbook.md`" not in content
     assert "read `build-handbook.md`" not in content
-    assert "default runtime truth path" in content
+    assert "advisory navigation" in content
     assert "sp-map-update" in content
     assert "sp-map-scan" in content
     assert "sp-map-build" in content

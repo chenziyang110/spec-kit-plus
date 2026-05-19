@@ -902,8 +902,8 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "do not always hand off directly to `/sp-specify`" in lowered
     assert "active `spec.md`, `plan.md`, `tasks.md`, or `workflow-state.md`" in content
     assert "project rules or learnings that conflict with the amended constitution" in lowered
-    assert "project cognition runtime truth" in lowered
-    assert "mark the related project cognition compatibility/export surface for refresh" in lowered
+    assert "project cognition coverage facts" in lowered
+    assert "recommend `/sp-map-update` as follow-up map maintenance" in lowered
     assert "if the cognition baseline is missing" in lowered
 
 
@@ -1200,9 +1200,9 @@ def test_explain_template_documents_conservative_routing_contract():
     assert "primary artifact reading" in lowered
     assert "supporting artifact cross-check" in lowered
     assert "before rendering the final explanation" in lowered
-    assert "project cognition, touched-area state, or brownfield runtime truth" in lowered
+    assert "project cognition, touched-area state, or brownfield advisory navigation" in lowered
     assert ".specify/project-cognition/status.json" in content
-    assert "smallest matching slice" in lowered
+    assert "smallest matching query-backed artifact" in lowered
     assert "handbook artifacts only when the user explicitly requests the compatibility/export surfaces themselves" in lowered
     assert "explain the architecture, cognition, or compatibility/export atlas artifact directly instead of forcing a planning-stage fallback" in lowered
     assert "verified facts, inferred relationships, important unknowns, and the next relevant cognition slice or export view" in lowered
@@ -1235,7 +1235,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "build-handbook.md" not in lowered
     assert ".specify/project-map/index/status.json" not in content
     assert "atlas.entry" not in lowered
-    assert "use `{{invoke:map-update}}` with the changed paths" in content
+    assert "recommend `{{invoke:map-update}}` with the changed paths or affected surfaces as follow-up map maintenance" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -1854,7 +1854,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
-    assert "Use `/sp-map-update` with the changed paths" in content
+    assert "recommend `/sp-map-update` with the changed paths as follow-up map maintenance" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -1941,14 +1941,14 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "exactly one safe validated packet is ready" in lowered
     assert "two or more safe validated packets with isolated write sets" in lowered
     assert "`subagent-blocked`" in lowered
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
-    assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
+    assert "report the changed paths and recommend `{{invoke:map-update}}` as follow-up map maintenance" in content
+    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in lowered
     assert "including unresolved `open_gaps`" in lowered
-    assert "if you cannot complete that refresh in the current pass" in lowered
+    assert "do not call `project-cognition mark-dirty`" in lowered
     assert ".specify/project-map/index/status.json" not in lowered
-    assert "project-cognition validate-build --format json" in lowered
-    assert "only when build acceptance passes" in lowered
-    assert "manual override/fallback" in lowered
+    assert "do it, run `{{specify-subcmd:project-cognition validate-build --format json}}`" not in lowered
+    assert "only when build acceptance passes" not in lowered
+    assert "manual override/fallback" not in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
@@ -2230,7 +2230,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "returned readiness" in lowered
     assert "minimal_live_reads" in lowered
     assert "build-handbook.md" not in lowered
-    assert "`needs_update`: route through `{{invoke:map-update}}`" in lowered
+    assert "`needs_update`: treat map output as advisory" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered
@@ -2342,8 +2342,10 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         lowered = _read(path).lower()
         assert "project cognition runtime" in lowered
         assert "map-update" in lowered
-        assert "complete-refresh" in lowered
-        assert "manual override/fallback" in lowered
+        assert "follow-up map maintenance" in lowered
+        assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in lowered
+        assert "do not call `project-cognition mark-dirty`" in lowered
+        assert "project-cognition complete-refresh" in lowered
         assert "git-baseline freshness" not in lowered
 
 
@@ -2362,6 +2364,34 @@ def test_planning_only_workflows_do_not_dirty_project_cognition_after_artifact_w
         assert "artifact-only" in lowered
         assert "cognition follow-up" in lowered
         assert "actual source/runtime changes" in lowered
+
+
+def test_ordinary_workflows_treat_map_readiness_as_advisory():
+    ordinary_templates = [
+        "templates/commands/analyze.md",
+        "templates/commands/checklist.md",
+        "templates/commands/clarify.md",
+        "templates/commands/constitution.md",
+        "templates/commands/debug.md",
+        "templates/commands/deep-research.md",
+        "templates/commands/discussion.md",
+        "templates/commands/fast.md",
+        "templates/commands/implement.md",
+        "templates/commands/plan.md",
+        "templates/commands/prd-scan.md",
+        "templates/commands/quick.md",
+        "templates/commands/specify.md",
+        "templates/commands/tasks.md",
+    ]
+    for rel_path in ordinary_templates:
+        lowered = _read(rel_path).lower()
+        assert "follow-up map maintenance" in lowered or "planning advisory" in lowered, rel_path
+        assert "`needs_update`: route through" not in lowered, rel_path
+        assert "`needs_rebuild`: route through" not in lowered, rel_path
+        assert "wait for that rebuild before continuing" not in lowered, rel_path
+        assert "wait for that refresh before continuing" not in lowered, rel_path
+        assert "do it, run `{{specify-subcmd:project-cognition validate-build --format json}}`" not in lowered, rel_path
+        assert "use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes" not in lowered, rel_path
 
 
 def test_specify_plan_and_clarify_treat_needs_update_as_planning_advisory():

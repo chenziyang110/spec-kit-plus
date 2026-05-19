@@ -51,9 +51,9 @@ Use the returned readiness:
 - `ready`: continue with the returned task-local bundle.
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
-- `needs_update`: route through `{{invoke:map-update}}`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-- `blocked`: stop and report the blocking runtime issue.
+- `needs_update`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-update}}` as follow-up map maintenance.
+- `needs_rebuild`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+- `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
 - **CARRY FORWARD**: Write the selected capability, minimal reads, validation route,
   and known risk into quick-task `STATUS.md` before implementation
   proceeds.
@@ -124,7 +124,7 @@ The following flags are available and composable:
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded subagent.
 - Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, subagent dispatch, or local analysis.
-- If the project cognition runtime is missing, rebuild it through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before `STATUS.md` initialization or touched-area analysis proceeds.
+- If the project cognition runtime is missing, record that as advisory map state, continue quick-task setup from live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
 - Before the first subagent is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first subagent path.
 - Before implementation work starts, identify whether the quick task is best handled by one bounded subagent or by two or more independent subagents that can safely proceed in parallel.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)`.
@@ -339,8 +339,8 @@ resume_decision: [resume here | blocked waiting | resolved]
 - The final `SUMMARY.md` must include `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` recommending `{{invoke:map-update}}` with those changed paths whenever project cognition might be affected.
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before marking the quick task `resolved`. Do not rebuild for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
-- If a refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback with command shape `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}`, and tell the user to run `{{invoke:map-update}}` with the changed paths before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, report the changed paths and recommend `{{invoke:map-update}}` as follow-up map maintenance before marking the quick task `resolved`. Do not call `project-cognition mark-dirty`, `project-cognition validate-build`, `project-cognition complete-refresh`, `{{invoke:map-update}}`, or `{{invoke:map-scan}} -> {{invoke:map-build}}` as a completion requirement for this ordinary workflow unless the user explicitly requested map maintenance.
+- The completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs. Project cognition can support route selection but cannot be the sole evidence for completion.
 
 ## Propagating Change Rule
 

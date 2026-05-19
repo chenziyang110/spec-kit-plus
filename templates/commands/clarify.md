@@ -130,8 +130,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
      - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-clarify`.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-     - `blocked`: stop and report the blocking runtime issue.
+     - `needs_rebuild`: record a planning advisory, perform the returned `minimal_live_reads`, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair.
+     - `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
      - **CARRY FORWARD**: Use project-cognition facts to decide whether an
        apparent requirement gap is already answered by repository truth. Preserve
        selected ownership, boundary, ambiguity, and verification facts in the
@@ -215,7 +215,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - cognition follow-up: if artifact-only clarification work proves later implementation should refresh ownership, workflow, integration boundary, or verification-surface cognition, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date
+   - cognition follow-up: if artifact-only clarification work proves later implementation should refresh ownership, workflow, integration boundary, or verification-surface cognition, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes mean the advisory map may no longer reflect live project state
 
 ## Presentation Contract
 

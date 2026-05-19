@@ -102,15 +102,15 @@ Before `context-grounding`, `technical-options`, affected-surface analysis, or s
 4. Run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
 5. Use the returned readiness, route_pack, subgraph, missing coverage, and `minimal_live_reads` as the discussion's source-grounded context.
 
-Treat `.specify/project-cognition/project-cognition.db` plus the query bundle as runtime truth. Do not require legacy raw slice artifacts as a prerequisite for source-grounded discussion.
+Treat `.specify/project-cognition/project-cognition.db` plus the query bundle as advisory navigation. Do not require legacy raw slice artifacts as a prerequisite for source-grounded discussion.
 
 Freshness handling:
 
-- `missing`: stop and tell the user to run `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- `stale`: stop and tell the user to follow `recommended_next_action`; if the blocker is changed paths missing from `path_index`, route to `{{invoke:map-scan}} -> {{invoke:map-build}}` because incremental update cannot create absent path coverage.
-- `support_drift`: stop for support-surface cleanup without reflexively routing to `{{invoke:map-update}}`.
-- `partial_refresh`: stop and follow `recommended_next_action`.
-- `possibly_stale`: inspect affected graph scope and route to localized refresh if coverage is not safe enough.
+- `missing`: continue with live repository evidence and recommend `{{invoke:map-scan}} -> {{invoke:map-build}}` as follow-up map maintenance.
+- `stale`: treat map output as advisory, continue with live repository evidence, and recommend `recommended_next_action`; if changed paths are missing from `path_index`, recommend `{{invoke:map-scan}} -> {{invoke:map-build}}` because incremental update cannot create absent path coverage.
+- `support_drift`: continue with live repository evidence and recommend support-surface cleanup without reflexively routing to `{{invoke:map-update}}`.
+- `partial_refresh`: continue with live repository evidence and treat `recommended_next_action` as map-maintenance guidance.
+- `possibly_stale`: inspect affected graph scope when useful and recommend localized refresh if coverage is not safe enough.
 
 If the idea is clearly greenfield or does not depend on existing project structure, record the stand-down reason in `project-context.md` and avoid existing-code placement claims.
 

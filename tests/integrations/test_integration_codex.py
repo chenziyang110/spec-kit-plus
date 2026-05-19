@@ -347,7 +347,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
     assert "selects the next executable phase and ready batch" in content
     assert "map-update" in content.lower()
-    assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
+    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content.lower()
+    assert "project cognition can support route selection but cannot be the sole evidence for completion" in content.lower()
     assert "including unresolved `open_gaps`" in content.lower()
     assert "shared implement template is the primary source of truth" in content
     assert "join point" in content.lower()
@@ -845,10 +846,10 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "no dependency changes" in content
     assert "the leader performs the change directly" in content or "leader-direct" in content
     assert "verify" in content
-    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content
+    assert "project cognition can support route selection but cannot be the sole evidence for completion" in content
     assert "map-update" in content
-    assert "map-update" in content
-    assert "manual override/fallback" in content.lower()
+    assert "do not call `project-cognition mark-dirty`" in content
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
     assert "leader-direct" in content or "the leader performs the change directly" in content
@@ -914,7 +915,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "status.md" in content
     assert "current focus" in content
     assert "next action" in content
-    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content
+    assert "project cognition can support route selection but cannot be the sole evidence for completion" in content
     assert "map-update" in content
     assert "resume" in content
     assert "resolved/" in content

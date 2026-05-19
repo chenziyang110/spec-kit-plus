@@ -213,9 +213,9 @@ incompatibility, then run `specify integration repair` before continuing with
 
 When the feature touches an established boundary pattern in the target project, make that constraint explicit before coding starts:
 
-- For brownfield runtime refresh decisions, treat `.specify/project-cognition/status.json` as the truth source for git-baseline freshness.
-- If a full refresh can be completed now, invoke the project launcher from `.specify/config.json` with `project-cognition validate-build --format json`, then `project-cognition complete-refresh --format json` only when build acceptance passes.
-- Otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the shared manual override/fallback before later brownfield work continues. Fall back to PATH `specify` only when no project launcher is configured.
+- For brownfield map-quality decisions, treat `.specify/project-cognition/status.json` as advisory git-baseline freshness metadata.
+- During explicit map-maintenance or repair work, invoke the project launcher from `.specify/config.json` with `project-cognition validate-build --format json`, then `project-cognition complete-refresh --format json` only when build acceptance passes.
+- Ordinary workflows should report changed paths and recommend `map-update` or `map-scan -> map-build` as follow-up map maintenance when useful; completion still depends on live code, tests, scripts, configuration, or authoritative docs.
 
 - `plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
