@@ -6,7 +6,7 @@ origin: spec-kit-plus
 
 # Spec Kit Project Cognition Gate
 
-This passive skill is the brownfield hard gate, not the route selection layer.
+This passive skill is the brownfield advisory navigation layer, not a hard workflow gate.
 
 ## Complementary Passive Skills
 
@@ -16,7 +16,7 @@ This passive skill is the brownfield hard gate, not the route selection layer.
   loaded. Once this gate is satisfied, follow that skill's learning-start and
   learning-capture expectations for the active workflow.
 
-## Hard Gate
+## Advisory Navigation
 
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
@@ -54,7 +54,7 @@ judgment in an established Spec Kit Plus repository:
   `selection_reason`, the matched capability or symptom, affected nodes and
   subgraph, `route_pack`, `minimal_live_reads`, missing coverage, evidence
   traces, verification routes, ambiguity, conflicts, and weak coverage.
-- Treat project cognition under `.specify/project-cognition/` as the runtime truth surface. Legacy project-map exports are not the default runtime truth path.
+- Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
 
@@ -74,12 +74,13 @@ judgment in an established Spec Kit Plus repository:
   true.
 - For ready references, read only the fresh project cognition artifacts needed
   for the comparison, then use the returned minimal read order before inspecting
-  more source files.
+  more source files. Treat the reference map as supplemental navigation, not as
+  evidence by itself.
 - For blocked, stale, missing, or incomplete references, do not treat legacy
   `.specify/project-map/**` outputs as current truth. Fall back to minimal live
-  reads, or ask the user to refresh that reference project with
+  reads, or recommend refreshing that reference project with
   `{{invoke:map-scan}} -> {{invoke:map-build}}` or `{{invoke:map-update}}` as
-  appropriate.
+  follow-up map maintenance when useful.
 
 ## Command Surface Discipline
 
@@ -90,14 +91,14 @@ judgment in an established Spec Kit Plus repository:
 
 ## Freshness State Guidance
 
-- If the project cognition runtime is missing, route through the canonical
+- If the project cognition runtime is missing, recommend the canonical
   `sp-map-scan -> sp-map-build` workflow detour before continuing. When giving
   the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- If the project cognition runtime is stale for a localized touched area, route
-  through `sp-map-update` first. When giving the user an explicit
+- If the project cognition runtime is stale for a localized touched area, recommend
+  `sp-map-update` first. When giving the user an explicit
   command to type, write `{{invoke:map-update}}`.
-- If the freshness state is `support_drift`, stop and tell the user to resolve
+- If the freshness state is `support_drift`, recommend the user resolve
   support-surface drift; do not reflexively route to `sp-map-update`.
 - If the freshness state is `partial_refresh`, tell the user the refresh was
   recorded but readiness did not pass; follow the reported
@@ -105,16 +106,17 @@ judgment in an established Spec Kit Plus repository:
 - Preserve the distinction between the machine freshness field and public state
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.
-- Route through `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the
+- Recommend `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the
   baseline is missing, unusable, schema-incompatible, explicitly being rebuilt,
   or invalidated by broad architecture replacement. Uncertain closure should be
   recorded by `sp-map-update` as partial/low-confidence facts, known unknowns,
   and `minimal_live_reads`.
-- Treat that detour as a user-invoked workflow handoff. Do not silently switch into
-  `sp-map-update`, `sp-map-scan`, or `sp-map-build` yourself from another workflow;
-  stop and tell the user which map workflow to run.
-- Do not rely on generic framework instinct, chat memory, or prior sessions when the
-  project cognition runtime should be the source of truth.
+- Treat map maintenance as a user-invoked workflow handoff. Do not silently switch
+  into `sp-map-update`, `sp-map-scan`, or `sp-map-build` yourself from another
+  workflow; recommend the map workflow as follow-up unless the user explicitly
+  requested repair first.
+- Do not rely on generic framework instinct, chat memory, or prior sessions when live
+  project evidence is required.
 
 ## Senior Consequence Analysis Relationship
 

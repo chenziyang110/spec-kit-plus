@@ -216,7 +216,7 @@ class SkillsIntegrationTests:
         for name in ("implement", "debug", "quick"):
             content = (skills_dir / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
 
-            assert "crucial first step" in content
+            assert "advisory gate" in content
             assert "project cognition" in content
             assert "project-cognition query" in content
             assert "minimal_live_reads" in content

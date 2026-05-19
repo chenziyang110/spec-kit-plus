@@ -141,13 +141,13 @@ When a defect touches lifecycle, running-state, shared-state, destructive behavi
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: light.** Pass the cognition gate before investigation
-moves into reproduction, logs, tests, or source-code reads.
+**This command tier: light.** Consult the advisory navigation layer before investigation
+moves into reproduction, logs, tests, or source-code reads when project cognition is available.
 
-## Debug Cognition Gate
+## Debug Cognition Advisory
 
-**Project cognition gate:** query the active project's runtime before broad
-repository reads.
+**Project cognition advisory:** query the active project's runtime before broad
+repository reads and use the result to choose likely live evidence.
 
 Run or emulate:
 
@@ -162,9 +162,9 @@ Use the returned readiness:
 - `ready`: continue with the returned task-local bundle.
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
-- `needs_update`: route through `{{invoke:map-update}}`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-- `blocked`: stop and report the blocking runtime issue.
+- `needs_update`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-update}}` as follow-up map maintenance.
+- `needs_rebuild`: treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the user wants map repair.
+- `blocked`: report the runtime issue as advisory map state and continue with live repository evidence unless the user explicitly requested map repair first.
 - **CARRY FORWARD**: Write the selected capability or symptom, evidence routes,
   minimal reads, competing truths, and unresolved coverage gaps into debug
   session state before making root-cause claims.
@@ -175,13 +175,13 @@ Use the returned readiness:
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
 - Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent debug --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}` before trusting existing brownfield routing assumptions.
 - If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
-- [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
-- [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.
-- [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
-- [AGENT] If cognition freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
-- [AGENT] If cognition freshness is `possibly_stale`, inspect the changed paths, reasons, and slice coverage. Use `{{invoke:map-update}}` with the changed paths; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement.
+- [AGENT] If cognition freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance.
+- [AGENT] If cognition freshness is `stale`, treat map output as advisory, continue with live repository evidence, and recommend `{{invoke:map-update}}` as follow-up map maintenance.
+- [AGENT] If cognition freshness is `support_drift`, continue with live repository evidence and recommend the user resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
+- [AGENT] If cognition freshness is `partial_refresh`, continue with live repository evidence and report that refresh data was recorded but readiness did not pass; treat `recommended_next_action` as map-maintenance guidance.
+- [AGENT] If cognition freshness is `possibly_stale`, inspect the changed paths, reasons, and slice coverage when useful. Recommend `{{invoke:map-update}}` with the changed paths; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement.
 - Treat task-relevant cognition coverage as insufficient when the failing area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-- [AGENT] If task-relevant cognition coverage is insufficient for the failing area, stop and tell the user to refresh through `{{invoke:map-update}}` with changed paths or affected surfaces; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement; wait for that refresh before root-cause analysis continues.
+- [AGENT] If task-relevant cognition coverage is insufficient for the failing area, continue with live repository evidence and recommend `{{invoke:map-update}}` with changed paths or affected surfaces as follow-up map maintenance; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement.
 - Use the debug cognition slice to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
@@ -489,10 +489,10 @@ The session file must always make it clear:
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
-- Treat the returned `project-cognition query` bundle and readiness as the truth source for brownfield debug runtime coverage; use only returned `minimal_live_reads` when needed.
+- Treat the returned `project-cognition query` bundle and readiness as advisory navigation for brownfield debug coverage; use returned `minimal_live_reads` when useful, then verify claims from live repository evidence.
 - Before moving to `awaiting_human_verify` or `resolved`, record `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` recommending `{{invoke:map-update}}` with those changed paths whenever project cognition might be affected.
-- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before moving to `awaiting_human_verify` or `resolved`. Do not rebuild for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement; then run `{{specify-subcmd:project-cognition validate-build --format json}}` and `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes.
-- If that refresh cannot be completed now, use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback and tell the user to run `{{invoke:map-update}}` with the changed paths before later brownfield work proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for the explicit rebuild conditions above.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, report the changed paths and recommend `{{invoke:map-update}}` as follow-up map maintenance before moving to `awaiting_human_verify` or `resolved`. Do not call `project-cognition mark-dirty`, `project-cognition validate-build`, `project-cognition complete-refresh`, `{{invoke:map-update}}`, or `{{invoke:map-scan}} -> {{invoke:map-build}}` as a completion requirement for this ordinary workflow unless the user explicitly requested map maintenance.
+- The completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs. Project cognition can support route selection but cannot be the sole evidence for completion.
 - [AGENT] Resolved debug sessions should auto-capture reusable lessons from the persisted debug session state into index/detail entries.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.
 - [AGENT] If the auto-capture pass produced no captured lesson but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface to create or merge an index/detail entry.

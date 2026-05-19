@@ -45,7 +45,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "think subagent must not read test files" in content
     assert "the think subagent uses only the user report plus the current system map" in content
     assert "automatically continue into evidence investigation" in content
-    assert "hard gate" in content
+    assert "advisory navigation layer" in content
     assert "skip_observer_reason: map-backed-minimum-intake" in content
     assert "think subagent" in content
     assert "observer_framing_completed" in content
@@ -57,8 +57,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "learning start --command debug --format json" in content
     assert "manual `learning capture` helper surface" in content
     assert "manual `capture-learning` hook surface" not in content
-    assert "debug cognition gate" in content
-    assert "pass the cognition gate before" in content
+    assert "debug cognition advisory" in content
+    assert "consult the advisory navigation layer before" in content
     assert "project-cognition query --intent debug" in content
     assert "minimal_live_reads" in content
     assert "debug-handbook.md" not in content
@@ -78,8 +78,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "derived_issue" in content
     assert "unrelated_issue" in content
     assert "contrarian candidate" in content
-    assert "cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
-    assert "cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`" in content
+    assert "cognition freshness is `missing`, continue with live repository evidence" in content
+    assert "cognition freshness is `stale`, treat map output as advisory" in content
     assert "cognition freshness is `support_drift`" in content
     assert "cognition freshness is `partial_refresh`" in content
     assert "do not reflexively route to `{{invoke:map-update}}`" in content
@@ -89,7 +89,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "{{invoke:map-update}}" in content
     assert "truth ownership" in content
     assert "use the debug cognition slice to identify likely truth-owning layers" in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues" in content
+    assert "recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance" in content
     assert "task-relevant cognition coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
@@ -143,26 +143,25 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "debug-local research checkpoint" in content
     assert "dispatches bounded evidence-gathering subagents" in content
     assert "durable team workflow" in content
-    assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "changed_code_paths" in content
     assert "changed_behavior_surfaces" in content
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before moving to `awaiting_human_verify` or `resolved`" in content
-    assert "ordinary uncertain closure" in content
-    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
+    assert "recommend `{{invoke:map-update}}` as follow-up map maintenance before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "do not call `project-cognition mark-dirty`" in content
+    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content
     assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, or invalidated by broad architecture replacement" in content
-    assert "returned `project-cognition query` bundle and readiness as the truth source" in content
-    assert "use only returned `minimal_live_reads` when needed" in content
+    assert "returned `project-cognition query` bundle and readiness as advisory navigation" in content
+    assert "use returned `minimal_live_reads` when useful" in content
     assert "debug session state" in content
     assert "competing truths" in content
     assert "coverage gaps" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "complete-refresh" in content
-    assert "project-cognition validate-build --format json" in content
-    assert "only when build acceptance passes" in content
-    assert "if that refresh cannot be completed now" in content
-    assert "manual override/fallback" in content
+    assert "project-cognition validate-build --format json" not in content
+    assert "only when build acceptance passes" not in content
+    assert "if that refresh cannot be completed now" not in content
+    assert "manual override/fallback" not in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content
     assert "do not modify production behavior until the red state is proven" in content

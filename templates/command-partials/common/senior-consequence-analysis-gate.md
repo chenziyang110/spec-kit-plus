@@ -4,7 +4,7 @@ Run this gate whenever the request, artifact set, defect, or planned change can 
 
 Project cognition first. Use the project cognition runtime to identify ownership, consumers, state surfaces, change-propagation facts, verification routes, conflicts, known unknowns, and coverage gaps. Senior consequence analysis second. Turn those facts into explicit product and implementation obligations instead of treating the graph as the decision-maker.
 
-Project cognition readiness drives routing. If readiness is `ready`, continue with the returned task-local bundle. If readiness is `review`, inspect only the returned `minimal_live_reads` before continuing. If readiness is `ambiguous`, `needs_update`, `needs_rebuild`, or `blocked`, follow the workflow's routing rules before asserting consequence behavior. Carry relevant project cognition facts, returned `minimal_live_reads`, inference notes, and coverage gaps into the workflow's artifacts or durable state.
+Project cognition readiness provides routing advice. If readiness is `ready`, continue with the returned task-local bundle. If readiness is `review`, inspect the returned `minimal_live_reads` before continuing. If readiness is `ambiguous`, ask the user to choose. If readiness is `needs_update`, `needs_rebuild`, or `blocked`, continue with live repository evidence and recommend the reported map-maintenance action as follow-up unless the user explicitly requested map repair first. Carry relevant project cognition facts, returned `minimal_live_reads`, inference notes, and coverage gaps into the workflow's artifacts or durable state, but back consequence claims with live code, tests, scripts, configuration, or authoritative docs.
 
 Required output when the gate triggers:
 

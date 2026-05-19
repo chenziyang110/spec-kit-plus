@@ -709,8 +709,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "primary suspected loop" in content
     assert "alternative cause candidates" in content
     assert "transition memo" in content
-    assert "if cognition freshness is `missing`, stop and tell the user to run `$sp-map-scan`, then `$sp-map-build`" in content
-    assert "if cognition freshness is `stale`, stop and tell the user to use `$sp-map-update`" in content
+    assert "if cognition freshness is `missing`, continue with live repository evidence" in content
+    assert "recommend `$sp-map-scan`, then `$sp-map-build` as follow-up map maintenance" in content
+    assert "if cognition freshness is `stale`, treat map output as advisory" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -900,7 +901,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "dispatch to one subagent with a task contract" in content or "one-subagent" in content
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
-    assert "crucial first step" in content
+    assert "advisory first pass" in content
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content
     assert "materially improve throughput" in content
     assert "subagent-blocked" in content

@@ -790,8 +790,8 @@ def test_readme_documents_runtime_atlas_refresh_scope_and_workbench_boundaries()
     lowered = readme.lower()
 
     assert ".specify/project-cognition/status.json" in lowered
-    assert "default brownfield runtime truth surface" in lowered
-    assert "runtime truth surface" in lowered
+    assert "advisory project cognition index" in lowered
+    assert "map points, code proves" in lowered
     assert "map-update" in lowered
     assert "map-scan" in lowered
     assert "map-build" in lowered
@@ -802,9 +802,9 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
     handbook = _read_project_file("PROJECT-HANDBOOK.md")
     lowered = handbook.lower()
 
-    assert "default brownfield runtime truth surface" in lowered
-    assert "runtime truth surface" in lowered
-    assert "project cognition as the primary runtime truth surface" in lowered
+    assert "advisory project cognition index" in lowered
+    assert "map points, code proves" in lowered
+    assert "runtime truth surface" not in lowered
     assert "templates/project-map/**` is retained only for legacy compatibility review" in lowered
     assert "`debug-handbook.md` - compatibility/export debug view" in lowered
     assert "`build-handbook.md` - compatibility/export build/change view" in lowered
@@ -827,9 +827,9 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     assert "supplemental-only" in lowered
     assert "fresh-only" in lowered
     assert "minimal read" in lowered
-    assert "runtime truth surface" in lowered
+    assert "advisory navigation layer" in lowered
     assert "ordinary first-read runtime contract" not in lowered
-    assert "runtime truth surface" in lowered
+    assert "advisory navigation surface" in lowered
     assert "project-map" in lowered
     assert "project-map as primary truth" not in lowered
     assert "project-map primary truth" not in lowered
@@ -1113,7 +1113,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
+    assert "recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -2022,10 +2022,10 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert "launcher-backed project cognition query planning flow" in lowered_gate
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
-    assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
+    assert "`stale` -> warn and continue with live repository evidence" in shared_gate
     assert "missing from `path_index`" in shared_gate
-    assert "`support_drift` -> stop and tell the user to resolve support-surface drift" in shared_gate
-    assert "`partial_refresh` -> tell the user the refresh was recorded but readiness did not pass" in shared_gate
+    assert "`support_drift` -> warn and continue with live repository evidence" in shared_gate
+    assert "`partial_refresh` -> warn that refresh data was recorded but readiness did not pass" in shared_gate
     assert "`recommended_next_action`" in shared_gate
     assert "PROJECT-HANDBOOK.md" not in shared_gate
     assert "atlas.entry" not in shared_gate
@@ -2306,8 +2306,8 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     for path in refresh_owned_surfaces:
         lowered = _read(path).lower()
         if path in {"README.md", "docs/quickstart.md"}:
-            assert "default brownfield runtime truth surface" in lowered
-            assert "runtime truth surface" in lowered
+            assert "advisory project cognition index" in lowered
+            assert "map points, code proves" in lowered
             assert "map-update" in lowered
             assert "map-scan" in lowered
             assert "map-build" in lowered

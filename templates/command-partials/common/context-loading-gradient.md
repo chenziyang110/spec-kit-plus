@@ -1,12 +1,10 @@
-## Project Cognition Gate
+## Project Cognition Advisory
 
-This command must treat the project cognition runtime as the mandatory pre-source knowledge base.
+This command should treat the project cognition runtime as an advisory navigation index, not a mandatory pre-source gate.
 
-### Hard Rule
+### Advisory Rule
 
-Do not inspect implementation source, run reproduction or tests, compile a
-plan, prepare a fix, or emit technical recommendations until the cognition gate has
-passed.
+Use project cognition when available to find likely owners, affected paths, risks, verification routes, and minimal live reads. Do not treat map output as evidence by itself. Technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 
 ### Required Project Cognition Query
 
@@ -62,21 +60,18 @@ and minimal live reads after the minimum gate, not whether it may skip cognition
 
 ### Freshness
 
-Treat runtime freshness as a gate:
+Treat runtime freshness as map-quality diagnostics:
 
-- `missing` -> block and refresh through `sp-map-scan -> sp-map-build`
-- `stale` -> block and refresh through `sp-map-update`
-- `stale` with changed paths missing from `path_index` -> block and rebuild through `sp-map-scan -> sp-map-build`; repeating `sp-map-update` cannot create absent path coverage
-- `support_drift` -> stop and tell the user to resolve support-surface drift; do not reflexively route to `sp-map-update`
-- `partial_refresh` -> tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`
-- `possibly_stale` -> inspect the returned affected scope; if the touched area is not safely covered, route through `sp-map-update`
+- `fresh` -> use the returned task-local bundle as a first-pass navigation aid
+- `missing` -> warn and continue with live repository evidence; recommend `sp-map-scan -> sp-map-build` as follow-up map maintenance
+- `stale` -> warn and continue with live repository evidence; recommend `sp-map-update` as follow-up map maintenance
+- `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `sp-map-scan -> sp-map-build` only if the user wants map repair
+- `support_drift` -> warn and continue with live repository evidence; recommend resolving or intentionally ignoring support-surface drift
+- `partial_refresh` -> warn that refresh data was recorded but readiness did not pass; continue with live repository evidence
+- `possibly_stale` -> inspect returned affected scope when useful, then continue with live repository evidence
 
-Preserve the distinction between the machine freshness field and public state
-guidance: consume `freshness` as the factual state and use
-`recommended_next_action` for the operator-facing next step.
+Preserve the distinction between machine freshness and public guidance: `freshness` records map quality, while `recommended_next_action` is a map-maintenance recommendation.
 
 ### Primary Read Restriction
 
-Do not treat handbook-first or layered project-map files as the primary runtime read surfaces. If query-returned
-coverage is insufficient, refresh the cognition runtime through `sp-map-update`; reserve `sp-map-scan -> sp-map-build` for missing, unusable, schema-incompatible, explicitly rebuilt, or architecture-replaced baselines
-instead of forcing a second handbook traversal phase.
+Do not treat handbook-first or layered project-map files as evidence. If query-returned coverage is insufficient, inspect live repository surfaces directly and recommend `sp-map-update` or `sp-map-scan -> sp-map-build` as follow-up map maintenance when useful.
