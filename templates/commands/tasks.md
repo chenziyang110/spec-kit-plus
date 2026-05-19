@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
   primary_objective: Produce `tasks.md` with dependency ordering, guardrail carry-forward, execution batches, and join points.
   primary_outputs: '`FEATURE_DIR/tasks.md`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/task-index.json`, `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/task-generation/handoffs/<lane-id>.json`, `FEATURE_DIR/task-generation/evidence-index.json`, `FEATURE_DIR/task-generation/checkpoints.ndjson`, and `workflow-state.md`.'
-  default_handoff: '/sp.analyze for normal completed or non-escalated task generation; /sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth; only continue to /sp.implement after analyze clears upstream drift.'
+  default_handoff: '/sp.implement for a clean completed task package; /sp.analyze only when a persisted legacy or diagnostic state explicitly records that route; /sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth.'
 handoffs:
   - label: Analyze For Consistency
     agent: sp.analyze
@@ -57,11 +57,11 @@ scripts:
   - `phase_mode: task-generation-only`
   - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from task-generation artifacts`
 - Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution.
-- Implementation remains blocked until `{{invoke:analyze}}` confirms the current task package does not need upstream regeneration.
+- Implementation remains blocked until this task package passes the Implementation-Readiness Task Self-Audit and `WORKFLOW_STATE_FILE` records `next_command: /sp.implement`. Run `{{invoke:analyze}}` only when an existing state file explicitly records a legacy or diagnostic analysis route.
 - If `WORKFLOW_STATE_FILE` records a blocked `sp-analyze` gate with `next_command: /sp.tasks`, enter remediation mode before regenerating `tasks.md`.
 - In remediation mode, read the prior `Analyze Gate` blocker bundle first. Do not start from a blank task-generation pass.
 - No more than one task-layer remediation cycle is expected. If repeated `sp-tasks -> sp-analyze` loops occur for blockers that were detectable before remediation, treat that as a previous analyze miss or a tasks self-audit failure. Do not treat repeated task/analyze loops as normal workflow.
-- Do not hand off directly to `{{invoke:implement}}` from `sp-tasks`; the analyze gate is mandatory unless the user is explicitly resuming a previously cleared execution state.
+- Hand off directly to `{{invoke:implement}}` from `sp-tasks` after a clean self-audit. Preserve `{{invoke:analyze}}` only when explicit legacy or diagnostic workflow state requires that route.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 ## Outline
@@ -238,7 +238,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
     - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
     - For every explicit join point, include a validation target, a validation command or concrete manual check, and a pass condition
     - Create parallel execution examples per user story
-    - **Analyze-Compatible Task Self-Audit**: Before finalizing `tasks.md`, run the task-layer subset of the `sp-analyze` checks against the generated task package.
+    - **Implementation-Readiness Task Self-Audit**: Before finalizing `tasks.md`, run the task-layer subset of the `sp-analyze` checks against the generated task package.
     - Confirm every buildable `FR-*` and buildable success criterion has at least one task, checkpoint, or explicit deferred note.
     - Confirm every locked planning decision that affects implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails appears in `tasks.md`.
     - Confirm `Implementation Constitution` rules from `plan.md` are preserved through a guardrail phase, `Task Guardrail Index`, task notes, or explicit escalation.
@@ -297,7 +297,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
       - not_applicable count
       - escalated count
       - evidence sections or task IDs for resolved findings
-    - Analyze-Compatible Task Self-Audit result:
+    - Implementation-Readiness Task Self-Audit result:
       - coverage mapping status
       - locked decision preservation status
       - guardrail mapping status
@@ -305,7 +305,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
       - reference fidelity mapping status
       - unmapped task status
       - write-set conflict status
-    - Recommended next command: `{{invoke:analyze}}` for normal completed or non-escalated task generation.
+    - Recommended next command: `{{invoke:implement}}` for normal completed or non-escalated task generation.
     - For escalated remediation: preserve the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stop without an analyze handoff.
     - cognition follow-up: if artifact-only task generation exposes future shared surfaces, workflow joins, or validation entry points that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `tasks.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
@@ -314,7 +314,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
      - current authoritative files
      - exit criteria for task-generation completion
      - the next action required before handoff
-     - `next_command: /sp.analyze` only for normal completed or non-escalated task generation
+     - `next_command: /sp.implement` for normal completed or non-escalated task generation
      - escalated remediation preserves the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stops without an analyze handoff
 
 7. **Check for extension hooks**: After tasks.md is generated, check if `.specify/extensions.yml` exists in the project root.

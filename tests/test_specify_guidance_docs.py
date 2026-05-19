@@ -28,7 +28,7 @@ def test_quickstart_teaches_specify_to_plan_mainline():
     assert "/skill:sp-plan" in quickstart
     assert "/sp.specify" in quickstart
     assert "/sp.prd-scan" in quickstart
-    assert "`specify -> plan` as the default path" in quickstart
+    assert "`specify -> plan` as the default path" in quickstart or "specify -> plan -> tasks -> implement" in quickstart
     assert "`specify` -> `deep-research` -> `plan`" in quickstart
 
 
@@ -192,7 +192,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "`config-contracts.json`" in support_guidance
     assert "second repository scan" in support_guidance
     assert "does not automatically hand off to `plan`" in support_guidance
-    assert "`analyze` as the required gate before implementation once `tasks.md` exists" in support_guidance
+    assert "`analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists" in support_guidance
     assert "`fast` is only for trivial local fixes" in support_guidance
     assert "the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows" in support_guidance
 
@@ -217,8 +217,11 @@ def test_quickstart_taskify_walkthrough_frames_literal_sp_examples_as_claude_sty
     assert "Once `specify` reaches planning-ready alignment, move directly to `plan`." in walkthrough
     assert "using the `checklist` workflow" in walkthrough
     assert "using the `tasks` workflow" in walkthrough
-    assert "using `analyze`" in walkthrough
-    assert "If `analyze` finds issues" in walkthrough
+    assert "Finally, implement the solution:" in walkthrough
+    assert "/sp-implement" in walkthrough
+    assert "Optional diagnostics:" not in walkthrough
+    assert "/sp-analyze" not in walkthrough
+    assert "If `analyze` finds issues" not in walkthrough
     assert "Define Requirements with `/sp-specify`" not in walkthrough
     assert "Once `/sp-specify`" not in walkthrough
     assert "using the `/sp-" not in walkthrough
@@ -287,9 +290,9 @@ def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
     for content in (readme, handbook):
         lowered = content.lower()
         assert "complete blocker bundle" in lowered
-        assert "analyze-compatible task self-audit" in lowered
+        assert "implementation-readiness self-audit" in lowered
         assert "repeated `tasks -> analyze -> tasks` loops are abnormal" in content
-        assert "No more than one task-layer remediation cycle is expected" in content
+        assert "only use `analyze` again when explicitly required by legacy or diagnostic state" in content
         assert "directly to `plan`, `clarify`, or `deep-research`" in content
 
 

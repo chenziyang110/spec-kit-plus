@@ -2094,26 +2094,28 @@ def test_tasks_templates_require_join_point_validation_details():
     assert "pass condition:" in template_content
 
 
-def test_tasks_template_fail_closes_into_analyze_before_implement():
+def test_tasks_template_clean_completion_hands_off_to_implement():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "default_handoff: '/sp.analyze" in content
+    assert "default_handoff: '/sp.implement" in content
     assert "Implement Project" not in content
-    assert "recommended next command: `{{invoke:analyze}}`" in lowered
-    assert "`next_command: /sp.analyze`" in content
-    assert "implementation remains blocked until `{{invoke:analyze}}`" in lowered
-    assert "do not hand off directly to `{{invoke:implement}}` from `sp-tasks`" in lowered
+    assert "recommended next command: `{{invoke:implement}}`" in lowered
+    assert "`next_command: /sp.implement`" in content
+    assert "implementation remains blocked until this task package passes the implementation-readiness task self-audit" in lowered
+    assert "run `{{invoke:analyze}}` only when an existing state file explicitly records a legacy or diagnostic analysis route" in lowered
+    assert "hand off directly to `{{invoke:implement}}` from `sp-tasks`" in lowered
+    assert "the analyze gate is mandatory" not in lowered
 
 
-def test_tasks_template_requires_analyze_compatible_self_audit_and_remediation_mode():
+def test_tasks_template_requires_implementation_readiness_self_audit_and_remediation_mode():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "default_handoff: '/sp.analyze for normal completed or non-escalated task generation" in content
+    assert "default_handoff: '/sp.implement for a clean completed task package" in content
     assert "/sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
     assert "send: false" in content
-    assert "Analyze-Compatible Task Self-Audit" in content
+    assert "Implementation-Readiness Task Self-Audit" in content
     assert "buildable `FR-*`" in content
     assert "locked planning decision" in lowered
     assert "Implementation Constitution" in content

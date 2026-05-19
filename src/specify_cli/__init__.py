@@ -3423,11 +3423,11 @@ SKILL_DESCRIPTIONS = {
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
     "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
     "plan": "Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.",
-    "tasks": "Use when plan artifacts exist and execution needs dependency-aware tasks, guardrails, and parallelization guidance before implementation.",
-    "implement": "Use when tasks.md exists and the planned work should be executed through the tracked implementation workflow.",
-    "analyze": "Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.",
+    "tasks": "Use when plan artifacts exist and execution needs dependency-aware tasks, guardrails, and parallelization guidance before implementation; clean task packages hand off directly to implement.",
+    "implement": "Use when tasks.md exists and workflow state records /sp.implement for tracked execution.",
+    "analyze": "Optional read-only diagnostic and legacy revalidation pass across spec, plan, and tasks artifacts.",
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
-    "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
+    "checklist": "Optional requirements-quality checklist aid for validating requirements or planning completeness before implementation.",
     "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction.",
     "map-build": "Use when map-scan has produced a full evidence baseline and you need to reconstruct the project cognition graph, claims, conflicts, slices, and query-backed runtime outputs.",
     "map-update": "Use when a graph-native project cognition baseline exists and diff-based evidence refresh or user-supplied corrections must update the cognition runtime incrementally.",
@@ -4087,8 +4087,8 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow")
     steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning")
-    steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
-    steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
+    steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Optional requirements-quality checklist aid after [cyan]{_display_cmd('plan')}[/]")
+    steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Optional read-only diagnostic and legacy revalidation for spec, context, plan, and tasks")
     steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or project cognition/runtime state in plain language")
     steps_lines.append(f"   - [cyan]{_display_cmd('integrate')}[/] - Inspect lane closeout readiness and complete independent feature integration")
     if codex_skill_mode:
@@ -4127,7 +4127,7 @@ def init(
             f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](deprecated compatibility)[/bright_black] - Compatibility entrypoint only; prefer the canonical [cyan]{_display_cmd('prd-scan')}[/] -> [cyan]{_display_cmd('prd-build')}[/] flow",
             f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",
-            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
+            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional diagnostic / legacy revalidation)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift when explicitly requested or recorded in existing state",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or project cognition/runtime artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
             ,
