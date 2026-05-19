@@ -26,7 +26,8 @@ correctly the first time, not for catching preventable misses in a later audit.
   ```
 
 - Remove `sp-checklist` and `sp-analyze` from default handoffs, recommended next
-  commands, README mainline guidance, and new workflow-state transitions.
+  commands, `sp-auto` resume routing, README mainline guidance, and new
+  workflow-state transitions.
 - Move the useful quality checks from `sp-checklist` and `sp-analyze` into the
   completion contracts for `sp-plan`, `sp-tasks`, and `sp-implement`.
 - Preserve `sp-checklist` and `sp-analyze` as optional manual diagnostic and
@@ -114,11 +115,47 @@ Before dispatch, `sp-implement` must verify:
 Legacy `/sp.analyze` states may still be recognized with compatibility wording,
 but newly generated task packages should not create that state.
 
+### Clean `sp-tasks` to `sp-implement` transition
+
+When `sp-tasks` completes cleanly, the workflow-state handoff must become a
+direct implementation resume state. The clean transition is:
+
+- `active_command: sp-tasks`
+- `status: completed`
+- `phase_mode: task-generation-only`
+- `current_stage: task-generation`
+- `current_domain: none`
+- `next_action: hand off to implement`
+- `blocker_reason: None`
+- `final_handoff_decision: /sp.implement`
+- `handoff_to_implement: handoff-to-implement.json`
+- `next_command: /sp.implement`
+- `gate_status: cleared`
+- `highest_invalid_stage: none`
+- `reopen_source: none`
+- `reopen_target: none`
+- `reopen_reason: none`
+
+If any of those fields still carry the analyze-era default, the transition is not
+complete.
+
+### `sp-auto`
+
+`sp-auto` remains a router over recorded repository state, not a new workflow.
+For clean task-generation state, it must resume `/sp.implement` when
+`workflow-state.md` records `next_command: /sp.implement`.
+
+`sp-auto` may only surface `/sp.analyze` when an existing legacy project already
+records that command in its authoritative state and the user is resuming that
+older artifact set. It must not infer `/sp.analyze` for newly generated clean
+task handoffs.
+
 ## Compatibility Strategy
 
 `sp-checklist` remains available for explicit requirement-quality checklist
 generation. Its guidance should say it is optional and diagnostic, not part of
-the default delivery path.
+the default delivery path. When a checklist run is materially satisfied, the
+clean result should recommend `/sp.tasks`, not `/sp.analyze`.
 
 `sp-analyze` remains available for explicit read-only artifact diagnostics,
 revalidation of existing projects, and compatibility with old task packages. Its
@@ -137,6 +174,7 @@ prefer `tasks -> implement`.
 - `templates/commands/checklist.md`
 - `templates/commands/analyze.md`
 - `templates/tasks-template.md`
+- `templates/commands/auto.md`
 - `templates/workflow-state-template.md`
 - `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`
 - shared command partials for plan, tasks, implement, checklist, and analyze
@@ -157,6 +195,9 @@ prefer `tasks -> implement`.
 - `templates/commands/implement.md` no longer instructs new projects to stop and
   run `sp-analyze` before implementation.
 - New workflow-state defaults can represent a clean tasks-to-implement handoff.
+- `templates/commands/auto.md` routes clean task-generation resumes to
+  `/sp.implement` and only preserves `/sp.analyze` for explicit legacy state.
+- A clean `sp-checklist` result recommends `/sp.tasks`.
 - `sp-checklist` and `sp-analyze` remain present and documented as optional
   diagnostics or compatibility tools.
 - Tests assert the new default path while retaining compatibility coverage for
