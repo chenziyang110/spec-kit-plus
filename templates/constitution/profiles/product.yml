@@ -127,19 +127,15 @@ engineering_standards: |
     source inspection, planning, debugging, implementation, task decomposition,
     or subagent dispatch. The query result MUST guide routing, minimal live
     reads, boundary constraints, and verification strategy.
-  - **Technical Source of Truth**: Maintain
-    `.specify/project-cognition/status.json` and workflow-appropriate cognition
-    slices as the default brownfield runtime truth surface. Legacy handbook or
-    project-map exports are compatibility surfaces only. Use `map-update` for
-    localized stale cognition runtime refresh and ordinary changed-path
-    maintenance; use `map-scan` followed by `map-build` only when the baseline is
-    missing, unusable, schema-incompatible, explicitly being rebuilt, or
-    invalidated by broad architecture replacement, or when coverage gaps are
-    unadoptable after update classification.
-    Keep cognition status, slices, and freshness state in sync whenever
-    navigation meaning changes. If the project cognition runtime is missing,
-    generate it before structural work continues; if it is stale or too weak for
-    the touched area, refresh it before structural work continues.
+  - **Technical Evidence**: Treat `.specify/project-cognition/status.json` and
+    workflow-appropriate cognition query bundles as the advisory project cognition index.
+    Legacy handbook or project-map exports are compatibility surfaces only.
+    Map points, code proves: technical claims and completion claims MUST be
+    backed by live project evidence, not by project cognition output alone.
+    Recommend `map-update` for localized stale cognition or ordinary changed-path
+    map maintenance; recommend `map-scan` followed by `map-build` only when the
+    user wants repair for a missing, unusable, schema-incompatible, explicitly
+    rebuilt, or architecture-replaced baseline.
   - **Encoding Preservation**: When modifying an existing file, changes MUST
     preserve the file's existing character encoding and BOM behavior unless the
     task explicitly requires an encoding conversion.

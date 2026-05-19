@@ -32,7 +32,7 @@ and what sits clearly outside the system boundary.]
 ## How To Read This Project
 
 - Start here for compatibility/export orientation.
-- **Default runtime truth**:
+- **Advisory project cognition index**:
   - `.specify/project-cognition/status.json` for freshness, coverage, stale paths, and refresh metadata
   - `.specify/project-cognition/project-cognition.db` as the canonical graph store
   - the task-local project cognition query bundle, including readiness and `minimal_live_reads`
@@ -47,17 +47,17 @@ and what sits clearly outside the system boundary.]
   true. If the reference is stale, blocked, or incomplete, do not treat legacy
   `.specify/project-map/**` outputs as current truth; fall back to minimal live
   reads or refresh the reference project.
-- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as the runtime truth surface.
-- Read this handbook only when a user or workflow explicitly asks for the compatibility/export view; it is not the default runtime truth path.
-- Use `map-update` for localized stale cognition runtime refresh and ordinary changed-path maintenance, including adoptable missing path-index coverage. Use `map-scan` followed by `map-build` when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or path-index gaps are unadoptable after update classification.
-- For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build`. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. After that, normal code changes should use `sp-map-update` for bounded incremental refresh. Uncertain closure is recorded by `map-update` as partial/low-confidence facts, known unknowns, and `minimal_live_reads`; it is not by itself a reason to rerun `sp-map-scan -> sp-map-build`.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as advisory navigation inputs.
+- Read this handbook only when a user or workflow explicitly asks for the compatibility/export view; it is not the default evidence path.
+- Use `map-update` for localized stale cognition recommendations and ordinary changed-path map maintenance; recommend `map-scan` followed by `map-build` when the user wants a missing, unusable, schema-incompatible, explicitly rebuilt, architecture-replaced, or path-index-incomplete baseline repaired.
+- For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
 - After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
 - Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed.
 - Use `.cognitionignore` or `.specify/project-cognition/.cognitionignore` to exclude vendored, generated, archived, or nested-reference projects from project cognition. The rules are gitignore-compatible and affect `map-scan`, `map-build`, and `map-update`; excluded paths must not enter project cognition graph evidence, runtime route indexes, or `minimal_live_reads`.
 - Support drift is not runtime-truth staleness; resolve support-surface drift without reflexively routing to `map-update`.
 - Preserve the state vocabulary: `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, and `possibly_stale` are machine freshness states; `recommended_next_action` is the public operator guidance.
 - Use `Where To Read Next` for task-oriented routing.
-- Fall back to live code reads only when project cognition coverage is missing, stale, or too broad.
+- Map points, code proves: use live code, tests, scripts, configuration, or authoritative docs as evidence whenever making technical claims.
 
 ## Compatibility Export Model
 
@@ -73,7 +73,7 @@ the graph-native cognition runtime used before broader code reads begin.
 
 ## Senior Consequence Analysis Gate
 
-Project cognition is necessary but not sufficient for dependency analysis. It gives workflow agents ownership, consumers, state surfaces, change-propagation facts, verification routes, conflicts, and known unknowns. `sp-map-build` and the project cognition runtime provide the evidence layer, but the Senior Consequence Analysis Gate turns those facts into product and implementation obligations.
+Project cognition is necessary but not sufficient for dependency analysis. It gives workflow agents ownership, consumers, state surfaces, change-propagation facts, verification routes, conflicts, and known unknowns. The map points to likely evidence, but the Senior Consequence Analysis Gate turns live project facts into product and implementation obligations.
 
 When work involves lifecycle operations, running or concurrent objects, destructive actions, shared state, downstream consumers, compatibility, security, or multiple plausible behaviors, workflows must preserve:
 

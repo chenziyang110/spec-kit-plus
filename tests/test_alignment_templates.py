@@ -761,8 +761,9 @@ def test_readme_documents_runtime_atlas_refresh_scope_and_workbench_boundaries()
     lowered = readme.lower()
 
     assert ".specify/project-cognition/status.json" in lowered
-    assert "default brownfield runtime truth surface" in lowered
-    assert "runtime truth surface" in lowered
+    assert "advisory project cognition index" in lowered
+    assert "advisory navigation inputs" in lowered
+    assert "map points, code proves" in lowered
     assert "map-update" in lowered
     assert "map-scan" in lowered
     assert "map-build" in lowered
@@ -773,9 +774,9 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
     handbook = _read_project_file("PROJECT-HANDBOOK.md")
     lowered = handbook.lower()
 
-    assert "default brownfield runtime truth surface" in lowered
-    assert "runtime truth surface" in lowered
-    assert "project cognition as the primary runtime truth surface" in lowered
+    assert "advisory project cognition index" in lowered
+    assert "advisory navigation inputs" in lowered
+    assert "map points, code proves" in lowered
     assert "templates/project-map/**` is retained only for legacy compatibility review" in lowered
     assert "`debug-handbook.md` - compatibility/export debug view" in lowered
     assert "`build-handbook.md` - compatibility/export build/change view" in lowered
@@ -1993,12 +1994,12 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert "launcher-backed project cognition query planning flow" in lowered_gate
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
-    assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
-    assert "adoptable or uncertain path-index gaps" in shared_gate
-    assert "only unadoptable" in shared_gate
+    assert "if cognition freshness is `stale`, treat map output as advisory" in shared_gate
+    assert "continue with live repository evidence" in shared_gate
+    assert "follow-up map maintenance" in shared_gate
     assert "cannot create absent path coverage" not in shared_gate
-    assert "`support_drift` -> stop and tell the user to resolve support-surface drift" in shared_gate
-    assert "`partial_refresh` -> tell the user the refresh was recorded but readiness did not pass" in shared_gate
+    assert "`support_drift` -> warn and continue with live repository evidence" in shared_gate
+    assert "`partial_refresh` -> warn that refresh data was recorded but readiness did not pass" in shared_gate
     assert "`recommended_next_action`" in shared_gate
     assert "PROJECT-HANDBOOK.md" not in shared_gate
     assert "atlas.entry" not in shared_gate
@@ -2281,8 +2282,9 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     for path in refresh_owned_surfaces:
         lowered = _read(path).lower()
         if path in {"README.md", "docs/quickstart.md"}:
-            assert "default brownfield runtime truth surface" in lowered
-            assert "runtime truth surface" in lowered
+            assert "advisory project cognition index" in lowered
+            assert "advisory navigation inputs" in lowered
+            assert "map points, code proves" in lowered
             assert "map-update" in lowered
             assert "map-scan" in lowered
             assert "map-build" in lowered

@@ -35,5 +35,5 @@ Translate the approved specification package into explicit implementation design
 
 - Do not implement code, edit tests, or start execution from `sp-plan`.
 - Do not leave locked planning decisions implicit or scattered only in prose.
-- Do not trust stale navigation coverage when the project cognition query bundle should be the source of truth.
+- Do not trust stale navigation coverage as evidence; use the project cognition query bundle as advisory navigation and prove claims from live project facts.
 - Use anchorable section headings (`## Section Name`) in all output artifacts so that downstream task generation can produce precise `file#section` context pointers.

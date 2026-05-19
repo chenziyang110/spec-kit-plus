@@ -309,7 +309,8 @@ class TestBuiltInSkillGeneration:
         assert "specify learning start --command constitution --format json" in constitution_body
         assert ".specify/project-cognition/status.json" in constitution
         assert "workflow-appropriate cognition" in constitution
-        assert "default brownfield runtime truth surface" in constitution
+        assert "advisory project cognition index" in constitution
+        assert "map points, code proves" in constitution
         assert "map-update" in constitution
         assert "/sp-map-scan" in constitution_body
         assert "/sp-map-build" in constitution_body

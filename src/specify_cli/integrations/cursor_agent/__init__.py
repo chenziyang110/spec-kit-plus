@@ -120,17 +120,17 @@ class CursorAgentIntegration(SkillsIntegration):
             return None
 
         content = path.read_text(encoding="utf-8")
-        if "## Cursor Project Cognition Gate" in content:
+        if "## Cursor Project Cognition Advisory" in content:
             return None
 
         addendum = (
             "\n"
-            "## Cursor Project Cognition Gate\n\n"
-            "**Crucial First Step**: Before repository analysis or implementation, query the current project cognition runtime and verify whether `sp-map-scan` or `sp-map-build` must refresh it.\n"
+            "## Cursor Project Cognition Advisory\n\n"
+            "**Advisory First Pass**: Before repository analysis or implementation, query project cognition when available and use it to choose likely live reads.\n"
             "- Use `.specify/project-cognition/` as the graph-native project cognition source when present.\n"
-            "- If the runtime is missing, stale, or too incomplete for the requested work, run or request `sp-map-scan` before relying on local assumptions.\n"
-            "- If scan evidence exists but the graph artifacts are missing or stale, run or request `sp-map-build` before accepting the map as current.\n"
-            "- Continue only after the project cognition state is fresh enough for the active workflow or a concrete blocker is recorded.\n"
+            "- If the runtime is missing, stale, blocked, or too incomplete for the requested work, continue with live repository inspection instead of stopping for map repair.\n"
+            "- Treat `sp-map-scan`, `sp-map-build`, and `sp-map-update` as recommended map-maintenance follow-ups unless the user explicitly requested map repair first.\n"
+            "- Do not treat map output as evidence by itself; verify technical claims from live code, tests, scripts, configuration, or authoritative docs.\n"
         )
 
         if "## Orchestration Model" in content:

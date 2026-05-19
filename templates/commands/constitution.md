@@ -69,13 +69,9 @@ missing, copy the template first.
 
 ## Repository Context and Navigation Freshness
 
-- If repo-derived evidence is needed, read `.specify/project-cognition/status.json` plus the smallest relevant slice or graph artifact first to assess git-baseline freshness as the truth source before trusting any compatibility/export artifact.
-- If the navigation system is missing or stale for an existing codebase, run
-  `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
-  follow-up rather than fabricating repository context.
-- If an amendment affects project cognition runtime truth and a full refresh can be completed now,
-  do it, run `{{specify-subcmd:project-cognition validate-build --format json}}`, and use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only when build acceptance passes;
-  otherwise use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` as the manual override/fallback.
+- If repo-derived evidence is needed, read `.specify/project-cognition/status.json` plus the smallest relevant query bundle or graph artifact first to assess map freshness as advisory navigation before trusting any compatibility/export artifact.
+- If the navigation system is missing or stale for an existing codebase, continue with live repository evidence and recommend `/sp-map-scan` followed by `/sp-map-build` as follow-up map maintenance rather than fabricating repository context.
+- If an amendment affects project cognition coverage facts, report the changed paths and recommend `/sp-map-update` as follow-up map maintenance. Do not call `project-cognition mark-dirty`, `project-cognition validate-build`, `project-cognition complete-refresh`, `/sp-map-update`, or `/sp-map-scan -> /sp-map-build` as a completion requirement for this ordinary workflow unless the user explicitly requested map maintenance.
 - If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related project cognition compatibility/export surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related project cognition compatibility/export surface for refresh.
 
 ## Downstream Re-entry Contract

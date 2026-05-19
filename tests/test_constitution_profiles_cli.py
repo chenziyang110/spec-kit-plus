@@ -48,7 +48,8 @@ def test_init_defaults_to_product_constitution_profile(tmp_path):
     assert init_options["constitution_profile"] == "product"
     assert "### VII. No Unrequested Fallbacks" in constitution
     assert ".specify/project-cognition/status.json" in constitution
-    assert "default brownfield runtime truth surface" in constitution
+    assert "advisory project cognition index" in constitution
+    assert "Map points, code proves" in constitution
     assert "Project Cognition Before Existing-System Judgment" in constitution
     assert "agents MUST query project cognition before broad source inspection" in _compact(constitution)
     assert "map-update" in constitution

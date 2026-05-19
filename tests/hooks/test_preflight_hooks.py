@@ -185,7 +185,7 @@ def test_preflight_explains_implement_block_with_tracker_summary_when_available(
     assert any("current_batch=batch-final" in message for message in result.errors)
 
 
-def test_preflight_blocks_when_project_map_status_is_missing_for_brownfield_work(tmp_path: Path):
+def test_preflight_warns_when_project_map_status_is_missing_for_brownfield_work(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
@@ -202,9 +202,10 @@ def test_preflight_blocks_when_project_map_status_is_missing_for_brownfield_work
         {"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert result.severity == "critical"
-    assert any("cognition" in message.lower() for message in result.errors)
+    assert result.status == "warn"
+    assert result.severity == "warning"
+    assert result.errors == []
+    assert any("cognition" in message.lower() for message in result.warnings)
 
 
 def test_preflight_missing_runtime_guidance_names_sqlite_database_not_graph_json(tmp_path: Path):
@@ -289,7 +290,7 @@ def test_preflight_warns_for_same_feature_implement_resume_when_dirty_origin_mat
     assert any("resume may continue" in message.lower() or "shared_surface_changed" in message for message in result.warnings)
 
 
-def test_preflight_blocks_same_feature_implement_when_lane_id_differs(tmp_path: Path):
+def test_preflight_warns_same_feature_implement_when_lane_id_differs(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
@@ -319,11 +320,12 @@ def test_preflight_blocks_same_feature_implement_when_lane_id_differs(tmp_path: 
         {"command_name": "implement", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("cognition" in message.lower() or "shared_surface_changed" in message for message in result.errors)
+    assert result.status == "warn"
+    assert result.errors == []
+    assert any("cognition" in message.lower() or "shared_surface_changed" in message for message in result.warnings)
 
 
-def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(tmp_path: Path):
+def test_preflight_warns_same_lane_implement_when_dirty_scope_does_not_overlap(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
@@ -400,9 +402,9 @@ def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(
         },
     )
 
-    assert result.status == "blocked"
-    assert any("project cognition runtime" in message.lower() for message in result.errors)
-    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.errors)
+    assert result.status == "warn"
+    assert result.errors == []
+    assert any("shared_surface_changed" in message for message in result.warnings)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path: Path):
@@ -483,8 +485,8 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
     )
 
     assert result.status == "warn"
-    assert any("project cognition runtime" in message.lower() for message in result.warnings)
-    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.warnings)
+    assert result.errors == []
+    assert any("shared_surface_changed" in message for message in result.warnings)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_family(tmp_path: Path):
@@ -565,8 +567,8 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
     )
 
     assert result.status == "warn"
-    assert any("project cognition runtime" in message.lower() for message in result.warnings)
-    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.warnings)
+    assert result.errors == []
+    assert any("shared_surface_changed" in message for message in result.warnings)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surface_family(tmp_path: Path):
@@ -647,11 +649,11 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
     )
 
     assert result.status == "warn"
-    assert any("project cognition runtime" in message.lower() for message in result.warnings)
-    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.warnings)
+    assert result.errors == []
+    assert any("shared_surface_changed" in message for message in result.warnings)
 
 
-def test_preflight_blocks_cross_feature_implement_when_dirty_origin_differs(tmp_path: Path):
+def test_preflight_warns_cross_feature_implement_when_dirty_origin_differs(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "002-other"
@@ -681,11 +683,12 @@ def test_preflight_blocks_cross_feature_implement_when_dirty_origin_differs(tmp_
         {"command_name": "implement", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("cognition" in message.lower() or "shared_surface_changed" in message for message in result.errors)
+    assert result.status == "warn"
+    assert result.errors == []
+    assert any("shared_surface_changed" in message for message in result.warnings)
 
 
-def test_preflight_blocks_specify_when_dirty_origin_exists(tmp_path: Path):
+def test_preflight_warns_specify_when_dirty_origin_exists(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "003-new"
@@ -714,8 +717,9 @@ def test_preflight_blocks_specify_when_dirty_origin_exists(tmp_path: Path):
         {"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("workflow_contract_changed" in message or "cognition" in message.lower() for message in result.errors)
+    assert result.status == "warn"
+    assert result.errors == []
+    assert any("workflow_contract_changed" in message for message in result.warnings)
 
 
 def test_preflight_uses_cognition_status_metadata_before_stale_project_map_status(tmp_path: Path):
@@ -786,7 +790,7 @@ def test_preflight_uses_cognition_status_metadata_before_stale_project_map_statu
     assert result.status == "ok"
 
 
-def test_preflight_blocks_support_drift_with_support_specific_guidance(monkeypatch, tmp_path: Path):
+def test_preflight_warns_support_drift_with_support_specific_guidance(monkeypatch, tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "003-new"
     _write_workflow_state(
@@ -812,9 +816,10 @@ def test_preflight_blocks_support_drift_with_support_specific_guidance(monkeypat
         {"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("support" in message.lower() for message in result.errors)
-    assert not any("sp-map-update" in message.lower() for message in result.errors)
+    assert result.status == "warn"
+    assert result.errors == []
+    assert any("support" in message.lower() for message in result.warnings)
+    assert not any("sp-map-update" in message.lower() for message in result.warnings)
 
 
 def test_preflight_blocks_integrate_when_lane_is_not_ready(tmp_path: Path):

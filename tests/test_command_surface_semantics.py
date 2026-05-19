@@ -545,6 +545,7 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert ("use `" + "project" + "-map complete-refresh`") not in content
         assert ("use `" + "project" + "-map mark-dirty`") not in content
         assert "do not continue under known-stale handbook state without choosing one of those paths" not in content
+        assert "shared manual override/fallback before later brownfield work continues" not in content
         assert "map-level truth" not in content
         assert "possibly_stale" not in content
         assert "must_refresh_topics" not in content

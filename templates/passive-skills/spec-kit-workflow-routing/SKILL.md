@@ -48,10 +48,10 @@ standalone branch-creation command.
 
 ## Complementary Passive Skills
 
-- `spec-kit-project-cognition-gate` is the hard brownfield context gate. Workflow routing
-  can recommend a route or explain a manually invoked `sp-*` workflow, while the
-  cognition gate decides whether an existing-code task can continue or should
-  detour through `sp-map-update` or `sp-map-scan -> sp-map-build` first.
+- `spec-kit-project-cognition-gate` is the brownfield advisory navigation layer.
+  Workflow routing can recommend a route or explain a manually invoked `sp-*`
+  workflow, while the cognition layer helps decide whether an existing-code task
+  should treat map maintenance as follow-up or continue with live evidence.
 - `spec-kit-project-learning` is the shared memory layer that applies after routing.
   Once the active workflow is selected, that complementary skill defines the
   workflow-specific learning-start and learning-capture behavior instead of leaving
@@ -94,11 +94,12 @@ standalone branch-creation command.
 - Use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
-  coverage is stale or too weak for a localized touched area.
+  coverage is stale or too weak for a localized touched area and the user wants
+  map maintenance first.
 - Use `sp-map-scan -> sp-map-build` before other workflow steps only when
   project cognition runtime context for an existing codebase is missing,
   unusable, schema-incompatible, explicitly being rebuilt, or invalidated by
-  broad architecture replacement.
+  broad architecture replacement and the user wants map repair first.
 - Use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.

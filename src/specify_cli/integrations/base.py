@@ -495,7 +495,7 @@ class IntegrationBase(ABC):
         if command_name not in {"implement", "debug", "quick"}:
             return content
 
-        marker = f"## {agent_name} Project Cognition Hard Gate"
+        marker = f"## {agent_name} Project Cognition Advisory Gate"
         if marker in content:
             return content
 
@@ -513,11 +513,11 @@ class IntegrationBase(ABC):
 
         addendum = (
             "\n"
-            f"## {agent_name} Project Cognition Hard Gate\n\n"
+            f"## {agent_name} Project Cognition Advisory Gate\n\n"
             f"{query_gate}\n"
-            "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` routes through `{{invoke:map-update}}` and includes adoptable missing path-index coverage; `needs_rebuild` routes through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` and is reserved for missing/unusable/schema-incompatible baselines, explicit rebuild, baseline identity invalidation, or unadoptable coverage gaps; `blocked` stops with the runtime issue.\n"
-            "- Treat the project cognition query bundle as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when query-backed runtime coverage should be the source of truth.\n"
-            "- Treat this as a hard gate, not a best-effort reminder; do not continue until the returned readiness and task-local bundle are strong enough for the workflow.\n"
+            "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` treats map output as advisory, continues with live repository evidence, and recommends `{{invoke:map-update}}` as follow-up map maintenance; `needs_rebuild` treats map output as advisory, continues with live repository evidence, and recommends `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance when the user wants map repair; `blocked` reports the runtime issue as advisory map state and continues with live repository evidence unless the user explicitly requested map repair first.\n"
+            "- Treat the project cognition query bundle as advisory navigation for brownfield context; do not fall back to chat memory or ad hoc repository instincts when query-backed runtime coverage should guide the route.\n"
+            "- Treat this as advisory navigation, not a hard gate; continue with live repository evidence when the bundle is weak, stale, or missing, and use map maintenance only when it is actually useful.\n"
             "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.\n"
             f"{carry_forward}"
         )

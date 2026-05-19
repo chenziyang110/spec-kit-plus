@@ -42,7 +42,7 @@ Goal: Read the current stage artifact, project cognition artifact, or explicitly
 
 2. Resolve the stage artifact deterministically:
    - If the user explicitly names a stage, honor it.
-   - If the user explicitly asks about project cognition, touched-area state, or brownfield runtime truth, resolve `.specify/project-cognition/status.json` and the smallest matching slice first.
+   - If the user explicitly asks about project cognition, touched-area state, or brownfield advisory navigation, resolve `.specify/project-cognition/status.json` and the smallest matching query-backed artifact first.
    - Explain handbook artifacts only when the user explicitly requests the compatibility/export surfaces themselves.
    - If the user explicitly asks for a compatibility/export handbook, `PROJECT-HANDBOOK.md`, `architecture`, `structure`, `conventions`, `integrations`, `workflows`, `testing`, or `operations` artifact, resolve that artifact directly.
    - Explain the architecture, cognition, or compatibility/export atlas artifact directly instead of forcing a planning-stage fallback.

@@ -35,11 +35,11 @@ TARGETS = [
 ]
 
 
-def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
+def test_ordinary_sp_workflows_use_shared_project_cognition_advisory() -> None:
     shared_gate = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered_gate = shared_gate.lower()
 
-    assert "project cognition runtime" in lowered_gate
+    assert "project cognition advisory" in lowered_gate
     assert "launcher-backed project cognition query planning flow" in lowered_gate
     assert "lexicon" in lowered_gate
     assert "concept_candidates" in shared_gate
@@ -51,9 +51,9 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     assert "concept selection" in lowered_gate
     assert "raw" in lowered_gate
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
-    assert "`missing` -> block and refresh through `sp-map-scan -> sp-map-build`" in shared_gate
-    assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
-    assert "Do not treat handbook-first or layered project-map files as the primary runtime read surfaces" in shared_gate
+    assert "if cognition freshness is `missing`, continue with live repository evidence" in shared_gate
+    assert "if cognition freshness is `stale`, treat map output as advisory" in shared_gate
+    assert "Do not treat handbook-first or layered project-map files as evidence" in shared_gate
 
     navigation_shim = _read("templates/command-partials/common/navigation-check.md")
     lowered_shim = navigation_shim.lower()
