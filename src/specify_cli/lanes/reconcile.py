@@ -50,10 +50,7 @@ def reconcile_lane(project_root: Path, lane: LaneRecord, *, command_name: str) -
         if not tracker_path.exists():
             task_package_exists = (
                 (feature_dir / "tasks.md").exists()
-                and (
-                    (feature_dir / "handoff-to-implement.json").exists()
-                    or (feature_dir / "task-index.json").exists()
-                )
+                and (feature_dir / "handoff-to-implement.json").exists()
             )
             clean_tasks_handoff = (
                 next_command == "/sp.implement"

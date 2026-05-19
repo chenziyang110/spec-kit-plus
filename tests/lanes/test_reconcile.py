@@ -96,6 +96,11 @@ def _write_task_package(feature_dir: Path) -> None:
     (feature_dir / "handoff-to-implement.json").write_text('{"status": "ready"}\n', encoding="utf-8")
 
 
+def _write_task_package_without_handoff(feature_dir: Path) -> None:
+    (feature_dir / "tasks.md").write_text("# Tasks\n\n- [ ] T001 Demo task\n", encoding="utf-8")
+    (feature_dir / "task-index.json").write_text('{"tasks": [{"id": "T001"}]}\n', encoding="utf-8")
+
+
 def test_reconcile_marks_consistent_implement_lane_resumable(tmp_path: Path):
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_workflow_state(feature_dir, "/sp.implement")
@@ -154,6 +159,33 @@ def test_reconcile_blocks_clean_tasks_handoff_without_task_package(tmp_path: Pat
         phase_mode="task-generation-only",
         next_action="hand off to implement",
     )
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        lifecycle_state="tasked",
+        last_command="tasks",
+    )
+
+    reconciled = reconcile_lane(tmp_path, lane, command_name="implement")
+
+    assert reconciled.recovery_state == "blocked"
+    assert reconciled.recovery_reason == "missing implement launch artifacts"
+
+
+def test_reconcile_blocks_clean_tasks_handoff_without_implement_handoff_file(tmp_path: Path):
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_workflow_state(
+        feature_dir,
+        "/sp.implement",
+        active_command="sp-tasks",
+        status="completed",
+        phase_mode="task-generation-only",
+        next_action="hand off to implement",
+    )
+    _write_task_package_without_handoff(feature_dir)
     lane = LaneRecord(
         lane_id="lane-001",
         feature_id="001-demo",
