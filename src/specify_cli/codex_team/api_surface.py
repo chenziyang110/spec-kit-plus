@@ -27,6 +27,16 @@ class TeamApiError(ValueError):
     """Raised when a structured Codex team operation cannot be executed."""
 
 
+def _project_cognition_advisory(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "freshness": result.get("freshness"),
+        "state": result.get("state"),
+        "readiness": result.get("readiness"),
+        "recommended_next_action": result.get("recommended_next_action"),
+        "reasons": list(result.get("reasons") or []),
+    }
+
+
 def _require_spec_kit_plus_project(project_root: Path) -> None:
     if not (project_root / ".specify").exists():
         raise TeamApiError("Not a Spec Kit Plus project (no .specify/ directory).")
@@ -109,14 +119,7 @@ def run_team_api_operation(
             project_root,
             command_name="team auto-dispatch",
         )
-        if freshness["freshness"] in {"missing", "stale"}:
-            envelope["status"] = "error"
-            envelope["payload"] = {
-                "message": f"Project cognition freshness is {freshness['freshness']}. Run map-scan then map-build before auto-dispatch.",
-                "freshness": freshness["freshness"],
-                "reasons": freshness.get("reasons", []),
-            }
-            return envelope
+        project_cognition_advisory = _project_cognition_advisory(freshness)
         try:
             result = route_ready_parallel_batch(
                 project_root,
@@ -134,6 +137,7 @@ def run_team_api_operation(
                 "join_point_name": result.join_point_name,
                 "dispatched_task_ids": result.dispatched_task_ids,
                 "request_ids": result.request_ids,
+                "project_cognition_advisory": project_cognition_advisory,
             }
         return envelope
 

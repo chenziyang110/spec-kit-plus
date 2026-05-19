@@ -59,34 +59,36 @@ def _project_map_preflight_for_debug() -> None:
         return
 
     result = inspect_project_cognition_freshness(project_root)
-    state = str(result.get("state", result["freshness"])).strip().lower()
-    if state in {"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"}:
-        if state == "support_drift":
-            console.print(
-                "[red]Error:[/red] Project cognition runtime has support-surface drift. Resolve, commit, or intentionally ignore the support files before debug."
-            )
-        elif state == "partial_refresh":
-            console.print(
-                "[red]Error:[/red] Project cognition refresh data was recorded, but runtime readiness is still blocked. Finish the runtime refresh before debug."
-            )
-        elif state == "missing_baseline":
-            console.print(
-                "[red]Error:[/red] Project cognition runtime is missing its baseline. Create it with `sp-map-scan`, then `sp-map-build`, before debug."
-            )
-        else:
-            console.print(
-                "[red]Error:[/red] Project cognition runtime is stale. Refresh through `sp-map-update` before debug; rebuild with `sp-map-scan`, then `sp-map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
-            )
-        for reason in result.get("reasons", []):
-            console.print(f"- {reason}")
-        raise typer.Exit(1)
+    freshness = str(result.get("freshness", "")).strip().lower()
+    state = str(result.get("state", freshness)).strip().lower()
+    readiness = str(result.get("readiness", "")).strip().lower()
 
-    if state == "runtime_stale" and str(result.get("readiness", "")).strip().lower() == "review":
-        console.print(
-            "[yellow]Warning:[/yellow] Project cognition runtime may be stale for the current debug scope. Continue only if the investigation is still local; use `sp-map-update` for broader debug scope and reserve `sp-map-scan`, then `sp-map-build` for missing, unusable, schema-incompatible, explicitly rebuilt, or architecture-replaced baselines."
-        )
-        for reason in result.get("reasons", []):
+    if freshness == "fresh":
+        return
+
+    console.print(
+        "[yellow]Warning:[/yellow] Project cognition map output is advisory for debug; live evidence remains the source of truth."
+    )
+    console.print(f"[yellow]Cognition Freshness:[/yellow] {state or freshness or 'unknown'}")
+    if freshness and freshness != state:
+        console.print(f"[yellow]Freshness:[/yellow] {freshness}")
+    if readiness:
+        console.print(f"[yellow]Readiness:[/yellow] {readiness}")
+
+    recommended_next_action = str(result.get("recommended_next_action", "")).strip()
+    if recommended_next_action:
+        console.print(f"[yellow]Recommended next action:[/yellow] {recommended_next_action}")
+
+    reasons = result.get("reasons") or []
+    if reasons:
+        console.print("[bold]Reasons[/bold]")
+        for reason in reasons:
             console.print(f"- {reason}")
+
+    if state == "runtime_stale" and readiness == "review":
+        console.print(
+            "[yellow]Warning:[/yellow] Project cognition runtime may be stale for the current debug scope. Continue only if the investigation is still local; live evidence will drive the session."
+        )
 
 
 def _print_root_cause_summary(state: DebugGraphState) -> None:

@@ -704,39 +704,47 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
 def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_name: str) -> None:
     state = str(result.get("state", result.get("freshness", ""))).strip().lower()
     console.print(
-        f"[red]Error:[/red] Project cognition freshness is {state or 'unknown'} for [cyan]{command_name}[/cyan]."
+        f"[yellow]Warning:[/yellow] Project cognition freshness is {state or 'unknown'} for [cyan]{command_name}[/cyan]."
     )
+    console.print(
+        "[yellow]Project cognition output is advisory; continue with live evidence and refresh the map only when the workflow requires it.[/yellow]"
+    )
+    recommended_next_action = str(result.get("recommended_next_action", "")).strip()
+    if recommended_next_action:
+        console.print(f"[yellow]Recommended next action:[/yellow] {recommended_next_action}")
+    reasons = result.get("reasons") or []
+    if reasons:
+        console.print("[bold]Reasons[/bold]")
+        for reason in reasons:
+            console.print(f"- {reason}")
     if state == "missing_baseline":
         console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to create the graph-native project cognition baseline, then retry."
+            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to create the graph-native project cognition baseline before relying on map output."
         )
     elif state == "support_drift":
         console.print(
-            "Resolve, commit, or intentionally ignore the support-surface drift before retrying."
+            "Resolve, commit, or intentionally ignore the support-surface drift before relying on refreshed map output."
         )
     elif state == "partial_refresh":
         console.print(
-            "Refresh data was recorded, but runtime readiness is still blocked for the touched area."
-        )
-        console.print(
-            f"Follow recommended_next_action={result.get('recommended_next_action') or 'unknown'} before retrying."
+            "Refresh data was recorded, but the current map remains partial for the touched area."
         )
     elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
         console.print(
             "Changed paths are missing from the project cognition path_index; repeating [cyan]/sp-map-update[/cyan] cannot create absent path coverage."
         )
         console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
+            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] if you need to rebuild the baseline."
         )
     else:
         console.print(
-            "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry."
+            "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area when you need an updated map."
         )
         console.print(
             "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement."
         )
         console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
+            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] when a rebuild is actually required."
         )
 
 
@@ -754,19 +762,13 @@ def _project_map_preflight(
     freshness = str(result.get("state", result["freshness"])).strip().lower()
     readiness = str(result.get("readiness", "")).strip().lower()
 
-    if freshness in block_levels and readiness == "blocked":
+    if freshness != "fresh":
         _render_project_map_freshness(result)
         _render_project_map_preflight_guidance(result, command_name=command_name)
-        raise typer.Exit(1)
-
-    if freshness == "runtime_stale" and readiness == "review":
-        _render_project_map_freshness(result)
-        console.print(
-            f"[yellow]Warning:[/yellow] Project cognition freshness is runtime_stale for [cyan]{command_name}[/cyan]."
-        )
-        console.print(
-            "Continue only if the current task is still local; otherwise refresh the project cognition runtime first, typically through [cyan]/sp-map-update[/cyan]."
-        )
+        if freshness == "runtime_stale" and readiness == "review":
+            console.print(
+                "[yellow]Warning:[/yellow] Runtime stale state is review-only here; continue only if the current task is still local and the live evidence supports it."
+            )
 
     return result
 

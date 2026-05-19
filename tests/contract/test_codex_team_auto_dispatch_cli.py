@@ -191,6 +191,39 @@ def test_team_api_auto_dispatch_returns_json_payload(tmp_path: Path):
     assert envelope["payload"]["batch_name"] == "Parallel Batch 1.1"
     assert envelope["payload"]["join_point_name"] == "Join Point 1.1"
     assert envelope["payload"]["dispatched_task_ids"] == ["T002", "T003"]
+    advisory = envelope["payload"]["project_cognition_advisory"]
+    assert set(advisory) >= {
+        "freshness",
+        "state",
+        "readiness",
+        "recommended_next_action",
+        "reasons",
+    }
+    assert isinstance(advisory["reasons"], list)
+
+
+def test_team_api_auto_dispatch_returns_stale_project_cognition_advisory(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    status_path = project / ".specify" / "project-cognition" / "status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload["freshness"] = "stale"
+    payload["dirty"] = True
+    payload["dirty_reasons"] = ["shared_surface_changed"]
+    status_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    envelope = json.loads(result.output.strip())
+    assert envelope["status"] == "ok"
+    assert envelope["payload"]["project_cognition_advisory"]["freshness"] == "stale"
+    assert envelope["payload"]["project_cognition_advisory"]["reasons"] == ["shared_surface_changed"]
 
 
 def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
@@ -325,7 +358,7 @@ def test_team_submit_result_updates_task_and_batch_state(tmp_path: Path):
     assert task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"] == "complete"
 
 
-def test_team_auto_dispatch_blocks_when_project_cognition_is_dirty(tmp_path: Path):
+def test_team_auto_dispatch_is_advisory_when_project_cognition_is_dirty(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
 
@@ -342,13 +375,15 @@ def test_team_auto_dispatch_blocks_when_project_cognition_is_dirty(tmp_path: Pat
         env=env,
     )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 0, result.output
     output = strip_ansi(result.output)
-    assert "Cognition Freshness" in output
-    assert "/sp-map-scan, then /sp-map-build" in output
+    assert "auto-dispatched" in output.lower()
+    assert dispatch_record_path(project, "default-parallel-batch-1-1-t002").exists()
+    assert dispatch_record_path(project, "default-parallel-batch-1-1-t003").exists()
+    assert "advisory" in output.lower()
 
 
-def test_team_auto_dispatch_still_blocks_with_legacy_project_map_dirty_status(tmp_path: Path):
+def test_team_auto_dispatch_is_advisory_with_legacy_project_map_dirty_status(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
 
@@ -378,10 +413,12 @@ def test_team_auto_dispatch_still_blocks_with_legacy_project_map_dirty_status(tm
         env=env,
     )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 0, result.output
     output = strip_ansi(result.output)
-    assert "Cognition Freshness" in output
-    assert "/sp-map-scan, then /sp-map-build" in output
+    assert "auto-dispatched" in output.lower()
+    assert dispatch_record_path(project, "default-parallel-batch-1-1-t002").exists()
+    assert dispatch_record_path(project, "default-parallel-batch-1-1-t003").exists()
+    assert "advisory" in output.lower()
 
 
 def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path: Path):
