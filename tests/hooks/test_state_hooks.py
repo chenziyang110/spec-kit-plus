@@ -220,6 +220,102 @@ def test_validate_state_exposes_route_lock_and_reopen_fields(tmp_path: Path):
     assert checkpoint["handoff_to_implement"] == "handoff-to-implement.json"
 
 
+def test_validate_state_exposes_clean_tasks_to_implement_handoff(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-tasks`",
+                "- status: `completed`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `task-generation-only`",
+                "- summary: `task package ready for implementation`",
+                "",
+                "## Fixed Lifecycle State",
+                "",
+                "- current_stage: `task-generation`",
+                "- current_domain: `none`",
+                "- next_action: `hand off to implement`",
+                "- blocker_reason: `None`",
+                "- final_handoff_decision: `/sp.implement`",
+                "",
+                "## Analyze Gate",
+                "",
+                "- gate_status: `cleared`",
+                "- gate_cycle: `0`",
+                "- highest_invalid_stage: `none`",
+                "- blocker_bundle:",
+                "  - none",
+                "- blocker_attribution_values: `none`",
+                "",
+                "## Reopen Contract",
+                "",
+                "- reopen_source: `none`",
+                "- reopen_target: `none`",
+                "- reopen_reason: `none`",
+                "",
+                "## Handoff Files",
+                "",
+                "- handoff_to_implement: `handoff-to-implement.json`",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- tasks.md",
+                "- handoff-to-implement.json",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- tasks.md",
+                "- task-index.json",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.implement`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "tasks", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    checkpoint = result.data["checkpoint"]
+    assert checkpoint["active_command"] == "sp-tasks"
+    assert checkpoint["status"] == "completed"
+    assert checkpoint["phase_mode"] == "task-generation-only"
+    assert checkpoint["current_stage"] == "task-generation"
+    assert checkpoint["current_domain"] == "none"
+    assert checkpoint["next_action"] == "hand off to implement"
+    assert checkpoint["blocker_reason"] == "None"
+    assert checkpoint["final_handoff_decision"] == "/sp.implement"
+    assert checkpoint["handoff_to_implement"] == "handoff-to-implement.json"
+    assert checkpoint["next_command"] == "/sp.implement"
+    assert checkpoint["gate_status"] == "cleared"
+    assert checkpoint["gate_cycle"] == "0"
+    assert checkpoint["highest_invalid_stage"] == "none"
+    assert checkpoint["blocker_attribution_values"] == "none"
+    assert checkpoint["reopen_source"] == "none"
+    assert checkpoint["reopen_target"] == "none"
+    assert checkpoint["reopen_reason"] == "none"
+
+
 def test_validate_state_autofix_tasks_includes_task_generation_surfaces(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -239,10 +335,6 @@ def test_validate_state_autofix_tasks_includes_task_generation_surfaces(tmp_path
                 "- phase_mode: `task-generation-only`",
                 "- summary: demo",
                 "",
-                "## Next Command",
-                "",
-                "- `/sp.analyze`",
-                "",
             ]
         ),
         encoding="utf-8",
@@ -260,6 +352,8 @@ def test_validate_state_autofix_tasks_includes_task_generation_surfaces(tmp_path
     assert "task-generation/evidence-index.json" in content
     assert "task-generation/checkpoints.ndjson" in content
     assert "task-packets/*.json" in content
+    assert "- `/sp.implement`" in content
+    assert "- `/sp.analyze`" not in content
 
 
 def test_validate_state_autofix_plan_includes_planning_surfaces(tmp_path: Path):

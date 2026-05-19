@@ -348,7 +348,7 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "task-generation/handoffs/*.json",
                 "task-generation/evidence-index.json",
             ],
-            "next_command": "/sp.analyze",
+            "next_command": "/sp.implement",
         },
         "analyze": {
             "allowed": ["workflow-state.md"],
@@ -386,7 +386,31 @@ def _autofix_sections_for_command(command_name: str) -> str:
     forbidden = "\n".join(f"- {item}" for item in config["forbidden"])
     authoritative = "\n".join(f"- {item}" for item in config["authoritative"])
     next_command = str(config["next_command"])
+    clean_tasks_handoff = ""
+    if command_name == "tasks":
+        clean_tasks_handoff = (
+            "## Fixed Lifecycle State\n\n"
+            "- current_stage: `task-generation`\n"
+            "- current_domain: `none`\n"
+            "- next_action: `hand off to implement`\n"
+            "- blocker_reason: `None`\n"
+            "- final_handoff_decision: `/sp.implement`\n\n"
+            "## Analyze Gate\n\n"
+            "- gate_status: `cleared`\n"
+            "- gate_cycle: `0`\n"
+            "- highest_invalid_stage: `none`\n"
+            "- blocker_bundle:\n"
+            "  - none\n"
+            "- blocker_attribution_values: `none`\n\n"
+            "## Reopen Contract\n\n"
+            "- reopen_source: `none`\n"
+            "- reopen_target: `none`\n"
+            "- reopen_reason: `none`\n\n"
+            "## Handoff Files\n\n"
+            "- handoff_to_implement: `handoff-to-implement.json`\n\n"
+        )
     return (
+        f"{clean_tasks_handoff}"
         "## Allowed Artifact Writes\n\n"
         f"{allowed}\n\n"
         "## Forbidden Actions\n\n"

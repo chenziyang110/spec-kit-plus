@@ -159,6 +159,7 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     current_command = section_body(text, "Current Command")
     phase_mode = section_body(text, "Phase Mode")
     fixed_lifecycle_state = section_body(text, "Fixed Lifecycle State")
+    analyze_gate = section_body(text, "Analyze Gate")
     scenario_profile = section_body(text, "Scenario Profile")
     profile_obligations = section_body(text, "Profile Obligations")
     next_action = section_body(text, "Next Action")
@@ -232,6 +233,10 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         or _frontmatter_string(frontmatter, "blocker_reason"),
         "final_handoff_decision": extract_field(fixed_lifecycle_state, "final_handoff_decision")
         or _frontmatter_string(frontmatter, "final_handoff_decision"),
+        "gate_status": extract_field(analyze_gate, "gate_status"),
+        "gate_cycle": extract_field(analyze_gate, "gate_cycle"),
+        "highest_invalid_stage": extract_field(analyze_gate, "highest_invalid_stage"),
+        "blocker_attribution_values": extract_field(analyze_gate, "blocker_attribution_values"),
         "facts_lock": extract_field(brainstorming_locks, "facts_lock"),
         "route_lock": extract_field(brainstorming_locks, "route_lock"),
         "intent_lock": extract_field(brainstorming_locks, "intent_lock"),
