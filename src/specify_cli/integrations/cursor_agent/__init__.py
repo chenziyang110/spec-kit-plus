@@ -126,11 +126,11 @@ class CursorAgentIntegration(SkillsIntegration):
         addendum = (
             "\n"
             "## Cursor Project Cognition Gate\n\n"
-            "**Crucial First Step**: Before repository analysis or implementation, query the current project cognition runtime and verify whether `sp-map-scan` or `sp-map-build` must refresh it.\n"
+            "**Crucial First Step**: Before repository analysis or implementation, query the current project cognition runtime and treat the result as advisory for whether `sp-map-scan` or `sp-map-build` may be helpful.\n"
             "- Use `.specify/project-cognition/` as the graph-native project cognition source when present.\n"
-            "- If the runtime is missing, stale, or too incomplete for the requested work, run or request `sp-map-scan` before relying on local assumptions.\n"
-            "- If scan evidence exists but the graph artifacts are missing or stale, run or request `sp-map-build` before accepting the map as current.\n"
-            "- Continue only after the project cognition state is fresh enough for the active workflow or a concrete blocker is recorded.\n"
+            "- If the runtime is missing, stale, or too incomplete for the requested work, recommend `sp-map-scan` before relying on local assumptions.\n"
+            "- If scan evidence exists but the graph artifacts are missing or stale, recommend `sp-map-build` before accepting the map as current.\n"
+            "- Continue with live repository evidence; treat the project cognition state as guidance unless a concrete blocker is recorded.\n"
         )
 
         if "## Orchestration Model" in content:

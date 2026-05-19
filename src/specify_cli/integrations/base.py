@@ -490,12 +490,12 @@ class IntegrationBase(ABC):
         agent_name: str,
         command_name: str,
     ) -> str:
-        """Append a hard project cognition read gate for runtime-facing commands when absent."""
+        """Append an advisory project cognition read gate for runtime-facing commands when absent."""
 
         if command_name not in {"implement", "debug", "quick"}:
             return content
 
-        marker = f"## {agent_name} Project Cognition Hard Gate"
+        marker = f"## {agent_name} Project Cognition Advisory Gate"
         if marker in content:
             return content
 
@@ -513,12 +513,12 @@ class IntegrationBase(ABC):
 
         addendum = (
             "\n"
-            f"## {agent_name} Project Cognition Hard Gate\n\n"
+            f"## {agent_name} Project Cognition Advisory Gate\n\n"
             f"{query_gate}\n"
-            "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` routes through `{{invoke:map-update}}`; `needs_rebuild` routes through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` stops with the runtime issue.\n"
-            "- Treat the project cognition query bundle as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when query-backed runtime coverage should be the source of truth.\n"
-            "- Treat this as a hard gate, not a best-effort reminder; do not continue until the returned readiness and task-local bundle are strong enough for the workflow.\n"
-            "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.\n"
+            "- Interpret returned readiness as advisory routing: `ready` continues with the task-local bundle; `review` constrains inspection to returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` recommends `{{invoke:map-update}}`; `needs_rebuild` recommends `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` still reflects the runtime issue.\n"
+            "- Treat the project cognition query bundle as the primary brownfield context surface, but use live repository evidence as the final proof when the bundle is incomplete or stale.\n"
+            "- Treat this as an advisory navigation layer, not a hard gate; do not stop ordinary work solely because the map says to refresh.\n"
+            "- A project-cognition query is not complete when it returns JSON. It is complete only when readiness informs routing, `minimal_live_reads` constrains inspection, and relevant facts are carried into the next workflow artifact or execution state.\n"
             f"{carry_forward}"
         )
 

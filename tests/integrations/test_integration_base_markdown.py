@@ -96,15 +96,15 @@ def _assert_discussion_contract(command_content: str) -> None:
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
-    hard_gate_index = content.find("project cognition hard gate")
-    assert hard_gate_index != -1
+    advisory_index = content.find("project cognition advisory gate")
+    assert advisory_index != -1
     assert "carry forward" in content
     assert "next workflow artifact or execution state" in content
 
     if command_name == "implement":
         orchestration_index = content.find("## orchestration model")
         if orchestration_index != -1:
-            assert hard_gate_index < orchestration_index
+            assert advisory_index < orchestration_index
         assert "implement-tracker.md" in content
         assert "workertaskpacket" in content
     elif command_name == "quick":
