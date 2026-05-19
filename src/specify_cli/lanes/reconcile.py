@@ -38,17 +38,43 @@ def reconcile_lane(project_root: Path, lane: LaneRecord, *, command_name: str) -
     updated = replace(lane)
 
     if command_name == "implement":
-        if not workflow_path.exists() or not tracker_path.exists():
+        if not workflow_path.exists():
             updated.recovery_state = "blocked"
-            updated.recovery_reason = "missing implement stage artifacts"
+            updated.recovery_reason = "missing workflow-state.md"
             _persist_recovery_summary(project_root, updated, command_name=command_name)
             return updated
 
         workflow = serialize_workflow_state(workflow_path)
+        next_command = str(workflow.get("next_command") or "")
+
+        if not tracker_path.exists():
+            task_package_exists = (
+                (feature_dir / "tasks.md").exists()
+                and (
+                    (feature_dir / "handoff-to-implement.json").exists()
+                    or (feature_dir / "task-index.json").exists()
+                )
+            )
+            clean_tasks_handoff = (
+                next_command == "/sp.implement"
+                and str(workflow.get("active_command") or "") == "sp-tasks"
+                and str(workflow.get("status") or "") == "completed"
+                and str(workflow.get("phase_mode") or "") == "task-generation-only"
+            )
+            if clean_tasks_handoff and task_package_exists:
+                updated.recovery_state = "resumable"
+                updated.last_stable_checkpoint = "handoff-to-implement"
+                updated.recovery_reason = ""
+                _persist_recovery_summary(project_root, updated, command_name=command_name)
+                return updated
+            updated.recovery_state = "blocked"
+            updated.recovery_reason = "missing implement launch artifacts"
+            _persist_recovery_summary(project_root, updated, command_name=command_name)
+            return updated
+
         tracker = serialize_implement_tracker(tracker_path)
         lease = read_lane_lease(project_root, lane.lane_id)
 
-        next_command = str(workflow.get("next_command") or "")
         tracker_status = str(tracker.get("status") or "")
         tracker_next_action = str(tracker.get("next_action") or "")
 
