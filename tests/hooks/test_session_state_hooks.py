@@ -10,7 +10,14 @@ def _create_project(tmp_path: Path) -> Path:
     return project
 
 
-def _write_workflow_state(feature_dir: Path, next_command: str) -> None:
+def _write_workflow_state(
+    feature_dir: Path,
+    next_command: str,
+    *,
+    active_command: str = "sp-analyze",
+    status: str = "completed",
+    phase_mode: str = "analysis-only",
+) -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -19,12 +26,12 @@ def _write_workflow_state(feature_dir: Path, next_command: str) -> None:
                 "",
                 "## Current Command",
                 "",
-                "- active_command: `sp-analyze`",
-                "- status: `completed`",
+                f"- active_command: `{active_command}`",
+                f"- status: `{status}`",
                 "",
                 "## Phase Mode",
                 "",
-                "- phase_mode: `analysis-only`",
+                f"- phase_mode: `{phase_mode}`",
                 "- summary: demo",
                 "",
                 "## Next Action",
@@ -79,6 +86,30 @@ def test_session_state_accepts_consistent_implement_resume_state(tmp_path: Path)
 
     assert result.status == "ok"
     assert result.data["state_summary"]["next_command"] == "/sp.implement"
+    assert result.data["state_summary"]["tracker_status"] == "executing"
+
+
+def test_session_state_accepts_clean_tasks_handoff_with_active_implement_tracker(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_workflow_state(
+        feature_dir,
+        "/sp.implement",
+        active_command="sp-tasks",
+        status="completed",
+        phase_mode="task-generation-only",
+    )
+    _write_implement_tracker(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.session_state.validate",
+        {"command_name": "implement", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.data["state_summary"]["next_command"] == "/sp.implement"
+    assert result.data["state_summary"]["workflow_status"] == "completed"
     assert result.data["state_summary"]["tracker_status"] == "executing"
 
 

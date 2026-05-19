@@ -14,10 +14,25 @@ def _create_project(tmp_path: Path) -> Path:
 
 
 def _write_cognition_baseline(project: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "seed.txt"], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=project, check=True)
+    baseline_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=project,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout.strip()
     cognition_dir = project / ".specify" / "project-cognition"
     cognition_dir.mkdir(parents=True, exist_ok=True)
     (cognition_dir / "status.json").write_text(
         '{"version": 3, "graph_ready": true, "baseline_state": "ready", "freshness": "fresh", '
+        f'"baseline_commit": "{baseline_commit}", '
         '"graph_store_path": ".specify/project-cognition/project-cognition.db", '
         '"active_generation_id": "GEN-0001", "query_contract_version": 1, "update_contract_version": 1}\n',
         encoding="utf-8",
@@ -77,7 +92,7 @@ def _write_workflow_state(
     )
 
 
-def test_preflight_blocks_implement_when_workflow_state_requires_analyze(tmp_path: Path):
+def test_preflight_blocks_implement_when_workflow_state_explicitly_requires_legacy_analyze(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
@@ -99,6 +114,28 @@ def test_preflight_blocks_implement_when_workflow_state_requires_analyze(tmp_pat
     assert any("/sp.analyze" in message for message in result.errors)
     assert any("active_command=sp-tasks" in message for message in result.errors)
     assert any("workflow_status=completed" in message for message in result.errors)
+
+
+def test_preflight_allows_implement_when_tasks_state_hands_off_to_implement(tmp_path: Path):
+    project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
+    feature_dir = project / "specs" / "001-demo"
+    _write_workflow_state(
+        feature_dir,
+        active_command="sp-tasks",
+        status="completed",
+        phase_mode="task-generation-only",
+        next_command="/sp.implement",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.preflight",
+        {"command_name": "implement", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
 
 
 def test_preflight_explains_implement_block_with_tracker_summary_when_available(tmp_path: Path):
