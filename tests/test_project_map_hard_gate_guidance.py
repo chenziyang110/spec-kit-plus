@@ -93,7 +93,7 @@ def test_project_cognition_freshness_guidance_prefers_map_update_for_stale_runti
     assert "baseline is missing, unusable, schema-incompatible" in stale
 
 
-def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monkeypatch) -> None:
+def test_project_map_hook_warns_with_advisory_guidance(monkeypatch) -> None:
     def stale_without_reason(_project_root: Path) -> dict[str, object]:
         return {
             "freshness": "stale",
@@ -119,26 +119,30 @@ def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monke
         }
 
     monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", stale_without_reason)
-    blocked = project_map_freshness_result(PROJECT_ROOT, command_name="implement")
-    assert blocked.status == "blocked"
-    assert blocked.errors == [STALE_FALLBACK_GUIDANCE]
-    assert "project cognition runtime freshness" in blocked.errors[0]
-    assert "/sp-map-update" in blocked.errors[0]
-    assert "/sp-map-scan -> /sp-map-build" in blocked.errors[0]
+    warned = project_map_freshness_result(PROJECT_ROOT, command_name="implement")
+    assert warned.status == "warn"
+    assert warned.severity == "warning"
+    assert warned.warnings == [STALE_FALLBACK_GUIDANCE]
+    assert warned.data["advisory"] is True
+    assert warned.data["command_name"] == "implement"
+    assert "project cognition runtime freshness" in warned.warnings[0]
+    assert "/sp-map-update" in warned.warnings[0]
+    assert "/sp-map-scan -> /sp-map-build" in warned.warnings[0]
 
     monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", missing_without_reason)
-    blocked_missing = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
-    assert blocked_missing.status == "blocked"
-    assert blocked_missing.errors == [MISSING_BASELINE_FALLBACK_GUIDANCE]
-    assert "/sp-map-scan -> /sp-map-build" in blocked_missing.errors[0]
-    assert "/sp-map-update" not in blocked_missing.errors[0]
+    warned_missing = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+    assert warned_missing.status == "warn"
+    assert warned_missing.warnings == [MISSING_BASELINE_FALLBACK_GUIDANCE]
+    assert warned_missing.data["advisory"] is True
+    assert "/sp-map-scan -> /sp-map-build" in warned_missing.warnings[0]
+    assert "/sp-map-update" not in warned_missing.warnings[0]
 
     monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", support_drift_without_reason)
     support = project_map_freshness_result(PROJECT_ROOT, command_name="implement")
-    assert support.status == "blocked"
-    assert support.errors == [SUPPORT_DRIFT_FALLBACK_GUIDANCE]
-    assert "support" in support.errors[0].lower()
-    assert "/sp-map-update" not in support.errors[0]
+    assert support.status == "warn"
+    assert support.warnings == [SUPPORT_DRIFT_FALLBACK_GUIDANCE]
+    assert "support" in support.warnings[0].lower()
+    assert "/sp-map-update" not in support.warnings[0]
 
     monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", unknown_without_reason)
     unknown = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
@@ -149,7 +153,7 @@ def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monke
     assert "/sp-map-update" in unknown.warnings[0]
 
 
-def test_project_map_hook_blocks_path_index_stale_runtime_with_scan_build_guidance(monkeypatch) -> None:
+def test_project_map_hook_warns_path_index_stale_runtime_with_scan_build_guidance(monkeypatch) -> None:
     def path_index_stale(_project_root: Path) -> dict[str, object]:
         return {
             "freshness": "stale",
@@ -161,13 +165,14 @@ def test_project_map_hook_blocks_path_index_stale_runtime_with_scan_build_guidan
 
     monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", path_index_stale)
 
-    blocked = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+    warned = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
 
-    assert blocked.status == "blocked"
-    assert blocked.errors == [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
-    assert "path_index" in blocked.errors[0]
-    assert "/sp-map-scan -> /sp-map-build" in blocked.errors[0]
-    assert "cannot create absent path coverage" in blocked.errors[0]
+    assert warned.status == "warn"
+    assert warned.warnings == [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
+    assert warned.data["advisory"] is True
+    assert "path_index" in warned.warnings[0]
+    assert "/sp-map-scan -> /sp-map-build" in warned.warnings[0]
+    assert "cannot create absent path coverage" in warned.warnings[0]
 
 
 def test_project_cognition_gate_alias_matches_project_map_gate(monkeypatch) -> None:
@@ -181,8 +186,8 @@ def test_project_cognition_gate_alias_matches_project_map_gate(monkeypatch) -> N
         }
 
     monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", stale_without_reason)
-    blocked = project_cognition_freshness_result(PROJECT_ROOT, command_name="implement")
+    warned = project_cognition_freshness_result(PROJECT_ROOT, command_name="implement")
     aliased = project_map_freshness_result(PROJECT_ROOT, command_name="implement")
 
-    assert blocked.status == "blocked"
-    assert blocked.errors == aliased.errors
+    assert warned.status == "warn"
+    assert warned.warnings == aliased.warnings

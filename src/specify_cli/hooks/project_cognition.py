@@ -25,30 +25,47 @@ from .events import (
 from .types import HookResult, QualityHookError
 
 
-STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks", "debug"}
 STALE_FALLBACK_GUIDANCE = (
-    "project cognition runtime freshness is stale; refresh through /sp-map-update, "
+    "project cognition runtime freshness is stale; this is advisory only. refresh through /sp-map-update, "
     "and rebuild through /sp-map-scan -> /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, or invalidated by broad architecture replacement"
 )
 PATH_INDEX_STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale because changed paths are missing from path_index; "
-    "rebuild through /sp-map-scan -> /sp-map-build because repeating /sp-map-update cannot create absent path coverage"
+    "this is advisory only. rebuild through /sp-map-scan -> /sp-map-build because repeating /sp-map-update cannot create absent path coverage"
 )
 SUPPORT_DRIFT_FALLBACK_GUIDANCE = (
-    "project cognition runtime freshness has support-surface drift; resolve, commit, or intentionally ignore "
-    "the support files before retrying"
+    "project cognition runtime freshness has support-surface drift; this is advisory only. resolve, commit, or intentionally ignore "
+    "the support files before relying on the map again"
 )
 PARTIAL_REFRESH_FALLBACK_GUIDANCE = (
-    "project cognition refresh data was recorded, but runtime readiness is still blocked; follow recommended_next_action "
-    "before retrying"
+    "project cognition refresh data was recorded, but runtime readiness is still blocked; this is advisory only. follow recommended_next_action "
+    "before relying on the map again"
 )
 NON_STALE_FALLBACK_GUIDANCE = (
-    "project cognition runtime freshness is {state}; create the initial baseline through "
+    "project cognition runtime freshness is {state}; this is advisory only. create the initial baseline through "
     "/sp-map-scan -> /sp-map-build when missing, or refresh through /sp-map-update when stale"
 )
 MISSING_BASELINE_FALLBACK_GUIDANCE = (
-    "project cognition runtime freshness is missing; create the initial baseline through /sp-map-scan -> /sp-map-build before retrying"
+    "project cognition runtime freshness is missing; this is advisory only. create the initial baseline through /sp-map-scan -> /sp-map-build before relying on the map again"
 )
+
+
+def _project_cognition_advisory_guidance(state: str, raw_freshness: str, readiness: str, next_action: str) -> str:
+    if state == "missing_baseline":
+        return MISSING_BASELINE_FALLBACK_GUIDANCE
+    if state == "runtime_stale":
+        if next_action == "run_map_scan_build":
+            return PATH_INDEX_STALE_FALLBACK_GUIDANCE
+        return STALE_FALLBACK_GUIDANCE
+    if state == "support_drift":
+        return SUPPORT_DRIFT_FALLBACK_GUIDANCE
+    if state == "partial_refresh":
+        return PARTIAL_REFRESH_FALLBACK_GUIDANCE
+    if readiness == "blocked" and next_action == "run_map_update":
+        return STALE_FALLBACK_GUIDANCE
+    if raw_freshness == "possibly_stale":
+        return STALE_FALLBACK_GUIDANCE
+    return NON_STALE_FALLBACK_GUIDANCE.format(state=state or "unknown")
 
 
 def project_cognition_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
@@ -65,64 +82,14 @@ def project_cognition_freshness_result(project_root: Path, *, command_name: str)
             event="project_cognition.refresh.validate",
             status="ok",
             severity="info",
-            data={"freshness": freshness},
-        )
-    if state == "missing_baseline" and normalized in STALE_BLOCK_COMMANDS:
-        return HookResult(
-            event="project_cognition.refresh.validate",
-            status="blocked",
-            severity="critical",
-            errors=reasons or [MISSING_BASELINE_FALLBACK_GUIDANCE],
-            data={"freshness": freshness},
-        )
-    if (
-        state == "runtime_stale"
-        and readiness == "blocked"
-        and raw_freshness != "possibly_stale"
-        and normalized in STALE_BLOCK_COMMANDS
-    ):
-        fallback_guidance = (
-            PATH_INDEX_STALE_FALLBACK_GUIDANCE
-            if next_action == "run_map_scan_build"
-            else STALE_FALLBACK_GUIDANCE
-        )
-        return HookResult(
-            event="project_cognition.refresh.validate",
-            status="blocked",
-            severity="critical",
-            errors=reasons or [fallback_guidance],
-            data={"freshness": freshness},
-        )
-    if state == "support_drift" and normalized in STALE_BLOCK_COMMANDS:
-        return HookResult(
-            event="project_cognition.refresh.validate",
-            status="blocked",
-            severity="critical",
-            errors=reasons or [SUPPORT_DRIFT_FALLBACK_GUIDANCE],
-            data={"freshness": freshness},
-        )
-    if state == "partial_refresh" and normalized in STALE_BLOCK_COMMANDS:
-        return HookResult(
-            event="project_cognition.refresh.validate",
-            status="blocked",
-            severity="critical",
-            errors=reasons or [PARTIAL_REFRESH_FALLBACK_GUIDANCE],
-            data={"freshness": freshness},
-        )
-    if readiness == "blocked" and next_action == "run_map_update" and normalized in STALE_BLOCK_COMMANDS:
-        return HookResult(
-            event="project_cognition.refresh.validate",
-            status="blocked",
-            severity="critical",
-            errors=reasons or [STALE_FALLBACK_GUIDANCE],
-            data={"freshness": freshness},
+            data={"freshness": freshness, "advisory": True, "command_name": normalized},
         )
     return HookResult(
         event="project_cognition.refresh.validate",
         status="warn",
         severity="warning",
-        warnings=reasons or [NON_STALE_FALLBACK_GUIDANCE.format(state=state or "unknown")],
-        data={"freshness": freshness},
+        warnings=reasons or [_project_cognition_advisory_guidance(state, raw_freshness, readiness, next_action)],
+        data={"freshness": freshness, "advisory": True, "command_name": normalized},
     )
 
 
