@@ -1168,7 +1168,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "seeded default constitution" in result.output.lower()
         assert "project-specific changes" in result.output.lower()
         assert "required for existing code" in result.output
-        assert "default gate before" in result.output
+        assert "optional diagnostic / legacy revalidation" in result.output.lower()
         assert "The Codex team skill is available as" not in result.output
         assert "clarify" in result.output
         assert "clarify" in result.output.lower()
@@ -1236,7 +1236,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "/sp-clarify" in result.output
         assert "/sp-deep-research" in result.output
         assert "required for existing code" in result.output
-        assert "default gate before" in result.output
+        assert "optional diagnostic / legacy revalidation" in result.output.lower()
         assert "/sp-learnings" not in result.output
         assert "Codex-only runtime" not in result.output
         assert "specify team" not in result.output.lower()

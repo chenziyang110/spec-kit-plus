@@ -2236,7 +2236,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered
-    assert "recommend `/sp-analyze`" in lowered
+    assert "recommend `/sp-tasks`" in lowered
 
 
 def test_alignment_template_exists():

@@ -197,9 +197,6 @@ Optional diagnostics:
 - Run `/sp-checklist` when you want a requirements-quality checklist before planning or task generation continues.
 - Run `/sp-analyze` when you explicitly need read-only cross-artifact diagnostics, are resuming a legacy `/sp.analyze` state, or need drift revalidation after implementation has started.
 
-```markdown
-/sp-analyze
-```
 
 Then, run the `implement` workflow to execute the plan.
 
@@ -302,7 +299,7 @@ Use support skills when they solve a specific gap:
 - `clarify` when an existing spec still needs deeper analysis before planning
 - `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
 - `checklist` when you want to audit requirement quality after planning
-- `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; clean task packages hand off directly to `implement`
+- `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass only when explicitly requested or recorded by existing state, while clean task packages hand off directly to `implement`
 - `debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - When you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
@@ -480,8 +477,11 @@ Validate the specification checklist using the `checklist` workflow:
 ```bash
 /sp-checklist
 ```
+After planning, continue with:
 
-### Step 5: Define Tasks
+```text
+specify -> plan -> tasks -> implement
+```
 
 Generate an actionable task list using the `tasks` workflow:
 

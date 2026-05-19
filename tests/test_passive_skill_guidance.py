@@ -22,6 +22,7 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "sp-prd-build" in content
     assert "peer\n  workflow path to `sp-specify`" in content or "peer workflow path to `sp-specify`" in content
     assert "do not automatically hand off to planning" in content
+    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in content
     assert "sp-deep-research" in content
     assert "implementation chain" in content or "implementation-chain" in content
     assert "planning handoff" in content

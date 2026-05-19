@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: The current spec package is ready for design work, but implementation should not start until explicit planning artifacts exist.
   primary_objective: Produce the planning artifact set that turns specification intent into an implementation-ready architecture and execution approach.
   primary_outputs: '`plan.md`, `research.md`, `quickstart.md`, `plan-contract.json`, `workflow-state.md`, `planning/handoffs/<lane-id>.json`, `planning/evidence-index.json`, and `planning/checkpoints.ndjson` under the active `FEATURE_DIR`, plus `data-model.md` and `contracts/` when the feature scope demands them.'
-  default_handoff: '/sp.tasks for decomposition, optionally /sp.checklist for quality checks on the resulting plan package.'
+  default_handoff: '/sp.tasks for decomposition; /sp.checklist remains optional for requirements-quality review, not a default handoff.'
 handoffs:
   - label: Create Tasks
     agent: sp.tasks
@@ -269,7 +269,7 @@ Use the returned readiness:
     - generated artifacts
     - planning evidence paths: `planning/evidence-index.json`, `planning/checkpoints.ndjson`, and accepted `planning/handoffs/<lane-id>.json` files
     - workflow-state path
-    - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
+    - recommended follow-up quality check: `{{invoke:checklist}}` only when an explicit requirements-quality audit is still needed before decomposition
     - cognition follow-up: if artifact-only planning work introduces or sharpens future architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `plan.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`

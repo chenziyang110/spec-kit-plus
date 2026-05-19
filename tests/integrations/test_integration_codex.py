@@ -604,7 +604,8 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "task-generation/evidence-index.json" in analyze_content
     assert "accepted planning handoff with no downstream consumer" in analyze_content.lower()
     assert "accepted task-generation handoff with no downstream consumer" in analyze_content.lower()
-    assert "If the remaining issue is execution-only, the re-entry chain MUST begin at `$sp-implement` or `$sp-debug`." in analyze_content
+    assert "non-destructive cross-artifact consistency and boundary-guardrail analysis" in analyze_content.lower()
+    assert "re-entry chain" in analyze_content.lower()
 
 
 def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_path):

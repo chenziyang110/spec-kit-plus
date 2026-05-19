@@ -68,6 +68,7 @@ Inspect the available state surfaces in this order and prefer the most specific 
 
 1. Active feature `workflow-state.md`
    - Treat `FEATURE_DIR/workflow-state.md` as the primary phase-lock and `next_command` source for feature workflows. Canonical state tokens include `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.clarify`, and `/sp.deep-research`; `/sp.analyze` is a legacy or explicitly requested diagnostic route only.
+   - Clean completed task-generation state with `active_command: sp-tasks`, `status: completed`, `phase_mode: task-generation-only`, and `next_command: /sp.implement` should route directly to `/sp.implement`; preserve `/sp.analyze` only when a feature-level state file explicitly records that legacy or diagnostic route.
    - If a feature-level `workflow-state.md` explicitly points upstream, obey it even when later-stage artifacts also exist.
 
 2. Active implementation execution state

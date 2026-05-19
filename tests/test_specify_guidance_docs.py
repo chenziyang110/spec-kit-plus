@@ -31,7 +31,6 @@ def test_quickstart_teaches_specify_to_plan_mainline():
     assert "`specify -> plan` as the default path" in quickstart or "specify -> plan -> tasks -> implement" in quickstart
     assert "`specify` -> `deep-research` -> `plan`" in quickstart
 
-
 def test_quickstart_declares_integration_specific_invocation_syntax():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
@@ -194,6 +193,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "does not automatically hand off to `plan`" in support_guidance
     assert "`analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists" in support_guidance
     assert "`fast` is only for trivial local fixes" in support_guidance
+    assert "Optional diagnostics:" in quickstart
     assert "the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows" in support_guidance
 
 
@@ -286,6 +286,7 @@ def test_guidance_docs_explain_lossless_specify_state() -> None:
 def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
+    handbook_lower = handbook.lower()
 
     for content in (readme, handbook):
         lowered = content.lower()
@@ -294,6 +295,11 @@ def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
         assert "repeated `tasks -> analyze -> tasks` loops are abnormal" in content
         assert "only use `analyze` again when explicitly required by legacy or diagnostic state" in content
         assert "directly to `plan`, `clarify`, or `deep-research`" in content
+
+    assert "tasks/implement default contract" in handbook_lower
+    assert "implementation-readiness self-audit" in handbook_lower
+    assert "clean completion writes `next_command: /sp.implement`" in handbook_lower
+    assert "`sp-analyze` remains an optional diagnostic and legacy revalidation route only when explicitly invoked or recorded in existing state" in handbook_lower
 
 
 def test_guidance_docs_teach_consequence_gate_across_workflow_mainline() -> None:
