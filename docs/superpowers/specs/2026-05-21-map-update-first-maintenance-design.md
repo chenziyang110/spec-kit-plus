@@ -36,6 +36,8 @@ This creates three problems:
 - Make `map-update` handle as many scenarios as safely possible by recording partial, review, low-confidence, known-unknown, and minimal-live-read data.
 - Preserve scan/build for true baseline creation or structural recovery only.
 - Define a machine-readable baseline-identity-invalid contract so old count or ratio heuristics cannot survive under a new label.
+- Require `map-scan` and `map-build` to use bounded subagent lanes for baseline
+  coverage so the initial foundation is complete despite context limits.
 - Align runtime machine fields, generated prompts, passive skills, CLI output, hooks, docs, and tests.
 
 ## Non-Goals
@@ -44,6 +46,8 @@ This creates three problems:
 - Do not claim uncertain project cognition facts are strong evidence.
 - Do not make map output authoritative for code behavior. Live evidence still proves technical claims.
 - Do not redesign the SQLite schema unless a small compatibility-safe field adjustment is needed during implementation.
+- Do not permit a leader-only broad scan/build fallback for substantive baseline
+  work just because subagent dispatch is inconvenient.
 
 ## Approved Approach
 
@@ -98,6 +102,46 @@ What may not set it by itself:
 An active generation with zero `path_index` rows counts as an unusable baseline,
 not as an ordinary path gap. It may still route to `map-scan -> map-build`
 because `map-update` has no safe graph route to patch.
+
+## Baseline Scan/Build Quality Contract
+
+The hardline `map-update` policy only works if the initial baseline is strong.
+`map-scan` and `map-build` must therefore optimize for completeness over speed.
+
+`map-scan` must:
+
+- Use current-runtime native subagents for substantive repository scanning.
+- Partition the repository universe into bounded scan packets before broad reads.
+- Give each subagent an explicit contract with objective, allowed roots, required
+  file classes, forbidden paths, acceptance checks, and structured handoff format.
+- Require every project-relevant file, entrypoint, branch/control-node category,
+  generated surface, workflow surface, test route, and state surface to be either
+  covered or explicitly recorded as excluded, blocked, unknown, or low-risk.
+- Maintain a machine-readable coverage ledger that maps repository-universe rows
+  to packet ownership, coverage class, evidence rows, and missing-evidence
+  reasons.
+- Reject idle or summary-only subagent output as scan evidence.
+- Block scan acceptance when a packet is missing, a handoff is absent, or coverage
+  gaps are unexplained.
+
+`map-build` must:
+
+- Consume the scan packets and coverage ledger instead of rereading the repository
+  broadly from leader context.
+- Use subagents for substantive graph compilation, validation, and reverse
+  coverage checks when the work can be bounded.
+- Verify that every scan packet is consumed.
+- Verify reverse coverage from graph rows back to evidence and from evidence back
+  to repository-universe rows.
+- Block activation of the new baseline when file, entrypoint, branch/control-node,
+  generated-surface, workflow-surface, state-surface, or verification-route
+  coverage is missing without an explicit recorded reason.
+
+If subagent dispatch is unavailable for a substantive scan/build lane, the
+workflow should record `subagent-blocked` and stop for recovery instead of
+performing an incomplete leader-only broad scan. A weak baseline is worse than a
+blocked baseline because later `map-update` will preserve and extend whatever
+foundation scan/build created.
 
 ## Runtime Behavior
 
@@ -223,6 +267,10 @@ Hook messages should:
 The implementation must update all map-maintenance surfaces that can emit rebuild
 guidance:
 
+- `templates/commands/map-scan.md`
+- `templates/commands/map-build.md`
+- `templates/command-partials/map-scan/shell.md`
+- `templates/command-partials/map-build/shell.md`
 - `src/specify_cli/cognition/path_adoption.py`
 - `src/specify_cli/cognition/query.py`
 - `src/specify_cli/cognition/update.py`
@@ -259,6 +307,12 @@ Runtime tests should cover:
 
 Prompt and CLI tests should cover:
 
+- `map-scan` requires subagent-backed bounded scan packets, coverage ledger
+  completeness, and blocked status for missing packet handoffs.
+- `map-build` requires consumption of every scan packet, reverse coverage
+  validation, and blocked status when coverage cannot be proven.
+- Generated scan/build guidance does not allow leader-only broad scan/build as a
+  fallback for substantive baseline work.
 - Generated `map-update` instructions prefer partial/review handling over rebuild.
 - Passive project cognition guidance does not describe ordinary path gaps as scan/build triggers.
 - Preflight output for path gaps does not tell the user to run scan/build.
@@ -279,6 +333,9 @@ Prompt and CLI tests should cover:
   `attrs_json.minimal_live_reads`, `attrs_json.path_adoption.review_paths`,
   provisional `path_index` rows where safe, and matching status freshness.
 - `run_map_scan_build` remains available for missing or unusable baseline recovery.
+- `map-scan` and `map-build` baseline creation cannot complete unless all
+  subagent scan/build packets are accounted for and coverage gaps are explicitly
+  recorded.
 - Python, bash, and PowerShell freshness surfaces agree on when scan/build is
   permitted.
 - Tests prove both the hardline policy and the remaining rebuild exceptions.
@@ -296,3 +353,10 @@ Mitigation: Prompt guidance must state that project cognition is advisory and co
 Risk: Truly invalid baseline identity may be hidden as review state.
 
 Mitigation: Keep a separate explicit baseline-identity-invalid condition for broad architecture replacement, but require that condition to be recorded directly instead of inferred from path count alone.
+
+Risk: The first scan/build baseline may miss important surfaces because one
+agent's context is too small for the whole repository.
+
+Mitigation: Make scan/build subagent-first, packetized, and coverage-ledger
+driven. Baseline activation blocks until every packet is consumed and every
+project-relevant row is covered or explicitly explained.
