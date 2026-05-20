@@ -123,7 +123,7 @@ Follow this execution flow:
 2. Collect or derive missing and revised values:
    - If user input (conversation) supplies a value, use it.
    - Otherwise infer from existing repo context (README, docs,
-     project cognition runtime evidence, compatibility/export references when explicitly relevant, prior constitution versions if embedded).
+     project cognition runtime truth, compatibility/export references when explicitly relevant, prior constitution versions if embedded).
    - For governance dates: `RATIFICATION_DATE` is the original adoption date
      (if unknown ask or mark TODO), `LAST_AMENDED_DATE` is today if changes
      are made, otherwise keep the previous value.

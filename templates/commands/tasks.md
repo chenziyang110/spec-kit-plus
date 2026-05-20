@@ -118,7 +118,7 @@ scripts:
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
-{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+{{spec-kit-include: ../command-partials/common/planning-context-loading-gradient.md}}
 
 **Project cognition gate:** query the active project's runtime before broad
 repository reads.

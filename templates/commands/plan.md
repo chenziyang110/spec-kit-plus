@@ -150,7 +150,7 @@ Before `sp-tasks`, convert every triggered `CA-###` consequence obligation into 
 - Ensure `plan-contract.json` carries the same `CA-###` obligations, operational decisions, unresolved coverage gaps, and stop-and-reopen conditions as the Markdown plan.
 - If any `CA-###` obligation cannot be designed safely in `sp-plan`, stop before `sp-tasks` and route back to `{{invoke:specify}}`, `{{invoke:clarify}}`, or `{{invoke:deep-research}}` with the missing decision named.
 
-{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+{{spec-kit-include: ../command-partials/common/planning-context-loading-gradient.md}}
 
 **Project cognition gate:** query the active project's runtime before broad
 repository reads.

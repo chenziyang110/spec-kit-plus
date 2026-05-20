@@ -54,7 +54,8 @@ judgment in an established Spec Kit Plus repository:
   target files.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
-  live-code inspection.
+  live-code inspection. Use it as a runtime truth surface for route and coverage
+  decisions, while proving behavior from live project evidence.
 - A project-cognition query is not complete when it returns JSON. It is complete
   only when readiness drives routing, `minimal_live_reads` constrains
   inspection, and relevant facts are carried into the next workflow artifact or

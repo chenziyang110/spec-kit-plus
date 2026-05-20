@@ -49,7 +49,7 @@ scripts:
 - [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
-{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+{{spec-kit-include: ../command-partials/common/planning-context-loading-gradient.md}}
 
 **Project cognition gate:** query the active project's runtime before broad
 repository reads.
