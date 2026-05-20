@@ -372,7 +372,7 @@ def test_bash_project_map_freshness_routes_singular_path_gap_to_map_update(git_r
     assert result["recommended_next_action"] == "run_map_update"
 
 
-def test_bash_project_map_freshness_routes_unadoptable_path_gap_to_scan_build(git_repo: Path):
+def test_bash_project_map_freshness_routes_unadoptable_path_gap_prose_to_map_update(git_repo: Path):
     _seed_graph_ready_stale_status(
         git_repo,
         "path not safely adoptable by project cognition index: scripts/release/package.ps1",
@@ -381,7 +381,7 @@ def test_bash_project_map_freshness_routes_unadoptable_path_gap_to_scan_build(gi
     result = _run_bash(git_repo, "check")
 
     assert result["freshness"] == "stale"
-    assert result["recommended_next_action"] == "run_map_scan_build"
+    assert result["recommended_next_action"] == "run_map_update"
 
 
 @pytest.mark.parametrize(
@@ -391,7 +391,27 @@ def test_bash_project_map_freshness_routes_unadoptable_path_gap_to_scan_build(gi
         "path not safely adoptable by project cognition index: scripts/release/package.ps1",
     ],
 )
-def test_bash_mark_dirty_routes_normalized_rebuild_path_gaps_to_scan_build(git_repo: Path, reason: str):
+def test_bash_mark_dirty_routes_normalized_path_gaps_to_map_update(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "manual")
+
+    result = _run_bash(git_repo, "mark-dirty", reason)
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_update"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "explicit_rebuild_requested",
+        "baseline_identity_invalid",
+        "active_generation_has_no_path_index_rows",
+        "path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1",
+    ],
+)
+def test_bash_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo: Path, reason: str):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_bash(git_repo, "record-refresh", "manual")
@@ -499,7 +519,7 @@ def test_powershell_project_map_freshness_routes_singular_path_gap_to_map_update
     assert result["recommended_next_action"] == "run_map_update"
 
 
-def test_powershell_project_map_freshness_routes_unadoptable_path_gap_to_scan_build(git_repo: Path):
+def test_powershell_project_map_freshness_routes_unadoptable_path_gap_prose_to_map_update(git_repo: Path):
     _seed_graph_ready_stale_status(
         git_repo,
         "path not safely adoptable by project cognition index: scripts/release/package.ps1",
@@ -508,7 +528,7 @@ def test_powershell_project_map_freshness_routes_unadoptable_path_gap_to_scan_bu
     result = _run_powershell(git_repo, "check")
 
     assert result["freshness"] == "stale"
-    assert result["recommended_next_action"] == "run_map_scan_build"
+    assert result["recommended_next_action"] == "run_map_update"
 
 
 @pytest.mark.parametrize(
@@ -518,7 +538,27 @@ def test_powershell_project_map_freshness_routes_unadoptable_path_gap_to_scan_bu
         "path not safely adoptable by project cognition index: scripts/release/package.ps1",
     ],
 )
-def test_powershell_mark_dirty_routes_normalized_rebuild_path_gaps_to_scan_build(git_repo: Path, reason: str):
+def test_powershell_mark_dirty_routes_normalized_path_gaps_to_map_update(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_powershell(git_repo, "record-refresh", "manual")
+
+    result = _run_powershell(git_repo, "mark-dirty", reason)
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_update"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "explicit_rebuild_requested",
+        "baseline_identity_invalid",
+        "active_generation_has_no_path_index_rows",
+        "path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1",
+    ],
+)
+def test_powershell_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo: Path, reason: str):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_powershell(git_repo, "record-refresh", "manual")

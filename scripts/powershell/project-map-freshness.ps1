@@ -294,7 +294,8 @@ function Normalize-DirtyReason {
     param([string]$Reason)
 
     $reasonText = if ($null -ne $Reason) { [string]$Reason } else { "" }
-    $normalized = (($reasonText.ToLowerInvariant().Replace("-", " ").Replace("_", " ")) -split '\s+' | Where-Object { $_ }) -join " "
+    $raw = (($reasonText.ToLowerInvariant()) -split '\s+' | Where-Object { $_ }) -join " "
+    $normalized = (($raw.Replace("-", " ").Replace("_", " ")) -split '\s+' | Where-Object { $_ }) -join " "
     switch ($normalized) {
         "" { return "project_map_dirty" }
         "shared surface changed" { return "shared_surface_changed" }
@@ -303,7 +304,12 @@ function Normalize-DirtyReason {
         "workflow contract changed" { return "workflow_contract_changed" }
         "verification surface changed" { return "verification_surface_changed" }
         "runtime invariant changed" { return "runtime_invariant_changed" }
-        default { return ($normalized -replace ' ', '_') }
+        default {
+            if ($raw.Contains("_")) {
+                return ($raw -replace '-', '_')
+            }
+            return $normalized
+        }
     }
 }
 
@@ -335,26 +341,18 @@ function Get-RefreshPlanForDirtyReason {
     }
 }
 
-function Test-PathGapRequiresRebuild {
+function Test-ScanBuildAllowedReason {
     param([object[]]$Reasons)
 
     $reasonText = ($Reasons | ForEach-Object { [string]$_ }) -join " "
-    $lowerReasonText = $reasonText.ToLowerInvariant()
-    $normalizedReasonText = $lowerReasonText.Replace("-", " ").Replace("_", " ")
-    if ($normalizedReasonText.Contains("path not safely adoptable by project cognition index")) {
-        return $true
-    }
-    if ($normalizedReasonText.Contains("unadoptable") -and $normalizedReasonText.Contains("path")) {
-        return $true
-    }
-
-    foreach ($match in [regex]::Matches($normalizedReasonText, "([0-9]+)\s+changed\s+paths\s+missing")) {
-        if ([int]$match.Groups[1].Value -gt 25) {
-            return $true
-        }
-    }
-
-    return $false
+    $normalizedReasonText = $reasonText.ToLowerInvariant().Replace("-", "_")
+    return (
+        $normalizedReasonText.Contains("active_generation_has_no_path_index_rows") -or
+        $normalizedReasonText.Contains("baseline_identity_invalid") -or
+        $normalizedReasonText.Contains("explicit_rebuild_requested") -or
+        $normalizedReasonText.Contains("failed_update_unusable_baseline") -or
+        $normalizedReasonText.Contains("path_not_safely_adoptable_by_project_cognition_index")
+    )
 }
 
 function Emit-CheckResult {
@@ -388,7 +386,7 @@ function Emit-CheckResult {
             $state = "runtime_stale"
             $readiness = "blocked"
             $recommendedNextAction = "run_map_update"
-            if (Test-PathGapRequiresRebuild @($Reasons + $DirtyReasons)) {
+            if (Test-ScanBuildAllowedReason @($Reasons + $DirtyReasons)) {
                 $recommendedNextAction = "run_map_scan_build"
             }
         }
