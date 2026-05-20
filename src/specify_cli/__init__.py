@@ -731,20 +731,14 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
         )
     elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
         console.print(
-            "Changed paths include an unadoptable project cognition path_index gap, or the baseline needs structural repair."
-        )
-        console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] if you need to rebuild the baseline."
+            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] only when the project cognition baseline is missing or unusable, or when freshness reasons include explicit_rebuild_requested or baseline_identity_invalid."
         )
     else:
         console.print(
             "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area when you need an updated map."
         )
         console.print(
-            "Rebuild only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps."
-        )
-        console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] when a rebuild is actually required."
+            "Ordinary changed-path gaps should receive provisional coverage, review state, known unknowns, and minimal live reads through map update before any rebuild is considered."
         )
 
 

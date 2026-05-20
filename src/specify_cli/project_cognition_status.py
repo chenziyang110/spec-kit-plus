@@ -14,7 +14,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-import re
 import subprocess
 from typing import Any
 
@@ -162,6 +161,10 @@ NEXT_ACTION_MAP_UPDATE = "run_map_update"
 NEXT_ACTION_MAP_SCAN_BUILD = "run_map_scan_build"
 NEXT_ACTION_SUPPORT = "commit_or_ignore_support_files"
 NEXT_ACTION_POLICY = "review_policy_configuration"
+SCAN_BUILD_ALLOWED_REASON_TOKENS = {
+    "baseline_identity_invalid",
+    "explicit_rebuild_requested",
+}
 
 TEAM_EXECUTION_PREFIXES = (
     "team ",
@@ -573,7 +576,7 @@ def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str])
     if normalized == FRESHNESS_MISSING_STATE:
         return NEXT_ACTION_MAP_SCAN_BUILD
     if normalized == FRESHNESS_RUNTIME_STALE_STATE:
-        if _has_unadoptable_path_index_gap_reason(reasons):
+        if _has_scan_build_allowed_reason(reasons):
             return NEXT_ACTION_MAP_SCAN_BUILD
         return NEXT_ACTION_MAP_UPDATE
     if normalized == FRESHNESS_SUPPORT_DRIFT_STATE:
@@ -587,17 +590,10 @@ def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str])
     return NEXT_ACTION_RETRY
 
 
-def _has_unadoptable_path_index_gap_reason(reasons: list[str]) -> bool:
+def _has_scan_build_allowed_reason(reasons: list[str]) -> bool:
     reason_text = " ".join(str(reason or "") for reason in reasons).lower()
     compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
-    if "path_not_safely_adoptable_by_project_cognition_index" in compact_reason_text:
-        return True
-    if "unadoptable" in compact_reason_text and "path" in compact_reason_text:
-        return True
-    for match in re.finditer(r"(\d+)(?:\s+|_)changed(?:\s+|_)paths(?:\s+|_)missing", compact_reason_text):
-        if int(match.group(1)) > 25:
-            return True
-    return False
+    return any(token in compact_reason_text for token in SCAN_BUILD_ALLOWED_REASON_TOKENS)
 
 
 def public_state_for_freshness(freshness: str) -> str:

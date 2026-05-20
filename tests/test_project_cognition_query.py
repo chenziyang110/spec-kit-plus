@@ -222,22 +222,25 @@ def test_query_keeps_discussion_allowed_for_uncertain_path_gap(tmp_path: Path) -
     assert result["path_adoption"]["review_paths"] == ["docs/future/idea.md"]
 
 
-def test_query_routes_unadoptable_core_surface_gap_to_rebuild(tmp_path: Path) -> None:
+def test_query_routes_core_surface_gap_to_update_review(tmp_path: Path) -> None:
     _seed_login_graph(tmp_path)
 
     result = query_project_cognition(
         tmp_path,
-        intent="implement",
-        query_text="release packaging",
+        intent="planning_or_implementation",
+        query_text="release package script",
         paths=["scripts/release/package.ps1"],
+        selected_concepts=[],
+        rejected_concepts=[],
+        selection_reason="path-specific request",
     )
 
-    assert result["baseline_health"] == "healthy"
-    assert result["query_coverage"] == "unadoptable_path_gap"
-    assert result["workflow_requirement"] == "planning_or_implementation"
-    assert result["readiness"] == "needs_rebuild"
-    assert result["recommended_next_action"] == "run_map_scan_build"
-    assert result["path_adoption"]["unadoptable_paths"] == ["scripts/release/package.ps1"]
+    assert result["query_coverage"] == "uncertain_path_gap"
+    assert result["readiness"] == "needs_update"
+    assert result["recommended_next_action"] == "run_map_update"
+    assert result["path_adoption"]["review_paths"] == ["scripts/release/package.ps1"]
+    assert result["path_adoption"]["unadoptable_paths"] == []
+    assert result["minimal_live_reads"] == ["scripts/release/package.ps1"]
 
 
 def test_query_returns_review_when_text_misses_but_runtime_has_baseline(tmp_path: Path) -> None:

@@ -28,11 +28,14 @@ from .types import HookResult, QualityHookError
 STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks", "debug"}
 STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale; refresh through /sp-map-update, "
-    "and rebuild through /sp-map-scan -> /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or the path-index gap is unadoptable"
+    "and rebuild through /sp-map-scan -> /sp-map-build only when the baseline is missing or unusable, "
+    "explicit_rebuild_requested, or baseline_identity_invalid"
 )
 PATH_INDEX_STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale because changed paths are missing from path_index; "
-    "run /sp-map-update first so adoptable paths can receive provisional coverage; rebuild through /sp-map-scan -> /sp-map-build only when the path-index gap is unadoptable"
+    "run /sp-map-update first so ordinary gaps can receive provisional coverage, review state, known unknowns, "
+    "and minimal live reads; rebuild through /sp-map-scan -> /sp-map-build only for missing or unusable baseline, "
+    "explicit_rebuild_requested, or baseline_identity_invalid"
 )
 SUPPORT_DRIFT_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness has support-surface drift; resolve, commit, or intentionally ignore "
@@ -59,6 +62,7 @@ def project_cognition_freshness_result(project_root: Path, *, command_name: str)
     readiness = str(freshness.get("readiness", "")).strip().lower()
     next_action = str(freshness.get("recommended_next_action", "")).strip().lower()
     reasons = [str(item) for item in freshness.get("reasons", []) if str(item).strip()]
+    has_path_index_reason = any("path_index" in reason.lower() or "path-index" in reason.lower() for reason in reasons)
 
     if state == "fresh":
         return HookResult(
@@ -83,14 +87,15 @@ def project_cognition_freshness_result(project_root: Path, *, command_name: str)
     ):
         fallback_guidance = (
             PATH_INDEX_STALE_FALLBACK_GUIDANCE
-            if next_action == "run_map_scan_build"
+            if has_path_index_reason
             else STALE_FALLBACK_GUIDANCE
         )
+        errors = [fallback_guidance] if has_path_index_reason else reasons or [fallback_guidance]
         return HookResult(
             event="project_cognition.refresh.validate",
             status="blocked",
             severity="critical",
-            errors=reasons or [fallback_guidance],
+            errors=errors,
             data={"freshness": freshness},
         )
     if state == "support_drift" and normalized in STALE_BLOCK_COMMANDS:

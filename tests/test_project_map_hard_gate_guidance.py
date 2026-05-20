@@ -149,14 +149,14 @@ def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monke
     assert "/sp-map-update" in unknown.warnings[0]
 
 
-def test_project_map_hook_blocks_path_index_stale_runtime_with_scan_build_guidance(monkeypatch) -> None:
+def test_project_map_hook_blocks_path_index_stale_runtime_with_map_update_guidance(monkeypatch) -> None:
     def path_index_stale(_project_root: Path) -> dict[str, object]:
         return {
             "freshness": "stale",
             "state": "runtime_stale",
             "readiness": "blocked",
-            "recommended_next_action": "run_map_scan_build",
-            "reasons": [],
+            "recommended_next_action": "run_map_update",
+            "reasons": ["58 changed paths missing from project cognition path_index"],
         }
 
     monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", path_index_stale)
@@ -166,9 +166,11 @@ def test_project_map_hook_blocks_path_index_stale_runtime_with_scan_build_guidan
     assert blocked.status == "blocked"
     assert blocked.errors == [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
     assert "path_index" in blocked.errors[0]
-    assert "/sp-map-scan -> /sp-map-build" in blocked.errors[0]
-    assert "adoptable paths can receive provisional coverage" in blocked.errors[0]
-    assert "only when the path-index gap is unadoptable" in blocked.errors[0]
+    assert "/sp-map-update" in blocked.errors[0]
+    assert "ordinary gaps can receive provisional coverage" in blocked.errors[0]
+    assert "explicit_rebuild_requested" in blocked.errors[0]
+    assert "baseline_identity_invalid" in blocked.errors[0]
+    assert "only when the path-index gap is unadoptable" not in blocked.errors[0]
 
 
 def test_project_cognition_gate_alias_matches_project_map_gate(monkeypatch) -> None:

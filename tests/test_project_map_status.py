@@ -474,7 +474,7 @@ def test_assess_project_map_freshness_reports_partial_refresh_when_recorded_upda
     assert any("partial" in reason.lower() for reason in result["reasons"])
 
 
-def test_assess_project_map_freshness_routes_path_index_dirty_gap_to_scan_build(tmp_path):
+def test_assess_project_map_freshness_routes_path_index_dirty_gap_to_map_update(tmp_path):
     mod = _load_module()
     _write_cognition_baseline(tmp_path)
 
@@ -495,7 +495,7 @@ def test_assess_project_map_freshness_routes_path_index_dirty_gap_to_scan_build(
     assert result["state"] == "runtime_stale"
     assert result["readiness"] == "blocked"
     assert result["dirty_origin_command"] == "sp-map-update"
-    assert result["recommended_next_action"] == "run_map_scan_build"
+    assert result["recommended_next_action"] == "run_map_update"
 
 
 def test_assess_project_map_freshness_routes_singular_coverage_reason_to_map_update(tmp_path):
@@ -520,7 +520,7 @@ def test_assess_project_map_freshness_routes_singular_coverage_reason_to_map_upd
     assert result["recommended_next_action"] == "run_map_update"
 
 
-def test_assess_project_map_freshness_routes_unadoptable_coverage_reason_to_scan_build(tmp_path):
+def test_assess_project_map_freshness_routes_unadoptable_coverage_reason_to_map_update(tmp_path):
     mod = _load_module()
     _write_cognition_baseline(tmp_path)
 
@@ -539,6 +539,46 @@ def test_assess_project_map_freshness_routes_unadoptable_coverage_reason_to_scan
 
     assert result["freshness"] == "stale"
     assert result["readiness"] == "blocked"
+    assert result["recommended_next_action"] == "run_map_update"
+
+
+def test_assess_project_map_freshness_routes_explicit_rebuild_token_to_scan_build(tmp_path):
+    mod = _load_module()
+    status = mod.ProjectMapStatus(
+        freshness="stale",
+        last_mapped_commit="abc123",
+        dirty=True,
+        dirty_reasons=["explicit_rebuild_requested"],
+    )
+    mod.write_project_map_status(tmp_path, status)
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="def456",
+        changed_files=[],
+        has_git=True,
+    )
+
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+def test_assess_project_map_freshness_routes_baseline_identity_invalid_to_scan_build(tmp_path):
+    mod = _load_module()
+    status = mod.ProjectMapStatus(
+        freshness="stale",
+        last_mapped_commit="abc123",
+        dirty=True,
+        dirty_reasons=["baseline_identity_invalid"],
+    )
+    mod.write_project_map_status(tmp_path, status)
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="def456",
+        changed_files=[],
+        has_git=True,
+    )
+
     assert result["recommended_next_action"] == "run_map_scan_build"
 
 
@@ -581,7 +621,7 @@ def test_assess_project_map_freshness_preserves_blocked_stale_status_without_dir
     assert result["dirty"] is False
     assert result["dirty_origin_command"] == "sp-map-update"
     assert result["reasons"] == ["58 changed paths missing from project cognition path_index"]
-    assert result["recommended_next_action"] == "run_map_scan_build"
+    assert result["recommended_next_action"] == "run_map_update"
 
 
 def test_assess_project_map_freshness_ignores_reference_only_project_map_changes(tmp_path):
