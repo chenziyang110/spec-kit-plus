@@ -10,9 +10,6 @@ from typing import Sequence
 
 AUTO_ADOPT_LIMIT = 10
 REVIEW_LIMIT = 5
-UNCLASSIFIED_REBUILD_LIMIT = 25
-UNRELATED_TOP_LEVEL_REBUILD_LIMIT = 3
-UNADOPTABLE_RATIO_REBUILD_THRESHOLD = 0.40
 
 _CORE_LIVE_SURFACE_PREFIXES = (
     ".github/",
@@ -117,24 +114,16 @@ def classify_path_coverage(
         if adoptable is not None:
             adoptable_paths.append(adoptable)
         elif _is_core_live_surface(path):
-            unadoptable_paths.append(path)
-            reasons.append(f"core live surface path has no indexed sibling: {path}")
+            uncertain_paths.append(path)
+            reasons.append(f"core live surface path needs review before adoption: {path}")
         else:
             uncertain_paths.append(path)
 
-    rebuild_reasons = _rebuild_reasons(
+    review_reasons = _review_reasons(
         missing_paths=normalized_missing_paths,
         indexed_paths=indexed_paths,
         uncertain_paths=uncertain_paths,
-        unadoptable_paths=unadoptable_paths,
     )
-    if rebuild_reasons:
-        return PathCoverageClassification(
-            query_coverage="unadoptable_path_gap",
-            recommended_next_action="run_map_scan_build",
-            unadoptable_paths=normalized_missing_paths,
-            reasons=[*reasons, *rebuild_reasons],
-        )
 
     if uncertain_paths:
         return PathCoverageClassification(
@@ -142,18 +131,15 @@ def classify_path_coverage(
             recommended_next_action="perform_minimal_live_reads",
             adoptable_paths=adoptable_paths,
             review_paths=uncertain_paths,
-            reasons=(
-                reasons
-                if len(uncertain_paths) <= REVIEW_LIMIT
-                else [*reasons, f"more than {REVIEW_LIMIT} uncertain missing paths need review"]
-            ),
+            reasons=[*reasons, *review_reasons],
         )
 
     if unadoptable_paths:
         return PathCoverageClassification(
-            query_coverage="unadoptable_path_gap",
-            recommended_next_action="run_map_scan_build",
-            unadoptable_paths=unadoptable_paths,
+            query_coverage="uncertain_path_gap",
+            recommended_next_action="perform_minimal_live_reads",
+            adoptable_paths=adoptable_paths,
+            review_paths=unadoptable_paths,
             reasons=reasons,
         )
 
@@ -222,29 +208,21 @@ def _find_adoptable_path(path: str, indexed_paths: Sequence[IndexedPathRecord]) 
     return None
 
 
-def _rebuild_reasons(
+def _review_reasons(
     *,
     missing_paths: Sequence[str],
     indexed_paths: Sequence[IndexedPathRecord],
     uncertain_paths: Sequence[str],
-    unadoptable_paths: Sequence[str],
 ) -> list[str]:
     reasons: list[str] = []
-    if len(uncertain_paths) > UNCLASSIFIED_REBUILD_LIMIT:
-        reasons.append(f"more than {UNCLASSIFIED_REBUILD_LIMIT} missing paths are unclassified")
+    if len(uncertain_paths) > REVIEW_LIMIT:
+        reasons.append(f"more than {REVIEW_LIMIT} uncertain missing paths need review")
+    if len(uncertain_paths) > 25:
+        reasons.append("more than 25 missing paths are unclassified")
 
     unrelated_top_levels = _unrelated_top_level_count(missing_paths, indexed_paths)
-    if unrelated_top_levels > UNRELATED_TOP_LEVEL_REBUILD_LIMIT:
-        reasons.append(
-            f"more than {UNRELATED_TOP_LEVEL_REBUILD_LIMIT} unrelated top-level live-surface directories are missing"
-        )
-
-    if missing_paths:
-        unadoptable_ratio = len(unadoptable_paths) / len(missing_paths)
-        if unadoptable_ratio > UNADOPTABLE_RATIO_REBUILD_THRESHOLD:
-            reasons.append(
-                f"unadoptable path ratio exceeds {UNADOPTABLE_RATIO_REBUILD_THRESHOLD:.2f}"
-            )
+    if unrelated_top_levels > 3:
+        reasons.append("more than 3 unrelated top-level live-surface directories are missing")
 
     return reasons
 

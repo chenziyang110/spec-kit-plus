@@ -156,9 +156,10 @@ def test_classifies_ordinary_unknown_subproject_batch_as_review(tmp_path: Path) 
     assert any("more than 5" in reason for reason in result.reasons)
 
 
-def test_classifies_many_unrelated_missing_paths_as_unadoptable(tmp_path: Path) -> None:
+def test_classifies_many_unrelated_missing_paths_as_review(tmp_path: Path) -> None:
     generation_id = _seed_indexed_path(tmp_path)
     missing_paths = [f"new_system_{index}/entry.py" for index in range(26)]
+
     with closing(connect_cognition_db(tmp_path)) as conn:
         result = classify_path_coverage(
             conn,
@@ -167,16 +168,17 @@ def test_classifies_many_unrelated_missing_paths_as_unadoptable(tmp_path: Path) 
             requested_paths=missing_paths,
         )
 
-    assert result.query_coverage == "unadoptable_path_gap"
-    assert result.recommended_next_action == "run_map_scan_build"
+    assert result.query_coverage == "uncertain_path_gap"
+    assert result.recommended_next_action == "perform_minimal_live_reads"
     assert result.adoptable_paths == []
-    assert result.review_paths == []
-    assert result.unadoptable_paths == missing_paths
+    assert result.review_paths == missing_paths
+    assert result.unadoptable_paths == []
     assert any("more than 25" in reason for reason in result.reasons)
 
 
-def test_core_surface_without_indexed_sibling_is_unadoptable(tmp_path: Path) -> None:
+def test_core_surface_without_indexed_sibling_requires_review(tmp_path: Path) -> None:
     generation_id = _seed_indexed_path(tmp_path)
+
     with closing(connect_cognition_db(tmp_path)) as conn:
         result = classify_path_coverage(
             conn,
@@ -185,14 +187,17 @@ def test_core_surface_without_indexed_sibling_is_unadoptable(tmp_path: Path) -> 
             requested_paths=["scripts/release/package.ps1"],
         )
 
-    assert result.query_coverage == "unadoptable_path_gap"
-    assert result.recommended_next_action == "run_map_scan_build"
-    assert result.unadoptable_paths == ["scripts/release/package.ps1"]
+    assert result.query_coverage == "uncertain_path_gap"
+    assert result.recommended_next_action == "perform_minimal_live_reads"
+    assert result.adoptable_paths == []
+    assert result.review_paths == ["scripts/release/package.ps1"]
+    assert result.unadoptable_paths == []
     assert any("core live surface" in reason for reason in result.reasons)
 
 
-def test_package_manifest_without_indexed_sibling_is_unadoptable(tmp_path: Path) -> None:
+def test_package_manifest_without_indexed_sibling_requires_review(tmp_path: Path) -> None:
     generation_id = _seed_indexed_path(tmp_path)
+
     with closing(connect_cognition_db(tmp_path)) as conn:
         result = classify_path_coverage(
             conn,
@@ -201,7 +206,25 @@ def test_package_manifest_without_indexed_sibling_is_unadoptable(tmp_path: Path)
             requested_paths=["package.json"],
         )
 
+    assert result.query_coverage == "uncertain_path_gap"
+    assert result.recommended_next_action == "perform_minimal_live_reads"
+    assert result.review_paths == ["package.json"]
+    assert result.unadoptable_paths == []
+
+
+def test_active_generation_without_indexed_paths_is_unusable(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        result = classify_path_coverage(
+            conn,
+            generation_id,
+            missing_paths=["src/auth/session.ts"],
+            requested_paths=["src/auth/session.ts"],
+        )
+
     assert result.query_coverage == "unadoptable_path_gap"
     assert result.recommended_next_action == "run_map_scan_build"
-    assert result.unadoptable_paths == ["package.json"]
-    assert any("core live surface" in reason for reason in result.reasons)
+    assert result.unadoptable_paths == ["src/auth/session.ts"]
+    assert result.reasons == ["active generation has no path_index rows to adopt from"]
