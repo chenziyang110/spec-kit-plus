@@ -53,6 +53,11 @@ def test_quickstart_teaches_user_confirmed_product_scope_not_default_mvp() -> No
     _assert_doc_teaches_user_confirmed_product_scope("docs/quickstart.md")
 
 
+def test_docs_teach_user_confirmed_product_scope_not_default_mvp() -> None:
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "docs/quickstart.md"):
+        _assert_doc_teaches_user_confirmed_product_scope(rel_path)
+
+
 def test_quickstart_declares_integration_specific_invocation_syntax():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

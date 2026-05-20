@@ -184,6 +184,8 @@ Use `deep-research` only when the requirements are clear but feasibility still n
 Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
 When `specify` records an unproven implementation chain after the fixed heavy discovery lifecycle completes, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
+Generated workflows preserve the user's confirmed product scope. Scope reduction requires user confirmation: a smaller MVP, pilot, prototype, or staged delivery boundary is valid only when the user asks for it, the request already defines it, or the agent names a constraint and the user confirms the scope decision.
+
 ### Step 5: Break Down and Implement
 
 **In the chat**, run the `tasks` workflow to create an actionable task list.
@@ -291,7 +293,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 
 Use support skills when they solve a specific gap:
 
-- `map-update` for localized stale cognition refresh recommendations and changed-path map maintenance when you are working in an existing codebase with a usable baseline; use `map-scan` followed by `map-build` only when the user wants repair for a missing, unusable, schema-incompatible, explicitly rebuilt, or architecture-replaced baseline
+- `map-update` for localized stale cognition runtime refresh and changed-path maintenance when you are working in an existing codebase with a usable baseline; use `map-scan` followed by `map-build` only when the baseline is missing, unusable, schema-incompatible, explicitly rebuilt, or architecture-replaced and the user wants repair
 - `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
 - `discussion` to shape a rough idea through resumable senior product and technical discussion before formal specification. It writes `.specify/discussions/<slug>/` artifacts, asks one high-impact question at a time, runs the Context Boundary Gate before technicalizing unclear target/reference/external boundaries, and locks the target project root, current project role, reference source, and evidence source before project-specific claims. It creates exactly one single unified handoff: `handoff-to-specify.md` plus `handoff-to-specify.json` only after explicit handoff request, self-review, and user confirmation. Missing JSON is a hard integrity blocker for downstream intake. The handoff includes `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger. It does not automatically invoke `specify`.
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair

@@ -27,8 +27,8 @@ When there is even a 1% chance the current request is asking you to interpret,
 continue, or recommend a structured workflow, complete route selection before any response or action,
 including a clarifying question, file read, or shell command. The goal is to
 route into the right active `sp-*` workflow when one is already invoked, or to
-recommend the smallest safe workflow without silently entering it when ordinary
-chat or coding is enough.
+recommend the smallest safe workflow route without silently entering it when ordinary
+chat or coding is enough. This command-routing rule does not authorize product-scope minimization.
 
 ## Command Surface Discipline
 
@@ -152,8 +152,8 @@ user what to type:
 ## Behavioral Rules
 
 - Do not replace a user-invoked `sp-*` workflow with ad hoc implementation.
-- If multiple recommendations seem plausible, suggest the smallest safe route and
-  make the next escalation trigger explicit.
+- If multiple workflow recommendations seem plausible, suggest the smallest safe workflow route and make the next escalation trigger explicit.
+- Workflow-route minimization is only about choosing the command surface. Preserve the user's confirmed product scope; do not steer the product toward a smaller MVP, pilot, prototype, or first-story release unless the user asked for that shape or confirmed it after a named constraint/trade-off.
 - If the user intent is effectively "continue with the recommended next step",
   prefer `sp-auto` over guessing which canonical workflow they meant from chat alone.
 - Clean completed `sp-tasks` state with `/sp.implement` should route through `sp-auto` to `sp-implement`.
