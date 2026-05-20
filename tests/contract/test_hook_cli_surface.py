@@ -3197,9 +3197,11 @@ def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(t
 
     monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", support_drift)
 
+    bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
+    assert bootstrap.exit_code == 0
     result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 0
     assert "support" in result.output.lower()
     assert "sp-map-update" not in result.output.lower()
 
@@ -3226,11 +3228,13 @@ def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_bu
 
     monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", partial_refresh)
 
+    bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
+    assert bootstrap.exit_code == 0
     result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 0
     assert "refresh data was recorded" in result.output.lower()
-    assert "still blocked" in result.output.lower()
+    assert "remains partial" in result.output.lower()
 
 
 def test_project_map_preflight_path_index_gap_routes_to_map_update(tmp_path: Path, monkeypatch):
