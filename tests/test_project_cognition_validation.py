@@ -241,6 +241,7 @@ def test_validate_scan_warns_for_non_critical_open_gaps(tmp_path: Path) -> None:
                     "criticality": "low-risk",
                     "owner": "map-scan",
                     "reason": "deferred sample",
+                    "evidence_expectation": "no runtime behavior expected",
                     "revisit_condition": "when sample path changes",
                 }
             ],
@@ -320,7 +321,7 @@ def test_validate_scan_blocks_noncritical_open_gap_without_metadata(tmp_path: Pa
     result = validate_scan_acceptance(tmp_path)
 
     assert result["status"] == "blocked"
-    assert any("open gap" in message and "owner" in message for message in result["errors"])
+    assert any("important" in message.lower() and "open gap" in message for message in result["errors"])
 
 
 def test_validate_scan_blocks_for_critical_open_gaps(tmp_path: Path) -> None:
@@ -343,6 +344,102 @@ def test_validate_scan_blocks_for_critical_open_gaps(tmp_path: Path) -> None:
 
     assert result["status"] == "blocked"
     assert any("critical" in message and "open gap" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_important_open_gaps(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/payments/service.py",
+                    "criticality": "important",
+                    "coverage_state": "unknown",
+                }
+            ],
+            "open_gaps": [
+                {
+                    "criticality": "important",
+                    "reason": "owner unavailable",
+                    "owner": "map-scan",
+                    "revisit_condition": "owner confirms payment service boundaries",
+                }
+            ],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("important" in message.lower() for message in result["errors"])
+
+
+def test_validate_scan_blocks_subagent_blocked_open_gap(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "blocked",
+                }
+            ],
+            "open_gaps": [
+                {
+                    "reason": "subagent_blocked",
+                    "lane_id": "scan-auth",
+                    "packet_id": "packet-auth",
+                    "blocked_scope": ["src/auth"],
+                    "criticality": "critical",
+                    "owner": "map-scan",
+                    "status": "blocked",
+                    "recovery_condition": "rerun scan-auth packet with native subagent dispatch",
+                }
+            ],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("subagent_blocked" in message for message in result["errors"])
+
+
+def test_validate_scan_accepts_low_risk_open_gap_with_required_metadata(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "docs/archive/old-note.md",
+                    "criticality": "low-risk",
+                    "coverage_state": "low_risk_open_gap",
+                }
+            ],
+            "open_gaps": [
+                {
+                    "criticality": "low-risk",
+                    "reason": "archived reference only",
+                    "owner": "map-scan",
+                    "evidence_expectation": "no runtime behavior expected",
+                    "revisit_condition": "file becomes linked from active docs",
+                    "status": "open",
+                }
+            ],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert any("non-critical open gaps" in message for message in result["warnings"])
 
 
 def test_validate_build_blocks_when_db_is_missing(tmp_path: Path) -> None:

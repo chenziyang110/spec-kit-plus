@@ -27,6 +27,20 @@ REQUIRED_TABLES = {
 }
 
 EXPECTED_GRAPH_STORE_PATH = ".specify/project-cognition/project-cognition.db"
+ACCEPTED_COVERAGE_STATES = {"accepted", "complete", "covered", "excluded", "low_risk_open_gap"}
+BLOCKING_CRITICALITIES = {"critical", "important"}
+LOW_RISK_CRITICALITIES = {"low-risk", "low_risk"}
+REQUIRED_LOW_RISK_GAP_FIELDS = ("owner", "reason", "evidence_expectation", "revisit_condition")
+REQUIRED_SUBAGENT_BLOCKED_FIELDS = (
+    "reason",
+    "lane_id",
+    "packet_id",
+    "blocked_scope",
+    "criticality",
+    "owner",
+    "status",
+    "recovery_condition",
+)
 
 
 def _relative(project_root: Path, path: Path) -> str:
@@ -282,15 +296,15 @@ def _check_unresolved_scan_gaps(
     warnings: list[str],
     errors: list[str],
 ) -> None:
-    unresolved_critical_rows = [
+    unresolved_blocking_rows = [
         row
         for row in rows
         if isinstance(row, dict)
-        and str(row.get("criticality", "")).lower() == "critical"
-        and str(row.get("coverage_state", row.get("state", ""))).lower() not in {"accepted", "complete", "covered"}
+        and str(row.get("criticality", "")).lower() in BLOCKING_CRITICALITIES
+        and str(row.get("coverage_state", row.get("state", ""))).lower() not in ACCEPTED_COVERAGE_STATES
     ]
-    if unresolved_critical_rows:
-        errors.append("coverage-ledger.json has unresolved critical rows")
+    if unresolved_blocking_rows:
+        errors.append("coverage-ledger.json has unresolved critical or important rows")
 
     if "open_gaps" not in ledger:
         return
@@ -306,25 +320,36 @@ def _check_unresolved_scan_gaps(
             errors.append(f"coverage-ledger.json open gap {index} must be an object")
             continue
 
+        reason = str(gap.get("reason", "")).strip().lower()
+        status = str(gap.get("status", "")).strip().lower()
+        if reason == "subagent_blocked" or status == "blocked":
+            missing = [field for field in REQUIRED_SUBAGENT_BLOCKED_FIELDS if not gap.get(field)]
+            if missing:
+                errors.append(
+                    f"coverage-ledger.json subagent_blocked open gap {index} is missing "
+                    f"required metadata: {', '.join(missing)}"
+                )
+            else:
+                errors.append("coverage-ledger.json has subagent_blocked open gaps")
+            continue
+
         criticality = str(gap.get("criticality", "")).strip().lower()
-        if criticality not in {"critical", "important", "low-risk"}:
+        if criticality not in BLOCKING_CRITICALITIES | LOW_RISK_CRITICALITIES:
             errors.append(f"coverage-ledger.json open gap {index} has missing or unknown criticality")
             continue
 
-        if criticality == "critical":
-            errors.append("coverage-ledger.json has unresolved critical open gaps")
+        if criticality in BLOCKING_CRITICALITIES:
+            errors.append("coverage-ledger.json has unresolved critical or important open gaps")
             continue
 
         missing_metadata = [
             field
-            for field in ("owner", "reason")
+            for field in REQUIRED_LOW_RISK_GAP_FIELDS
             if not str(gap.get(field, "")).strip()
         ]
-        if not (str(gap.get("revisit_condition", "")).strip() or str(gap.get("revisit", "")).strip()):
-            missing_metadata.append("revisit_condition")
         if missing_metadata:
             errors.append(
-                f"coverage-ledger.json non-critical open gap {index} is missing "
+                f"coverage-ledger.json low-risk open gap {index} is missing "
                 f"required metadata: {', '.join(missing_metadata)}"
             )
             continue

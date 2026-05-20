@@ -1256,6 +1256,51 @@ def test_hook_validate_artifacts_blocks_map_scan_on_malformed_status_shape(tmp_p
     assert any("status.json" in message and "top-level JSON object" in message for message in payload["errors"])
 
 
+def test_map_scan_artifact_validation_blocks_subagent_blocked_gap(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "coverage-ledger.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "rows": [
+                    {
+                        "path": "src/auth/login.ts",
+                        "criticality": "critical",
+                        "coverage_state": "blocked",
+                    }
+                ],
+                "open_gaps": [
+                    {
+                        "reason": "subagent_blocked",
+                        "lane_id": "scan-auth",
+                        "packet_id": "packet-auth",
+                        "blocked_scope": ["src/auth"],
+                        "criticality": "critical",
+                        "owner": "map-scan",
+                        "status": "blocked",
+                        "recovery_condition": "rerun scan-auth packet",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert any("subagent_blocked" in message for message in payload["errors"])
+
+
 def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
