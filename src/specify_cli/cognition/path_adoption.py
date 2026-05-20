@@ -106,7 +106,6 @@ def classify_path_coverage(
 
     adoptable_paths: list[AdoptablePath] = []
     uncertain_paths: list[str] = []
-    unadoptable_paths: list[str] = []
     reasons: list[str] = []
 
     for path in normalized_missing_paths:
@@ -132,15 +131,6 @@ def classify_path_coverage(
             adoptable_paths=adoptable_paths,
             review_paths=uncertain_paths,
             reasons=[*reasons, *review_reasons],
-        )
-
-    if unadoptable_paths:
-        return PathCoverageClassification(
-            query_coverage="uncertain_path_gap",
-            recommended_next_action="perform_minimal_live_reads",
-            adoptable_paths=adoptable_paths,
-            review_paths=unadoptable_paths,
-            reasons=reasons,
         )
 
     if len(adoptable_paths) <= AUTO_ADOPT_LIMIT:
