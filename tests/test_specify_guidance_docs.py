@@ -31,6 +31,28 @@ def test_quickstart_teaches_specify_to_plan_mainline():
     assert "`specify -> plan` as the default path" in quickstart or "specify -> plan -> tasks -> implement" in quickstart
     assert "`specify` -> `deep-research` -> `plan`" in quickstart
 
+
+def _assert_doc_teaches_user_confirmed_product_scope(rel_path: str) -> None:
+    lowered = _read(rel_path).lower()
+
+    assert "scope reduction requires user confirmation" in lowered
+    assert "preserve the user's confirmed product scope" in lowered
+    assert "minimal viable path" not in lowered
+    assert "smallest coherent release slice" not in lowered
+
+
+def test_readme_teaches_user_confirmed_product_scope_not_default_mvp() -> None:
+    _assert_doc_teaches_user_confirmed_product_scope("README.md")
+
+
+def test_project_handbook_teaches_user_confirmed_product_scope_not_default_mvp() -> None:
+    _assert_doc_teaches_user_confirmed_product_scope("PROJECT-HANDBOOK.md")
+
+
+def test_quickstart_teaches_user_confirmed_product_scope_not_default_mvp() -> None:
+    _assert_doc_teaches_user_confirmed_product_scope("docs/quickstart.md")
+
+
 def test_quickstart_declares_integration_specific_invocation_syntax():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

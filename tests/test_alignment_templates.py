@@ -404,9 +404,11 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "clearly greenfield" in lowered
     assert "source-code reads" in lowered
     assert "technical options board" in lowered
-    assert "minimal viable path" in lowered
+    assert "user-intent-aligned path" in lowered
     assert "architecture-correct path" in lowered
     assert "expansion-ready path" in lowered
+    assert "minimal viable path" not in lowered
+    assert "scope reduction requires user confirmation" in lowered
     assert "2-3" in content
 
 
@@ -664,7 +666,10 @@ def test_specify_template_uses_alignment_first_contract():
     assert "confirm which capability should be clarified first while keeping the work in the current spec unless the user explicitly wants separate specs or phased release planning" in content
     assert "Do not spend one clarification pass collecting requirements for multiple independent capabilities." in content
     assert "If the request is already one bounded capability, say so briefly and continue inside the current spec." in content
-    assert "first-release scope" in lowered
+    assert "confirmed product scope" in lowered
+    assert "user-confirmed delivery sequence" in lowered
+    assert "scope reduction requires user confirmation" in lowered
+    assert "first-release scope" not in lowered
     assert "mvp scope" not in lowered
     assert 'choose_subagent_dispatch(command_name="specify"' in content
     assert "execution_model: subagent-mandatory" in lowered
@@ -1589,7 +1594,9 @@ def test_spec_template_defines_scope_boundaries_without_open_clarification_examp
     assert "### Configuration and Rollout Notes" in content
     assert "retention, archival, or cleanup concern" in content
     assert "[NEEDS CLARIFICATION:" not in content
-    assert "coherent first release" in lowered
+    assert "confirmed product outcome" in lowered
+    assert "user-confirmed delivery boundary" in lowered
+    assert "coherent first release" not in lowered
     assert "viable mvp" not in lowered
     assert "scope boundaries" not in lowered
 
@@ -1733,7 +1740,7 @@ def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeo
         assert "workflow-state.md" in content
 
 
-def test_tasks_templates_default_to_phased_delivery_not_mvp():
+def test_tasks_templates_preserve_user_confirmed_delivery_scope_not_mvp():
     command_content = _read("templates/commands/tasks.md")
     template_content = _read("templates/tasks-template.md")
 
@@ -1750,8 +1757,11 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
     assert "boundary-defining references or forbidden drift" in command_content.lower()
     assert "Phase 0: Implementation Guardrails" in template_content
     assert "framework ownership, preserved boundary pattern, forbidden drift, and review checks" in template_content
-    assert "phased delivery" in command_content.lower()
-    assert "suggested first release scope" in command_content.lower()
+    assert "user-confirmed delivery sequence" in command_content.lower()
+    assert "confirmed delivery scope" in command_content.lower()
+    assert "scope reduction requires user confirmation" in command_content.lower()
+    assert "suggested first release scope" not in command_content.lower()
+    assert "smallest coherent release slice" not in command_content.lower()
     assert "parallel batch" in command_content.lower()
     assert "join point" in command_content.lower()
     assert "write set" in command_content.lower()
@@ -1762,8 +1772,11 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
     assert "mvp first" not in command_content.lower()
     assert "suggested mvp scope" not in command_content.lower()
 
-    assert "phased delivery" in template_content.lower()
-    assert "first release candidate" in template_content.lower()
+    assert "user-confirmed delivery sequence" in template_content.lower()
+    assert "confirmed delivery boundary" in template_content.lower()
+    assert "first release candidate" not in template_content.lower()
+    assert "release/demo if ready" not in template_content.lower()
+    assert "release/demo" not in template_content.lower()
     assert "parallel batch" in template_content.lower()
     assert "join point" in template_content.lower()
     assert "write set" in template_content.lower()
@@ -1772,6 +1785,41 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
     assert "mvp first" not in template_content.lower()
     assert "mvp increment" not in template_content.lower()
     assert "mvp!" not in template_content.lower()
+
+
+def test_generated_workflow_templates_do_not_default_to_product_minimization() -> None:
+    checked_paths = [
+        "templates/commands/discussion.md",
+        "templates/commands/specify.md",
+        "templates/commands/clarify.md",
+        "templates/commands/deep-research.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/spec-template.md",
+        "templates/plan-template.md",
+        "templates/tasks-template.md",
+    ]
+    forbidden = [
+        "minimal viable path",
+        "smallest coherent release slice",
+        "suggested mvp scope",
+        "mvp first",
+        "mvp increment",
+        "mvp!",
+        "first story release",
+        "user story 1 - [title] (priority: p1) first release candidate",
+        "release/demo if ready",
+        "smallest integration scenario",
+    ]
+
+    for rel_path in checked_paths:
+        lowered = _read(rel_path).lower()
+        for phrase in forbidden:
+            assert phrase not in lowered, f"{phrase!r} should not appear in {rel_path}"
+
+    specify = _read("templates/commands/specify.md").lower()
+    assert "do not treat product minimization as the default strategy" in specify
+    assert "scope reduction requires user confirmation" in specify
 
 
 def test_shared_workflow_templates_mark_hard_gates_with_agent_marker() -> None:

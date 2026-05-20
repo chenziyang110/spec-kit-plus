@@ -33,6 +33,37 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
 
 
+def test_workflow_routing_distinguishes_command_route_from_product_scope() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
+    paragraphs = [" ".join(paragraph.split()) for paragraph in content.split("\n\n")]
+    product_scope_terms = (
+        "minimization",
+        "minimize",
+        "smaller",
+        "mvp",
+        "pilot",
+        "prototype",
+        "scope reduction",
+        "reduce scope",
+        "shrink scope",
+    )
+
+    assert any(
+        ("workflow" in paragraph or "command" in paragraph)
+        and any(term in paragraph for term in ("route", "routing", "recommend", "recommendation", "selection"))
+        for paragraph in paragraphs
+    )
+    assert any(
+        "product" in paragraph
+        and "scope" in paragraph
+        and ("workflow" in paragraph or "route" in paragraph or "command" in paragraph)
+        and any(term in paragraph for term in product_scope_terms)
+        for paragraph in paragraphs
+    )
+    assert "confirmed" in content
+    assert "user" in content
+
+
 def test_project_to_prd_routes_existing_project_prd_extraction() -> None:
     content = _read("templates/passive-skills/project-to-prd/SKILL.md").lower()
 
