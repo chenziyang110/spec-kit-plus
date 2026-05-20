@@ -541,6 +541,13 @@ refresh_plan_for_dirty_reason() {
 }
 
 scan_build_allowed_reason() {
+    local allowed_tokens=(
+        "active_generation_has_no_path_index_rows"
+        "baseline_identity_invalid"
+        "explicit_rebuild_requested"
+        "failed_update_unusable_baseline"
+        "path_not_safely_adoptable_by_project_cognition_index"
+    )
     if command -v python3 >/dev/null 2>&1; then
         python3 - "$@" <<'PY'
 import json
@@ -570,6 +577,24 @@ sys.exit(1)
 PY
         return $?
     fi
+
+    local payload remaining value normalized token
+    for payload in "$@"; do
+        remaining="$payload"
+        while [[ "$remaining" == *\"* ]]; do
+            remaining="${remaining#*\"}"
+            value="${remaining%%\"*}"
+            remaining="${remaining#*\"}"
+            normalized="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | tr '-' '_')"
+            normalized="${normalized#"${normalized%%[![:space:]]*}"}"
+            normalized="${normalized%"${normalized##*[![:space:]]}"}"
+            for token in "${allowed_tokens[@]}"; do
+                if [[ "$normalized" == "$token" || "$normalized" == "$token":* ]]; then
+                    return 0
+                fi
+            done
+        done
+    done
 
     return 1
 }

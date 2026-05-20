@@ -54,6 +54,48 @@ def _run_bash(repo: Path, *args: str) -> dict:
     return json.loads(result.stdout)
 
 
+def _run_bash_scan_build_helper_without_python3(repo: Path, *payloads: str) -> str:
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("bash not available")
+    source = BASH_HELPER.read_text(encoding="utf-8")
+    start = source.index("scan_build_allowed_reason() {")
+    end = source.index("\nemit_check_json()", start)
+    helper_function = source[start:end]
+    wrapper = repo / "scripts" / "bash" / "run-scan-build-helper-no-python3.sh"
+    wrapper.write_text(
+        f"""
+#!/usr/bin/env bash
+set -euo pipefail
+tmp_bin="$(mktemp -d)"
+trap 'rm -rf "$tmp_bin"' EXIT
+for cmd in tr rm; do
+    target="$(command -v "$cmd")"
+    ln -s "$target" "$tmp_bin/$cmd"
+done
+PATH="$tmp_bin"
+{helper_function}
+if scan_build_allowed_reason "$@"; then
+    printf 'allowed\\n'
+else
+    printf 'denied\\n'
+fi
+""".lstrip(),
+        encoding="utf-8",
+        newline="\n",
+    )
+    result = subprocess.run(
+        [bash, "scripts/bash/run-scan-build-helper-no-python3.sh", *payloads],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.stdout.strip()
+
+
 def _run_bash_raw(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     if not shutil.which("bash"):
         pytest.skip("bash not available")
@@ -439,6 +481,34 @@ def test_bash_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo:
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_update"
+
+
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        ('["explicit_rebuild_requested"]', "allowed"),
+        ('["baseline_identity_invalid"]', "allowed"),
+        ('["active_generation_has_no_path_index_rows"]', "allowed"),
+        ('["failed_update_unusable_baseline"]', "allowed"),
+        ('["path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1"]', "allowed"),
+        (
+            '["operator note: explicit_rebuild_requested is documented here, not asserted as a machine token"]',
+            "denied",
+        ),
+        ('["operator note: baseline_identity_invalid appears in guidance, but this is prose"]', "denied"),
+    ],
+)
+def test_bash_scan_build_allowlist_fallback_without_python3_matches_whole_reason_values(
+    git_repo: Path,
+    payload: str,
+    expected: str,
+):
+    result = _run_bash_scan_build_helper_without_python3(
+        git_repo,
+        payload,
+    )
+
+    assert result == expected
 
 
 def test_bash_project_cognition_helper_uses_launcher_without_project_map(git_repo: Path):
