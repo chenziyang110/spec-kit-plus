@@ -108,6 +108,7 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
             "unadoptable " + "coverage gaps",
             "blocked by " + "unadoptable",
             "unadoptable " + "path-index gaps",
+            "when the user wants " + "map repair",
         ):
             assert stale_phrase not in content
         if "sp-debug" in rel:

@@ -98,8 +98,7 @@ standalone branch-creation command.
   map maintenance first, including ordinary existing-baseline gaps.
 - Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build
   only for missing or unusable baseline, schema failure, zero active-generation
-  path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
-  when the user wants map repair first.
+  path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - Use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.
