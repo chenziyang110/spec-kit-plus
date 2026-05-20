@@ -68,7 +68,8 @@ Treat runtime freshness as map-quality diagnostics:
 - `fresh` -> use the returned task-local bundle as an advisory first pass navigation aid
 - `missing` -> if cognition freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance
 - `stale` -> if cognition freshness is `stale`, treat map output as advisory and continue with live repository evidence; recommend `{{invoke:map-update}}` as follow-up map maintenance
-- `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `sp-map-scan -> sp-map-build` only if the user wants map repair
+- `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps.
+  Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
 - `support_drift` -> warn and continue with live repository evidence; recommend resolving or intentionally ignoring support-surface drift
 - `partial_refresh` -> warn that refresh data was recorded but readiness did not pass; continue with live repository evidence
 - `possibly_stale` -> inspect the returned affected scope when useful, then continue with live repository evidence

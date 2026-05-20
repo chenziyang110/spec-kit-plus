@@ -2082,9 +2082,11 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     debug_template = _read("templates/commands/debug.md")
     build_template = _read("templates/commands/implement.md")
     shared_gate = _read("templates/command-partials/common/context-loading-gradient.md")
+    planning_shared_gate = _read("templates/command-partials/common/planning-context-loading-gradient.md")
     navigation_shim = _read("templates/command-partials/common/navigation-check.md")
     lowered = build_template.lower()
     lowered_gate = shared_gate.lower()
+    lowered_planning_gate = planning_shared_gate.lower()
     lowered_shim = navigation_shim.lower()
 
     assert "DEBUG-HANDBOOK.md" not in debug_template
@@ -2100,6 +2102,11 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert "if cognition freshness is `stale`, treat map output as advisory" in shared_gate
     assert "continue with live repository evidence" in shared_gate
     assert "follow-up map maintenance" in shared_gate
+    for gate in (lowered_gate, lowered_planning_gate):
+        assert "changed paths missing from `path_index`" in gate
+        assert "recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps" in gate
+        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
+        assert "recommend `sp-map-scan -> sp-map-build` only if the user wants map repair" not in gate
     assert "cannot create absent path coverage" not in shared_gate
     assert "`support_drift` -> warn and continue with live repository evidence" in shared_gate
     assert "`partial_refresh` -> warn that refresh data was recorded but readiness did not pass" in shared_gate
