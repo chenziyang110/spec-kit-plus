@@ -408,6 +408,7 @@ def test_bash_mark_dirty_routes_normalized_path_gaps_to_map_update(git_repo: Pat
         "explicit_rebuild_requested",
         "baseline_identity_invalid",
         "active_generation_has_no_path_index_rows",
+        "failed_update_unusable_baseline",
         "path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1",
     ],
 )
@@ -420,6 +421,24 @@ def test_bash_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "operator note: explicit_rebuild_requested is documented here, not asserted as a machine token",
+        "operator note: baseline_identity_invalid appears in guidance, but this is prose",
+    ],
+)
+def test_bash_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "manual")
+
+    result = _run_bash(git_repo, "mark-dirty", reason)
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_update"
 
 
 def test_bash_project_cognition_helper_uses_launcher_without_project_map(git_repo: Path):
@@ -555,6 +574,7 @@ def test_powershell_mark_dirty_routes_normalized_path_gaps_to_map_update(git_rep
         "explicit_rebuild_requested",
         "baseline_identity_invalid",
         "active_generation_has_no_path_index_rows",
+        "failed_update_unusable_baseline",
         "path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1",
     ],
 )
@@ -567,6 +587,24 @@ def test_powershell_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(gi
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "operator note: explicit_rebuild_requested is documented here, not asserted as a machine token",
+        "operator note: baseline_identity_invalid appears in guidance, but this is prose",
+    ],
+)
+def test_powershell_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo: Path, reason: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_powershell(git_repo, "record-refresh", "manual")
+
+    result = _run_powershell(git_repo, "mark-dirty", reason)
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_update"
 
 
 def test_project_map_freshness_helpers_classify_support_drift_with_next_action(git_repo: Path):

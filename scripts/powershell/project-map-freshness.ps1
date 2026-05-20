@@ -344,15 +344,22 @@ function Get-RefreshPlanForDirtyReason {
 function Test-ScanBuildAllowedReason {
     param([object[]]$Reasons)
 
-    $reasonText = ($Reasons | ForEach-Object { [string]$_ }) -join " "
-    $normalizedReasonText = $reasonText.ToLowerInvariant().Replace("-", "_")
-    return (
-        $normalizedReasonText.Contains("active_generation_has_no_path_index_rows") -or
-        $normalizedReasonText.Contains("baseline_identity_invalid") -or
-        $normalizedReasonText.Contains("explicit_rebuild_requested") -or
-        $normalizedReasonText.Contains("failed_update_unusable_baseline") -or
-        $normalizedReasonText.Contains("path_not_safely_adoptable_by_project_cognition_index")
+    $allowed = @(
+        "active_generation_has_no_path_index_rows",
+        "baseline_identity_invalid",
+        "explicit_rebuild_requested",
+        "failed_update_unusable_baseline",
+        "path_not_safely_adoptable_by_project_cognition_index"
     )
+    foreach ($reason in $Reasons) {
+        $normalizedReason = ([string]$reason).Trim().ToLowerInvariant().Replace("-", "_")
+        foreach ($token in $allowed) {
+            if ($normalizedReason -eq $token -or $normalizedReason.StartsWith("${token}:")) {
+                return $true
+            }
+        }
+    }
+    return $false
 }
 
 function Emit-CheckResult {

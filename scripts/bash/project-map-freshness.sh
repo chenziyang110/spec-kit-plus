@@ -541,19 +541,36 @@ refresh_plan_for_dirty_reason() {
 }
 
 scan_build_allowed_reason() {
-    local reasons_text="$1"
-    local normalized_reasons
-    normalized_reasons="$(printf '%s' "$reasons_text" | tr '[:upper:]' '[:lower:]' | tr '-' '_')"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$@" <<'PY'
+import json
+import sys
 
-    case "$normalized_reasons" in
-        *active_generation_has_no_path_index_rows*|\
-        *baseline_identity_invalid*|\
-        *explicit_rebuild_requested*|\
-        *failed_update_unusable_baseline*|\
-        *path_not_safely_adoptable_by_project_cognition_index*)
-            return 0
-            ;;
-    esac
+allowed = {
+    "active_generation_has_no_path_index_rows",
+    "baseline_identity_invalid",
+    "explicit_rebuild_requested",
+    "failed_update_unusable_baseline",
+    "path_not_safely_adoptable_by_project_cognition_index",
+}
+
+for payload in sys.argv[1:]:
+    try:
+        values = json.loads(payload) if payload else []
+    except Exception:
+        values = [payload]
+    if not isinstance(values, list):
+        values = [values]
+    for value in values:
+        normalized = str(value or "").strip().lower().replace("-", "_")
+        if normalized in allowed or any(normalized.startswith(f"{token}:") for token in allowed):
+            sys.exit(0)
+
+sys.exit(1)
+PY
+        return $?
+    fi
+
     return 1
 }
 
@@ -586,7 +603,7 @@ emit_check_json() {
             state="runtime_stale"
             readiness="blocked"
             recommended_next_action="run_map_update"
-            if scan_build_allowed_reason "$reasons_json $dirty_reasons_json"; then
+            if scan_build_allowed_reason "$reasons_json" "$dirty_reasons_json"; then
                 recommended_next_action="run_map_scan_build"
             fi
             ;;
