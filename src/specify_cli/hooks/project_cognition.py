@@ -7,6 +7,7 @@ from pathlib import Path
 from specify_cli.cognition import validate_build_acceptance
 from specify_cli.execution import worker_task_packet_from_json
 from specify_cli.project_cognition_status import (
+    HUMAN_GUIDANCE_REASONS,
     SCAN_BUILD_ALLOWED_REASON_TOKENS,
     complete_project_map_refresh,
     git_branch_name,
@@ -67,7 +68,7 @@ HUMAN_FALLBACK_GUIDANCE = {
     SUPPORT_DRIFT_FALLBACK_GUIDANCE,
     PARTIAL_REFRESH_FALLBACK_GUIDANCE,
     MISSING_BASELINE_FALLBACK_GUIDANCE,
-}
+} | HUMAN_GUIDANCE_REASONS
 
 
 def project_cognition_freshness_result(project_root: Path, *, command_name: str) -> HookResult:

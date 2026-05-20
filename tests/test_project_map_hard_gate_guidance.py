@@ -201,6 +201,30 @@ def test_project_map_hook_ignores_guidance_path_index_when_selecting_fallback(mo
     assert blocked.errors != [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
 
 
+def test_project_map_hook_ignores_status_guidance_tokens_when_selecting_path_index_fallback(monkeypatch) -> None:
+    def path_index_stale_with_status_guidance(_project_root: Path) -> dict[str, object]:
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_update",
+            "reasons": [
+                "58 changed paths missing from project cognition path_index",
+                STALE_COGNITION_BASELINE_GUIDANCE,
+            ],
+        }
+
+    monkeypatch.setattr(
+        "specify_cli.hooks.project_cognition.inspect_project_cognition_freshness",
+        path_index_stale_with_status_guidance,
+    )
+
+    blocked = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+
+    assert blocked.status == "blocked"
+    assert blocked.errors == [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
+
+
 def test_project_map_hook_preserves_zero_path_index_rebuild_reason(monkeypatch) -> None:
     def zero_path_index_rebuild(_project_root: Path) -> dict[str, object]:
         return {
