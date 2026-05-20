@@ -14,6 +14,12 @@ from .status import read_cognition_status, write_cognition_status
 from specify_cli.scan_freshness import cognition_ignored_paths, filter_cognition_ignored_paths
 
 
+SCAN_BUILD_REASON_TOKENS = {
+    "baseline_identity_invalid",
+    "explicit_rebuild_requested",
+}
+
+
 def apply_cognition_update(
     project_root: Path,
     *,
@@ -120,8 +126,7 @@ def apply_cognition_update(
         )
 
     status = read_cognition_status(project_root)
-    has_prior_path_coverage_gap = _has_path_coverage_gap([*status.dirty_reasons, *status.stale_reasons])
-    has_prior_unadoptable_path_gap = _has_unadoptable_path_gap([*status.dirty_reasons, *status.stale_reasons])
+    has_scan_build_allowed_reason = _has_scan_build_allowed_reason([*status.dirty_reasons, *status.stale_reasons])
     status.last_update_id = update_id
     status.last_refresh_reason = reason
     status.last_refresh_scope = "partial"
@@ -134,15 +139,15 @@ def apply_cognition_update(
         status.stale_reasons = list(missing_coverage)
         status.dirty_reasons = list(missing_coverage)
         status.dirty_origin_command = "sp-map-update"
-    elif result_state == "review" and not has_prior_unadoptable_path_gap:
-        status.baseline_state = "ready" if status.graph_ready else status.baseline_state
+    elif result_state == "review" and not has_scan_build_allowed_reason:
+        _mark_status_baseline_ready(status, generation_id)
         status.freshness = "possibly_stale"
         status.stale_paths = list(review_paths)
         status.stale_reasons = list(missing_coverage)
         status.dirty_reasons = []
         status.dirty_origin_command = ""
-    elif result_state == "ready" and not has_prior_unadoptable_path_gap:
-        status.baseline_state = "ready" if status.graph_ready else status.baseline_state
+    elif result_state == "ready" and not has_scan_build_allowed_reason:
+        _mark_status_baseline_ready(status, generation_id)
         if adopted_paths or not missing_paths:
             status.freshness = "fresh"
         status.stale_paths = []
@@ -152,10 +157,9 @@ def apply_cognition_update(
     elif (
         status.baseline_state == "blocked"
         and status.dirty_origin_command == "sp-map-update"
-        and not has_prior_path_coverage_gap
-        and not has_prior_unadoptable_path_gap
+        and not has_scan_build_allowed_reason
     ):
-        status.baseline_state = "ready" if status.graph_ready else status.baseline_state
+        _mark_status_baseline_ready(status, generation_id)
         status.stale_paths = []
         status.stale_reasons = []
         status.dirty_reasons = []
@@ -178,22 +182,17 @@ def apply_cognition_update(
     }
 
 
-def _has_path_coverage_gap(reasons: list[str]) -> bool:
-    reason_text = " ".join(str(reason or "") for reason in reasons).lower()
-    compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
-    return any(
-        token in compact_reason_text
-        for token in (
-            "path_index_coverage_missing",
-            "path_not_covered_by_project_cognition_index",
-        )
-    ) or ("path_index" in compact_reason_text and "missing" in compact_reason_text)
+def _mark_status_baseline_ready(status: Any, generation_id: str) -> None:
+    status.baseline_state = "ready"
+    status.graph_ready = True
+    status.graph_store_path = status.graph_store_path or ".specify/project-cognition/project-cognition.db"
+    status.active_generation_id = status.active_generation_id or generation_id
 
 
-def _has_unadoptable_path_gap(reasons: list[str]) -> bool:
+def _has_scan_build_allowed_reason(reasons: list[str]) -> bool:
     reason_text = " ".join(str(reason or "") for reason in reasons).lower()
     compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
-    return "path_not_safely_adoptable_by_project_cognition_index" in compact_reason_text
+    return any(token in compact_reason_text for token in SCAN_BUILD_REASON_TOKENS)
 
 
 def _normalize_paths(paths: list[str]) -> list[str]:
