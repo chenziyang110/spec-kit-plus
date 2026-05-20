@@ -290,8 +290,8 @@ def _check_unresolved_scan_gaps(
         row
         for row in rows
         if isinstance(row, dict)
-        and str(row.get("criticality", "")).lower() in BLOCKING_CRITICALITIES
-        and str(row.get("coverage_state", row.get("state", ""))).lower() not in ACCEPTED_COVERAGE_STATES
+        and _normalize_ledger_value(row.get("criticality", "")) in BLOCKING_CRITICALITIES
+        and _normalize_ledger_value(row.get("coverage_state", row.get("state", ""))) not in ACCEPTED_COVERAGE_STATES
     ]
     if unresolved_blocking_rows:
         errors.append("coverage-ledger.json has unresolved critical or important rows")
@@ -376,8 +376,9 @@ def _validate_coverage_ledger(
         return
 
     checked_paths.append(_relative(root, ledger_path))
+    error_count = len(errors)
     ledger = _read_json_object(ledger_path, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
-    if not ledger:
+    if len(errors) > error_count:
         return
 
     _reject_specify_graph_paths(ledger, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
@@ -405,13 +406,17 @@ def _validate_coverage_ledger_rows(rows: list[Any], errors: list[str]) -> None:
             errors.append(f"coverage-ledger.json ledger row {index} must be an object")
             continue
 
-        criticality = str(row.get("criticality", "")).strip().lower()
+        criticality = _normalize_ledger_value(row.get("criticality", ""))
         if criticality not in known_criticalities:
             errors.append(f"coverage-ledger.json ledger row {index} has missing or unknown criticality")
 
-        coverage_state = str(row.get("coverage_state", row.get("state", ""))).strip().lower()
+        coverage_state = _normalize_ledger_value(row.get("coverage_state", row.get("state", "")))
         if not coverage_state:
             errors.append(f"coverage-ledger.json ledger row {index} is missing coverage_state")
+
+
+def _normalize_ledger_value(value: Any) -> str:
+    return str(value).strip().lower()
 
 
 def validate_build_acceptance(project_root: Path) -> dict[str, object]:

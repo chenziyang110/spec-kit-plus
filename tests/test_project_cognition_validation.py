@@ -280,6 +280,19 @@ def test_validate_scan_blocks_empty_ledger_rows(tmp_path: Path) -> None:
     assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
 
 
+def test_validate_scan_blocks_empty_ledger_object(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {},
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
+
+
 def test_validate_scan_blocks_malformed_ledger_rows(tmp_path: Path) -> None:
     _write_complete_scan_package(tmp_path)
     _write_json(
@@ -314,6 +327,50 @@ def test_validate_scan_blocks_ledger_rows_missing_required_fields(tmp_path: Path
     assert result["status"] == "blocked"
     assert any("ledger row 1" in message and "criticality" in message for message in result["errors"])
     assert any("ledger row 1" in message and "coverage_state" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_padded_critical_blocked_ledger_row(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": " critical ",
+                    "coverage_state": " blocked ",
+                }
+            ],
+            "open_gaps": [],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("critical or important rows" in message for message in result["errors"])
+
+
+def test_validate_scan_accepts_padded_critical_covered_ledger_row(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": " critical ",
+                    "coverage_state": " covered ",
+                }
+            ],
+            "open_gaps": [],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["errors"] == []
 
 
 def test_validate_scan_blocks_malformed_open_gaps(tmp_path: Path) -> None:
@@ -731,6 +788,19 @@ def test_validate_build_blocks_malformed_coverage_ledger_rows(tmp_path: Path) ->
     assert any("ledger row 1" in message and "object" in message for message in result["errors"])
 
 
+def test_validate_build_blocks_empty_coverage_ledger_object(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {},
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
+
+
 def test_validate_build_blocks_unresolved_important_coverage_ledger_rows(tmp_path: Path) -> None:
     _seed_query_ready_runtime(tmp_path)
     _write_json(
@@ -752,6 +822,52 @@ def test_validate_build_blocks_unresolved_important_coverage_ledger_rows(tmp_pat
 
     assert result["status"] == "blocked"
     assert any("critical or important rows" in message for message in result["errors"])
+
+
+def test_validate_build_blocks_padded_critical_blocked_coverage_ledger_row(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": " critical ",
+                    "coverage_state": " blocked ",
+                }
+            ],
+            "open_gaps": [],
+        },
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("critical or important rows" in message for message in result["errors"])
+
+
+def test_validate_build_accepts_padded_critical_covered_coverage_ledger_row(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": " critical ",
+                    "coverage_state": " covered ",
+                }
+            ],
+            "open_gaps": [],
+        },
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["errors"] == []
 
 
 def test_validate_build_blocks_cognitionignored_runtime_paths(tmp_path: Path) -> None:
