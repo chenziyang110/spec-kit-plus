@@ -137,19 +137,16 @@ def classify_path_coverage(
         )
 
     if uncertain_paths:
-        if len(uncertain_paths) <= REVIEW_LIMIT:
-            return PathCoverageClassification(
-                query_coverage="uncertain_path_gap",
-                recommended_next_action="perform_minimal_live_reads",
-                adoptable_paths=adoptable_paths,
-                review_paths=uncertain_paths,
-                reasons=reasons,
-            )
         return PathCoverageClassification(
-            query_coverage="unadoptable_path_gap",
-            recommended_next_action="run_map_scan_build",
-            unadoptable_paths=normalized_missing_paths,
-            reasons=[*reasons, f"more than {REVIEW_LIMIT} uncertain missing paths need review"],
+            query_coverage="uncertain_path_gap",
+            recommended_next_action="perform_minimal_live_reads",
+            adoptable_paths=adoptable_paths,
+            review_paths=uncertain_paths,
+            reasons=(
+                reasons
+                if len(uncertain_paths) <= REVIEW_LIMIT
+                else [*reasons, f"more than {REVIEW_LIMIT} uncertain missing paths need review"]
+            ),
         )
 
     if unadoptable_paths:

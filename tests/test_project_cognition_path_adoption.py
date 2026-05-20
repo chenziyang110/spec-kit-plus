@@ -129,6 +129,33 @@ def test_classifies_small_shared_top_level_gap_as_review(tmp_path: Path) -> None
     assert result.unadoptable_paths == []
 
 
+def test_classifies_ordinary_unknown_subproject_batch_as_review(tmp_path: Path) -> None:
+    generation_id = _seed_indexed_path(tmp_path)
+    missing_paths = [
+        "provider-lab/web/src/App.tsx",
+        "provider-lab/web/src/components/providers/ProviderList.tsx",
+        "provider-lab/web/tests/provider-lab.smoke.ts",
+        "provider-lab/web/tests/smoke/provider-lab.test.tsx",
+        "provider-lab/RELEASE-CHECKLIST.md",
+        "provider-lab/web/src/components/providers/ProviderDetail.tsx",
+    ]
+
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        result = classify_path_coverage(
+            conn,
+            generation_id,
+            missing_paths=missing_paths,
+            requested_paths=missing_paths,
+        )
+
+    assert result.query_coverage == "uncertain_path_gap"
+    assert result.recommended_next_action == "perform_minimal_live_reads"
+    assert result.adoptable_paths == []
+    assert result.review_paths == missing_paths
+    assert result.unadoptable_paths == []
+    assert any("more than 5" in reason for reason in result.reasons)
+
+
 def test_classifies_many_unrelated_missing_paths_as_unadoptable(tmp_path: Path) -> None:
     generation_id = _seed_indexed_path(tmp_path)
     missing_paths = [f"new_system_{index}/entry.py" for index in range(26)]
