@@ -140,6 +140,12 @@ SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE = (
 PARTIAL_REFRESH_COGNITION_BASELINE_GUIDANCE = (
     "Project cognition refresh data was recorded, but runtime readiness is still blocked for the touched area."
 )
+HUMAN_GUIDANCE_REASONS = {
+    MISSING_COGNITION_BASELINE_GUIDANCE,
+    STALE_COGNITION_BASELINE_GUIDANCE,
+    SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE,
+    PARTIAL_REFRESH_COGNITION_BASELINE_GUIDANCE,
+}
 
 FRESHNESS_READY_STATE = "fresh"
 FRESHNESS_RUNTIME_STALE_STATE = "stale"
@@ -595,9 +601,13 @@ def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str])
 
 
 def _has_scan_build_allowed_reason(reasons: list[str]) -> bool:
-    reason_text = " ".join(str(reason or "") for reason in reasons).lower()
+    reason_text = " ".join(_machine_reasons(reasons)).lower()
     compact_reason_text = reason_text.replace("-", "_").replace(" ", "_")
     return any(token in compact_reason_text for token in SCAN_BUILD_ALLOWED_REASON_TOKENS)
+
+
+def _machine_reasons(reasons: list[str]) -> list[str]:
+    return [str(reason or "") for reason in reasons if str(reason or "") not in HUMAN_GUIDANCE_REASONS]
 
 
 def public_state_for_freshness(freshness: str) -> str:

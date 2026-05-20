@@ -395,6 +395,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
         "high-impact project cognition input changed: src/router/index.ts",
         mod.STALE_COGNITION_BASELINE_GUIDANCE,
     ]
+    assert stale["recommended_next_action"] == "run_map_update"
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
@@ -404,6 +405,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
         "codebase surface changed since last cognition baseline: src/feature/local_fix.py",
         mod.STALE_COGNITION_BASELINE_GUIDANCE,
     ]
+    assert maybe["recommended_next_action"] == "run_map_update"
     assert maybe["must_refresh_topics"] == ["STRUCTURE.md"]
     assert maybe["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert maybe["suggested_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]

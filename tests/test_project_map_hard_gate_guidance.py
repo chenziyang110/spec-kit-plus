@@ -173,6 +173,34 @@ def test_project_map_hook_blocks_path_index_stale_runtime_with_map_update_guidan
     assert "only when the path-index gap is unadoptable" not in blocked.errors[0]
 
 
+def test_project_map_hook_ignores_guidance_path_index_when_selecting_fallback(monkeypatch) -> None:
+    def stale_changed_file_with_guidance(_project_root: Path) -> dict[str, object]:
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_update",
+            "reasons": [
+                "high-impact project cognition input changed: src/router/index.ts",
+                PATH_INDEX_STALE_FALLBACK_GUIDANCE,
+            ],
+        }
+
+    monkeypatch.setattr(
+        "specify_cli.hooks.project_cognition.inspect_project_cognition_freshness",
+        stale_changed_file_with_guidance,
+    )
+
+    blocked = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+
+    assert blocked.status == "blocked"
+    assert blocked.errors == [
+        "high-impact project cognition input changed: src/router/index.ts",
+        PATH_INDEX_STALE_FALLBACK_GUIDANCE,
+    ]
+    assert blocked.errors != [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
+
+
 def test_project_cognition_gate_alias_matches_project_map_gate(monkeypatch) -> None:
     def stale_without_reason(_project_root: Path) -> dict[str, object]:
         return {

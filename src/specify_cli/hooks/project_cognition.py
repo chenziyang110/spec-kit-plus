@@ -52,6 +52,13 @@ NON_STALE_FALLBACK_GUIDANCE = (
 MISSING_BASELINE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is missing; create the initial baseline through /sp-map-scan -> /sp-map-build before retrying"
 )
+HUMAN_FALLBACK_GUIDANCE = {
+    STALE_FALLBACK_GUIDANCE,
+    PATH_INDEX_STALE_FALLBACK_GUIDANCE,
+    SUPPORT_DRIFT_FALLBACK_GUIDANCE,
+    PARTIAL_REFRESH_FALLBACK_GUIDANCE,
+    MISSING_BASELINE_FALLBACK_GUIDANCE,
+}
 
 
 def project_cognition_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
@@ -62,7 +69,10 @@ def project_cognition_freshness_result(project_root: Path, *, command_name: str)
     readiness = str(freshness.get("readiness", "")).strip().lower()
     next_action = str(freshness.get("recommended_next_action", "")).strip().lower()
     reasons = [str(item) for item in freshness.get("reasons", []) if str(item).strip()]
-    has_path_index_reason = any("path_index" in reason.lower() or "path-index" in reason.lower() for reason in reasons)
+    machine_reasons = [reason for reason in reasons if reason not in HUMAN_FALLBACK_GUIDANCE]
+    has_path_index_reason = any(
+        "path_index" in reason.lower() or "path-index" in reason.lower() for reason in machine_reasons
+    )
 
     if state == "fresh":
         return HookResult(
