@@ -103,8 +103,7 @@ judgment in an established Spec Kit Plus repository:
 
 - If the project cognition runtime is missing, continue with live repository
   evidence and recommend the canonical `sp-map-scan -> sp-map-build` workflow as
-  follow-up map maintenance unless the user requested map repair first. When
-  giving the user an explicit command to type, write
+  follow-up map maintenance. When giving the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
 - If the project cognition runtime is stale for a localized touched area, continue
   with live repository evidence and recommend `sp-map-update` first when map
@@ -128,7 +127,7 @@ judgment in an established Spec Kit Plus repository:
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
 - Treat map maintenance as a user-invoked workflow handoff unless the user
-  explicitly asked for map repair. Do not silently switch into `sp-map-update`,
+  explicitly asked to refresh cognition runtime state. Do not silently switch into `sp-map-update`,
   `sp-map-scan`, or `sp-map-build` yourself from another workflow; continue with
   live evidence and tell the user which map workflow would refresh the advisory
   navigation layer.

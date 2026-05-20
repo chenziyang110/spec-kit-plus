@@ -81,6 +81,11 @@ STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
     "unadoptable " + "coverage gaps",
     "blocked by " + "unadoptable",
     "unadoptable " + "path-index gaps",
+    "map " + "repair",
+    "first-baseline " + "map " + "repair",
+    "user explicitly requested " + "map " + "repair",
+    "reported map-maintenance action as follow-up " + "unless",
+    "when the user wants " + "map " + "repair",
 )
 
 
@@ -842,6 +847,21 @@ def test_map_update_first_policy_is_locked_in_integration_addenda() -> None:
             raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
 
 
+def test_map_update_first_policy_is_locked_in_shared_command_partials() -> None:
+    surfaces = {
+        "constitution shell": _read("templates/command-partials/constitution/shell.md"),
+        "senior consequence gate": _read("templates/command-partials/common/senior-consequence-analysis-gate.md"),
+    }
+
+    for label, content in surfaces.items():
+        normalized = _normalize_policy_text(content)
+        assert "map-update" in normalized, label
+        assert "ordinary existing-baseline" in normalized or "needs_update" in normalized, label
+        assert "missing or unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized, label
+        for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
+            assert phrase not in normalized, f"{label} contains stale phrase: {phrase}"
+
+
 def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     managed_block = _extract_bash_managed_block(_read("scripts/bash/update-agent-context.sh"))
     routing_skill = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
@@ -936,7 +956,8 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "project rules or learnings that conflict with the amended constitution" in lowered
     assert "project cognition runtime truth" in lowered
     assert "mark the related project cognition compatibility/export surface for refresh" in lowered
-    assert "if the cognition baseline is missing" in lowered
+    assert "ordinary existing-baseline" in lowered
+    assert "missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in lowered
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
@@ -2106,7 +2127,8 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
         assert "changed paths missing from `path_index`" in gate
         assert "recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps" in gate
         assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
-        assert "recommend `sp-map-scan -> sp-map-build` only if the user wants map repair" not in gate
+        stale_scan_build_phrase = "recommend `sp-map-scan -> sp-map-build` only if the user wants " + "map " + "repair"
+        assert stale_scan_build_phrase not in gate
     assert "cannot create absent path coverage" not in shared_gate
     assert "`support_drift` -> warn and continue with live repository evidence" in shared_gate
     assert "`partial_refresh` -> warn that refresh data was recorded but readiness did not pass" in shared_gate

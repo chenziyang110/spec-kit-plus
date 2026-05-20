@@ -9,7 +9,11 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
     "status and debug-oriented slice artifacts",
     "required project cognition status and slice artifacts",
     "graph-native runtime coverage",
-    "when the user wants " + "map repair",
+    "map " + "repair",
+    "first-baseline " + "map " + "repair",
+    "user explicitly requested " + "map " + "repair",
+    "reported map-maintenance action as follow-up " + "unless",
+    "when the user wants " + "map " + "repair",
 )
 
 
