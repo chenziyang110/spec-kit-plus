@@ -603,6 +603,38 @@ def test_validate_scan_accepts_low_risk_open_gap_with_required_metadata(tmp_path
     assert any("non-critical open gaps" in message for message in result["warnings"])
 
 
+def test_validate_scan_blocks_low_risk_row_with_non_string_coverage_state(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "docs/archive/old-note.md",
+                    "criticality": "low-risk",
+                    "coverage_state": [],
+                }
+            ],
+            "open_gaps": [
+                {
+                    "criticality": "low-risk",
+                    "reason": "archived reference only",
+                    "owner": "map-scan",
+                    "evidence_expectation": "no runtime behavior expected",
+                    "revisit_condition": "file becomes linked from active docs",
+                    "status": "open",
+                }
+            ],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("ledger row 1" in message and "coverage_state" in message for message in result["errors"])
+
+
 def test_validate_build_blocks_when_db_is_missing(tmp_path: Path) -> None:
     write_cognition_status(tmp_path, CognitionStatus(version=3, graph_ready=True))
 
@@ -868,6 +900,38 @@ def test_validate_build_accepts_padded_critical_covered_coverage_ledger_row(tmp_
 
     assert result["status"] == "ok"
     assert result["errors"] == []
+
+
+def test_validate_build_blocks_low_risk_row_with_non_string_coverage_state(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "docs/archive/old-note.md",
+                    "criticality": "low-risk",
+                    "coverage_state": [],
+                }
+            ],
+            "open_gaps": [
+                {
+                    "criticality": "low-risk",
+                    "reason": "archived reference only",
+                    "owner": "map-build",
+                    "evidence_expectation": "no runtime behavior expected",
+                    "revisit_condition": "file becomes linked from active docs",
+                    "status": "open",
+                }
+            ],
+        },
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("ledger row 1" in message and "coverage_state" in message for message in result["errors"])
 
 
 def test_validate_build_blocks_cognitionignored_runtime_paths(tmp_path: Path) -> None:

@@ -406,11 +406,21 @@ def _validate_coverage_ledger_rows(rows: list[Any], errors: list[str]) -> None:
             errors.append(f"coverage-ledger.json ledger row {index} must be an object")
             continue
 
-        criticality = _normalize_ledger_value(row.get("criticality", ""))
+        criticality_value = row.get("criticality", "")
+        if not isinstance(criticality_value, str):
+            errors.append(f"coverage-ledger.json ledger row {index} criticality must be a string")
+            criticality = ""
+        else:
+            criticality = _normalize_ledger_value(criticality_value)
         if criticality not in known_criticalities:
             errors.append(f"coverage-ledger.json ledger row {index} has missing or unknown criticality")
 
-        coverage_state = _normalize_ledger_value(row.get("coverage_state", row.get("state", "")))
+        coverage_state_value = row.get("coverage_state", row.get("state", ""))
+        if not isinstance(coverage_state_value, str):
+            errors.append(f"coverage-ledger.json ledger row {index} coverage_state must be a string")
+            coverage_state = ""
+        else:
+            coverage_state = _normalize_ledger_value(coverage_state_value)
         if not coverage_state:
             errors.append(f"coverage-ledger.json ledger row {index} is missing coverage_state")
 
