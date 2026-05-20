@@ -238,25 +238,15 @@ def validate_scan_acceptance(project_root: Path) -> dict[str, object]:
         rows = _require_non_empty_list(coverage, "rows", ".specify/project-cognition/coverage.json", errors)
         details["coverage_rows"] = len(rows)
 
-    ledger_path = run_dir / "workbench" / "coverage-ledger.json"
-    checked_paths.append(_relative(root, ledger_path))
-    ledger = _read_json_object(ledger_path, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
-    if ledger:
-        _reject_specify_graph_paths(ledger, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
-        _reject_cognitionignored_graph_paths(
-            root,
-            ledger,
-            ".specify/project-cognition/workbench/coverage-ledger.json",
-            errors,
-        )
-        rows = _require_non_empty_list(
-            ledger,
-            "rows",
-            ".specify/project-cognition/workbench/coverage-ledger.json",
-            errors,
-        )
-        details["ledger_rows"] = len(rows)
-        _check_unresolved_scan_gaps(rows, ledger, warnings, errors)
+    _validate_coverage_ledger(
+        root,
+        run_dir,
+        required=True,
+        checked_paths=checked_paths,
+        warnings=warnings,
+        errors=errors,
+        details=details,
+    )
 
     packets_path = run_dir / "workbench" / "scan-packets"
     checked_paths.append(_relative(root, packets_path))
@@ -360,6 +350,42 @@ def _check_unresolved_scan_gaps(
         warnings.append("coverage-ledger.json records non-critical open gaps")
 
 
+def _validate_coverage_ledger(
+    root: Path,
+    run_dir: Path,
+    *,
+    required: bool,
+    checked_paths: list[str],
+    warnings: list[str],
+    errors: list[str],
+    details: dict[str, object],
+) -> None:
+    ledger_path = run_dir / "workbench" / "coverage-ledger.json"
+    if not required and not ledger_path.exists():
+        return
+
+    checked_paths.append(_relative(root, ledger_path))
+    ledger = _read_json_object(ledger_path, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
+    if not ledger:
+        return
+
+    _reject_specify_graph_paths(ledger, ".specify/project-cognition/workbench/coverage-ledger.json", errors)
+    _reject_cognitionignored_graph_paths(
+        root,
+        ledger,
+        ".specify/project-cognition/workbench/coverage-ledger.json",
+        errors,
+    )
+    rows = _require_non_empty_list(
+        ledger,
+        "rows",
+        ".specify/project-cognition/workbench/coverage-ledger.json",
+        errors,
+    )
+    details["ledger_rows"] = len(rows)
+    _check_unresolved_scan_gaps(rows, ledger, warnings, errors)
+
+
 def validate_build_acceptance(project_root: Path) -> dict[str, object]:
     """Validate that map-build published a query-ready project cognition runtime."""
 
@@ -424,6 +450,15 @@ def validate_build_acceptance(project_root: Path) -> dict[str, object]:
         errors.append(f".specify/project-cognition/project-cognition.db must open as SQLite: {exc}")
         active_generation_id = ""
 
+    _validate_coverage_ledger(
+        root,
+        run_dir,
+        required=False,
+        checked_paths=checked_paths,
+        warnings=warnings,
+        errors=errors,
+        details=details,
+    )
     _validate_status(status_payload, active_generation_id, errors)
 
     return _result(

@@ -580,6 +580,63 @@ def test_validate_build_accepts_query_ready_runtime(tmp_path: Path) -> None:
     assert result["details"]["active_generation_id"] == "GEN-0001"
 
 
+def test_validate_build_blocks_subagent_blocked_coverage_ledger(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "blocked",
+                }
+            ],
+            "open_gaps": [
+                {
+                    "reason": "subagent_blocked",
+                    "lane_id": "scan-auth",
+                    "packet_id": "packet-auth",
+                    "blocked_scope": ["src/auth"],
+                    "criticality": "critical",
+                    "owner": "map-build",
+                    "status": "blocked",
+                    "recovery_condition": "rerun scan-auth packet with native subagent dispatch",
+                }
+            ],
+        },
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("subagent_blocked" in message for message in result["errors"])
+
+
+def test_validate_build_blocks_unresolved_important_coverage_ledger_rows(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/payments/service.py",
+                    "criticality": "important",
+                    "coverage_state": "unknown",
+                }
+            ],
+            "open_gaps": [],
+        },
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("critical or important rows" in message for message in result["errors"])
+
+
 def test_validate_build_blocks_cognitionignored_runtime_paths(tmp_path: Path) -> None:
     _seed_query_ready_runtime(tmp_path)
     (tmp_path / ".cognitionignore").write_text("src/auth/\n", encoding="utf-8")

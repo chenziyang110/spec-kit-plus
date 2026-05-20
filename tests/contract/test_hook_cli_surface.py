@@ -1348,6 +1348,51 @@ def test_hook_validate_artifacts_accepts_map_build_when_sqlite_database_exists(t
     assert payload["status"] == "ok"
 
 
+def test_map_build_artifact_validation_blocks_subagent_blocked_gap(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    ledger_path = run_dir / "workbench" / "coverage-ledger.json"
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "rows": [
+                    {
+                        "path": "src/auth/login.ts",
+                        "criticality": "critical",
+                        "coverage_state": "blocked",
+                    }
+                ],
+                "open_gaps": [
+                    {
+                        "reason": "subagent_blocked",
+                        "lane_id": "scan-auth",
+                        "packet_id": "packet-auth",
+                        "blocked_scope": ["src/auth"],
+                        "criticality": "critical",
+                        "owner": "map-build",
+                        "status": "blocked",
+                        "recovery_condition": "rerun scan-auth packet",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert any("subagent_blocked" in message for message in payload["errors"])
+
+
 def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_ready(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
