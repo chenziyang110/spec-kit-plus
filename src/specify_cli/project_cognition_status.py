@@ -129,7 +129,9 @@ MISSING_COGNITION_BASELINE_GUIDANCE = (
 )
 STALE_COGNITION_BASELINE_GUIDANCE = (
     "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. "
-    "Rebuild with /sp-map-scan followed by /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps."
+    "Rebuild with /sp-map-scan followed by /sp-map-build only for explicit unusable-baseline conditions: "
+    "baseline is missing, unusable, schema-incompatible, zero active-generation path_index rows, "
+    "explicit_rebuild_requested, or baseline_identity_invalid."
 )
 SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE = (
     "Resolve or intentionally ignore project cognition support-surface drift before retrying; "
@@ -162,8 +164,10 @@ NEXT_ACTION_MAP_SCAN_BUILD = "run_map_scan_build"
 NEXT_ACTION_SUPPORT = "commit_or_ignore_support_files"
 NEXT_ACTION_POLICY = "review_policy_configuration"
 SCAN_BUILD_ALLOWED_REASON_TOKENS = {
+    "active_generation_has_no_path_index_rows",
     "baseline_identity_invalid",
     "explicit_rebuild_requested",
+    "path_not_safely_adoptable_by_project_cognition_index",
 }
 
 TEAM_EXECUTION_PREFIXES = (

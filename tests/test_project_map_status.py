@@ -393,7 +393,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     assert stale["state"] == "runtime_stale"
     assert stale["reasons"] == [
         "high-impact project cognition input changed: src/router/index.ts",
-        "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. Rebuild with /sp-map-scan followed by /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps.",
+        mod.STALE_COGNITION_BASELINE_GUIDANCE,
     ]
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
@@ -402,7 +402,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     assert maybe["state"] == "runtime_stale"
     assert maybe["reasons"] == [
         "codebase surface changed since last cognition baseline: src/feature/local_fix.py",
-        "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. Rebuild with /sp-map-scan followed by /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps.",
+        mod.STALE_COGNITION_BASELINE_GUIDANCE,
     ]
     assert maybe["must_refresh_topics"] == ["STRUCTURE.md"]
     assert maybe["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
@@ -520,7 +520,7 @@ def test_assess_project_map_freshness_routes_singular_coverage_reason_to_map_upd
     assert result["recommended_next_action"] == "run_map_update"
 
 
-def test_assess_project_map_freshness_routes_unadoptable_coverage_reason_to_map_update(tmp_path):
+def test_assess_project_map_freshness_routes_failed_update_unadoptable_reason_to_scan_build(tmp_path):
     mod = _load_module()
     _write_cognition_baseline(tmp_path)
 
@@ -539,7 +539,7 @@ def test_assess_project_map_freshness_routes_unadoptable_coverage_reason_to_map_
 
     assert result["freshness"] == "stale"
     assert result["readiness"] == "blocked"
-    assert result["recommended_next_action"] == "run_map_update"
+    assert result["recommended_next_action"] == "run_map_scan_build"
 
 
 def test_assess_project_map_freshness_routes_explicit_rebuild_token_to_scan_build(tmp_path):
@@ -569,6 +569,26 @@ def test_assess_project_map_freshness_routes_baseline_identity_invalid_to_scan_b
         last_mapped_commit="abc123",
         dirty=True,
         dirty_reasons=["baseline_identity_invalid"],
+    )
+    mod.write_project_map_status(tmp_path, status)
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="def456",
+        changed_files=[],
+        has_git=True,
+    )
+
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+def test_assess_project_map_freshness_routes_zero_active_generation_path_index_to_scan_build(tmp_path):
+    mod = _load_module()
+    status = mod.ProjectMapStatus(
+        freshness="stale",
+        last_mapped_commit="abc123",
+        dirty=True,
+        dirty_reasons=["active_generation_has_no_path_index_rows"],
     )
     mod.write_project_map_status(tmp_path, status)
 
@@ -701,7 +721,7 @@ def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_ref
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
     assert result["reasons"] == [
         "covered topic changed since last partial cognition refresh: src/feature/local_fix.py",
-        "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. Rebuild with /sp-map-scan followed by /sp-map-build only when the baseline is missing, unusable, schema-incompatible, explicitly being rebuilt, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps.",
+        mod.STALE_COGNITION_BASELINE_GUIDANCE,
     ]
 
 
