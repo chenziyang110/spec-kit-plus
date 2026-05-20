@@ -380,6 +380,18 @@ class MarkdownIntegrationTests:
                 assert "fixed chapter ids required for this workflow" not in content
             assert "map-scan" in content
             assert "map-build" in content
+            assert (
+                "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
+                "only for missing or unusable baseline, schema failure, zero active-generation "
+                "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+            ) in content
+            for stale_phrase in (
+                "path-index-" + "incomplete",
+                "unadoptable " + "coverage gaps",
+                "blocked by " + "unadoptable",
+                "unadoptable " + "path-index gaps",
+            ):
+                assert stale_phrase not in content
             if f.name != "sp.debug.md":
                 assert "map-update" in content
 

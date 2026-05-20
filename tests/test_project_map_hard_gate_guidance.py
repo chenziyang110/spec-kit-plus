@@ -170,7 +170,8 @@ def test_project_map_hook_blocks_path_index_stale_runtime_with_map_update_guidan
     assert "ordinary gaps can receive provisional coverage" in blocked.errors[0]
     assert "explicit_rebuild_requested" in blocked.errors[0]
     assert "baseline_identity_invalid" in blocked.errors[0]
-    assert "only when the path-index gap is unadoptable" not in blocked.errors[0]
+    stale_phrase = "only when the path-index gap is " + "unadoptable"
+    assert stale_phrase not in blocked.errors[0]
 
 
 def test_project_map_hook_ignores_guidance_path_index_when_selecting_fallback(monkeypatch) -> None:

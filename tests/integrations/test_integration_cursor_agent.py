@@ -98,6 +98,18 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         assert "crucial first step" in content
         assert "map-scan" in content
         assert "map-build" in content
+        assert (
+            "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
+            "only for missing or unusable baseline, schema failure, zero active-generation "
+            "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+        ) in content
+        for stale_phrase in (
+            "path-index-" + "incomplete",
+            "unadoptable " + "coverage gaps",
+            "blocked by " + "unadoptable",
+            "unadoptable " + "path-index gaps",
+        ):
+            assert stale_phrase not in content
         if "sp-debug" in rel:
             assert "project-cognition query --intent debug" in content
             assert "debug session state" in content

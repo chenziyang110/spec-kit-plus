@@ -70,6 +70,31 @@ def _assert_contains_any(text: str, *needles: str) -> None:
     assert any(needle in text for needle in needles), f"Expected one of: {needles}"
 
 
+MAP_UPDATE_FIRST_POLICY = (
+    "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
+    "only for missing or unusable baseline, schema failure, zero active-generation "
+    "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+)
+
+STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
+    "path-index-" + "incomplete",
+    "unadoptable " + "coverage gaps",
+    "blocked by " + "unadoptable",
+    "unadoptable " + "path-index gaps",
+)
+
+
+def _normalize_policy_text(text: str) -> str:
+    return " ".join(text.lower().replace("`", "").split())
+
+
+def _assert_map_update_first_policy(content: str) -> None:
+    normalized = _normalize_policy_text(content)
+    assert MAP_UPDATE_FIRST_POLICY in normalized
+    for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
+        assert phrase not in normalized
+
+
 def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
     assert f'choose_subagent_dispatch(command_name="{command_name}"' in text
     lowered = text.lower()
@@ -785,6 +810,36 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
     assert "templates/project-map/**` is retained only for legacy compatibility review" in lowered
     assert "`debug-handbook.md` - compatibility/export debug view" in lowered
     assert "`build-handbook.md` - compatibility/export build/change view" in lowered
+
+
+def test_map_update_first_policy_is_locked_in_passive_skills_and_docs() -> None:
+    surfaces = {
+        "project cognition gate": _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"),
+        "workflow routing": _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md"),
+        "README": _read_project_file("README.md"),
+        "quickstart": _read_project_file("docs/quickstart.md"),
+        "project handbook": _read_project_file("PROJECT-HANDBOOK.md"),
+        "project handbook template": _read("templates/project-handbook-template.md"),
+    }
+
+    for label, content in surfaces.items():
+        try:
+            _assert_map_update_first_policy(content)
+        except AssertionError as exc:
+            raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
+
+
+def test_map_update_first_policy_is_locked_in_integration_addenda() -> None:
+    surfaces = {
+        "base integration": _read_project_file("src/specify_cli/integrations/base.py"),
+        "cursor-agent integration": _read_project_file("src/specify_cli/integrations/cursor_agent/__init__.py"),
+    }
+
+    for label, content in surfaces.items():
+        try:
+            _assert_map_update_first_policy(content)
+        except AssertionError as exc:
+            raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
 
 
 def test_templates_lock_cross_project_cognition_reference_rules() -> None:

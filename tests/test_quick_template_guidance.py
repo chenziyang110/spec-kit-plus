@@ -265,7 +265,8 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
     assert "ordinary uncertain closure" in content
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
-    assert "only when the baseline is missing, unusable, schema-incompatible, explicitly requested for rebuild, invalidated by broad architecture replacement, or blocked by unadoptable coverage gaps" in content
+    assert "use map-update for ordinary existing-baseline gaps" in content
+    assert "use map-scan -> map-build only for missing or unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
     assert "complete-refresh" in content
     assert "project-cognition validate-build --format json" in content
     assert "only when build acceptance passes" in content
