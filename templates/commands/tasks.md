@@ -291,7 +291,8 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
     - Parallel opportunities identified
     - Parallel batch count and the join points that gate downstream work
     - Independent test criteria for each story
-    - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
+    - Confirmed delivery scope and user-confirmed delivery sequence, including any user-confirmed deferrals or constraint-driven scope adjustments
+    - Scope reduction requires user confirmation; do not infer a smaller release from User Story 1 or the smallest independently testable story
     - Confirm first-release profile scope stayed within the two supported profiles: `Standard Delivery` and `Reference-Implementation`
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path

@@ -42,7 +42,7 @@
 
 - **Primary users / roles**: [Who this is for]
 - **Problem or opportunity**: [What changes for them]
-- **First-release outcome**: [What a coherent first release must achieve]
+- **Confirmed product outcome**: [What the user-confirmed product scope must achieve]
 
 ## Ideal Complete Requirement Shape
 
@@ -81,8 +81,7 @@ behaviors.
 
 This layer captures the current project-bound delivery boundary.
 
-This layer translates the ideal requirement shape into the bounded slice this
-repository should currently plan and deliver.
+This layer translates the ideal requirement shape into the user-confirmed delivery boundary this repository should currently plan and deliver.
 
 It MUST preserve the intended outcome while making explicit:
 - what behavior remains in scope
@@ -300,5 +299,5 @@ Include this section only when the active workflow profile is `Reference-Impleme
 ### Measurable Outcomes
 
 - **SC-001**: [User- or business-visible outcome that can be verified]
-- **SC-002**: [Measurable expectation tied to the first release]
+- **SC-002**: [Measurable expectation tied to the confirmed product scope]
 - **SC-003**: [Quality, adoption, or completion outcome]

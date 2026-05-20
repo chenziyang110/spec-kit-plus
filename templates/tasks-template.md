@@ -177,7 +177,7 @@ Examples of foundational tasks (adjust based on your project):
 
 ---
 
-## Phase 3: User Story 1 - [Title] (Priority: P1) First Release Candidate
+## Phase 3: User Story 1 - [Title] (Priority: P1)
 
 **Goal**: [Brief description of what this story delivers]
 
@@ -371,20 +371,20 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
   - `low-delegation-confidence`
 - If later batches are parallelizable but the current batch is not, say that explicitly instead of implying the whole feature has no parallelism.
 
-### First Release Candidate
+### Confirmed Delivery Boundary
 
 1. Complete Phase 1: Setup
 2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3: User Story 1
-4. **STOP and VALIDATE**: Test User Story 1 independently
-5. Release/demo if ready
+3. Complete every user story and supporting task included in the confirmed product scope
+4. **STOP and VALIDATE**: Run the representative end-to-end validation scenario from `quickstart.md` and the independent tests for each included story
+5. Treat delivery as ready only when the user-confirmed scope, quality gates, and regression evidence are complete
 
-### Phased Delivery
+### User-Confirmed Delivery Sequence
 
 1. Complete Setup + Foundational → Foundation ready
-2. Add User Story 1 → Test independently → Release/Demo if it forms a coherent first release candidate
-3. Add User Story 2 → Test independently → Release/Demo
-4. Add User Story 3 → Test independently → Release/Demo
+2. Add each confirmed story in priority order or in the user-approved parallel sequence
+3. Test each story independently before dependent work continues
+4. Preserve user-confirmed deferrals and non-goals explicitly; do not infer a smaller release from User Story 1
 5. Each story adds value without breaking previous stories
 
 ### Parallel Team Strategy
