@@ -126,7 +126,7 @@ def apply_cognition_update(
         )
 
     status = read_cognition_status(project_root)
-    has_scan_build_allowed_reason = _has_scan_build_allowed_reason([*status.dirty_reasons, *status.stale_reasons])
+    has_scan_build_allowed_reason = _has_scan_build_allowed_reason(_scan_build_reason_sources(status))
     status.last_update_id = update_id
     status.last_refresh_reason = reason
     status.last_refresh_scope = "partial"
@@ -187,6 +187,14 @@ def _mark_status_baseline_ready(status: Any, generation_id: str) -> None:
     status.graph_ready = True
     status.graph_store_path = status.graph_store_path or ".specify/project-cognition/project-cognition.db"
     status.active_generation_id = status.active_generation_id or generation_id
+
+
+def _scan_build_reason_sources(status: Any) -> list[str]:
+    return [
+        *status.dirty_reasons,
+        *status.stale_reasons,
+        *status.manual_force_stale_reasons,
+    ]
 
 
 def _has_scan_build_allowed_reason(reasons: list[str]) -> bool:

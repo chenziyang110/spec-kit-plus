@@ -600,6 +600,57 @@ def test_review_update_preserves_prior_explicit_scan_build_block(tmp_path: Path)
     assert status.dirty_origin_command == "sp-map-update"
 
 
+def test_review_update_preserves_prior_manual_explicit_rebuild_block(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-update', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'old', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-update', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-update', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+    write_cognition_status(
+        tmp_path,
+        CognitionStatus(
+            baseline_state="blocked",
+            graph_ready=True,
+            freshness="stale",
+            manual_force_stale=True,
+            manual_force_stale_reasons=["explicit_rebuild_requested"],
+        ),
+    )
+
+    review_result = apply_cognition_update(
+        tmp_path,
+        changed_paths=["docs/future/idea.md"],
+        reason="review-gap",
+    )
+
+    assert review_result["readiness"] == "review"
+    assert review_result["review_paths"] == ["docs/future/idea.md"]
+    status = read_cognition_status(tmp_path)
+    assert status.last_update_id == review_result["update_id"]
+    assert status.baseline_state == "blocked"
+    assert status.freshness == "stale"
+    assert status.stale_paths == []
+    assert status.stale_reasons == []
+    assert status.manual_force_stale is True
+    assert status.manual_force_stale_reasons == ["explicit_rebuild_requested"]
+    assert status.dirty_reasons == []
+    assert status.dirty_origin_command == ""
+
+
 def test_apply_cognition_update_does_not_adopt_over_limit_review_paths(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
     generation_id = seed_active_generation(tmp_path, source_commit="abc123")
