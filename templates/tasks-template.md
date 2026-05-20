@@ -100,12 +100,12 @@ Before final handoff to `sp-implement`, confirm:
 
 Audit status keywords should explicitly cover buildable `FR-*`, locked planning decisions, task guardrails, DP readiness, reference fidelity, unmapped tasks, and write-set conflicts.
 
-## Format: `[ID] [P?] [Story] [Agent?] Description`
+## Format: `[ID] [P?] [Story?] Description`
 
 - **[P]**: Can run in parallel only when the task has an isolated write set, no incomplete dependencies, stable upstream inputs, and its own verification path
-- **[AGENT]**: Marks a task or guardrail action the AI must explicitly execute; it is independent from `[P]`
+- **[AGENT]**: Marks a task or guardrail action the AI must explicitly execute in the contract matrix; it is independent from `[P]` and is not a checklist-row label
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- **[Agent]**: Role from the agent-teams pool assigned to this task. Write as `[Agent: <role>]`. Choose from: `security-reviewer`, `test-engineer`, `style-reviewer`, `performance-reviewer`, `quality-reviewer`, `api-reviewer`, `debugger`, `code-simplifier`, `build-fixer`, `git-master`, `executor`. Default to `executor` when no specialist role matches.
+- **Agent role**: Role from the agent-teams pool assigned to this task. Agent roles belong in the task contract matrix and task packet JSON, not in checklist rows. Choose from: `security-reviewer`, `test-engineer`, `style-reviewer`, `performance-reviewer`, `quality-reviewer`, `api-reviewer`, `debugger`, `code-simplifier`, `build-fixer`, `git-master`, `executor`. Default to `executor` when no specialist role matches.
 - **Write set**: Include all files and shared coordination surfaces the task will modify, including routers, registries, export barrels, schema indexes, and dependency injection containers
 - Include exact file paths in descriptions
 
@@ -188,8 +188,8 @@ Examples of foundational tasks (adjust based on your project):
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 **Parallel Batch 1.1**: Independent failing tests with non-overlapping write sets
-- [ ] T013 [P] [US1] [Agent: test-engineer] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T014 [P] [US1] [Agent: test-engineer] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T013 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T014 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
 **Join Point 1.1**: Confirm both tests fail for the expected reasons before writing production code
 Join Point Validation:
 - Validation target: failing contract and integration tests for User Story 1
@@ -199,17 +199,17 @@ Join Point Validation:
 ### Implementation for User Story 1
 
 **Parallel Batch 1.2**: Independent models or DTOs with isolated write sets
-- [ ] T015 [P] [US1] [Agent: executor] Create [Entity1] model in src/models/[entity1].py
-- [ ] T016 [P] [US1] [Agent: executor] Create [Entity2] model in src/models/[entity2].py
+- [ ] T015 [P] [US1] Create [Entity1] model in src/models/[entity1].py
+- [ ] T016 [P] [US1] Create [Entity2] model in src/models/[entity2].py
 **Join Point 1.2**: Resolve any shared exports, registrations, or schema indexes before service work
 Join Point Validation:
 - Validation target: shared exports, registrations, or schema indexes updated after the parallel model batch
 - Validation command: [Smallest trustworthy command or review check for the touched shared surface]
 - Pass condition: downstream service work sees one canonical shared surface update with no conflicting registrations or missing exports
-- [ ] T017 [US1] [Agent: executor] Implement [Service] in src/services/[service].py (depends on T015, T016)
-- [ ] T018 [US1] [Agent: security-reviewer] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
-- [ ] T019 [US1] [Agent: executor] Add validation and error handling
-- [ ] T020 [US1] [Agent: executor] Add logging for user story 1 operations
+- [ ] T017 [US1] Implement [Service] in src/services/[service].py (depends on T015, T016)
+- [ ] T018 [US1] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
+- [ ] T019 [US1] Add validation and error handling
+- [ ] T020 [US1] Add logging for user story 1 operations
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 

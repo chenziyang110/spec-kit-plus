@@ -55,6 +55,16 @@ def test_tasks_template_makes_parallel_tasks_packet_ready_for_leaders():
     assert "task ID, packet field, dependency edge, write-set decision" in content
 
 
+def test_tasks_template_keeps_agent_roles_out_of_checklist_rows():
+    content = _read("templates/tasks-template.md")
+    checklist_lines = [line for line in content.splitlines() if line.startswith("- [ ] T")]
+
+    assert checklist_lines
+    assert not any("[Agent:" in line for line in checklist_lines)
+    assert "## Format: `[ID] [P?] [Story?] Description`" in content
+    assert "Agent roles belong in the task contract matrix and task packet JSON" in content
+
+
 def test_tasks_template_includes_analyze_remediation_mapping_and_self_audit():
     content = _read("templates/tasks-template.md")
     lowered = content.lower()
