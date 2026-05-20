@@ -3176,6 +3176,42 @@ def test_project_map_preflight_path_index_gap_routes_to_map_update(tmp_path: Pat
     assert "sp-map-build" not in result.output.lower()
 
 
+def test_project_map_preflight_scan_build_copy_names_all_rebuild_reasons(tmp_path: Path, monkeypatch):
+    project = _create_project(tmp_path)
+    (project / ".specify" / "integration.json").write_text(
+        json.dumps({"integration": "codex"}),
+        encoding="utf-8",
+    )
+
+    def zero_path_index_rebuild(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_scan_build",
+            "status_path": str(project / ".specify" / "project-cognition" / "status.json"),
+            "reasons": ["active_generation_has_no_path_index_rows"],
+            "changed_files": [],
+            "must_refresh_topics": [],
+            "review_topics": [],
+        }
+
+    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", zero_path_index_rebuild)
+
+    bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
+    assert bootstrap.exit_code == 0
+
+    result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
+
+    assert result.exit_code == 0
+    assert "sp-map-scan" in result.output.lower()
+    assert "sp-map-build" in result.output.lower()
+    assert "active_generation_has_no_path_index_rows" in result.output
+    assert "path_not_safely_adoptable_by_project_cognition_index" in result.output
+    assert "explicit_rebuild_requested" in result.output
+    assert "baseline_identity_invalid" in result.output
+
+
 def test_hook_capture_learning_records_candidate(tmp_path: Path):
     project = _create_project(tmp_path)
 

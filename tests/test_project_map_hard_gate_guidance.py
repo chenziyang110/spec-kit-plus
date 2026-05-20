@@ -201,6 +201,50 @@ def test_project_map_hook_ignores_guidance_path_index_when_selecting_fallback(mo
     assert blocked.errors != [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
 
 
+def test_project_map_hook_preserves_zero_path_index_rebuild_reason(monkeypatch) -> None:
+    def zero_path_index_rebuild(_project_root: Path) -> dict[str, object]:
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_scan_build",
+            "reasons": ["active_generation_has_no_path_index_rows"],
+        }
+
+    monkeypatch.setattr(
+        "specify_cli.hooks.project_cognition.inspect_project_cognition_freshness",
+        zero_path_index_rebuild,
+    )
+
+    blocked = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+
+    assert blocked.status == "blocked"
+    assert blocked.errors == ["active_generation_has_no_path_index_rows"]
+    assert blocked.errors != [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
+
+
+def test_project_map_hook_preserves_unsafe_adoption_rebuild_reason(monkeypatch) -> None:
+    def unsafe_adoption_rebuild(_project_root: Path) -> dict[str, object]:
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_scan_build",
+            "reasons": ["path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1"],
+        }
+
+    monkeypatch.setattr(
+        "specify_cli.hooks.project_cognition.inspect_project_cognition_freshness",
+        unsafe_adoption_rebuild,
+    )
+
+    blocked = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+
+    assert blocked.status == "blocked"
+    assert blocked.errors == ["path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1"]
+    assert blocked.errors != [PATH_INDEX_STALE_FALLBACK_GUIDANCE]
+
+
 def test_project_cognition_gate_alias_matches_project_map_gate(monkeypatch) -> None:
     def stale_without_reason(_project_root: Path) -> dict[str, object]:
         return {

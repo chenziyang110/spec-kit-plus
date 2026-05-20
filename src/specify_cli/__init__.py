@@ -731,7 +731,10 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
         )
     elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
         console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] only when the project cognition baseline is missing or unusable, or when freshness reasons include explicit_rebuild_requested or baseline_identity_invalid."
+            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] only when the project cognition "
+            "baseline is missing or unusable, or when freshness reasons include "
+            "active_generation_has_no_path_index_rows, path_not_safely_adoptable_by_project_cognition_index, "
+            "explicit_rebuild_requested, or baseline_identity_invalid."
         )
     else:
         console.print(
