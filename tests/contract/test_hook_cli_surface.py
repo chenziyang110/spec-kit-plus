@@ -1388,6 +1388,7 @@ def test_map_build_artifact_validation_blocks_subagent_blocked_gap(tmp_path: Pat
         ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
     )
 
+    assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
     assert any("subagent_blocked" in message for message in payload["errors"])
