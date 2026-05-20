@@ -66,29 +66,39 @@ best safe state instead of forcing a rebuild.
 - The user explicitly requests a full rebuild.
 - The current baseline identity is invalid because of broad architecture replacement, not merely because changed paths are numerous or unfamiliar.
 
-## Baseline Identity Invalid Contract
+## Rebuild Reason Contract
 
-Baseline identity invalidation is a structural state, not a path-gap heuristic.
+Existing-baseline rebuild recommendations must use explicit machine reasons.
+User intent and structural invalidation are separate states.
+
+The scan/build-allowed reason tokens are:
+
+- `explicit_rebuild_requested`: the user explicitly requested a full rebuild.
+- `baseline_identity_invalid`: live evidence proves the current active baseline
+  no longer represents the repository's architecture-level identity.
 
 The machine contract is:
 
-- The canonical reason token is `baseline_identity_invalid`.
-- The runtime records this state by setting `CognitionStatus.baseline_state` to
-  `blocked` and including `baseline_identity_invalid` in `dirty_reasons` or
+- The runtime records either state by setting `CognitionStatus.baseline_state` to
+  `blocked` and including the relevant token in `dirty_reasons` or
   `stale_reasons`.
-- When the state is user-initiated, also preserve the explicit user-rebuild
-  reason in `manual_force_stale_reasons` or the update result metadata.
+- When the state is user-initiated, preserve `explicit_rebuild_requested` in
+  `manual_force_stale_reasons` or update result metadata. Do not also set
+  `baseline_identity_invalid` unless architecture-level invalidation is proven.
 - `recommended_next_action=run_map_scan_build`, `readiness=needs_rebuild`, and
   `query_coverage=unadoptable_path_gap` are allowed for an existing baseline
-  only when this token is present or when the baseline is otherwise unusable.
+  only when one of these tokens is present or when the baseline is otherwise
+  unusable.
 
-Who may set it:
+Who may set each token:
 
-- A user-explicit rebuild request may set it directly.
-- Runtime validation may set it when the DB, status file, schema, active
-  generation, or required graph tables cannot be read safely.
-- `map-update` may set it only after live evidence proves the active baseline no
-  longer represents the repository's architecture-level identity.
+- A user-explicit rebuild request may set only `explicit_rebuild_requested`.
+- `map-update` may set `baseline_identity_invalid` only after live evidence
+  proves the active baseline no longer represents the repository's
+  architecture-level identity.
+- Runtime validation may mark the baseline unusable without setting either token
+  when the DB, status file, schema, active generation, or required graph tables
+  cannot be read safely.
 
 What may not set it by itself:
 
@@ -116,7 +126,7 @@ The hardline `map-update` policy only works if the initial baseline is strong.
   file classes, forbidden paths, acceptance checks, and structured handoff format.
 - Require every project-relevant file, entrypoint, branch/control-node category,
   generated surface, workflow surface, test route, and state surface to be either
-  covered or explicitly recorded as excluded, blocked, unknown, or low-risk.
+  covered or explicitly recorded with a non-passing gap state.
 - Maintain a machine-readable coverage ledger that maps repository-universe rows
   to packet ownership, coverage class, evidence rows, and missing-evidence
   reasons.
@@ -138,10 +148,63 @@ The hardline `map-update` policy only works if the initial baseline is strong.
   coverage is missing without an explicit recorded reason.
 
 If subagent dispatch is unavailable for a substantive scan/build lane, the
-workflow should record `subagent-blocked` and stop for recovery instead of
+workflow should record `subagent_blocked` and stop for recovery instead of
 performing an incomplete leader-only broad scan. A weak baseline is worse than a
 blocked baseline because later `map-update` will preserve and extend whatever
 foundation scan/build created.
+
+## Coverage Gap Acceptance Contract
+
+Coverage vocabulary must distinguish accepted coverage from blocking gaps.
+
+Accepted states:
+
+- `covered`: evidence exists and is linked to the expected ledger row.
+- `excluded`: the row is excluded by `.cognitionignore` or a documented
+  project-cognition ignore rule.
+- `low_risk_open_gap`: a non-critical row is intentionally left open with enough
+  metadata to revisit it safely.
+
+Blocking states:
+
+- `unknown`: no safe classification exists.
+- `blocked`: the lane, artifact, source, or handoff could not be completed.
+- `critical_open_gap`: a critical or important row lacks evidence.
+- `subagent_blocked`: a required subagent lane could not run or did not produce
+  an accepted handoff.
+
+Acceptance rules:
+
+- `unknown` blocks scan/build for critical or important rows.
+- `blocked`, `critical_open_gap`, and `subagent_blocked` always block baseline
+  activation.
+- Low-risk unknowns may pass only as `low_risk_open_gap` entries in
+  `coverage-ledger.json.open_gaps[]` with owner, reason, evidence expectation,
+  and revisit condition.
+- Summary-only, idle, or missing subagent output cannot create `covered` rows.
+
+## Subagent Blocked Persistence Contract
+
+When scan/build cannot dispatch or complete a required substantive lane, record
+the block in machine-readable artifacts before stopping:
+
+- `.specify/project-cognition/status.json`: set `baseline_state=blocked`; set
+  `freshness=partial_refresh` if any scan/build artifacts were written or keep
+  `freshness=missing` when no usable baseline artifacts exist; include
+  `subagent_blocked` in `stale_reasons` or `dirty_reasons`.
+- `.specify/project-cognition/workbench/map-state.md`: record
+  `readiness=blocked`, `blocking_reason=subagent_blocked`, the blocked lane ids,
+  blocked scope, and recovery condition.
+- `.specify/project-cognition/workbench/coverage-ledger.json.open_gaps[]`: add
+  one object per blocked packet or lane with
+  `reason="subagent_blocked"`, `lane_id`, `packet_id`, `blocked_scope`,
+  `criticality`, `owner`, `status="blocked"`, and `recovery_condition`.
+- Worker result artifacts, when a lane started, must preserve the lane id,
+  accepted handoff status, blocking error, and any partial evidence that can be
+  trusted.
+
+`validate-scan` and `validate-build` must treat `subagent_blocked` open gaps as
+blocking errors, not warnings.
 
 ## Runtime Behavior
 
@@ -154,8 +217,8 @@ When a usable active generation exists, `recommended_next_action` should not be
 `run_map_scan_build` for ordinary path coverage gaps. Existing-baseline ordinary
 gaps should also avoid `readiness=needs_rebuild` and
 `query_coverage=unadoptable_path_gap` unless the explicit
-`baseline_identity_invalid` contract or another unusable-baseline condition is
-present. Instead:
+`baseline_identity_invalid`, `explicit_rebuild_requested`, or another
+unusable-baseline condition is present. Instead:
 
 - Covered changed paths return ready-style update results.
 - Same-directory or near-ancestor missing paths are provisionally adopted by `map-update`.
@@ -193,7 +256,7 @@ For every update, the `updates` row should record:
 - `updates.attrs_json.path_adoption.query_coverage=covered`,
   `adoptable_path_gap`, or `uncertain_path_gap` for ordinary existing-baseline
   cases. `unadoptable_path_gap` is reserved for unusable-baseline or
-  `baseline_identity_invalid` cases.
+  `baseline_identity_invalid`/`explicit_rebuild_requested` cases.
 
 For provisional coverage, `map-update` should write:
 
@@ -216,6 +279,9 @@ For status metadata:
 - Baseline identity invalidation sets `baseline_state=blocked`, uses the
   `baseline_identity_invalid` token, and is the existing-baseline path that may
   recommend scan/build.
+- User-explicit rebuild sets `baseline_state=blocked`, uses the
+  `explicit_rebuild_requested` token, and may recommend scan/build without
+  claiming architecture-level invalidation.
 
 Freshness recommendations should also follow this split:
 
@@ -274,8 +340,10 @@ guidance:
 - `src/specify_cli/cognition/path_adoption.py`
 - `src/specify_cli/cognition/query.py`
 - `src/specify_cli/cognition/update.py`
+- `src/specify_cli/cognition/validation.py`
 - `src/specify_cli/project_cognition_status.py`
 - `src/specify_cli/hooks/project_cognition.py`
+- Artifact validation hooks in `src/specify_cli/hooks/artifact_validation.py`
 - CLI rendering in `src/specify_cli/__init__.py`
 - `scripts/bash/project-map-freshness.sh`
 - `scripts/powershell/project-map-freshness.ps1`
@@ -303,6 +371,8 @@ Runtime tests should cover:
   return `needs_rebuild` with `run_map_scan_build`.
 - A recorded `baseline_identity_invalid` token is required before existing-baseline
   path gaps can return scan/build guidance.
+- A user-explicit rebuild records `explicit_rebuild_requested` and does not set
+  `baseline_identity_invalid` without proof.
 - `partial_refresh` recommends `run_map_update`.
 
 Prompt and CLI tests should cover:
@@ -311,6 +381,11 @@ Prompt and CLI tests should cover:
   completeness, and blocked status for missing packet handoffs.
 - `map-build` requires consumption of every scan packet, reverse coverage
   validation, and blocked status when coverage cannot be proven.
+- `subagent_blocked` persists to status metadata, map-state, and
+  `coverage-ledger.json.open_gaps[]`.
+- Unknown coverage blocks critical and important rows; low-risk unknowns pass
+  only as `low_risk_open_gap` with owner, reason, evidence expectation, and
+  revisit condition.
 - Generated scan/build guidance does not allow leader-only broad scan/build as a
   fallback for substantive baseline work.
 - Generated `map-update` instructions prefer partial/review handling over rebuild.
@@ -320,14 +395,18 @@ Prompt and CLI tests should cover:
 - Bash and PowerShell freshness scripts match Python freshness behavior for
   path-index gaps, partial refresh, missing baseline, and explicit baseline
   identity invalidation.
+- Validation tests in `tests/test_project_cognition_validation.py` and artifact
+  validation tests in `tests/contract/test_hook_cli_surface.py` enforce packet
+  completeness, reverse coverage, `subagent_blocked`, and open-gap acceptance
+  rules.
 
 ## Acceptance Criteria
 
 - Searching generated workflow guidance shows no ordinary changed-path or path-index-gap rule that routes directly to `map-scan -> map-build`.
 - Existing-baseline runtime path gaps do not return `recommended_next_action=run_map_scan_build`.
 - Existing-baseline ordinary gaps do not return `readiness=needs_rebuild` or
-  `query_coverage=unadoptable_path_gap` unless `baseline_identity_invalid` or an
-  unusable-baseline condition is recorded.
+  `query_coverage=unadoptable_path_gap` unless `baseline_identity_invalid`,
+  `explicit_rebuild_requested`, or an unusable-baseline condition is recorded.
 - `map-update` records useful partial or review state for uncertain coverage rather than failing closed.
 - Partial/review results persist `updates.result_state`, `attrs_json.known_unknowns`,
   `attrs_json.minimal_live_reads`, `attrs_json.path_adoption.review_paths`,
@@ -336,6 +415,11 @@ Prompt and CLI tests should cover:
 - `map-scan` and `map-build` baseline creation cannot complete unless all
   subagent scan/build packets are accounted for and coverage gaps are explicitly
   recorded.
+- `subagent_blocked` is machine-testable through status metadata, map-state, and
+  coverage ledger open gaps.
+- `explicit_rebuild_requested` and `baseline_identity_invalid` are separate
+  machine reasons, and tests prove user rebuild requests do not imply structural
+  invalidation.
 - Python, bash, and PowerShell freshness surfaces agree on when scan/build is
   permitted.
 - Tests prove both the hardline policy and the remaining rebuild exceptions.
