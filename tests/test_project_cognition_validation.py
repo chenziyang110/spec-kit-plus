@@ -280,6 +280,42 @@ def test_validate_scan_blocks_empty_ledger_rows(tmp_path: Path) -> None:
     assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
 
 
+def test_validate_scan_blocks_malformed_ledger_rows(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {"rows": ["not an object"], "open_gaps": []},
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("ledger row 1" in message and "object" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_ledger_rows_missing_required_fields(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "   ",
+                    "coverage_state": "   ",
+                }
+            ],
+            "open_gaps": [],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("ledger row 1" in message and "criticality" in message for message in result["errors"])
+    assert any("ledger row 1" in message and "coverage_state" in message for message in result["errors"])
+
+
 def test_validate_scan_blocks_malformed_open_gaps(tmp_path: Path) -> None:
     _write_complete_scan_package(tmp_path)
     _write_json(
@@ -408,6 +444,74 @@ def test_validate_scan_blocks_subagent_blocked_open_gap(tmp_path: Path) -> None:
 
     assert result["status"] == "blocked"
     assert any("subagent_blocked" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_subagent_blocked_open_gap_with_blank_metadata(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "blocked",
+                }
+            ],
+            "open_gaps": [
+                {
+                    "reason": "subagent_blocked",
+                    "lane_id": "   ",
+                    "packet_id": "packet-auth",
+                    "blocked_scope": ["src/auth"],
+                    "criticality": "critical",
+                    "owner": "map-scan",
+                    "status": "blocked",
+                    "recovery_condition": "   ",
+                }
+            ],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("lane_id" in message and "recovery_condition" in message for message in result["errors"])
+
+
+def test_validate_scan_blocks_subagent_blocked_open_gap_with_malformed_scope(tmp_path: Path) -> None:
+    _write_complete_scan_package(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {
+            "version": 1,
+            "rows": [
+                {
+                    "path": "src/auth/login.ts",
+                    "criticality": "critical",
+                    "coverage_state": "blocked",
+                }
+            ],
+            "open_gaps": [
+                {
+                    "reason": "subagent_blocked",
+                    "lane_id": "scan-auth",
+                    "packet_id": "packet-auth",
+                    "blocked_scope": "src/auth",
+                    "criticality": "critical",
+                    "owner": "map-scan",
+                    "status": "blocked",
+                    "recovery_condition": "rerun scan-auth packet with native subagent dispatch",
+                }
+            ],
+        },
+    )
+
+    result = validate_scan_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("blocked_scope" in message and "non-empty list" in message for message in result["errors"])
 
 
 def test_validate_scan_accepts_low_risk_open_gap_with_required_metadata(tmp_path: Path) -> None:
@@ -612,6 +716,19 @@ def test_validate_build_blocks_subagent_blocked_coverage_ledger(tmp_path: Path) 
 
     assert result["status"] == "blocked"
     assert any("subagent_blocked" in message for message in result["errors"])
+
+
+def test_validate_build_blocks_malformed_coverage_ledger_rows(tmp_path: Path) -> None:
+    _seed_query_ready_runtime(tmp_path)
+    _write_json(
+        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+        {"version": 1, "rows": ["not an object"], "open_gaps": []},
+    )
+
+    result = validate_build_acceptance(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("ledger row 1" in message and "object" in message for message in result["errors"])
 
 
 def test_validate_build_blocks_unresolved_important_coverage_ledger_rows(tmp_path: Path) -> None:

@@ -313,7 +313,18 @@ def _check_unresolved_scan_gaps(
         reason = str(gap.get("reason", "")).strip().lower()
         status = str(gap.get("status", "")).strip().lower()
         if reason == "subagent_blocked" or status == "blocked":
-            missing = [field for field in REQUIRED_SUBAGENT_BLOCKED_FIELDS if not gap.get(field)]
+            missing = [
+                field
+                for field in REQUIRED_SUBAGENT_BLOCKED_FIELDS
+                if field != "blocked_scope" and not str(gap.get(field, "")).strip()
+            ]
+            blocked_scope = gap.get("blocked_scope")
+            if not (
+                isinstance(blocked_scope, list)
+                and blocked_scope
+                and all(isinstance(scope, str) and scope.strip() for scope in blocked_scope)
+            ):
+                missing.append("blocked_scope (must be a non-empty list of non-empty strings)")
             if missing:
                 errors.append(
                     f"coverage-ledger.json subagent_blocked open gap {index} is missing "
@@ -383,7 +394,24 @@ def _validate_coverage_ledger(
         errors,
     )
     details["ledger_rows"] = len(rows)
+    _validate_coverage_ledger_rows(rows, errors)
     _check_unresolved_scan_gaps(rows, ledger, warnings, errors)
+
+
+def _validate_coverage_ledger_rows(rows: list[Any], errors: list[str]) -> None:
+    known_criticalities = BLOCKING_CRITICALITIES | LOW_RISK_CRITICALITIES
+    for index, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            errors.append(f"coverage-ledger.json ledger row {index} must be an object")
+            continue
+
+        criticality = str(row.get("criticality", "")).strip().lower()
+        if criticality not in known_criticalities:
+            errors.append(f"coverage-ledger.json ledger row {index} has missing or unknown criticality")
+
+        coverage_state = str(row.get("coverage_state", row.get("state", ""))).strip().lower()
+        if not coverage_state:
+            errors.append(f"coverage-ledger.json ledger row {index} is missing coverage_state")
 
 
 def validate_build_acceptance(project_root: Path) -> dict[str, object]:
