@@ -54,7 +54,12 @@ def test_quickstart_teaches_user_confirmed_product_scope_not_default_mvp() -> No
 
 
 def test_docs_teach_user_confirmed_product_scope_not_default_mvp() -> None:
-    for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "docs/quickstart.md"):
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "docs/quickstart.md",
+    ):
         _assert_doc_teaches_user_confirmed_product_scope(rel_path)
 
 

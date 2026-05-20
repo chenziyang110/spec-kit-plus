@@ -27,6 +27,10 @@ and what sits clearly outside the system boundary.]
   `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
   Final artifacts carry `compiled_from` / source-map references so
   planning can trace major claims to event IDs or evidence IDs.
+- **User-confirmed product scope**: Generated workflows preserve the user's confirmed product scope. Workflow routing may choose the lightest safe command
+  surface, but it must not convert the user's product intent into a smaller MVP
+  or first-story release. Scope reduction requires user confirmation, including
+  when a named constraint forces a scope decision.
 - **Pre-spec discussion**: `sp-discussion` stores resumable product/technical discussions under `.specify/discussions/<slug>/`, runs a Context Boundary Gate before technical options or handoff generation, and only hands off after explicit user request, self-review, and user confirmation. Cross-project requests must lock the target project root (`target_project_root`); current project cognition cannot prove another project's implementation facts. The valid handoff is one unified handoff pair: `handoff-to-specify.md` plus `handoff-to-specify.json`, with `handoff_goal`, `context_boundary`, `implementation_target`, evidence provenance, `quality_gate`, Must-Preserve Ledger, coverage status, and planning gate status. Downstream workflows must preserve each protected item or block for a user decision.
 
 ## How To Read This Project
