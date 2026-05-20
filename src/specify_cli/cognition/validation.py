@@ -27,7 +27,8 @@ REQUIRED_TABLES = {
 }
 
 EXPECTED_GRAPH_STORE_PATH = ".specify/project-cognition/project-cognition.db"
-ACCEPTED_COVERAGE_STATES = {"accepted", "complete", "covered", "excluded", "low_risk_open_gap"}
+ACCEPTED_CLOSED_COVERAGE_STATES = {"accepted", "complete", "covered", "excluded"}
+LOW_RISK_OPEN_COVERAGE_STATE = "low_risk_open_gap"
 BLOCKING_CRITICALITIES = {"critical", "important"}
 LOW_RISK_CRITICALITIES = {"low-risk", "low_risk"}
 REQUIRED_LOW_RISK_GAP_FIELDS = ("owner", "reason", "evidence_expectation", "revisit_condition")
@@ -291,7 +292,7 @@ def _check_unresolved_scan_gaps(
         for row in rows
         if isinstance(row, dict)
         and _normalize_ledger_value(row.get("criticality", "")) in BLOCKING_CRITICALITIES
-        and _normalize_ledger_value(row.get("coverage_state", row.get("state", ""))) not in ACCEPTED_COVERAGE_STATES
+        and not _coverage_state_is_accepted_for_criticality(row)
     ]
     if unresolved_blocking_rows:
         errors.append("coverage-ledger.json has unresolved critical or important rows")
@@ -427,6 +428,14 @@ def _validate_coverage_ledger_rows(rows: list[Any], errors: list[str]) -> None:
 
 def _normalize_ledger_value(value: Any) -> str:
     return str(value).strip().lower()
+
+
+def _coverage_state_is_accepted_for_criticality(row: dict[str, Any]) -> bool:
+    criticality = _normalize_ledger_value(row.get("criticality", ""))
+    coverage_state = _normalize_ledger_value(row.get("coverage_state", row.get("state", "")))
+    if coverage_state in ACCEPTED_CLOSED_COVERAGE_STATES:
+        return True
+    return criticality in LOW_RISK_CRITICALITIES and coverage_state == LOW_RISK_OPEN_COVERAGE_STATE
 
 
 def validate_build_acceptance(project_root: Path) -> dict[str, object]:
