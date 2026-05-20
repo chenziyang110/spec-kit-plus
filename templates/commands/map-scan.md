@@ -28,6 +28,26 @@ Use `execution_surface: native-subagents`.
 - Wait for every dispatched lane's structured handoff before accepting scan coverage.
 - If a safe scan lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 
+## Machine-Readable Blocked State
+
+Human workflow prose may say `subagent-blocked`, but persisted machine fields use
+`subagent_blocked`.
+
+If a substantive scan/build lane cannot dispatch or complete, write:
+
+- `.specify/project-cognition/status.json` with `baseline_state=blocked` and
+  `subagent_blocked` in `stale_reasons` or `dirty_reasons`
+- `.specify/project-cognition/workbench/map-state.md` with
+  `readiness=blocked`, `blocking_reason=subagent_blocked`, blocked lane ids,
+  blocked scope, and recovery condition
+- `.specify/project-cognition/workbench/coverage-ledger.json.open_gaps[]` with
+  `reason="subagent_blocked"`, `lane_id`, `packet_id`, `blocked_scope`,
+  `criticality`, `owner`, `status="blocked"`, and `recovery_condition`
+
+`unknown` blocks, `blocked`, `critical_open_gap`, and `subagent_blocked` block baseline
+activation. `low_risk_open_gap` may pass only with owner, reason,
+`evidence_expectation`, and `revisit_condition`.
+
 ## Passive Project Learning Layer
 
 - [AGENT] Run `{{specify-subcmd:learning start --command map-scan --format json}}` when available so passive learning files exist and repeated cognition-runtime scan blind spots can be promoted at start.

@@ -132,3 +132,18 @@ def test_map_update_template_exists_and_is_incremental() -> None:
     assert "must not call" in content.lower()
     assert "needs_rebuild" in content
     assert "complete-refresh" in content
+
+
+def test_map_update_template_handles_existing_baseline_gaps_without_rebuild() -> None:
+    content = _read("templates/commands/map-update.md").lower()
+
+    assert "existing-baseline ordinary gaps" in content
+    assert "partial_refresh" in content
+    assert "minimal_live_reads" in content
+    assert "baseline_identity_invalid" in content
+    assert "explicit_rebuild_requested" in content
+    assert "path count" in content
+    assert (
+        "must not route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` "
+        "for ordinary path gaps"
+    ) in content

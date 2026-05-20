@@ -112,8 +112,8 @@ judgment in an established Spec Kit Plus repository:
   command to type, write `{{invoke:map-update}}`.
 - If changed paths are missing from project cognition `path_index`, let
   `sp-map-update` classify the gap first. Adoptable paths get provisional
-  coverage, uncertain paths return `minimal_live_reads`, and only unadoptable
-  gaps require `{{invoke:map-scan}} -> {{invoke:map-build}}`.
+  coverage, uncertain paths return `minimal_live_reads`, and ordinary
+  existing-baseline gaps stay in `{{invoke:map-update}}`.
 - If the freshness state is `support_drift`, stop and tell the user to resolve
   support-surface drift; do not reflexively route to `sp-map-update`.
 - If the freshness state is `partial_refresh`, tell the user the refresh was
@@ -122,12 +122,11 @@ judgment in an established Spec Kit Plus repository:
 - Preserve the distinction between the machine freshness field and public state
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.
-- Recommend `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the
-  baseline is missing, unusable, schema-incompatible, explicitly being rebuilt,
-  invalidated by broad architecture replacement, or a path-index coverage gap is
-  unadoptable after update classification. Uncertain closure can be recorded by
-  `sp-map-update` as partial/low-confidence facts, known unknowns, and
-  `minimal_live_reads`.
+- Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build`
+  only for missing or unusable baseline, schema failure, zero active-generation
+  path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+  Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
+  facts, known unknowns, and `minimal_live_reads`.
 - Treat map maintenance as a user-invoked workflow handoff unless the user
   explicitly asked for map repair. Do not silently switch into `sp-map-update`,
   `sp-map-scan`, or `sp-map-build` yourself from another workflow; continue with

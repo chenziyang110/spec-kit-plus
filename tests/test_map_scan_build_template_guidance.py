@@ -25,6 +25,18 @@ def test_map_scan_and_build_templates_require_mandatory_subagent_guidance() -> N
     _assert_mandatory_subagent_guidance(_read("templates/commands/map-build.md"))
 
 
+def test_map_scan_build_templates_require_subagent_blocked_persistence() -> None:
+    scan_content = _read("templates/commands/map-scan.md").lower()
+    build_content = _read("templates/commands/map-build.md").lower()
+
+    for content in (scan_content, build_content):
+        assert "subagent_blocked" in content
+        assert "coverage-ledger.json.open_gaps" in content
+        assert "map-state.md" in content
+        assert "low_risk_open_gap" in content
+        assert "unknown` blocks" in content
+
+
 def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()

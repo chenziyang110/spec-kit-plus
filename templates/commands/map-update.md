@@ -50,6 +50,21 @@ Use `execution_surface: native-subagents`.
 - `sp-map-update` must not route to `sp-map-scan -> sp-map-build` merely because the closure is wider than expected, some consumers are ambiguous, or extra live reads are needed.
 - Rebuild is reserved for missing baseline, unusable DB/status/schema, explicit rebuild request, or repository architecture replacement so broad that the baseline identity is invalid.
 
+## Existing-Baseline Gap Policy
+
+When a usable active generation exists, existing-baseline ordinary gaps are `sp-map-update`
+work and must not route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` for ordinary path gaps,
+path count, unrelated top-level count, core-surface status, weak ownership,
+missing `path_index` coverage, or unadoptable-ratio heuristics.
+
+Use `review`, `partial_refresh`, low-confidence claims, conflicts, stale claims,
+known unknowns, and `minimal_live_reads` to preserve imperfect but useful
+maintenance state.
+
+`{{invoke:map-scan}} -> {{invoke:map-build}}` is allowed after an existing baseline
+only for missing or unusable runtime, zero active-generation `path_index` rows,
+schema failure, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+
 ## Incremental Rule
 
 - `sp-map-update` is the normal maintenance entrypoint after baseline build.
@@ -57,12 +72,12 @@ Use `execution_surface: native-subagents`.
 - It must update the query-backed cognition runtime incrementally.
 - It must treat `.specify/project-cognition/status.json` plus `.specify/project-cognition/project-cognition.db` as the runtime truth source for post-update readiness.
 - It must not silently escalate to a full rebuild without recording why.
-- When changed paths are missing from `path_index`, classify them before escalating: adoptable paths get provisional `path_index` coverage, uncertain paths return `review` with `minimal_live_reads`, and only unadoptable gaps route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- When changed paths are missing from `path_index`, classify them before escalating: adoptable paths get provisional `path_index` coverage, uncertain paths return `review` with `minimal_live_reads`, and existing-baseline ordinary gaps stay in `sp-map-update`.
 - Provisional adoption must write valid graph records: an adoption `evidence` row plus a `path_index` row with `relation="provisional_path"` and graph confidence `weak` or `partial`.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
 - After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.
-- If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete missing, unusable, schema-incompatible, explicitly-rebuild-required, or baseline-identity-invalid condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid` condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If `validate-build` is blocked after update recording, report `partial_refresh` and preserve the validation errors instead of claiming the runtime is fresh.
 - If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:project-cognition complete-refresh --format json}}` so cognition freshness metadata cannot remain stale.
 - If the update helper returns `ready` and `validate-build` passes, but the shared freshness check still sees the same refreshed source paths only because those source changes are not committed yet, report the incremental update as recorded and baseline-finalization pending. Do not tell the user to run `{{invoke:map-scan}}` or `{{invoke:map-build}}` merely because refreshed source changes are not committed yet.
@@ -104,7 +119,7 @@ The canonical outputs for this command are:
 
 ## Escalation Boundary
 
-- Escalate to `sp-map-scan`, then `sp-map-build` only when no query-backed baseline exists, the current baseline is unusable, DB/status/schema validation fails, the user explicitly requested a rebuild, or the repository architecture changed so broadly that the baseline identity is invalid.
+- Escalate to `sp-map-scan`, then `sp-map-build` only when no query-backed baseline exists, the current baseline is unusable, DB/status/schema validation fails, zero active-generation `path_index` rows exist, the user explicitly requested a rebuild (`explicit_rebuild_requested`), or the repository architecture changed so broadly that the baseline identity is invalid (`baseline_identity_invalid`).
 - Do not escalate merely because the affected closure is uncertain; record the uncertainty as partial/low-confidence update data with `known_unknowns` and `minimal_live_reads`.
 - Record the exact reason for escalation, including the failed baseline, DB, schema, explicit-request, or architecture-replacement fact.
 

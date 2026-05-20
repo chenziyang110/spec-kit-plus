@@ -218,7 +218,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "`partial_refresh`" in readme
     assert "`support_drift`" in readme
     assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in readme.lower()
-    assert "`map-scan` followed by `map-build` only when the baseline is missing, unusable, schema-incompatible" in support_guidance
+    assert "`map-scan` followed by `map-build` only when the baseline is missing or unusable, schema failure" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance
     assert "heavy reconstruction workflow" in support_guidance
