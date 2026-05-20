@@ -155,6 +155,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 
 6. Clarification loop for high-impact gaps:
    - Ask only the minimum number of questions required to make planning reliable again.
+   - Do not use scope minimization as a shortcut to resolve ambiguity. Preserve the user's confirmed product scope; scope reduction requires user confirmation or a named constraint that blocks reliable planning.
    - Present exactly one unresolved high-impact question at a time.
    - Prefer questions that lock behavior, boundary handling, compatibility, or acceptance proof rather than reopening broad ideation.
    - Use the user's current language for user-visible questions and confirmations.

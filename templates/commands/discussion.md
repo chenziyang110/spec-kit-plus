@@ -90,7 +90,7 @@ Use `templates/discussion-state-template.md` when initializing `discussion-state
 
 5. `technical-options`
    - Present 2-3 implementation paths only when strategy affects requirements and the Context Boundary Gate is resolved.
-   - Include recommendation, trade-offs, risks, verification approach, rollback or de-scope path, and required evidence.
+   - Include recommendation, trade-offs, risks, verification approach, rollback, recovery, or user-confirmed scope-adjustment path, and required evidence.
 
 6. `handoff-assessment`
    - Decide whether one complete handoff package can be produced or discussion must continue.
@@ -171,11 +171,13 @@ If the idea is clearly greenfield or does not depend on existing project structu
 
 When implementation strategy affects the requirement, present 2-3 options before locking direction:
 
-- Minimal viable path
+- User-intent-aligned path
 - Architecture-correct path
 - Expansion-ready path
 
-For each option, include product behavior enabled, impacted modules or files, complexity, migration or compatibility concerns, testing strategy, risks, rollback or de-scope path, and recommendation rationale.
+Scope reduction requires user confirmation. Do not present a smaller validation build, MVP-style slice, pilot, prototype, or first-story release as the default recommendation unless the user explicitly asked for that shape, the request already defines that delivery boundary, or a named constraint makes reduced scope a decision the user must confirm.
+
+For each option, include product behavior enabled, impacted modules or files, complexity, migration or compatibility concerns, testing strategy, risks, rollback, recovery, or user-confirmed scope-adjustment path, and recommendation rationale.
 
 
 ## Handoff Assessment

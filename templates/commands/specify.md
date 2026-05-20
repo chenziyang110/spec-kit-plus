@@ -449,7 +449,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - what the user is probably trying to achieve
    - what a complete usable version of the capability likely includes
    - intended users and roles
-   - first-release scope boundaries
+   - confirmed product scope and any user-confirmed delivery sequence
    - critical constraints and assumptions
    - dependencies or preconditions that materially affect planning
    - the currently owning modules, services, screens, commands, or workflows that this request would extend, replace, or bypass
@@ -507,7 +507,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    Build a top-down understanding grounded in the `project-cognition query` bundle and any returned targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
-   - first-release scope
+   - confirmed product scope and any user-confirmed delivery sequence
    - business and workflow outcomes
    - critical constraints and assumptions
    - dependencies or preconditions that materially affect planning
@@ -802,9 +802,10 @@ Generate the pre-analysis output as the first section of `context.md`.
     - [Target users / audience]
     - [Relevant roles or permission groups]
 
-    [Scope Boundaries]
-    - [First-release scope]
-    - [Out-of-scope boundary]
+    [Confirmed Product Scope]
+    - [Current product scope to plan]
+    - [User-confirmed deferrals or out-of-scope boundary]
+    - [User-confirmed delivery sequence, if any]
 
     [Business Rules]
     - [Expected behaviors / capabilities]
@@ -1081,4 +1082,4 @@ Generate the pre-analysis output as the first section of `context.md`.
 5. Normal completion requires no open clarification markers.
 6. If the user insists on continuing anyway, allow `Force proceed with known risks`, but record the unresolved items and likely downstream impact.
 7. Match the user's current language for all user-visible output unless a literal command name, file path, or fixed status value must remain unchanged.
-8. Do not treat MVP minimization as the default strategy; scope the first release to a coherent, quality-appropriate slice unless the user explicitly asks for a smaller release.
+8. Do not treat product minimization as the default strategy. Preserve the user's confirmed product scope and plan toward the best product-quality implementation path for that scope. Scope reduction requires user confirmation: only record a smaller version, MVP, prototype, pilot, experiment, demo, proof-of-concept, staged release, or deferred capability when the user asked for it, the input already defines that boundary, or a named constraint forces a user-confirmed scope decision.

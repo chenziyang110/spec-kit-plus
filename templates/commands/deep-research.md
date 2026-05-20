@@ -715,6 +715,7 @@ When refusal happens, output a gap report inline before the refusal decision:
 
 - Use this command to produce research evidence and a planning handoff, not to design the full architecture.
 - Prefer a small, runnable proof over broad speculative prose when the question is "can this work?"
+- Disposable demos, research spikes, and proof artifacts validate feasibility for the user's intended capability. They are not a replacement product scope and must not be reframed as the delivered product unless the user explicitly confirms that reduced scope.
 - Do not require this command for existing capability tweaks where the repository already shows the path.
 - Do not advance to `/sp.plan` when a required capability is still `blocked` or `not viable` unless the user explicitly accepts a redesign or force-proceed risk.
 - Keep all prototype work isolated under `FEATURE_DIR/research-spikes/`.
