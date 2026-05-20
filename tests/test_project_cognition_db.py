@@ -488,6 +488,62 @@ def test_successful_cognition_update_clears_prior_ordinary_path_index_gap(tmp_pa
     assert status.dirty_origin_command == ""
 
 
+def test_ready_cognition_update_clears_persisted_dirty_manual_flags(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-update', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'old', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-update', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-update', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+    write_cognition_status(
+        tmp_path,
+        CognitionStatus(
+            baseline_state="ready",
+            graph_ready=True,
+            freshness="stale",
+            dirty=True,
+            dirty_reasons=["path_index coverage missing"],
+            dirty_origin_command="sp-map-update",
+            dirty_origin_feature_dir=".specify/features/auth",
+            dirty_origin_lane_id="lane-auth",
+            dirty_scope_paths=["src/auth/login.ts"],
+            manual_force_stale=True,
+            manual_force_stale_reasons=["path_index coverage missing"],
+        ),
+    )
+
+    result = apply_cognition_update(
+        tmp_path,
+        changed_paths=["src/auth/login.ts"],
+        reason="covered-path",
+    )
+
+    assert result["readiness"] == "ready"
+    status = read_cognition_status(tmp_path)
+    assert status.freshness == "fresh"
+    assert status.dirty is False
+    assert status.manual_force_stale is False
+    assert status.dirty_reasons == []
+    assert status.manual_force_stale_reasons == []
+    assert status.dirty_origin_command == ""
+    assert status.dirty_scope_paths == []
+    assert status.dirty_origin_feature_dir == ""
+    assert status.dirty_origin_lane_id == ""
+
+
 def test_apply_cognition_update_returns_review_for_small_uncertain_gap(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
     generation_id = seed_active_generation(tmp_path, source_commit="abc123")

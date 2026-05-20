@@ -144,16 +144,14 @@ def apply_cognition_update(
         status.freshness = "possibly_stale"
         status.stale_paths = list(review_paths)
         status.stale_reasons = list(missing_coverage)
-        status.dirty_reasons = []
-        status.dirty_origin_command = ""
+        _clear_status_dirty_state(status)
     elif result_state == "ready" and not has_scan_build_allowed_reason:
         _mark_status_baseline_ready(status, generation_id)
         if adopted_paths or not missing_paths:
             status.freshness = "fresh"
         status.stale_paths = []
         status.stale_reasons = []
-        status.dirty_reasons = []
-        status.dirty_origin_command = ""
+        _clear_status_dirty_state(status)
     elif (
         status.baseline_state == "blocked"
         and status.dirty_origin_command == "sp-map-update"
@@ -162,8 +160,7 @@ def apply_cognition_update(
         _mark_status_baseline_ready(status, generation_id)
         status.stale_paths = []
         status.stale_reasons = []
-        status.dirty_reasons = []
-        status.dirty_origin_command = ""
+        _clear_status_dirty_state(status)
     write_cognition_status(project_root, status)
 
     return {
@@ -187,6 +184,17 @@ def _mark_status_baseline_ready(status: Any, generation_id: str) -> None:
     status.graph_ready = True
     status.graph_store_path = status.graph_store_path or ".specify/project-cognition/project-cognition.db"
     status.active_generation_id = status.active_generation_id or generation_id
+
+
+def _clear_status_dirty_state(status: Any) -> None:
+    status.dirty = False
+    status.dirty_reasons = []
+    status.dirty_origin_command = ""
+    status.dirty_origin_feature_dir = ""
+    status.dirty_origin_lane_id = ""
+    status.dirty_scope_paths = []
+    status.manual_force_stale = False
+    status.manual_force_stale_reasons = []
 
 
 def _scan_build_reason_sources(status: Any) -> list[str]:
