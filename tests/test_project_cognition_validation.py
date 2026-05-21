@@ -267,30 +267,19 @@ def test_validate_scan_blocks_empty_coverage_rows(tmp_path: Path) -> None:
     assert any("coverage.json" in message and "rows" in message for message in result["errors"])
 
 
-def test_validate_scan_blocks_empty_ledger_rows(tmp_path: Path) -> None:
-    _write_complete_scan_package(tmp_path)
-    _write_json(
-        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
-        {"rows": [], "open_gaps": []},
-    )
+def test_validate_scan_blocks_empty_ledger_rows_or_object(tmp_path: Path) -> None:
+    for payload in ({"rows": [], "open_gaps": []}, {}):
+        project = tmp_path / str(len(list(tmp_path.iterdir())))
+        _write_complete_scan_package(project)
+        _write_json(
+            project / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
+            payload,
+        )
 
-    result = validate_scan_acceptance(tmp_path)
+        result = validate_scan_acceptance(project)
 
-    assert result["status"] == "blocked"
-    assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
-
-
-def test_validate_scan_blocks_empty_ledger_object(tmp_path: Path) -> None:
-    _write_complete_scan_package(tmp_path)
-    _write_json(
-        tmp_path / ".specify" / "project-cognition" / "workbench" / "coverage-ledger.json",
-        {},
-    )
-
-    result = validate_scan_acceptance(tmp_path)
-
-    assert result["status"] == "blocked"
-    assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
+        assert result["status"] == "blocked"
+        assert any("coverage-ledger.json" in message and "rows" in message for message in result["errors"])
 
 
 def test_validate_scan_blocks_malformed_ledger_rows(tmp_path: Path) -> None:
