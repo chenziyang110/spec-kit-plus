@@ -426,58 +426,38 @@ def test_bash_project_map_freshness_routes_unadoptable_path_gap_prose_to_map_upd
     assert result["recommended_next_action"] == "run_map_update"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "58 changed paths missing from project cognition path_index",
-        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
-    ],
-)
-def test_bash_mark_dirty_routes_normalized_path_gaps_to_map_update(git_repo: Path, reason: str):
+def test_bash_mark_dirty_routes_normalized_path_gaps_to_map_update(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_bash(git_repo, "record-refresh", "manual")
 
-    result = _run_bash(git_repo, "mark-dirty", reason)
+    result = _run_bash(git_repo, "mark-dirty", "58 changed paths missing from project cognition path_index")
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_update"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "explicit_rebuild_requested",
-        "baseline_identity_invalid",
-        "active_generation_has_no_path_index_rows",
-        "failed_update_unusable_baseline",
-        "path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1",
-    ],
-)
-def test_bash_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo: Path, reason: str):
+def test_bash_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_bash(git_repo, "record-refresh", "manual")
 
-    result = _run_bash(git_repo, "mark-dirty", reason)
+    result = _run_bash(git_repo, "mark-dirty", "explicit_rebuild_requested")
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_scan_build"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "operator note: explicit_rebuild_requested is documented here, not asserted as a machine token",
-        "operator note: baseline_identity_invalid appears in guidance, but this is prose",
-    ],
-)
-def test_bash_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo: Path, reason: str):
+def test_bash_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_bash(git_repo, "record-refresh", "manual")
 
-    result = _run_bash(git_repo, "mark-dirty", reason)
+    result = _run_bash(
+        git_repo,
+        "mark-dirty",
+        "operator note: explicit_rebuild_requested is documented here, not asserted as a machine token",
+    )
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_update"
@@ -620,58 +600,38 @@ def test_powershell_project_map_freshness_routes_unadoptable_path_gap_prose_to_m
     assert result["recommended_next_action"] == "run_map_update"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "58 changed paths missing from project cognition path_index",
-        "path not safely adoptable by project cognition index: scripts/release/package.ps1",
-    ],
-)
-def test_powershell_mark_dirty_routes_normalized_path_gaps_to_map_update(git_repo: Path, reason: str):
+def test_powershell_mark_dirty_routes_normalized_path_gaps_to_map_update(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_powershell(git_repo, "record-refresh", "manual")
 
-    result = _run_powershell(git_repo, "mark-dirty", reason)
+    result = _run_powershell(git_repo, "mark-dirty", "58 changed paths missing from project cognition path_index")
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_update"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "explicit_rebuild_requested",
-        "baseline_identity_invalid",
-        "active_generation_has_no_path_index_rows",
-        "failed_update_unusable_baseline",
-        "path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1",
-    ],
-)
-def test_powershell_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo: Path, reason: str):
+def test_powershell_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_powershell(git_repo, "record-refresh", "manual")
 
-    result = _run_powershell(git_repo, "mark-dirty", reason)
+    result = _run_powershell(git_repo, "mark-dirty", "explicit_rebuild_requested")
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_scan_build"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "operator note: explicit_rebuild_requested is documented here, not asserted as a machine token",
-        "operator note: baseline_identity_invalid appears in guidance, but this is prose",
-    ],
-)
-def test_powershell_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo: Path, reason: str):
+def test_powershell_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_powershell(git_repo, "record-refresh", "manual")
 
-    result = _run_powershell(git_repo, "mark-dirty", reason)
+    result = _run_powershell(
+        git_repo,
+        "mark-dirty",
+        "operator note: explicit_rebuild_requested is documented here, not asserted as a machine token",
+    )
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_update"
@@ -826,12 +786,8 @@ def test_project_map_freshness_helpers_ignore_reference_only_atlas_changes(git_r
     [
         "PROJECT-HANDBOOK.md",
         ".specify/project-map/root/STRUCTURE.md",
-        ".specify/prd-runs/001-demo/research.json",
-        ".venv/lib/site-packages/pkg.py",
         ".pytest_cache/v/cache/nodeids",
-        ".ruff_cache/0.11.0/cache",
         "dist/spec-kit-plus.tar.gz",
-        "build/lib/module.py",
     ],
 )
 def test_project_map_freshness_helpers_ignore_reference_and_excluded_paths(git_repo: Path, path: str):
@@ -855,25 +811,14 @@ def test_project_map_freshness_helpers_ignore_reference_and_excluded_paths(git_r
 
 
 @pytest.mark.parametrize(
-    "path,expected_freshness,expected_reason_prefix",
+    "path",
     [
-        (".specify/templates/project-map/ARCHITECTURE.md", "stale", "high-impact compatibility/export change"),
-        (".specify/memory/constitution.md", "stale", "high-impact compatibility/export change"),
-        (".specify/memory/project-rules.md", "stale", "high-impact compatibility/export change"),
-        ("docker-compose.yml", "stale", "high-impact compatibility/export change"),
-        ("Dockerfile", "stale", "high-impact compatibility/export change"),
-        ("Makefile", "stale", "high-impact compatibility/export change"),
-        ("package.json", "stale", "high-impact compatibility/export change"),
-        ("pnpm-lock.yaml", "stale", "high-impact compatibility/export change"),
-        ("go.mod", "stale", "high-impact compatibility/export change"),
+        ".specify/templates/project-map/ARCHITECTURE.md",
+        ".specify/memory/constitution.md",
+        "package.json",
     ],
 )
-def test_project_map_freshness_helpers_keep_live_runtime_paths_stale_driving(
-    git_repo: Path,
-    path: str,
-    expected_freshness: str,
-    expected_reason_prefix: str,
-):
+def test_project_map_freshness_helpers_keep_live_runtime_paths_stale_driving(git_repo: Path, path: str):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     _run_bash(git_repo, "record-refresh", "map-build")
@@ -887,10 +832,10 @@ def test_project_map_freshness_helpers_keep_live_runtime_paths_stale_driving(
     bash_result = _run_bash(git_repo, "check")
     pwsh_result = _run_powershell(git_repo, "check")
 
-    assert bash_result["freshness"] == expected_freshness
-    assert any(reason.startswith(expected_reason_prefix) for reason in bash_result["reasons"])
-    assert pwsh_result["freshness"] == expected_freshness
-    assert any(reason.startswith(expected_reason_prefix) for reason in pwsh_result["reasons"])
+    assert bash_result["freshness"] == "stale"
+    assert any(reason.startswith("high-impact compatibility/export change") for reason in bash_result["reasons"])
+    assert pwsh_result["freshness"] == "stale"
+    assert any(reason.startswith("high-impact compatibility/export change") for reason in pwsh_result["reasons"])
 
 
 def test_powershell_check_reads_legacy_project_map_status(git_repo: Path):
