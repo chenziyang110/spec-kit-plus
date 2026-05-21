@@ -21,6 +21,9 @@ from specify_cli.integrations.manifest import IntegrationManifest
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 STALE_COGNITION_ADDENDUM_PHRASES = (
+    "for blocked, stale, missing, or incomplete references",
+    "{{invoke:map-scan}} -> {{invoke:map-build}} or "
+    + "{{invoke:map-update}} as appropriate",
     "status and slice artifacts",
     "status and debug-oriented slice artifacts",
     "required project cognition status and slice artifacts",

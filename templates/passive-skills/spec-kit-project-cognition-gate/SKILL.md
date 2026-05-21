@@ -86,11 +86,16 @@ judgment in an established Spec Kit Plus repository:
   for the comparison, then use the returned minimal read order before inspecting
   more source files. Treat the reference map as supplemental navigation, not as
   evidence by itself.
-- For blocked, stale, missing, or incomplete references, do not treat legacy
+- For blocked, stale, or incomplete references, do not treat legacy
   `.specify/project-map/**` outputs as current truth. Fall back to minimal live
-  reads, or ask the user to refresh that reference project with
-  `{{invoke:map-scan}} -> {{invoke:map-build}}` or `{{invoke:map-update}}` as
-  appropriate.
+  reads and recommend `{{invoke:map-update}}` for localized stale coverage, weak
+  reference coverage, ordinary changed-path maintenance, or ordinary
+  existing-baseline gaps after a usable reference baseline.
+- For missing or unusable reference baselines, recommend
+  `{{invoke:map-scan}} -> {{invoke:map-build}}`. Recommend scan/build for a
+  reference project only for first/missing/unusable baseline, schema failure,
+  zero active-generation `path_index` rows, `explicit_rebuild_requested`, or
+  `baseline_identity_invalid`.
 
 ## Command Surface Discipline
 

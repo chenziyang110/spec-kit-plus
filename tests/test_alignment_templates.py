@@ -77,6 +77,7 @@ MAP_UPDATE_FIRST_POLICY = (
 )
 
 STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
+    "for blocked, stale, missing, or incomplete references",
     "path-index-" + "incomplete",
     "unadoptable " + "coverage gaps",
     "blocked by " + "unadoptable",
@@ -95,6 +96,8 @@ STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
     "path-index-" + "incomplete",
     "path-index " + "incomplete",
     "unadoptable " + "coverage gaps",
+    "{{invoke:map-scan}} -> {{invoke:map-build}} or "
+    + "{{invoke:map-update}} as appropriate",
 )
 
 
@@ -622,6 +625,38 @@ def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     assert "technical options" in lowered
     assert "launcher-backed project cognition query planning flow" in lowered
     assert "retrieve the task-local project cognition bundle" in lowered
+
+
+def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> None:
+    content = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
+    normalized = _normalize_policy_text(content)
+
+    assert "for blocked, stale, or incomplete references" in normalized
+    assert "fall back to minimal live reads" in normalized
+    assert "map-update" in normalized
+    assert "localized stale coverage" in normalized
+    assert "weak reference coverage" in normalized
+    assert "ordinary changed-path maintenance" in normalized
+    assert "ordinary existing-baseline gaps after a usable reference baseline" in normalized
+    assert "for missing or unusable reference baselines" in normalized
+    assert "map-scan -> map-build" in normalized
+    assert "reference project only for first/missing/unusable baseline" in normalized
+    for condition in (
+        "schema failure",
+        "zero active-generation path_index rows",
+        "explicit_rebuild_requested",
+        "baseline_identity_invalid",
+    ):
+        assert condition in normalized
+
+    for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
+        assert phrase not in normalized
+
+    reference_block = normalized[
+        normalized.index("cross-project reference directories"):
+        normalized.index("command surface discipline")
+    ]
+    assert "as appropriate" not in reference_block
 
 
 def test_specify_template_uses_alignment_first_contract():

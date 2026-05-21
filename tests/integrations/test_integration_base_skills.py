@@ -22,6 +22,9 @@ from specify_cli.integrations.manifest import IntegrationManifest
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 STALE_COGNITION_ADDENDUM_PHRASES = (
+    "for blocked, stale, missing, or incomplete references",
+    "{{invoke:map-scan}} -> {{invoke:map-build}} or "
+    + "{{invoke:map-update}} as appropriate",
     "status and slice artifacts",
     "status and debug-oriented slice artifacts",
     "required project cognition status and slice artifacts",
@@ -222,6 +225,35 @@ class SkillsIntegrationTests:
         assert "minimal_live_reads" in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in generated
+
+    def test_generated_project_cognition_gate_reference_refresh_uses_closed_conditions(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        skill = i.skills_dest(tmp_path) / "spec-kit-project-cognition-gate" / "SKILL.md"
+        content = " ".join(skill.read_text(encoding="utf-8").lower().replace("`", "").split())
+
+        assert "for blocked, stale, or incomplete references" in content
+        assert "fall back to minimal live reads" in content
+        assert "map-update" in content
+        assert "localized stale coverage" in content
+        assert "weak reference coverage" in content
+        assert "ordinary changed-path maintenance" in content
+        assert "ordinary existing-baseline gaps after a usable reference baseline" in content
+        assert "for missing or unusable reference baselines" in content
+        assert "map-scan" in content
+        assert "map-build" in content
+        assert "reference project only for first/missing/unusable baseline" in content
+        for condition in (
+            "schema failure",
+            "zero active-generation path_index rows",
+            "explicit_rebuild_requested",
+            "baseline_identity_invalid",
+        ):
+            assert condition in content
+        for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
+            assert phrase not in content
 
     def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
         i = get_integration(self.KEY)
