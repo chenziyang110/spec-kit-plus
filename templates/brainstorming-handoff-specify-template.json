@@ -49,6 +49,37 @@
     "current_project_cognition_scope_note": "Current project cognition cannot prove another project's implementation facts."
   },
   "source_evidence": [],
+  "source_evidence_contract": {
+    "required_fields": [
+      "source_type",
+      "evidence_status",
+      "source",
+      "claim"
+    ],
+    "optional_fields": [
+      "project_cognition_route",
+      "live_code_evidence",
+      "needs_refresh",
+      "notes"
+    ],
+    "allowed_source_types": [
+      "project_cognition_route",
+      "live_code_evidence",
+      "user_confirmation",
+      "explicit_assumption",
+      "external_source",
+      "missing",
+      "conflict"
+    ],
+    "allowed_evidence_statuses": [
+      "proven",
+      "inferred",
+      "stale-advisory",
+      "missing",
+      "conflict"
+    ],
+    "authority_rule": "Project cognition navigates; live repository evidence proves current behavior."
+  },
   "blocking_unknowns": [],
   "downstream_instructions": {
     "settled_decisions": [],

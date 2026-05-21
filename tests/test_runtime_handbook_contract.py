@@ -69,7 +69,8 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
     assert "concept_candidates" in content
     assert "selected_concepts" in content
     assert "rejected_concepts" in content
-    assert "readiness drives routing" in content
+    assert "readiness is interpreted as advisory navigation" in content
+    assert "live evidence proves technical claims" in content
     assert "route_pack" in content
     assert "minimal_live_reads" in content
     assert "next workflow artifact or execution state" in content
@@ -149,6 +150,8 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "agent-planned `project-cognition query`" in lowered
     assert "project-cognition lexicon" in lowered
     assert "query_plan" in content
+    assert "advisory navigation" in lowered
+    assert "live repository evidence" in lowered or "live evidence" in lowered
     assert "normal code changes should use `sp-map-update` for bounded incremental refresh from changed paths" in lowered
     assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in lowered
     assert "workflow-appropriate slices" not in lowered

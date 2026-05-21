@@ -111,6 +111,15 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert ".specify/discussions/<slug>/" in command_content
     assert "discussion-state.md" in command_content
     assert "handoff-assessment.md" in command_content
+    assert "Turn Classifier" in command_content
+    assert "Question Evidence Gate" in command_content
+    assert "Cognition Advisory, Code Authority" in command_content
+    assert "project-cognition lexicon --intent discussion" in command_content
+    assert "project-cognition query --intent discussion" in command_content
+    assert "project-cognition query --intent plan" not in command_content
+    assert "ordinary turns append" in command_lower
+    assert "semantic checkpoints" in command_lower
+    assert "draft pair" in command_lower
     assert "Context Boundary Gate" in command_content
     assert "target project root" in command_lower
     assert "high-impact question" in command_lower

@@ -21,6 +21,14 @@
 - blocker_reason: none
 - readiness_note: [why the discussion is or is not ready for explicit handoff]
 
+## Lightweight Recovery
+
+- latest_event_checkpoint: [discussion-log.md event timestamp or none]
+- last_compaction_checkpoint: [ISO-8601 timestamp or none]
+- compact_summary_status: current | stale | missing
+- ordinary_turn_write_policy: append compact event only
+- structured_refresh_policy: semantic-checkpoint-only
+
 ## Context Boundary
 
 - context_boundary_status: not-started | needs-user-input | locked | blocked
@@ -33,6 +41,15 @@
 - boundary_blockers: []
 - path_status: unknown | user-confirmed | target-read-confirmed | blocked
 - boundary_confidence: unknown | low | medium | high
+
+## Evidence Navigation
+
+- latest_cognition_intent: discussion | none
+- latest_cognition_readiness: ready | review | ambiguous | needs_update | needs_rebuild | blocked | none
+- latest_minimal_live_reads: []
+- latest_live_evidence: []
+- cognition_authority_rule: project cognition navigates; live repository evidence proves
+- unresolved_evidence_conflicts: []
 
 ## Session Selection
 
@@ -63,8 +80,8 @@
 - project-context.md
 - open-questions.md
 - handoff-assessment.md only after explicit user request
-- handoff-to-specify.md only after explicit user request, boundary lock, self-review pass, and user confirmation
-- handoff-to-specify.json only after explicit user request, boundary lock, self-review pass, and user confirmation
+- handoff-to-specify.md draft after explicit user request and boundary lock; mark handoff-ready only after self-review pass and user confirmation
+- handoff-to-specify.json draft after explicit user request and boundary lock; mark handoff-ready only after self-review pass and user confirmation
 
 ## Forbidden Actions
 
@@ -93,8 +110,8 @@
 - project-context.md
 - open-questions.md
 - handoff-assessment.md when present
-- handoff-to-specify.md when user-confirmed
-- handoff-to-specify.json when user-confirmed
+- handoff-to-specify.md when draft or user-confirmed, according to handoff_review_status
+- handoff-to-specify.json when draft or user-confirmed, according to handoff_review_status
 
 ## Senior Consequence Analysis
 

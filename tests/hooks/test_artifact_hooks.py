@@ -419,6 +419,14 @@ def _valid_must_preserve_handoff_payload() -> str:
       "compile_ready": true,
       "coverage_status": "complete",
       "planning_gate_status": "ready",
+      "source_evidence": [
+        {
+          "source_type": "user_confirmation",
+          "evidence_status": "proven",
+          "source": "requirements.md#feature-goal",
+          "claim": "The user confirmed the product outcome to preserve."
+        }
+      ],
       "stage": "consequence-risk",
       "compiled_from": {
         "journal": "brainstorming/journal.ndjson",
@@ -738,6 +746,150 @@ def test_specify_artifact_validation_accepts_complete_must_preserve_handoff(tmp_
     )
 
     assert result.status == "ok"
+
+
+def test_specify_artifact_validation_accepts_structured_source_evidence(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = json.loads(_valid_must_preserve_handoff_payload())
+    payload["source_evidence"] = [
+        {
+            "source_type": "project_cognition_route",
+            "evidence_status": "inferred",
+            "source": "brainstorming/route.json",
+            "claim": "Route identifies the likely implementation target.",
+            "project_cognition_route": ["brainstorming/route.json"],
+            "notes": "Navigation evidence only.",
+        },
+        {
+            "source_type": "live_code_evidence",
+            "evidence_status": "proven",
+            "source": "src/specify_cli/hooks/artifact_validation.py",
+            "claim": "Live repository evidence proves current validator behavior.",
+            "live_code_evidence": ["src/specify_cli/hooks/artifact_validation.py"],
+            "needs_refresh": False,
+        },
+    ]
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+
+
+def test_specify_artifact_validation_blocks_invalid_structured_source_evidence(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = json.loads(_valid_must_preserve_handoff_payload())
+    payload["source_evidence"] = [
+        {
+            "source_type": "memory",
+            "evidence_status": "verified",
+            "source": " ",
+            "claim": "",
+            "project_cognition_route": ["brainstorming/route.json", ""],
+            "live_code_evidence": "src/specify_cli/hooks/artifact_validation.py",
+            "needs_refresh": "false",
+        },
+        "legacy source note",
+    ]
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("source_evidence[0].source is required" in message for message in result.errors)
+    assert any("source_evidence[0].claim is required" in message for message in result.errors)
+    assert any("source_evidence[0].source_type is invalid" in message for message in result.errors)
+    assert any("source_evidence[0].evidence_status is invalid" in message for message in result.errors)
+    assert any(
+        "source_evidence[0].project_cognition_route must be an array of non-empty strings" in message
+        for message in result.errors
+    )
+    assert any(
+        "source_evidence[0].live_code_evidence must be an array of non-empty strings" in message
+        for message in result.errors
+    )
+    assert any("source_evidence[0].needs_refresh must be a boolean" in message for message in result.errors)
+    assert any("source_evidence[1] must be an object" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_ready_handoff_without_source_evidence(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = json.loads(_valid_must_preserve_handoff_payload())
+    payload["source_evidence"] = []
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("source_evidence must include at least one entry" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_blocks_non_string_source_evidence_claim(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    payload = json.loads(_valid_must_preserve_handoff_payload())
+    payload["source_evidence"] = [
+        {
+            "source_type": "live_code_evidence",
+            "evidence_status": "proven",
+            "source": ["src/specify_cli/hooks/artifact_validation.py"],
+            "claim": 123,
+        }
+    ]
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("source_evidence[0].source must be a non-empty string" in message for message in result.errors)
+    assert any("source_evidence[0].claim must be a non-empty string" in message for message in result.errors)
 
 
 def test_specify_artifact_validation_blocks_ready_gate_with_open_conflict(tmp_path: Path) -> None:

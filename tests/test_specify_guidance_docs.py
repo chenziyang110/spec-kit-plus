@@ -174,6 +174,12 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "handoff-to-specify.md" in content
         assert "handoff-to-specify.json" in content
         assert "single unified handoff" in lowered or "one unified handoff" in lowered
+        assert "classifies each turn" in lowered or "classifies each user turn" in lowered
+        assert "live evidence" in lowered
+        assert "project cognition" in lowered
+        assert "advisory navigation" in lowered
+        assert "semantic checkpoints" in lowered
+        assert "draft unified handoff pair" in lowered or "one unified handoff pair" in lowered
         assert "quality_gate" in content
         assert "user confirmation" in lowered
         assert "split-plan.md" not in content

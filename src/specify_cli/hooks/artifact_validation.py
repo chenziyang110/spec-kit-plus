@@ -364,6 +364,27 @@ MP_VALID_PLANNING_GATE_STATUSES = frozenset(
         "blocked_by_handoff_integrity",
     }
 )
+SOURCE_EVIDENCE_REQUIRED_FIELDS = ("source_type", "evidence_status", "source", "claim")
+SOURCE_EVIDENCE_ALLOWED_TYPES = frozenset(
+    {
+        "project_cognition_route",
+        "live_code_evidence",
+        "user_confirmation",
+        "explicit_assumption",
+        "external_source",
+        "missing",
+        "conflict",
+    }
+)
+SOURCE_EVIDENCE_ALLOWED_STATUSES = frozenset(
+    {
+        "proven",
+        "inferred",
+        "stale-advisory",
+        "missing",
+        "conflict",
+    }
+)
 GRAPH_UPDATE_REQUIRED_KEYS = frozenset({"updates"})
 
 CONSEQUENCE_ANALYSIS_REQUIRED_KEYS = (
@@ -676,6 +697,69 @@ def _derived_open_conflict_count(payload: dict[str, Any]) -> int:
     )
 
 
+def _validate_source_evidence_entries(payload: dict[str, Any], label: str) -> list[str]:
+    version = payload.get("version")
+    if "source_evidence" not in payload:
+        if version == 2:
+            return [f"{label} source_evidence is required"]
+        return []
+    source_evidence = payload.get("source_evidence")
+    if not isinstance(source_evidence, list):
+        return [f"{label} source_evidence must be an array"]
+
+    errors: list[str] = []
+    status = str(payload.get("status") or "").strip()
+    coverage_status = str(payload.get("coverage_status") or "").strip()
+    planning_gate_status = str(payload.get("planning_gate_status") or "").strip()
+    if (
+        not source_evidence
+        and (
+            status in {"ready", "user-confirmed"}
+            or (version == 2 and coverage_status == "complete")
+            or (version == 2 and planning_gate_status == "ready")
+            or (version == 2 and payload.get("compile_ready") is True)
+        )
+    ):
+        errors.append(f"{label} source_evidence must include at least one entry")
+
+    for index, item in enumerate(source_evidence):
+        item_label = f"{label} source_evidence[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{item_label} must be an object")
+            continue
+
+        for field in SOURCE_EVIDENCE_REQUIRED_FIELDS:
+            value = item.get(field)
+            if not isinstance(value, str):
+                errors.append(f"{item_label}.{field} must be a non-empty string")
+                continue
+            if not value.strip():
+                errors.append(f"{item_label}.{field} is required")
+
+        source_type = str(item.get("source_type") or "").strip()
+        evidence_status = str(item.get("evidence_status") or "").strip()
+        if source_type and source_type not in SOURCE_EVIDENCE_ALLOWED_TYPES:
+            errors.append(f"{item_label}.source_type is invalid")
+        if evidence_status and evidence_status not in SOURCE_EVIDENCE_ALLOWED_STATUSES:
+            errors.append(f"{item_label}.evidence_status is invalid")
+
+        for field in ("project_cognition_route", "live_code_evidence"):
+            value = item.get(field)
+            if value is None:
+                continue
+            if not (
+                isinstance(value, list)
+                and all(isinstance(entry, str) and entry.strip() for entry in value)
+            ):
+                errors.append(f"{item_label}.{field} must be an array of non-empty strings")
+
+        needs_refresh = item.get("needs_refresh")
+        if needs_refresh is not None and not isinstance(needs_refresh, bool):
+            errors.append(f"{item_label}.needs_refresh must be a boolean")
+
+    return errors
+
+
 def _is_validly_closed_hard_blocking_question(item: dict[str, Any]) -> bool:
     status = str(item.get("status") or "").strip()
     if status == "resolved":
@@ -737,6 +821,7 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
 
     errors.extend(_validate_must_preserve_items(payload, label))
     errors.extend(_validate_conflict_records(payload, label))
+    errors.extend(_validate_source_evidence_entries(payload, label))
 
     hard_unknown_count = payload.get("hard_unknown_count", 0)
     open_conflict_count = payload.get("open_conflict_count", 0)

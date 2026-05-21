@@ -3,8 +3,8 @@ description: Use when a rough idea or requirement needs a resumable senior produ
 workflow_contract:
   when_to_use: A rough idea or requirement needs product/technical discussion before it is ready for sp-specify.
   primary_objective: Build a durable discussion package that matures the idea into requirements and technical implementation options.
-  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, plus exactly one unified handoff pair `.specify/discussions/<slug>/handoff-to-specify.md` and `.specify/discussions/<slug>/handoff-to-specify.json` only after boundary lock, self-review, and user confirmation.'
-  default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run boundary-aware handoff assessment and either produce one confirmed unified handoff pair or continue discussion.
+  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, plus exactly one unified draft handoff pair `.specify/discussions/<slug>/handoff-to-specify.md` and `.specify/discussions/<slug>/handoff-to-specify.json` after explicit handoff request and boundary lock. The pair becomes handoff-ready only after self-review and user confirmation.'
+  default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run boundary-aware handoff assessment and either produce one unified draft handoff pair for review or continue discussion. Mark handoff-ready only after self-review and user confirmation.
 ---
 
 {{spec-kit-include: ../command-partials/discussion/shell.md}}
@@ -32,7 +32,8 @@ You are a senior technical expert and senior product manager working with the us
 - Do not add, recommend, or route to `sp-split`, `sp-breakdown`, or any split-only workflow.
 - Do not write separate split planning artifacts.
 - Do not write candidate-specific handoff Markdown or JSON.
-- Do not create or refresh `handoff-to-specify.md` or `handoff-to-specify.json` unless the user explicitly asks to hand off, the Context Boundary Gate is locked, the handoff self-review passes, and the user confirms the handoff.
+- Do not create or refresh `handoff-to-specify.md` or `handoff-to-specify.json` unless the user explicitly asks to hand off and the Context Boundary Gate is locked.
+- Before user confirmation, the handoff pair is a draft pair only. Do not mark the discussion `handoff-ready` or recommend `sp-specify` until handoff self-review passes and the user confirms the handoff.
 - Do not tell the user to proceed to `sp-specify` before `quality_gate.status` is user-confirmed.
 
 
@@ -49,8 +50,8 @@ Required files:
 - `project-context.md`
 - `open-questions.md`
 - `handoff-assessment.md` only after explicit user request to hand off or continue to the next stage
-- `handoff-to-specify.md` only after a bounded unified handoff passes self-review and user confirmation
-- `handoff-to-specify.json` only after a bounded unified handoff passes self-review and user confirmation
+- `handoff-to-specify.md` as a draft only after explicit user request, boundary lock, and a bounded unified scope; ready only after self-review and user confirmation
+- `handoff-to-specify.json` as a draft companion only after explicit user request, boundary lock, and a bounded unified scope; ready only after self-review and user confirmation
 
 Do not create separate split planning artifacts or candidate-specific handoff files. Complex directions stay inside the single handoff through `capability_map`, `recommended_sequence`, `dependencies`, `deferred_scope`, and `reopen_conditions`, or remain in `continue-discussion` until the user confirms a unified scope.
 
@@ -66,6 +67,30 @@ Use `templates/discussion-state-template.md` when initializing `discussion-state
 - If no slug is specified and exactly one incomplete discussion exists, resume it.
 - If multiple incomplete discussions exist, list candidates with slug, status, summary, and `updated_at`, then ask the user to choose one or explicitly start a new discussion.
 - Sort candidates by `updated_at` in `discussion-state.md`; fall back to the state file modification time only when `updated_at` is missing.
+
+
+## Turn Classifier
+
+Before asking a question, classify the user's latest input:
+
+- `product_intent`: goal, user, scenario, desired behavior, non-goal, acceptance signal, preference, or trade-off.
+- `current_project_fact`: a question or claim about the active repository's commands, files, workflows, runtime behavior, tests, templates, or docs.
+- `target_boundary`: ambiguity about whether the active repository, another local project, a reference project, or an external system is the implementation target.
+- `reference_boundary`: ambiguity about which source artifact, project, prior implementation, doc, or external system should be used as evidence.
+- `handoff_request`: explicit request to feed the result to `sp-specify`, continue to the next stage, or produce handoff artifacts.
+- `continuation_or_resume`: user wants to continue an existing discussion.
+
+The classifier controls the next step. Product intent can be discussed directly or with one product question. Current project facts require evidence lookup before asking the user. Boundary gaps may require one concise boundary question. Handoff requests enter strict handoff assessment. Resume reads compact state and recent events first.
+
+## Question Evidence Gate
+
+Before asking the user a question, decide whether the agent can answer it from evidence.
+
+Ask the user only for product decisions, preferences, trade-offs, genuine boundary gaps, evidence conflicts requiring user judgment, or facts unavailable after bounded lookup.
+
+Do not ask the user when the answer can be found through current repository files, tests, scripts, CLI help, templates, authoritative docs, or a bounded project-cognition route followed by live reads.
+
+When evidence lookup fails, report what was checked and ask one focused question. Do not ask broad questions such as "where is this implemented?" until bounded search and project-cognition navigation have failed.
 
 
 ## Discussion Flow
@@ -147,25 +172,60 @@ Forbidden before the cognition gate:
 - source-code reads
 - testing strategy claims tied to existing code
 
-Before `context-grounding`, `technical-options`, affected-surface analysis, or source-grounded recommendations, use the launcher-backed project cognition query flow:
+Before `context-grounding`, `technical-options`, affected-surface analysis, or source-grounded recommendations, use project cognition only when current-project facts matter:
 
-1. Read `.specify/project-cognition/status.json` for freshness and runtime metadata.
-2. Run `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}`.
+1. Read `.specify/project-cognition/status.json` for advisory freshness and runtime metadata when present.
+2. Run `{{specify-subcmd:project-cognition lexicon --intent discussion --query="$ARGUMENTS" --format json}}`.
 3. Translate the returned map terms into a bounded `query_plan` with `selected_concepts`, `rejected_concepts`, `expanded_queries`, `paths`, and `selection_reason`.
-4. Run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
-5. Use the returned readiness, route_pack, subgraph, missing coverage, and `minimal_live_reads` as the discussion's source-grounded context.
+4. Run `{{specify-subcmd:project-cognition query --intent discussion --query-plan "<query_plan_json>" --format json}}`.
+5. Use the returned readiness, route_pack, subgraph, missing coverage, and `minimal_live_reads` only as advisory navigation.
+6. Read the returned `minimal_live_reads` before making project-specific technical claims.
 
-Treat `.specify/project-cognition/project-cognition.db` plus the query bundle as runtime truth. Do not require legacy raw slice artifacts as a prerequisite for source-grounded discussion.
+### Cognition Advisory, Code Authority
 
-Freshness handling:
+Treat project cognition as advisory navigation and coverage metadata. Use it to choose minimal live reads. Do not treat it as authoritative evidence for current behavior; prove project facts from live repository files before asking the user or making technical claims.
 
-- `missing`: stop and tell the user to run `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- `stale`: continue discussion when the conversation is exploratory and the runtime returns `review` or `perform_minimal_live_reads`; route to `{{invoke:map-update}}` when the user asks to write project facts that need proof. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
-- `support_drift`: stop for support-surface cleanup without reflexively routing to `{{invoke:map-update}}`.
-- `partial_refresh`: continue discussion only with unknowns and confidence labels; before handoff or source-changing planning, follow `recommended_next_action`.
-- `possibly_stale`: inspect affected graph scope and route to localized refresh if coverage is not safe enough.
+Readiness handling:
+
+- `ready`: read `minimal_live_reads`, then make claims only from live evidence.
+- `review`: read `minimal_live_reads`, carry confidence labels, and ask only if live reads still leave the fact unresolved.
+- `ambiguous`: present the likely candidates and ask the user to choose the intended target.
+- `needs_update`: treat as map-quality advisory for ordinary discussion; use live reads and record the cognition gap. Recommend `{{invoke:map-update}}` only when map maintenance becomes relevant or before a handoff needs stronger coverage.
+- `needs_rebuild`: continue product framing if possible, but do not make project-specific technical claims until live evidence proves them or the user accepts an explicit assumption. Recommend `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the user asks for map repair or handoff needs evidence that live reads cannot provide.
+- `readiness=blocked`: report project cognition as unavailable or degraded, continue with product framing or bounded live evidence when safe, and recommend map repair only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
 
 If the idea is clearly greenfield or does not depend on existing project structure, record the stand-down reason in `project-context.md` and avoid existing-code placement claims.
+
+## Lightweight Recovery Log
+
+Ordinary turns append a compact event to `discussion-log.md`. The event is not a transcript. It records only durable meaning: event kind, user input summary, agent conclusion, evidence used, open question delta, and whether a semantic checkpoint is required.
+
+Do not refresh all structured files on ordinary turns. The event log exists to survive context compaction while keeping normal discussion lightweight.
+
+## Semantic Checkpoints
+
+Refresh structured files only at semantic checkpoints:
+
+- user confirms a goal, non-goal, scope boundary, or important product decision
+- discussion stage changes, such as product framing to technical options
+- project evidence materially changes the understanding of the request
+- a code fact was proven and must survive compaction
+- evidence conflict is found
+- the user asks for handoff or next-stage continuation
+- context compaction risk is high
+- an old discussion is resumed and compact state is missing or stale
+
+Checkpoint triggers do not refresh all files. Refresh only the targets whose durable meaning changed:
+
+- discussion-state.md: short current summary, stage, confirmed decisions, open questions, boundary status, latest evidence route, and next question.
+- requirements.md only when product requirements have changed enough to matter.
+- technical-options.md only when options are introduced, revised, selected, or rejected.
+- project-context.md only when source-grounding evidence or cognition coverage changes.
+- open-questions.md only when blocking or soft unknowns materially change.
+
+## Recovery Flow
+
+When resuming a discussion, read `discussion-state.md` first, then recent `discussion-log.md` events since the last checkpoint. Read `requirements.md`, `technical-options.md`, `project-context.md`, or `open-questions.md` only when the state summary references them, is stale, is missing, or conflicts with recent events.
 
 ## Technical Options Board
 
@@ -187,14 +247,14 @@ Handoff assessment is explicit-user-request only. Run it when the user says the 
 Write or refresh `handoff-assessment.md` with:
 
 - decision status: `ready-for-specify` or `continue-discussion`
-- rationale citing `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, boundary evidence, or explicit user confirmation
+- rationale citing `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, boundary evidence, scope confirmation, or explicit assumptions
 - assessment dimensions: feature coherence, implementation target clarity, current repository role, reference source clarity, planning shape, validation shape, and risk profile
 - required next action: `write-unified-handoff` or `continue-discussion`
 
 Assessment outcomes:
 
-- `ready-for-specify`: the mature discussion describes one coherent handoff boundary with locked context. Write the unified `handoff-to-specify.md` and `handoff-to-specify.json` pair.
-- `continue-discussion`: the discussion is missing clarity, boundary facts, evidence provenance, user confirmation, or a coherent unified scope. Return to the question loop.
+- `ready-for-specify`: the mature discussion describes one coherent handoff boundary with locked context and a bounded unified scope. Write the unified draft `handoff-to-specify.md` and `handoff-to-specify.json` pair.
+- `continue-discussion`: the discussion is missing clarity, boundary facts, evidence provenance, scope confirmation, or a coherent unified scope. Return to the question loop.
 
 Do not use `split-required`. Do not write separate split planning artifacts. Broad work must be represented inside the single handoff through a capability map, recommended sequence, dependencies, deferred scope, and reopen conditions, or stay in discussion until the scope is coherent.
 
@@ -239,7 +299,7 @@ The handoff must include:
 - `context_boundary`: `current_project_root`, `current_project_roles`, `target_project_root`, `target_project_roles`, `reference_projects`, `external_systems`, `path_status`, `boundary_confidence`, and `boundary_unknowns`
 - role objects in `current_project_roles` and `target_project_roles`, each with `role`, `scope`, `evidence_source`, and `notes`
 - `implementation_target`: actual project to change, target root path when local, target paths or modules, target paths still to verify, target project cognition status, and the statement that current project cognition cannot prove another project's implementation facts
-- `source_evidence`: source type for each important conclusion, such as user confirmation, current project cognition, target project cognition, reference project cognition, live read, external source, or explicit assumption
+- `source_evidence`: structured evidence entries with `source_type`, `evidence_status`, `source`, `claim`, optional `project_cognition_route`, optional `live_code_evidence`, optional `needs_refresh`, and optional `notes`. Project cognition route entries are advisory unless paired with live code, test, script, config, docs, external source, explicit assumption, or user confirmation evidence.
 - `blocking_unknowns`: hard unknowns that block readiness and soft unknowns with owner, latest resolve phase, and stop-and-reopen condition
 - `downstream_instructions`: settled decisions, assumptions to preserve, conflicts requiring return to `sp-discussion`, capability map, recommended sequence, dependencies, deferred scope, and reopen conditions
 - `quality_gate`: `status`, `self_reviewed_at`, `user_review_required`, `user_confirmed_at`, and `blocked_reasons`
@@ -315,4 +375,4 @@ Do not mark the discussion `handoff-ready` until every confirmed or critical ite
 
 When the Senior Consequence Analysis Gate triggers, also write or refresh `handoff-to-specify.json` as a mandatory machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions. Markdown and JSON handoffs must agree on obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition before the discussion can become `handoff-ready`.
 
-After writing the handoff, tell the user to invoke the generated integration's `sp-specify` command form with the handoff path. Do not invoke it yourself.
+After writing a draft handoff, ask the user to review it. Tell the user to invoke the generated integration's `sp-specify` command form with the handoff path only after the handoff self-review passes and `quality_gate.status` records user confirmation. Do not invoke it yourself.

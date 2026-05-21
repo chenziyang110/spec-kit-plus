@@ -14,12 +14,15 @@ Drive a resumable product and technical discussion that locks context boundaries
 
 - Create or resume the discussion session.
 - Run the Context Boundary Gate before project-specific technical options, affected-file claims, implementation-path claims, or handoff generation.
-- Ask one boundary or high-impact question at a time.
-- Preserve key decisions in `discussion-log.md`.
-- Keep `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` current.
+- Use project cognition as advisory navigation only when current-project facts matter; use `--intent discussion`, read returned `minimal_live_reads`, and prove technical claims from live repository files.
+- Classify each user turn before asking a question.
+- Run the Question Evidence Gate before asking the user; answer repository-discoverable facts from live evidence.
+- Ask one boundary, product, trade-off, evidence-conflict, or high-impact question at a time only when the answer cannot be proven from available evidence.
+- Append compact ordinary-turn events to `discussion-log.md`.
+- Refresh `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only at semantic checkpoints.
 - If the user asks to transfer functionality into another project, lock `target_project_root` immediately before technicalizing.
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.
-- If the direction is coherent and boundary-locked, write exactly one complete handoff package: `handoff-to-specify.md` and `handoff-to-specify.json`.
+- If the direction is coherent and boundary-locked after explicit handoff request, write exactly one draft handoff package: `handoff-to-specify.md` and `handoff-to-specify.json`.
 - If the direction is too broad to express as one coherent package, continue the discussion instead of writing candidate-specific handoff files.
 - Run handoff self-review and require user confirmation before marking `handoff-ready`.
 - When senior consequence analysis triggers, preserve `CA-###` obligations, affected objects, lifecycle states, dependency impact, recovery/validation needs, coverage gaps, and stop-and-reopen conditions in the unified handoff pair.
@@ -29,7 +32,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Maintain the independent discussion state and artifacts under `.specify/discussions/<slug>/`.
 - Provide 2-3 project-grounded technical options only after the relevant boundary is locked.
 - Report unresolved questions honestly instead of forcing planning readiness.
-- Write `handoff-to-specify.md` and `handoff-to-specify.json` together; both files are mandatory for a valid handoff.
+- Write `handoff-to-specify.md` and `handoff-to-specify.json` together as a draft pair; both files are mandatory, and the pair becomes handoff-ready only after self-review and user confirmation.
 - Do not write separate split planning artifacts or candidate-specific handoff files.
 - When explicit handoff is requested, include `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger.
 - Do not mark handoff ready if role objects, target path context, evidence provenance, self-review status, user confirmation, or blocking unknown handling is missing.

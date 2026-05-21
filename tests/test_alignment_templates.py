@@ -485,8 +485,15 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "product framing may begin before project cognition" in lowered
     assert "forbidden before the cognition gate" in lowered
     assert ".specify/project-cognition/status.json" in content
-    assert "project-cognition lexicon" in content
-    assert "project-cognition query --intent plan" in content
+    assert "project-cognition lexicon --intent discussion" in content
+    assert "project-cognition query --intent discussion" in content
+    assert "project-cognition query --intent plan" not in content
+    assert "Question Evidence Gate" in content
+    assert "Turn Classifier" in content
+    assert "Cognition Advisory, Code Authority" in content
+    assert "runtime truth" not in lowered
+    assert "live repository" in lowered
+    assert "readiness=blocked" in content
     assert ".specify/project-cognition/slices/change.json" not in content
     assert "clearly greenfield" in lowered
     assert "source-code reads" in lowered
@@ -497,6 +504,25 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "minimal viable path" not in lowered
     assert "scope reduction requires user confirmation" in lowered
     assert "2-3" in content
+
+
+def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    state = _read("templates/discussion-state-template.md")
+    combined = "\n".join([content, shell, state])
+    lowered = combined.lower()
+
+    assert "Lightweight Recovery Log" in content
+    assert "Semantic Checkpoints" in content
+    assert "ordinary turns append" in lowered
+    assert "compact event" in lowered
+    assert "checkpoint triggers" in lowered
+    assert "do not refresh all files" in lowered
+    assert "requirements.md only when product requirements have changed enough to matter" in combined
+    assert "technical-options.md only when options are introduced, revised, selected, or rejected" in combined
+    assert "project-context.md only when source-grounding evidence or cognition coverage changes" in combined
+    assert "open-questions.md only when blocking or soft unknowns materially change" in combined
 
 
 def test_primary_workflows_include_senior_consequence_analysis_gate() -> None:
@@ -567,8 +593,12 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "handoff_review_status: not-started | draft | self-review-passed | user-confirmed | blocked" in content
     assert "handoff_user_confirmed_at:" in content
     assert "handoff_blocker_reason:" in content
-    assert "handoff-to-specify.md only after explicit user request, boundary lock, self-review pass, and user confirmation" in content
-    assert "handoff-to-specify.json only after explicit user request, boundary lock, self-review pass, and user confirmation" in content
+    assert "handoff-to-specify.md draft after explicit user request and boundary lock" in content
+    assert "handoff-to-specify.json draft after explicit user request and boundary lock" in content
+    assert "mark handoff-ready only after self-review pass and user confirmation" in content
+    assert "latest_event_checkpoint:" in content
+    assert "last_compaction_checkpoint:" in content
+    assert "latest_cognition_readiness:" in content
     assert "handoffs/*.md" not in content
     assert "handoffs/*.json" not in content
     assert "split_plan_status" not in content
@@ -652,6 +682,11 @@ def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     assert "technical options" in lowered
     assert "launcher-backed project cognition query planning flow" in lowered
     assert "retrieve the task-local project cognition bundle" in lowered
+    assert "project-cognition lexicon --intent discussion" in content
+    assert "project-cognition query --intent discussion" in content
+    assert "project-cognition lexicon --intent plan" not in content
+    assert "project-cognition query --intent plan" not in content
+    assert "use `--intent plan` from `sp-discussion`" in content
 
 
 def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> None:
@@ -1026,14 +1061,14 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     assert "## Always-On Context" in managed_block
     assert "project cognition query" in lowered
     assert "task-local project" in lowered
-    assert "cross-project cognition reference" in lowered
-    assert "explicit-only" in lowered
-    assert "supplemental-only" in lowered
-    assert "fresh-only" in lowered
-    assert "minimal read" in lowered
-    assert "runtime truth surface" in lowered
+    assert "cross-project reference directories" in lowered
+    assert "advisory navigation" in lowered
+    assert "coverage metadata" in lowered
+    assert "minimal live reads" in lowered
+    assert "live repository files" in lowered
+    assert "live evidence proves technical claims" in lowered
+    assert "readiness is interpreted as advisory navigation" in lowered
     assert "ordinary first-read runtime contract" not in lowered
-    assert "runtime truth surface" in lowered
     assert "project-map" in lowered
     assert "project-map as primary truth" not in lowered
     assert "project-map primary truth" not in lowered
@@ -2871,7 +2906,7 @@ def test_lossless_specify_state_templates_are_packaged_and_scaffolded() -> None:
     assert "brainstorming-evidence-record-template" in ps_create
 
 
-def test_brainstorming_handoff_template_supports_context_boundary_quality_gate() -> None:
+def test_brainstorming_handoff_template_supports_context_boundary_quality_gate_and_source_evidence_contract() -> None:
     template = json.loads(_read("templates/brainstorming-handoff-specify-template.json"))
 
     assert template["version"] == 2
@@ -2903,6 +2938,40 @@ def test_brainstorming_handoff_template_supports_context_boundary_quality_gate()
         implementation_target.get("current_project_cognition_scope_note") or ""
     ).lower()
     assert template.get("source_evidence") == []
+    source_evidence_contract = template.get("source_evidence_contract")
+    assert isinstance(source_evidence_contract, dict)
+    assert source_evidence_contract.get("required_fields") == [
+        "source_type",
+        "evidence_status",
+        "source",
+        "claim",
+    ]
+    assert source_evidence_contract.get("optional_fields") == [
+        "project_cognition_route",
+        "live_code_evidence",
+        "needs_refresh",
+        "notes",
+    ]
+    assert source_evidence_contract.get("allowed_source_types") == [
+        "project_cognition_route",
+        "live_code_evidence",
+        "user_confirmation",
+        "explicit_assumption",
+        "external_source",
+        "missing",
+        "conflict",
+    ]
+    assert source_evidence_contract.get("allowed_evidence_statuses") == [
+        "proven",
+        "inferred",
+        "stale-advisory",
+        "missing",
+        "conflict",
+    ]
+    assert (
+        source_evidence_contract.get("authority_rule")
+        == "Project cognition navigates; live repository evidence proves current behavior."
+    )
     assert template.get("blocking_unknowns") == []
     downstream_instructions = template.get("downstream_instructions")
     assert isinstance(downstream_instructions, dict)
@@ -2917,7 +2986,6 @@ def test_brainstorming_handoff_template_supports_context_boundary_quality_gate()
     assert quality_gate.get("blocked_reasons") == []
     assert template.get("candidate_id") is None
     assert template.get("source_split_plan") is None
-
 
 def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     content = _read("templates/commands/specify.md")

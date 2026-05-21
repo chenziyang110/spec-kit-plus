@@ -38,7 +38,9 @@ judgment in an established Spec Kit Plus repository:
   technical options, affected-surface claims, source-code reads, or
   source-grounded recommendations, use the active workflow's launcher-backed
   project cognition query planning flow to retrieve the task-local project
-  cognition bundle.
+  cognition bundle. Use `project-cognition lexicon --intent discussion` and
+  `project-cognition query --intent discussion` for discussion grounding. Do not
+  use `--intent plan` from `sp-discussion`.
 - Project cognition is project-scoped. Current project cognition proves only
   current project facts.
 - In `sp-discussion`, if the implementation target is another repository or
@@ -52,14 +54,14 @@ judgment in an established Spec Kit Plus repository:
   cognition, minimal live reads in the target, user confirmation, or explicit
   assumptions. Do not ask the user to rebuild current-project cognition for
   target files.
-- Treat the project cognition runtime as the cross-project cognition reference:
-  explicit-only, supplemental-only, fresh-only, and minimal read before broader
-  live-code inspection. Use it as a runtime truth surface for route and coverage
-  decisions, while proving behavior from live project evidence.
+- Treat project cognition as advisory navigation and coverage metadata. Use it
+  to choose minimal live reads, ownership hints, consumers, state surfaces,
+  verification routes, and coverage gaps. Do not treat it as authoritative
+  evidence for current behavior; prove project facts from live repository files.
 - A project-cognition query is not complete when it returns JSON. It is complete
-  only when readiness drives routing, `minimal_live_reads` constrains
-  inspection, and relevant facts are carried into the next workflow artifact or
-  execution state.
+  only when readiness is interpreted as advisory navigation, `minimal_live_reads`
+  constrains inspection, live evidence proves technical claims, and relevant
+  facts are carried into the next workflow artifact or execution state.
 - Extract and carry forward `selected_concepts`, `rejected_concepts`,
   `selection_reason`, the matched capability or symptom, affected nodes and
   subgraph, `route_pack`, `minimal_live_reads`, missing coverage, evidence
@@ -123,6 +125,11 @@ judgment in an established Spec Kit Plus repository:
 - If the freshness state is `partial_refresh`, tell the user the refresh was
   recorded but readiness did not pass; follow the reported
   `recommended_next_action` instead of implying success.
+- If project cognition readiness is `blocked`, report the runtime issue as
+  degraded advisory map state. Ordinary discussion may continue with product
+  framing or bounded live evidence; recommend a map maintenance workflow only
+  when the user asks for map maintenance or handoff needs evidence that live
+  reads cannot provide.
 - Preserve the distinction between the machine freshness field and public state
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.

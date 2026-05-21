@@ -283,7 +283,8 @@ class IntegrationBase(ABC):
             "discussion": [
                 "one high-impact product or technical clarification",
                 "resume selection when multiple incomplete discussions exist",
-                "explicit handoff confirmation before writing `handoff-to-specify.md`",
+                "explicit handoff request and boundary confirmation before drafting `handoff-to-specify.md`",
+                "user confirmation before marking the handoff ready for `sp-specify`",
             ],
             "clarify": [
                 "high-impact gap confirmation",
