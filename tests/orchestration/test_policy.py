@@ -8,53 +8,119 @@ from specify_cli.orchestration.policy import (
 )
 
 
-def test_choose_subagent_dispatch_routes_one_ready_lane_to_one_native_subagent() -> None:
+def test_plan_lightweight_safe_routes_to_leader_inline() -> None:
     snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 1,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.command_name == "implement"
-    assert decision.dispatch_shape == "one-subagent"
-    assert decision.reason == "mandatory-one-subagent"
-    assert decision.execution_surface == "native-subagents"
-    assert decision.execution_model == "subagent-mandatory"
-
-
-def test_choose_subagent_dispatch_routes_multiple_ready_lanes_to_parallel_native_subagents() -> None:
-    snapshot = CapabilitySnapshot(integration_key="claude", native_subagents=True)
 
     decision = choose_subagent_dispatch(
         command_name="plan",
         snapshot=snapshot,
         workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
+            "safe_subagent_lanes": 1,
+            "packet_ready": False,
+            "lightweight_safe": True,
         },
     )
 
     assert decision.command_name == "plan"
+    assert decision.dispatch_shape == "leader-inline"
+    assert decision.reason == "adaptive-light-leader-inline"
+    assert decision.execution_surface == "leader-inline"
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "light"
+    assert decision.workflow_status == "ready"
+    assert decision.capability_degraded is False
+
+
+def test_tasks_standard_native_available_routes_to_parallel_subagents() -> None:
+    snapshot = CapabilitySnapshot(integration_key="claude", native_subagents=True)
+
+    decision = choose_subagent_dispatch(
+        command_name="tasks",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 2,
+            "packet_ready": True,
+            "lightweight_safe": False,
+        },
+    )
+
+    assert decision.command_name == "tasks"
     assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "mandatory-parallel-subagents"
+    assert decision.reason == "adaptive-standard-parallel-subagents"
     assert decision.execution_surface == "native-subagents"
-    assert decision.execution_model == "subagent-mandatory"
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "standard"
+    assert decision.workflow_status == "ready"
 
 
-def test_choose_subagent_dispatch_uses_one_subagent_for_ordinary_sp_commands() -> None:
+def test_tasks_standard_without_native_subagents_degrades_to_leader_inline() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_subagent_dispatch(
+        command_name="tasks",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": True,
+            "lightweight_safe": False,
+            "high_risk": False,
+        },
+    )
+
+    assert decision.dispatch_shape == "leader-inline"
+    assert decision.reason == "adaptive-standard-native-unavailable-leader-inline"
+    assert decision.execution_surface == "leader-inline"
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "standard"
+    assert decision.capability_degraded is True
+
+
+def test_plan_heavy_without_native_subagents_blocks() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_subagent_dispatch(
+        command_name="plan",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": True,
+            "touches_schema_or_migration": True,
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "adaptive-heavy-subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "heavy"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "heavy or safety-critical plan work requires native subagents"
+
+
+def test_plan_unpacketized_heavy_native_subagents_blocks() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
+
+    decision = choose_subagent_dispatch(
+        command_name="plan",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 0,
+            "packet_ready": False,
+            "touches_security_sensitive_surface": True,
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "heavy or safety-critical plan work cannot be packetized safely"
+
+
+def test_non_adaptive_ordinary_commands_remain_mandatory_subagent() -> None:
     snapshot = CapabilitySnapshot(integration_key="claude", native_subagents=True)
 
     for command_name in (
         "specify",
-        "tasks",
-        "explain",
+        "implement",
         "debug",
         "quick",
         "map-build",
@@ -72,6 +138,26 @@ def test_choose_subagent_dispatch_uses_one_subagent_for_ordinary_sp_commands() -
         assert decision.dispatch_shape == "one-subagent"
         assert decision.reason == "mandatory-one-subagent"
         assert decision.execution_surface == "native-subagents"
+        assert decision.execution_model == "subagent-mandatory"
+
+
+def test_lightweight_safe_is_derived_from_risk_keys_when_omitted() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
+
+    decision = choose_subagent_dispatch(
+        command_name="plan",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": False,
+            "touches_shared_registration_surface": False,
+            "cross_project_target": False,
+            "reference_fidelity_required": False,
+        },
+    )
+
+    assert decision.dispatch_shape == "leader-inline"
+    assert decision.reason == "adaptive-light-leader-inline"
 
 
 def test_classify_batch_execution_policy_marks_low_risk_preparation_as_mixed_tolerance() -> None:

@@ -21,6 +21,27 @@ _OVERLAPPING_WRITE_SET_KEYS = (
     "has_overlapping_write_sets",
     "write_sets_overlap",
 )
+_ADAPTIVE_COMMANDS = {"plan", "tasks"}
+_HIGH_RISK_KEYS = (
+    "high_risk",
+    "touches_schema_or_migration",
+    "touches_schema",
+    "touches_migration",
+    "touches_security_sensitive_surface",
+    "touches_protocol_or_generated_api",
+    "touches_protocol_boundary",
+    "touches_generated_api",
+    "touches_native_or_plugin_bridge",
+    "touches_native_bridge",
+    "touches_plugin_bridge",
+    "touches_shared_registration_surface",
+    "touches_shared_surface",
+    "touches_shared_registration",
+    "cross_project_target",
+    "reference_fidelity_required",
+    "deep_research_handoff_required",
+    "consequence_obligations_require_independent_synthesis",
+)
 _HIGH_RISK_REVIEW_KEY_GROUPS = (
     (("touches_shared_surface", "touches_shared_registration"), "shared_surface"),
     (("touches_schema", "touches_migration"), "schema_change"),
@@ -86,16 +107,43 @@ def _get_shape_int(
     return None
 
 
-def choose_subagent_dispatch(
+def _command_is_adaptive(command_name: str) -> bool:
+    return command_name.strip().lower() in _ADAPTIVE_COMMANDS
+
+
+def _has_high_risk_trigger(shape: Mapping[str, object]) -> bool:
+    return _get_shape_flag(shape, _HIGH_RISK_KEYS, default=False)
+
+
+def _packet_ready(shape: Mapping[str, object]) -> bool:
+    return _get_shape_flag(shape, ("packet_ready", "delegation_packet_ready"), default=False)
+
+
+def _native_subagents_available(snapshot: CapabilitySnapshot, shape: Mapping[str, object]) -> bool:
+    if "native_subagents_available" in shape:
+        return _to_bool(shape["native_subagents_available"], default=snapshot.native_subagents)
+    return snapshot.native_subagents
+
+
+def _derive_lightweight_safe(shape: Mapping[str, object], safe_lanes: int) -> bool:
+    if "lightweight_safe" in shape:
+        return _to_bool(shape["lightweight_safe"], default=False)
+    return safe_lanes <= 1 and not _has_high_risk_trigger(shape)
+
+
+def _adaptive_mode(shape: Mapping[str, object], safe_lanes: int) -> str:
+    if _has_high_risk_trigger(shape):
+        return "heavy"
+    if _derive_lightweight_safe(shape, safe_lanes):
+        return "light"
+    return "standard"
+
+
+def _choose_mandatory_subagent_dispatch(
     *,
     command_name: str,
-    snapshot: CapabilitySnapshot,
-    workload_shape: dict[str, object],
+    safe_lanes: int,
 ) -> ExecutionDecision:
-    """Choose the mandatory subagent dispatch shape for ordinary sp-* commands."""
-
-    shape = workload_shape if isinstance(workload_shape, Mapping) else {}
-    safe_lanes = _get_shape_int(shape, _SAFE_SUBAGENT_LANE_COUNT_KEYS) or 0
     dispatch_shape = "parallel-subagents" if safe_lanes > 1 else "one-subagent"
     reason = "mandatory-parallel-subagents" if safe_lanes > 1 else "mandatory-one-subagent"
 
@@ -104,6 +152,108 @@ def choose_subagent_dispatch(
         dispatch_shape=dispatch_shape,
         reason=reason,
         execution_surface="native-subagents",
+    )
+
+
+def _choose_adaptive_dispatch(
+    *,
+    command_name: str,
+    snapshot: CapabilitySnapshot,
+    shape: Mapping[str, object],
+    safe_lanes: int,
+) -> ExecutionDecision:
+    mode = _adaptive_mode(shape, safe_lanes)
+    native_available = _native_subagents_available(snapshot, shape)
+    packet_ready = _packet_ready(shape)
+
+    if mode == "light":
+        return ExecutionDecision(
+            command_name=command_name,
+            dispatch_shape="leader-inline",
+            reason="adaptive-light-leader-inline",
+            execution_model="adaptive",
+            execution_mode="light",
+        )
+
+    if mode == "standard":
+        if not native_available:
+            return ExecutionDecision(
+                command_name=command_name,
+                dispatch_shape="leader-inline",
+                reason="adaptive-standard-native-unavailable-leader-inline",
+                execution_model="adaptive",
+                execution_mode="standard",
+                capability_degraded=True,
+            )
+        if safe_lanes > 1:
+            return ExecutionDecision(
+                command_name=command_name,
+                dispatch_shape="parallel-subagents",
+                reason="adaptive-standard-parallel-subagents",
+                execution_model="adaptive",
+                execution_mode="standard",
+            )
+        return ExecutionDecision(
+            command_name=command_name,
+            dispatch_shape="one-subagent",
+            reason="adaptive-standard-one-subagent",
+            execution_model="adaptive",
+            execution_mode="standard",
+        )
+
+    if not native_available:
+        return ExecutionDecision(
+            command_name=command_name,
+            dispatch_shape="subagent-blocked",
+            reason="adaptive-heavy-subagent-blocked",
+            execution_model="adaptive",
+            execution_mode="heavy",
+            workflow_status="blocked",
+            blocked_reason="heavy or safety-critical plan work requires native subagents",
+        )
+
+    if safe_lanes < 1 or not packet_ready:
+        return ExecutionDecision(
+            command_name=command_name,
+            dispatch_shape="subagent-blocked",
+            reason="adaptive-heavy-subagent-blocked",
+            execution_model="adaptive",
+            execution_mode="heavy",
+            workflow_status="blocked",
+            blocked_reason="heavy or safety-critical plan work cannot be packetized safely",
+        )
+
+    return ExecutionDecision(
+        command_name=command_name,
+        dispatch_shape="parallel-subagents" if safe_lanes > 1 else "one-subagent",
+        reason="adaptive-heavy-parallel-subagents" if safe_lanes > 1 else "adaptive-heavy-one-subagent",
+        execution_model="adaptive",
+        execution_mode="heavy",
+    )
+
+
+def choose_subagent_dispatch(
+    *,
+    command_name: str,
+    snapshot: CapabilitySnapshot,
+    workload_shape: dict[str, object],
+) -> ExecutionDecision:
+    """Choose the dispatch shape for orchestration-aware sp-* commands."""
+
+    shape = workload_shape if isinstance(workload_shape, Mapping) else {}
+    safe_lanes = _get_shape_int(shape, _SAFE_SUBAGENT_LANE_COUNT_KEYS) or 0
+
+    if _command_is_adaptive(command_name):
+        return _choose_adaptive_dispatch(
+            command_name=command_name,
+            snapshot=snapshot,
+            shape=shape,
+            safe_lanes=safe_lanes,
+        )
+
+    return _choose_mandatory_subagent_dispatch(
+        command_name=command_name,
+        safe_lanes=safe_lanes,
     )
 
 

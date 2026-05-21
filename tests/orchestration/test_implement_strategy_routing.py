@@ -111,3 +111,25 @@ def test_implement_uses_parallel_subagents_for_multiple_lanes_across_integration
     assert decision.dispatch_shape == "parallel-subagents"
     assert decision.reason == "mandatory-parallel-subagents"
     assert decision.execution_surface == "native-subagents"
+
+
+def test_implement_ignores_lightweight_safe_and_remains_mandatory() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="codex",
+        native_subagents=True,
+    )
+
+    decision = choose_subagent_dispatch(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": True,
+            "lightweight_safe": True,
+        },
+    )
+
+    assert decision.dispatch_shape == "one-subagent"
+    assert decision.reason == "mandatory-one-subagent"
+    assert decision.execution_surface == "native-subagents"
+    assert decision.execution_model == "subagent-mandatory"
