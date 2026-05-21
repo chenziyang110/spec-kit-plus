@@ -95,6 +95,34 @@ def test_gemini_toml_install_contract_tracks_commands_scripts_and_context(tmp_pa
     assert "## Active Technologies" in context_content
 
 
+def test_gemini_init_outputs_parseable_runtime_toml_commands(tmp_path):
+    runner = CliRunner()
+    target = tmp_path / "gemini-runtime-toml"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "gemini", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai gemini failed: {result.output}"
+
+    for rel_path in (
+        ".gemini/commands/sp.implement.toml",
+        ".gemini/commands/sp.debug.toml",
+        ".gemini/commands/sp.quick.toml",
+    ):
+        content = (target / rel_path).read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+
+        assert parsed["description"]
+        assert parsed["prompt"]
+        assert "{SCRIPT}" not in content
+        assert "__AGENT__" not in content
+        assert "{ARGS}" not in content
+        assert "\nscripts:\n" not in content
+        assert "\nagent_scripts:\n" not in content
+
+
 class TestGeminiIntegration:
 
     @staticmethod

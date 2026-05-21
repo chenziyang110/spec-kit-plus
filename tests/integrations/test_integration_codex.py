@@ -79,6 +79,34 @@ def test_codex_install_inventory_tracks_core_skills_and_team_assets(tmp_path):
         assert rel_path in manifest.files
 
 
+def test_codex_uninstall_removes_team_assets_and_restores_existing_configs(tmp_path):
+    from specify_cli.codex_team import install_codex_team_assets
+    from specify_cli.integrations import get_integration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    existing_specify_config = '{"custom": true}\n'
+    existing_codex_config = 'model = "gpt-test"\n'
+    (tmp_path / ".specify").mkdir()
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".specify" / "config.json").write_text(existing_specify_config, encoding="utf-8")
+    (tmp_path / ".codex" / "config.toml").write_text(existing_codex_config, encoding="utf-8")
+
+    integration = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+    integration.setup(tmp_path, manifest)
+    install_codex_team_assets(tmp_path, manifest, integration_key="codex")
+
+    removed, skipped = integration.uninstall(tmp_path, manifest)
+
+    removed_rel = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in removed}
+    assert ".specify/teams/runtime.json" in removed_rel
+    assert ".specify/teams/README.md" in removed_rel
+    assert ".specify/teams/install-state.json" in removed_rel
+    assert skipped == []
+    assert (tmp_path / ".specify" / "config.json").read_text(encoding="utf-8") == existing_specify_config
+    assert (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8") == existing_codex_config
+
+
 class TestCodexIntegration:
     KEY = "codex"
     CONTEXT_FILE = "AGENTS.md"
