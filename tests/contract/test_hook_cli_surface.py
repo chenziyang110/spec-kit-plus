@@ -1318,22 +1318,6 @@ def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_missin
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
-def test_map_build_artifact_validation_requires_sqlite_database(tmp_path: Path):
-    run_dir = tmp_path / ".specify" / "project-cognition"
-    run_dir.mkdir(parents=True)
-    (run_dir / "status.json").write_text('{"version": 3, "graph_ready": true}\n', encoding="utf-8")
-
-    result = _invoke_in_project(
-        tmp_path,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir), "--format", "json"],
-    )
-
-    payload = json.loads(result.output)
-    assert payload["status"] == "blocked"
-    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
-    assert any("project-cognition.db" in message for message in payload["errors"])
-
-
 def test_hook_validate_artifacts_accepts_map_build_when_sqlite_database_exists(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
