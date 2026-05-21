@@ -311,6 +311,29 @@ def test_classify_review_gate_policy_checks_all_schema_aliases() -> None:
     assert policy.reason == "schema_change"
 
 
+def test_classify_review_gate_policy_covers_schema_or_migration_alias() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_schema_or_migration": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "schema_change"
+
+
+def test_classify_review_gate_policy_checks_all_shared_surface_aliases() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_shared_registration_surface": False,
+            "touches_shared_surface": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "shared_surface"
+
+
 def test_classify_review_gate_policy_checks_all_boundary_aliases() -> None:
     policy = classify_review_gate_policy(
         workload_shape={
@@ -321,6 +344,30 @@ def test_classify_review_gate_policy_checks_all_boundary_aliases() -> None:
 
     assert policy.requires_review_gate is True
     assert policy.reason == "boundary_contract"
+
+
+def test_classify_review_gate_policy_covers_protocol_generated_and_plugin_aliases() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_protocol_or_generated_api": False,
+            "touches_native_or_plugin_bridge": False,
+            "touches_plugin_bridge": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "boundary_contract"
+
+
+def test_classify_review_gate_policy_marks_security_sensitive_surface() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_security_sensitive_surface": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "security_sensitive"
 
 
 def test_classify_review_gate_policy_skips_low_risk_batches() -> None:
