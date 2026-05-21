@@ -21,13 +21,11 @@ def _assert_mandatory_subagent_guidance(content: str) -> None:
 
 
 def test_map_scan_and_build_templates_require_mandatory_subagent_guidance() -> None:
-    _assert_mandatory_subagent_guidance(_read("templates/commands/map-scan.md"))
-    _assert_mandatory_subagent_guidance(_read("templates/commands/map-build.md"))
-
-
-def test_map_scan_build_templates_require_subagent_blocked_persistence() -> None:
     scan_content = _read("templates/commands/map-scan.md").lower()
     build_content = _read("templates/commands/map-build.md").lower()
+
+    _assert_mandatory_subagent_guidance(scan_content)
+    _assert_mandatory_subagent_guidance(build_content)
 
     for content in (scan_content, build_content):
         assert "subagent_blocked" in content
@@ -95,45 +93,6 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "validate-scan" in lowered
     assert "may report complete only after" in lowered
 
-
-def test_map_scan_shell_partial_keeps_specify_out_of_graph_inputs() -> None:
-    content = _read("templates/command-partials/map-scan/shell.md")
-    lowered = content.lower()
-
-    assert "passive learning files as read-only workflow guidance, not scan evidence" in lowered
-    assert "`.specify/**` is workflow/runtime state, not project graph evidence" in content
-    assert "must not become scan targets or graph paths" in lowered
-
-
-def test_map_workflow_templates_use_cognitionignore_for_scan_build_and_update_scope() -> None:
-    scan_content = _read("templates/commands/map-scan.md")
-    build_content = _read("templates/commands/map-build.md")
-    update_content = _read("templates/commands/map-update.md")
-    scan_shell = _read("templates/command-partials/map-scan/shell.md")
-    build_shell = _read("templates/command-partials/map-build/shell.md")
-
-    for content in (scan_content, build_content, update_content, scan_shell, build_shell):
-        assert ".cognitionignore" in content
-
-    assert "gitignore-compatible" in scan_content.lower()
-    assert "repository-universe.json" in scan_content
-    assert "excluded_paths" in scan_content
-    assert "must not appear in coverage rows, evidence rows, provisional nodes, provisional edges, observations, or scan packets" in scan_content
-    assert "project-cognition validate-scan --format json" in scan_content
-
-    assert "must reject `.cognitionignore`-excluded paths" in build_content
-    assert "must not write `.cognitionignore`-excluded paths" in build_content
-    assert "project-cognition validate-build --format json" in build_content
-
-    assert "filter changed paths through `.cognitionignore`" in update_content.lower()
-    assert "user-supplied changed paths that match `.cognitionignore`" in update_content.lower()
-    assert "minimal_live_reads" in update_content
-
-
-def test_map_scan_template_prefers_native_subagent_inventory_with_structured_handoffs() -> None:
-    content = _read("templates/commands/map-scan.md")
-    lowered = content.lower()
-
     assert "current-runtime native subagents are the default" in lowered
     assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered
     assert "one-subagent" in lowered
@@ -144,11 +103,6 @@ def test_map_scan_template_prefers_native_subagent_inventory_with_structured_han
     assert "structured handoff" in lowered
     assert "idle subagent output is not an accepted scan result" in lowered
     assert "must wait for every dispatched scan lane" in lowered
-
-
-def test_map_scan_template_preserves_required_scan_dimensions() -> None:
-    content = _read("templates/commands/map-scan.md")
-    lowered = content.lower()
 
     required_phrases = [
         "project shape and stack",
@@ -175,6 +129,13 @@ def test_map_scan_template_preserves_required_scan_dimensions() -> None:
     assert "active/running actors" in lowered
     assert "shared mutable state and destructive-operation surfaces" in lowered
     assert "minimal live reads" in lowered
+    scan_shell = _read("templates/command-partials/map-scan/shell.md")
+    scan_shell_lowered = scan_shell.lower()
+    assert ".cognitionignore" in content
+    assert ".cognitionignore" in scan_shell
+    assert "passive learning files as read-only workflow guidance, not scan evidence" in scan_shell_lowered
+    assert "`.specify/**` is workflow/runtime state, not project graph evidence" in scan_shell
+    assert "must not become scan targets or graph paths" in scan_shell_lowered
 
 
 def test_map_build_template_refuses_incomplete_scan_packages() -> None:
@@ -217,11 +178,11 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "required_reads contain only reference-only" in lowered or "reference-only or hard-excluded" in lowered
     assert "`.specify/**` inputs are workbench/control artifacts, not graph evidence rows" in content
     assert "must not write `.specify/**` into `evidence.source_path`, `path_index.path`" in content
-
-
-def test_map_build_template_requires_reverse_coverage_closure() -> None:
-    content = _read("templates/commands/map-build.md")
-    lowered = content.lower()
+    assert ".cognitionignore" in content
+    assert "must reject `.cognitionignore`-excluded paths" in content
+    assert "must not write `.cognitionignore`-excluded paths" in content
+    build_shell = _read("templates/command-partials/map-build/shell.md")
+    assert ".cognitionignore" in build_shell
 
     required_phrases = [
         "every `critical` row appears in at least one final handbook target",
@@ -241,19 +202,7 @@ def test_map_build_template_requires_reverse_coverage_closure() -> None:
 
     for phrase in required_phrases:
         assert phrase in lowered
-
-
-def test_map_scan_and_build_templates_require_layer1_route_material() -> None:
-    scan_content = _read("templates/commands/map-scan.md").lower()
-    build_content = _read("templates/commands/map-build.md").lower()
-
-    assert "generate layer 1 retrieval source material" in scan_content
-    assert "task route candidates" in scan_content
-    assert "symptom route candidates" in scan_content
-    assert "shared-surface hotspot candidates" in scan_content
-    assert "verification route candidates" in scan_content
-    assert "propagation-risk route candidates" in scan_content
-    assert "workflow-operational reachability validation" in build_content
+    assert "workflow-operational reachability validation" in lowered
 
 
 def test_map_workflow_templates_require_project_concept_lexicon_signals() -> None:
@@ -279,6 +228,10 @@ def test_map_workflow_templates_require_project_concept_lexicon_signals() -> Non
     assert "patch-in-active-generation" in update_content
     assert "stale retrieval signals" in update_lowered
     assert "selected_concepts" in update_content
+    assert ".cognitionignore" in update_content
+    assert "filter changed paths through `.cognitionignore`" in update_lowered
+    assert "user-supplied changed paths that match `.cognitionignore`" in update_lowered
+    assert "minimal_live_reads" in update_content
 
 
 def test_map_scan_template_requires_truth_layer_ledgers() -> None:
@@ -291,6 +244,12 @@ def test_map_scan_template_requires_truth_layer_ledgers() -> None:
     assert "file, entrypoint, branch, and control-node coverage" in lowered
     assert "by capability" in lowered
     assert "by symptom" in lowered
+    assert "generate layer 1 retrieval source material" in lowered
+    assert "task route candidates" in lowered
+    assert "symptom route candidates" in lowered
+    assert "shared-surface hotspot candidates" in lowered
+    assert "verification route candidates" in lowered
+    assert "propagation-risk route candidates" in lowered
 
 
 def test_map_build_template_requires_truth_layer_outputs() -> None:

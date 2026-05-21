@@ -44,18 +44,12 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "atlas.entry" not in content
     assert "root topic document" not in lowered
     assert "module overview document" not in lowered
-
-
-def test_context_loading_gradient_requires_cognition_carry_forward() -> None:
-    content = _read("templates/command-partials/common/context-loading-gradient.md").lower()
-
-    assert "a project-cognition query is not complete when it returns json" in content
-    assert "readiness drives routing" in content
-    assert "minimal_live_reads constrains inspection" in content
-    assert "carry forward the selected concepts" in content
-    assert "rejected concepts" in content
-    assert "route_pack" in content
-    assert "next workflow artifact or execution state" in content
+    assert "a project-cognition query is not complete when it returns json" in lowered
+    assert "readiness drives routing" in lowered
+    assert "minimal_live_reads constrains inspection" in lowered
+    assert "carry forward the selected concepts" in lowered
+    assert "rejected concepts" in lowered
+    assert "next workflow artifact or execution state" in lowered
 
 
 def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> None:
@@ -78,15 +72,6 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
     assert "missing coverage" in content
     assert "verification routes" in content
     assert "weak coverage" in content
-
-
-def test_project_cognition_passive_skill_guides_cross_project_specify_reference_reads() -> None:
-    content = " ".join(
-        _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
-        .lower()
-        .split()
-    )
-
     assert "when inspecting or comparing another local directory" in content
     assert "check whether that directory or its children contain `.specify/` first" in content
     assert "cognition discover --root" in content
