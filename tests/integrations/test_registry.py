@@ -95,3 +95,28 @@ class TestRegistrarKeyAlignment:
         assert claude is not None
         assert any(path.name == "team.md" for path in codex.list_command_templates())
         assert all(path.name != "team.md" for path in claude.list_command_templates())
+
+    @pytest.mark.parametrize(
+        ("key", "folder", "commands_subdir"),
+        [
+            ("amp", ".agents/", "commands"),
+            ("auggie", ".augment/", "commands"),
+            ("bob", ".bob/", "commands"),
+            ("codebuddy", ".codebuddy/", "commands"),
+            ("iflow", ".iflow/", "commands"),
+            ("junie", ".junie/", "commands"),
+            ("kilocode", ".kilocode/", "workflows"),
+            ("pi", ".pi/", "prompts"),
+            ("qodercli", ".qoder/", "commands"),
+            ("qwen", ".qwen/", "commands"),
+            ("roo", ".roo/", "commands"),
+            ("shai", ".shai/", "commands"),
+            ("windsurf", ".windsurf/", "workflows"),
+        ],
+    )
+    def test_reduced_markdown_matrix_preserves_agent_metadata(self, key, folder, commands_subdir):
+        integration = get_integration(key)
+
+        assert integration is not None
+        assert integration.config["folder"] == folder
+        assert integration.config["commands_subdir"] == commands_subdir
