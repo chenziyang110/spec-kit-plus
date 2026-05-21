@@ -110,6 +110,8 @@ class TestRegistrarKeyAlignment:
             ("iflow", ".iflow/", "commands", ".iflow/commands", "IFLOW.md"),
             ("junie", ".junie/", "commands", ".junie/commands", ".junie/AGENTS.md"),
             ("kilocode", ".kilocode/", "workflows", ".kilocode/workflows", ".kilocode/rules/specify-rules.md"),
+            ("kiro-cli", ".kiro/", "prompts", ".kiro/prompts", "AGENTS.md"),
+            ("opencode", ".opencode/", "command", ".opencode/command", "AGENTS.md"),
             ("pi", ".pi/", "prompts", ".pi/prompts", "AGENTS.md"),
             ("qodercli", ".qoder/", "commands", ".qoder/commands", "QODER.md"),
             ("qwen", ".qwen/", "commands", ".qwen/commands", "QWEN.md"),
@@ -135,6 +137,33 @@ class TestRegistrarKeyAlignment:
         assert integration.registrar_config["format"] == "markdown"
         assert integration.registrar_config["args"] == "$ARGUMENTS"
         assert integration.registrar_config["extension"] == ".md"
+        assert integration.context_file == context_file
+
+    @pytest.mark.parametrize(
+        ("key", "folder", "commands_subdir", "registrar_dir", "context_file"),
+        [
+            ("agy", ".agents/", "skills", ".agents/skills", "AGENTS.md"),
+            ("trae", ".trae/", "skills", ".trae/skills", ".trae/rules/project_rules.md"),
+            ("vibe", ".vibe/", "skills", ".vibe/skills", "AGENTS.md"),
+        ],
+    )
+    def test_reduced_skills_matrix_preserves_agent_metadata(
+        self,
+        key,
+        folder,
+        commands_subdir,
+        registrar_dir,
+        context_file,
+    ):
+        integration = get_integration(key)
+
+        assert integration is not None
+        assert integration.config["folder"] == folder
+        assert integration.config["commands_subdir"] == commands_subdir
+        assert integration.registrar_config["dir"] == registrar_dir
+        assert integration.registrar_config["format"] == "markdown"
+        assert integration.registrar_config["args"] == "$ARGUMENTS"
+        assert integration.registrar_config["extension"] == "/SKILL.md"
         assert integration.context_file == context_file
 
     def test_reduced_toml_matrix_preserves_tabnine_metadata(self):

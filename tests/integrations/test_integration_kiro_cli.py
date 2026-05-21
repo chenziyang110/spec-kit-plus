@@ -2,16 +2,6 @@
 
 import os
 
-from .test_integration_base_markdown import MarkdownIntegrationTests
-
-
-class TestKiroCliIntegration(MarkdownIntegrationTests):
-    KEY = "kiro-cli"
-    FOLDER = ".kiro/"
-    COMMANDS_SUBDIR = "prompts"
-    REGISTRAR_DIR = ".kiro/prompts"
-    CONTEXT_FILE = "AGENTS.md"
-
 
 class TestKiroAlias:
     """--ai kiro alias normalizes to kiro-cli and auto-promotes."""
