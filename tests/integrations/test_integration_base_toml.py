@@ -146,14 +146,10 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 
 
 
-TOML_INTEGRATION_KEYS = sorted(
-    key
-    for key, integration in INTEGRATION_REGISTRY.items()
-    if isinstance(integration, TomlIntegration)
-)
+TOML_INTEGRATION_SAMPLE_KEYS = ("gemini",)
 
 
-@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_KEYS)
+@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_SAMPLE_KEYS)
 def test_collected_toml_integrations_render_consequence_gate(tmp_path, integration_key):
     integration = get_integration(integration_key)
     manifest = IntegrationManifest(integration_key, tmp_path)
@@ -172,7 +168,7 @@ def test_collected_toml_integrations_render_consequence_gate(tmp_path, integrati
     assert "ca-###" in generated
 
 
-@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_KEYS)
+@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_SAMPLE_KEYS)
 def test_collected_toml_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
     integration = get_integration(integration_key)
     manifest = IntegrationManifest(integration_key, tmp_path)

@@ -132,3 +132,15 @@ class TestRegistrarKeyAlignment:
         assert integration.registrar_config["args"] == "$ARGUMENTS"
         assert integration.registrar_config["extension"] == ".md"
         assert integration.context_file == context_file
+
+    def test_reduced_toml_matrix_preserves_tabnine_metadata(self):
+        integration = get_integration("tabnine")
+
+        assert integration is not None
+        assert integration.config["folder"] == ".tabnine/agent/"
+        assert integration.config["commands_subdir"] == "commands"
+        assert integration.registrar_config["dir"] == ".tabnine/agent/commands"
+        assert integration.registrar_config["format"] == "toml"
+        assert integration.registrar_config["args"] == "{{args}}"
+        assert integration.registrar_config["extension"] == ".toml"
+        assert integration.context_file == "TABNINE.md"

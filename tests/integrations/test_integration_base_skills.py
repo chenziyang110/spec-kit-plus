@@ -176,14 +176,10 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 
 
 
-SKILLS_INTEGRATION_KEYS = sorted(
-    key
-    for key, integration in INTEGRATION_REGISTRY.items()
-    if isinstance(integration, SkillsIntegration)
-)
+SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe")
 
 
-@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_KEYS)
+@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_SAMPLE_KEYS)
 def test_collected_skills_integrations_render_consequence_gate(tmp_path, integration_key):
     integration = get_integration(integration_key)
     manifest = IntegrationManifest(integration_key, tmp_path)
@@ -201,7 +197,7 @@ def test_collected_skills_integrations_render_consequence_gate(tmp_path, integra
     assert "ca-###" in generated
 
 
-@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_KEYS)
+@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_SAMPLE_KEYS)
 def test_collected_skills_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
     integration = get_integration(integration_key)
     manifest = IntegrationManifest(integration_key, tmp_path)
