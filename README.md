@@ -491,6 +491,8 @@ After planning, continue with:
 specify -> plan -> tasks -> implement
 ```
 
+`plan` and `tasks` use adaptive execution. Low-risk single-lane planning or task generation may run leader-inline and record `execution_mode: light`. Standard work uses native subagents when available and records `capability_degraded: true` if it must continue leader-inline because native subagents are unavailable and no high-risk trigger is present. Heavy or safety-critical work records `dispatch_shape: subagent-blocked` and stops when it cannot be delegated safely.
+
 Closed-loop remediation after `tasks`:
 
 - If the defect is in `spec.md` or `context.md`, go back to `clarify`, then rerun `plan`, `tasks`, and `implement` after the upstream artifacts are repaired.
@@ -562,8 +564,8 @@ Skills-based projects now install two layers into the same skills directory:
 Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
-- `sp-*` execution-oriented workflows use a leader + subagents model: `subagents-first` execution, `one-subagent` or `parallel-subagents` dispatch, and `leader-inline-fallback` only when delegation is unavailable, unsafe, or not packetized
-- execution decisions use `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, and `execution_surface: native-subagents | managed-team | leader-inline`
+- `sp-plan` and `sp-tasks` are adaptive: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`.
+- Workflows that remain mandatory-subagent, such as `sp-implement`, `sp-debug`, `sp-map-scan`, `sp-map-build`, `sp-prd-scan`, and `sp-prd-build`, still use `execution_model: subagent-mandatory`.
 - in execution-oriented workflows, use subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `sp-teams` remains the Codex `managed-team` execution surface for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst
