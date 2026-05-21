@@ -749,13 +749,11 @@ def _project_map_preflight(
     project_root: Path,
     *,
     command_name: str,
-    block_on: set[str] | None = None,
 ) -> dict[str, Any]:
     result = inspect_project_cognition_freshness_for_command(
         project_root,
         command_name=command_name,
     )
-    block_levels = block_on or {"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"}
     freshness = str(result.get("state", result["freshness"])).strip().lower()
     readiness = str(result.get("readiness", "")).strip().lower()
 
@@ -774,7 +772,6 @@ def _require_fresh_project_map_for_execution(project_root: Path, *, command_name
     return _project_map_preflight(
         project_root,
         command_name=command_name,
-        block_on={"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"},
     )
 
 
