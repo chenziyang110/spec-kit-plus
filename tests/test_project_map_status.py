@@ -584,6 +584,28 @@ def test_assess_project_map_freshness_routes_baseline_identity_invalid_to_scan_b
     assert result["recommended_next_action"] == "run_map_scan_build"
 
 
+def test_assess_project_map_freshness_routes_failed_update_unusable_baseline_to_scan_build(tmp_path):
+    mod = _load_module()
+    status = mod.ProjectMapStatus(
+        freshness="stale",
+        last_mapped_commit="abc123",
+        dirty=True,
+        dirty_reasons=["failed_update_unusable_baseline"],
+    )
+    mod.write_project_map_status(tmp_path, status)
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="def456",
+        changed_files=[],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "stale"
+    assert result["readiness"] == "blocked"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
 def test_assess_project_map_freshness_routes_zero_active_generation_path_index_to_scan_build(tmp_path):
     mod = _load_module()
     status = mod.ProjectMapStatus(

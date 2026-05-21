@@ -173,6 +173,7 @@ SCAN_BUILD_ALLOWED_REASON_TOKENS = {
     "active_generation_has_no_path_index_rows",
     "baseline_identity_invalid",
     "explicit_rebuild_requested",
+    "failed_update_unusable_baseline",
     "path_not_safely_adoptable_by_project_cognition_index",
 }
 
