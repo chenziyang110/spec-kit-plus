@@ -97,6 +97,27 @@ def test_plan_heavy_without_native_subagents_blocks() -> None:
     assert decision.blocked_reason == "heavy or safety-critical plan work requires native subagents"
 
 
+def test_tasks_heavy_without_native_subagents_uses_task_generation_blocked_reason() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_subagent_dispatch(
+        command_name="tasks",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": True,
+            "touches_security_sensitive_surface": True,
+        },
+    )
+
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "heavy"
+    assert decision.workflow_status == "blocked"
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.blocked_reason == "heavy or safety-critical task generation requires native subagents"
+
+
 def test_plan_unpacketized_heavy_native_subagents_blocks() -> None:
     snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
 
@@ -113,6 +134,69 @@ def test_plan_unpacketized_heavy_native_subagents_blocks() -> None:
     assert decision.dispatch_shape == "subagent-blocked"
     assert decision.workflow_status == "blocked"
     assert decision.blocked_reason == "heavy or safety-critical plan work cannot be packetized safely"
+
+
+def test_high_risk_classifier_checks_all_present_risk_keys() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
+
+    decision = choose_subagent_dispatch(
+        command_name="plan",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": False,
+            "high_risk": False,
+            "touches_schema": True,
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "heavy"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "heavy or safety-critical plan work cannot be packetized safely"
+
+
+def test_standard_native_available_blocks_when_no_safe_lanes() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
+
+    decision = choose_subagent_dispatch(
+        command_name="tasks",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 0,
+            "packet_ready": True,
+            "lightweight_safe": False,
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "adaptive-standard-subagent-blocked"
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "standard"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "standard adaptive task generation cannot be packetized safely"
+
+
+def test_standard_native_available_blocks_when_packet_not_ready() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
+
+    decision = choose_subagent_dispatch(
+        command_name="tasks",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": False,
+            "lightweight_safe": False,
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "adaptive-standard-subagent-blocked"
+    assert decision.execution_model == "adaptive"
+    assert decision.execution_mode == "standard"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "standard adaptive task generation cannot be packetized safely"
 
 
 def test_non_adaptive_ordinary_commands_remain_mandatory_subagent() -> None:

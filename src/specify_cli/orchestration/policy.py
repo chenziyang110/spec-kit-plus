@@ -111,8 +111,15 @@ def _command_is_adaptive(command_name: str) -> bool:
     return command_name.strip().lower() in _ADAPTIVE_COMMANDS
 
 
+def _command_work_label(command_name: str) -> str:
+    command = command_name.strip().lower()
+    if command == "tasks":
+        return "task generation"
+    return "plan work"
+
+
 def _has_high_risk_trigger(shape: Mapping[str, object]) -> bool:
-    return _get_shape_flag(shape, _HIGH_RISK_KEYS, default=False)
+    return any(_to_bool(shape[key], default=False) for key in _HIGH_RISK_KEYS if key in shape)
 
 
 def _packet_ready(shape: Mapping[str, object]) -> bool:
@@ -165,6 +172,7 @@ def _choose_adaptive_dispatch(
     mode = _adaptive_mode(shape, safe_lanes)
     native_available = _native_subagents_available(snapshot, shape)
     packet_ready = _packet_ready(shape)
+    work_label = _command_work_label(command_name)
 
     if mode == "light":
         return ExecutionDecision(
@@ -184,6 +192,16 @@ def _choose_adaptive_dispatch(
                 execution_model="adaptive",
                 execution_mode="standard",
                 capability_degraded=True,
+            )
+        if safe_lanes < 1 or not packet_ready:
+            return ExecutionDecision(
+                command_name=command_name,
+                dispatch_shape="subagent-blocked",
+                reason="adaptive-standard-subagent-blocked",
+                execution_model="adaptive",
+                execution_mode="standard",
+                workflow_status="blocked",
+                blocked_reason=f"standard adaptive {work_label} cannot be packetized safely",
             )
         if safe_lanes > 1:
             return ExecutionDecision(
@@ -209,7 +227,7 @@ def _choose_adaptive_dispatch(
             execution_model="adaptive",
             execution_mode="heavy",
             workflow_status="blocked",
-            blocked_reason="heavy or safety-critical plan work requires native subagents",
+            blocked_reason=f"heavy or safety-critical {work_label} requires native subagents",
         )
 
     if safe_lanes < 1 or not packet_ready:
@@ -220,7 +238,7 @@ def _choose_adaptive_dispatch(
             execution_model="adaptive",
             execution_mode="heavy",
             workflow_status="blocked",
-            blocked_reason="heavy or safety-critical plan work cannot be packetized safely",
+            blocked_reason=f"heavy or safety-critical {work_label} cannot be packetized safely",
         )
 
     return ExecutionDecision(
