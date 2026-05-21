@@ -126,8 +126,16 @@ class ExecutionDecision:
                 "execution_mode",
                 _normalize_execution_mode(self.execution_mode),
             )
+        if self.execution_surface != _derive_execution_surface(self.dispatch_shape):
+            raise ValueError("execution_surface must match dispatch_shape")
         if self.workflow_status == "blocked" and not self.blocked_reason:
             raise ValueError("blocked ExecutionDecision requires blocked_reason")
+        if self.workflow_status == "blocked" and self.dispatch_shape != "subagent-blocked":
+            raise ValueError("blocked workflow_status requires subagent-blocked dispatch")
+        if self.dispatch_shape == "subagent-blocked" and self.workflow_status != "blocked":
+            raise ValueError("subagent-blocked dispatch requires blocked workflow_status")
+        if self.dispatch_shape == "subagent-blocked" and not self.blocked_reason:
+            raise ValueError("subagent-blocked dispatch requires blocked_reason")
 
 
 @dataclass(slots=True)

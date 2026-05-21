@@ -151,9 +151,41 @@ def test_execution_decision_derives_none_surface_for_blocked_dispatch():
         command_name="tasks",
         dispatch_shape="subagent-blocked",
         reason="heavy-native-unavailable",
+        workflow_status="blocked",
+        blocked_reason="native subagents unavailable for heavy task generation",
     )
 
     assert decision.execution_surface == "none"
+
+
+def test_execution_decision_rejects_blocked_dispatch_with_default_ready_status():
+    try:
+        ExecutionDecision(
+            command_name="tasks",
+            dispatch_shape="subagent-blocked",
+            reason="heavy-native-unavailable",
+            blocked_reason="native subagents unavailable for heavy task generation",
+        )
+    except ValueError as exc:
+        assert "subagent-blocked dispatch requires blocked workflow_status" in str(exc)
+    else:
+        raise AssertionError("subagent-blocked dispatch should require blocked workflow_status")
+
+
+def test_execution_decision_rejects_blocked_dispatch_with_non_none_surface():
+    try:
+        ExecutionDecision(
+            command_name="tasks",
+            dispatch_shape="subagent-blocked",
+            reason="heavy-native-unavailable",
+            workflow_status="blocked",
+            execution_surface="native-subagents",
+            blocked_reason="native subagents unavailable for heavy task generation",
+        )
+    except ValueError as exc:
+        assert "execution_surface must match dispatch_shape" in str(exc)
+    else:
+        raise AssertionError("subagent-blocked dispatch should require none execution_surface")
 
 
 def test_execution_decision_rejects_blocked_status_without_blocked_reason():
@@ -170,6 +202,36 @@ def test_execution_decision_rejects_blocked_status_without_blocked_reason():
         raise AssertionError("blocked workflow status should require blocked_reason")
 
 
+def test_execution_decision_rejects_blocked_status_with_one_subagent_dispatch():
+    try:
+        ExecutionDecision(
+            command_name="tasks",
+            dispatch_shape="one-subagent",
+            reason="blocked-native",
+            workflow_status="blocked",
+            blocked_reason="native subagents unavailable",
+        )
+    except ValueError as exc:
+        assert "blocked workflow_status requires subagent-blocked dispatch" in str(exc)
+    else:
+        raise AssertionError("blocked workflow status should require subagent-blocked dispatch")
+
+
+def test_execution_decision_rejects_blocked_status_with_leader_inline_dispatch():
+    try:
+        ExecutionDecision(
+            command_name="tasks",
+            dispatch_shape="leader-inline",
+            reason="blocked-inline",
+            workflow_status="blocked",
+            blocked_reason="native subagents unavailable",
+        )
+    except ValueError as exc:
+        assert "blocked workflow_status requires subagent-blocked dispatch" in str(exc)
+    else:
+        raise AssertionError("blocked workflow status should require subagent-blocked dispatch")
+
+
 def test_execution_decision_rejects_invalid_execution_surface():
     try:
         ExecutionDecision(
@@ -182,6 +244,20 @@ def test_execution_decision_rejects_invalid_execution_surface():
         assert "Unsupported execution surface" in str(exc)
     else:
         raise AssertionError("invalid execution surface should be rejected")
+
+
+def test_execution_decision_rejects_execution_surface_mismatch():
+    try:
+        ExecutionDecision(
+            command_name="implement",
+            dispatch_shape="one-subagent",
+            reason="mismatched-surface",
+            execution_surface="leader-inline",
+        )
+    except ValueError as exc:
+        assert "execution_surface must match dispatch_shape" in str(exc)
+    else:
+        raise AssertionError("execution surface mismatch should be rejected")
 
 
 def test_execution_decision_rejects_invalid_execution_model():
