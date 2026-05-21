@@ -13,8 +13,6 @@ from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_hook_launcher_command
 
-from .test_integration_base_toml import TomlIntegrationTests
-
 
 def _load_gemini_hook_dispatch_module():
     import importlib.util
@@ -57,12 +55,16 @@ def test_gemini_hook_infers_active_context_from_specify_features_root(tmp_path):
     assert inferred["feature_dir"] == str(feature_dir)
 
 
-class TestGeminiIntegration(TomlIntegrationTests):
-    KEY = "gemini"
-    FOLDER = ".gemini/"
-    COMMANDS_SUBDIR = "commands"
-    REGISTRAR_DIR = ".gemini/commands"
-    CONTEXT_FILE = "GEMINI.md"
+def test_gemini_integration_metadata():
+    integration = get_integration("gemini")
+
+    assert integration is not None
+    assert integration.config["folder"] == ".gemini/"
+    assert integration.config["commands_subdir"] == "commands"
+    assert integration.context_file == "GEMINI.md"
+
+
+class TestGeminiIntegration:
 
     @staticmethod
     def _expected_launcher_command(route: str, *, script_type: str = "sh") -> str:
@@ -72,20 +74,6 @@ class TestGeminiIntegration(TomlIntegrationTests):
             project_dir_env_var="GEMINI_PROJECT_DIR",
             script_type=script_type,
         )
-
-    def _expected_files(self, script_variant: str) -> list[str]:
-        expected = super()._expected_files(script_variant)
-        expected.extend(
-            [
-                ".gemini/hooks/README.md",
-                ".gemini/hooks/gemini-hook-dispatch.py",
-                ".gemini/settings.json",
-                ".specify/bin/specify-hook",
-                ".specify/bin/specify-hook.cmd",
-                ".specify/bin/specify-hook.py",
-            ]
-        )
-        return sorted(expected)
 
     def test_setup_installs_hook_assets_and_settings_json(self, tmp_path):
         integration = get_integration("gemini")

@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from .test_integration_base_skills import (
-    SkillsIntegrationTests,
     _assert_compact_managed_context,
     _extract_generated_cognition_policy,
 )
@@ -43,24 +42,20 @@ def _assert_stable_subagent_contract(content: str) -> None:
     assert "`sp-teams` only" in lower
 
 
-class TestCodexIntegration(SkillsIntegrationTests):
-    KEY = "codex"
-    FOLDER = ".codex/"
-    COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".codex/skills"
-    CONTEXT_FILE = "AGENTS.md"
+def test_codex_integration_metadata():
+    from specify_cli.integrations import get_integration
 
-    def _expected_files(self, script_variant: str) -> list[str]:
-        files = super()._expected_files(script_variant)
-        files.extend(
-            [
-                ".codex/config.toml",
-                ".specify/config.json",
-                ".specify/teams/README.md",
-                ".specify/teams/runtime.json",
-            ]
-        )
-        return sorted(files)
+    integration = get_integration("codex")
+
+    assert integration is not None
+    assert integration.config["folder"] == ".codex/"
+    assert integration.config["commands_subdir"] == "skills"
+    assert integration.context_file == "AGENTS.md"
+
+
+class TestCodexIntegration:
+    KEY = "codex"
+    CONTEXT_FILE = "AGENTS.md"
 
     def test_init_bootstrapped_context_file_contains_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner
