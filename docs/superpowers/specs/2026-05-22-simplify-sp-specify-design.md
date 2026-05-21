@@ -88,11 +88,24 @@ Keep only state that downstream workflows or resume genuinely need:
 - `context.md`
 - `references.md` when useful
 - `workflow-state.md`
-- `checklists/requirements.md` when the generated workflow still requires it
+- `checklists/requirements.md`
+- `brainstorming/handoff-to-specify.json` as a minimal compatibility artifact
 
 The workflow should not require `brainstorming/journal.ndjson`,
 `stage-manifest.json`, `facts.json`, `route.json`, `intent.json`,
 `complexity.json`, or `domains.json` for normal `sp-specify` completion.
+
+For the first implementation, `checklists/requirements.md` remains mandatory.
+The checklist can be simplified, but it should not be made optional until a
+separate change removes or rewrites every validator, template, integration
+test, and downstream workflow assumption that still expects it.
+
+`brainstorming/handoff-to-specify.json` also remains mandatory as a minimal
+compatibility bridge. It should no longer encode the old lock kernel, but it
+must keep enough fields for existing `sp-plan`, artifact validation, feature
+scaffolding, and generated integration surfaces to continue working. Removing
+that JSON file is a separate migration that must update all consumers in the
+same change.
 
 ## Proposed Workflow
 
@@ -206,10 +219,30 @@ Write the planning-ready package:
 - `references.md`: source material when meaningful sources were used
 - `workflow-state.md`: current command, current stage, open questions,
   next command, and review status
-- `checklists/requirements.md`: only if the existing generated workflow
-  contract still expects it
+- `checklists/requirements.md`: first-release compatibility checklist
+- `brainstorming/handoff-to-specify.json`: minimal compatibility handoff for
+  downstream consumers
 
 These files are the authoritative output of `sp-specify`.
+
+The minimal compatibility handoff should contain only stable downstream fields:
+
+- `version`
+- `status`
+- `entry_source`
+- `source_handoff`
+- `source_handoff_json`
+- `source_files_read`
+- `source_signal_disposition`
+- `must_preserve`
+- `coverage_status`
+- `planning_gate_status`
+- `hard_unknown_count`
+- `open_conflict_count`
+- `quality_gate`
+
+It should not reintroduce `facts-lock`, `route-lock`, `intent-lock`,
+`complexity-lock`, journal ranges, or stage-manifest semantics.
 
 ### Step 7: Self-Review
 
@@ -244,24 +277,49 @@ Only after user review should `sp-specify` recommend exactly one next command:
 When `sp-specify` starts from a discussion handoff, it must:
 
 1. Read `handoff-to-specify.md` and its JSON companion when present.
-2. Summarize the upstream signals that can affect scope or acceptance.
-3. Ask the user to confirm any ambiguous or high-impact semantic terms.
-4. Preserve each upstream signal as one of:
+2. Read the handoff-declared source files, not only the handoff summary.
+3. At minimum, inspect `discussion-log.md`, `requirements.md`, and
+   `open-questions.md` when those files exist in the discussion directory.
+   Also inspect `technical-options.md` and `project-context.md` when the
+   handoff names them or they exist and are relevant.
+4. Extract upstream signals that can affect scope, acceptance, external
+   integration, realness, usability, capability, tests, probes, models,
+   endpoints, auth, or user-visible claims.
+5. Ask the user to confirm any ambiguous or high-impact semantic terms.
+6. Preserve each upstream signal as one of:
    - `preserved`
    - `in_scope`
    - `deferred`
    - `dropped`
    - `clarification_blocker`
-5. Record the disposition in `alignment.md`.
+7. Record the disposition in `alignment.md`.
+8. Mirror the disposition rows into the minimal
+   `brainstorming/handoff-to-specify.json` compatibility handoff.
 
 No upstream capability-like signal may disappear between discussion and
 specify.
+
+This source-file sweep is mandatory because the discussion handoff itself can
+be incomplete. `sp-specify` must not trust a ready handoff as proof that all
+upstream intent was preserved. The handoff is a useful summary, but the
+discussion source files are the audit surface for detecting signals that were
+already dropped before handoff.
 
 ## Required Alignment Sections
 
 `alignment.md` should become the main semantic traceability surface.
 
 It must include these sections when relevant.
+
+For discussion-originated features, every upstream capability-like signal found
+in the source-file sweep must have exactly one disposition row. The workflow
+must prove coverage by recording the source file and disposition, not by
+recording only the signals that the handoff already mentioned.
+
+Capability-like signals include wording about capability, realness, usability,
+working behavior, end-to-end behavior, tests, probes, health checks, fetches,
+models, endpoints, auth, external systems, and their Chinese equivalents such
+as `能力`, `真实`, and `可用`.
 
 ### Semantic Term Decisions
 
@@ -387,8 +445,10 @@ Expected implementation surfaces:
 - template and integration tests that assert current `sp-specify` behavior
 
 The implementation should avoid changing `sp-plan`, `sp-tasks`, and
-`sp-implement` unless tests reveal references that must be updated for
-compatibility. This design is intentionally scoped to `sp-specify`.
+`sp-implement` behavior. It may update downstream wording or intake references
+only where required to keep the simplified `sp-specify` handoff compatible with
+existing downstream consumers. This design is intentionally scoped to
+`sp-specify`.
 
 ## Migration Strategy
 
@@ -398,6 +458,18 @@ Rewrite `templates/commands/specify.md` around the simplified collaborative
 flow. Remove duplicate and obsolete sections instead of patching around them.
 
 Keep feature creation and existing artifact filenames stable.
+
+Keep first-release compatibility outputs stable too:
+
+- continue generating `checklists/requirements.md`
+- continue generating a minimal `brainstorming/handoff-to-specify.json`
+- keep feature scaffolding compatible with existing integration tests
+- keep artifact validation compatible with the minimal handoff fields
+
+If implementation chooses to stop generating any of these files, that same
+implementation must update `sp-plan` intake, artifact validation, feature
+scaffolding scripts, packaging, and generated integration tests in the same
+pass. Partial removal is not allowed.
 
 ### Phase 2: Align The Shell Partial
 
@@ -446,9 +518,19 @@ Tests should verify:
   artifacts.
 - `sp-specify` records semantic term decisions for ambiguous capability-like
   language.
+- `sp-specify` reads discussion source files, not only
+  `handoff-to-specify.md/json`, before compiling a discussion-originated spec.
+- `sp-specify` creates a disposition row for every capability-like upstream
+  signal found in `discussion-log.md`, `requirements.md`, and
+  `open-questions.md`.
 - `alignment-template.md` contains `Semantic Term Decisions`.
 - `alignment-template.md` contains `Upstream Intent Disposition`.
 - `alignment-template.md` contains `Out-Of-Scope Conflicts`.
+- `brainstorming-handoff-specify-template.json` supports the minimal
+  compatibility handoff fields, including source files read and source signal
+  disposition.
+- `checklists/requirements.md` remains generated in the first simplified
+  implementation.
 - `specify.md` no longer requires the lock sequence as the normal workflow.
 - `specify.md` does not teach `brainstorming/journal.ndjson` or
   `stage-manifest.json` as mandatory normal outputs.
@@ -466,8 +548,14 @@ The refactor is complete when:
   design approval, artifact writing, self-review, and user review.
 - The workflow can no longer silently narrow ambiguous high-value terms without
   user confirmation.
+- For discussion-originated features, `sp-specify` reads the discussion source
+  files and records a disposition for every capability-like upstream signal,
+  including signals missing from the handoff summary.
 - Upstream discussion signals are preserved, deferred, dropped, or blocked
   explicitly in `alignment.md`.
+- `checklists/requirements.md` and a minimal
+  `brainstorming/handoff-to-specify.json` remain generated for first-release
+  compatibility.
 - Existing downstream artifact names remain stable enough for `sp-plan`.
 - The old lock kernel and lossless journal concepts are absent from the normal
   generated `sp-specify` guidance.
