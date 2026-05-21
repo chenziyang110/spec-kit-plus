@@ -97,26 +97,38 @@ class TestRegistrarKeyAlignment:
         assert all(path.name != "team.md" for path in claude.list_command_templates())
 
     @pytest.mark.parametrize(
-        ("key", "folder", "commands_subdir"),
+        ("key", "folder", "commands_subdir", "registrar_dir", "context_file"),
         [
-            ("amp", ".agents/", "commands"),
-            ("auggie", ".augment/", "commands"),
-            ("bob", ".bob/", "commands"),
-            ("codebuddy", ".codebuddy/", "commands"),
-            ("iflow", ".iflow/", "commands"),
-            ("junie", ".junie/", "commands"),
-            ("kilocode", ".kilocode/", "workflows"),
-            ("pi", ".pi/", "prompts"),
-            ("qodercli", ".qoder/", "commands"),
-            ("qwen", ".qwen/", "commands"),
-            ("roo", ".roo/", "commands"),
-            ("shai", ".shai/", "commands"),
-            ("windsurf", ".windsurf/", "workflows"),
+            ("amp", ".agents/", "commands", ".agents/commands", "AGENTS.md"),
+            ("auggie", ".augment/", "commands", ".augment/commands", ".augment/rules/specify-rules.md"),
+            ("bob", ".bob/", "commands", ".bob/commands", "AGENTS.md"),
+            ("codebuddy", ".codebuddy/", "commands", ".codebuddy/commands", "CODEBUDDY.md"),
+            ("iflow", ".iflow/", "commands", ".iflow/commands", "IFLOW.md"),
+            ("junie", ".junie/", "commands", ".junie/commands", ".junie/AGENTS.md"),
+            ("kilocode", ".kilocode/", "workflows", ".kilocode/workflows", ".kilocode/rules/specify-rules.md"),
+            ("pi", ".pi/", "prompts", ".pi/prompts", "AGENTS.md"),
+            ("qodercli", ".qoder/", "commands", ".qoder/commands", "QODER.md"),
+            ("qwen", ".qwen/", "commands", ".qwen/commands", "QWEN.md"),
+            ("roo", ".roo/", "commands", ".roo/commands", ".roo/rules/specify-rules.md"),
+            ("shai", ".shai/", "commands", ".shai/commands", "SHAI.md"),
+            ("windsurf", ".windsurf/", "workflows", ".windsurf/workflows", ".windsurf/rules/specify-rules.md"),
         ],
     )
-    def test_reduced_markdown_matrix_preserves_agent_metadata(self, key, folder, commands_subdir):
+    def test_reduced_markdown_matrix_preserves_agent_metadata(
+        self,
+        key,
+        folder,
+        commands_subdir,
+        registrar_dir,
+        context_file,
+    ):
         integration = get_integration(key)
 
         assert integration is not None
         assert integration.config["folder"] == folder
         assert integration.config["commands_subdir"] == commands_subdir
+        assert integration.registrar_config["dir"] == registrar_dir
+        assert integration.registrar_config["format"] == "markdown"
+        assert integration.registrar_config["args"] == "$ARGUMENTS"
+        assert integration.registrar_config["extension"] == ".md"
+        assert integration.context_file == context_file
