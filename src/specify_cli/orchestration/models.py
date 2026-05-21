@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Literal, cast
+from typing import Literal, cast, get_args
 
 ExecutionModel = Literal["subagent-mandatory", "adaptive"]
 SubagentExecutionModel = ExecutionModel
@@ -29,6 +29,10 @@ _CANONICAL_DISPATCH_SHAPES = frozenset(
         "subagent-blocked",
     }
 )
+_CANONICAL_EXECUTION_SURFACES = frozenset(get_args(ExecutionSurface))
+_CANONICAL_EXECUTION_MODELS = frozenset(get_args(ExecutionModel))
+_CANONICAL_WORKFLOW_STATUSES = frozenset(get_args(WorkflowStatus))
+_CANONICAL_EXECUTION_MODES = frozenset(get_args(ExecutionMode))
 _ORDINARY_SP_COMMANDS = frozenset(
     {
         "analyze",
@@ -100,6 +104,28 @@ class ExecutionDecision:
             object.__setattr__(self, "fallback_from", _normalize_dispatch_shape(self.fallback_from))
         if self.execution_surface is None:
             object.__setattr__(self, "execution_surface", _derive_execution_surface(self.dispatch_shape))
+        else:
+            object.__setattr__(
+                self,
+                "execution_surface",
+                _normalize_execution_surface(self.execution_surface),
+            )
+        object.__setattr__(
+            self,
+            "execution_model",
+            _normalize_execution_model(self.execution_model),
+        )
+        object.__setattr__(
+            self,
+            "workflow_status",
+            _normalize_workflow_status(self.workflow_status),
+        )
+        if self.execution_mode is not None:
+            object.__setattr__(
+                self,
+                "execution_mode",
+                _normalize_execution_mode(self.execution_mode),
+            )
         if self.workflow_status == "blocked" and not self.blocked_reason:
             raise ValueError("blocked ExecutionDecision requires blocked_reason")
 
@@ -199,6 +225,30 @@ def _normalize_dispatch_shape(dispatch_shape: str) -> DispatchShape:
     if dispatch_shape in _CANONICAL_DISPATCH_SHAPES:
         return cast(DispatchShape, dispatch_shape)
     raise ValueError(f"Unsupported dispatch shape: {dispatch_shape}")
+
+
+def _normalize_execution_surface(execution_surface: str) -> ExecutionSurface:
+    if execution_surface in _CANONICAL_EXECUTION_SURFACES:
+        return cast(ExecutionSurface, execution_surface)
+    raise ValueError(f"Unsupported execution surface: {execution_surface}")
+
+
+def _normalize_execution_model(execution_model: str) -> ExecutionModel:
+    if execution_model in _CANONICAL_EXECUTION_MODELS:
+        return cast(ExecutionModel, execution_model)
+    raise ValueError(f"Unsupported execution model: {execution_model}")
+
+
+def _normalize_workflow_status(workflow_status: str) -> WorkflowStatus:
+    if workflow_status in _CANONICAL_WORKFLOW_STATUSES:
+        return cast(WorkflowStatus, workflow_status)
+    raise ValueError(f"Unsupported workflow status: {workflow_status}")
+
+
+def _normalize_execution_mode(execution_mode: str) -> ExecutionMode:
+    if execution_mode in _CANONICAL_EXECUTION_MODES:
+        return cast(ExecutionMode, execution_mode)
+    raise ValueError(f"Unsupported execution mode: {execution_mode}")
 
 
 def _derive_execution_surface(dispatch_shape: DispatchShape) -> ExecutionSurface:

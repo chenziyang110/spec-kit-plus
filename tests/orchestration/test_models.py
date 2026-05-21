@@ -146,6 +146,86 @@ def test_execution_decision_preserves_blocked_adaptive_state():
     assert decision.blocked_reason == "native subagents unavailable for heavy task generation"
 
 
+def test_execution_decision_derives_none_surface_for_blocked_dispatch():
+    decision = ExecutionDecision(
+        command_name="tasks",
+        dispatch_shape="subagent-blocked",
+        reason="heavy-native-unavailable",
+    )
+
+    assert decision.execution_surface == "none"
+
+
+def test_execution_decision_rejects_blocked_status_without_blocked_reason():
+    try:
+        ExecutionDecision(
+            command_name="tasks",
+            dispatch_shape="subagent-blocked",
+            reason="heavy-native-unavailable",
+            workflow_status="blocked",
+        )
+    except ValueError as exc:
+        assert "blocked ExecutionDecision requires blocked_reason" in str(exc)
+    else:
+        raise AssertionError("blocked workflow status should require blocked_reason")
+
+
+def test_execution_decision_rejects_invalid_execution_surface():
+    try:
+        ExecutionDecision(
+            command_name="implement",
+            dispatch_shape="one-subagent",
+            reason="invalid-surface",
+            execution_surface="inline",  # type: ignore[arg-type]
+        )
+    except ValueError as exc:
+        assert "Unsupported execution surface" in str(exc)
+    else:
+        raise AssertionError("invalid execution surface should be rejected")
+
+
+def test_execution_decision_rejects_invalid_execution_model():
+    try:
+        ExecutionDecision(
+            command_name="implement",
+            dispatch_shape="one-subagent",
+            reason="invalid-model",
+            execution_model="leader-only",  # type: ignore[arg-type]
+        )
+    except ValueError as exc:
+        assert "Unsupported execution model" in str(exc)
+    else:
+        raise AssertionError("invalid execution model should be rejected")
+
+
+def test_execution_decision_rejects_invalid_workflow_status():
+    try:
+        ExecutionDecision(
+            command_name="implement",
+            dispatch_shape="one-subagent",
+            reason="invalid-status",
+            workflow_status="waiting",  # type: ignore[arg-type]
+        )
+    except ValueError as exc:
+        assert "Unsupported workflow status" in str(exc)
+    else:
+        raise AssertionError("invalid workflow status should be rejected")
+
+
+def test_execution_decision_rejects_invalid_execution_mode():
+    try:
+        ExecutionDecision(
+            command_name="implement",
+            dispatch_shape="one-subagent",
+            reason="invalid-mode",
+            execution_mode="tiny",  # type: ignore[arg-type]
+        )
+    except ValueError as exc:
+        assert "Unsupported execution mode" in str(exc)
+    else:
+        raise AssertionError("invalid execution mode should be rejected")
+
+
 def test_execution_decision_rejects_legacy_single_agent_alias() -> None:
     try:
         ExecutionDecision(
