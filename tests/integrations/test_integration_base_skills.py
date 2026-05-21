@@ -179,33 +179,27 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe")
 
 
-@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_SAMPLE_KEYS)
-def test_collected_skills_integrations_render_consequence_gate(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
+def test_collected_skills_integrations_preserve_shared_contracts(tmp_path):
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
 
-    generated = "\n".join(
-        path.read_text(encoding="utf-8").lower()
-        for path in integration.skills_dest(tmp_path).glob("**/SKILL.md")
-    )
+        generated = "\n".join(
+            path.read_text(encoding="utf-8").lower()
+            for path in integration.skills_dest(project).glob("**/SKILL.md")
+        )
 
-    assert "senior consequence analysis gate" in generated
-    assert "affected object map" in generated
-    assert "state-behavior matrix" in generated
-    assert "dependency impact table" in generated
-    assert "ca-###" in generated
+        assert "senior consequence analysis gate" in generated, integration_key
+        assert "affected object map" in generated, integration_key
+        assert "state-behavior matrix" in generated, integration_key
+        assert "dependency impact table" in generated, integration_key
+        assert "ca-###" in generated, integration_key
 
-
-@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_SAMPLE_KEYS)
-def test_collected_skills_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
-
-    discussion_path = integration.skills_dest(tmp_path) / "sp-discussion" / "SKILL.md"
-    assert discussion_path.exists()
-    _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+        discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
+        assert discussion_path.exists(), integration_key
+        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
 
 class SkillsIntegrationTests:

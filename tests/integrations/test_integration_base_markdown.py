@@ -172,33 +172,27 @@ def _discussion_artifact_path(integration, project_root):
 MARKDOWN_INTEGRATION_SAMPLE_KEYS = ("claude", "opencode", "kiro-cli")
 
 
-@pytest.mark.parametrize("integration_key", MARKDOWN_INTEGRATION_SAMPLE_KEYS)
-def test_collected_markdown_integrations_render_consequence_gate(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
+def test_collected_markdown_integrations_preserve_shared_contracts(tmp_path):
+    for integration_key in MARKDOWN_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
 
-    generated = "\n".join(
-        path.read_text(encoding="utf-8").lower()
-        for path in integration.commands_dest(tmp_path).glob("**/*.md")
-    )
+        generated = "\n".join(
+            path.read_text(encoding="utf-8").lower()
+            for path in integration.commands_dest(project).glob("**/*.md")
+        )
 
-    assert "senior consequence analysis gate" in generated
-    assert "affected object map" in generated
-    assert "state-behavior matrix" in generated
-    assert "dependency impact table" in generated
-    assert "ca-###" in generated
+        assert "senior consequence analysis gate" in generated, integration_key
+        assert "affected object map" in generated, integration_key
+        assert "state-behavior matrix" in generated, integration_key
+        assert "dependency impact table" in generated, integration_key
+        assert "ca-###" in generated, integration_key
 
-
-@pytest.mark.parametrize("integration_key", MARKDOWN_INTEGRATION_SAMPLE_KEYS)
-def test_collected_markdown_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
-
-    discussion_path = _discussion_artifact_path(integration, tmp_path)
-    assert discussion_path.exists()
-    _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+        discussion_path = _discussion_artifact_path(integration, project)
+        assert discussion_path.exists(), integration_key
+        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
 
 class MarkdownIntegrationTests:
