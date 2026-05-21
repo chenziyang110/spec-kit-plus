@@ -118,12 +118,12 @@ When evidence lookup fails, report what was checked and ask one focused question
    - Include recommendation, trade-offs, risks, verification approach, rollback, recovery, or user-confirmed scope-adjustment path, and required evidence.
 
 6. `handoff-assessment`
-   - Decide whether one complete handoff package can be produced or discussion must continue.
+   - Decide whether one draft handoff package can be produced for review or discussion must continue.
    - If the direction is too broad to express as one coherent handoff, the result is `continue-discussion`.
 
 7. `handoff-draft`
    - Write Markdown and JSON together only after explicit user request and a bounded unified scope.
-   - The handoff is a contract, not a prose summary.
+   - The draft handoff is a contract, not a prose summary, and is not handoff-ready until self-review and user confirmation.
 
 8. `handoff-self-review`
    - Check placeholders, contradictions, missing goal, missing target path, unresolved hard unknowns, weak evidence provenance, Markdown/JSON drift, Must-Preserve coverage, and consequence obligations.
@@ -191,8 +191,8 @@ Readiness handling:
 - `review`: read `minimal_live_reads`, carry confidence labels, and ask only if live reads still leave the fact unresolved.
 - `ambiguous`: present the likely candidates and ask the user to choose the intended target.
 - `needs_update`: treat as map-quality advisory for ordinary discussion; use live reads and record the cognition gap. Recommend `{{invoke:map-update}}` only when map maintenance becomes relevant or before a handoff needs stronger coverage.
-- `needs_rebuild`: continue product framing if possible, but do not make project-specific technical claims until live evidence proves them or the user accepts an explicit assumption. Recommend `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the user asks for map repair or handoff needs evidence that live reads cannot provide.
-- `readiness=blocked`: report project cognition as unavailable or degraded, continue with product framing or bounded live evidence when safe, and recommend map repair only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
+- `needs_rebuild`: continue product framing if possible, but do not make project-specific technical claims until live evidence proves them or the user accepts an explicit assumption. Recommend `{{invoke:map-scan}} -> {{invoke:map-build}}` only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
+- `readiness=blocked`: report project cognition as unavailable or degraded, continue with product framing or bounded live evidence when safe, and recommend a map maintenance workflow only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
 
 If the idea is clearly greenfield or does not depend on existing project structure, record the stand-down reason in `project-context.md` and avoid existing-code placement claims.
 

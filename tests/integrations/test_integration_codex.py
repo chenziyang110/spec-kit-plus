@@ -1,5 +1,6 @@
 """Tests for CodexIntegration."""
 
+import json
 from pathlib import Path
 
 from .test_integration_base_skills import (
@@ -141,6 +142,65 @@ class TestCodexAutoPromote:
             (target / ".codex" / "skills" / "subagent-driven-development" / "SKILL.md").read_text(
                 encoding="utf-8"
             )
+        )
+
+    def test_codex_init_installs_lightweight_discussion_recovery_contract(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "codex-discussion-recovery"
+        result = runner.invoke(
+            app,
+            ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        )
+
+        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+        skill_content = (target / ".codex" / "skills" / "sp-discussion" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        command_template = (target / ".specify" / "templates" / "commands" / "discussion.md").read_text(
+            encoding="utf-8"
+        )
+        state_template = (target / ".specify" / "templates" / "discussion-state-template.md").read_text(
+            encoding="utf-8"
+        )
+        handoff_template = json.loads(
+            (target / ".specify" / "templates" / "brainstorming-handoff-specify-template.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        generated_discussion = "\n".join([skill_content, command_template])
+        generated_lower = generated_discussion.lower()
+
+        assert "Turn Classifier" in generated_discussion
+        assert "Question Evidence Gate" in generated_discussion
+        assert "Cognition Advisory, Code Authority" in generated_discussion
+        assert "project-cognition lexicon --intent discussion" in generated_discussion
+        assert "project-cognition query --intent discussion" in generated_discussion
+        assert "project-cognition query --intent plan" not in generated_discussion
+        assert "ordinary turns append" in generated_lower
+        assert "semantic checkpoints" in generated_lower
+        assert "draft handoff package can be produced" in generated_lower
+        assert "complete handoff package can be produced" not in generated_lower
+        assert "confirmed unified handoff pair" not in generated_lower
+
+        assert "latest_event_checkpoint:" in state_template
+        assert "latest_cognition_readiness:" in state_template
+        assert "handoff-to-specify.md draft after explicit user request and boundary lock" in state_template
+
+        source_contract = handoff_template["source_evidence_contract"]
+        assert source_contract["required_fields"] == [
+            "source_type",
+            "evidence_status",
+            "source",
+            "claim",
+        ]
+        assert "project_cognition_route" in source_contract["optional_fields"]
+        assert "live_code_evidence" in source_contract["optional_fields"]
+        assert source_contract["authority_rule"] == (
+            "Project cognition navigates; live repository evidence proves current behavior."
         )
 
 
