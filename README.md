@@ -491,7 +491,7 @@ After planning, continue with:
 specify -> plan -> tasks -> implement
 ```
 
-`plan` and `tasks` use adaptive execution. Low-risk single-lane planning or task generation may run leader-inline and record `execution_mode: light`. Standard work uses native subagents when available and records `capability_degraded: true` if it must continue leader-inline because native subagents are unavailable and no high-risk trigger is present. Heavy or safety-critical work records `dispatch_shape: subagent-blocked` and stops when it cannot be delegated safely.
+`plan` and `tasks` use adaptive execution: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, and `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`. Light, low-risk single-lane planning or task generation runs leader-inline. Standard work uses native subagents when available; if native subagents are unavailable and no high-risk trigger is present, it may continue leader-inline with `capability_degraded: true`. Standard work that has no safe subagent lane or cannot be packetized safely records `dispatch_shape: subagent-blocked` and stops. Heavy or safety-critical work also blocks when native subagents are unavailable or the work is unpacketizable. Managed-team fallback is not part of adaptive plan/tasks dispatch.
 
 Closed-loop remediation after `tasks`:
 
@@ -565,6 +565,7 @@ Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
 - `sp-plan` and `sp-tasks` are adaptive: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`.
+- Adaptive `sp-plan`/`sp-tasks` use leader-inline for light work, native subagents for standard work when available, leader-inline degradation with `capability_degraded: true` only for standard native-unavailable work without high-risk triggers, and `subagent-blocked` for standard no-safe-lane or unpacketizable work plus heavy/safety-critical unavailable or unpacketizable work; managed-team fallback is not part of adaptive plan/tasks dispatch.
 - Workflows that remain mandatory-subagent, such as `sp-implement`, `sp-debug`, `sp-map-scan`, `sp-map-build`, `sp-prd-scan`, and `sp-prd-build`, still use `execution_model: subagent-mandatory`.
 - in execution-oriented workflows, use subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral

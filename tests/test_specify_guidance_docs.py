@@ -90,6 +90,27 @@ def test_upgrade_doc_mentions_project_launcher_binding():
     assert "runtime" in upgrade.lower()
 
 
+def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md"):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert "execution_model: adaptive" in content
+        assert "execution_mode: light | standard | heavy" in content
+        assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content
+        assert "light" in lowered
+        assert "leader-inline" in content
+        assert "standard" in lowered
+        assert "native subagents" in lowered or "native-subagent" in lowered
+        assert "capability_degraded: true" in content
+        assert "no safe" in lowered
+        assert "cannot be packetized safely" in lowered or "unpacketizable" in lowered
+        assert "subagent-blocked" in content
+        assert "heavy or safety-critical" in lowered
+        assert "native subagents are unavailable" in lowered
+        assert "managed-team fallback is not part of adaptive plan/tasks dispatch" in lowered
+
+
 def test_quickstart_positions_clarify_correctly():
     quickstart = _read("docs/quickstart.md")
     lowered = quickstart.lower()
