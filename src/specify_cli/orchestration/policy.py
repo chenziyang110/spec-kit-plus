@@ -97,6 +97,10 @@ def _get_shape_flag(
     return default
 
 
+def _any_shape_flag(workload_shape: Mapping[str, object], keys: tuple[str, ...]) -> bool:
+    return any(_to_bool(workload_shape[key], default=False) for key in keys if key in workload_shape)
+
+
 def _get_shape_int(
     workload_shape: Mapping[str, object],
     keys: tuple[str, ...],
@@ -119,7 +123,7 @@ def _command_work_label(command_name: str) -> str:
 
 
 def _has_high_risk_trigger(shape: Mapping[str, object]) -> bool:
-    return any(_to_bool(shape[key], default=False) for key in _HIGH_RISK_KEYS if key in shape)
+    return _any_shape_flag(shape, _HIGH_RISK_KEYS)
 
 
 def _packet_ready(shape: Mapping[str, object]) -> bool:
@@ -317,7 +321,7 @@ def classify_review_gate_policy(
     reasons: list[str] = []
 
     for keys, reason in _HIGH_RISK_REVIEW_KEY_GROUPS:
-        if _get_shape_flag(shape, keys, default=False):
+        if _any_shape_flag(shape, keys):
             reasons.append(reason)
 
     if not reasons:

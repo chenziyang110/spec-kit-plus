@@ -299,6 +299,30 @@ def test_classify_review_gate_policy_marks_boundary_batches_without_peer_lane() 
     assert policy.reason == "boundary_contract"
 
 
+def test_classify_review_gate_policy_checks_all_schema_aliases() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_schema": False,
+            "touches_migration": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "schema_change"
+
+
+def test_classify_review_gate_policy_checks_all_boundary_aliases() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_protocol_boundary": False,
+            "touches_native_bridge": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "boundary_contract"
+
+
 def test_classify_review_gate_policy_skips_low_risk_batches() -> None:
     policy = classify_review_gate_policy(
         workload_shape={
