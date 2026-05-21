@@ -46,6 +46,65 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _is_expected_version_conflict(exc: task_ops.TaskOpsError) -> bool:
+    return str(exc).startswith("expected version ")
+
+
+def _terminal_task_result_matches(task_record, *, final_status: str, failure_class: str) -> bool:
+    existing_failure_class = (task_record.metadata or {}).get("failure_class", "")
+    return task_record.status == final_status and existing_failure_class == failure_class
+
+
+def _refresh_matching_terminal_task(
+    project_root: Path,
+    task_id: str,
+    *,
+    final_status: str,
+    failure_class: str,
+):
+    refreshed = task_ops.get_task(project_root, task_id)
+    if refreshed.status in task_ops.TERMINAL_STATUSES and _terminal_task_result_matches(
+        refreshed,
+        final_status=final_status,
+        failure_class=failure_class,
+    ):
+        return refreshed
+    raise RuntimeEnvironmentError(f"task {task_id} changed while syncing runtime result")
+
+
+def _update_task_metadata_with_retry(
+    project_root: Path,
+    task_id: str,
+    latest_record,
+    *,
+    final_status: str,
+    failure_class: str,
+    metadata: dict[str, object],
+):
+    last_error: task_ops.TaskOpsError | None = None
+    for _ in range(3):
+        try:
+            return task_ops.update_task_metadata(
+                project_root,
+                task_id,
+                expected_version=latest_record.version,
+                metadata=metadata,
+            )
+        except task_ops.TaskOpsError as exc:
+            if not _is_expected_version_conflict(exc):
+                raise
+            last_error = exc
+            latest_record = _refresh_matching_terminal_task(
+                project_root,
+                task_id,
+                final_status=final_status,
+                failure_class=failure_class,
+            )
+    if last_error is not None:
+        raise last_error
+    return latest_record
+
+
 def is_wsl() -> bool:
     """Return whether the current process is running inside WSL."""
     return bool(
@@ -508,12 +567,11 @@ def _sync_task_state_from_result(
                 f"task {packet_task_id} is in progress but has no matching claim for worker {target_worker}"
             )
     elif task_record.status in task_ops.TERMINAL_STATUSES:
-        existing_failure_class = (task_record.metadata or {}).get("failure_class", "")
-        terminal_result_matches = (
-            task_record.status == final_status
-            and existing_failure_class == failure_class
-        )
-        if not terminal_result_matches:
+        if not _terminal_task_result_matches(
+            task_record,
+            final_status=final_status,
+            failure_class=failure_class,
+        ):
             raise RuntimeEnvironmentError(
                 f"task {packet_task_id} already reached terminal status {task_record.status}"
             )
@@ -522,22 +580,34 @@ def _sync_task_state_from_result(
         latest_record = task_record
 
     if task_record.status not in task_ops.TERMINAL_STATUSES:
-        task_ops.transition_task_status(
-            project_root,
-            task_id=packet_task_id,
-            new_status=final_status,
-            owner=target_worker,
-            expected_version=task_record.version,
-            claim_token=claim_token,
-            failure_class=failure_class,
-        )
-        latest_record = task_ops.get_task(project_root, packet_task_id)
+        try:
+            task_ops.transition_task_status(
+                project_root,
+                task_id=packet_task_id,
+                new_status=final_status,
+                owner=target_worker,
+                expected_version=task_record.version,
+                claim_token=claim_token,
+                failure_class=failure_class,
+            )
+            latest_record = task_ops.get_task(project_root, packet_task_id)
+        except task_ops.TaskOpsError as exc:
+            if not _is_expected_version_conflict(exc):
+                raise
+            latest_record = _refresh_matching_terminal_task(
+                project_root,
+                packet_task_id,
+                final_status=final_status,
+                failure_class=failure_class,
+            )
 
     validation_summary = summarize_validation_results(validated.validation_results)
-    task_ops.update_task_metadata(
+    _update_task_metadata_with_retry(
         project_root,
         packet_task_id,
-        expected_version=latest_record.version,
+        latest_record,
+        final_status=final_status,
+        failure_class=failure_class,
         metadata={
             "result_request_id": request_id,
             "reported_status": validated.reported_status or validated.status,

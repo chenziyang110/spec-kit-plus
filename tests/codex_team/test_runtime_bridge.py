@@ -498,6 +498,96 @@ def test_submit_runtime_result_updates_task_record_and_clears_claim(monkeypatch,
     assert task_record.version > in_progress.version
 
 
+def test_submit_runtime_result_tolerates_concurrent_matching_terminal_transition(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    created = task_ops.create_task(codex_team_project_root, task_id="T350", summary="Implement thing")
+    token = task_ops.claim_task(
+        codex_team_project_root,
+        task_id="T350",
+        worker_id="worker-350",
+        expected_version=created.version,
+    )
+    task_ops.transition_task_status(
+        codex_team_project_root,
+        task_id="T350",
+        new_status="in_progress",
+        owner="worker-350",
+        expected_version=created.version + 1,
+        claim_token=token,
+    )
+
+    bootstrap_runtime_session(codex_team_project_root, "task-race-session")
+    packet_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "packets" / "req-task-race.json"
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(
+        """
+{
+  "feature_id": "001-feature",
+  "task_id": "T350",
+  "story_id": "US1",
+  "objective": "Implement thing",
+  "scope": {"write_scope": ["src/app.py"], "read_scope": ["src/contracts.py"]},
+  "required_references": [{"path": "src/contracts.py", "reason": "preserve contract"}],
+  "hard_rules": ["do not drift"],
+  "forbidden_drift": ["no parallel stack"],
+  "validation_gates": ["pytest -q"],
+  "done_criteria": ["works"],
+  "handoff_requirements": ["return changed files"],
+  "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": true},
+  "packet_version": 1
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    dispatch_runtime_task(
+        codex_team_project_root,
+        session_id="task-race-session",
+        request_id="req-task-race",
+        target_worker="worker-350",
+        packet_path=str(packet_path),
+        delegation_metadata={"structured_results_expected": True},
+    )
+
+    real_transition = task_ops.transition_task_status
+    raced = False
+
+    def _race_terminal_transition(project_root: Path, **kwargs):
+        nonlocal raced
+        if kwargs["task_id"] == "T350" and kwargs["new_status"] == task_ops.TASK_STATUS_COMPLETED and not raced:
+            raced = True
+            real_transition(project_root, **kwargs)
+        return real_transition(project_root, **kwargs)
+
+    monkeypatch.setattr(task_ops, "transition_task_status", _race_terminal_transition)
+
+    record = submit_runtime_result(
+        codex_team_project_root,
+        session_id="task-race-session",
+        request_id="req-task-race",
+        result={
+            "taskId": "T350",
+            "status": "success",
+            "files_changed": ["src/app.py"],
+            "message": "done",
+            "validationResults": [
+                {"command": "pytest -q", "status": "passed", "output": "1 passed"}
+            ],
+            "ruleAcknowledgement": {
+                "required_references_read": True,
+                "forbidden_drift_respected": True,
+            },
+        },
+    )
+
+    assert record.status == "completed"
+    task_record = task_ops.get_task(codex_team_project_root, "T350")
+    assert task_record.status == "completed"
+    assert task_record.metadata["worker_result"]["status"] == "success"
+    assert task_record.metadata["result_request_id"] == "req-task-race"
+
+
 def test_submit_runtime_result_rejects_repeat_submission(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
