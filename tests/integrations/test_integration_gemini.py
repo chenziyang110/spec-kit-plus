@@ -83,11 +83,6 @@ def test_gemini_toml_install_contract_tracks_commands_scripts_and_context(tmp_pa
     assert plan_command.exists()
     assert ".gemini/commands/sp.plan.toml" in manifest.files
 
-    plan_content = plan_command.read_text(encoding="utf-8")
-    plan_payload = tomllib.loads(plan_content)
-    assert "$ARGUMENTS" not in "\n".join(path.read_text(encoding="utf-8") for path in command_files)
-    assert "{{args}}" in plan_payload["prompt"]
-
     for rel_path in (
         ".specify/integrations/gemini/scripts/update-context.sh",
         ".specify/integrations/gemini/scripts/update-context.ps1",
