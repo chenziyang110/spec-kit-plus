@@ -29,7 +29,7 @@ def test_plan_command_research_contract_is_prescriptive() -> None:
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
 
 
-def test_plan_command_requires_persisted_planning_lane_handoffs() -> None:
+def test_plan_command_requires_persisted_delegated_planning_lane_handoffs() -> None:
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
@@ -41,7 +41,10 @@ def test_plan_command_requires_persisted_planning_lane_handoffs() -> None:
     assert "consume `planning/evidence-index.json` before final synthesis" in lowered
     assert "mark the handoff as `integrated`, `deferred`, or `blocked`" in lowered
     assert "without an explicit consuming artifact section, deferral, or blocker reason" in lowered
-    assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only lane results" in lowered
+    assert (
+        "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results"
+        in lowered
+    )
 
 
 def test_research_template_and_plan_template_are_linked() -> None:
