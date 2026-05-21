@@ -370,6 +370,61 @@ def test_classify_review_gate_policy_marks_security_sensitive_surface() -> None:
     assert policy.reason == "security_sensitive"
 
 
+def test_classify_review_gate_policy_marks_general_high_risk() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "high_risk": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "general_high_risk"
+
+
+def test_classify_review_gate_policy_marks_cross_project_targets() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "cross_project_target": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "cross_project"
+
+
+def test_classify_review_gate_policy_marks_reference_fidelity_required() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "reference_fidelity_required": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "reference_fidelity"
+
+
+def test_classify_review_gate_policy_marks_deep_research_handoff_required() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "deep_research_handoff_required": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "deep_research_handoff"
+
+
+def test_classify_review_gate_policy_marks_independent_synthesis_required() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "consequence_obligations_require_independent_synthesis": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.reason == "independent_synthesis_required"
+
+
 def test_classify_review_gate_policy_skips_low_risk_batches() -> None:
     policy = classify_review_gate_policy(
         workload_shape={

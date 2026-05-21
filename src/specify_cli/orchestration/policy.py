@@ -43,6 +43,7 @@ _HIGH_RISK_KEYS = (
     "consequence_obligations_require_independent_synthesis",
 )
 _HIGH_RISK_REVIEW_KEY_GROUPS = (
+    (("high_risk",), "general_high_risk"),
     (
         (
             "touches_shared_registration_surface",
@@ -52,6 +53,13 @@ _HIGH_RISK_REVIEW_KEY_GROUPS = (
         "shared_surface",
     ),
     (("touches_schema_or_migration", "touches_schema", "touches_migration"), "schema_change"),
+    (("cross_project_target",), "cross_project"),
+    (("reference_fidelity_required",), "reference_fidelity"),
+    (("deep_research_handoff_required",), "deep_research_handoff"),
+    (
+        ("consequence_obligations_require_independent_synthesis",),
+        "independent_synthesis_required",
+    ),
     (
         (
             "touches_protocol_or_generated_api",
