@@ -53,6 +53,32 @@ def test_codex_integration_metadata():
     assert integration.context_file == "AGENTS.md"
 
 
+def test_codex_install_inventory_tracks_core_skills_and_team_assets(tmp_path):
+    from specify_cli.codex_team import install_codex_team_assets
+    from specify_cli.integrations import get_integration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    integration = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+
+    integration.setup(tmp_path, manifest)
+    install_codex_team_assets(tmp_path, manifest, integration_key="codex")
+
+    expected_owned_paths = (
+        ".codex/config.toml",
+        ".codex/skills/sp-plan/SKILL.md",
+        ".codex/skills/sp-implement/SKILL.md",
+        ".codex/skills/sp-teams/SKILL.md",
+        ".specify/config.json",
+        ".specify/teams/README.md",
+        ".specify/teams/runtime.json",
+    )
+
+    for rel_path in expected_owned_paths:
+        assert (tmp_path / rel_path).exists()
+        assert rel_path in manifest.files
+
+
 class TestCodexIntegration:
     KEY = "codex"
     CONTEXT_FILE = "AGENTS.md"

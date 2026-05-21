@@ -4,11 +4,12 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 from typer.testing import CliRunner
 
-from specify_cli import app
+from specify_cli import _bootstrap_integration_context_file, app
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_hook_launcher_command
@@ -62,6 +63,41 @@ def test_gemini_integration_metadata():
     assert integration.config["folder"] == ".gemini/"
     assert integration.config["commands_subdir"] == "commands"
     assert integration.context_file == "GEMINI.md"
+
+
+def test_gemini_toml_install_contract_tracks_commands_scripts_and_context(tmp_path):
+    integration = get_integration("gemini")
+    manifest = IntegrationManifest("gemini", tmp_path)
+
+    integration.setup(tmp_path, manifest, script_type="sh")
+    _bootstrap_integration_context_file(tmp_path, integration, manifest)
+
+    commands_dir = integration.commands_dest(tmp_path)
+    command_files = sorted(commands_dir.glob("*.toml"))
+    assert command_files
+
+    parsed_commands = [tomllib.loads(path.read_text(encoding="utf-8")) for path in command_files]
+    assert any(parsed.get("description") and parsed.get("prompt") for parsed in parsed_commands)
+
+    plan_command = commands_dir / "sp.plan.toml"
+    assert plan_command.exists()
+    assert ".gemini/commands/sp.plan.toml" in manifest.files
+
+    plan_content = plan_command.read_text(encoding="utf-8")
+    plan_payload = tomllib.loads(plan_content)
+    assert "$ARGUMENTS" not in "\n".join(path.read_text(encoding="utf-8") for path in command_files)
+    assert "{{args}}" in plan_payload["prompt"]
+
+    for rel_path in (
+        ".specify/integrations/gemini/scripts/update-context.sh",
+        ".specify/integrations/gemini/scripts/update-context.ps1",
+        "GEMINI.md",
+    ):
+        assert (tmp_path / rel_path).exists()
+        assert rel_path in manifest.files
+
+    context_content = (tmp_path / "GEMINI.md").read_text(encoding="utf-8")
+    assert "## Active Technologies" in context_content
 
 
 class TestGeminiIntegration:
