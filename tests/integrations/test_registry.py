@@ -1,13 +1,17 @@
 """Tests for INTEGRATION_REGISTRY — mechanics, completeness, and registrar alignment."""
 
+import tomllib
+
 import pytest
 
+from specify_cli import _bootstrap_integration_context_file
 from specify_cli.integrations import (
     INTEGRATION_REGISTRY,
     _register,
     get_integration,
 )
 from specify_cli.integrations.base import MarkdownIntegration
+from specify_cli.integrations.manifest import IntegrationManifest
 from .conftest import StubIntegration
 
 
@@ -144,3 +148,24 @@ class TestRegistrarKeyAlignment:
         assert integration.registrar_config["args"] == "{{args}}"
         assert integration.registrar_config["extension"] == ".toml"
         assert integration.context_file == "TABNINE.md"
+
+    def test_tabnine_toml_setup_smoke(self, tmp_path):
+        integration = get_integration("tabnine")
+        assert integration is not None
+
+        manifest = IntegrationManifest("tabnine", tmp_path)
+        integration.setup(tmp_path, manifest)
+        _bootstrap_integration_context_file(tmp_path, integration, manifest)
+
+        command_files = sorted(integration.commands_dest(tmp_path).glob("*.toml"))
+        assert command_files
+
+        parsed = tomllib.loads(command_files[0].read_text(encoding="utf-8"))
+        assert parsed["description"]
+        assert parsed["prompt"]
+
+        assert (tmp_path / "TABNINE.md").is_file()
+
+        scripts_dir = tmp_path / ".specify" / "integrations" / "tabnine" / "scripts"
+        assert (scripts_dir / "update-context.sh").is_file()
+        assert (scripts_dir / "update-context.ps1").is_file()
