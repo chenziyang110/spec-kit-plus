@@ -6,13 +6,28 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, cast
 
-SubagentExecutionModel = Literal["subagent-mandatory"]
-DispatchShape = Literal["one-subagent", "parallel-subagents", "leader-inline-fallback"]
-ExecutionSurface = Literal["native-subagents"]
+ExecutionModel = Literal["subagent-mandatory", "adaptive"]
+SubagentExecutionModel = ExecutionModel
+WorkflowStatus = Literal["ready", "blocked"]
+ExecutionMode = Literal["light", "standard", "heavy"]
+DispatchShape = Literal[
+    "one-subagent",
+    "parallel-subagents",
+    "leader-inline",
+    "leader-inline-fallback",
+    "subagent-blocked",
+]
+ExecutionSurface = Literal["native-subagents", "leader-inline", "none"]
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
 _CANONICAL_DISPATCH_SHAPES = frozenset(
-    {"one-subagent", "parallel-subagents", "leader-inline-fallback"}
+    {
+        "one-subagent",
+        "parallel-subagents",
+        "leader-inline",
+        "leader-inline-fallback",
+        "subagent-blocked",
+    }
 )
 _ORDINARY_SP_COMMANDS = frozenset(
     {
@@ -61,7 +76,7 @@ class CapabilitySnapshot:
 
 @dataclass(slots=True)
 class ExecutionDecision:
-    """Persisted decision selecting the subagent shape for an ordinary sp-* command."""
+    """Persisted decision selecting a workflow dispatch shape."""
 
     command_name: str
     dispatch_shape: DispatchShape
@@ -69,7 +84,11 @@ class ExecutionDecision:
     fallback_from: DispatchShape | None = None
     created_at: str = field(default_factory=utc_now)
     execution_surface: ExecutionSurface | None = None
-    execution_model: SubagentExecutionModel = "subagent-mandatory"
+    execution_model: ExecutionModel = "subagent-mandatory"
+    workflow_status: WorkflowStatus = "ready"
+    execution_mode: ExecutionMode | None = None
+    capability_degraded: bool = False
+    blocked_reason: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -79,7 +98,10 @@ class ExecutionDecision:
         )
         if self.fallback_from is not None:
             object.__setattr__(self, "fallback_from", _normalize_dispatch_shape(self.fallback_from))
-        object.__setattr__(self, "execution_surface", "native-subagents")
+        if self.execution_surface is None:
+            object.__setattr__(self, "execution_surface", _derive_execution_surface(self.dispatch_shape))
+        if self.workflow_status == "blocked" and not self.blocked_reason:
+            raise ValueError("blocked ExecutionDecision requires blocked_reason")
 
 
 @dataclass(slots=True)
@@ -180,5 +202,9 @@ def _normalize_dispatch_shape(dispatch_shape: str) -> DispatchShape:
 
 
 def _derive_execution_surface(dispatch_shape: DispatchShape) -> ExecutionSurface:
-    _normalize_dispatch_shape(dispatch_shape)
-    return "native-subagents"
+    normalized = _normalize_dispatch_shape(dispatch_shape)
+    if normalized in {"one-subagent", "parallel-subagents"}:
+        return "native-subagents"
+    if normalized in {"leader-inline", "leader-inline-fallback"}:
+        return "leader-inline"
+    return "none"

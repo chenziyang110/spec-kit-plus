@@ -8,10 +8,11 @@ from specify_cli.orchestration.models import (
     DispatchShape,
     ExecutionSurface,
     ExecutionDecision,
+    ExecutionModel,
     Lane,
     ReviewGatePolicy,
     Session,
-    SubagentExecutionModel,
+    WorkflowStatus,
     should_attempt_one_subagent,
     utc_now,
 )
@@ -57,8 +58,13 @@ def test_execution_decision_has_canonical_fields_defaults_and_values():
     assert decision.dispatch_shape == "one-subagent"
     assert decision.reason == "default"
     assert decision.fallback_from is None
+    assert decision.created_at
     assert decision.execution_surface == "native-subagents"
     assert decision.execution_model == "subagent-mandatory"
+    assert decision.workflow_status == "ready"
+    assert decision.execution_mode is None
+    assert decision.capability_degraded is False
+    assert decision.blocked_reason is None
     assert datetime.fromisoformat(decision.created_at).utcoffset().total_seconds() == 0
     assert field_names == [
         "command_name",
@@ -68,6 +74,10 @@ def test_execution_decision_has_canonical_fields_defaults_and_values():
         "created_at",
         "execution_surface",
         "execution_model",
+        "workflow_status",
+        "execution_mode",
+        "capability_degraded",
+        "blocked_reason",
     ]
 
 
@@ -100,15 +110,40 @@ def test_session_batch_and_lane_have_utc_defaults():
 
 
 def test_dispatch_shape_and_execution_surface_literals_are_canonical():
-    assert get_args(SubagentExecutionModel) == ("subagent-mandatory",)
+    assert get_args(ExecutionModel) == ("subagent-mandatory", "adaptive")
+    assert get_args(WorkflowStatus) == ("ready", "blocked")
     assert get_args(DispatchShape) == (
         "one-subagent",
         "parallel-subagents",
+        "leader-inline",
         "leader-inline-fallback",
+        "subagent-blocked",
     )
     assert get_args(ExecutionSurface) == (
         "native-subagents",
+        "leader-inline",
+        "none",
     )
+
+
+def test_execution_decision_preserves_blocked_adaptive_state():
+    decision = ExecutionDecision(
+        command_name="tasks",
+        dispatch_shape="subagent-blocked",
+        reason="heavy-native-unavailable",
+        execution_model="adaptive",
+        workflow_status="blocked",
+        execution_mode="heavy",
+        execution_surface="none",
+        blocked_reason="native subagents unavailable for heavy task generation",
+    )
+
+    assert decision.execution_model == "adaptive"
+    assert decision.workflow_status == "blocked"
+    assert decision.execution_mode == "heavy"
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.blocked_reason == "native subagents unavailable for heavy task generation"
 
 
 def test_execution_decision_rejects_legacy_single_agent_alias() -> None:
