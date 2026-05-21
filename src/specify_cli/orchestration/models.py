@@ -128,6 +128,8 @@ class ExecutionDecision:
             )
         if self.execution_surface != _derive_execution_surface(self.dispatch_shape):
             raise ValueError("execution_surface must match dispatch_shape")
+        if self.blocked_reason is not None:
+            object.__setattr__(self, "blocked_reason", self.blocked_reason.strip())
         if self.workflow_status == "blocked" and not self.blocked_reason:
             raise ValueError("blocked ExecutionDecision requires blocked_reason")
         if self.workflow_status == "blocked" and self.dispatch_shape != "subagent-blocked":

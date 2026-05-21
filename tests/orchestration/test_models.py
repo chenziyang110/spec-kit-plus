@@ -158,6 +158,18 @@ def test_execution_decision_derives_none_surface_for_blocked_dispatch():
     assert decision.execution_surface == "none"
 
 
+def test_execution_decision_trims_blocked_reason():
+    decision = ExecutionDecision(
+        command_name="tasks",
+        dispatch_shape="subagent-blocked",
+        reason="heavy-native-unavailable",
+        workflow_status="blocked",
+        blocked_reason="  native subagents unavailable  ",
+    )
+
+    assert decision.blocked_reason == "native subagents unavailable"
+
+
 def test_execution_decision_rejects_blocked_dispatch_with_default_ready_status():
     try:
         ExecutionDecision(
@@ -200,6 +212,21 @@ def test_execution_decision_rejects_blocked_status_without_blocked_reason():
         assert "blocked ExecutionDecision requires blocked_reason" in str(exc)
     else:
         raise AssertionError("blocked workflow status should require blocked_reason")
+
+
+def test_execution_decision_rejects_whitespace_only_blocked_reason():
+    try:
+        ExecutionDecision(
+            command_name="tasks",
+            dispatch_shape="subagent-blocked",
+            reason="heavy-native-unavailable",
+            workflow_status="blocked",
+            blocked_reason="   ",
+        )
+    except ValueError as exc:
+        assert "blocked ExecutionDecision requires blocked_reason" in str(exc)
+    else:
+        raise AssertionError("whitespace-only blocked_reason should be rejected")
 
 
 def test_execution_decision_rejects_blocked_status_with_one_subagent_dispatch():
