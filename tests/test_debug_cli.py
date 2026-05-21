@@ -34,8 +34,8 @@ def clean_debug_dir(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def bypass_debug_project_map_preflight(monkeypatch, request):
     if request.node.name in {
-        "test_debug_preflight_blocks_on_support_drift",
-        "test_debug_preflight_blocks_on_partial_refresh",
+        "test_debug_preflight_warns_on_support_drift",
+        "test_debug_preflight_warns_on_partial_refresh",
     }:
         return
     try:
@@ -184,7 +184,7 @@ def test_debug_same_issue_feedback_reopens_parent_session(clean_debug_dir, monke
     assert seen["resumed"] is True
 
 
-def test_debug_preflight_blocks_on_support_drift(clean_debug_dir, monkeypatch):
+def test_debug_preflight_warns_on_support_drift(clean_debug_dir, monkeypatch, capsys):
     import specify_cli.debug.cli as cli_module
     (clean_debug_dir.parent.parent / ".specify").mkdir(exist_ok=True)
 
@@ -200,11 +200,14 @@ def test_debug_preflight_blocks_on_support_drift(clean_debug_dir, monkeypatch):
         },
     )
 
-    with pytest.raises(typer.Exit):
-        cli_module._project_map_preflight_for_debug()
+    cli_module._project_map_preflight_for_debug()
+    output = strip_ansi(capsys.readouterr().out)
+    assert "Project cognition map output is advisory for debug" in output
+    assert "Cognition Freshness: support_drift" in output
+    assert "Recommended next action: commit_or_ignore_support_files" in output
 
 
-def test_debug_preflight_blocks_on_partial_refresh(clean_debug_dir, monkeypatch):
+def test_debug_preflight_warns_on_partial_refresh(clean_debug_dir, monkeypatch, capsys):
     import specify_cli.debug.cli as cli_module
     (clean_debug_dir.parent.parent / ".specify").mkdir(exist_ok=True)
 
@@ -220,8 +223,11 @@ def test_debug_preflight_blocks_on_partial_refresh(clean_debug_dir, monkeypatch)
         },
     )
 
-    with pytest.raises(typer.Exit):
-        cli_module._project_map_preflight_for_debug()
+    cli_module._project_map_preflight_for_debug()
+    output = strip_ansi(capsys.readouterr().out)
+    assert "Project cognition map output is advisory for debug" in output
+    assert "Cognition Freshness: partial_refresh" in output
+    assert "Recommended next action: run_map_update" in output
 
 def test_debug_awaiting_human_status(clean_debug_dir, monkeypatch):
     import specify_cli.debug.cli as cli_module

@@ -80,7 +80,7 @@ def test_team_command_status_guides_native_windows_users_to_psmux(monkeypatch, c
     assert "psmux" in result.output
 
 
-def test_team_command_dispatch_blocks_when_project_cognition_is_dirty(monkeypatch, codex_team_project_root):
+def test_team_command_dispatch_warns_when_project_cognition_is_dirty(monkeypatch, codex_team_project_root):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
 
@@ -111,7 +111,8 @@ def test_team_command_dispatch_blocks_when_project_cognition_is_dirty(monkeypatc
             catch_exceptions=False,
         )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 0
     output = strip_ansi(result.output)
     assert "Cognition Freshness" in output
-    assert "/sp-map-scan, then /sp-map-build" in output
+    assert "map-update" in output
+    assert "Dispatched req-smoke to worker-smoke." in output

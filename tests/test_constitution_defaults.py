@@ -75,7 +75,11 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "map-build" in content
     assert "Maintain `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` as the primary runtime atlas" not in content
     assert "Recommend `map-update`" in content
-    assert "recommend `map-scan` followed by `map-build` only when the user" in compact_content
+    assert (
+        "Recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, "
+        "schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, "
+        "or `baseline_identity_invalid`."
+    ) in compact_content
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
     assert "**Version**: 1.2.0" in content
