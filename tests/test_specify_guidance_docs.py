@@ -91,6 +91,12 @@ def test_upgrade_doc_mentions_project_launcher_binding():
 
 
 def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:
+    handbook = _read("PROJECT-HANDBOOK.md").lower()
+
+    assert "subagents-first dispatch" not in handbook
+    assert "adaptive and mandatory dispatch selection" in handbook
+    assert "adaptive plan/tasks dispatch plus mandatory-subagent dispatch/state/review helpers" in handbook
+
     for rel_path in ("README.md", "PROJECT-HANDBOOK.md"):
         content = _read(rel_path)
         lowered = content.lower()
