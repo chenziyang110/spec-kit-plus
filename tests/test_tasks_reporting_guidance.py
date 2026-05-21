@@ -105,3 +105,22 @@ def test_tasks_command_consumes_upstream_planning_evidence():
     assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in content
     assert "Read `planning/evidence-index.json` and all accepted `planning/handoffs/*.json`" in content
     assert "accepted planning lane contributions as upstream planning inputs" in lowered
+
+
+def test_tasks_command_makes_packet_outputs_mode_sensitive():
+    content = _read("templates/commands/tasks.md")
+
+    assert (
+        "Emit `handoff-to-tasks.json`, `task-index.json`, and per-task packet JSON under "
+        "`task-packets/` when standard/heavy mode uses delegated task-generation lanes or downstream "
+        "delegated implementation needs packets; in light mode, emit only the minimum light-mode "
+        "`tasks.md` contract unless `task-index.json` is useful."
+    ) in content
+    assert (
+        "When delegated task-generation handoffs exist, include references in `handoff-to-tasks.json` "
+        "and `task-index.json` to the accepted `task-generation/handoffs/<lane-id>.json` files"
+    ) in content
+    assert (
+        "Emit `handoff-to-tasks.json`, `task-index.json`, and per-task packet JSON under "
+        "`task-packets/` alongside `tasks.md`."
+    ) not in content
