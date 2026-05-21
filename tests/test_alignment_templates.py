@@ -97,7 +97,8 @@ STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
     "path-index " + "incomplete",
     "unadoptable " + "coverage gaps",
     "{{invoke:map-scan}} -> {{invoke:map-build}} or "
-    + "{{invoke:map-update}} as appropriate",
+    + "{{invoke:map-update}} as "
+    + "appropriate",
 )
 
 
@@ -656,7 +657,7 @@ def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> No
         normalized.index("cross-project reference directories"):
         normalized.index("command surface discipline")
     ]
-    assert "as appropriate" not in reference_block
+    assert "as " + "appropriate" not in reference_block
 
 
 def test_specify_template_uses_alignment_first_contract():

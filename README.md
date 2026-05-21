@@ -330,7 +330,11 @@ Conditional gates and follow-up commands:
   `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
   true. If the reference is blocked, stale, or incomplete, do not treat legacy
   `.specify/project-map/**` outputs as current truth; fall back to minimal live
-  reads or refresh that reference with `map-scan -> map-build` or `map-update`.
+  reads and recommend `map-update` for localized stale or weak reference
+  coverage after a usable baseline. If the reference baseline is missing or
+  unusable, recommend `map-scan -> map-build` only for first/missing/unusable
+  baseline, schema failure, zero active-generation `path_index` rows,
+  `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite project cognition content; when they discover the current cognition runtime is too weak or likely outdated for the touched area, they should use `map-update` for changed-path refresh. Uncertain closure is recorded by `map-update` as partial/low-confidence facts when needed. Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.

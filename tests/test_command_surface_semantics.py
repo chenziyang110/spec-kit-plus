@@ -562,7 +562,13 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
     assert "one detail markdown document per lesson" in readme
     assert "learning reflex" in readme
 
+    closed_rebuild_policy = " ".join((
+        "first/missing/unusable baseline, schema failure, zero active-generation "
+        "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+    ).split())
+
     for content in (readme, handbook, handbook_template):
+        normalized = " ".join(content.replace("`", "").split())
         assert "recorded refresh and ready refresh" in content
         assert "support drift" in content
         assert "support_drift" in content
@@ -571,4 +577,17 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
         assert "project-cognition validate-scan --format json" in content
         assert "project-cognition validate-build --format json" in content
         assert "first brownfield cognition baseline" in content
-        assert "first/missing/unusable, schema-incompatible" in content
+        assert closed_rebuild_policy in normalized
+
+    assert "if the reference is blocked, stale, or incomplete" in readme
+    normalized_readme = " ".join(readme.split())
+    assert "fall back to minimal live reads" in normalized_readme
+    assert "recommend `map-update` for localized stale or weak reference" in readme
+    assert "if the reference baseline is missing or unusable" in normalized_readme
+    assert "recommend `map-scan -> map-build` only" in normalized_readme
+    stale_reference_refresh = (
+        "refresh that "
+        + "reference with `map-scan -> map-build` or "
+        + "`map-update`"
+    )
+    assert stale_reference_refresh not in readme
