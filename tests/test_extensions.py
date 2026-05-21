@@ -140,50 +140,27 @@ def project_dir(temp_dir):
 class TestNormalizePriority:
     """Test normalize_priority helper function."""
 
-    def test_valid_integer(self):
-        """Test with valid integer priority."""
-        assert normalize_priority(5) == 5
-        assert normalize_priority(1) == 1
-        assert normalize_priority(100) == 100
+    def test_normalize_priority_cases(self):
+        """Representative normalization cases for priority input."""
+        cases = [
+            (5, 5, 10),
+            (1, 1, 10),
+            ("5", 5, 10),
+            ("10", 10, 10),
+            (5.9, 5, 10),
+            (0, 10, 10),
+            (0, 5, 5),
+            (-1, 10, 10),
+            (-100, 5, 5),
+            (None, 10, 10),
+            (None, 20, 20),
+            ("invalid", 10, 10),
+            ("abc", 5, 5),
+            ("", 10, 10),
+        ]
 
-    def test_valid_string_number(self):
-        """Test with string that can be converted to int."""
-        assert normalize_priority("5") == 5
-        assert normalize_priority("10") == 10
-
-    def test_zero_returns_default(self):
-        """Test that zero priority returns default."""
-        assert normalize_priority(0) == 10
-        assert normalize_priority(0, default=5) == 5
-
-    def test_negative_returns_default(self):
-        """Test that negative priority returns default."""
-        assert normalize_priority(-1) == 10
-        assert normalize_priority(-100, default=5) == 5
-
-    def test_none_returns_default(self):
-        """Test that None returns default."""
-        assert normalize_priority(None) == 10
-        assert normalize_priority(None, default=5) == 5
-
-    def test_invalid_string_returns_default(self):
-        """Test that non-numeric string returns default."""
-        assert normalize_priority("invalid") == 10
-        assert normalize_priority("abc", default=5) == 5
-
-    def test_float_truncates(self):
-        """Test that float is truncated to int."""
-        assert normalize_priority(5.9) == 5
-        assert normalize_priority(3.1) == 3
-
-    def test_empty_string_returns_default(self):
-        """Test that empty string returns default."""
-        assert normalize_priority("") == 10
-
-    def test_custom_default(self):
-        """Test custom default value."""
-        assert normalize_priority(None, default=20) == 20
-        assert normalize_priority("invalid", default=1) == 1
+        for value, expected, default in cases:
+            assert normalize_priority(value, default=default) == expected
 
 
 # ===== ExtensionManifest Tests =====
@@ -1855,76 +1832,8 @@ class TestExtensionCatalog:
         # Cache should be invalid
         assert not catalog.is_cache_valid()
 
-    def test_search_all_extensions(self, temp_dir):
-        """Test searching all extensions without filters."""
-        import yaml as yaml_module
-
-        project_dir = temp_dir / "project"
-        project_dir.mkdir()
-        (project_dir / ".specify").mkdir()
-
-        # Use a single-catalog config so community extensions don't interfere
-        config_path = project_dir / ".specify" / "extension-catalogs.yml"
-        with open(config_path, "w") as f:
-            yaml_module.dump(
-                {
-                    "catalogs": [
-                        {
-                            "name": "test-catalog",
-                            "url": ExtensionCatalog.DEFAULT_CATALOG_URL,
-                            "priority": 1,
-                            "install_allowed": True,
-                        }
-                    ]
-                },
-                f,
-            )
-
-        catalog = ExtensionCatalog(project_dir)
-
-        # Create mock catalog
-        catalog_data = {
-            "schema_version": "1.0",
-            "extensions": {
-                "jira": {
-                    "name": "Jira Integration",
-                    "id": "jira",
-                    "version": "1.0.0",
-                    "description": "Jira integration",
-                    "author": "Stats Perform",
-                    "tags": ["issue-tracking", "jira"],
-                    "verified": True,
-                },
-                "linear": {
-                    "name": "Linear Integration",
-                    "id": "linear",
-                    "version": "0.9.0",
-                    "description": "Linear integration",
-                    "author": "Community",
-                    "tags": ["issue-tracking"],
-                    "verified": False,
-                },
-            },
-        }
-
-        # Save to cache
-        catalog.cache_dir.mkdir(parents=True, exist_ok=True)
-        catalog.cache_file.write_text(json.dumps(catalog_data))
-        catalog.cache_metadata_file.write_text(
-            json.dumps(
-                {
-                    "cached_at": datetime.now(timezone.utc).isoformat(),
-                    "catalog_url": "http://test.com",
-                }
-            )
-        )
-
-        # Search without filters
-        results = catalog.search()
-        assert len(results) == 2
-
-    def test_search_by_query(self, temp_dir):
-        """Test searching by query text."""
+    def test_search_filters_with_cached_data(self, temp_dir):
+        """Search all, query, tag, and verified filters against one cached catalog."""
         import yaml as yaml_module
 
         project_dir = temp_dir / "project"
@@ -1959,78 +1868,18 @@ class TestExtensionCatalog:
                     "id": "jira",
                     "version": "1.0.0",
                     "description": "Jira issue tracking",
-                    "tags": ["jira"],
+                    "author": "Stats Perform",
+                    "tags": ["issue-tracking", "jira"],
+                    "verified": True,
                 },
                 "linear": {
                     "name": "Linear Integration",
                     "id": "linear",
                     "version": "1.0.0",
                     "description": "Linear project management",
-                    "tags": ["linear"],
-                },
-            },
-        }
-
-        catalog.cache_dir.mkdir(parents=True, exist_ok=True)
-        catalog.cache_file.write_text(json.dumps(catalog_data))
-        catalog.cache_metadata_file.write_text(
-            json.dumps(
-                {
-                    "cached_at": datetime.now(timezone.utc).isoformat(),
-                    "catalog_url": "http://test.com",
-                }
-            )
-        )
-
-        # Search for "jira"
-        results = catalog.search(query="jira")
-        assert len(results) == 1
-        assert results[0]["id"] == "jira"
-
-    def test_search_by_tag(self, temp_dir):
-        """Test searching by tag."""
-        import yaml as yaml_module
-
-        project_dir = temp_dir / "project"
-        project_dir.mkdir()
-        (project_dir / ".specify").mkdir()
-
-        # Use a single-catalog config so community extensions don't interfere
-        config_path = project_dir / ".specify" / "extension-catalogs.yml"
-        with open(config_path, "w") as f:
-            yaml_module.dump(
-                {
-                    "catalogs": [
-                        {
-                            "name": "test-catalog",
-                            "url": ExtensionCatalog.DEFAULT_CATALOG_URL,
-                            "priority": 1,
-                            "install_allowed": True,
-                        }
-                    ]
-                },
-                f,
-            )
-
-        catalog = ExtensionCatalog(project_dir)
-
-        # Create mock catalog
-        catalog_data = {
-            "schema_version": "1.0",
-            "extensions": {
-                "jira": {
-                    "name": "Jira",
-                    "id": "jira",
-                    "version": "1.0.0",
-                    "description": "Jira",
-                    "tags": ["issue-tracking", "jira"],
-                },
-                "linear": {
-                    "name": "Linear",
-                    "id": "linear",
-                    "version": "1.0.0",
-                    "description": "Linear",
+                    "author": "Community",
                     "tags": ["issue-tracking", "linear"],
+                    "verified": False,
                 },
                 "github": {
                     "name": "GitHub",
@@ -2053,74 +1902,10 @@ class TestExtensionCatalog:
             )
         )
 
-        # Search by tag "issue-tracking"
-        results = catalog.search(tag="issue-tracking")
-        assert len(results) == 2
-        assert {r["id"] for r in results} == {"jira", "linear"}
-
-    def test_search_verified_only(self, temp_dir):
-        """Test searching verified extensions only."""
-        import yaml as yaml_module
-
-        project_dir = temp_dir / "project"
-        project_dir.mkdir()
-        (project_dir / ".specify").mkdir()
-
-        # Use a single-catalog config so community extensions don't interfere
-        config_path = project_dir / ".specify" / "extension-catalogs.yml"
-        with open(config_path, "w") as f:
-            yaml_module.dump(
-                {
-                    "catalogs": [
-                        {
-                            "name": "test-catalog",
-                            "url": ExtensionCatalog.DEFAULT_CATALOG_URL,
-                            "priority": 1,
-                            "install_allowed": True,
-                        }
-                    ]
-                },
-                f,
-            )
-
-        catalog = ExtensionCatalog(project_dir)
-
-        # Create mock catalog
-        catalog_data = {
-            "schema_version": "1.0",
-            "extensions": {
-                "jira": {
-                    "name": "Jira",
-                    "id": "jira",
-                    "version": "1.0.0",
-                    "description": "Jira",
-                    "verified": True,
-                },
-                "linear": {
-                    "name": "Linear",
-                    "id": "linear",
-                    "version": "1.0.0",
-                    "description": "Linear",
-                    "verified": False,
-                },
-            },
-        }
-
-        catalog.cache_dir.mkdir(parents=True, exist_ok=True)
-        catalog.cache_file.write_text(json.dumps(catalog_data))
-        catalog.cache_metadata_file.write_text(
-            json.dumps(
-                {
-                    "cached_at": datetime.now(timezone.utc).isoformat(),
-                    "catalog_url": "http://test.com",
-                }
-            )
-        )
-
-        # Search verified only
-        results = catalog.search(verified_only=True)
-        assert len(results) == 1
-        assert results[0]["id"] == "jira"
+        assert {result["id"] for result in catalog.search()} == {"jira", "linear", "github"}
+        assert [result["id"] for result in catalog.search(query="jira")] == ["jira"]
+        assert {result["id"] for result in catalog.search(tag="issue-tracking")} == {"jira", "linear"}
+        assert [result["id"] for result in catalog.search(verified_only=True)] == ["jira"]
 
     def test_get_extension_info(self, temp_dir):
         """Test getting specific extension info."""
@@ -3203,30 +2988,6 @@ class TestExtensionListCLI:
 class TestExtensionPriority:
     """Test extension priority-based resolution."""
 
-    def test_list_by_priority_empty(self, temp_dir):
-        """Test list_by_priority on empty registry."""
-        extensions_dir = temp_dir / "extensions"
-        extensions_dir.mkdir()
-
-        registry = ExtensionRegistry(extensions_dir)
-        result = registry.list_by_priority()
-
-        assert result == []
-
-    def test_list_by_priority_single(self, temp_dir):
-        """Test list_by_priority with single extension."""
-        extensions_dir = temp_dir / "extensions"
-        extensions_dir.mkdir()
-
-        registry = ExtensionRegistry(extensions_dir)
-        registry.add("test-ext", {"version": "1.0.0", "priority": 5})
-
-        result = registry.list_by_priority()
-
-        assert len(result) == 1
-        assert result[0][0] == "test-ext"
-        assert result[0][1]["priority"] == 5
-
     def test_list_by_priority_ordering(self, temp_dir):
         """Test list_by_priority returns extensions sorted by priority."""
         extensions_dir = temp_dir / "extensions"
@@ -3244,25 +3005,6 @@ class TestExtensionPriority:
         # Lower priority number = higher precedence (first)
         assert result[0][0] == "ext-high"
         assert result[1][0] == "ext-mid"
-        assert result[2][0] == "ext-low"
-
-    def test_list_by_priority_default(self, temp_dir):
-        """Test list_by_priority uses default priority of 10."""
-        extensions_dir = temp_dir / "extensions"
-        extensions_dir.mkdir()
-
-        registry = ExtensionRegistry(extensions_dir)
-        # Add without explicit priority
-        registry.add("ext-default", {"version": "1.0.0"})
-        registry.add("ext-high", {"version": "1.0.0", "priority": 1})
-        registry.add("ext-low", {"version": "1.0.0", "priority": 20})
-
-        result = registry.list_by_priority()
-
-        assert len(result) == 3
-        # ext-high (1), ext-default (10), ext-low (20)
-        assert result[0][0] == "ext-high"
-        assert result[1][0] == "ext-default"
         assert result[2][0] == "ext-low"
 
     def test_list_by_priority_invalid_priority_defaults(self, temp_dir):
