@@ -143,6 +143,8 @@ class TestRegistrarKeyAlignment:
         ("key", "folder", "commands_subdir", "registrar_dir", "context_file"),
         [
             ("agy", ".agents/", "skills", ".agents/skills", "AGENTS.md"),
+            ("cursor-agent", ".cursor/", "skills", ".cursor/skills", ".cursor/rules/specify-rules.mdc"),
+            ("kimi", ".kimi/", "skills", ".kimi/skills", "KIMI.md"),
             ("trae", ".trae/", "skills", ".trae/skills", ".trae/rules/project_rules.md"),
             ("vibe", ".vibe/", "skills", ".vibe/skills", "AGENTS.md"),
         ],

@@ -4,16 +4,6 @@ from specify_cli.integrations import get_integration
 from specify_cli.integrations.kimi import _migrate_legacy_kimi_dotted_skills
 from specify_cli.integrations.manifest import IntegrationManifest
 
-from .test_integration_base_skills import SkillsIntegrationTests
-
-
-class TestKimiIntegration(SkillsIntegrationTests):
-    KEY = "kimi"
-    FOLDER = ".kimi/"
-    COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".kimi/skills"
-    CONTEXT_FILE = "KIMI.md"
-
 
 class TestKimiOptions:
     """Kimi declares --skills and --migrate-legacy options."""
