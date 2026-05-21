@@ -19,7 +19,7 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
-{{spec-kit-include: ../command-partials/common/subagent-execution.md}}
+{{spec-kit-include: ../command-partials/common/adaptive-execution.md}}
 
 
 ## Pre-Execution Checks
@@ -162,20 +162,21 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
     - [AGENT] Before dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
     - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
     - The chosen dispatch shape applies to the **current ready batch**, not automatically to the entire feature or task graph.
+    - Do not use the current batch execution strategy as a blanket label for the whole feature.
     - Primary decomposition goal: maximize safe native-subagent throughput for later `sp-implement` runs by isolating write sets and turning ready work into a dispatch-ready lane packet instead of a vague checklist.
-    - Before dispatching any task-generation lane, persist a `task_generation_checkpoint` record to `task-generation/checkpoints.ndjson` with the lane id, dispatch shape, authoritative inputs, expected handoff path, and current workflow-state summary.
+    - Persist the adaptive decision fields exactly: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, `workflow_status: ready | blocked`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`, `execution_surface: leader-inline | native-subagents | none`, `capability_degraded: false | true`, and `blocked_reason: required when blocked`.
+    - Adaptive decision order:
+      - If the task-generation workload is lightweight safe, use `execution_mode: light`, `dispatch_shape: leader-inline`, and `execution_surface: leader-inline`; no task-generation lane handoff files are required.
+      - If the workload is standard and native subagents are available, dispatch `one-subagent` for exactly one validated isolated lane or `parallel-subagents` for two or more isolated lanes.
+      - If the workload is standard, native subagents are unavailable, and no high-risk trigger is present, continue leader-inline with `capability_degraded: true`.
+      - If the workload is heavy or safety-critical and native subagents are unavailable, or if heavy task generation cannot be packetized safely, record `workflow_status: blocked`, `dispatch_shape: subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`; stop before synthesizing `tasks.md`.
+    - Managed-team fallback is not part of adaptive plan/tasks dispatch.
+    - Before dispatching any delegated task-generation lane, persist a `task_generation_checkpoint` record to `task-generation/checkpoints.ndjson` with the lane id, dispatch shape, authoritative inputs, expected handoff path, and current workflow-state summary.
    - Each delegated lane must persist the lane's structured handoff to `task-generation/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or synthesizes `tasks.md`.
-   - Update `task-generation/evidence-index.json` after each accepted lane handoff with lane id, handoff path, source artifacts inspected, decisions or constraints contributed, affected task IDs or batch IDs, blocker status, and integration status.
-    - Consume `task-generation/evidence-index.json` before final task synthesis: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target task ID, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or escalation that consumed it.
-    - Do not synthesize `tasks.md` from chat-only lane results. If a lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a valid handoff path.
-    - When resuming after compaction, re-read `workflow-state.md`, `task-generation/checkpoints.ndjson`, `task-generation/evidence-index.json`, and all accepted `task-generation/handoffs/<lane-id>.json` files before continuing task synthesis.
-    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-    - Decision order is fixed:
-      - If exactly one validated isolated lane exists, dispatch `one-subagent`.
-      - If two or more validated isolated lanes exist, dispatch `parallel-subagents`.
-      - If overlap or missing contract prevents safe dispatch, mark `subagent-blocked` and stop.
-    - Leader-only decomposition is forbidden once a validated lane exists.
-    - Task-generation collaboration is determined only by validated lane count and write-set isolation. Do not make a separate judgment about whether collaboration is justified.
+   - Update `task-generation/evidence-index.json` after each accepted delegated lane handoff with lane id, handoff path, source artifacts inspected, decisions or constraints contributed, affected task IDs or batch IDs, blocker status, and integration status.
+    - Consume `task-generation/evidence-index.json` before final task synthesis when delegated lanes were used: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target task ID, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or escalation that consumed it.
+    - Do not synthesize `tasks.md` from chat-only delegated lane results. If a delegated lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a valid handoff path.
+    - When resuming after compaction and delegated lanes were used, re-read `workflow-state.md`, `task-generation/checkpoints.ndjson`, `task-generation/evidence-index.json`, and all accepted `task-generation/handoffs/<lane-id>.json` files before continuing task synthesis.
     - Required join points:
       - before writing `tasks.md`
       - before emitting canonical parallel batches and join points
@@ -215,8 +216,8 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
     - Do not generate `tasks.md` from an artifact set that is missing required design inputs.
     - Only optional artifacts may be absent without blocking task generation.
     - Generate tasks organized by user story (see Task Generation Rules below)
-    - Treat tests as default deliverables for behavior changes, bug fixes, and refactors
-    - If the touched area lacks a reliable automated test surface, add explicit bootstrap tasks to establish the smallest runnable test surface first before implementation tasks for that slice
+    - Treat tests as default deliverables for product behavior changes, bug fixes, refactors with regression risk, public API contracts, persistence/migration changes, security-sensitive behavior, and generated outputs consumed by users or tools
+    - If the touched area lacks a reliable automated test surface, add the smallest runnable test surface only when the change risk requires automated proof; otherwise record the no-new-test rationale, replacement validation, and residual risk
     - Top-level tasks should fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path
     - A subagent can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks
     - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence
@@ -265,7 +266,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
    - Phase 1: Setup tasks (project initialization)
    - Phase 2: Foundational tasks (blocking prerequisites for all user stories)
    - Phase 3+: One phase per user story (in priority order from spec.md)
-   - Each phase includes: story goal, independent test criteria, required test tasks for behavior changes/bug fixes/refactors/regression-sensitive modules, implementation tasks
+   - Each phase includes: story goal, independent validation criteria, risk-required test tasks, no-new-test rationale where tests are omitted, implementation tasks
    - Final Phase: Polish & cross-cutting concerns
    - All tasks must follow the strict checklist format (see Task Generation Rules below)
    - Clear file paths for each task
@@ -286,11 +287,18 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
 6. **Report**: Output path to generated tasks.md and summary:
     - Total task count
     - Task count per user story
-    - task-generation evidence paths: `task-generation/evidence-index.json`, `task-generation/checkpoints.ndjson`, and accepted `task-generation/handoffs/<lane-id>.json` files
+    - task-generation evidence paths when delegated lanes were used: `task-generation/evidence-index.json`, `task-generation/checkpoints.ndjson`, and accepted `task-generation/handoffs/<lane-id>.json` files; otherwise report `delegated_task_generation_lanes: none`
+    - execution_model: adaptive
+    - execution_mode: light | standard | heavy
+    - workflow_status: ready | blocked
+    - dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked
+    - execution_surface: leader-inline | native-subagents | none
+    - capability_degraded: false | true
+    - blocked_reason: required when blocked
     - Feature delivery shape (whole task graph)
     - Parallel opportunities identified
     - Parallel batch count and the join points that gate downstream work
-    - Independent test criteria for each story
+    - Independent validation criteria for each story, including risk and behavior driven validation, no-new-test rationale where tests are omitted, replacement validation, and residual risk
     - Confirmed delivery scope and user-confirmed delivery sequence, including any user-confirmed deferrals or constraint-driven scope adjustments
     - Scope reduction requires user confirmation; do not infer a smaller release from User Story 1 or the smallest independently testable story
     - Confirm first-release profile scope stayed within the two supported profiles: `Standard Delivery` and `Reference-Implementation`
@@ -335,7 +343,9 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
-**Tests are default deliverables**: Generate test tasks by default for affected behavior changes, bug fixes, and regression-sensitive modules. Only omit tests when the change is clearly docs-only/process-only or the plan explicitly allows the omission.
+**Risk and behavior driven validation**: Generate test tasks by default for product behavior changes, bug fixes, refactors with regression risk, public API contracts, persistence/migration changes, security-sensitive behavior, and generated outputs consumed by users or tools. Only omit new tests when `tasks.md` records the no-new-test rationale, replacement validation, and residual risk.
+
+**Minimum light-mode `tasks.md` contract**: When `execution_mode: light`, `tasks.md` must still include the confirmed delivery boundary, ordered executable tasks, dependencies, validation commands or concrete manual checks, no-new-test rationale where tests are omitted, replacement validation, residual risk, and the recommended next command.
 
 ### Checklist Format (REQUIRED)
 
@@ -392,12 +402,12 @@ Every task MUST strictly follow this format:
      - Models needed for that story
      - Services needed for that story
      - Interfaces/UI needed for that story
-     - Tests specific to that story for behavior changes, bug fixes, refactors, and regression-sensitive modules
+     - Tests specific to that story when risk and behavior driven validation requires them
    - Mark story dependencies (most stories should be independent)
 
 2. **From Contracts**:
    - Map each interface contract → to the user story it serves
-   - For behavior changes, bug fixes, refactors, and regression-sensitive modules: Each affected interface contract → contract test tasks by default before implementation in that story's phase
+   - For public API, behavior, bugfix, persistence, security, or regression-sensitive contract changes: affected interface contracts → contract test tasks by default before implementation in that story's phase
 
 3. **From Data Model**:
    - Map each entity to the user story(ies) that need it

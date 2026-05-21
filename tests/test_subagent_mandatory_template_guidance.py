@@ -3,7 +3,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-ORDINARY_COMMANDS = (
+MANDATORY_COMMANDS = (
     "analyze",
     "auto",
     "checklist",
@@ -15,14 +15,13 @@ ORDINARY_COMMANDS = (
     "implement",
     "map-build",
     "map-scan",
-    "plan",
     "quick",
     "research",
     "specify",
-    "tasks",
     "taskstoissues",
 )
 
+ADAPTIVE_COMMANDS = ("plan", "tasks")
 TEAM_COMMANDS = ("implement-teams", "team")
 
 
@@ -30,12 +29,23 @@ def _read_command(name: str) -> str:
     return (PROJECT_ROOT / "templates" / "commands" / f"{name}.md").read_text(encoding="utf-8")
 
 
-def test_all_ordinary_sp_commands_require_subagents_for_substantive_tasks() -> None:
-    for command_name in ORDINARY_COMMANDS:
+def test_mandatory_sp_commands_require_subagents_for_substantive_tasks() -> None:
+    for command_name in MANDATORY_COMMANDS:
         content = _read_command(command_name).lower()
 
         assert "execution_model: subagent-mandatory" in content, command_name
         assert "execution_surface: native-subagents" in content, command_name
+
+
+def test_plan_and_tasks_use_adaptive_execution_instead_of_mandatory_partial() -> None:
+    for command_name in ADAPTIVE_COMMANDS:
+        content = _read_command(command_name).lower()
+
+        assert "execution_model: adaptive" in content, command_name
+        assert "execution_mode: light | standard | heavy" in content, command_name
+        assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content, command_name
+        assert "workflow_status: ready | blocked" in content, command_name
+        assert "execution_model: subagent-mandatory" not in content, command_name
 
 
 def test_team_commands_keep_team_surface_separate() -> None:
@@ -160,13 +170,20 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
         "prefer subagent execution only when",
     )
 
-    for command_name in ORDINARY_COMMANDS:
+    for command_name in MANDATORY_COMMANDS:
         content = _read_command(command_name).lower()
 
         for phrase in forbidden_phrases:
             if command_name == "quick" and phrase == "leader-inline":
                 continue
             assert phrase not in content, f"{command_name}: {phrase}"
+
+    for command_name in ADAPTIVE_COMMANDS:
+        content = _read_command(command_name).lower()
+        assert "leader-inline" in content
+        assert "capability_degraded" in content
+        assert "subagent-blocked" in content
+        assert "managed-team fallback is not part" in content
 
     for team_command in TEAM_COMMANDS:
         assert (PROJECT_ROOT / "templates" / "commands" / f"{team_command}.md").exists()

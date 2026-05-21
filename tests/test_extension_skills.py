@@ -424,7 +424,11 @@ class TestBuiltInSkillGeneration:
         assert "planning/evidence-index.json" in plan_body
         assert "planning/checkpoints.ndjson" in plan_body
         assert "consume `planning/evidence-index.json` before final synthesis" in plan_body.lower()
-        assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only lane results" in plan_body.lower()
+        assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_body.lower()
+        assert "execution_model: adaptive" in plan_body
+        assert "execution_mode: light | standard | heavy" in plan_body
+        assert "planning evidence paths when delegated lanes were used" in plan_body
+        assert "delegated_planning_lanes: none" in plan_body
         assert "recommended follow-up quality check" in plan_body
         assert "git-baseline freshness" in plan_body.lower()
         assert "complete-refresh" in plan_body
@@ -451,11 +455,17 @@ class TestBuiltInSkillGeneration:
         assert "task-generation/checkpoints.ndjson" in tasks_body
         assert "consume `task-generation/evidence-index.json` before final task synthesis" in tasks_body.lower()
         assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_body
-        assert "do not synthesize `tasks.md` from chat-only lane results" in tasks_body.lower()
+        assert "do not synthesize `tasks.md` from chat-only delegated lane results" in tasks_body.lower()
         assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in tasks_body
-        assert "tests as default deliverables" in tasks_body.lower()
-        assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
-        assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in tasks_body.lower()
+        assert "execution_model: adaptive" in tasks_body
+        assert "execution_mode: light | standard | heavy" in tasks_body
+        assert "task-generation evidence paths when delegated lanes were used" in tasks_body
+        assert "delegated_task_generation_lanes: none" in tasks_body
+        assert "risk and behavior driven validation" in tasks_body.lower()
+        assert "no-new-test rationale" in tasks_body.lower()
+        assert "replacement validation" in tasks_body.lower()
+        assert "residual risk" in tasks_body.lower()
+        assert "minimum light-mode `tasks.md` contract" in tasks_body.lower()
         assert "recommended next command" in tasks_body.lower()
         assert "git-baseline freshness" in tasks_body.lower()
         assert "complete-refresh" in tasks_body

@@ -169,6 +169,20 @@ def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
     assert "native-subagents" in lowered
 
 
+def _assert_adaptive_plan_tasks_contract(text: str, command_name: str) -> None:
+    assert f'choose_subagent_dispatch(command_name="{command_name}"' in text
+    lowered = text.lower()
+    assert "execution_model: adaptive" in lowered
+    assert "execution_mode: light | standard | heavy" in lowered
+    assert "workflow_status: ready | blocked" in lowered
+    assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in lowered
+    assert "execution_surface: leader-inline | native-subagents | none" in lowered
+    assert "capability_degraded: false | true" in lowered
+    assert "blocked_reason: required when blocked" in lowered
+    assert "managed-team fallback is not part" in lowered
+    assert "execution_model: subagent-mandatory" not in lowered
+
+
 def _assert_default_handoff_contract(content: str, expected_fragment: str) -> None:
     match = re.search(r"(?m)^  default_handoff: (?P<value>.+)$", content)
     assert match is not None
@@ -1211,11 +1225,12 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "generic implementation drift would violate" in lowered
     assert "canonical boundary files or examples" in content
     assert "split the work only into the supported plan lanes" in lowered
-    assert "If exactly one validated isolated plan lane exists, dispatch `one-subagent`." in content
-    assert "If two or more validated isolated plan lanes exist, dispatch `parallel-subagents`." in content
-    assert "If no validated isolated plan lane can be packetized, mark `subagent-blocked` and stop." in content
-    assert "leader-inline execution of substantive lane work is forbidden" in lowered
-    assert "collaboration routing is determined only by validated lane count and isolation" in lowered
+    assert "If the workload is lightweight safe, use `execution_mode: light`" in content
+    assert "dispatch `one-subagent` for exactly one validated isolated planning lane" in content
+    assert "or `parallel-subagents` for two or more isolated planning lanes" in content
+    assert "If the workload is standard, native subagents are unavailable" in content
+    assert "record `workflow_status: blocked`, `dispatch_shape: subagent-blocked`" in content
+    assert "Managed-team fallback is not part of adaptive plan/tasks dispatch." in content
     assert "if collaboration is justified" not in lowered
     assert "heuristics is true" not in lowered
     assert "## Scenario Profile Inputs" in content
@@ -1228,7 +1243,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "stop and tell the operator to repair or re-run upstream scenario profile routing state before planning" in lowered
     assert "do not silently reinterpret unsupported profiles as a new planning mode" in lowered
     assert "do not use it as a substitute for a supported `active_profile`" in lowered
-    _assert_subagent_dispatch_contract(content, "plan")
+    _assert_adaptive_plan_tasks_contract(content, "plan")
     assert "research" in lowered
     assert "data model" in lowered
     assert "contracts" in lowered
@@ -1254,6 +1269,23 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "actual source/runtime changes" in lowered
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
+
+
+def test_plan_template_uses_adaptive_execution_modes() -> None:
+    content = _read("templates/commands/plan.md")
+
+    _assert_adaptive_plan_tasks_contract(content, "plan")
+    assert "If the workload is lightweight safe, use `execution_mode: light`" in content
+    assert "If the workload is standard and native subagents are available" in content
+    assert "If the workload is heavy or safety-critical" in content
+
+
+def test_plan_template_records_planning_evidence_paths() -> None:
+    content = _read("templates/commands/plan.md")
+
+    assert "planning evidence paths when delegated lanes were used" in content
+    assert "delegated_planning_lanes: none" in content
+    assert "planning/handoffs/<lane-id>.json" in content
 
 
 def test_research_template_exists_and_captures_research_quality_contract():
@@ -1339,7 +1371,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
 
     assert ".specify/memory/constitution.md" in content
-    _assert_subagent_dispatch_contract(content, "tasks")
+    _assert_adaptive_plan_tasks_contract(content, "tasks")
     assert "story and phase decomposition" in lowered
     assert "dependency graph analysis" in lowered
     assert "write-set and parallel-safety analysis" in lowered
@@ -1358,11 +1390,12 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "deviation review" in lowered
     assert "required evidence" in lowered
     assert "split work only into the supported task-generation lanes" in lowered
-    assert "If exactly one validated isolated lane exists, dispatch `one-subagent`." in content
-    assert "If two or more validated isolated lanes exist, dispatch `parallel-subagents`." in content
-    assert "If overlap or missing contract prevents safe dispatch, mark `subagent-blocked` and stop." in content
-    assert "Leader-only decomposition is forbidden once a validated lane exists." in content
-    assert "Task-generation collaboration is determined only by validated lane count and write-set isolation." in content
+    assert "If the task-generation workload is lightweight safe, use `execution_mode: light`" in content
+    assert "dispatch `one-subagent` for exactly one validated isolated lane" in content
+    assert "or `parallel-subagents` for two or more isolated lanes" in content
+    assert "If the workload is standard, native subagents are unavailable" in content
+    assert "record `workflow_status: blocked`, `dispatch_shape: subagent-blocked`" in content
+    assert "Managed-team fallback is not part of adaptive plan/tasks dispatch." in content
     assert "If any design artifact required by the current scope is missing, stop and route back to `{{invoke:plan}}`." in content
     assert "Only optional artifacts may be absent without blocking task generation." in content
     assert "would benefit from them" not in lowered
@@ -1392,6 +1425,15 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "artifact-only task generation" in lowered
     assert "actual source/runtime changes" in lowered
     assert "specify team" not in lowered
+
+
+def test_tasks_template_uses_adaptive_execution_modes() -> None:
+    content = _read("templates/commands/tasks.md")
+
+    _assert_adaptive_plan_tasks_contract(content, "tasks")
+    assert "If the task-generation workload is lightweight safe, use `execution_mode: light`" in content
+    assert "If the workload is standard and native subagents are available" in content
+    assert "If the workload is heavy or safety-critical" in content
 
 
 def test_implement_template_wave_budget_contract():

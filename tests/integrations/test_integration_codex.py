@@ -536,13 +536,27 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-tasks"):
+    for skill_name in ("sp-specify",):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
+        assert ".specify/project-cognition/" in content
+        assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/learnings/index.md" in content
+        assert "future senior engineer" in content
+        assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+        assert "if collaboration is justified" not in content
+        assert "would benefit from them" not in content
+        assert "make the next path explicit" not in content
+    for skill_name in ("sp-plan", "sp-tasks"):
+        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "execution_model: adaptive" in content
+        assert "execution_mode: light | standard | heavy" in content
+        assert "workflow_status: ready | blocked" in content
+        assert "execution_surface: leader-inline | native-subagents | none" in content
         assert ".specify/project-cognition/" in content
         assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/learnings/index.md" in content
@@ -683,8 +697,10 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "planning/handoffs/<lane-id>.json" in plan_content
     assert "planning/evidence-index.json" in plan_content
     assert "planning/checkpoints.ndjson" in plan_content
+    assert "planning evidence paths when delegated lanes were used" in plan_content
+    assert "delegated_planning_lanes: none" in plan_content
     assert "Consume `planning/evidence-index.json` before final synthesis" in plan_content
-    assert "Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only lane results" in plan_content
+    assert "Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_content
     assert "heuristics" not in plan_content.lower()
 
     clarify_content = (skills_dir / "sp-clarify" / "SKILL.md").read_text(encoding="utf-8")
@@ -702,9 +718,11 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "task-generation/handoffs/<lane-id>.json" in tasks_content
     assert "task-generation/evidence-index.json" in tasks_content
     assert "task-generation/checkpoints.ndjson" in tasks_content
+    assert "task-generation evidence paths when delegated lanes were used" in tasks_content
+    assert "delegated_task_generation_lanes: none" in tasks_content
     assert "Consume `task-generation/evidence-index.json` before final task synthesis" in tasks_content
     assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_content
-    assert "Do not synthesize `tasks.md` from chat-only lane results" in tasks_content
+    assert "Do not synthesize `tasks.md` from chat-only delegated lane results" in tasks_content
 
     implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
     assert "Extract `Implementation Constitution` from `plan.md`" in implement_content

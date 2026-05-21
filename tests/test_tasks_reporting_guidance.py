@@ -23,20 +23,20 @@ def test_tasks_command_scopes_strategy_to_current_ready_batch():
 
 
 def test_tasks_template_distinguishes_feature_shape_from_batch_strategy():
-    content = _read("templates/tasks-template.md")
+    content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "### Feature Delivery Shape" in content
+    assert "feature delivery shape" in lowered
     assert "serial phases with intra-phase parallel batches" in lowered
-    assert "### Current Ready Batch Dispatch" in content
-    assert "next executable batch only" in lowered
-    assert "`execution_model: subagent-mandatory`" in content
-    assert "`dispatch_shape: one-subagent | parallel-subagents | subagent-blocked`" in content
-    assert "`execution_surface: native-subagents`" in content
-    assert "`safe-one-subagent`" in content
-    assert "`safe-parallel-subagents`" in content
-    assert "`no-safe-delegated-lane`" in content
-    assert "`runtime-no-subagents`" in content
+    assert "current ready batch" in lowered
+    assert "current ready batch**, not automatically to the entire feature or task graph" in lowered
+    assert "execution_model: adaptive" in content
+    assert "execution_mode: light | standard | heavy" in content
+    assert "workflow_status: ready | blocked" in content
+    assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content
+    assert "execution_surface: leader-inline | native-subagents | none" in content
+    assert "capability_degraded: false | true" in content
+    assert "blocked_reason: required when blocked" in content
     assert "do not use the current batch execution strategy as a blanket label for the whole feature" in lowered
 
 
@@ -95,7 +95,7 @@ def test_tasks_command_requires_persisted_task_generation_handoffs():
     assert "consume `task-generation/evidence-index.json` before final task synthesis" in lowered
     assert "mark the handoff as `integrated`, `deferred`, or `blocked`" in lowered
     assert "without an explicit consuming task, packet field, dependency edge, deferral, escalation, or blocker reason" in lowered
-    assert "do not synthesize `tasks.md` from chat-only lane results" in lowered
+    assert "do not synthesize `tasks.md` from chat-only delegated lane results" in lowered
 
 
 def test_tasks_command_consumes_upstream_planning_evidence():

@@ -297,11 +297,17 @@ class TestInitIntegrationFlag:
 
         skills_dir = project / ".claude" / "skills"
         assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
-        for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain", "sp-debug"):
+        for skill_name in ("sp-specify", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "execution_model: subagent-mandatory" in content
             assert "dispatch_shape: one-subagent | parallel-subagents" in content
             assert "execution_surface: native-subagents" in content
+            assert "specify team" not in content
+        for skill_name in ("sp-plan", "sp-tasks"):
+            content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+            assert "execution_model: adaptive" in content
+            assert "execution_mode: light | standard | heavy" in content
+            assert "workflow_status: ready | blocked" in content
             assert "specify team" not in content
 
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
