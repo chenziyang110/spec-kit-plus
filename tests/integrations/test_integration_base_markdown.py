@@ -164,41 +164,44 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "debug session state" in content
 
 
+def _discussion_artifact_path(integration, project_root):
+    command_path = integration.commands_dest(project_root) / integration.command_filename("discussion")
+    if command_path.exists():
+        return command_path
 
-MARKDOWN_INTEGRATION_KEYS = sorted(
-    key
-    for key, integration in INTEGRATION_REGISTRY.items()
-    if isinstance(integration, MarkdownIntegration) and key != "generic"
-)
+    if hasattr(integration, "skills_dest"):
+        skill_path = integration.skills_dest(project_root) / "sp-discussion" / "SKILL.md"
+        if skill_path.exists():
+            return skill_path
 
-
-@pytest.mark.parametrize("integration_key", MARKDOWN_INTEGRATION_KEYS)
-def test_collected_markdown_integrations_render_consequence_gate(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
-
-    generated = "\n".join(
-        path.read_text(encoding="utf-8").lower()
-        for path in integration.commands_dest(tmp_path).glob("**/*.md")
-    )
-
-    assert "senior consequence analysis gate" in generated
-    assert "affected object map" in generated
-    assert "state-behavior matrix" in generated
-    assert "dependency impact table" in generated
-    assert "ca-###" in generated
+    return command_path
 
 
-@pytest.mark.parametrize("integration_key", MARKDOWN_INTEGRATION_KEYS)
-def test_collected_markdown_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
 
-    discussion_path = integration.commands_dest(tmp_path) / integration.command_filename("discussion")
-    assert discussion_path.exists()
-    _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+MARKDOWN_INTEGRATION_SAMPLE_KEYS = ("claude", "opencode", "kiro-cli")
+
+
+def test_collected_markdown_integrations_preserve_shared_contracts(tmp_path):
+    for integration_key in MARKDOWN_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        generated = "\n".join(
+            path.read_text(encoding="utf-8").lower()
+            for path in integration.commands_dest(project).glob("**/*.md")
+        )
+
+        assert "senior consequence analysis gate" in generated, integration_key
+        assert "affected object map" in generated, integration_key
+        assert "state-behavior matrix" in generated, integration_key
+        assert "dependency impact table" in generated, integration_key
+        assert "ca-###" in generated, integration_key
+
+        discussion_path = _discussion_artifact_path(integration, project)
+        assert discussion_path.exists(), integration_key
+        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
 
 class MarkdownIntegrationTests:

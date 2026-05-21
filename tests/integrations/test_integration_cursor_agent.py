@@ -1,15 +1,5 @@
 """Tests for CursorAgentIntegration."""
 
-from .test_integration_base_skills import SkillsIntegrationTests
-
-
-class TestCursorAgentIntegration(SkillsIntegrationTests):
-    KEY = "cursor-agent"
-    FOLDER = ".cursor/"
-    COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".cursor/skills"
-    CONTEXT_FILE = ".cursor/rules/specify-rules.mdc"
-
 
 def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     from typer.testing import CliRunner

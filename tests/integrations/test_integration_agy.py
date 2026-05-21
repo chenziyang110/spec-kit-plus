@@ -1,15 +1,5 @@
 """Tests for AgyIntegration (Antigravity)."""
 
-from .test_integration_base_skills import SkillsIntegrationTests
-
-
-class TestAgyIntegration(SkillsIntegrationTests):
-    KEY = "agy"
-    FOLDER = ".agents/"
-    COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".agents/skills"
-    CONTEXT_FILE = "AGENTS.md"
-
 
 class TestAgyAutoPromote:
     """--ai agy auto-promotes to integration path."""

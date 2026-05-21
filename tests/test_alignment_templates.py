@@ -915,34 +915,29 @@ def test_specify_template_uses_alignment_first_contract():
 
 
 
-def test_readme_documents_runtime_atlas_refresh_scope_and_workbench_boundaries() -> None:
+def test_docs_document_runtime_atlas_refresh_scope_and_workbench_boundaries() -> None:
     readme = _read_project_file("README.md")
-    lowered = readme.lower()
-
-    assert ".specify/project-cognition/status.json" in lowered
-    assert "advisory project cognition index" in lowered
-    assert "advisory navigation inputs" in lowered
-    assert "map points, code proves" in lowered
-    assert "map-update" in lowered
-    assert "map-scan" in lowered
-    assert "map-build" in lowered
-
-
-
-def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_only() -> None:
     handbook = _read_project_file("PROJECT-HANDBOOK.md")
-    lowered = handbook.lower()
+    readme_lowered = readme.lower()
+    handbook_lowered = handbook.lower()
 
-    assert "advisory project cognition index" in lowered
-    assert "advisory navigation inputs" in lowered
-    assert "map points, code proves" in lowered
-    assert "templates/project-map/**` is retained only for legacy compatibility review" in lowered
-    assert "`debug-handbook.md` - compatibility/export debug view" in lowered
-    assert "`build-handbook.md` - compatibility/export build/change view" in lowered
+    assert ".specify/project-cognition/status.json" in readme_lowered
+    assert "map-update" in readme_lowered
+    assert "map-scan" in readme_lowered
+    assert "map-build" in readme_lowered
+
+    for lowered in (readme_lowered, handbook_lowered):
+        assert "advisory project cognition index" in lowered
+        assert "advisory navigation inputs" in lowered
+        assert "map points, code proves" in lowered
+
+    assert "templates/project-map/**` is retained only for legacy compatibility review" in handbook_lowered
+    assert "`debug-handbook.md` - compatibility/export debug view" in handbook_lowered
+    assert "`build-handbook.md` - compatibility/export build/change view" in handbook_lowered
 
 
-def test_map_update_first_policy_is_locked_in_passive_skills_and_docs() -> None:
-    surfaces = {
+def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
+    strict_surfaces = {
         "project cognition gate": _extract_matching_lines(
             _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"),
             "use `map-update`",
@@ -989,18 +984,6 @@ def test_map_update_first_policy_is_locked_in_passive_skills_and_docs() -> None:
             "recommend `map-update`",
             context=4,
         ),
-    }
-
-    for label, content in surfaces.items():
-        try:
-            _assert_map_update_first_policy(content)
-            _assert_no_stale_map_policy_phrases(content, label)
-        except AssertionError as exc:
-            raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
-
-
-def test_map_update_first_policy_is_locked_in_integration_addenda() -> None:
-    surfaces = {
         "base integration": "\n".join(
             [
                 _extract_matching_lines(
@@ -1020,17 +1003,7 @@ def test_map_update_first_policy_is_locked_in_integration_addenda() -> None:
             context=3,
         ),
     }
-
-    for label, content in surfaces.items():
-        try:
-            _assert_map_update_first_policy(content)
-            _assert_no_stale_map_policy_phrases(content, label)
-        except AssertionError as exc:
-            raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
-
-
-def test_map_update_first_policy_is_locked_in_shared_command_partials() -> None:
-    surfaces = {
+    partial_surfaces = {
         "constitution shell": _read("templates/command-partials/constitution/shell.md"),
         "senior consequence gate": _read("templates/command-partials/common/senior-consequence-analysis-gate.md"),
         "context loading gradient": _read("templates/command-partials/common/context-loading-gradient.md"),
@@ -1038,7 +1011,14 @@ def test_map_update_first_policy_is_locked_in_shared_command_partials() -> None:
         "constitution command": _read("templates/commands/constitution.md"),
     }
 
-    for label, content in surfaces.items():
+    for label, content in strict_surfaces.items():
+        try:
+            _assert_map_update_first_policy(content)
+            _assert_no_stale_map_policy_phrases(content, label)
+        except AssertionError as exc:
+            raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
+
+    for label, content in partial_surfaces.items():
         normalized = _normalize_policy_text(content)
         assert "map-update" in normalized, label
         assert "ordinary existing-baseline" in normalized or "needs_update" in normalized, label

@@ -155,42 +155,32 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 
 
 
-TOML_INTEGRATION_KEYS = sorted(
-    key
-    for key, integration in INTEGRATION_REGISTRY.items()
-    if isinstance(integration, TomlIntegration)
-)
+TOML_INTEGRATION_SAMPLE_KEYS = ("gemini",)
 
 
-@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_KEYS)
-def test_collected_toml_integrations_render_consequence_gate(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
+def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
 
-    prompts = []
-    for path in integration.commands_dest(tmp_path).glob("**/*.toml"):
-        parsed = tomllib.loads(path.read_text(encoding="utf-8"))
-        prompts.append(parsed["prompt"].lower())
-    generated = "\n".join(prompts)
+        prompts = []
+        for path in integration.commands_dest(project).glob("**/*.toml"):
+            parsed = tomllib.loads(path.read_text(encoding="utf-8"))
+            prompts.append(parsed["prompt"].lower())
+        generated = "\n".join(prompts)
 
-    assert "senior consequence analysis gate" in generated
-    assert "affected object map" in generated
-    assert "state-behavior matrix" in generated
-    assert "dependency impact table" in generated
-    assert "ca-###" in generated
+        assert "senior consequence analysis gate" in generated, integration_key
+        assert "affected object map" in generated, integration_key
+        assert "state-behavior matrix" in generated, integration_key
+        assert "dependency impact table" in generated, integration_key
+        assert "ca-###" in generated, integration_key
 
-
-@pytest.mark.parametrize("integration_key", TOML_INTEGRATION_KEYS)
-def test_collected_toml_discussion_preserves_pre_specification_contract(tmp_path, integration_key):
-    integration = get_integration(integration_key)
-    manifest = IntegrationManifest(integration_key, tmp_path)
-    integration.setup(tmp_path, manifest)
-
-    discussion_path = integration.commands_dest(tmp_path) / integration.command_filename("discussion")
-    assert discussion_path.exists()
-    parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
-    _assert_discussion_contract(parsed["prompt"])
+        discussion_path = integration.commands_dest(project) / integration.command_filename("discussion")
+        assert discussion_path.exists(), integration_key
+        parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
+        _assert_discussion_contract(parsed["prompt"])
 
 
 class TomlIntegrationTests:

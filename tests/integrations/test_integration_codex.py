@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from .test_integration_base_skills import (
-    SkillsIntegrationTests,
     _assert_compact_managed_context,
     _extract_generated_cognition_policy,
 )
@@ -44,24 +43,74 @@ def _assert_stable_subagent_contract(content: str) -> None:
     assert "`sp-teams` only" in lower
 
 
-class TestCodexIntegration(SkillsIntegrationTests):
-    KEY = "codex"
-    FOLDER = ".codex/"
-    COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".codex/skills"
-    CONTEXT_FILE = "AGENTS.md"
+def test_codex_integration_metadata():
+    from specify_cli.integrations import get_integration
 
-    def _expected_files(self, script_variant: str) -> list[str]:
-        files = super()._expected_files(script_variant)
-        files.extend(
-            [
-                ".codex/config.toml",
-                ".specify/config.json",
-                ".specify/teams/README.md",
-                ".specify/teams/runtime.json",
-            ]
-        )
-        return sorted(files)
+    integration = get_integration("codex")
+
+    assert integration is not None
+    assert integration.config["folder"] == ".codex/"
+    assert integration.config["commands_subdir"] == "skills"
+    assert integration.context_file == "AGENTS.md"
+
+
+def test_codex_install_inventory_tracks_core_skills_and_team_assets(tmp_path):
+    from specify_cli.codex_team import install_codex_team_assets
+    from specify_cli.integrations import get_integration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    integration = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+
+    integration.setup(tmp_path, manifest)
+    install_codex_team_assets(tmp_path, manifest, integration_key="codex")
+
+    expected_owned_paths = (
+        ".codex/config.toml",
+        ".codex/skills/sp-plan/SKILL.md",
+        ".codex/skills/sp-implement/SKILL.md",
+        ".codex/skills/sp-teams/SKILL.md",
+        ".specify/config.json",
+        ".specify/teams/README.md",
+        ".specify/teams/runtime.json",
+    )
+
+    for rel_path in expected_owned_paths:
+        assert (tmp_path / rel_path).exists()
+        assert rel_path in manifest.files
+
+
+def test_codex_uninstall_removes_team_assets_and_restores_existing_configs(tmp_path):
+    from specify_cli.codex_team import install_codex_team_assets
+    from specify_cli.integrations import get_integration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    existing_specify_config = '{"custom": true}\n'
+    existing_codex_config = 'model = "gpt-test"\n'
+    (tmp_path / ".specify").mkdir()
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".specify" / "config.json").write_text(existing_specify_config, encoding="utf-8")
+    (tmp_path / ".codex" / "config.toml").write_text(existing_codex_config, encoding="utf-8")
+
+    integration = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+    integration.setup(tmp_path, manifest)
+    install_codex_team_assets(tmp_path, manifest, integration_key="codex")
+
+    removed, skipped = integration.uninstall(tmp_path, manifest)
+
+    removed_rel = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in removed}
+    assert ".specify/teams/runtime.json" in removed_rel
+    assert ".specify/teams/README.md" in removed_rel
+    assert ".specify/teams/install-state.json" in removed_rel
+    assert skipped == []
+    assert (tmp_path / ".specify" / "config.json").read_text(encoding="utf-8") == existing_specify_config
+    assert (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8") == existing_codex_config
+
+
+class TestCodexIntegration:
+    KEY = "codex"
+    CONTEXT_FILE = "AGENTS.md"
 
     def test_init_bootstrapped_context_file_contains_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner

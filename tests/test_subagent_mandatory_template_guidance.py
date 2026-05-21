@@ -170,16 +170,13 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
 
     for team_command in TEAM_COMMANDS:
         assert (PROJECT_ROOT / "templates" / "commands" / f"{team_command}.md").exists()
+    clarify_content = _read_command("clarify").lower()
 
-
-def test_clarify_template_delegates_artifact_update_lanes() -> None:
-    content = _read_command("clarify").lower()
-
-    assert "validated artifact-update subagent lane" in content
-    assert "packetize the artifact update as a validated subagent lane" in content
-    assert "delegate artifact enhancements through a validated subagent lane" in content
-    assert "the leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency" in content
-    assert "if the artifact update lane cannot be safely packetized or delegated, record `subagent-blocked` in `workflow-state.md` with the escalation or recovery reason and stop instead of making the artifact edits" in content
+    assert "validated artifact-update subagent lane" in clarify_content
+    assert "packetize the artifact update as a validated subagent lane" in clarify_content
+    assert "delegate artifact enhancements through a validated subagent lane" in clarify_content
+    assert "the leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency" in clarify_content
+    assert "if the artifact update lane cannot be safely packetized or delegated, record `subagent-blocked` in `workflow-state.md` with the escalation or recovery reason and stop instead of making the artifact edits" in clarify_content
 
     forbidden_phrases = (
         "can be improved directly from current context",
@@ -190,21 +187,14 @@ def test_clarify_template_delegates_artifact_update_lanes() -> None:
         "leader-authored artifact edits",
     )
     for phrase in forbidden_phrases:
-        assert phrase not in content, phrase
-
-
-def test_implement_template_does_not_reintroduce_optional_subagent_wording() -> None:
-    content = _read_command("implement").lower()
-
-    assert "substantive implementation lanes must be delegated" in content
-    assert "leader owns sequencing, review, and acceptance" in content
-    assert "for implementation work, prefer subagent execution only when" not in content
-
-
-def test_fast_and_debug_templates_do_not_frame_fixes_as_direct_leader_implementation() -> None:
+        assert phrase not in clarify_content, phrase
+    implement_content = _read_command("implement").lower()
     fast_content = _read_command("fast").lower()
     debug_content = _read_command("debug").lower()
 
+    assert "substantive implementation lanes must be delegated" in implement_content
+    assert "leader owns sequencing, review, and acceptance" in implement_content
+    assert "for implementation work, prefer subagent execution only when" not in implement_content
     assert "apply the smallest direct change" not in fast_content
     assert "the leader performs the change directly" in fast_content
     assert "no subagent dispatch" in fast_content

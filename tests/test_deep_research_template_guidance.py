@@ -55,103 +55,39 @@ def test_deep_research_template_defines_complete_research_contract() -> None:
     assert "EVD-001" in content
     assert "SPK-001" in content
     assert "Planning Traceability Index" in content
-
-
-def test_deep_research_template_has_readiness_refusal_rules() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "readiness refusal" in lowered
     assert "gap report" in lowered
     assert "refuse handoff" in lowered or "handoff refused" in lowered
-
-
-def test_deep_research_template_has_reverse_coverage_validation() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "reverse coverage validation" in lowered
     assert "every cap" in lowered
     assert "every ph" in lowered
-
-
-def test_deep_research_template_has_readiness_checklist() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "Planning Handoff Readiness Checklist" in content
     assert "exit status" in lowered
     assert "Reverse Coverage Validation passed" in content or "reverse coverage" in lowered
     assert "Readiness Refusal Rules all PASS" in content or "readiness refusal" in lowered
-
-
-def test_deep_research_template_has_capability_cards() -> None:
-    content = _read("templates/commands/deep-research.md")
     assert "Capability Card" in content
     assert "Purpose" in content
     assert "Truth lives" in content
     assert "Entry points" in content
     assert "Key contracts" in content
     assert "Change propagation" in content
-
-
-def test_deep_research_template_has_research_exclusions() -> None:
-    content = _read("templates/commands/deep-research.md")
     assert "Research Exclusions" in content
     assert "Revisit Condition" in content
-
-
-def test_deep_research_template_has_contradiction_resolution_log() -> None:
-    content = _read("templates/commands/deep-research.md")
     assert "Contradiction Resolution Log" in content
     assert "Priority Basis" in content
-
-
-def test_deep_research_template_has_evidence_packet_acceptance() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "evidence packet acceptance" in lowered
     assert "paths_read" in lowered
-
-
-def test_deep_research_template_has_preset_research_dimensions() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "preset research dimension" in lowered or "permissions / auth boundary" in lowered
-
-
-def test_deep_research_template_consumes_spec_capabilities() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "spec.md" in lowered
     assert "capability decomposition" in lowered or "spec capability" in lowered
-
-
-def test_deep_research_template_consumes_alignment_status() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "needed before plan" in lowered
     assert "feasibility" in lowered
-
-
-def test_deep_research_template_has_entry_source_distinction() -> None:
-    content = _read("templates/commands/deep-research.md")
     assert "entry_source" in content
     assert "full-research" in content or "supplement-research" in content
-
-
-def test_deep_research_template_has_ph_consumption_contract() -> None:
-    content = _read("templates/commands/deep-research.md")
-    lowered = content.lower()
     assert "mandatory" in lowered
     assert "user-decision" in content
-
-
-def test_deep_research_template_has_differential_evidence_analysis() -> None:
-    content = _read("templates/commands/deep-research.md")
     assert "Differential Evidence Analysis" in content
     assert "OVERTURNED" in content
-
-
-def test_deep_research_template_has_stale_claims_handling() -> None:
-    content = _read("templates/commands/deep-research.md")
     assert "stale-needs-revalidation" in content
 
 

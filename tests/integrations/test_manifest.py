@@ -36,22 +36,16 @@ class TestManifestRecordFile:
 
 
 class TestManifestPathTraversal:
-    def test_record_file_rejects_parent_traversal(self, tmp_path):
+    def test_write_operations_reject_paths_outside_project(self, tmp_path):
         m = IntegrationManifest("test", tmp_path)
         with pytest.raises(ValueError, match="outside"):
             m.record_file("../escape.txt", "bad")
-
-    def test_record_file_rejects_absolute_path(self, tmp_path):
-        m = IntegrationManifest("test", tmp_path)
         absolute_path = Path("C:/tmp/escape.txt") if os.name == "nt" else Path("/tmp/escape.txt")
         with pytest.raises(ValueError, match="Absolute paths|outside"):
             m.record_file(absolute_path, "bad")
-
-    def test_record_existing_rejects_parent_traversal(self, tmp_path):
         escape = tmp_path.parent / "escape.txt"
         escape.write_text("evil", encoding="utf-8")
         try:
-            m = IntegrationManifest("test", tmp_path)
             with pytest.raises(ValueError, match="outside"):
                 m.record_existing("../escape.txt")
         finally:
@@ -68,20 +62,14 @@ class TestManifestPathTraversal:
 
 
 class TestManifestCheckModified:
-    def test_unmodified_file(self, tmp_path):
+    def test_check_modified_reports_only_changed_existing_files(self, tmp_path):
         m = IntegrationManifest("test", tmp_path)
         m.record_file("f.txt", "original")
         assert m.check_modified() == []
 
-    def test_modified_file(self, tmp_path):
-        m = IntegrationManifest("test", tmp_path)
-        m.record_file("f.txt", "original")
         (tmp_path / "f.txt").write_text("changed", encoding="utf-8")
         assert m.check_modified() == ["f.txt"]
 
-    def test_deleted_file_not_reported(self, tmp_path):
-        m = IntegrationManifest("test", tmp_path)
-        m.record_file("f.txt", "original")
         (tmp_path / "f.txt").unlink()
         assert m.check_modified() == []
 
@@ -239,26 +227,19 @@ class TestManifestPersistence:
 
 
 class TestManifestLoadValidation:
-    def test_load_non_dict_raises(self, tmp_path):
+    def test_load_rejects_invalid_manifest_shapes(self, tmp_path):
         path = tmp_path / ".specify" / "integrations" / "bad.manifest.json"
         path.parent.mkdir(parents=True)
-        path.write_text('"just a string"', encoding="utf-8")
-        with pytest.raises(ValueError, match="JSON object"):
-            IntegrationManifest.load("bad", tmp_path)
+        cases = [
+            ('"just a string"', "JSON object"),
+            (json.dumps({"files": ["not", "a", "dict"]}), "mapping"),
+            (json.dumps({"files": {"a.txt": 123}}), "mapping"),
+        ]
 
-    def test_load_bad_files_type_raises(self, tmp_path):
-        path = tmp_path / ".specify" / "integrations" / "bad.manifest.json"
-        path.parent.mkdir(parents=True)
-        path.write_text(json.dumps({"files": ["not", "a", "dict"]}), encoding="utf-8")
-        with pytest.raises(ValueError, match="mapping"):
-            IntegrationManifest.load("bad", tmp_path)
-
-    def test_load_bad_files_values_raises(self, tmp_path):
-        path = tmp_path / ".specify" / "integrations" / "bad.manifest.json"
-        path.parent.mkdir(parents=True)
-        path.write_text(json.dumps({"files": {"a.txt": 123}}), encoding="utf-8")
-        with pytest.raises(ValueError, match="mapping"):
-            IntegrationManifest.load("bad", tmp_path)
+        for content, error_match in cases:
+            path.write_text(content, encoding="utf-8")
+            with pytest.raises(ValueError, match=error_match):
+                IntegrationManifest.load("bad", tmp_path)
 
     def test_load_invalid_json_raises(self, tmp_path):
         path = tmp_path / ".specify" / "integrations" / "bad.manifest.json"

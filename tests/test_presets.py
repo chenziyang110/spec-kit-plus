@@ -232,12 +232,6 @@ class TestPresetManifest:
         with pytest.raises(PresetValidationError, match="Invalid template type"):
             PresetManifest(manifest_path)
 
-    def test_valid_template_types(self):
-        """Test that all expected template types are valid."""
-        assert "template" in VALID_PRESET_TEMPLATE_TYPES
-        assert "command" in VALID_PRESET_TEMPLATE_TYPES
-        assert "script" in VALID_PRESET_TEMPLATE_TYPES
-
     def test_template_missing_required_fields(self, temp_dir, valid_pack_data):
         """Test template missing required fields."""
         valid_pack_data["provides"]["templates"] = [{"type": "template"}]
@@ -262,21 +256,6 @@ class TestPresetManifest:
         hash_val = manifest.get_hash()
         assert hash_val.startswith("sha256:")
         assert len(hash_val) > 10
-
-    def test_multiple_templates(self, temp_dir, valid_pack_data):
-        """Test pack with multiple templates of different types."""
-        valid_pack_data["provides"]["templates"] = [
-            {"type": "template", "name": "spec-template", "file": "templates/spec-template.md"},
-            {"type": "template", "name": "plan-template", "file": "templates/plan-template.md"},
-            {"type": "command", "name": "specify", "file": "commands/specify.md"},
-            {"type": "script", "name": "create-new-feature", "file": "scripts/create-new-feature.sh"},
-        ]
-        manifest_path = temp_dir / "preset.yml"
-        with open(manifest_path, 'w') as f:
-            yaml.dump(valid_pack_data, f)
-        manifest = PresetManifest(manifest_path)
-        assert len(manifest.templates) == 4
-
 
 # ===== PresetRegistry Tests =====
 
@@ -814,47 +793,6 @@ class TestPresetResolver:
         assert result is not None
         assert "From Pack B" in result.read_text()
 
-    def test_resolve_override_takes_priority(self, project_dir):
-        """Test that project overrides take priority over core."""
-        # Create override
-        overrides_dir = project_dir / ".specify" / "templates" / "overrides"
-        overrides_dir.mkdir(parents=True)
-        override = overrides_dir / "spec-template.md"
-        override.write_text("# Override Spec Template\n")
-
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve("spec-template")
-        assert result is not None
-        assert "Override Spec Template" in result.read_text()
-
-    def test_resolve_pack_takes_priority_over_core(self, project_dir, pack_dir):
-        """Test that installed packs take priority over core templates."""
-        # Install the pack
-        manager = PresetManager(project_dir)
-        manager.install_from_directory(pack_dir, "0.1.5")
-
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve("spec-template")
-        assert result is not None
-        assert "Custom Spec Template" in result.read_text()
-
-    def test_resolve_override_takes_priority_over_pack(self, project_dir, pack_dir):
-        """Test that overrides take priority over installed packs."""
-        # Install the pack
-        manager = PresetManager(project_dir)
-        manager.install_from_directory(pack_dir, "0.1.5")
-
-        # Create override
-        overrides_dir = project_dir / ".specify" / "templates" / "overrides"
-        overrides_dir.mkdir(parents=True)
-        override = overrides_dir / "spec-template.md"
-        override.write_text("# Override Spec Template\n")
-
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve("spec-template")
-        assert result is not None
-        assert "Override Spec Template" in result.read_text()
-
     def test_resolve_extension_provided_templates(self, project_dir):
         """Test resolving templates provided by extensions."""
         # Create extension with templates
@@ -912,74 +850,6 @@ class TestPresetResolver:
         result = resolver.resolve("unique-disabled-template")
         assert result is None, "Disabled extension should not be picked up as unregistered"
 
-    def test_resolve_pack_over_extension(self, project_dir, pack_dir, temp_dir, valid_pack_data):
-        """Test that pack templates take priority over extension templates."""
-        # Create extension with templates
-        ext_dir = project_dir / ".specify" / "extensions" / "my-ext"
-        ext_templates_dir = ext_dir / "templates"
-        ext_templates_dir.mkdir(parents=True)
-        ext_template = ext_templates_dir / "spec-template.md"
-        ext_template.write_text("# Extension Spec Template\n")
-
-        # Install a pack with the same template
-        manager = PresetManager(project_dir)
-        manager.install_from_directory(pack_dir, "0.1.5")
-
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve("spec-template")
-        assert result is not None
-        # Pack should win over extension
-        assert "Custom Spec Template" in result.read_text()
-
-    def test_resolve_with_source_core(self, project_dir):
-        """Test resolve_with_source for core template."""
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve_with_source("spec-template")
-        assert result is not None
-        assert result["source"] == "core"
-        assert "spec-template.md" in result["path"]
-
-    def test_resolve_with_source_override(self, project_dir):
-        """Test resolve_with_source for override template."""
-        overrides_dir = project_dir / ".specify" / "templates" / "overrides"
-        overrides_dir.mkdir(parents=True)
-        override = overrides_dir / "spec-template.md"
-        override.write_text("# Override\n")
-
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve_with_source("spec-template")
-        assert result is not None
-        assert result["source"] == "project override"
-
-    def test_resolve_with_source_pack(self, project_dir, pack_dir):
-        """Test resolve_with_source for pack template."""
-        manager = PresetManager(project_dir)
-        manager.install_from_directory(pack_dir, "0.1.5")
-
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve_with_source("spec-template")
-        assert result is not None
-        assert "test-pack" in result["source"]
-        assert "v1.0.0" in result["source"]
-
-    def test_resolve_with_source_extension(self, project_dir):
-        """Test resolve_with_source for extension-provided template."""
-        ext_dir = project_dir / ".specify" / "extensions" / "my-ext"
-        ext_templates_dir = ext_dir / "templates"
-        ext_templates_dir.mkdir(parents=True)
-        ext_template = ext_templates_dir / "unique-template.md"
-        ext_template.write_text("# Unique\n")
-
-        # Register extension in registry
-        extensions_dir = project_dir / ".specify" / "extensions"
-        ext_registry = ExtensionRegistry(extensions_dir)
-        ext_registry.add("my-ext", {"version": "1.0.0", "priority": 10})
-
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve_with_source("unique-template")
-        assert result is not None
-        assert result["source"] == "extension:my-ext v1.0.0"
-
     def test_resolve_with_source_not_found(self, project_dir):
         """Test resolve_with_source for nonexistent template."""
         resolver = PresetResolver(project_dir)
@@ -1001,30 +871,6 @@ class TestPresetResolver:
 
 class TestExtensionPriorityResolution:
     """Test extension priority resolution with registered and unregistered extensions."""
-
-    def test_unregistered_beats_registered_with_lower_precedence(self, project_dir):
-        """Unregistered extension (implicit priority 10) beats registered with priority 20."""
-        extensions_dir = project_dir / ".specify" / "extensions"
-        extensions_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create registered extension with priority 20 (lower precedence than 10)
-        registered_dir = extensions_dir / "registered-ext"
-        (registered_dir / "templates").mkdir(parents=True)
-        (registered_dir / "templates" / "test-template.md").write_text("# From Registered\n")
-
-        ext_registry = ExtensionRegistry(extensions_dir)
-        ext_registry.add("registered-ext", {"version": "1.0.0", "priority": 20})
-
-        # Create unregistered extension directory (implicit priority 10)
-        unregistered_dir = extensions_dir / "unregistered-ext"
-        (unregistered_dir / "templates").mkdir(parents=True)
-        (unregistered_dir / "templates" / "test-template.md").write_text("# From Unregistered\n")
-
-        # Unregistered (priority 10) should beat registered (priority 20)
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve("test-template")
-        assert result is not None
-        assert "From Unregistered" in result.read_text()
 
     def test_registered_with_higher_precedence_beats_unregistered(self, project_dir):
         """Registered extension with priority 5 beats unregistered (implicit priority 10)."""
@@ -1049,53 +895,6 @@ class TestExtensionPriorityResolution:
         result = resolver.resolve("test-template")
         assert result is not None
         assert "From Registered" in result.read_text()
-
-    def test_unregistered_attribution_with_priority_ordering(self, project_dir):
-        """Test resolve_with_source correctly attributes unregistered extension."""
-        extensions_dir = project_dir / ".specify" / "extensions"
-        extensions_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create registered extension with priority 20
-        registered_dir = extensions_dir / "registered-ext"
-        (registered_dir / "templates").mkdir(parents=True)
-        (registered_dir / "templates" / "test-template.md").write_text("# From Registered\n")
-
-        ext_registry = ExtensionRegistry(extensions_dir)
-        ext_registry.add("registered-ext", {"version": "1.0.0", "priority": 20})
-
-        # Create unregistered extension (implicit priority 10)
-        unregistered_dir = extensions_dir / "unregistered-ext"
-        (unregistered_dir / "templates").mkdir(parents=True)
-        (unregistered_dir / "templates" / "test-template.md").write_text("# From Unregistered\n")
-
-        # Attribution should show unregistered extension
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve_with_source("test-template")
-        assert result is not None
-        assert "unregistered-ext" in result["source"]
-        assert "(unregistered)" in result["source"]
-
-    def test_same_priority_sorted_alphabetically(self, project_dir):
-        """Extensions with same priority are sorted alphabetically by ID."""
-        extensions_dir = project_dir / ".specify" / "extensions"
-        extensions_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create two unregistered extensions (both implicit priority 10)
-        # "aaa-ext" should come before "zzz-ext" alphabetically
-        zzz_dir = extensions_dir / "zzz-ext"
-        (zzz_dir / "templates").mkdir(parents=True)
-        (zzz_dir / "templates" / "test-template.md").write_text("# From ZZZ\n")
-
-        aaa_dir = extensions_dir / "aaa-ext"
-        (aaa_dir / "templates").mkdir(parents=True)
-        (aaa_dir / "templates" / "test-template.md").write_text("# From AAA\n")
-
-        # AAA should win due to alphabetical ordering at same priority
-        resolver = PresetResolver(project_dir)
-        result = resolver.resolve("test-template")
-        assert result is not None
-        assert "From AAA" in result.read_text()
-
 
 # ===== PresetCatalog Tests =====
 

@@ -41,18 +41,6 @@ def _assert_doc_teaches_user_confirmed_product_scope(rel_path: str) -> None:
     assert "smallest coherent release slice" not in lowered
 
 
-def test_readme_teaches_user_confirmed_product_scope_not_default_mvp() -> None:
-    _assert_doc_teaches_user_confirmed_product_scope("README.md")
-
-
-def test_project_handbook_teaches_user_confirmed_product_scope_not_default_mvp() -> None:
-    _assert_doc_teaches_user_confirmed_product_scope("PROJECT-HANDBOOK.md")
-
-
-def test_quickstart_teaches_user_confirmed_product_scope_not_default_mvp() -> None:
-    _assert_doc_teaches_user_confirmed_product_scope("docs/quickstart.md")
-
-
 def test_docs_teach_user_confirmed_product_scope_not_default_mvp() -> None:
     for rel_path in (
         "README.md",

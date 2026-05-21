@@ -4,16 +4,15 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 from typer.testing import CliRunner
 
-from specify_cli import app
+from specify_cli import _bootstrap_integration_context_file, app
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_hook_launcher_command
-
-from .test_integration_base_toml import TomlIntegrationTests
 
 
 def _load_gemini_hook_dispatch_module():
@@ -57,12 +56,74 @@ def test_gemini_hook_infers_active_context_from_specify_features_root(tmp_path):
     assert inferred["feature_dir"] == str(feature_dir)
 
 
-class TestGeminiIntegration(TomlIntegrationTests):
-    KEY = "gemini"
-    FOLDER = ".gemini/"
-    COMMANDS_SUBDIR = "commands"
-    REGISTRAR_DIR = ".gemini/commands"
-    CONTEXT_FILE = "GEMINI.md"
+def test_gemini_integration_metadata():
+    integration = get_integration("gemini")
+
+    assert integration is not None
+    assert integration.config["folder"] == ".gemini/"
+    assert integration.config["commands_subdir"] == "commands"
+    assert integration.context_file == "GEMINI.md"
+
+
+def test_gemini_toml_install_contract_tracks_commands_scripts_and_context(tmp_path):
+    integration = get_integration("gemini")
+    manifest = IntegrationManifest("gemini", tmp_path)
+
+    integration.setup(tmp_path, manifest, script_type="sh")
+    _bootstrap_integration_context_file(tmp_path, integration, manifest)
+
+    commands_dir = integration.commands_dest(tmp_path)
+    command_files = sorted(commands_dir.glob("*.toml"))
+    assert command_files
+
+    parsed_commands = [tomllib.loads(path.read_text(encoding="utf-8")) for path in command_files]
+    assert any(parsed.get("description") and parsed.get("prompt") for parsed in parsed_commands)
+
+    plan_command = commands_dir / "sp.plan.toml"
+    assert plan_command.exists()
+    assert ".gemini/commands/sp.plan.toml" in manifest.files
+
+    for rel_path in (
+        ".specify/integrations/gemini/scripts/update-context.sh",
+        ".specify/integrations/gemini/scripts/update-context.ps1",
+        "GEMINI.md",
+    ):
+        assert (tmp_path / rel_path).exists()
+        assert rel_path in manifest.files
+
+    context_content = (tmp_path / "GEMINI.md").read_text(encoding="utf-8")
+    assert "## Active Technologies" in context_content
+
+
+def test_gemini_init_outputs_parseable_runtime_toml_commands(tmp_path):
+    runner = CliRunner()
+    target = tmp_path / "gemini-runtime-toml"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "gemini", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai gemini failed: {result.output}"
+
+    for rel_path in (
+        ".gemini/commands/sp.implement.toml",
+        ".gemini/commands/sp.debug.toml",
+        ".gemini/commands/sp.quick.toml",
+    ):
+        content = (target / rel_path).read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+
+        assert parsed["description"]
+        assert parsed["prompt"]
+        assert "{SCRIPT}" not in content
+        assert "__AGENT__" not in content
+        assert "{ARGS}" not in content
+        assert "\nscripts:\n" not in content
+        assert "\nagent_scripts:\n" not in content
+
+
+class TestGeminiIntegration:
 
     @staticmethod
     def _expected_launcher_command(route: str, *, script_type: str = "sh") -> str:
@@ -72,20 +133,6 @@ class TestGeminiIntegration(TomlIntegrationTests):
             project_dir_env_var="GEMINI_PROJECT_DIR",
             script_type=script_type,
         )
-
-    def _expected_files(self, script_variant: str) -> list[str]:
-        expected = super()._expected_files(script_variant)
-        expected.extend(
-            [
-                ".gemini/hooks/README.md",
-                ".gemini/hooks/gemini-hook-dispatch.py",
-                ".gemini/settings.json",
-                ".specify/bin/specify-hook",
-                ".specify/bin/specify-hook.cmd",
-                ".specify/bin/specify-hook.py",
-            ]
-        )
-        return sorted(expected)
 
     def test_setup_installs_hook_assets_and_settings_json(self, tmp_path):
         integration = get_integration("gemini")

@@ -231,40 +231,17 @@ class TestSequentialBranch:
 
 @requires_bash
 class TestCheckFeatureBranch:
-    def test_accepts_timestamp_branch(self):
-        """Test 6: check_feature_branch accepts timestamp branch."""
-        result = source_and_call('check_feature_branch "20260319-143022-feat" "true"')
-        assert result.returncode == 0
+    def test_accepts_supported_feature_branch_prefixes(self):
+        """check_feature_branch accepts timestamp, sequential, and 4+ digit branches."""
+        for branch in ("20260319-143022-feat", "004-feat", "1234-feat"):
+            result = source_and_call(f'check_feature_branch "{branch}" "true"')
+            assert result.returncode == 0, branch
 
-    def test_accepts_sequential_branch(self):
-        """Test 7: check_feature_branch accepts sequential branch."""
-        result = source_and_call('check_feature_branch "004-feat" "true"')
-        assert result.returncode == 0
-
-    def test_rejects_main(self):
-        """Test 8: check_feature_branch rejects main."""
-        result = source_and_call('check_feature_branch "main" "true"')
-        assert result.returncode != 0
-
-    def test_accepts_four_digit_sequential_branch(self):
-        """check_feature_branch accepts 4+ digit sequential branch."""
-        result = source_and_call('check_feature_branch "1234-feat" "true"')
-        assert result.returncode == 0
-
-    def test_rejects_partial_timestamp(self):
-        """Test 9: check_feature_branch rejects 7-digit date."""
-        result = source_and_call('check_feature_branch "2026031-143022-feat" "true"')
-        assert result.returncode != 0
-
-    def test_rejects_timestamp_without_slug(self):
-        """check_feature_branch rejects timestamp-like branch missing trailing slug."""
-        result = source_and_call('check_feature_branch "20260319-143022" "true"')
-        assert result.returncode != 0
-
-    def test_rejects_7digit_timestamp_without_slug(self):
-        """check_feature_branch rejects 7-digit date + 6-digit time without slug."""
-        result = source_and_call('check_feature_branch "2026031-143022" "true"')
-        assert result.returncode != 0
+    def test_rejects_unsupported_feature_branch_shapes(self):
+        """check_feature_branch rejects main and malformed timestamp branches."""
+        for branch in ("main", "2026031-143022-feat", "20260319-143022", "2026031-143022"):
+            result = source_and_call(f'check_feature_branch "{branch}" "true"')
+            assert result.returncode != 0, branch
 
 
 # ── find_feature_dir_by_prefix Tests ─────────────────────────────────────────
@@ -584,8 +561,13 @@ class TestDryRun:
                 branch = line.split(":", 1)[1].strip()
         assert branch == "003-new-feat", f"expected 003-new-feat, got: {branch}"
 
-    def test_dry_run_no_branch_created(self, git_repo: Path):
-        """T010: Dry-run does not create a git branch."""
+    def test_dry_run_has_no_branch_or_feature_dir_side_effects(self, git_repo: Path):
+        """Dry-run does not create a git branch or canonical feature directory."""
+        features_root = git_repo / ".specify" / "features"
+        if features_root.exists():
+            shutil.rmtree(features_root)
+        assert not features_root.exists(), ".specify/features should not exist before dry-run"
+
         result = run_script(
             git_repo, "--dry-run", "--short-name", "no-branch", "No branch feature"
         )
@@ -598,18 +580,6 @@ class TestDryRun:
         )
         assert branches.returncode == 0, f"'git branch --list' failed: {branches.stderr}"
         assert branches.stdout.strip() == "", "branch should not exist after dry-run"
-
-    def test_dry_run_no_spec_dir_created(self, git_repo: Path):
-        """T011: Dry-run does not create any canonical feature directories."""
-        features_root = git_repo / ".specify" / "features"
-        if features_root.exists():
-            shutil.rmtree(features_root)
-        assert not features_root.exists(), ".specify/features should not exist before dry-run"
-
-        result = run_script(
-            git_repo, "--dry-run", "--short-name", "no-dir", "No dir feature"
-        )
-        assert result.returncode == 0, result.stderr
         assert not features_root.exists(), ".specify/features should not be created during dry-run"
 
     def test_dry_run_empty_repo(self, git_repo: Path):
@@ -1009,8 +979,13 @@ class TestPowerShellDryRun:
                 branch = line.split(":", 1)[1].strip()
         assert branch == "002-ps-feat", f"expected 002-ps-feat, got: {branch}"
 
-    def test_ps_dry_run_no_branch_created(self, ps_git_repo: Path):
-        """PowerShell -DryRun does not create a git branch."""
+    def test_ps_dry_run_has_no_branch_or_feature_dir_side_effects(self, ps_git_repo: Path):
+        """PowerShell -DryRun does not create a git branch or canonical feature directory."""
+        features_root = ps_git_repo / ".specify" / "features"
+        if features_root.exists():
+            shutil.rmtree(features_root)
+        assert not features_root.exists()
+
         result = run_ps_script(
             ps_git_repo, "-DryRun", "-ShortName", "no-ps-branch", "No branch"
         )
@@ -1023,18 +998,6 @@ class TestPowerShellDryRun:
         )
         assert branches.returncode == 0, f"'git branch --list' failed: {branches.stderr}"
         assert branches.stdout.strip() == "", "branch should not exist after dry-run"
-
-    def test_ps_dry_run_no_spec_dir_created(self, ps_git_repo: Path):
-        """PowerShell -DryRun does not create canonical feature directories."""
-        features_root = ps_git_repo / ".specify" / "features"
-        if features_root.exists():
-            shutil.rmtree(features_root)
-        assert not features_root.exists()
-
-        result = run_ps_script(
-            ps_git_repo, "-DryRun", "-ShortName", "no-ps-dir", "No dir"
-        )
-        assert result.returncode == 0, result.stderr
         assert not features_root.exists(), ".specify/features should not be created during dry-run"
 
     def test_ps_dry_run_json_includes_field(self, ps_git_repo: Path):

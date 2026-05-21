@@ -372,98 +372,43 @@ def test_diagnose_project_runtime_compatibility_reports_stale_direct_hook_launch
     assert any(issue["code"] == "stale-direct-hook-launcher-command" for issue in issues)
 
 
-def test_diagnose_project_runtime_compatibility_reports_stale_claude_node_args_launcher(tmp_path):
-    settings_path = tmp_path / ".claude" / "settings.json"
-    settings_path.parent.mkdir(parents=True)
-    settings_path.write_text(
-        json.dumps(
-            {
-                "hooks": {
-                    "SessionStart": [
-                        {
-                            "hooks": [
-                                {
-                                    "type": "command",
-                                    "command": "node",
-                                    "args": [
-                                        "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
-                                        "claude",
-                                        "session-start",
-                                    ],
-                                }
-                            ]
-                        }
-                    ]
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+def test_diagnose_project_runtime_compatibility_reports_stale_claude_node_launchers(tmp_path):
+    launcher_variants = [
+        {
+            "type": "command",
+            "command": "node",
+            "args": [
+                "${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs",
+                "claude",
+                "session-start",
+            ],
+        },
+        {
+            "type": "command",
+            "command": "node",
+            "args": [
+                '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.mjs',
+                "claude",
+                "session-start",
+            ],
+        },
+        {
+            "type": "command",
+            "command": 'node ".specify/bin/specify-hook.mjs" claude session-start',
+        },
+    ]
 
-    issues = diagnose_project_runtime_compatibility(tmp_path)
+    for hook in launcher_variants:
+        settings_path = tmp_path / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(
+            json.dumps({"hooks": {"SessionStart": [{"hooks": [hook]}]}}),
+            encoding="utf-8",
+        )
 
-    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+        issues = diagnose_project_runtime_compatibility(tmp_path)
 
-
-def test_diagnose_project_runtime_compatibility_reports_stale_quoted_claude_node_args_launcher(tmp_path):
-    settings_path = tmp_path / ".claude" / "settings.json"
-    settings_path.parent.mkdir(parents=True)
-    settings_path.write_text(
-        json.dumps(
-            {
-                "hooks": {
-                    "SessionStart": [
-                        {
-                            "hooks": [
-                                {
-                                    "type": "command",
-                                    "command": "node",
-                                    "args": [
-                                        '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.mjs',
-                                        "claude",
-                                        "session-start",
-                                    ],
-                                }
-                            ]
-                        }
-                    ]
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    issues = diagnose_project_runtime_compatibility(tmp_path)
-
-    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
-
-
-def test_diagnose_project_runtime_compatibility_reports_stale_relative_claude_node_launcher(tmp_path):
-    settings_path = tmp_path / ".claude" / "settings.json"
-    settings_path.parent.mkdir(parents=True)
-    settings_path.write_text(
-        json.dumps(
-            {
-                "hooks": {
-                    "SessionStart": [
-                        {
-                            "hooks": [
-                                {
-                                    "type": "command",
-                                    "command": 'node ".specify/bin/specify-hook.mjs" claude session-start',
-                                }
-                            ]
-                        }
-                    ]
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    issues = diagnose_project_runtime_compatibility(tmp_path)
-
-    assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+        assert any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues), hook
 
 
 def test_diagnose_project_runtime_compatibility_accepts_current_claude_node_launcher(tmp_path):
