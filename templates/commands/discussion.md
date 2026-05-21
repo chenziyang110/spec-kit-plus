@@ -160,7 +160,7 @@ Treat `.specify/project-cognition/project-cognition.db` plus the query bundle as
 Freshness handling:
 
 - `missing`: stop and tell the user to run `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- `stale`: continue discussion when the conversation is exploratory and the runtime returns `review` or `perform_minimal_live_reads`; route to `{{invoke:map-update}}` when the user asks to write project facts that need proof. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for missing or unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
+- `stale`: continue discussion when the conversation is exploratory and the runtime returns `review` or `perform_minimal_live_reads`; route to `{{invoke:map-update}}` when the user asks to write project facts that need proof. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
 - `support_drift`: stop for support-surface cleanup without reflexively routing to `{{invoke:map-update}}`.
 - `partial_refresh`: continue discussion only with unknowns and confidence labels; before handoff or source-changing planning, follow `recommended_next_action`.
 - `possibly_stale`: inspect affected graph scope and route to localized refresh if coverage is not safe enough.

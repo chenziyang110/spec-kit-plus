@@ -122,7 +122,7 @@ judgment in an established Spec Kit Plus repository:
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.
 - Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build`
-  only for missing or unusable baseline, schema failure, zero active-generation
+  only for first/missing/unusable baseline, schema failure, zero active-generation
   path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.

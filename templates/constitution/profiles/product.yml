@@ -132,10 +132,11 @@ engineering_standards: |
     Legacy handbook or project-map exports are compatibility surfaces only.
     Map points, code proves: technical claims and completion claims MUST be
     backed by live project evidence, not by project cognition output alone.
-    Recommend `map-update` for localized stale cognition or ordinary changed-path
-    map maintenance; recommend `map-scan` followed by `map-build` only when the
-    user wants repair for a missing, unusable, schema-incompatible, explicitly
-    rebuilt, or architecture-replaced baseline.
+    Recommend `map-update` for localized stale cognition, ordinary changed-path
+    map maintenance, ordinary existing-baseline gaps, and weak localized coverage
+    after a usable baseline. Recommend `map-scan` followed by `map-build` only
+    for first/missing/unusable baseline, schema failure, zero active-generation
+    `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
   - **Encoding Preservation**: When modifying an existing file, changes MUST
     preserve the file's existing character encoding and BOM behavior unless the
     task explicitly requires an encoding conversion.

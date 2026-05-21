@@ -72,7 +72,7 @@ def _assert_contains_any(text: str, *needles: str) -> None:
 
 MAP_UPDATE_FIRST_POLICY = (
     "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
-    "only for missing or unusable baseline, schema failure, zero active-generation "
+    "only for first/missing/unusable baseline, schema failure, zero active-generation "
     "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
 )
 
@@ -86,6 +86,15 @@ STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
     "user explicitly requested " + "map " + "repair",
     "reported map-maintenance action as follow-up " + "unless",
     "when the user wants " + "map " + "repair",
+    "missing or " + "stale",
+    "follow-up map maintenance when " + "useful",
+    "recommend sp-map-update or " + "sp-map-scan -> sp-map-build",
+    "recommend map-update or " + "map-scan -> map-build",
+    "user wants " + "repair",
+    "the user wants " + "repair",
+    "path-index-" + "incomplete",
+    "path-index " + "incomplete",
+    "unadoptable " + "coverage gaps",
 )
 
 
@@ -95,7 +104,25 @@ def _normalize_policy_text(text: str) -> str:
 
 def _assert_map_update_first_policy(content: str) -> None:
     normalized = _normalize_policy_text(content)
-    assert MAP_UPDATE_FIRST_POLICY in normalized
+    assert "map-update" in normalized
+    assert "ordinary existing-baseline gaps" in normalized
+    assert (
+        "use map-scan -> map-build only" in normalized
+        or "recommend map-scan followed by map-build only" in normalized
+        or "use /sp-map-scan -> /sp-map-build only" in normalized
+        or "use /sp-map-scan followed by /sp-map-build only" in normalized
+    )
+    assert (
+        "first/missing/unusable baseline" in normalized
+        or "first baseline" in normalized
+    )
+    for condition in (
+        "schema failure",
+        "zero active-generation path_index rows",
+        "explicit_rebuild_requested",
+        "baseline_identity_invalid",
+    ):
+        assert condition in normalized
     for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
         assert phrase not in normalized
 
@@ -825,6 +852,8 @@ def test_map_update_first_policy_is_locked_in_passive_skills_and_docs() -> None:
         "quickstart": _read_project_file("docs/quickstart.md"),
         "project handbook": _read_project_file("PROJECT-HANDBOOK.md"),
         "project handbook template": _read("templates/project-handbook-template.md"),
+        "constitution template": _read("templates/constitution-template.md"),
+        "constitution product profile": _read("templates/constitution/profiles/product.yml"),
     }
 
     for label, content in surfaces.items():
@@ -851,13 +880,19 @@ def test_map_update_first_policy_is_locked_in_shared_command_partials() -> None:
     surfaces = {
         "constitution shell": _read("templates/command-partials/constitution/shell.md"),
         "senior consequence gate": _read("templates/command-partials/common/senior-consequence-analysis-gate.md"),
+        "context loading gradient": _read("templates/command-partials/common/context-loading-gradient.md"),
+        "planning context loading gradient": _read("templates/command-partials/common/planning-context-loading-gradient.md"),
+        "constitution command": _read("templates/commands/constitution.md"),
     }
 
     for label, content in surfaces.items():
         normalized = _normalize_policy_text(content)
         assert "map-update" in normalized, label
         assert "ordinary existing-baseline" in normalized or "needs_update" in normalized, label
-        assert "missing or unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized, label
+        assert (
+            "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+            or "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+        ), label
         for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
             assert phrase not in normalized, f"{label} contains stale phrase: {phrase}"
 
@@ -957,7 +992,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "project cognition runtime truth" in lowered
     assert "mark the related project cognition compatibility/export surface for refresh" in lowered
     assert "ordinary existing-baseline" in lowered
-    assert "missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in lowered
+    assert "first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in lowered
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
@@ -2126,7 +2161,7 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     for gate in (lowered_gate, lowered_planning_gate):
         assert "changed paths missing from `path_index`" in gate
         assert "recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps" in gate
-        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
+        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
         stale_scan_build_phrase = "recommend `sp-map-scan -> sp-map-build` only if the user wants " + "map " + "repair"
         assert stale_scan_build_phrase not in gate
     assert "cannot create absent path coverage" not in shared_gate

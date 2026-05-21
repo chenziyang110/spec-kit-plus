@@ -129,7 +129,7 @@ class CursorAgentIntegration(SkillsIntegration):
             "**Advisory First Pass**: Before repository analysis or implementation, query project cognition when available and use it to choose likely live reads.\n"
             "- Use `.specify/project-cognition/` as the graph-native project cognition source when present.\n"
             "- If the runtime is missing, stale, blocked, or too incomplete for the requested work, continue with live repository inspection instead of stopping for map maintenance.\n"
-            "- Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for missing or unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.\n"
+            "- Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.\n"
             "- Do not treat map output as evidence by itself; verify technical claims from live code, tests, scripts, configuration, or authoritative docs.\n"
         )
 

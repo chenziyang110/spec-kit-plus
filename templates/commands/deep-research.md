@@ -249,7 +249,7 @@ Use `execution_surface: native-subagents`.
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
      - `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for missing or unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
      - `blocked`: stop and report the blocking runtime issue.
      - **CARRY FORWARD**: Treat project-cognition results as repository-grounded
        starting context. Preserve cited capabilities, constraints, affected

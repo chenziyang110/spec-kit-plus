@@ -30,14 +30,14 @@ from .types import HookResult, QualityHookError
 STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks", "debug"}
 STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale; refresh through /sp-map-update, "
-    "and rebuild through /sp-map-scan -> /sp-map-build only for missing or unusable baseline, "
+    "and rebuild through /sp-map-scan -> /sp-map-build only for first/missing/unusable baseline, "
     "active_generation_has_no_path_index_rows, path_not_safely_adoptable_by_project_cognition_index, "
     "explicit_rebuild_requested, or baseline_identity_invalid"
 )
 PATH_INDEX_STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale because changed paths are missing from path_index; "
     "run /sp-map-update first so ordinary gaps can receive provisional coverage, review state, known unknowns, "
-    "and minimal live reads; rebuild through /sp-map-scan -> /sp-map-build only for missing or unusable baseline, "
+    "and minimal live reads; rebuild through /sp-map-scan -> /sp-map-build only for first/missing/unusable baseline, "
     "active_generation_has_no_path_index_rows, path_not_safely_adoptable_by_project_cognition_index, "
     "explicit_rebuild_requested, or baseline_identity_invalid"
 )

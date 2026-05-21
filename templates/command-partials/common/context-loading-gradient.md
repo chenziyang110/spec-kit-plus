@@ -69,7 +69,7 @@ Treat runtime freshness as map-quality diagnostics:
 - `missing` -> if cognition freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance
 - `stale` -> if cognition freshness is `stale`, treat map output as advisory and continue with live repository evidence; recommend `{{invoke:map-update}}` as follow-up map maintenance
 - `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps.
-  Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for missing or unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
+  Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
 - `support_drift` -> warn and continue with live repository evidence; recommend resolving or intentionally ignoring support-surface drift
 - `partial_refresh` -> warn that refresh data was recorded but readiness did not pass; continue with live repository evidence
 - `possibly_stale` -> inspect the returned affected scope when useful, then continue with live repository evidence
@@ -82,8 +82,11 @@ map-maintenance recommendation.
 
 Do not treat handbook-first or layered project-map files as evidence. If
 query-returned coverage is insufficient, inspect live repository surfaces
-directly and recommend `sp-map-update` or `sp-map-scan -> sp-map-build` as
-follow-up map maintenance when useful.
+directly and recommend `sp-map-update` for ordinary existing-baseline gaps,
+localized stale cognition refresh, weak localized coverage after a usable
+baseline, or ordinary changed-path maintenance. Use `sp-map-scan -> sp-map-build`
+only for first/missing/unusable baseline, schema failure, zero active-generation
+`path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 
 The completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs. Project cognition can support route selection but cannot be the sole evidence for completion.
 

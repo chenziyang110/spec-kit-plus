@@ -26,6 +26,15 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
     "user explicitly requested " + "map " + "repair",
     "reported map-maintenance action as follow-up " + "unless",
     "when the user wants " + "map " + "repair",
+    "missing or " + "stale",
+    "follow-up map maintenance when " + "useful",
+    "recommend sp-map-update or " + "sp-map-scan -> sp-map-build",
+    "recommend map-update or " + "map-scan -> map-build",
+    "user wants " + "repair",
+    "the user wants " + "repair",
+    "path-index-" + "incomplete",
+    "path-index " + "incomplete",
+    "unadoptable " + "coverage gaps",
 )
 
 
@@ -387,7 +396,7 @@ class MarkdownIntegrationTests:
             assert "map-build" in content
             assert (
                 "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
-                "only for missing or unusable baseline, schema failure, zero active-generation "
+                "only for first/missing/unusable baseline, schema failure, zero active-generation "
                 "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
             ) in content
             for stale_phrase in (

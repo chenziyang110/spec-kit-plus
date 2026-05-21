@@ -571,4 +571,4 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
         assert "project-cognition validate-scan --format json" in content
         assert "project-cognition validate-build --format json" in content
         assert "first brownfield cognition baseline" in content
-        assert "missing, unusable, schema-incompatible" in content
+        assert "first/missing/unusable, schema-incompatible" in content

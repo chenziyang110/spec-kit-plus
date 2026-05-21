@@ -152,7 +152,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "ordinary uncertain closure" in content
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
     assert "use map-update for ordinary existing-baseline gaps" in content
-    assert "use map-scan -> map-build only for missing or unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
+    assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
     assert "returned `project-cognition query` bundle and readiness as the truth source" in content
     assert "use only returned `minimal_live_reads` when needed" in content
     assert "debug session state" in content

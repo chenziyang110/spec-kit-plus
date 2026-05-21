@@ -90,19 +90,14 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
     for rel in (
+        ".cursor/skills/sp-constitution/SKILL.md",
         ".cursor/skills/sp-implement/SKILL.md",
         ".cursor/skills/sp-debug/SKILL.md",
         ".cursor/skills/sp-quick/SKILL.md",
     ):
         content = (target / rel).read_text(encoding="utf-8").lower()
-        assert "crucial first step" in content
         assert "map-scan" in content
         assert "map-build" in content
-        assert (
-            "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
-            "only for missing or unusable baseline, schema failure, zero active-generation "
-            "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
-        ) in content
         for stale_phrase in (
             "path-index-" + "incomplete",
             "unadoptable " + "coverage gaps",
@@ -113,8 +108,30 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
             "user explicitly requested " + "map " + "repair",
             "reported map-maintenance action as follow-up " + "unless",
             "when the user wants " + "map " + "repair",
+            "missing or " + "stale",
+            "follow-up map maintenance when " + "useful",
+            "recommend sp-map-update or " + "sp-map-scan -> sp-map-build",
+            "recommend map-update or " + "map-scan -> map-build",
+            "user wants " + "repair",
+            "the user wants " + "repair",
+            "path-index " + "incomplete",
         ):
             assert stale_phrase not in content
+        if "sp-constitution" in rel:
+            assert "stale or weak for an existing usable baseline" in content
+            assert "recommend `/sp-map-update`" in content
+            assert "first/missing/unusable baseline" in content
+            assert "schema failure" in content
+            assert "zero active-generation `path_index` rows" in content
+            assert "`explicit_rebuild_requested`" in content
+            assert "`baseline_identity_invalid`" in content
+            continue
+        assert (
+            "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
+            "only for first/missing/unusable baseline, schema failure, zero active-generation "
+            "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+        ) in content
+        assert "crucial first step" in content
         if "sp-debug" in rel:
             assert "project-cognition query --intent debug" in content
             assert "debug session state" in content
