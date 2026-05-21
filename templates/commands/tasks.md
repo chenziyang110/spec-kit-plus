@@ -3,7 +3,7 @@ description: Use when plan artifacts exist and execution needs dependency-aware 
 workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
   primary_objective: Produce `tasks.md` with dependency ordering, guardrail carry-forward, execution batches, and join points.
-  primary_outputs: '`FEATURE_DIR/tasks.md`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/task-index.json`, `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/task-generation/handoffs/<lane-id>.json`, `FEATURE_DIR/task-generation/evidence-index.json`, `FEATURE_DIR/task-generation/checkpoints.ndjson`, and `workflow-state.md`.'
+  primary_outputs: '`FEATURE_DIR/tasks.md` and `workflow-state.md`; `task-index.json` when useful for light mode; `handoff-to-tasks.json`, `task-packets/*.json`, `task-generation/handoffs/<lane-id>.json`, `task-generation/evidence-index.json`, and `task-generation/checkpoints.ndjson` when standard/heavy mode uses delegated task-generation lanes or downstream delegated implementation needs packets.'
   default_handoff: '/sp.implement for a clean completed task package; /sp.analyze only when a persisted legacy or diagnostic state explicitly records that route; /sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth.'
 handoffs:
   - label: Analyze For Consistency

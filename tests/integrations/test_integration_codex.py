@@ -557,6 +557,14 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "execution_mode: light | standard | heavy" in content
         assert "workflow_status: ready | blocked" in content
         assert "execution_surface: leader-inline | native-subagents | none" in content
+        assert "codex adaptive dispatch" in content
+        assert "apply the adaptive dispatch decision recorded by `choose_subagent_dispatch`" in content
+        assert "capability_degraded: true" in content
+        assert "dispatch_shape: subagent-blocked" in content
+        assert "execution_surface: none" in content
+        assert "subagents-first dispatch model" not in content
+        assert "leader-inline-fallback" not in content
+        assert "execution model: `subagents-first`" not in content
         assert ".specify/project-cognition/" in content
         assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/learnings/index.md" in content

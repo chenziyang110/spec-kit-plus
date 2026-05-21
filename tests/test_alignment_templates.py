@@ -435,6 +435,27 @@ def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_
         for expected_fragment in expected_fragments:
             _assert_default_handoff_contract(content, expected_fragment)
 
+
+def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> None:
+    plan = _read("templates/commands/plan.md")
+    tasks = _read("templates/commands/tasks.md")
+
+    assert (
+        "primary_outputs: '`plan.md`, `research.md`, `quickstart.md`, `plan-contract.json`, "
+        "and `workflow-state.md` under the active `FEATURE_DIR`; `data-model.md` and `contracts/` "
+        "when the feature scope demands them; `planning/handoffs/<lane-id>.json`, "
+        "`planning/evidence-index.json`, and `planning/checkpoints.ndjson` only when delegated "
+        "planning lanes are used.'"
+    ) in plan
+    assert (
+        "primary_outputs: '`FEATURE_DIR/tasks.md` and `workflow-state.md`; `task-index.json` "
+        "when useful for light mode; `handoff-to-tasks.json`, `task-packets/*.json`, "
+        "`task-generation/handoffs/<lane-id>.json`, `task-generation/evidence-index.json`, "
+        "and `task-generation/checkpoints.ndjson` when standard/heavy mode uses delegated "
+        "task-generation lanes or downstream delegated implementation needs packets.'"
+    ) in tasks
+
+
 def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates():
     content = _read("templates/passive-skills/spec-kit-project-learning/SKILL.md")
 

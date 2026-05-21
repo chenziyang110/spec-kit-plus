@@ -145,14 +145,16 @@ class CodexIntegration(SkillsIntegration):
             project_root,
             manifest,
             skills_dir / "sp-plan" / "SKILL.md",
-            f"## {agent_name} Subagents-First Dispatch",
+            f"## {agent_name} Adaptive Dispatch",
             (
                 "\n"
-                f"## {agent_name} Subagents-First Dispatch\n\n"
-                f"When running `sp-plan` in {agent_name}, use the subagents-first dispatch model.\n"
-                "- Use `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                f"## {agent_name} Adaptive Dispatch\n\n"
+                f"When running `sp-plan` in {agent_name}, apply the adaptive dispatch decision recorded by `choose_subagent_dispatch`.\n"
+                "- Light mode records `dispatch_shape: leader-inline` and `execution_surface: leader-inline`; do not spawn planning lanes for light work.\n"
+                "- Standard mode uses `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Standard native-unavailable degradation records `execution_surface: leader-inline` and `capability_degraded: true` only when no high-risk trigger is present.\n"
+                "- Heavy or safety-critical blocked work records `dispatch_shape: subagent-blocked` and `execution_surface: none` with `blocked_reason`.\n"
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
-                "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
                 "- Suggested bounded lanes include research, data model design, contracts drafting, and quickstart or validation scenario generation.\n"
                 f"- Use `wait_agent` only at the documented join points before the final constitution and risk re-check and before writing the consolidated implementation plan.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
@@ -163,14 +165,16 @@ class CodexIntegration(SkillsIntegration):
             project_root,
             manifest,
             skills_dir / "sp-tasks" / "SKILL.md",
-            f"## {agent_name} Subagents-First Dispatch",
+            f"## {agent_name} Adaptive Dispatch",
             (
                 "\n"
-                f"## {agent_name} Subagents-First Dispatch\n\n"
-                f"When running `sp-tasks` in {agent_name}, use the subagents-first dispatch model.\n"
-                "- Use `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                f"## {agent_name} Adaptive Dispatch\n\n"
+                f"When running `sp-tasks` in {agent_name}, apply the adaptive dispatch decision recorded by `choose_subagent_dispatch`.\n"
+                "- Light mode records `dispatch_shape: leader-inline` and `execution_surface: leader-inline`; do not spawn task-generation lanes for light work.\n"
+                "- Standard mode uses `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Standard native-unavailable degradation records `execution_surface: leader-inline` and `capability_degraded: true` only when no high-risk trigger is present.\n"
+                "- Heavy or safety-critical blocked work records `dispatch_shape: subagent-blocked` and `execution_surface: none` with `blocked_reason`.\n"
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
-                "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
                 "- Suggested bounded lanes include story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
                 f"- Use `wait_agent` only at the documented join points before writing `tasks.md` and before emitting canonical parallel batches and join points.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
