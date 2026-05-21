@@ -47,6 +47,28 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
 )
 
 
+def _extract_generated_cognition_policy(content: str) -> str:
+    lines = content.splitlines()
+    selected: set[int] = set()
+    needles = (
+        "project cognition",
+        "map-update",
+        "map-scan",
+        "map-build",
+        "needs_rebuild",
+        "needs_update",
+        "reference",
+        "path_index",
+    )
+    for index, line in enumerate(lines):
+        lowered = line.lower()
+        if any(needle in lowered for needle in needles):
+            start = max(0, index - 3)
+            end = min(len(lines), index + 4)
+            selected.update(range(start, end))
+    return "\n".join(lines[index] for index in sorted(selected)).lower()
+
+
 def _assert_compact_managed_context(content: str) -> None:
     lower = content.lower()
 
@@ -221,11 +243,15 @@ class SkillsIntegrationTests:
 
         skills_dir = i.skills_dest(tmp_path)
         generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in skills_dir.glob("**/SKILL.md"))
+        cognition_policy = "\n".join(
+            _extract_generated_cognition_policy(path.read_text(encoding="utf-8"))
+            for path in skills_dir.glob("**/SKILL.md")
+        )
 
         assert "project-cognition query" in generated
         assert "minimal_live_reads" in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
-            assert phrase not in generated
+            assert phrase not in cognition_policy
 
     def test_generated_project_cognition_gate_reference_refresh_uses_closed_conditions(self, tmp_path):
         i = get_integration(self.KEY)

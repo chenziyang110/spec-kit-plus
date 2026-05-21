@@ -90,7 +90,7 @@ def test_project_cognition_freshness_guidance_prefers_map_update_for_stale_runti
     assert "/sp-map-build" in MISSING_COGNITION_BASELINE_GUIDANCE
     assert "project cognition runtime" in stale
     assert stale.index("/sp-map-update") < stale.index("rebuild")
-    assert "baseline is first/missing/unusable, schema-incompatible" in stale
+    assert "baseline is first/missing/unusable baseline, schema failure" in stale
 
 
 def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monkeypatch) -> None:

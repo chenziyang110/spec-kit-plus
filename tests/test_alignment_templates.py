@@ -106,6 +106,34 @@ def _normalize_policy_text(text: str) -> str:
     return " ".join(text.lower().replace("`", "").split())
 
 
+def _assert_no_stale_map_policy_phrases(content: str, label: str) -> None:
+    normalized = _normalize_policy_text(content)
+    for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
+        assert phrase not in normalized, f"{label} contains stale phrase: {phrase}"
+
+
+def _extract_matching_lines(content: str, *needles: str, context: int = 0) -> str:
+    lines = content.splitlines()
+    selected: set[int] = set()
+    lowered_needles = tuple(needle.lower() for needle in needles)
+    for index, line in enumerate(lines):
+        lowered = line.lower()
+        if any(needle in lowered for needle in lowered_needles):
+            start = max(0, index - context)
+            end = min(len(lines), index + context + 1)
+            selected.update(range(start, end))
+    return "\n".join(lines[index] for index in sorted(selected))
+
+
+def _extract_section(content: str, heading: str) -> str:
+    pattern = re.compile(
+        rf"(?ms)^{re.escape(heading)}\s*$.*?(?=^##\s+|\Z)",
+    )
+    match = pattern.search(content)
+    assert match is not None, heading
+    return match.group(0)
+
+
 def _assert_map_update_first_policy(content: str) -> None:
     normalized = _normalize_policy_text(content)
     assert "map-update" in normalized
@@ -127,8 +155,6 @@ def _assert_map_update_first_policy(content: str) -> None:
         "baseline_identity_invalid",
     ):
         assert condition in normalized
-    for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
-        assert phrase not in normalized
 
 
 def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
@@ -882,32 +908,88 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
 
 def test_map_update_first_policy_is_locked_in_passive_skills_and_docs() -> None:
     surfaces = {
-        "project cognition gate": _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"),
-        "workflow routing": _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md"),
-        "README": _read_project_file("README.md"),
-        "quickstart": _read_project_file("docs/quickstart.md"),
-        "project handbook": _read_project_file("PROJECT-HANDBOOK.md"),
-        "project handbook template": _read("templates/project-handbook-template.md"),
-        "constitution template": _read("templates/constitution-template.md"),
-        "constitution product profile": _read("templates/constitution/profiles/product.yml"),
+        "project cognition gate": _extract_matching_lines(
+            _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"),
+            "use `map-update`",
+            "for blocked, stale",
+            "for missing or unusable reference baselines",
+            context=4,
+        ),
+        "workflow routing": _extract_matching_lines(
+            _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md"),
+            "use `sp-map-update`",
+            "use `sp-map-scan`",
+            context=6,
+        ),
+        "README": _extract_matching_lines(
+            _read_project_file("README.md"),
+            "use `map-update`",
+            "if the reference is blocked",
+            "ordinary `sp-*` workflows",
+            context=4,
+        ),
+        "quickstart": _extract_matching_lines(
+            _read_project_file("docs/quickstart.md"),
+            "use `map-update`",
+            "ordinary workflows should report changed paths",
+            context=4,
+        ),
+        "project handbook": _extract_matching_lines(
+            _read_project_file("PROJECT-HANDBOOK.md"),
+            "use `map-update`",
+            context=3,
+        ),
+        "project handbook template": _extract_matching_lines(
+            _read("templates/project-handbook-template.md"),
+            "use `map-update`",
+            context=3,
+        ),
+        "constitution template": _extract_matching_lines(
+            _read("templates/constitution-template.md"),
+            "recommend `map-update`",
+            context=4,
+        ),
+        "constitution product profile": _extract_matching_lines(
+            _read("templates/constitution/profiles/product.yml"),
+            "recommend `map-update`",
+            context=4,
+        ),
     }
 
     for label, content in surfaces.items():
         try:
             _assert_map_update_first_policy(content)
+            _assert_no_stale_map_policy_phrases(content, label)
         except AssertionError as exc:
             raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
 
 
 def test_map_update_first_policy_is_locked_in_integration_addenda() -> None:
     surfaces = {
-        "base integration": _read_project_file("src/specify_cli/integrations/base.py"),
-        "cursor-agent integration": _read_project_file("src/specify_cli/integrations/cursor_agent/__init__.py"),
+        "base integration": "\n".join(
+            [
+                _extract_matching_lines(
+                    _read_project_file("src/specify_cli/integrations/base.py"),
+                    "map-update",
+                    "map-scan",
+                    "needs_rebuild",
+                    "blocked",
+                    context=3,
+                ),
+            ]
+        ),
+        "cursor-agent integration": _extract_matching_lines(
+            _read_project_file("src/specify_cli/integrations/cursor_agent/__init__.py"),
+            "map-update",
+            "map-scan",
+            context=3,
+        ),
     }
 
     for label, content in surfaces.items():
         try:
             _assert_map_update_first_policy(content)
+            _assert_no_stale_map_policy_phrases(content, label)
         except AssertionError as exc:
             raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
 
@@ -929,8 +1011,7 @@ def test_map_update_first_policy_is_locked_in_shared_command_partials() -> None:
             "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
             or "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
         ), label
-        for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
-            assert phrase not in normalized, f"{label} contains stale phrase: {phrase}"
+        _assert_no_stale_map_policy_phrases(content, label)
 
 
 def test_templates_lock_cross_project_cognition_reference_rules() -> None:

@@ -130,7 +130,7 @@ MISSING_COGNITION_BASELINE_GUIDANCE = (
 STALE_COGNITION_BASELINE_GUIDANCE = (
     "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. "
     "Rebuild with /sp-map-scan followed by /sp-map-build only for explicit unusable-baseline conditions: "
-    "baseline is first/missing/unusable, schema-incompatible, zero active-generation path_index rows, "
+    "baseline is first/missing/unusable baseline, schema failure, zero active-generation path_index rows, "
     "explicit_rebuild_requested, or baseline_identity_invalid."
 )
 SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE = (

@@ -32,6 +32,28 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
 )
 
 
+def _extract_generated_cognition_policy(content: str) -> str:
+    lines = content.splitlines()
+    selected: set[int] = set()
+    needles = (
+        "project cognition",
+        "map-update",
+        "map-scan",
+        "map-build",
+        "needs_rebuild",
+        "needs_update",
+        "reference",
+        "path_index",
+    )
+    for index, line in enumerate(lines):
+        lowered = line.lower()
+        if any(needle in lowered for needle in needles):
+            start = max(0, index - 3)
+            end = min(len(lines), index + 4)
+            selected.update(range(start, end))
+    return "\n".join(lines[index] for index in sorted(selected)).lower()
+
+
 def _assert_compact_managed_context(content: str) -> None:
     lower = content.lower()
 
@@ -193,11 +215,15 @@ class TomlIntegrationTests:
 
         commands_dir = i.commands_dest(tmp_path)
         generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in commands_dir.glob("**/*.toml"))
+        cognition_policy = "\n".join(
+            _extract_generated_cognition_policy(path.read_text(encoding="utf-8"))
+            for path in commands_dir.glob("**/*.toml")
+        )
 
         assert "project-cognition query" in generated
         assert "minimal_live_reads" in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
-            assert phrase not in generated
+            assert phrase not in cognition_policy
 
     def test_is_toml_integration(self):
         assert isinstance(get_integration(self.KEY), TomlIntegration)

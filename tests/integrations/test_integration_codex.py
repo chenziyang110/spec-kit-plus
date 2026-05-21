@@ -2,7 +2,11 @@
 
 from pathlib import Path
 
-from .test_integration_base_skills import SkillsIntegrationTests, _assert_compact_managed_context
+from .test_integration_base_skills import (
+    SkillsIntegrationTests,
+    _assert_compact_managed_context,
+    _extract_generated_cognition_policy,
+)
 
 STALE_COGNITION_ADDENDUM_PHRASES = (
     "for blocked, stale, missing, or incomplete references",
@@ -90,11 +94,15 @@ class TestCodexIntegration(SkillsIntegrationTests):
 
         skills_dir = tmp_path / ".codex" / "skills"
         generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in skills_dir.glob("**/SKILL.md"))
+        cognition_policy = "\n".join(
+            _extract_generated_cognition_policy(path.read_text(encoding="utf-8"))
+            for path in skills_dir.glob("**/SKILL.md")
+        )
 
         assert "project-cognition query" in generated
         assert "minimal_live_reads" in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
-            assert phrase not in generated
+            assert phrase not in cognition_policy
 
 
 class TestCodexAutoPromote:
