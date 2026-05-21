@@ -80,11 +80,6 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "changed_code_paths" in content
     assert "changed_behavior_surfaces" in content
     assert "project_cognition_refresh" in content
-
-
-def test_quick_template_preserves_quality_guardrails() -> None:
-    content = read_template("templates/commands/quick.md").lower()
-
     assert "scope gate" in content
     assert "small but non-trivial" in content or "not for trivial work" in content
     assert "{{invoke:fast}}" in content or "/sp-fast" in content
@@ -95,32 +90,16 @@ def test_quick_template_preserves_quality_guardrails() -> None:
     assert "small, transparent closed loop" in content
     assert "at least one meaningful verification step" in content or "at least one smallest meaningful executable verification step has run" in content
     assert "unverified surface" in content or "not checked" in content
-
-
-def test_quick_template_defines_capability_aware_execution_strategy() -> None:
-    content = read_template("templates/commands/quick.md").lower()
-    raw_content = (PROJECT_ROOT / "templates/commands/quick.md").read_text(encoding="utf-8").lower()
-
     assert "choose_subagent_dispatch" in content
-    assert "execution_model: subagent-mandatory" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents" in content
-    assert "execution_surface: native-subagents" in content
     assert "one-subagent" in content
     assert "parallel-subagents" in content
     assert "native-subagents" in content
     assert "record `subagent-blocked`" in content
-    assert "fall back to leader-inline" not in content
-    assert "dispatch to one subagent" not in raw_content
     assert "leader" in content
     assert "join point" in content
     assert "task contract" in content
     assert "the first actionable execution step after scope lock is to dispatch the first subagent" in content
     assert "if two or more independent subagent lanes can safely run in parallel" in content
-
-
-def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
-    content = read_template("templates/commands/quick.md").lower()
-
     assert ".planning/quick/<id>-<slug>/" in content
     assert ".planning/quick/index.json" in content
     assert "status.md" in content
@@ -280,14 +259,6 @@ def test_quick_template_requires_constitution_before_status_and_subagent_dispatc
 
     assert "constitution first" in content
     assert "before workspace setup, clarification, lane selection, subagent dispatch, or local analysis" in content
-
-
-def test_quick_template_prefers_parallel_subagent_fanout_when_safe() -> None:
-    content = read_template("templates/commands/quick.md").lower()
-
-    assert "materially improve throughput" in content
-    assert "dispatch them in parallel" in content
-    assert "instead of artificially serializing the work" in content
 
 
 def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -> None:

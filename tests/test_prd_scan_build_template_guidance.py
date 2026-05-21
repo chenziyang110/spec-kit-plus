@@ -51,38 +51,17 @@ def test_prd_scan_template_defines_reconstruction_scan_contract() -> None:
     assert "Evidence Label Gate" in content
     assert "producer-consumer" in lowered
     assert "failure behavior" in lowered
-
-
-def test_prd_scan_template_preserves_tiers_and_labeling_contract() -> None:
-    content = _content("templates/commands/prd-scan.md")
-    lowered = content.lower()
-
     assert "labeling semantics" in lowered
     assert "assign each capability a tier" in lowered
     assert "capture stronger reconstruction detail" in lowered
     assert "must have more than path-only evidence" in lowered
     assert "must be assigned `critical`, `high`, `standard`, or `auxiliary`" in content
-
-
-def test_prd_scan_template_mentions_subagent_execution_markers() -> None:
-    content = _content("templates/commands/prd-scan.md")
-
     assert "execution_model: subagent-mandatory" in content
     assert "PrdScanPacket" in content
-
-
-def test_prd_scan_template_mentions_reconstruction_evidence_levels() -> None:
-    content = _content("templates/commands/prd-scan.md")
-
     assert "L1 Exists" in content
     assert "L2 Surface" in content
     assert "L3 Behavioral" in content
     assert "L4 Reconstruction-Ready" in content
-
-
-def test_prd_scan_template_mentions_reconstruction_family_labels() -> None:
-    content = _content("templates/commands/prd-scan.md")
-
     assert "Main Capability Chains" in content
     assert "External Entrypoints and Command Surfaces" in content
     assert "State Machines and Flow Control" in content
@@ -91,11 +70,6 @@ def test_prd_scan_template_mentions_reconstruction_family_labels() -> None:
     assert "Protocol and Boundary Contracts" in content
     assert "Error Semantics and Recovery Behavior" in content
     assert "Verification and Regression Entrypoints" in content
-
-
-def test_prd_scan_template_mentions_reconstruction_artifact_filenames() -> None:
-    content = _content("templates/commands/prd-scan.md")
-
     assert "entrypoint-ledger.json" in content
     assert "config-contracts.json" in content
     assert "protocol-contracts.json" in content
@@ -130,53 +104,24 @@ def test_prd_build_template_refuses_incomplete_scan_packages() -> None:
     assert "`service`" in content
     assert "`mixed`" in content
     assert "reverse coverage validation" in lowered
-
-
-def test_prd_build_template_preserves_label_and_classification_semantics() -> None:
-    content = _content("templates/commands/prd-build.md")
-    lowered = content.lower()
-
     assert "preserve `Evidence`, `Inference`, and `Unknown` labels" in content
     assert "project classification" in lowered
     assert "classification-aware export semantics" in lowered
     assert "preserve `Evidence`, `Inference`, and `Unknown` handling" in content
     assert "must not strip `Evidence`, `Inference`, or `Unknown` labels" in content
     assert "fixed export set" in lowered
-
-
-def test_prd_build_template_mentions_reconstruction_packet_evidence_intake() -> None:
-    content = _content("templates/commands/prd-build.md")
-
     assert "packet evidence intake" in content.lower()
     assert "mandatory subagents" in content.lower() or "execution_model: subagent-mandatory" in content
-
-
-def test_prd_build_template_mentions_reconstruction_export_filenames() -> None:
-    content = _content("templates/commands/prd-build.md")
-
     assert "exports/config-contracts.md" in content
     assert "exports/protocol-contracts.md" in content
     assert "exports/state-machines.md" in content
     assert "exports/error-semantics.md" in content
     assert "exports/verification-surface.md" in content
     assert "exports/reconstruction-risks.md" in content
-
-
-def test_prd_build_template_declares_package_navigation_entry() -> None:
-    content = _content("templates/commands/prd-build.md")
-    frontmatter = _frontmatter("templates/commands/prd-build.md")
-    contract = frontmatter["workflow_contract"]
-    lowered = content.lower()
-
     assert ".specify/prd-runs/<run-id>/exports/README.md" in contract["primary_outputs"]
     assert "package navigation entry" in lowered
     assert "primary reader-facing prd" in lowered
     assert "exports/README.md" in content
-
-
-def test_prd_build_template_mentions_reconstruction_readiness_gate_names() -> None:
-    content = _content("templates/commands/prd-build.md")
-
     assert "Critical Unknown Refusal Gate" in content
     assert "Traceability Gate" in content
     assert "Reconstruction Readiness Gate" in content
