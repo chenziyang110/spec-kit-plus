@@ -5,18 +5,34 @@
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
 
-## Brainstorming Truth Inputs
+## Overview *(mandatory)*
 
-- Route: [compiled from route.json]
-- Complexity: [compiled from complexity.json]
-- Truth Owner: [compiled from facts.json and route.json]
-- Must Preserve:
-  - [compiled invariant]
-- Allowed Optimization Scope:
-  - [compiled scope]
-- Soft Unknowns Carried:
-  - [field, owner, latest resolve phase, and risk if any]
+### Feature Goal
 
+[Describe the intended capability, why it matters, and the outcome the feature must create.]
+
+### Intended Users and Value
+
+- **Primary users / roles**: [Who this is for]
+- **Problem or opportunity**: [What changes for them]
+- **Confirmed product outcome**: [What the user-confirmed product scope must achieve]
+
+## Confirmed Scope *(mandatory)*
+
+### In Scope
+
+- [Primary capability, workflow, or outcome included in this delivery]
+- [Supporting behavior required for the scope to remain coherent]
+
+### Out of Scope
+
+- [Explicitly excluded capability or workflow, with confirmation source when it appeared upstream]
+- [Behavior that must not be implied by UI, API, docs, or closeout wording]
+
+### Deferred Or Future Scope
+
+- [Deferred enhancement, broader ideal-shape item, or later release work]
+- [Reopen trigger for each deferred item]
 
 ## Must-Preserve Discussion Inputs
 
@@ -31,100 +47,6 @@
 ### Discussion Conflicts
 
 - [Open conflict ID, MP ID, and required user decision; remove this section when none]
-
-## Overview *(mandatory)*
-
-### Feature Goal
-
-[Describe the intended capability, why it matters, and the outcome the feature must create.]
-
-### Intended Users and Value
-
-- **Primary users / roles**: [Who this is for]
-- **Problem or opportunity**: [What changes for them]
-- **Confirmed product outcome**: [What the user-confirmed product scope must achieve]
-
-## Ideal Complete Requirement Shape
-
-This layer captures the complete useful feature form.
-
-This layer captures the most complete useful version of the intended capability
-that discovery and repository evidence support.
-
-For reference-sensitive or rewrite-style work, this section MUST expand
-compressed feature labels into the concrete behaviors, supporting flows, and
-exception handling that make the capability usable.
-
-Do not describe only a module name, subsystem label, or high-level feature tag
-when repository evidence shows the capability contains multiple distinct
-behaviors.
-
-### Complete Capability Shape
-
-- [Core capability the user is actually trying to achieve]
-- [Necessary supporting behavior that makes the capability usable]
-- [Important adjacent behavior, exception handling, or lifecycle requirement]
-
-### Complete Usage Expectations
-
-- [Primary trigger and end-to-end flow that a complete version must support]
-- [Expected outcome for the main user or operator]
-- [Expected handling for important non-happy-path or exception conditions]
-
-### Domain-Expected Completeness Checks
-
-- [Normal domain expectation that would make the feature incomplete if omitted]
-- [Boundary, permission, data, dependency, lifecycle, or downstream expectation that must be preserved]
-- [Acceptance-level expectation for a genuinely complete capability rather than a surface-level label]
-
-## Current Delivery Boundary
-
-This layer captures the current project-bound delivery boundary.
-
-This layer translates the ideal requirement shape into the user-confirmed delivery boundary this repository should currently plan and deliver.
-
-It MUST preserve the intended outcome while making explicit:
-- what behavior remains in scope
-- what behavior is intentionally deferred
-- what constraints narrow the current slice
-
-Do not collapse a multi-behavior capability into a single feature label without
-naming the specific behaviors included in the current slice.
-
-### In Scope
-
-- [Primary capability, workflow, or outcome included in this delivery slice]
-- [Supporting behavior required for this slice to remain coherent]
-
-### Out of Scope
-
-- [Explicitly excluded capability or workflow]
-- [Deferred enhancement, broader ideal-shape item, or later release work]
-
-### Boundary Constraints
-
-- [Project, product, policy, or repository constraint that narrows delivery]
-- [Implementation, dependency, rollout, or compatibility limit that shapes scope]
-
-## Brainstorming Truth Inputs
-
-- **Locked route**: [Compiled from `brainstorming/route.json`]
-- **Locked complexity**: [Compiled from `brainstorming/complexity.json`]
-- **Must Preserve**:
-  - [Invariant compiled from `brainstorming/intent.json`]
-- **Allowed Optimization Scope**:
-  - [Explicit redesign latitude compiled from `brainstorming/intent.json`]
-
-## Lossless Source Map
-
-- Journal: `brainstorming/journal.ndjson`
-- Stage Manifest: `brainstorming/stage-manifest.json`
-- Source Event IDs:
-  - EVT-###: [Decision, evidence, answer, or checkpoint used]
-- Evidence IDs:
-  - EVD-###: [Evidence record used]
-- Compiled From:
-  - `compiled_from`: [journal range and stage artifact inputs]
 
 ## Scenarios and Usage Paths *(mandatory)*
 
@@ -141,8 +63,6 @@ naming the specific behaviors included in the current slice.
 - [Observable result that proves the scenario works]
 - [Boundary, rule, or condition that must hold]
 
----
-
 ### Secondary Scenario - [Brief Title]
 
 [Describe the next most important path or meaningful variation.]
@@ -154,8 +74,6 @@ naming the specific behaviors included in the current slice.
 
 **Acceptance Signals**:
 - [Observable result that proves the scenario works]
-
----
 
 ### Edge Cases and Failure Paths
 
@@ -170,59 +88,47 @@ naming the specific behaviors included in the current slice.
 - **Capability 1**: [Behavior-oriented capability name and purpose]
   Supports: [Scenario(s) or usage paths]
   Depends on: [Capability, precondition, reference, or existing workflow]
-  Delivery note: [Whether it is core, enabling, follow-on, or validation-oriented]
+  Delivery note: [core | enabling | follow-on | validation-oriented]
 
 - **Capability 2**: [Behavior-oriented capability name and purpose]
   Supports: [Scenario(s) or usage paths]
   Depends on: [Capability, precondition, reference, or existing workflow]
-  Delivery note: [Whether it is core, enabling, follow-on, or validation-oriented]
+  Delivery note: [core | enabling | follow-on | validation-oriented]
 
 ### Capability Relationships
 
 - [Sequencing dependency, coupling note, or shared precondition]
 - [Cross-capability constraint or integration note]
 
-## Implementation-Oriented Analysis *(mandatory)*
+## Requirements *(mandatory)*
 
-### Preconditions and Dependencies
+### Functional Requirements
 
-- [Required existing workflow, system, policy, or external dependency]
-- [Assumption or prerequisite that must hold before delivery]
+- **FR-001**: [User-visible behavior or system capability]
+- **FR-002**: [Another testable behavior]
 
-### Data, State, and Entity Considerations
+### Non-Functional Requirements
 
-- [Relevant entity, state transition, or data responsibility]
-- [Compatibility, migration, persistence, retention, archival, or cleanup concern]
+- [Performance, security, reliability, accessibility, observability, or supportability expectation]
+- [Compatibility or migration expectation]
 
-### Event / Trigger Model
+### Boundary Constraints
 
-- [What event, user action, schedule, or external signal triggers the behavior]
-- [Whether delivery is synchronous or asynchronous, plus ordering or idempotency expectations]
+- [Project, product, policy, or repository constraint that narrows delivery]
+- [External dependency, integration, rollout, or compatibility limit that shapes scope]
 
-### Protocol / Contract Notes
+## Acceptance Proof *(mandatory)*
 
-- [Boundary contract between components, including identifiers or payload shape]
-- [Compatibility, versioning, authentication, or trust-boundary constraint]
+### Acceptance Signals
 
-### Failure, Retry, and Visibility Semantics
+- [Observable signal that proves the confirmed scope works]
+- [Negative signal or guardrail that proves deferred scope is not falsely claimed]
 
-- [Expected failure handling, retry/replay behavior, or degraded-mode rule]
-- [What users, operators, or support surfaces can observe when the happy path fails]
+### Measurable Success Criteria
 
-### Lifecycle And State Behavior
-
-<!-- Consequence obligations use the canonical CA-### bullet shape below. -->
-- `CA-###`: [Affected object] -> [state] -> [required user-visible behavior]
-
-### Configuration and Rollout Notes
-
-- [Relevant settings, toggles, or preference surfaces that change behavior]
-- [Rollout, migration, backfill, cleanup, or effective-date expectation]
-
-### Planning-Sensitive Notes
-
-- [Constraint that affects sequencing, scope, rollout, or validation]
-- [Operational, compliance, or coordination factor planners must preserve]
+- **SC-001**: [User- or business-visible outcome that can be verified]
+- **SC-002**: [Measurable expectation tied to the confirmed product scope]
+- **SC-003**: [Quality, adoption, or completion outcome]
 
 ## Decision Capture *(mandatory)*
 
@@ -231,15 +137,26 @@ naming the specific behaviors included in the current slice.
 - [Decision confirmed strongly enough that planners must preserve it]
 - [Workflow, compatibility, or delivery choice that should not be re-litigated]
 
-### Claude Discretion
+### User-Confirmed Deferrals
 
-- [Area where the user explicitly allowed planning or implementation choice]
-- [If none, remove this section rather than writing "None"]
+- [Deferred item] -> [confirmation source] -> [reopen trigger]
 
 ### Canonical References
 
 - [Spec, ADR, policy, or repository doc downstream work must read]
 - [Reference example, compatibility note, or external contract that constrains delivery]
+
+## Consequence Analysis
+
+Use this section when the Senior Consequence Analysis Gate triggers.
+
+### Lifecycle And State Behavior
+
+- `CA-###`: [Affected object] -> [state] -> [required user-visible behavior]
+
+### Recovery And Validation
+
+- [Consequence obligation, recovery expectation, and validation signal]
 
 ## Fidelity Requirements
 
@@ -260,28 +177,6 @@ Include this section only when the active workflow profile is `Reference-Impleme
 - [Behavior ID] [Behavior-oriented capability or sub-behavior drawn from the reference object] -> [preserve | redesign | defer]
 - [Behavior ID] [Trigger / lifecycle / failure-path / compatibility behavior drawn from the reference object] -> [preserve | redesign | defer]
 
-### Deferred / Future Ideas
-
-- [Idea captured during discovery that is intentionally out of scope for this feature]
-- [If none, remove this section rather than writing "None"]
-
-## Alignment State *(mandatory)*
-
-### Confirmed
-
-- [Fact confirmed by the user, repository evidence, or retained references]
-- [Capability, rule, or constraint that is fixed enough to plan against]
-
-### Inferred
-
-- [Low-risk default inferred from context]
-- [Assumption that reduces ambiguity without materially changing scope]
-
-### Unresolved
-
-- [Open item, known uncertainty, or pending decision that still affects planning]
-- [If empty for normal completion, remove this section rather than writing "None"]
-
 ## Risks and Gaps *(mandatory)*
 
 ### Planning Risks
@@ -293,11 +188,3 @@ Include this section only when the active workflow profile is `Reference-Impleme
 
 - [Missing evidence, unresolved dependency, or external input still needed]
 - [If force proceeding, note what planners and implementers must watch closely]
-
-## Success Criteria *(mandatory)*
-
-### Measurable Outcomes
-
-- **SC-001**: [User- or business-visible outcome that can be verified]
-- **SC-002**: [Measurable expectation tied to the confirmed product scope]
-- **SC-003**: [Quality, adoption, or completion outcome]

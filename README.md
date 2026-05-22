@@ -218,57 +218,29 @@ specify -> plan
 ```
 
 Feature creation is driven by the `specify` workflow itself. `sp-specify` now
-uses a fixed heavy discovery contract rather than adaptive discovery routing or
-lighter discovery modes. Use `sp-specify` with the generated create-feature
-script at
+uses a collaborative reviewed specification flow: explore project context,
+ask one question at a time, decompose semantic terms, present two or three
+approaches, write the artifact package, self-review it, and ask for user review
+before planning. Use `sp-specify` with the generated create-feature script at
 `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1`, plus the lane/runtime
 helpers that it invokes; do not look for or teach a separate branch-creation
 CLI family.
 
-`specify` remains the public entry shell, but it now begins with an internal brainstorming kernel that locks facts, route, intent, and complexity before
-compiling the traditional spec package and handing off through structured
-handoff contracts to `plan`, `tasks`, and `sp-implement`.
+`specify` remains the public entry shell and writes `spec.md`, `alignment.md`,
+`context.md`, `workflow-state.md`, `checklists/requirements.md`, and a minimal
+compatibility `brainstorming/handoff-to-specify.json`. When a feature starts
+from `sp-discussion`, `sp-specify` reads the discussion source files, including
+`discussion-log.md`, `requirements.md`, and `open-questions.md`, not only the
+handoff summary. Capability-like upstream signals must appear in
+`source_signal_disposition`. `alignment.md` records `Semantic Term Decisions`,
+`Upstream Intent Disposition`, and `Out-Of-Scope Conflicts`; ambiguous product terms such as "real",
+"capability", "usable", fetch, probe, model, endpoint, `能力`, `真实`, and
+`可用` must be decomposed before scope is narrowed.
 
-`sp-specify` is lossless-state backed for new feature packages. The trusted
-recovery source is `brainstorming/journal.ndjson` plus JSON stage artifacts
-indexed by `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
-Final artifacts carry `compiled_from` / source-map references
-so planning can trace major claims to event IDs or evidence IDs.
-
-The deterministic lock sequence is `facts-lock`, `route-lock`, `intent-lock`,
-and `complexity-lock`.
-
-The fixed heavy discovery lifecycle always runs the same six stages in the same
-order before it decides whether to hand off to `plan`, `clarify`, or
-`deep-research`:
-
-1. `intent-analysis`
-2. `intent-confirmation`
-3. `question-batch`
-4. `batch-adversarial-review`
-5. `completeness-audit`
-6. `final-handoff-decision`
-
-The workflow uses three fixed roles:
-
-- `intent-analyst`
-- `adversarial-reviewer`
-- `completeness-auditor`
-
-It also walks the same six requirement domains in order:
-
-1. `goal-and-users`
-2. `triggers-and-primary-flow`
-3. `boundaries-and-non-goals`
-4. `failure-paths-exceptions-and-permissions`
-5. `dependencies-constraints-and-upstream-downstream-impact`
-6. `acceptance-and-completeness-gap-closure`
-
-This means even short prompts are treated as potentially incomplete requirement
-inputs. `sp-specify` does not choose a lighter path based on inferred task
-shape; it runs the full fixed heavy discovery lifecycle, then selects the
-correct handoff.
+The normal next step remains exactly one of `/sp.plan`, `/sp.clarify`, or
+`/sp.deep-research`. `/sp.plan` is valid only after the written artifacts pass
+self-review and user review has been requested.
 
 Treat the live `specify --help` output as the only authoritative CLI command
 surface. Before suggesting or running a `specify <subcommand>` invocation,

@@ -865,7 +865,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "root-cause mode" in content
 
 
-def test_codex_generated_specify_skill_mentions_structured_handoff_and_reopen(tmp_path):
+def test_codex_generated_specify_skill_mentions_source_sweep_and_reopen(tmp_path):
     from specify_cli.integrations.codex import CodexIntegration
     from specify_cli.integrations.manifest import IntegrationManifest
 
@@ -874,14 +874,20 @@ def test_codex_generated_specify_skill_mentions_structured_handoff_and_reopen(tm
     manifest = IntegrationManifest("codex", target)
     integration.setup(target, manifest)
     content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "structured handoff" in content
+    assert "source_signal_disposition" in content
+    assert "source_files_read" in content
+    assert "discussion-log.md" in content
+    assert "requirements.md" in content
+    assert "open-questions.md" in content
     assert "reopen" in content
-    assert "conversation memory is not a valid handoff surface" in content
-    assert "## fixed heavy discovery lifecycle" not in content
-    assert "use the fixed heavy discovery lifecycle" not in content
+    assert "brainstorming kernel" not in content
+    assert "facts-lock" not in content
+    assert "route-lock" not in content
+    assert "intent-lock" not in content
+    assert "complexity-lock" not in content
 
 
-def test_codex_generated_sp_specify_uses_brainstorming_kernel_wording(tmp_path):
+def test_codex_generated_sp_specify_uses_simplified_flow_wording(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -898,15 +904,20 @@ def test_codex_generated_sp_specify_uses_brainstorming_kernel_wording(tmp_path):
     content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
     lowered = content.lower()
 
-    assert "brainstorming kernel" in lowered
-    assert "facts-lock" in content
-    assert "route-lock" in content
-    assert "intent-lock" in content
-    assert "complexity-lock" in content
-    assert "structured handoff" in lowered
+    assert "explore project context" in lowered
+    assert "one high-impact question at a time" in lowered
+    assert "two or three approaches" in lowered or "2-3 approaches" in lowered
+    assert "semantic term" in lowered
+    assert "source_signal_disposition" in content
+    assert "discussion-log.md" in content
+    assert "requirements.md" in content
+    assert "open-questions.md" in content
     assert "reopen" in lowered
-    assert "conversation memory is not a valid handoff surface" in lowered
-    assert "persisted truth files" in lowered
+    assert "brainstorming kernel" not in lowered
+    assert "facts-lock" not in content
+    assert "route-lock" not in content
+    assert "intent-lock" not in content
+    assert "complexity-lock" not in content
     assert "task classification" not in lowered
     assert "active_profile" not in content
     assert "coverage_mode" not in content

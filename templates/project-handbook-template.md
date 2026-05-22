@@ -21,12 +21,14 @@ and what sits clearly outside the system boundary.]
 - [List the highest-value capabilities a newcomer should understand first.]
 - [For each capability, state why it matters and which topical file should be
   read next.]
-- **Lossless `sp-specify` state**: `sp-specify` is lossless-state backed for
-  new feature packages. The trusted recovery source is
-  `brainstorming/journal.ndjson` plus JSON stage artifacts indexed by
-  `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
-  Final artifacts carry `compiled_from` / source-map references so
-  planning can trace major claims to event IDs or evidence IDs.
+- **Semantic `sp-specify` traceability**: `sp-specify` uses a collaborative
+  reviewed specification flow: explore project context, ask one question at a
+  time, decompose semantic terms, compare approaches, write artifacts,
+  self-review them, and ask for user review before planning. Discussion-originated
+  specs read discussion source files and record capability-like upstream signals
+  in `source_signal_disposition` instead of trusting only the handoff summary.
+  `alignment.md` records `Semantic Term Decisions`, `Upstream Intent Disposition`,
+  and `Out-Of-Scope Conflicts`.
 - **User-confirmed product scope**: Generated workflows preserve the user's confirmed product scope. Workflow routing may choose the lightest safe command
   surface, but it must not convert the user's product intent into a smaller MVP
   or first-story release. Scope reduction requires user confirmation, including

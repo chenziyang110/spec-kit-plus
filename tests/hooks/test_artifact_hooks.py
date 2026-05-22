@@ -174,34 +174,35 @@ def _reference_implementation_workflow_state(active_profile: str = "reference-im
 def _write_valid_specify_semantic_artifacts(feature_dir: Path) -> None:
     (feature_dir / "alignment.md").write_text(
         "# Alignment\n\n"
-        "## Alignment Summary\n\n"
-        "- Discovery remains in the fixed heavy lifecycle.\n",
+        "## Semantic Term Decisions\n\n"
+        "- Term: capability\n"
+        "- Possible Meanings: config write; endpoint probe\n"
+        "- Selected Meanings: config write\n"
+        "- Excluded Meanings: endpoint probe\n"
+        "- User Confirmation: test fixture\n\n"
+        "## Upstream Intent Disposition\n\n"
+        "- Signal: provider capability\n"
+        "- Source: discussion-log.md\n"
+        "- Disposition: in_scope\n"
+        "- Artifact Location: spec.md#confirmed-scope\n"
+        "- User Confirmed: yes\n"
+        "- Reopen Trigger: user asks for endpoint probe\n\n"
+        "## Out-Of-Scope Conflicts\n\n"
+        "- None\n",
         encoding="utf-8",
     )
     (feature_dir / "context.md").write_text(
         "# Context\n\n"
+        "## Planning Context\n\n"
+        "- Simplified specify fixture.\n\n"
         "## Change Propagation Matrix\n\n"
         "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
         "| --- | --- | --- | --- |\n",
         encoding="utf-8",
     )
-    (feature_dir / "specify-draft.md").write_text(
-        "# Specification Draft Ledger: Demo\n\n"
-        "## Intent Analysis Record\n\n"
-        "- initial feature hypothesis\n\n"
-        "## Domain Progress Ledger\n\n"
-        "- goal-and-users: closed-by-existing-evidence\n\n"
-        "## Question Batch Ledger\n\n"
-        "- Batch 1: answered\n\n"
-        "## Adversarial Review Ledger\n\n"
-        "- No contradictions recorded.\n\n"
-        "## Completeness Gap Register\n\n"
-        "- None recorded.\n\n"
-        "## Final Audit Inputs\n\n"
-        "- Ready for completeness audit.\n",
-        encoding="utf-8",
-    )
-    _write_valid_brainstorming_truth_files(feature_dir)
+    brainstorming_dir = feature_dir / "brainstorming"
+    brainstorming_dir.mkdir(parents=True, exist_ok=True)
+    (brainstorming_dir / "handoff-to-specify.json").write_text(_valid_must_preserve_handoff_payload(), encoding="utf-8")
 
 
 def _write_valid_brainstorming_truth_files(feature_dir: Path) -> None:
@@ -410,15 +411,26 @@ def _valid_must_preserve_handoff_payload() -> str:
       "entry_source": "sp-discussion",
       "source_handoff": ".specify/discussions/demo/handoff-to-specify.md",
       "source_handoff_json": ".specify/discussions/demo/handoff-to-specify.json",
-      "facts_file": "brainstorming/facts.json",
-      "route_file": "brainstorming/route.json",
-      "intent_file": "brainstorming/intent.json",
-      "complexity_file": "brainstorming/complexity.json",
       "soft_unknowns": [],
       "unknowns": [],
       "compile_ready": true,
       "coverage_status": "complete",
       "planning_gate_status": "ready",
+      "source_files_read": [
+        "discussion-log.md",
+        "requirements.md",
+        "open-questions.md"
+      ],
+      "source_signal_disposition": [
+        {
+          "signal": "provider capability",
+          "source": "discussion-log.md",
+          "disposition": "in_scope",
+          "artifact_location": "spec.md#confirmed-scope",
+          "user_confirmed": true,
+          "reopen_trigger": "user asks for endpoint probe"
+        }
+      ],
       "source_evidence": [
         {
           "source_type": "user_confirmation",
@@ -428,13 +440,6 @@ def _valid_must_preserve_handoff_payload() -> str:
         }
       ],
       "stage": "consequence-risk",
-      "compiled_from": {
-        "journal": "brainstorming/journal.ndjson",
-        "event_range": ["EVT-000001", "EVT-000001"],
-        "key_events": ["EVT-000001"],
-        "evidence_ids": [],
-        "compiled_at": "2026-05-16T00:00:00Z"
-      },
       "hard_unknown_count": 0,
       "open_conflict_count": 0,
       "must_preserve": [
@@ -469,28 +474,28 @@ def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: s
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Fixed Lifecycle State",
+                "## Stage State",
                 "",
-                "- current_stage: `question-batch`",
-                "- current_domain: `goal-and-users`",
-                "- next_action: `Ask the next bounded domain question batch.`",
+                "- current_stage: `artifact-review`",
+                "- current_domain: `scope`",
+                "- next_action: `Ask the user to review the written artifacts.`",
                 "- blocker_reason: `none`",
-                "- final_handoff_decision: `pending`",
+                "- final_handoff_decision: `/sp.plan`",
                 "",
-                "## Lossless Resume State",
+                "## Review State",
                 "",
-                "- journal_file: `brainstorming/journal.ndjson`",
-                "- stage_manifest: `brainstorming/stage-manifest.json`",
-                "- last_event_id: `EVT-000001`",
-                "- last_checkpoint_id: `EVT-000001`",
+                "- last_user_reviewed_artifact_state: `requested`",
+                "- source_files_read: `discussion source files read`",
+                "- source_signal_disposition_status: `complete`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
                 "- spec.md",
                 "- alignment.md",
                 "- context.md",
-                "- specify-draft.md",
                 "- workflow-state.md",
+                "- checklists/requirements.md",
+                "- brainstorming/handoff-to-specify.json",
                 "",
                 "## Forbidden Actions",
                 "",
@@ -501,7 +506,8 @@ def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: s
                 "- spec.md",
                 "- alignment.md",
                 "- context.md",
-                "- specify-draft.md",
+                "- workflow-state.md",
+                "- brainstorming/handoff-to-specify.json",
                 "",
                 "## Next Command",
                 "",
@@ -514,79 +520,18 @@ def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: s
 
 
 def _write_valid_reference_specify_workflow_state(feature_dir: Path) -> None:
-    workflow_state = "\n".join(
-        [
-            "# Workflow State: Demo",
-            "",
-            "## Current Command",
-            "",
-            "- active_command: `sp-specify`",
-            "- status: `active`",
-            "",
-            "## Fixed Lifecycle State",
-            "",
-            "- current_stage: `completeness-audit`",
-            "- current_domain: `acceptance-and-completeness-gap-closure`",
-            "- next_action: `Run the completeness audit against the full discovery record.`",
-            "- blocker_reason: `none`",
-            "- final_handoff_decision: `pending`",
-            "",
-            "## Lossless Resume State",
-            "",
-            "- journal_file: `brainstorming/journal.ndjson`",
-            "- stage_manifest: `brainstorming/stage-manifest.json`",
-            "- last_event_id: `EVT-000001`",
-            "- last_checkpoint_id: `EVT-000001`",
-            "",
-            "## Allowed Artifact Writes",
-            "",
-            "- spec.md",
-            "- alignment.md",
-            "- context.md",
-            "- specify-draft.md",
-            "- workflow-state.md",
-            "",
-            "## Forbidden Actions",
-            "",
-            "- edit source code",
-            "",
-            "## Authoritative Files",
-            "",
-            "- spec.md",
-            "- alignment.md",
-            "- context.md",
-            "- specify-draft.md",
-            "",
-            "## Next Command",
-            "",
-            "- `/sp.plan`",
-            "",
-        ]
+    _write_valid_specify_workflow_state(feature_dir)
+    workflow_state_path = feature_dir / "workflow-state.md"
+    workflow_state = workflow_state_path.read_text(encoding="utf-8")
+    workflow_state = workflow_state.replace(
+        "## Next Command\n\n- `/sp.plan`\n",
+        "## Scenario Profile\n\n"
+        "- active_profile: `reference-implementation`\n"
+        "- routing_reason: Existing implementation must remain the behavioral source of truth.\n\n"
+        "## Next Command\n\n"
+        "- `/sp.plan`\n",
     )
-    (feature_dir / "workflow-state.md").write_text(workflow_state, encoding="utf-8")
-    (feature_dir / "context.md").write_text(
-        "# Context\n\n"
-        "## Change Propagation Matrix\n\n"
-        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
-        "| --- | --- | --- | --- |\n",
-        encoding="utf-8",
-    )
-    (feature_dir / "specify-draft.md").write_text(
-        "# Specification Draft Ledger: Demo\n\n"
-        "## Intent Analysis Record\n\n"
-        "- initial feature hypothesis\n\n"
-        "## Domain Progress Ledger\n\n"
-        "- goal-and-users: closed-by-existing-evidence\n\n"
-        "## Question Batch Ledger\n\n"
-        "- Batch 1: answered\n\n"
-        "## Adversarial Review Ledger\n\n"
-        "- No contradictions recorded.\n\n"
-        "## Completeness Gap Register\n\n"
-        "- None recorded.\n\n"
-        "## Final Audit Inputs\n\n"
-        "- Ready for completeness audit.\n",
-        encoding="utf-8",
-    )
+    workflow_state_path.write_text(workflow_state, encoding="utf-8")
 
 
 def _write_fixed_lifecycle_specify_workflow_state(feature_dir: Path) -> None:
@@ -663,6 +608,25 @@ def _write_fixed_lifecycle_specify_draft(feature_dir: Path) -> None:
     )
 
 
+def _write_valid_legacy_specify_package(feature_dir: Path) -> None:
+    if not (feature_dir / "spec.md").exists():
+        (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text(
+        "# Alignment\n\n## Alignment Summary\n\n- Legacy specify package fixture.\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "context.md").write_text(
+        "# Context\n\n## Change Propagation Matrix\n\n"
+        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
+        "| --- | --- | --- | --- |\n"
+        "| legacy specify | plan | implementation | medium |\n",
+        encoding="utf-8",
+    )
+    _write_fixed_lifecycle_specify_workflow_state(feature_dir)
+    _write_fixed_lifecycle_specify_draft(feature_dir)
+    _write_valid_brainstorming_truth_files(feature_dir)
+
+
 def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -680,18 +644,14 @@ def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Pa
     assert any("context.md" in message for message in result.errors)
 
 
-def test_specify_artifact_validation_requires_brainstorming_truth_files(tmp_path: Path):
+def test_specify_artifact_validation_requires_compatibility_handoff(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
     _write_valid_specify_semantic_artifacts(feature_dir)
     _write_valid_specify_workflow_state(feature_dir)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
-    for path in (feature_dir / "brainstorming").iterdir():
-        if path.is_dir():
-            path.rmdir()
-        else:
-            path.unlink()
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").unlink()
 
     result = run_quality_hook(
         project_root=project,
@@ -700,21 +660,20 @@ def test_specify_artifact_validation_requires_brainstorming_truth_files(tmp_path
     )
 
     assert result.status == "blocked"
-    assert any("facts.json" in message for message in result.errors)
-    assert any("route.json" in message for message in result.errors)
+    assert any("brainstorming/handoff-to-specify.json" in message for message in result.errors)
 
 
-def test_specify_artifact_validation_requires_unknown_object_shape(tmp_path: Path):
+def test_specify_artifact_validation_requires_source_signal_disposition(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
     _write_valid_specify_semantic_artifacts(feature_dir)
     _write_valid_specify_workflow_state(feature_dir)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
-    (feature_dir / "brainstorming" / "facts.json").write_text(
-        '{"version":1,"status":"active","fields":{},"unknowns":[{"field":"route.primary_route"}]}',
-        encoding="utf-8",
-    )
+    payload = json.loads(_valid_must_preserve_handoff_payload())
+    payload["source_files_read"] = []
+    payload["source_signal_disposition"] = []
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(json.dumps(payload), encoding="utf-8")
 
     result = run_quality_hook(
         project_root=project,
@@ -723,8 +682,8 @@ def test_specify_artifact_validation_requires_unknown_object_shape(tmp_path: Pat
     )
 
     assert result.status == "blocked"
-    assert any("facts.json unknowns[0] missing question" in message for message in result.errors)
-    assert any("facts.json unknowns[0] missing status" in message for message in result.errors)
+    assert any("source_files_read is required" in message for message in result.errors)
+    assert any("source_signal_disposition is required" in message for message in result.errors)
 
 
 def test_specify_artifact_validation_accepts_complete_must_preserve_handoff(tmp_path: Path) -> None:
@@ -1056,13 +1015,19 @@ def test_specify_artifact_validation_blocks_resolved_item_without_resolution_evi
     assert any("MP-001" in message and "resolution_evidence" in message for message in result.errors)
 
 
-def test_validate_artifacts_blocks_specify_when_draft_artifact_is_missing(tmp_path: Path):
+def test_validate_artifacts_blocks_specify_when_handoff_artifact_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
-    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
-    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text(
+        "# Alignment\n\n"
+        "## Semantic Term Decisions\n\n- None\n\n"
+        "## Upstream Intent Disposition\n\n- None\n\n"
+        "## Out-Of-Scope Conflicts\n\n- None\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "context.md").write_text("# Context\n\n## Planning Context\n\n- Demo\n", encoding="utf-8")
     _write_valid_specify_workflow_state(feature_dir)
 
     result = run_quality_hook(
@@ -1072,27 +1037,25 @@ def test_validate_artifacts_blocks_specify_when_draft_artifact_is_missing(tmp_pa
     )
 
     assert result.status == "blocked"
-    assert any("specify-draft.md" in message for message in result.errors)
+    assert any("brainstorming/handoff-to-specify.json" in message for message in result.errors)
 
 
-def test_validate_artifacts_blocks_specify_when_recovery_capsule_is_missing(tmp_path: Path):
+def test_validate_artifacts_blocks_specify_when_semantic_alignment_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n## Alignment Summary\n\n- Demo\n",
+        "# Alignment\n\n## Upstream Intent Disposition\n\n- Demo\n\n## Out-Of-Scope Conflicts\n\n- None\n",
         encoding="utf-8",
     )
-    (feature_dir / "context.md").write_text(
-        "# Context\n\n## Change Propagation Matrix\n\n"
-        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
-        "| --- | --- | --- | --- |\n",
-        encoding="utf-8",
-    )
+    (feature_dir / "context.md").write_text("# Context\n\n## Planning Context\n\n- Demo\n", encoding="utf-8")
     _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "specify-draft.md").write_text("# Specification Draft Ledger: Demo\n", encoding="utf-8")
-    _write_valid_brainstorming_truth_files(feature_dir)
+    (feature_dir / "brainstorming").mkdir(exist_ok=True)
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        _valid_must_preserve_handoff_payload(),
+        encoding="utf-8",
+    )
 
     result = run_quality_hook(
         project,
@@ -1101,42 +1064,34 @@ def test_validate_artifacts_blocks_specify_when_recovery_capsule_is_missing(tmp_
     )
 
     assert result.status == "blocked"
-    assert any("Intent Analysis Record" in message for message in result.errors)
+    assert any("Semantic Term Decisions" in message for message in result.errors)
 
-def test_validate_artifacts_blocks_specify_when_fixed_lifecycle_state_fields_are_missing(tmp_path: Path):
+
+def test_validate_artifacts_blocks_specify_when_stage_state_fields_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n## Alignment Summary\n\n- Demo\n",
+        "# Alignment\n\n"
+        "## Semantic Term Decisions\n\n- None\n\n"
+        "## Upstream Intent Disposition\n\n- None\n\n"
+        "## Out-Of-Scope Conflicts\n\n- None\n",
         encoding="utf-8",
     )
-    (feature_dir / "context.md").write_text(
-        "# Context\n\n## Change Propagation Matrix\n\n"
-        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
-        "| --- | --- | --- | --- |\n"
-        "| API | UI | reporting | medium |\n",
+    (feature_dir / "context.md").write_text("# Context\n\n## Planning Context\n\n- Demo\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Stage State\n\n- blocker_reason: `none`\n\n## Review State\n\n"
+        "- last_user_reviewed_artifact_state: `requested`\n"
+        "- source_files_read: `discussion source files read`\n"
+        "- source_signal_disposition_status: `complete`\n",
         encoding="utf-8",
     )
-    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
-    (feature_dir / "specify-draft.md").write_text(
-        "# Specification Draft Ledger: Demo\n\n"
-        "## Intent Analysis Record\n\n"
-        "- hypothesis\n\n"
-        "## Domain Progress Ledger\n\n"
-        "- goal-and-users: in-progress\n\n"
-        "## Question Batch Ledger\n\n"
-        "- Batch 1: pending\n\n"
-        "## Adversarial Review Ledger\n\n"
-        "- none\n\n"
-        "## Completeness Gap Register\n\n"
-        "- none\n\n"
-        "## Final Audit Inputs\n\n"
-        "- pending\n",
+    (feature_dir / "brainstorming").mkdir(exist_ok=True)
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        _valid_must_preserve_handoff_payload(),
         encoding="utf-8",
     )
-    _write_valid_brainstorming_truth_files(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -1148,88 +1103,23 @@ def test_validate_artifacts_blocks_specify_when_fixed_lifecycle_state_fields_are
     assert any("current_stage" in message for message in result.errors)
     assert any("final_handoff_decision" in message for message in result.errors)
 
+
 def test_validate_artifacts_blocks_specify_when_legacy_state_fields_are_present(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    workflow_state_path = feature_dir / "workflow-state.md"
+    workflow_state_path.write_text(
+        workflow_state_path.read_text(encoding="utf-8")
+        + "\n## Legacy Resume Checklist\n\n"
+        "- draft_file: `specify-draft.md`\n"
+        "- coverage_mode: `core`\n"
+        "- observer_status: `blocked`\n",
+        encoding="utf-8",
+    )
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
-    (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n## Alignment Summary\n\n- Demo\n",
-        encoding="utf-8",
-    )
-    (feature_dir / "context.md").write_text(
-        "# Context\n\n## Change Propagation Matrix\n\n"
-        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
-        "| --- | --- | --- | --- |\n",
-        encoding="utf-8",
-    )
-    (feature_dir / "workflow-state.md").write_text(
-        "\n".join(
-            [
-                "# Workflow State: Demo",
-                "",
-                "## Current Command",
-                "",
-                "- active_command: `sp-specify`",
-                "- status: `active`",
-                "",
-                "## Fixed Lifecycle State",
-                "",
-                "- current_stage: `question-batch`",
-                "- current_domain: `goal-and-users`",
-                "- next_action: `Ask the next bounded domain question batch.`",
-                "- blocker_reason: `none`",
-                "- final_handoff_decision: `pending`",
-                "",
-                "## Allowed Artifact Writes",
-                "",
-                "- spec.md",
-                "- alignment.md",
-                "- context.md",
-                "- specify-draft.md",
-                "- workflow-state.md",
-                "",
-                "## Forbidden Actions",
-                "",
-                "- edit source code",
-                "",
-                "## Authoritative Files",
-                "",
-                "- spec.md",
-                "- alignment.md",
-                "- context.md",
-                "- specify-draft.md",
-                "",
-                "## Next Command",
-                "",
-                "- `/sp.plan`",
-                "",
-                "## Legacy Resume Checklist",
-                "",
-                "- draft_file: `specify-draft.md`",
-                "- coverage_mode: `core`",
-                "- observer_status: `blocked`",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (feature_dir / "specify-draft.md").write_text(
-        "# Specification Draft Ledger: Demo\n\n"
-        "## Intent Analysis Record\n\n"
-        "- hypothesis\n\n"
-        "## Domain Progress Ledger\n\n"
-        "- goal-and-users: in-progress\n\n"
-        "## Question Batch Ledger\n\n"
-        "- Batch 1: pending\n\n"
-        "## Adversarial Review Ledger\n\n"
-        "- none\n\n"
-        "## Completeness Gap Register\n\n"
-        "- none\n\n"
-        "## Final Audit Inputs\n\n"
-        "- pending\n",
-        encoding="utf-8",
-    )
-    _write_valid_brainstorming_truth_files(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -1241,84 +1131,23 @@ def test_validate_artifacts_blocks_specify_when_legacy_state_fields_are_present(
     assert any("legacy sp-specify state field: coverage_mode" in message for message in result.errors)
     assert any("legacy sp-specify state field: observer_status" in message for message in result.errors)
 
-def test_validate_artifacts_blocks_specify_when_alignment_summary_is_missing(tmp_path: Path):
+
+def test_validate_artifacts_blocks_specify_when_upstream_intent_disposition_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n",
+        "# Alignment\n\n## Semantic Term Decisions\n\n- None\n\n## Out-Of-Scope Conflicts\n\n- None\n",
         encoding="utf-8",
     )
-    (feature_dir / "context.md").write_text(
-        "# Context\n\n## Change Propagation Matrix\n\n"
-        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
-        "| --- | --- | --- | --- |\n"
-        "| auth | api | audit-log | high |\n",
+    (feature_dir / "context.md").write_text("# Context\n\n## Planning Context\n\n- Demo\n", encoding="utf-8")
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "brainstorming").mkdir(exist_ok=True)
+    (feature_dir / "brainstorming" / "handoff-to-specify.json").write_text(
+        _valid_must_preserve_handoff_payload(),
         encoding="utf-8",
     )
-    (feature_dir / "workflow-state.md").write_text(
-        "\n".join(
-            [
-                "# Workflow State: Demo",
-                "",
-                "## Current Command",
-                "",
-                "- active_command: `sp-specify`",
-                "- status: `active`",
-                "",
-                "## Fixed Lifecycle State",
-                "",
-                "- current_stage: `question-batch`",
-                "- current_domain: `goal-and-users`",
-                "- next_action: `Ask the next bounded domain question batch.`",
-                "- blocker_reason: `none`",
-                "- final_handoff_decision: `pending`",
-                "",
-                "## Allowed Artifact Writes",
-                "",
-                "- spec.md",
-                "- alignment.md",
-                "- context.md",
-                "- specify-draft.md",
-                "- workflow-state.md",
-                "",
-                "## Forbidden Actions",
-                "",
-                "- edit source code",
-                "",
-                "## Authoritative Files",
-                "",
-                "- spec.md",
-                "- alignment.md",
-                "- context.md",
-                "- specify-draft.md",
-                "",
-                "## Next Command",
-                "",
-                "- `/sp.plan`",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (feature_dir / "specify-draft.md").write_text(
-        "# Specification Draft Ledger: Demo\n\n"
-        "## Intent Analysis Record\n\n"
-        "- hypothesis\n\n"
-        "## Domain Progress Ledger\n\n"
-        "- goal-and-users: in-progress\n\n"
-        "## Question Batch Ledger\n\n"
-        "- Batch 1: pending\n\n"
-        "## Adversarial Review Ledger\n\n"
-        "- none\n\n"
-        "## Completeness Gap Register\n\n"
-        "- none\n\n"
-        "## Final Audit Inputs\n\n"
-        "- pending\n",
-        encoding="utf-8",
-    )
-    _write_valid_brainstorming_truth_files(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -1327,7 +1156,7 @@ def test_validate_artifacts_blocks_specify_when_alignment_summary_is_missing(tmp
     )
 
     assert result.status == "blocked"
-    assert any("Alignment Summary" in message for message in result.errors)
+    assert any("Upstream Intent Disposition" in message for message in result.errors)
 
 
 def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelity_requirements(tmp_path: Path):
@@ -1347,35 +1176,31 @@ def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelit
         {"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "ok"
+    assert result.status == "blocked"
+    assert any("Fidelity Requirements" in message for message in result.errors)
 
 
-def test_fixed_lifecycle_templates_lock_state_and_draft_contracts() -> None:
+def test_workflow_state_template_records_simplified_specify_review_contract() -> None:
     workflow_state_template = (Path(__file__).resolve().parents[2] / "templates" / "workflow-state-template.md").read_text(
         encoding="utf-8"
     )
-    specify_draft_template = (Path(__file__).resolve().parents[2] / "templates" / "specify-draft-template.md").read_text(
-        encoding="utf-8"
-    )
 
-    assert "## Fixed Lifecycle State" in workflow_state_template
+    assert "## Stage State" in workflow_state_template
+    assert "## Review State" in workflow_state_template
     assert "current_stage" in workflow_state_template
-    assert "current_domain" in workflow_state_template
+    assert "context-intake" in workflow_state_template
+    assert "artifact-review" in workflow_state_template
+    assert "user-review" in workflow_state_template
+    assert "last_user_reviewed_artifact_state" in workflow_state_template
+    assert "source_files_read" in workflow_state_template
+    assert "source_signal_disposition_status" in workflow_state_template
     assert "next_action" in workflow_state_template
     assert "blocker_reason" in workflow_state_template
     assert "final_handoff_decision" in workflow_state_template
+    assert "## Fixed Lifecycle State" not in workflow_state_template
     assert "active_profile" not in workflow_state_template
     assert "coverage_mode" not in workflow_state_template
     assert "observer_status" not in workflow_state_template
-
-    assert "## Intent Analysis Record" in specify_draft_template
-    assert "## Domain Progress Ledger" in specify_draft_template
-    assert "## Question Batch Ledger" in specify_draft_template
-    assert "## Adversarial Review Ledger" in specify_draft_template
-    assert "## Completeness Gap Register" in specify_draft_template
-    assert "## Final Audit Inputs" in specify_draft_template
-    assert "## Recovery Capsule" not in specify_draft_template
-    assert "## Observer Findings" not in specify_draft_template
 
 
 def test_validate_artifacts_accepts_fixed_lifecycle_state_and_draft_contract(tmp_path: Path) -> None:
@@ -1393,9 +1218,7 @@ def test_validate_artifacts_accepts_fixed_lifecycle_state_and_draft_contract(tmp
         "- RB-001 Preserve primary checkout workflow -> preserve\n",
         encoding="utf-8",
     )
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_fixed_lifecycle_specify_workflow_state(feature_dir)
-    _write_fixed_lifecycle_specify_draft(feature_dir)
+    _write_valid_legacy_specify_package(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -1410,9 +1233,7 @@ def test_validate_artifacts_blocks_specify_when_lossless_journal_is_missing(tmp_
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     (feature_dir / "brainstorming" / "journal.ndjson").unlink()
 
     result = run_quality_hook(
@@ -1429,9 +1250,7 @@ def test_validate_artifacts_warns_for_legacy_specify_package_without_lossless_fi
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     for relative in (
         "journal.ndjson",
         "stage-manifest.json",
@@ -1463,9 +1282,7 @@ def test_validate_artifacts_blocks_legacy_specify_package_when_non_lossless_arti
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     (feature_dir / "spec.md").unlink()
     for relative in (
         "journal.ndjson",
@@ -1498,9 +1315,7 @@ def test_validate_artifacts_blocks_legacy_specify_package_when_existing_artifact
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
     for relative in (
         "journal.ndjson",
@@ -1531,9 +1346,7 @@ def test_validate_artifacts_blocks_specify_when_checkpoint_pointer_is_not_in_jou
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["journal"]["last_checkpoint_id"] = "EVT-999999"
@@ -1555,9 +1368,7 @@ def test_validate_artifacts_blocks_specify_when_workflow_checkpoint_is_not_check
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     journal_path = feature_dir / "brainstorming" / "journal.ndjson"
     events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -1605,9 +1416,7 @@ def test_validate_artifacts_blocks_specify_when_lossless_resume_state_field_is_m
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     workflow_state_path = feature_dir / "workflow-state.md"
     workflow_state_path.write_text(
@@ -1629,9 +1438,7 @@ def test_validate_artifacts_blocks_specify_when_journal_event_type_is_unknown(tm
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     journal_path = feature_dir / "brainstorming" / "journal.ndjson"
     event = json.loads(journal_path.read_text(encoding="utf-8").strip())
@@ -1652,9 +1459,7 @@ def test_validate_artifacts_blocks_specify_when_journal_schema_version_is_boolea
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     journal_path = feature_dir / "brainstorming" / "journal.ndjson"
     event = json.loads(journal_path.read_text(encoding="utf-8").strip())
@@ -1675,9 +1480,7 @@ def test_validate_artifacts_blocks_specify_when_checkpoint_payload_is_incomplete
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     journal_path = feature_dir / "brainstorming" / "journal.ndjson"
     event = json.loads(journal_path.read_text(encoding="utf-8").strip())
@@ -1702,9 +1505,7 @@ def test_validate_artifacts_blocks_specify_when_stage_artifact_event_references_
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     journal_path = feature_dir / "brainstorming" / "journal.ndjson"
     events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -1745,9 +1546,7 @@ def test_validate_artifacts_accepts_decision_events_with_evidence_ids_without_ba
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     journal_path = feature_dir / "brainstorming" / "journal.ndjson"
     events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -1809,9 +1608,7 @@ def test_validate_artifacts_blocks_specify_when_compiled_from_references_unknown
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     facts_path = feature_dir / "brainstorming" / "facts.json"
     facts = json.loads(facts_path.read_text(encoding="utf-8"))
@@ -1836,9 +1633,7 @@ def test_validate_artifacts_blocks_specify_when_manifest_stage_references_unknow
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1866,9 +1661,7 @@ def test_validate_artifacts_blocks_specify_when_manifest_stage_source_map_keys_a
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
 
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1896,9 +1689,7 @@ def test_validate_artifacts_blocks_specify_when_stage_enum_drifts(tmp_path: Path
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["stages"]["question-batch"] = manifest["stages"].pop("facts-lock")
@@ -1918,9 +1709,7 @@ def test_validate_artifacts_blocks_specify_when_manifest_stage_keys_are_incomple
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["stages"].pop("release-decision")
@@ -1940,9 +1729,7 @@ def test_validate_artifacts_blocks_specify_when_manifest_stage_artifact_path_dri
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["stages"]["facts-lock"]["artifact"] = "brainstorming/route.json"
@@ -1968,9 +1755,7 @@ def test_validate_artifacts_blocks_specify_when_canonical_stage_enum_is_missing(
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.pop("canonical_stage_enum")
@@ -1990,9 +1775,7 @@ def test_validate_artifacts_blocks_specify_when_canonical_stage_enum_is_not_a_li
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     manifest_path = feature_dir / "brainstorming" / "stage-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["canonical_stage_enum"] = "facts-lock"
@@ -2012,9 +1795,7 @@ def test_validate_artifacts_blocks_specify_when_stage_artifact_uses_wrong_stage(
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     facts_path = feature_dir / "brainstorming" / "facts.json"
     facts = json.loads(facts_path.read_text(encoding="utf-8"))
     facts["stage"] = "route-lock"
@@ -2040,9 +1821,7 @@ def test_validate_artifacts_blocks_specify_when_handoff_artifact_uses_compile_st
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     handoff_path = feature_dir / "brainstorming" / "handoff-to-specify.json"
     handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
     handoff["stage"] = "specify-compile"
@@ -2068,9 +1847,7 @@ def test_validate_artifacts_blocks_specify_when_closed_stage_lacks_compiled_from
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
-    _write_valid_specify_semantic_artifacts(feature_dir)
-    _write_valid_specify_workflow_state(feature_dir)
-    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_legacy_specify_package(feature_dir)
     facts_path = feature_dir / "brainstorming" / "facts.json"
     facts = json.loads(facts_path.read_text(encoding="utf-8"))
     facts.pop("compiled_from")

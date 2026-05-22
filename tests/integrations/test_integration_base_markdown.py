@@ -367,7 +367,7 @@ class MarkdownIntegrationTests:
         assert discussion_path.exists()
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
-    def test_specify_command_rejects_bad_discussion_handoffs(self, tmp_path):
+    def test_specify_command_reads_discussion_sources_for_signal_disposition(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
@@ -375,13 +375,13 @@ class MarkdownIntegrationTests:
         content = (i.commands_dest(tmp_path) / i.command_filename("specify")).read_text(encoding="utf-8")
         lowered = content.lower()
 
-        assert "missing json is a hard handoff integrity blocker" in lowered
-        assert "quality_gate.status" in content
-        assert "current_project_roles" in content
-        assert "target_project_roles" in content
-        assert "target_project_root" in content
-        assert "current project's cognition is not proof of target-project implementation facts" in lowered
-        assert "do not reconstruct" in lowered
+        assert "discussion-log.md" in content
+        assert "requirements.md" in content
+        assert "open-questions.md" in content
+        assert "source_signal_disposition" in content
+        assert "source_files_read" in content
+        assert "not only the handoff summary" in lowered
+        assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
 
     def test_generated_primary_workflows_include_consequence_gate(self, tmp_path):

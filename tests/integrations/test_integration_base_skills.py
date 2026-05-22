@@ -109,19 +109,25 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "sp-test-build" not in lower
 
 
-def test_generated_specify_skill_teaches_brainstorming_kernel_contract(tmp_path):
+def test_generated_specify_skill_teaches_simplified_specify_contract(tmp_path):
     target = tmp_path / "codex-skill"
     integration = CodexIntegration()
     manifest = IntegrationManifest("codex", target)
     integration.setup(target, manifest)
     skill = target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
     content = skill.read_text(encoding="utf-8").lower()
-    assert "brainstorming kernel" in content
-    assert "facts-lock" in content
-    assert "route-lock" in content
-    assert "intent-lock" in content
-    assert "complexity-lock" in content
-    assert "## fixed heavy discovery lifecycle" not in content
+    assert "explore project context" in content
+    assert "one high-impact question at a time" in content
+    assert "two or three approaches" in content or "2-3 approaches" in content
+    assert "semantic term" in content
+    assert "source_signal_disposition" in content
+    assert "discussion-log.md" in content
+    assert "requirements.md" in content
+    assert "open-questions.md" in content
+    assert "facts-lock" not in content
+    assert "route-lock" not in content
+    assert "intent-lock" not in content
+    assert "complexity-lock" not in content
 
 
 def _assert_discussion_contract(skill_content: str) -> None:
@@ -438,15 +444,14 @@ class SkillsIntegrationTests:
         assert "Must-Preserve Ledger" in content
         assert "coverage_status" in content
         assert "planning_gate_status" in content
-        assert "blocked_by_handoff_integrity" in content
         assert "entry_source: sp-discussion" in content
-        assert "missing json is a hard handoff integrity blocker" in lowered
-        assert "quality_gate.status" in content
-        assert "current_project_roles" in content
-        assert "target_project_roles" in content
-        assert "target_project_root" in content
-        assert "current project's cognition is not proof of target-project implementation facts" in lowered
-        assert "do not reconstruct" in lowered
+        assert "discussion-log.md" in content
+        assert "requirements.md" in content
+        assert "open-questions.md" in content
+        assert "source_signal_disposition" in content
+        assert "source_files_read" in content
+        assert "not only the handoff summary" in lowered
+        assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
         assert "do not silently" in lowered
 
@@ -681,17 +686,24 @@ class SkillsIntegrationTests:
             )
             assert "active question exactly once" in content
 
-    def test_generated_specify_skill_teaches_brainstorming_kernel_contract(self, tmp_path):
+    def test_generated_specify_skill_teaches_simplified_specify_contract(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
         content = (i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "brainstorming kernel" in content
-        assert "facts-lock" in content
-        assert "route-lock" in content
-        assert "intent-lock" in content
-        assert "complexity-lock" in content
+        assert "explore project context" in content
+        assert "one high-impact question at a time" in content
+        assert "two or three approaches" in content or "2-3 approaches" in content
+        assert "semantic term" in content
+        assert "source_signal_disposition" in content
+        assert "discussion-log.md" in content
+        assert "requirements.md" in content
+        assert "open-questions.md" in content
+        assert "facts-lock" not in content
+        assert "route-lock" not in content
+        assert "intent-lock" not in content
+        assert "complexity-lock" not in content
 
     def test_all_files_tracked_in_manifest(self, tmp_path):
         i = get_integration(self.KEY)
