@@ -10,12 +10,12 @@
 The repository has three mapped runtime modules:
 
 - `specify-cli-core`: Python CLI, integration registry, project cognition freshness and compatibility-export helpers, learning/testing/eval helpers, execution packet/result contracts, hooks, orchestration policy, and Codex team Python control plane.
-- `templates-generated-surfaces`: workflow command templates, command partials, passive skills, project-map/testing templates, scripts, and worker prompts that are copied or transformed into downstream projects.
+- `templates-generated-surfaces`: workflow command templates, command partials, passive skills, project-map compatibility/export templates, scripts, and worker prompts that are copied or transformed into downstream projects.
 - `agent-teams-engine`: bundled optional Node/TypeScript plus Rust runtime assets for Codex team coordination.
 
 ## System Boundaries
 
-This repository owns the `specify` CLI, bundled templates/scripts, supported-agent integration adapters, project-map/testing workflow contracts, extension/preset managers, and optional Codex team runtime packaging. It coordinates with external agent CLIs, Git, uv/pip packaging, Node/npm, Cargo/Rust, optional MCP dependencies, tmux/psmux, and GitHub Actions. It does not own upstream agent CLI behavior, external MCP server implementations, terminal multiplexers, or the user's global `specify` installation.
+This repository owns the `specify` CLI, bundled templates/scripts, supported-agent integration adapters, project-map compatibility/export templates, extension/preset managers, and optional Codex team runtime packaging. It coordinates with external agent CLIs, Git, uv/pip packaging, Node/npm, Cargo/Rust, optional MCP dependencies, tmux/psmux, and GitHub Actions. It does not own upstream agent CLI behavior, external MCP server implementations, terminal multiplexers, or the user's global `specify` installation.
 
 ## High-Value Capabilities
 
@@ -31,7 +31,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Enriched task contract generation**: `sp-tasks` produces the minimum executable task contract in light mode and enriched subagent-ready task contracts in standard/heavy mode when downstream delegated implementation needs packets.
 - **Tasks/implement default contract**: `sp-tasks` must run an implementation-readiness self-audit before handoff. Clean completion writes `next_command: /sp.implement`, `gate_status: cleared`, and `highest_invalid_stage: none`; `sp-analyze` remains an optional diagnostic and legacy revalidation route only when explicitly invoked or recorded in existing state. If `analyze` is run, it should finish a complete blocker bundle before choosing the next command. repeated `tasks -> analyze -> tasks` loops are abnormal; only use `analyze` again when explicitly required by legacy or diagnostic state. Missing upstream truth routes directly to `plan`, `clarify`, or `deep-research`.
 - **Spec quality gate (`spec-lint`)**: `tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets against 8 tiered quality checks before `sp-plan`. Install scripts, CI cross-compilation, and the quality gate spec live alongside the tool. Read `templates/spec-quality-gate.md`.
-- **Brownfield cognition lifecycle**: Generated projects use `.specify/project-cognition/status.json` plus agent-planned `project-cognition query` task-local bundles as an advisory project cognition index, while `.specify/project-cognition/project-cognition.db` is the canonical graph store for map queries. Workflows first call `project-cognition lexicon`, have the agent translate raw user intent into a `query_plan` using returned map terms, then call `project-cognition query --query-plan` when the map is available. New generated workflows treat these as advisory navigation inputs. Map points, code proves: technical claims must be backed by live project evidence. If the map is stale, weak for localized coverage, blocked, or likely incomplete, ordinary workflows continue with live repository evidence and apply the map-update-first routing policy. Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`. Map-specific workflows and validation commands still validate their own artifacts; recorded refresh and ready refresh are different outcomes, and `partial_refresh` means refresh data was recorded but readiness still failed. A first brownfield cognition baseline is map-maintenance complete only after `project-cognition validate-scan --format json` and `project-cognition validate-build --format json` pass. After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`. Project cognition ignore rules live in root `.cognitionignore` or `.specify/project-cognition/.cognitionignore`; they are gitignore-compatible, apply to `map-scan`, `map-build`, and `map-update`, and excluded paths must not enter project cognition graph evidence, route indexes, or `minimal_live_reads`.
+- **Brownfield cognition lifecycle**: Generated projects use `.specify/project-cognition/status.json` plus agent-planned `project-cognition query` task-local bundles as an advisory project cognition index, while `.specify/project-cognition/project-cognition.db` is the canonical graph store for map queries. Workflows first call `project-cognition lexicon`, have the agent translate raw user intent into a `query_plan` using returned map terms, then call `project-cognition query --query-plan` when the map is available. New generated workflows treat these as advisory navigation inputs. Map points, code proves: technical claims must be backed by live project evidence. If the map is stale, weak for localized coverage, blocked, or likely incomplete, ordinary workflows continue with live repository evidence and apply the map-update-first routing policy. Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`. Map-specific workflows and validation commands still validate their own artifacts; recorded refresh and ready refresh are different outcomes, and `partial_refresh` means refresh data was recorded but readiness still failed. A first brownfield cognition baseline is map-maintenance complete only after `project-cognition validate-scan --format json` and `project-cognition validate-build --format json` pass. After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`. Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH for direct project-cognition helpers; helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise call `project-cognition` from PATH. Project cognition ignore rules live in root `.cognitionignore` or `.specify/project-cognition/.cognitionignore`; they are gitignore-compatible, apply to `map-scan`, `map-build`, and `map-update`, and excluded paths must not enter project cognition graph evidence, route indexes, or `minimal_live_reads`.
 - **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, adaptive and mandatory dispatch selection, and state surfaces.
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets.
 - **Testing and verification**: Python pytest layers, integration/template contract tests, Codex-team tests, and engine build checks protect generated behavior.
@@ -45,10 +45,10 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - For generated projects, read `.specify/project-cognition/status.json` plus the agent-planned task-local project cognition query bundle before broad brownfield work.
 - Treat project cognition as an advisory navigation index. Code, tests, scripts, configuration, and authoritative docs are the evidence sources.
 - Use `.cognitionignore` or `.specify/project-cognition/.cognitionignore` to exclude vendored, generated, archived, or nested-reference projects from project cognition. The rules are gitignore-compatible and affect `map-scan`, `map-build`, and `map-update`; excluded paths must not enter project cognition graph evidence.
-- When referencing another local directory, run `cognition discover --root <path> --format json` after checking for `.specify/`. Use that directory's cognition only when `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` exist, `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is true; otherwise fall back to minimal live reads. Do not treat legacy `.specify/project-map/**` outputs as current truth.
-- Supporting project-map outputs are support-only or reference-only.
+- When referencing another local directory, run `project-cognition discover --root <path> --format json` after checking for `.specify/`. Use that directory's cognition only when `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` exist, `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is true; otherwise fall back to minimal live reads. Do not treat legacy `.specify/project-map/**` outputs as current truth.
+- Supporting project-map outputs are support-only or reference-only compatibility/export surfaces.
 - The refresh workbench still contains `map-scan` / `map-build` scan packets and refresh workbench artifacts for rebuilding the handbooks.
-- `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
+- Legacy project-map artifacts may still exist in old projects, but there is no Python runtime alias and new workflows should not call or require `.specify/project-map/**`.
 - Fall back to live code reads only when cognition coverage is missing, stale, too broad, or marked low confidence.
 - If changed paths are missing from project cognition `path_index`, let `sp-map-update` classify the gap first. Normal code changes should use `sp-map-update` for bounded incremental refresh from changed paths. Uncertain closure is recorded by `map-update` as partial/low-confidence facts when needed. Adoptable paths get provisional coverage, uncertain paths return `minimal_live_reads`, and ordinary existing-baseline gaps remain `sp-map-update` work.
 - `sp-debug` should use the project cognition query bundle as its default intake. Its deeper Stage 1A/1B observer-contract flow remains available when map coverage is missing, ambiguous, stale, or contradicted by evidence.
@@ -98,13 +98,14 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - `src/specify_cli/execution/`, `src/specify_cli/hooks/`, `src/specify_cli/orchestration/`: packet/result schemas, workflow hooks, adaptive plan/tasks dispatch plus mandatory-subagent dispatch/state/review helpers.
 - `src/specify_cli/codex_team/` and `extensions/agent-teams/engine/`: optional Codex team runtime and bundled engine.
 - `tools/spec-lint/`: spec quality gate binary, install scripts, CI cross-compilation workflow.
+- `tools/project-cognition/`: standalone Go project cognition runtime binary, install scripts, and acceptance-gate validators.
 
 ## Risky Coordination Points
 
 - Editing `src/specify_cli/__init__.py` can change CLI help, routing, init behavior, hook surfaces, and tests across many areas.
 - Editing `templates/commands/`, `templates/command-partials/`, or `templates/passive-skills/` changes generated downstream behavior for multiple agents.
 - Editing `src/specify_cli/integrations/base.py` affects most generated integrations.
-- Editing `src/specify_cli/project_map_status.py` or freshness scripts affects brownfield workflow gating.
+- Editing `tools/project-cognition/`, `src/specify_cli/project_cognition_tool.py`, or freshness scripts affects brownfield workflow gating.
 - Editing Codex team installer/runtime files can affect `.codex/config.toml`, `.specify/teams/*`, worker state, MCP behavior, and engine packaging.
 
 ## Change-Propagation Hotspots
@@ -116,7 +117,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - Adaptive and mandatory dispatch vocabulary propagates into orchestration tests, generated workflow tests, integration tests, README/quickstart guidance, context scripts, and project-map docs.
 - Workflow-handbook guidance now propagates from `templates/project-handbook-template.md`, workflow command templates, packet context helpers, and handbook-validation rules into initialized projects, map refresh helpers, and tests.
 - Packet/result schema changes propagate into execution helpers, hooks, Codex team runtime, generated workflow prompts, and contract tests.
-- Project cognition freshness changes propagate into Python helpers, Bash/PowerShell scripts, hook commands, and brownfield gates.
+- Project cognition freshness changes propagate into the Go runtime, Python external-tool bridge, Bash/PowerShell scripts, hook commands, and brownfield gates.
 - Engine packaging changes propagate through `pyproject.toml` force-includes, `extensions/agent-teams/engine/`, Codex team installer/runtime tests, and release artifacts.
 
 ## Change Impact Guide
@@ -130,12 +131,13 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 
 ## Verification Entry Points
 
-- Focused map regression: `pytest tests/test_map_scan_build_template_guidance.py tests/test_project_map_layered_contract.py tests/test_project_map_status.py -q`
+- Focused project cognition regression: `cd tools/project-cognition && go test ./... && cd ../.. && pytest tests/test_project_map_freshness_scripts.py tests/contract/test_hook_cli_surface.py -q`
 - Full Python regression: `uv run --extra test pytest -q -n auto`
 - Integration surface: `pytest tests/integrations -q`
 - Hooks/execution/orchestration: `pytest tests/hooks tests/execution tests/orchestration -q`
 - Codex team runtime: `pytest tests/codex_team tests/contract/test_codex_team_cli_surface.py tests/test_teams_mcp_server.py -q`
 - spec-lint: `cd tools/spec-lint && go vet ./... && go build -o /dev/null .`
+- project-cognition: `cd tools/project-cognition && go vet ./... && go build -o /dev/null .`
 - Packaging sanity: `uv build`
 - Bundled engine sanity: `npm --prefix extensions/agent-teams/engine run build`
 
@@ -184,7 +186,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 
 ## Update Triggers
 
-- CLI command registration, generated workflow names, integration directories, packet/result schemas, hook events, testing workflow state, project-map freshness rules, extension/preset schemas, packaging force-includes, or Codex team runtime installation assumptions change.
+- CLI command registration, generated workflow names, integration directories, packet/result schemas, hook events, testing workflow state, project-map compatibility/export rules, extension/preset schemas, packaging force-includes, or Codex team runtime installation assumptions change.
 
 ## Recent Structural Changes
 

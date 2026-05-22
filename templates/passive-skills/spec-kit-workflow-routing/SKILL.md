@@ -105,7 +105,7 @@ standalone branch-creation command.
 - For brownfield debug or extension work, the selected workflow must consume the
   project cognition runtime and capability truth layer when a capability or
   symptom route exists; do not jump straight to broad repository search.
-- Use the launcher-backed project cognition query planning flow required by the
+- Use the direct `project-cognition` query planning flow required by the
   selected workflow contract to retrieve the task-local project cognition
   bundle. The agent must translate the raw user request into a `query_plan`
   using returned map terms before running `project-cognition query --query-plan`.

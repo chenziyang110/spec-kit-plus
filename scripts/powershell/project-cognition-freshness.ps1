@@ -17,47 +17,28 @@ if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
     $RepoRoot = Get-RepoRoot
 }
 
-$ConfigPath = Join-Path $RepoRoot ".specify/config.json"
-
-function Get-SpecifyLauncherArgv {
-    if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
-        return @()
+function Get-ProjectCognitionBin {
+    if (-not [string]::IsNullOrWhiteSpace($env:PROJECT_COGNITION_BIN)) {
+        return $env:PROJECT_COGNITION_BIN
     }
 
-    try {
-        $payload = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-    } catch {
-        return @()
+    $projectCognition = Get-Command project-cognition -ErrorAction SilentlyContinue
+    if ($projectCognition) {
+        return $projectCognition.Source
     }
 
-    if (-not $payload.specify_launcher -or -not $payload.specify_launcher.argv) {
-        return @()
-    }
-
-    $argv = @($payload.specify_launcher.argv | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    return $argv
+    Write-Error "Cannot run project-cognition: set PROJECT_COGNITION_BIN or install project-cognition on PATH."
+    exit 127
 }
 
 function Invoke-ProjectCognition {
     param([string[]]$ProjectCognitionArgs)
 
-    $launcher = @(Get-SpecifyLauncherArgv)
-    if ($launcher.Count -eq 0) {
-        $pathSpecify = Get-Command specify -ErrorAction SilentlyContinue
-        if (-not $pathSpecify) {
-            Write-Error "Cannot run project-cognition: no specify launcher is configured in .specify/config.json and PATH specify is unavailable."
-            exit 127
-        }
-        $launcher = @("specify")
-    }
+    $projectCognition = Get-ProjectCognitionBin
 
     Push-Location -LiteralPath $RepoRoot
     try {
-        $launcherArgs = @()
-        if ($launcher.Count -gt 1) {
-            $launcherArgs = @($launcher[1..($launcher.Count - 1)])
-        }
-        & $launcher[0] @launcherArgs project-cognition @ProjectCognitionArgs
+        & $projectCognition @ProjectCognitionArgs
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }

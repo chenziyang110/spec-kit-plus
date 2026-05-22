@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from specify_cli.cognition import validate_build_acceptance, validate_scan_acceptance
+from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 
 from .checkpoint_serializers import extract_field, normalize_command_name
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
@@ -1807,7 +1807,10 @@ def _validate_cognition_status_artifact(feature_dir: Path) -> list[str]:
 
 
 def _validate_cognition_database_artifact(feature_dir: Path) -> list[str]:
-    validation = validate_build_acceptance(_project_root_from_cognition_dir(feature_dir))
+    validation = _run_project_cognition_validation(
+        _project_root_from_cognition_dir(feature_dir),
+        "validate-build",
+    )
     return [str(message) for message in validation.get("errors", [])]
 
 
@@ -1827,8 +1830,22 @@ def _normalize_result_path(value: object) -> str:
 
 
 def _validate_map_scan_artifacts(feature_dir: Path) -> list[str]:
-    validation = validate_scan_acceptance(_project_root_from_cognition_dir(feature_dir))
+    validation = _run_project_cognition_validation(
+        _project_root_from_cognition_dir(feature_dir),
+        "validate-scan",
+    )
     return [str(message) for message in validation.get("errors", [])]
+
+
+def _run_project_cognition_validation(project_root: Path, command: str) -> dict[str, object]:
+    try:
+        return run_project_cognition([command, "--format", "json"], cwd=project_root)
+    except ProjectCognitionToolError as exc:
+        return {
+            "status": "blocked",
+            "errors": [str(exc)],
+            "warnings": [],
+        }
 
 
 def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:

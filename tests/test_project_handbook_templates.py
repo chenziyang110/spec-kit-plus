@@ -31,9 +31,9 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
     assert "project cognition query bundle" in content
     assert "`DEBUG-HANDBOOK.md`" in content
     assert "`BUILD-HANDBOOK.md`" in content
-    assert "`specify project-map ...`" in content
-    assert "legacy CLI alias" in content
-    assert "new workflows should not read or require `.specify/project-map/**`" in content
+    assert "Legacy project-map artifacts" in content
+    assert "there is no Python runtime alias" in content
+    assert "new workflows should not call or require `.specify/project-map/**`" in content
 
 
 def test_project_map_templates_share_metadata_contract():
@@ -143,7 +143,7 @@ def test_project_handbook_template_points_readers_to_project_cognition_first():
     assert "task-local project cognition query bundle" in content
     assert "Advisory project cognition index" in content
     assert "Map points, code proves" in content
-    assert "new workflows should not read or require `.specify/project-map/**`" in content
+    assert "new workflows should not call or require `.specify/project-map/**`" in content
     assert "Use `Where To Read Next` for task-oriented routing." in content
 
 
@@ -159,9 +159,9 @@ def test_project_handbook_template_defines_cross_project_cognition_reference_con
     assert "`.specify/project-cognition/status.json`" in content
     assert "`.specify/project-cognition/project-cognition.db`" in content
     assert "project cognition query bundle" in content
-    assert "`specify project-map ...`" in content
-    assert "legacy cli alias" in lowered
-    assert "new workflows should not read or require `.specify/project-map/**`" in lowered
+    assert "legacy project-map artifacts" in lowered
+    assert "there is no python runtime alias" in lowered
+    assert "new workflows should not call or require `.specify/project-map/**`" in lowered
     assert "project-map as primary truth" not in lowered
     assert "project-map primary truth" not in lowered
 

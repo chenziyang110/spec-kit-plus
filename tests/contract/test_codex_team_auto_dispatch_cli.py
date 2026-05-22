@@ -8,8 +8,12 @@ from specify_cli import app
 from specify_cli.codex_team.state_paths import batch_record_path, dispatch_record_path, result_record_path, task_record_path
 from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
-from specify_cli.project_map_status import ProjectMapStatus, write_project_map_status
 from tests.conftest import strip_ansi
+from tests.project_cognition_fake import (
+    project_cognition_bin_value,
+    write_fake_project_cognition_script,
+    write_project_cognition_status,
+)
 
 CONTEXT_BUNDLE_PATHS = [
     ".specify/project-cognition/status.json",
@@ -24,16 +28,14 @@ def _create_codex_project(tmp_path: Path) -> Path:
     spec_root.mkdir()
     (spec_root / "integration.json").write_text(json.dumps({"integration": "codex"}), encoding="utf-8")
     (spec_root / "teams").mkdir(parents=True, exist_ok=True)
-    write_project_map_status(
+    write_project_cognition_status(
         project,
-        ProjectMapStatus(
-            version=2,
-            last_mapped_at="2026-04-21T00:00:00Z",
-            freshness="missing",
-            last_refresh_reason="seeded-test",
-            dirty=False,
-            dirty_reasons=[],
-        ),
+        version=3,
+        freshness="missing",
+        state="missing_baseline",
+        last_refresh_reason="seeded-test",
+        dirty=False,
+        dirty_reasons=[],
     )
     (spec_root / "memory").mkdir(parents=True, exist_ok=True)
     (spec_root / "memory" / "constitution.md").write_text(
@@ -96,9 +98,11 @@ def _fake_tmux_env(tmp_path: Path) -> dict[str, str]:
     bin_dir.mkdir()
     script_name = "tmux.exe" if os.name == "nt" else "tmux"
     (bin_dir / script_name).write_text("", encoding="utf-8")
+    project_cognition_script = write_fake_project_cognition_script(tmp_path)
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     env["SPECIFY_CODEX_TEAM_EXECUTOR"] = "legacy-heartbeat-runtime"
+    env["PROJECT_COGNITION_BIN"] = project_cognition_bin_value(project_cognition_script)
     return env
 
 

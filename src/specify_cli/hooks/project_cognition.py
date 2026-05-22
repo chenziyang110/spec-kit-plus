@@ -1,24 +1,11 @@
-"""Project cognition gate hooks with project-map compatibility surfaces."""
+"""Project cognition gate hooks backed by the external project-cognition binary."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from specify_cli.cognition import validate_build_acceptance
 from specify_cli.execution import worker_task_packet_from_json
-from specify_cli.project_cognition_status import (
-    HUMAN_GUIDANCE_REASONS,
-    SCAN_BUILD_ALLOWED_REASON_TOKENS,
-    complete_project_map_refresh,
-    git_branch_name,
-    git_head_commit,
-    has_git_repo,
-    inspect_project_cognition_freshness,
-    mark_project_map_dirty,
-    mark_project_map_refreshed,
-    project_cognition_status_metadata_path,
-    write_project_map_status,
-)
+from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 
 from .events import (
     PROJECT_COGNITION_COMPLETE_REFRESH,
@@ -27,6 +14,16 @@ from .events import (
 from .types import HookResult, QualityHookError
 
 
+SCAN_BUILD_ALLOWED_REASON_TOKENS = frozenset(
+    {
+        "missing_baseline",
+        "active_generation_has_no_path_index_rows",
+        "path_not_safely_adoptable_by_project_cognition_index",
+        "explicit_rebuild_requested",
+        "baseline_identity_invalid",
+        "unsupported_runtime",
+    }
+)
 STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks", "debug"}
 STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale; refresh through /sp-map-update, "
@@ -68,12 +65,21 @@ HUMAN_FALLBACK_GUIDANCE = {
     SUPPORT_DRIFT_FALLBACK_GUIDANCE,
     PARTIAL_REFRESH_FALLBACK_GUIDANCE,
     MISSING_BASELINE_FALLBACK_GUIDANCE,
-} | HUMAN_GUIDANCE_REASONS
+}
 
 
 def project_cognition_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
     normalized = command_name.strip().lower()
-    freshness = inspect_project_cognition_freshness(project_root)
+    try:
+        freshness = run_project_cognition(["check", "--format", "json"], cwd=project_root)
+    except ProjectCognitionToolError as exc:
+        freshness = {
+            "state": "missing_baseline",
+            "freshness": "missing_baseline",
+            "readiness": "blocked",
+            "recommended_next_action": "install_project_cognition",
+            "reasons": [str(exc)],
+        }
     raw_freshness = str(freshness.get("freshness", "")).strip().lower()
     state = str(freshness.get("state", freshness.get("freshness", ""))).strip().lower()
     readiness = str(freshness.get("readiness", "")).strip().lower()
@@ -151,11 +157,6 @@ def project_cognition_freshness_result(project_root: Path, *, command_name: str)
         data={"freshness": freshness},
     )
 
-
-def project_map_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
-    return project_cognition_freshness_result(project_root, command_name=command_name)
-
-
 def _has_scan_build_allowed_reason(reasons: list[str]) -> bool:
     compact_reason_text = " ".join(str(reason or "") for reason in reasons).lower()
     compact_reason_text = compact_reason_text.replace("-", "_").replace(" ", "_")
@@ -177,66 +178,64 @@ def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResul
         if packet_path.exists():
             packet = worker_task_packet_from_json(packet_path.read_text(encoding="utf-8"))
             scope_paths = list(dict.fromkeys([*packet.scope.write_scope, *packet.scope.read_scope]))
-    status = mark_project_map_dirty(
-        project_root,
-        reason,
-        origin_command=str(payload.get("origin_command") or "").strip(),
-        origin_feature_dir=str(payload.get("origin_feature_dir") or "").strip(),
-        origin_lane_id=str(payload.get("origin_lane_id") or "").strip(),
-        scope_paths=scope_paths,
-    )
+    args = ["mark-dirty", "--reason", reason]
+    for option, key in (
+        ("--origin-command", "origin_command"),
+        ("--origin-feature-dir", "origin_feature_dir"),
+        ("--origin-lane-id", "origin_lane_id"),
+    ):
+        value = str(payload.get(key) or "").strip()
+        if value:
+            args.extend([option, value])
+    for scope_path in scope_paths or []:
+        args.extend(["--scope", scope_path])
+    args.extend(["--format", "json"])
+    status = _run_hook_binary(project_root, args)
     return HookResult(
         event=PROJECT_COGNITION_MARK_DIRTY,
         status="ok",
         severity="info",
-        writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
-        data={"project_cognition_status": status.to_dict()},
+        writes={"status_path": str(status.get("status_path", ""))},
+        data={"project_cognition_status": status},
     )
 
 
 def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> HookResult:
     """Finalize a successful full refresh against the current git baseline."""
 
-    if not has_git_repo(project_root) or not git_head_commit(project_root):
-        return HookResult(
-            event=PROJECT_COGNITION_COMPLETE_REFRESH,
-            status="blocked",
-            severity="critical",
-            errors=["git baseline unavailable for project-cognition complete-refresh"],
-        )
-    validation = validate_build_acceptance(project_root)
+    validation = _run_hook_binary(project_root, ["validate-build", "--format", "json"])
     if validation.get("status") != "ok":
-        status = mark_project_map_refreshed(
+        status = _run_hook_binary(
             project_root,
-            head_commit=git_head_commit(project_root),
-            branch=git_branch_name(project_root),
-            reason="acceptance-blocked",
-            refresh_topics=[],
-            refresh_scope="partial",
-            refresh_basis="build-acceptance",
-            changed_files_basis=[],
+            ["record-refresh", "--reason", "acceptance-blocked", "--format", "json"],
+            blocked_ok=True,
         )
-        status.freshness = "partial_refresh"
-        write_project_map_status(project_root, status)
         return HookResult(
             event=PROJECT_COGNITION_COMPLETE_REFRESH,
             status="blocked",
             severity="critical",
             errors=[str(message) for message in validation.get("errors", [])],
-            writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
+            writes={"status_path": str(status.get("status_path", ""))},
             data={
                 "validation": validation,
                 "freshness": "partial_refresh",
                 "readiness": "blocked",
                 "recommended_next_action": "run_map_scan_build",
-                "project_cognition_status": status.to_dict(),
+                "project_cognition_status": status,
             },
         )
-    status = complete_project_map_refresh(project_root)
+    status = _run_hook_binary(project_root, ["complete-refresh", "--format", "json"])
     return HookResult(
         event=PROJECT_COGNITION_COMPLETE_REFRESH,
         status="ok",
         severity="info",
-        writes={"status_path": str(project_cognition_status_metadata_path(project_root))},
-        data={"project_cognition_status": status.to_dict()},
+        writes={"status_path": str(status.get("status_path", ""))},
+        data={"project_cognition_status": status},
     )
+
+
+def _run_hook_binary(project_root: Path, args: list[str], *, blocked_ok: bool = False) -> dict[str, object]:
+    try:
+        return run_project_cognition(args, cwd=project_root, check=not blocked_ok)
+    except ProjectCognitionToolError as exc:
+        raise QualityHookError(str(exc)) from exc

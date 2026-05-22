@@ -17,8 +17,6 @@ from .events import (
     DELEGATION_PACKET_VALIDATE,
     PROJECT_COGNITION_COMPLETE_REFRESH,
     PROJECT_COGNITION_MARK_DIRTY,
-    PROJECT_MAP_COMPLETE_REFRESH,
-    PROJECT_MAP_MARK_DIRTY,
     WORKFLOW_ARTIFACTS_VALIDATE,
     WORKFLOW_CHECKPOINT,
     WORKFLOW_CONTEXT_MONITOR,
@@ -84,10 +82,7 @@ _HOOK_REGISTRY: dict[str, HookFn] = {
     DELEGATION_JOIN_VALIDATE: validate_join_hook,
     PROJECT_COGNITION_MARK_DIRTY: mark_dirty_hook,
     PROJECT_COGNITION_COMPLETE_REFRESH: complete_refresh_hook,
-    PROJECT_MAP_MARK_DIRTY: mark_dirty_hook,
-    PROJECT_MAP_COMPLETE_REFRESH: complete_refresh_hook,
 }
-# Project-map event names remain as compatibility aliases while project-cognition names become the preferred internal path.
 
 
 def run_quality_hook(

@@ -89,6 +89,25 @@ jobs:
           go install github.com/chenziyang110/spec-kit-plus/tools/spec-lint@${VERSION}
           \`\`\`
 
+          ### project-cognition runtime
+
+          Generated project cognition workflows require the standalone `project-cognition` binary.
+
+          **Install from the release assets**
+          \`\`\`bash
+          # Linux / macOS
+          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash
+          # Windows (PowerShell)
+          irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
+          \`\`\`
+
+          **Go users**
+          \`\`\`bash
+          go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@${VERSION}
+          \`\`\`
+
+          The generated helper scripts prefer `PROJECT_COGNITION_BIN` when it is set and otherwise call `project-cognition` from PATH.
+
           NOTES_EOF
 
           echo "## What's Changed" >> release_notes.md

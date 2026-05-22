@@ -1,21 +1,17 @@
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from specify_cli import app
-from specify_cli.cognition import (
-    CognitionStatus,
-    connect_cognition_db,
-    publish_cognition_runtime_metadata,
-    seed_active_generation,
-    write_cognition_status,
-)
 from specify_cli.hooks import artifact_validation as artifact_validation_mod
+from tests.project_cognition_fake import install_fake_project_cognition, write_project_cognition_status
 
 HOOK_SUBCOMMANDS = [
     "preflight",
@@ -49,6 +45,11 @@ def _create_project(tmp_path: Path) -> Path:
     project.mkdir()
     (project / ".specify").mkdir()
     return project
+
+
+@pytest.fixture(autouse=True)
+def _fake_project_cognition_tool(monkeypatch, tmp_path: Path) -> None:
+    install_fake_project_cognition(monkeypatch, tmp_path)
 
 
 def _invoke_in_project(project: Path, args: list[str]):
@@ -159,53 +160,37 @@ def _write_heavy_prd_build_exports(run_dir: Path) -> None:
 
 def _write_project_cognition_runtime(run_dir: Path) -> None:
     project_root = run_dir.parent.parent
-    generation_id = seed_active_generation(project_root, source_commit="abc123")
-    with connect_cognition_db(project_root) as conn:
+    generation_id = "GEN-0001"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(run_dir / "project-cognition.db") as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS generations(id TEXT PRIMARY KEY, state TEXT NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS evidence(id TEXT PRIMARY KEY, generation_id TEXT, source_path TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS path_index(id TEXT PRIMARY KEY, generation_id TEXT, path TEXT, node_id TEXT)")
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES('runtime_format', 'project-cognition-go')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES('runtime_schema', '1')")
+        conn.execute("INSERT OR REPLACE INTO generations(id, state) VALUES(?, 'active')", (generation_id,))
         conn.execute(
-            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
-            "VALUES ('E-login', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'hash-login', '2026-05-14T00:00:00Z', '{}')",
+            "INSERT OR REPLACE INTO evidence(id, generation_id, source_path) VALUES('E-login', ?, 'src/auth/login.ts')",
             (generation_id,),
         )
         conn.execute(
-            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
-            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-14T00:00:00Z', '2026-05-14T00:00:00Z')",
+            "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id) VALUES('P-login', ?, 'src/auth/login.ts', 'capability:auth.login')",
             (generation_id,),
-        )
-        conn.execute(
-            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
-            "VALUES ('P-login', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-login', '2026-05-14T00:00:00Z')",
-            (generation_id,),
-        )
-        conn.execute(
-            "INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) "
-            "VALUES ('A-login', ?, 'login', 'login', 'capability', 'capability:auth.login', 'en', 'evidence', 'strong', 'E-login')",
-            (generation_id,),
-        )
-        conn.execute(
-            "INSERT INTO claims(id, generation_id, subject_ref, predicate, object_ref, object_value, truth_layer, confidence, status, last_validated_at, attrs_json) "
-            "VALUES ('claim:login', ?, 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', '', 'implementation_reality', 'strong', 'active', '2026-05-14T00:00:00Z', '{}')",
-            (generation_id,),
-        )
-        conn.execute(
-            "INSERT INTO claim_fts(claim_id, subject_ref, predicate, object_text, content) "
-            "VALUES ('claim:login', 'capability:auth.login', 'implemented_by', 'src/auth/login.ts', 'login capability')"
         )
         conn.commit()
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-    write_cognition_status(
+    write_project_cognition_status(
         project_root,
-        CognitionStatus(
-            version=3,
-            baseline_state="ready",
-            graph_ready=True,
-            graph_store_path=".specify/project-cognition/project-cognition.db",
-            active_generation_id=generation_id,
-            query_contract_version=1,
-            update_contract_version=1,
-            freshness="fresh",
-        ),
+        status="ok",
+        freshness="fresh",
+        state="fresh",
+        readiness="query_ready",
+        recommended_next_action="use_project_cognition",
+        graph_ready=True,
+        active_generation_id=generation_id,
+        query_contract_version=1,
+        update_contract_version=1,
     )
-    publish_cognition_runtime_metadata(project_root)
 
 
 def _write_project_cognition_scan_artifacts(run_dir: Path) -> None:
@@ -401,7 +386,8 @@ def test_hook_validate_state_supports_fixed_specify_lifecycle_state_shape(tmp_pa
 def test_hook_cli_surface_locks_fixed_specify_template_contract() -> None:
     template = (Path(__file__).resolve().parents[2] / "templates" / "workflow-state-template.md").read_text(encoding="utf-8")
 
-    assert "## Fixed Lifecycle State" in template
+    assert "## Stage State" in template
+    assert "## Review State" in template
     assert "## Allowed Artifact Writes" in template
     assert "## Forbidden Actions" in template
     assert "## Authoritative Files" in template
@@ -1076,7 +1062,7 @@ def test_hook_validate_artifacts_blocks_specify_when_semantic_ready_state_is_mis
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("specify-draft.md" in message for message in payload["errors"])
+    assert any("brainstorming/handoff-to-specify.json" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
@@ -1405,20 +1391,17 @@ def test_hook_validate_artifacts_blocks_map_build_when_specify_paths_enter_graph
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
 
-    with connect_cognition_db(project) as conn:
-        generation_id = conn.execute("SELECT id FROM generations WHERE state = 'active'").fetchone()["id"]
+    with sqlite3.connect(run_dir / "project-cognition.db") as conn:
+        generation_id = conn.execute("SELECT id FROM generations WHERE state = 'active'").fetchone()[0]
         conn.execute(
-            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
-            "VALUES ('E-specify', ?, 'file', '.specify/memory/project-rules.md', 'abc123', '1-10', 'test', 'hash-specify', '2026-05-14T00:00:00Z', '{}')",
+            "INSERT OR REPLACE INTO evidence(id, generation_id, source_path) VALUES ('E-specify', ?, '.specify/memory/project-rules.md')",
             (generation_id,),
         )
         conn.execute(
-            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
-            "VALUES ('P-specify', ?, '.specify/memory/project-rules.md', 'capability:auth.login', 'documents', 'strong', 'E-specify', '2026-05-14T00:00:00Z')",
+            "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id) VALUES ('P-specify', ?, '.specify/memory/project-rules.md', 'capability:auth.login')",
             (generation_id,),
         )
         conn.commit()
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     result = _invoke_in_project(
         project,
@@ -3166,7 +3149,7 @@ def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(t
         encoding="utf-8",
     )
 
-    def support_drift(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+    def support_drift(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
         return {
             "freshness": "support_drift",
             "state": "support_drift",
@@ -3179,7 +3162,7 @@ def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(t
             "review_topics": [],
         }
 
-    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", support_drift)
+    monkeypatch.setattr("specify_cli.run_project_cognition", support_drift)
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0
@@ -3197,7 +3180,7 @@ def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_bu
         encoding="utf-8",
     )
 
-    def partial_refresh(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+    def partial_refresh(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
         return {
             "freshness": "partial_refresh",
             "state": "partial_refresh",
@@ -3210,7 +3193,7 @@ def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_bu
             "review_topics": ["ARCHITECTURE.md"],
         }
 
-    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", partial_refresh)
+    monkeypatch.setattr("specify_cli.run_project_cognition", partial_refresh)
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0
@@ -3228,7 +3211,7 @@ def test_project_map_preflight_path_index_gap_routes_to_map_update(tmp_path: Pat
         encoding="utf-8",
     )
 
-    def stale_path_index_gap(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+    def stale_path_index_gap(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
         return {
             "freshness": "stale",
             "state": "runtime_stale",
@@ -3241,7 +3224,7 @@ def test_project_map_preflight_path_index_gap_routes_to_map_update(tmp_path: Pat
             "review_topics": [],
         }
 
-    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", stale_path_index_gap)
+    monkeypatch.setattr("specify_cli.run_project_cognition", stale_path_index_gap)
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0
@@ -3262,7 +3245,7 @@ def test_project_map_preflight_scan_build_copy_names_all_rebuild_reasons(tmp_pat
         encoding="utf-8",
     )
 
-    def zero_path_index_rebuild(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+    def zero_path_index_rebuild(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
         return {
             "freshness": "stale",
             "state": "runtime_stale",
@@ -3275,7 +3258,7 @@ def test_project_map_preflight_scan_build_copy_names_all_rebuild_reasons(tmp_pat
             "review_topics": [],
         }
 
-    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", zero_path_index_rebuild)
+    monkeypatch.setattr("specify_cli.run_project_cognition", zero_path_index_rebuild)
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0

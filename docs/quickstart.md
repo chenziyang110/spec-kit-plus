@@ -34,7 +34,8 @@ When `specify init` comes from a trusted source-bound launcher such as the
 that launcher in `.specify/config.json` as `specify_launcher`. Runtime helper
 instructions inside generated workflows should follow the project launcher when
 it exists instead of blindly trusting whichever `specify` happens to be first on
-PATH.
+PATH. Direct `project-cognition` helpers are separate from the `specify`
+launcher and require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH.
 
 ### Invocation Syntax
 
@@ -255,7 +256,7 @@ Generated project navigation now follows the project cognition runtime:
 
 - Generated projects use `.specify/project-cognition/status.json` plus the task-local `project-cognition query` bundle as the advisory project cognition index.
 - Read the cognition status and the returned task-local bundle before broader repository analysis when available, then prove claims from live repository evidence.
-- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as advisory navigation inputs. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as advisory navigation inputs. Legacy project-map artifacts may still exist in old projects, but there is no Python runtime alias and new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition refresh recommendations, ordinary changed-path map maintenance, and ordinary existing-baseline gaps; recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is map-maintenance complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
 - Any code change that alters navigation meaning should report changed paths and recommend project cognition map maintenance as a follow-up.
@@ -359,11 +360,11 @@ Hook runtime and diagnostics:
   - `specify hook validate-packet --packet-file <path>`
   - `specify hook validate-result --packet-file <packet> --result-file <result>`
 - Use project cognition commands for freshness:
-  - Command shape: `specify project-cognition validate-scan --format json`
-  - Command shape: `specify project-cognition validate-build --format json`
-  - Command shape: `specify project-cognition complete-refresh`
-  - Command shape: `specify project-cognition mark-dirty --reason "<reason>"`
-  - Legacy alias: existing projects may still call `specify project-map ...`; it routes to the project cognition implementation and should not be used in new generated workflow guidance.
+  - Command shape: `project-cognition validate-scan --format json`
+  - Command shape: `project-cognition validate-build --format json`
+  - Command shape: `project-cognition complete-refresh`
+  - Command shape: `project-cognition mark-dirty --reason "<reason>"`
+  - Historical compatibility/export surface: existing projects may still carry legacy project-map artifacts, but there is no runtime alias and new generated workflow guidance should not call them.
 
 Claude Code project-local integration:
 

@@ -13,165 +13,27 @@ ORIGIN_FEATURE_DIR="${5:-}"
 ORIGIN_LANE_ID="${6:-}"
 DIRTY_SCOPE_PATHS_JSON="${7:-[]}"
 
-CONFIG_PATH="$REPO_ROOT/.specify/config.json"
-
 usage() {
     echo "Usage: $(basename "$0") [repo_root] {check|status|record-refresh|complete-refresh|mark-dirty|clear-dirty|refresh-topics} [reason] [origin_command] [origin_feature_dir] [origin_lane_id] [dirty_scope_paths_json]" >&2
 }
 
-python_cmd() {
-    if command -v python3 >/dev/null 2>&1; then
-        command -v python3
+project_cognition_bin() {
+    if [[ -n "${PROJECT_COGNITION_BIN:-}" ]]; then
+        printf '%s\n' "$PROJECT_COGNITION_BIN"
         return 0
     fi
-    if command -v python >/dev/null 2>&1; then
-        command -v python
+    if command -v project-cognition >/dev/null 2>&1; then
+        command -v project-cognition
         return 0
     fi
-    return 1
-}
-
-normalize_launcher_executable() {
-    local executable="$1"
-    if [[ "$executable" =~ ^[A-Za-z]:[\\/] ]]; then
-        if command -v wslpath >/dev/null 2>&1; then
-            wslpath -u "$executable"
-            return 0
-        fi
-        if command -v cygpath >/dev/null 2>&1; then
-            cygpath -u "$executable"
-            return 0
-        fi
-        local drive rest drive_lower
-        drive="${executable:0:1}"
-        rest="${executable:3}"
-        rest="${rest//\\//}"
-        drive_lower="$(printf '%s' "$drive" | tr '[:upper:]' '[:lower:]')"
-        if [[ -d "/mnt/$drive_lower" ]]; then
-            printf '/mnt/%s/%s\n' "$drive_lower" "$rest"
-        else
-            printf '%s\n' "${executable//\\//}"
-        fi
-        return 0
-    fi
-    printf '%s\n' "$executable"
-}
-
-normalize_path_for_shell() {
-    local path="$1"
-    if [[ "$path" =~ ^[A-Za-z]:[\\/] ]]; then
-        if command -v wslpath >/dev/null 2>&1; then
-            wslpath -u "$path"
-            return 0
-        fi
-        if command -v cygpath >/dev/null 2>&1; then
-            cygpath -u "$path"
-            return 0
-        fi
-        local drive rest drive_lower
-        drive="${path:0:1}"
-        rest="${path:3}"
-        rest="${rest//\\//}"
-        drive_lower="$(printf '%s' "$drive" | tr '[:upper:]' '[:lower:]')"
-        if [[ -d "/mnt/$drive_lower" ]]; then
-            printf '/mnt/%s/%s\n' "$drive_lower" "$rest"
-        else
-            printf '%s\n' "${path//\\//}"
-        fi
-        return 0
-    fi
-    printf '%s\n' "$path"
-}
-
-normalize_pythonpath_for_shell() {
-    [[ -n "${PYTHONPATH:-}" ]] || return 0
-    local IFS=';'
-    local -a raw_parts=($PYTHONPATH)
-    local -a normalized_parts=()
-    local part
-    for part in "${raw_parts[@]}"; do
-        [[ -n "$part" ]] || continue
-        normalized_parts+=("$(normalize_path_for_shell "$part")")
-    done
-    if [[ ${#normalized_parts[@]} -gt 0 ]]; then
-        local joined
-        joined="$(IFS=:; printf '%s' "${normalized_parts[*]}")"
-        export PYTHONPATH="$joined"
-    fi
-}
-
-launcher_argv_json() {
-    local py
-    py="$(python_cmd)" || return 1
-    if [[ -f "$CONFIG_PATH" ]]; then
-        CONFIG_PATH="$CONFIG_PATH" "$py" - <<'PY'
-import json
-import os
-import sys
-
-try:
-    with open(os.environ["CONFIG_PATH"], "r", encoding="utf-8-sig") as fh:
-        payload = json.load(fh)
-except Exception:
-    sys.exit(1)
-
-launcher = payload.get("specify_launcher")
-if not isinstance(launcher, dict):
-    sys.exit(1)
-argv = launcher.get("argv")
-if not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv):
-    sys.exit(1)
-print(json.dumps(argv))
-PY
-        return $?
-    fi
-    return 1
+    echo "Cannot run project-cognition: set PROJECT_COGNITION_BIN or install project-cognition on PATH." >&2
+    return 127
 }
 
 run_project_cognition() {
-    local -a launcher=()
-    local argv_json=""
-    local py=""
-
-    if argv_json="$(launcher_argv_json 2>/dev/null)"; then
-        if py="$(python_cmd)"; then
-            while IFS= read -r item; do
-                launcher+=("$item")
-            done < <(ARGV_JSON="$argv_json" "$py" - <<'PY'
-import json
-import os
-
-for item in json.loads(os.environ["ARGV_JSON"]):
-    print(item)
-PY
-)
-        fi
-    fi
-
-    if [[ ${#launcher[@]} -gt 0 ]]; then
-        launcher[0]="$(normalize_launcher_executable "${launcher[0]}")"
-        if [[ "${launcher[1]:-}" == "-m" && "${launcher[2]:-}" == "specify_cli" && ! -x "${launcher[0]}" ]]; then
-            if py="$(python_cmd)"; then
-                launcher[0]="$py"
-            fi
-        elif [[ "${launcher[1]:-}" == "-m" && "${launcher[2]:-}" == "specify_cli" && "${launcher[0]}" =~ ^/mnt/[A-Za-z]/ ]]; then
-            if py="$(python_cmd)"; then
-                launcher[0]="$py"
-            fi
-        fi
-    fi
-
-    if [[ ${#launcher[@]} -eq 0 ]]; then
-        if command -v specify >/dev/null 2>&1; then
-            launcher=(specify)
-        else
-            echo "Cannot run project-cognition: no specify launcher is configured in .specify/config.json and PATH specify is unavailable." >&2
-            return 127
-        fi
-    fi
-
-    normalize_pythonpath_for_shell
-    (cd "$REPO_ROOT" && "${launcher[@]}" project-cognition "$@")
+    local bin
+    bin="$(project_cognition_bin)" || return $?
+    (cd "$REPO_ROOT" && "$bin" "$@")
 }
 
 mark_dirty_args() {

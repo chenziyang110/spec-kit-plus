@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from specify_cli.project_map_status import ProjectMapStatus, write_project_map_status
-
 import pytest
+
+from tests.project_cognition_fake import install_fake_project_cognition, write_project_cognition_status
 
 
 @pytest.fixture(autouse=True)
@@ -30,21 +30,20 @@ def _fake_runtime_toolchain(monkeypatch, tmp_path: Path) -> None:
         lambda name: tool_paths.get(str(name).lower()),
     )
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+    install_fake_project_cognition(monkeypatch, tmp_path)
 
 
 @pytest.fixture
 def codex_team_project_root(tmp_path: Path) -> Path:
     project = tmp_path / "codex-team-project"
     project.mkdir()
-    write_project_map_status(
+    write_project_cognition_status(
         project,
-        ProjectMapStatus(
-            version=2,
-            last_mapped_at="2026-04-21T00:00:00Z",
-            freshness="missing",
-            last_refresh_reason="seeded-test",
-            dirty=False,
-            dirty_reasons=[],
-        ),
+        version=3,
+        freshness="missing",
+        state="missing_baseline",
+        last_refresh_reason="seeded-test",
+        dirty=False,
+        dirty_reasons=[],
     )
     return project

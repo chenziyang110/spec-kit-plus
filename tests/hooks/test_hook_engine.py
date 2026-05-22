@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,55 @@ def _create_project(tmp_path: Path) -> Path:
     project.mkdir()
     (project / ".specify").mkdir()
     return project
+
+
+def _write_fake_project_cognition_bin(tmp_path: Path) -> Path:
+    script = tmp_path / "project-cognition-fake.py"
+    script.write_text(
+        "\n".join(
+            [
+                "import json",
+                "import pathlib",
+                "import sys",
+                "args = sys.argv[1:]",
+                "cmd = args[0] if args else ''",
+                "root = pathlib.Path.cwd()",
+                "status_path = root / '.specify' / 'project-cognition' / 'status.json'",
+                "calls_path = root / '.specify' / 'project-cognition-calls.jsonl'",
+                "calls_path.parent.mkdir(parents=True, exist_ok=True)",
+                "with calls_path.open('a', encoding='utf-8') as handle:",
+                "    handle.write(json.dumps(args) + '\\n')",
+                "if cmd == 'mark-dirty':",
+                "    reason = args[args.index('--reason') + 1] if '--reason' in args else ''",
+                "    payload = {",
+                "        'dirty': True,",
+                "        'freshness': 'stale',",
+                "        'dirty_reasons': [reason.replace(' ', '_')],",
+                "        'dirty_origin_command': args[args.index('--origin-command') + 1] if '--origin-command' in args else '',",
+                "        'dirty_origin_feature_dir': args[args.index('--origin-feature-dir') + 1] if '--origin-feature-dir' in args else '',",
+                "        'dirty_origin_lane_id': args[args.index('--origin-lane-id') + 1] if '--origin-lane-id' in args else '',",
+                "        'status_path': str(status_path),",
+                "    }",
+                "    status_path.parent.mkdir(parents=True, exist_ok=True)",
+                "    status_path.write_text(json.dumps(payload) + '\\n', encoding='utf-8')",
+                "elif cmd == 'status':",
+                "    payload = json.loads(status_path.read_text(encoding='utf-8')) if status_path.exists() else {'freshness': 'missing_baseline', 'status_path': str(status_path)}",
+                "elif cmd == 'check':",
+                "    payload = {'state': 'fresh', 'freshness': 'fresh', 'readiness': 'ready', 'reasons': [], 'status_path': str(status_path)}",
+                "elif cmd == 'complete-refresh':",
+                "    payload = {'freshness': 'fresh', 'status_path': str(status_path)}",
+                "    status_path.parent.mkdir(parents=True, exist_ok=True)",
+                "    status_path.write_text(json.dumps(payload) + '\\n', encoding='utf-8')",
+                "elif cmd == 'validate-build':",
+                "    payload = {'status': 'ok', 'errors': []}",
+                "else:",
+                "    payload = {'command': cmd, 'args': args}",
+                "print(json.dumps(payload))",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return script
 
 
 def _write_workflow_state(
@@ -134,8 +184,10 @@ def test_workflow_state_validate_blocks_missing_workflow_state(tmp_path: Path):
     assert any("workflow-state.md" in message for message in result.errors)
 
 
-def test_project_map_mark_dirty_hook_updates_status_file(tmp_path: Path):
+def test_project_cognition_mark_dirty_hook_invokes_external_binary(tmp_path: Path, monkeypatch):
     project = _create_project(tmp_path)
+    fake_bin = _write_fake_project_cognition_bin(tmp_path)
+    monkeypatch.setenv("PROJECT_COGNITION_BIN", f"{os.sys.executable}{os.pathsep}{fake_bin}")
 
     result = run_quality_hook(
         project,
@@ -158,6 +210,15 @@ def test_project_map_mark_dirty_hook_updates_status_file(tmp_path: Path):
     assert payload["dirty_origin_command"] == "implement"
     assert payload["dirty_origin_feature_dir"] == "specs/001-demo"
     assert payload["dirty_origin_lane_id"] == "lane-001"
+    calls = (project / ".specify" / "project-cognition-calls.jsonl").read_text(encoding="utf-8")
+    assert '"mark-dirty"' in calls
+
+
+def test_project_map_hook_event_alias_is_removed(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    with pytest.raises(QualityHookError, match="Unknown hook event"):
+        run_quality_hook(project, "project_map.mark_dirty", {"reason": "shared surface changed"})
 
 
 def test_workflow_checkpoint_returns_resume_payload_for_workflow_state(tmp_path: Path):

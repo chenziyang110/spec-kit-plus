@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from specify_cli.project_cognition_status import inspect_project_cognition_freshness_for_command
+from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 
 from . import task_ops
 from .auto_dispatch import AutoDispatchError, complete_dispatched_batch, route_ready_parallel_batch
@@ -35,6 +35,22 @@ def _project_cognition_advisory(result: dict[str, Any]) -> dict[str, Any]:
         "recommended_next_action": result.get("recommended_next_action"),
         "reasons": list(result.get("reasons") or []),
     }
+
+
+def _inspect_project_cognition_for_command(project_root: Path, command_name: str) -> dict[str, Any]:
+    try:
+        payload = run_project_cognition(["check", "--format", "json"], cwd=project_root)
+    except ProjectCognitionToolError as exc:
+        return {
+            "freshness": "missing",
+            "state": "missing_baseline",
+            "readiness": "blocked",
+            "recommended_next_action": "install_project_cognition",
+            "reasons": [str(exc)],
+            "command_name": command_name,
+        }
+    payload.setdefault("command_name", command_name)
+    return payload
 
 
 def _require_spec_kit_plus_project(project_root: Path) -> None:
@@ -115,7 +131,7 @@ def run_team_api_operation(
     if operation == "auto-dispatch":
         if not feature_dir:
             raise TeamApiError("--feature-dir is required for auto-dispatch.")
-        freshness = inspect_project_cognition_freshness_for_command(
+        freshness = _inspect_project_cognition_for_command(
             project_root,
             command_name="team auto-dispatch",
         )

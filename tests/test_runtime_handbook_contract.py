@@ -75,7 +75,7 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
     assert "weak coverage" in content
     assert "when inspecting or comparing another local directory" in content
     assert "check whether that directory or its children contain `.specify/` first" in content
-    assert "cognition discover --root" in content
+    assert "project-cognition discover --root" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
     assert "reference_readiness" in content
@@ -160,7 +160,7 @@ def test_runtime_docs_explain_cross_project_reference_cognition_gate() -> None:
         content = _read(rel_path)
         lowered = " ".join(content.lower().split())
 
-        assert "cognition discover --root" in lowered
+        assert "project-cognition discover --root" in lowered
         assert ".specify/project-cognition/status.json" in content
         assert ".specify/project-cognition/project-cognition.db" in content
         assert "reference_readiness" in content

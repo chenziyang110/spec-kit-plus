@@ -1,0 +1,369 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
+	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
+)
+
+type stringList []string
+
+func (s *stringList) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringList) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
+func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		printHelp(stdout, version)
+		return 0
+	}
+	if args[0] == "--version" || args[0] == "version" {
+		fmt.Fprintln(stdout, version)
+		return 0
+	}
+
+	paths, err := rt.ResolvePaths(".")
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+
+	switch args[0] {
+	case "status", "check", "doctor":
+		return statusCommand(args[1:], stdout, stderr, paths)
+	case "mark-dirty":
+		return markDirtyCommand(args[1:], stdout, stderr, paths)
+	case "clear-dirty":
+		return statusTransitionCommand(args[1:], stdout, stderr, paths, update.ClearDirty)
+	case "record-refresh":
+		return recordRefreshCommand(args[1:], stdout, stderr, paths)
+	case "complete-refresh":
+		return completeRefreshCommand(args[1:], stdout, stderr, paths)
+	case "refresh-topics":
+		return refreshTopicsCommand(args[1:], stdout, stderr, paths)
+	case "validate-scan":
+		return jsonOnlyCommand(args[1:], stdout, stderr, validation.ValidateScan(paths))
+	case "validate-build":
+		return jsonOnlyCommand(args[1:], stdout, stderr, validation.ValidateBuild(paths))
+	case "publish-runtime-metadata":
+		return publishMetadataCommand(args[1:], stdout, stderr, paths)
+	case "update":
+		return updateCommand(args[1:], stdout, stderr, paths)
+	case "lexicon":
+		return lexiconCommand(args[1:], stdout, stderr, paths)
+	case "query":
+		return queryCommand(args[1:], stdout, stderr, paths)
+	case "discover":
+		return discoverCommand(args[1:], stdout, stderr)
+	case "read":
+		return readCommand(args[1:], stdout, stderr)
+	case "rebuild":
+		return rebuildCommand(args[1:], stdout, stderr, paths)
+	default:
+		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
+		return 2
+	}
+}
+
+func printHelp(w io.Writer, version string) {
+	fmt.Fprintf(w, "project-cognition %s\n\n", version)
+	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
+	fmt.Fprintln(w, "Commands: status, check, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild")
+}
+
+func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	format := fs.String("format", "json", "Output format: json or text")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	status, err := rt.ReadStatus(paths)
+	if errors.Is(err, rt.ErrUnsupportedLegacy) {
+		return writeJSON(stdout, rt.UnsupportedLegacyPayload(paths))
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	if *format != "json" {
+		fmt.Fprintf(stdout, "%s %s\n", status.Freshness, status.Readiness)
+		return 0
+	}
+	return writeJSON(stdout, status)
+}
+
+func markDirtyCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("mark-dirty", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	reason := fs.String("reason", "", "Dirty reason")
+	originCommand := fs.String("origin-command", "", "Origin command")
+	originFeatureDir := fs.String("origin-feature-dir", "", "Origin feature directory")
+	originLaneID := fs.String("origin-lane-id", "", "Origin lane id")
+	packetFile := fs.String("packet-file", "", "Worker packet JSON")
+	var scope stringList
+	fs.Var(&scope, "scope", "Dirty scope path")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *reason == "" && fs.NArg() > 0 {
+		*reason = strings.Join(fs.Args(), " ")
+	}
+	status, err := update.MarkDirty(paths, update.DirtyInput{
+		Reason:           *reason,
+		OriginCommand:    *originCommand,
+		OriginFeatureDir: *originFeatureDir,
+		OriginLaneID:     *originLaneID,
+		ScopePaths:       scope,
+		PacketFile:       *packetFile,
+	})
+	return writeCommandResult(stdout, stderr, paths, status, err)
+}
+
+func statusTransitionCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths, fn func(rt.Paths) (rt.Status, error)) int {
+	fs := flag.NewFlagSet("transition", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	status, err := fn(paths)
+	return writeCommandResult(stdout, stderr, paths, status, err)
+}
+
+func recordRefreshCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("record-refresh", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	reason := fs.String("reason", "manual", "Refresh reason")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	status, err := update.RecordRefresh(paths, *reason)
+	return writeCommandResult(stdout, stderr, paths, status, err)
+}
+
+func completeRefreshCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("complete-refresh", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	status, err := update.CompleteRefresh(paths, "map-build")
+	return writeCommandResult(stdout, stderr, paths, status, err)
+}
+
+func refreshTopicsCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("refresh-topics", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	reason := fs.String("reason", "topic-refresh", "Refresh reason")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	status, err := update.RefreshTopics(paths, fs.Args(), *reason)
+	return writeCommandResult(stdout, stderr, paths, status, err)
+}
+
+func jsonOnlyCommand(args []string, stdout io.Writer, stderr io.Writer, payload any) int {
+	fs := flag.NewFlagSet("json", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	return writeJSON(stdout, payload)
+}
+
+func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("publish-runtime-metadata", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	st, err := store.Open(paths)
+	if err != nil {
+		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	defer st.Close()
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	status, err := rt.ReadStatus(paths)
+	if errors.Is(err, rt.ErrUnsupportedLegacy) {
+		return writeJSON(stdout, rt.UnsupportedLegacyPayload(paths))
+	}
+	if err != nil {
+		status = rt.DefaultStatus(paths)
+	}
+	if status.Status == "missing" {
+		status.Status = "ok"
+		status.Freshness = rt.ReadyFreshness
+		status.Readiness = rt.ReadyReadiness
+		status.RecommendedNextAction = "use_project_cognition"
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+		}
+	}
+	return writeJSON(stdout, map[string]any{
+		"status":           "ok",
+		"metadata":         meta,
+		"status_path":      status.StatusPath,
+		"graph_store_path": status.GraphStorePath,
+		"errors":           []string{},
+		"warnings":         []string{},
+	})
+}
+
+func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var changed stringList
+	var scopes stringList
+	fs.Var(&changed, "changed-paths", "Changed path")
+	fs.Var(&changed, "changed-path", "Changed path")
+	fs.Var(&scopes, "scope", "Scope path")
+	reason := fs.String("reason", "update", "Update reason")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := update.RunUpdate(paths, update.UpdateInput{ChangedPaths: changed, ScopePaths: scopes, Reason: *reason})
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func lexiconCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("lexicon", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	intent := fs.String("intent", "", "Intent")
+	text := fs.String("query", "", "Query text")
+	limit := fs.Int("limit", 10, "Limit")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := query.Lexicon(paths, *intent, *text, *limit)
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("query", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	intent := fs.String("intent", "", "Intent")
+	text := fs.String("query", "", "Query text")
+	expanded := fs.String("expanded-query", "", "Expanded query")
+	planJSON := fs.String("query-plan", "", "Query plan JSON or @file")
+	planFile := fs.String("query-plan-file", "", "Query plan file")
+	var pathHints stringList
+	fs.Var(&pathHints, "paths", "Path hint")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	plan, err := query.ParsePlan(*planJSON, *planFile)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	payload, err := query.Run(paths, query.QueryInput{Intent: *intent, Query: *text, ExpandedQuery: *expanded, Paths: pathHints, Plan: plan})
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func discoverCommand(args []string, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("discover", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", ".", "Discovery root")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := reference.Discover(*root)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	return writeJSON(stdout, payload)
+}
+
+func readCommand(args []string, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("read", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	project := fs.String("project", ".", "Project path")
+	slice := fs.String("slice", "overview", "Slice name")
+	var graphs stringList
+	fs.Var(&graphs, "include-graph", "Graph name")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := reference.Read(*project, *slice, graphs)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	return writeJSON(stdout, payload)
+}
+
+func rebuildCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("rebuild", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	format := fs.String("format", "text", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload := map[string]any{
+		"status":                  "blocked",
+		"readiness":               rt.NeedsRebuildReadiness,
+		"recommended_next_action": "run_map_scan_build",
+		"errors":                  []string{},
+		"warnings":                []string{"Run sp-map-scan, then sp-map-build to rebuild project cognition."},
+		"status_path":             paths.StatusPath,
+	}
+	if *format == "json" {
+		return writeJSON(stdout, payload)
+	}
+	fmt.Fprintln(stdout, "Run /sp-map-scan, then /sp-map-build to rebuild project cognition.")
+	return 0
+}
+
+func writeCommandResult(stdout io.Writer, stderr io.Writer, paths rt.Paths, payload any, err error) int {
+	if errors.Is(err, rt.ErrUnsupportedLegacy) {
+		return writeJSON(stdout, rt.UnsupportedLegacyPayload(paths))
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	return writeJSON(stdout, payload)
+}
+
+func writeJSON(w io.Writer, payload any) int {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		fmt.Fprintf(os.Stderr, "project-cognition: encode json: %v\n", err)
+		return 1
+	}
+	return 0
+}

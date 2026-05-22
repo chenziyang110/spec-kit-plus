@@ -27,8 +27,6 @@ DELEGATION_PACKET_VALIDATE = "delegation.packet.validate"
 DELEGATION_JOIN_VALIDATE = "delegation.join.validate"
 PROJECT_COGNITION_MARK_DIRTY = "project_cognition.mark_dirty"  # preferred manual dirty override/fallback event
 PROJECT_COGNITION_COMPLETE_REFRESH = "project_cognition.complete_refresh"  # preferred successful-refresh finalizer
-PROJECT_MAP_MARK_DIRTY = "project_map.mark_dirty"  # manual dirty override/fallback
-PROJECT_MAP_COMPLETE_REFRESH = "project_map.complete_refresh"  # successful-refresh finalizer
 
 
 CANONICAL_HOOK_EVENTS = frozenset(
@@ -57,7 +55,5 @@ CANONICAL_HOOK_EVENTS = frozenset(
         DELEGATION_JOIN_VALIDATE,
         PROJECT_COGNITION_MARK_DIRTY,
         PROJECT_COGNITION_COMPLETE_REFRESH,
-        PROJECT_MAP_MARK_DIRTY,
-        PROJECT_MAP_COMPLETE_REFRESH,
     }
 )

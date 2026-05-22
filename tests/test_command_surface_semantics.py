@@ -493,9 +493,9 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "quick-task helper command shapes:" in readme
     assert "command shape: `specify quick status <id>`" in readme
     assert "command shape: `specify hook mark-dirty --reason " not in readme
-    assert "command shape: `specify project-cognition mark-dirty --reason " in readme
+    assert "command shape: `project-cognition mark-dirty --reason " in readme
     assert "command shape: `specify project-map mark-dirty --reason " not in readme
-    assert "legacy alias: existing projects may still call `specify project-map ...`" in readme
+    assert "legacy project-map artifacts" in readme
     assert "--origin-command <workflow>" in readme
     assert "--origin-feature-dir <dir>" in readme
     assert "--packet-file <packet-json>" in readme

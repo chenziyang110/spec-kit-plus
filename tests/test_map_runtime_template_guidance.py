@@ -58,7 +58,6 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
 
 def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
     partials = [
-        "templates/command-partials/specify/shell.md",
         "templates/command-partials/plan/shell.md",
         "templates/command-partials/tasks/shell.md",
         "templates/command-partials/implement/shell.md",
@@ -70,7 +69,7 @@ def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
 
     for path in partials:
         content = _read(path).lower()
-        assert "specify project-cognition query" in content or "project cognition query" in content
+        assert "project-cognition query" in content or "project cognition query" in content
         assert "task-local" in content
         assert "bundle" in content
         assert "readiness" in content

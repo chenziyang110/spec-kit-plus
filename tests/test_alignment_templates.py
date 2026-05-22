@@ -716,7 +716,7 @@ def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     assert "product framing" in lowered
     assert "before the cognition gate" in lowered
     assert "technical options" in lowered
-    assert "launcher-backed project cognition query planning flow" in lowered
+    assert "direct `project-cognition` query planning flow" in lowered
     assert "retrieve the task-local project cognition bundle" in lowered
     assert "project-cognition lexicon --intent discussion" in content
     assert "project-cognition query --intent discussion" in content
@@ -2646,7 +2646,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     stale_normal_path_phrases = [
         "should mark `.specify/project-cognition/status.json` dirty and run",
         "mark `.specify/project-cognition/status.json` dirty through the project cognition freshness helper and recommend",
-        "prefer `specify project-cognition mark-dirty` as the shared dirty-mark path",
+        "prefer `project-cognition mark-dirty` as the shared dirty-mark path",
     ]
     for path in refresh_owned_surfaces:
         lowered = _read(path).lower()
@@ -2810,8 +2810,8 @@ def test_project_cognition_freshness_scripts_are_launcher_backed_and_map_free():
 
     for content in (sh_freshness, ps_freshness):
         assert "project-cognition" in content
-        assert "specify_launcher" in content
-        assert ".specify/config.json" in content
+        assert "PROJECT_COGNITION_BIN" in content
+        assert ".specify/config.json" not in content
         assert ".specify/project-map" not in content
         assert "project-map-freshness" not in content
 

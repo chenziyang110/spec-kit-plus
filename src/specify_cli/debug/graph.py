@@ -28,9 +28,8 @@ from .context import ContextLoader
 from .utils import run_command, edit_file, read_file
 from .think_agent import build_think_subagent_prompt
 from .contract_agent import build_contract_subagent_prompt
-from specify_cli.cognition import query_project_cognition
-from specify_cli.cognition.paths import cognition_db_path
 import functools
+from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 from specify_cli.verification import (
     ValidationResult as SharedValidationResult,
     run_verification_commands,
@@ -760,16 +759,23 @@ def _debug_query_paths(state: DebugGraphState) -> list[str]:
 
 def _query_backed_debug_bundle(state: DebugGraphState) -> dict | None:
     project_root = Path.cwd()
-    if not cognition_db_path(project_root).exists():
-        return None
     try:
-        payload = query_project_cognition(
-            project_root,
-            intent="debug",
-            query_text=state.trigger,
-            paths=_debug_query_paths(state),
+        args = [
+            "query",
+            "--intent",
+            "debug",
+            "--query",
+            state.trigger,
+            "--format",
+            "json",
+        ]
+        for path in _debug_query_paths(state):
+            args.extend(["--paths", path])
+        payload = run_project_cognition(
+            args,
+            cwd=project_root,
         )
-    except Exception:
+    except ProjectCognitionToolError:
         return None
     readiness = str(payload.get("readiness") or "").strip().lower()
     if readiness not in {"ready", "review"}:

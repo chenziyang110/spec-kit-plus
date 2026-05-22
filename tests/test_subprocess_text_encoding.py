@@ -47,25 +47,6 @@ def test_default_verification_runner_uses_explicit_utf8(monkeypatch):
     assert seen["errors"] == "replace"
 
 
-def test_project_map_git_head_commit_uses_explicit_utf8(monkeypatch, tmp_path):
-    from specify_cli import project_map_status
-
-    seen: dict[str, object] = {}
-
-    def fake_run(*args, **kwargs):
-        seen.update(kwargs)
-        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout="abc123\n", stderr="")
-
-    monkeypatch.setattr(project_map_status.subprocess, "run", fake_run)
-
-    commit = project_map_status.git_head_commit(tmp_path)
-
-    assert commit == "abc123"
-    assert seen["text"] is True
-    assert seen["encoding"] == "utf-8"
-    assert seen["errors"] == "replace"
-
-
 def test_debug_utils_run_command_uses_explicit_utf8(monkeypatch):
     from specify_cli.debug import utils
 

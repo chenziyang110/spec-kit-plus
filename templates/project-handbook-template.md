@@ -46,7 +46,7 @@ and what sits clearly outside the system boundary.]
   explicit-only, supplemental-only, fresh-only context with a minimal read before
   broader source inspection. When another local directory is used as a
   reference, check for `.specify/` first, run
-  `cognition discover --root <path> --format json`, and use that project's
+  `project-cognition discover --root <path> --format json`, and use that project's
   cognition only when `.specify/project-cognition/status.json` and
   `.specify/project-cognition/project-cognition.db` exist,
   `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
@@ -54,6 +54,7 @@ and what sits clearly outside the system boundary.]
   `.specify/project-map/**` outputs as current truth; fall back to minimal live
   reads or refresh the reference project.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as advisory navigation inputs.
+- Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH before direct project cognition helpers run.
 - Read this handbook only when a user or workflow explicitly asks for the compatibility/export view; it is not the default runtime truth path or evidence path.
 - Use `map-update` for localized stale cognition recommendations and ordinary changed-path map maintenance. Normal code changes should use `sp-map-update` for bounded incremental refresh from changed paths. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
@@ -71,7 +72,7 @@ Describe the handbook export model explicitly:
 
 - **Debug export**: `DEBUG-HANDBOOK.md` — compatibility view of symptom routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
 - **Build/change export**: `BUILD-HANDBOOK.md` — compatibility view of product capability map, workflow sequences, change entrypoints, collaboration routes, propagation risks, implementation playbooks, and verification routes
-- **Legacy project-map alias**: `specify project-map ...` routes to project cognition for existing projects; new workflows should not read or require `.specify/project-map/**`
+- **Legacy project-map artifacts**: old projects may still carry project-map compatibility/export artifacts, but there is no Python runtime alias and new workflows should not call or require `.specify/project-map/**`
 - **Runtime truth**: `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and the task-local project cognition query bundle
 
 The export model should help the reader distinguish compatibility views from
@@ -152,7 +153,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - project cognition query bundle - default route to task-local cognition bundles, readiness, and `minimal_live_reads`
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
-- `specify project-map ...` - legacy CLI alias for existing projects, not the new runtime truth path
+- Legacy project-map artifacts - historical compatibility/export artifacts for existing projects, not the new runtime truth path
 
 ## Update Triggers
 

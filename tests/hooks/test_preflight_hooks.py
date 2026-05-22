@@ -1,9 +1,28 @@
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import subprocess
 
+import pytest
+
 from specify_cli.hooks.engine import run_quality_hook
-from specify_cli.project_map_status import ProjectMapStatus, write_project_map_status
+from tests.project_cognition_fake import install_fake_project_cognition, write_project_cognition_status
+
+
+@dataclass
+class ProjectMapStatus:
+    global_freshness: str = "fresh"
+    global_dirty: bool = False
+    global_dirty_reasons: list[str] = field(default_factory=list)
+    global_dirty_origin_command: str = ""
+    global_dirty_origin_feature_dir: str = ""
+    global_dirty_origin_lane_id: str = ""
+    global_dirty_scope_paths: list[str] = field(default_factory=list)
+
+
+@pytest.fixture(autouse=True)
+def _fake_project_cognition_tool(monkeypatch, tmp_path: Path) -> None:
+    install_fake_project_cognition(monkeypatch, tmp_path)
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -41,12 +60,17 @@ def _write_cognition_baseline(project: Path) -> None:
 
 
 def _write_dirty_cognition_status(project: Path, status: ProjectMapStatus) -> None:
-    status_path = write_project_map_status(project, status)
-    payload = json.loads(status_path.read_text(encoding="utf-8"))
-    for key in ("baseline_state", "graph_ready", "readiness"):
-        payload.pop(key, None)
-    payload["freshness"] = status.freshness
-    status_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_project_cognition_status(
+        project,
+        freshness=status.global_freshness,
+        dirty=status.global_dirty,
+        dirty_reasons=status.global_dirty_reasons,
+        dirty_origin_command=status.global_dirty_origin_command,
+        dirty_origin_feature_dir=status.global_dirty_origin_feature_dir,
+        dirty_origin_lane_id=status.global_dirty_origin_lane_id,
+        dirty_scope_paths=status.global_dirty_scope_paths,
+        reasons=status.global_dirty_reasons,
+    )
 
 
 def _write_workflow_state(
@@ -801,14 +825,16 @@ def test_preflight_warns_support_drift_with_support_specific_guidance(monkeypatc
         next_command="/sp.plan",
     )
 
-    def support_drift(_project_root: Path) -> dict[str, object]:
+    def support_drift(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
         return {
+            "state": "support_drift",
             "freshness": "support_drift",
+            "readiness": "blocked",
             "recommended_next_action": "commit_or_ignore_support_files",
             "reasons": ["tool-managed support surface changed: .specify/templates/runtime-config.template.json"],
         }
 
-    monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", support_drift)
+    monkeypatch.setattr("specify_cli.hooks.project_cognition.run_project_cognition", support_drift)
 
     result = run_quality_hook(
         project,

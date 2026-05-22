@@ -86,6 +86,31 @@ If you prefer to get the templates without checking for the right tools:
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai claude --ignore-agent-tools
 ```
 
+### Install Project Cognition Runtime
+
+Generated project cognition workflows call the standalone `project-cognition`
+binary directly. Install it from release assets, or set `PROJECT_COGNITION_BIN`
+to an explicit binary path.
+
+```bash
+# Linux / macOS
+curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash
+```
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
+```
+
+Go users can install from source:
+
+```bash
+go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@latest
+```
+
+Generated helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise
+call `project-cognition` from PATH.
+
 ## Verification
 
 After initialization, you should see generated workflow commands or skills

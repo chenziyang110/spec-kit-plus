@@ -1,8 +1,8 @@
 import json
 import os
 import shutil
+import shlex
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -110,16 +110,20 @@ def _run_bash_raw(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _run_bash_cognition(repo: Path, *args: str, launcher_argv: list[str] | None = None) -> dict:
+def _run_bash_cognition(repo: Path, *args: str, project_cognition_bin: Path) -> dict:
     if not shutil.which("bash"):
         pytest.skip("bash not available")
     scripts_dir = repo / "scripts" / "bash"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(BASH_COMMON, scripts_dir / "common.sh")
     shutil.copy(BASH_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.sh")
-    _write_source_launcher_config(repo, launcher_argv=launcher_argv)
+    quoted_args = " ".join(shlex.quote(arg) for arg in args)
+    command = (
+        f"PROJECT_COGNITION_BIN={shlex.quote(project_cognition_bin.relative_to(repo).as_posix())} "
+        f"scripts/bash/project-cognition-freshness.sh . {quoted_args}"
+    ).strip()
     result = subprocess.run(
-        ["bash", "scripts/bash/project-cognition-freshness.sh", ".", *args],
+        ["bash", "-lc", command],
         cwd=repo,
         check=True,
         capture_output=True,
@@ -130,20 +134,24 @@ def _run_bash_cognition(repo: Path, *args: str, launcher_argv: list[str] | None 
     return json.loads(result.stdout)
 
 
-def _write_bash_source_launcher(repo: Path) -> list[str] | None:
+def _write_bash_fake_project_cognition(repo: Path) -> Path | None:
     if not shutil.which("bash"):
         return None
-    launcher_path = repo / "scripts" / "bash" / "source-specify-launcher.sh"
-    launcher_path.parent.mkdir(parents=True, exist_ok=True)
-    launcher_path.write_text(
+    binary_path = repo / "scripts" / "bash" / "project-cognition-fake.sh"
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        "if [[ \"$1\" != \"project-cognition\" || \"$2\" != \"mark-dirty\" ]]; then\n"
-        "  echo \"unexpected launcher args: $*\" >&2\n"
+        "if [[ \"${1:-}\" == \"specify\" || \"${1:-}\" == \"project-cognition\" || \"${2:-}\" == \"project-cognition\" ]]; then\n"
+        "  echo \"unexpected wrapper args: $*\" >&2\n"
         "  exit 64\n"
         "fi\n"
+        "if [[ \"${1:-}\" != \"mark-dirty\" ]]; then\n"
+        "  echo \"unexpected command args: $*\" >&2\n"
+        "  exit 65\n"
+        "fi\n"
         "reason=\"\"\n"
-        "shift 2\n"
+        "shift 1\n"
         "while [[ $# -gt 0 ]]; do\n"
         "  case \"$1\" in\n"
         "    --reason) reason=\"$2\"; shift 2 ;;\n"
@@ -153,7 +161,7 @@ def _write_bash_source_launcher(repo: Path) -> list[str] | None:
         "done\n"
         "if [[ \"$reason\" != \"workflow contract changed\" ]]; then\n"
         "  echo \"unexpected reason: $reason\" >&2\n"
-        "  exit 65\n"
+        "  exit 66\n"
         "fi\n"
         "mkdir -p .specify/project-cognition\n"
         "cat > .specify/project-cognition/status.json <<'JSON'\n"
@@ -163,7 +171,8 @@ def _write_bash_source_launcher(repo: Path) -> list[str] | None:
         encoding="utf-8",
         newline="\n",
     )
-    return ["bash", "scripts/bash/source-specify-launcher.sh"]
+    binary_path.chmod(binary_path.stat().st_mode | 0o111)
+    return binary_path
 
 
 def _run_powershell(repo: Path, *args: str) -> dict:
@@ -180,7 +189,7 @@ def _run_powershell(repo: Path, *args: str) -> dict:
     return json.loads(result.stdout)
 
 
-def _run_powershell_cognition(repo: Path, *args: str, launcher_argv: list[str] | None = None) -> dict:
+def _run_powershell_cognition(repo: Path, *args: str, project_cognition_bin: Path) -> dict:
     shell = shutil.which("pwsh") or shutil.which("powershell")
     if not shell:
         pytest.skip("PowerShell not available")
@@ -188,7 +197,6 @@ def _run_powershell_cognition(repo: Path, *args: str, launcher_argv: list[str] |
     scripts_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(PS_COMMON, scripts_dir / "common.ps1")
     shutil.copy(PS_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.ps1")
-    _write_source_launcher_config(repo, launcher_argv=launcher_argv)
     result = subprocess.run(
         [
             shell,
@@ -206,45 +214,34 @@ def _run_powershell_cognition(repo: Path, *args: str, launcher_argv: list[str] |
         check=True,
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src")},
+        env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src"), "PROJECT_COGNITION_BIN": str(project_cognition_bin)},
     )
     return json.loads(result.stdout)
 
 
-def _write_source_launcher_config(repo: Path, *, launcher_argv: list[str] | None = None) -> None:
-    argv = launcher_argv or [sys.executable, "-m", "specify_cli"]
-    config_path = repo / ".specify" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        json.dumps(
-            {
-                "specify_launcher": {
-                    "command": " ".join(argv),
-                    "argv": argv,
-                }
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-
-def _write_powershell_fake_launcher(repo: Path) -> list[str] | None:
+def _write_powershell_fake_project_cognition(repo: Path) -> Path | None:
     shell = shutil.which("pwsh") or shutil.which("powershell")
     if not shell:
         return None
-    launcher_path = repo / "scripts" / "powershell" / "source-specify-launcher.ps1"
-    launcher_path.parent.mkdir(parents=True, exist_ok=True)
-    launcher_path.write_text(
+    binary_path = repo / "scripts" / "powershell" / "project-cognition-fake.ps1"
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_text(
         """
 param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Args)
-if ($Args.Count -lt 2 -or $Args[0] -ne "project-cognition" -or $Args[1] -ne "mark-dirty") {
-    Write-Error "unexpected launcher args: $($Args -join ' ')"
+if ($Args.Count -gt 0 -and ($Args[0] -eq "specify" -or $Args[0] -eq "project-cognition")) {
+    Write-Error "unexpected wrapper args: $($Args -join ' ')"
     exit 64
 }
+if ($Args.Count -gt 1 -and $Args[1] -eq "project-cognition") {
+    Write-Error "unexpected wrapper args: $($Args -join ' ')"
+    exit 64
+}
+if ($Args.Count -lt 1 -or $Args[0] -ne "mark-dirty") {
+    Write-Error "unexpected command args: $($Args -join ' ')"
+    exit 65
+}
 $reason = ""
-for ($i = 2; $i -lt $Args.Count; $i++) {
+for ($i = 1; $i -lt $Args.Count; $i++) {
     if ($Args[$i] -eq "--reason" -and ($i + 1) -lt $Args.Count) {
         $reason = $Args[$i + 1]
         $i++
@@ -254,7 +251,7 @@ for ($i = 2; $i -lt $Args.Count; $i++) {
 }
 if ($reason -ne "workflow contract changed") {
     Write-Error "unexpected reason: $reason"
-    exit 65
+    exit 66
 }
 New-Item -ItemType Directory -Force -Path ".specify/project-cognition" | Out-Null
 $payload = '{"dirty":true,"dirty_reasons":["workflow_contract_changed"],"status_path":".specify/project-cognition/status.json"}'
@@ -264,7 +261,7 @@ Write-Output $payload
         encoding="utf-8",
         newline="\n",
     )
-    return [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/powershell/source-specify-launcher.ps1"]
+    return binary_path
 
 
 def _project_cognition_status_path(repo: Path) -> Path:
@@ -491,16 +488,16 @@ def test_bash_scan_build_allowlist_fallback_without_python3_matches_whole_reason
     assert result == expected
 
 
-def test_bash_project_cognition_helper_uses_launcher_without_project_map(git_repo: Path):
-    launcher = _write_bash_source_launcher(git_repo)
-    if launcher is None:
+def test_bash_project_cognition_helper_uses_project_cognition_bin_without_wrapper(git_repo: Path):
+    project_cognition_bin = _write_bash_fake_project_cognition(git_repo)
+    if project_cognition_bin is None:
         pytest.skip("bash python not available")
 
     payload = _run_bash_cognition(
         git_repo,
         "mark-dirty",
         "workflow contract changed",
-        launcher_argv=launcher,
+        project_cognition_bin=project_cognition_bin,
     )
 
     assert payload["dirty"] is True
@@ -510,16 +507,16 @@ def test_bash_project_cognition_helper_uses_launcher_without_project_map(git_rep
     assert not (git_repo / ".specify" / "project-map").exists()
 
 
-def test_powershell_project_cognition_helper_uses_launcher_without_project_map(git_repo: Path):
-    launcher = _write_powershell_fake_launcher(git_repo)
-    if launcher is None:
+def test_powershell_project_cognition_helper_uses_project_cognition_bin_without_wrapper(git_repo: Path):
+    project_cognition_bin = _write_powershell_fake_project_cognition(git_repo)
+    if project_cognition_bin is None:
         pytest.skip("PowerShell not available")
 
     payload = _run_powershell_cognition(
         git_repo,
         "mark-dirty",
         "workflow contract changed",
-        launcher_argv=launcher,
+        project_cognition_bin=project_cognition_bin,
     )
 
     assert payload["dirty"] is True

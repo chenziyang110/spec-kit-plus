@@ -287,7 +287,7 @@ Skill map after `specify init`:
 Conditional gates and follow-up commands:
 
 - Generated projects use `.specify/project-cognition/status.json` plus the agent-planned task-local project cognition query bundle as the advisory project cognition index. `.specify/project-cognition/project-cognition.db` is the canonical graph store for map queries, not evidence by itself.
-- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon`, and `project-cognition query --query-plan` as advisory navigation inputs. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon`, and `project-cognition query --query-plan` as advisory navigation inputs. `templates/project-map/**` remains a historical compatibility/export surface for handbook generation, but new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition refresh recommendations, ordinary changed-path map maintenance, and ordinary existing-baseline gaps; use `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is map-maintenance complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
 - After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
@@ -296,7 +296,7 @@ Conditional gates and follow-up commands:
 - Project cognition respects `.cognitionignore` at the repository root and `.specify/project-cognition/.cognitionignore`. The syntax is gitignore-compatible and applies to `map-scan`, `map-build`, and `map-update`; excluded paths must not enter project cognition graph evidence, runtime route indexes, or `minimal_live_reads`.
 - When using another local directory as a reference, check whether that directory
   or its children contain `.specify/` before broad source reads. Run
-  `cognition discover --root <path> --format json`; use reference cognition only
+  `project-cognition discover --root <path> --format json`; use reference cognition only
   when `.specify/project-cognition/status.json` and
   `.specify/project-cognition/project-cognition.db` exist,
   `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
@@ -350,7 +350,7 @@ Routing guide for lightweight work:
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
-- Both `sp-fast` and `sp-quick` still pass the project cognition gate first: invoke the project launcher from `.specify/config.json` with `project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json`, have the agent translate the raw request into a `query_plan` using returned map terms, then run `project-cognition query --intent implement --query-plan "<query_plan_json>" --format json`. Continue from the returned readiness, task-local bundle, and `minimal_live_reads` before source reads continue. Fall back to PATH `specify` only when no project launcher is configured.
+- Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json`, have the agent translate the raw request into a `query_plan` using returned map terms, then run `project-cognition query --intent implement --query-plan "<query_plan_json>" --format json`. Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH for these helpers; helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise call `project-cognition` from PATH. Continue from the returned readiness, task-local bundle, and `minimal_live_reads` before source reads continue.
 - On shells or native command launchers that strip nested JSON quotes, write the planned object to a file and call `project-cognition query --intent <intent> --query-plan-file <path> --format json`; `path_hints`/`reason` are accepted aliases for `paths`/`selection_reason`.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, add the smallest safe bootstrap in the owning workflow or escalate to `sp-quick`/`sp-specify`.
@@ -414,9 +414,9 @@ First-party hook runtime:
   - `specify hook validate-read-path --target-path <path>`
   - `specify hook validate-prompt --prompt-text "<text>"`
 - Project cognition freshness should use the public project-cognition commands:
-  - Command shape: `specify project-cognition complete-refresh`
-  - Command shape: `specify project-cognition mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
-  - Legacy alias: existing projects may still call `specify project-map ...`; it routes to the project cognition implementation and should not be used in new generated workflow guidance.
+  - Command shape: `project-cognition complete-refresh`
+  - Command shape: `project-cognition mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
+  - Historical compatibility/export surface: legacy project-map artifacts may still exist in old projects, but there is no Python runtime alias and new generated workflow guidance should not call them.
 
 Claude Code integration note:
 
@@ -702,19 +702,20 @@ Navigation and technical truth are now cognition-first:
 - `partial_refresh` means refresh data was recorded but the ready refresh check still failed; do not report refresh completion until readiness passes.
 - `sp-map-scan` still performs diff-based scope selection when entered, but the refresh workbench remains internal to `map-scan` / `map-build`.
 - Ordinary runtime consumption should prefer `debug-handbook.md` or `build-handbook.md` plus the workflow's fixed chapter set only as compatibility/export views.
-- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon`, and `project-cognition query --query-plan` as advisory navigation inputs. `specify project-map ...` remains a legacy CLI alias for existing projects, but new workflows should not read or require `.specify/project-map/**`.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon`, and `project-cognition query --query-plan` as advisory navigation inputs. `templates/project-map/**` remains a historical compatibility/export surface for handbook generation, but new workflows should not read or require `.specify/project-map/**`.
 - Use `map-update` for localized stale cognition refresh recommendations, ordinary changed-path map maintenance, and ordinary existing-baseline gaps; use `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is map-maintenance complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
 - After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
 - Project cognition ignore rules live in root `.cognitionignore` or `.specify/project-cognition/.cognitionignore`. They use gitignore-compatible patterns and are honored by `map-scan`, `map-build`, and `map-update`; excluded paths must not enter project cognition graph evidence, runtime route indexes, or `minimal_live_reads`.
-- For cross-project references, run `cognition discover --root <path> --format json`
+- For cross-project references, run `project-cognition discover --root <path> --format json`
   before broad inspection. Use another project's cognition only when
   `.specify/project-cognition/status.json` and
   `.specify/project-cognition/project-cognition.db` exist,
   `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
   true; do not treat legacy `.specify/project-map/**` outputs as current truth
   when the reference is stale, blocked, or incomplete.
-- If a full refresh can be completed now, invoke the project launcher from `.specify/config.json` with `project-cognition validate-build --format json`, then `project-cognition complete-refresh --format json` only when build acceptance passes; otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.
+- Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH before any of these helpers run; the helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise call `project-cognition` from PATH.
+- If a full refresh can be completed now, run `project-cognition validate-build --format json`, then `project-cognition complete-refresh --format json` only when build acceptance passes; otherwise run `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.
 - After a successful refresh, record the new fresh cognition baseline. Use dirty fallback metadata only when the required refresh cannot be completed now, so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.

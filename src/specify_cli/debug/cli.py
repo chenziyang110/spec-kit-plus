@@ -16,7 +16,7 @@ from .dispatch import (
 from .utils import generate_slug, get_debug_dir
 from .graph import run_debug_session
 from ..learnings import capture_auto_learning
-from ..project_cognition_status import inspect_project_cognition_freshness
+from ..project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 
 console = Console()
 debug_app = typer.Typer(help="Systematic debugging engine for Spec Kit Plus.")
@@ -58,7 +58,16 @@ def _project_map_preflight_for_debug() -> None:
     if not (project_root / ".specify").exists():
         return
 
-    result = inspect_project_cognition_freshness(project_root)
+    try:
+        result = run_project_cognition(["check", "--format", "json"], cwd=project_root)
+    except ProjectCognitionToolError as exc:
+        result = {
+            "freshness": "missing",
+            "state": "missing_baseline",
+            "readiness": "blocked",
+            "recommended_next_action": "install_project_cognition",
+            "reasons": [str(exc)],
+        }
     freshness = str(result.get("freshness", "")).strip().lower()
     state = str(result.get("state", freshness)).strip().lower()
     readiness = str(result.get("readiness", "")).strip().lower()

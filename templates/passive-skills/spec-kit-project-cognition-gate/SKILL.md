@@ -21,14 +21,14 @@ This passive skill is the brownfield advisory navigation layer, not a hard workf
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
-- Use the launcher-backed project cognition query planning flow required by the
-  active workflow contract to retrieve the task-local project cognition bundle.
-  Run `project-cognition lexicon` first, inspect the returned
-  `concept_candidates`, choose task-relevant `selected_concepts`, record
-  non-selected or unsafe `rejected_concepts`, and include a
-  `selection_reason`. Translate that bounded selection into a `query_plan`
-  containing `selected_concepts`, `rejected_concepts`, `expanded_queries`, and
-  `paths`, then run `project-cognition query --query-plan`.
+- Use the direct `project-cognition` query planning flow required by the active
+  workflow contract to retrieve the task-local project cognition bundle. Run
+  `project-cognition lexicon` first, inspect the returned `concept_candidates`,
+  choose task-relevant `selected_concepts`, record non-selected or unsafe
+  `rejected_concepts`, and include a `selection_reason`. Translate that bounded
+  selection into a `query_plan` containing `selected_concepts`,
+  `rejected_concepts`, `expanded_queries`, and `paths`, then run
+  `project-cognition query --query-plan`.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - Treat `concept_candidates` as structured project concept candidates, not a
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
@@ -66,7 +66,7 @@ judgment in an established Spec Kit Plus repository:
   `selection_reason`, the matched capability or symptom, affected nodes and
   subgraph, `route_pack`, `minimal_live_reads`, missing coverage, evidence
   traces, verification routes, ambiguity, conflicts, and weak coverage.
-- Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior.
+- Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior and `templates/project-map/**` is historical compatibility/export only.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
 
@@ -75,7 +75,7 @@ judgment in an established Spec Kit Plus repository:
 - When inspecting or comparing another local directory, check whether that
   directory or its children contain `.specify/` first. A referenced directory may
   be a downstream Spec Kit project even when it is outside the current repo.
-- Prefer `cognition discover --root <path> --format json` to enumerate nested
+- Prefer `project-cognition discover --root <path> --format json` to enumerate nested
   `.specify/` candidates before broad live reads. Treat its `projects` entries as
   project-cognition candidates and its `specify_candidates` entries as the
   broader set of Spec Kit-shaped directories.
