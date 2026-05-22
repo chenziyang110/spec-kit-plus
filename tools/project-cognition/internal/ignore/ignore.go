@@ -113,15 +113,17 @@ func (r rule) matches(path string) bool {
 }
 
 func (r rule) matchesDirectory(path string) bool {
+	parts := strings.Split(path, "/")
 	if r.anchored {
-		root := path
-		if slash := strings.Index(root, "/"); slash >= 0 {
-			root = root[:slash]
+		for i := range parts {
+			prefix := strings.Join(parts[:i+1], "/")
+			if globMatch(r.pattern, prefix) {
+				return true
+			}
 		}
-		return globMatch(r.pattern, root)
+		return false
 	}
 
-	parts := strings.Split(path, "/")
 	if !strings.Contains(r.pattern, "/") {
 		for _, part := range parts {
 			if globMatch(r.pattern, part) {

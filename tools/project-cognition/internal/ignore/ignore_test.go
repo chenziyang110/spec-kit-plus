@@ -116,6 +116,22 @@ func TestAnchoredDirectoryPatternMatchesOnlyRootDirectory(t *testing.T) {
 	}
 }
 
+func TestAnchoredDirectoryPatternMatchesRootPathPrefix(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("/src/generated/\n"), 0o644); err != nil {
+		t.Fatalf("write root .cognitionignore: %v", err)
+	}
+
+	matcher := Load(root)
+
+	if !matcher.Ignored("src/generated/a.go") {
+		t.Fatal("expected root src/generated path to be ignored")
+	}
+	if matcher.Ignored("pkg/src/generated/a.go") {
+		t.Fatal("did not expect nested src/generated path to be ignored")
+	}
+}
+
 func TestDoubleStarSlashMatchesZeroOrMoreDirectories(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("examples/**/*.generated.ts\n"), 0o644); err != nil {
