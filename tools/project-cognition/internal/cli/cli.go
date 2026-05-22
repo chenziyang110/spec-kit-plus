@@ -427,8 +427,8 @@ func collectDeltaGitMetadata(root string, timeout time.Duration, run gitCommandR
 	if output, err := runGitProbe(root, timeout, run, "branch", "--show-current"); err == nil {
 		metadata.branch = strings.TrimSpace(output)
 	}
-	if output, err := runGitProbe(root, timeout, run, "status", "--short", "--untracked-files=all"); err == nil {
-		metadata.initialDirty = parseDeltaGitStatusShort(output)
+	if output, err := runGitProbe(root, timeout, run, "status", "--porcelain=v1", "-z", "--untracked-files=all"); err == nil {
+		metadata.initialDirty = parseDeltaGitStatusZ(output)
 	}
 	return metadata
 }
@@ -467,16 +467,22 @@ func runGitCommand(ctx context.Context, root string, args ...string) (string, er
 	}
 }
 
-func parseDeltaGitStatusShort(output string) []string {
+func parseDeltaGitStatusZ(output string) []string {
 	var paths []string
-	for _, line := range strings.Split(output, "\n") {
-		if len(line) < 4 {
+	fields := splitNUL(output)
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
+		if len(field) < 4 {
 			continue
 		}
-		path := strings.TrimSpace(line[3:])
-		if strings.Contains(path, " -> ") {
-			parts := strings.Split(path, " -> ")
-			path = parts[len(parts)-1]
+		code := strings.TrimSpace(field[:2])
+		if code == "" {
+			continue
+		}
+		path := field[3:]
+		if (strings.HasPrefix(code, "R") || strings.HasPrefix(code, "C")) && i+1 < len(fields) {
+			path = fields[i+1]
+			i++
 		}
 		path = filepath.ToSlash(strings.TrimSpace(path))
 		if path != "" {
@@ -484,6 +490,17 @@ func parseDeltaGitStatusShort(output string) []string {
 		}
 	}
 	return uniqueDeltaStrings(paths)
+}
+
+func splitNUL(output string) []string {
+	raw := strings.Split(output, "\x00")
+	fields := make([]string, 0, len(raw))
+	for _, field := range raw {
+		if field != "" {
+			fields = append(fields, field)
+		}
+	}
+	return fields
 }
 
 func uniqueDeltaStrings(values []string) []string {
