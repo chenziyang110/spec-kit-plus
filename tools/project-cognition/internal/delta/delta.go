@@ -223,6 +223,14 @@ func Load(runtimeDir string, sessionID string) (Bundle, error) {
 		if events[i].CreatedAt == events[j].CreatedAt {
 			return events[i].EventID < events[j].EventID
 		}
+		iCreatedAt, iErr := time.Parse(time.RFC3339Nano, events[i].CreatedAt)
+		jCreatedAt, jErr := time.Parse(time.RFC3339Nano, events[j].CreatedAt)
+		if iErr == nil && jErr == nil {
+			if iCreatedAt.Equal(jCreatedAt) {
+				return events[i].EventID < events[j].EventID
+			}
+			return iCreatedAt.Before(jCreatedAt)
+		}
 		return events[i].CreatedAt < events[j].CreatedAt
 	})
 	return Bundle{Session: session, Events: events}, nil
