@@ -237,6 +237,30 @@ func TestGitDiffPathsFromCommitRangeReturnsErrorWhenGitDiffFails(t *testing.T) {
 	}
 }
 
+func TestGitDiffPathsFromCommitRangeRejectsOptionLikeBaseEndpoint(t *testing.T) {
+	root := t.TempDir()
+	_, err := gitDiffPathsFromCommitRange(root, "--output=probe..HEAD")
+	if err == nil {
+		t.Fatal("expected option-like commit range endpoint error")
+	}
+	if !strings.Contains(err.Error(), "invalid commit range endpoint") {
+		t.Fatalf("error = %q, want invalid commit range endpoint", err.Error())
+	}
+	if _, statErr := os.Stat(filepath.Join(root, "probe")); !os.IsNotExist(statErr) {
+		t.Fatalf("probe file stat err = %v, want not exist", statErr)
+	}
+}
+
+func TestGitDiffPathsFromCommitRangeRejectsOptionLikeHeadEndpoint(t *testing.T) {
+	_, err := gitDiffPathsFromCommitRange(t.TempDir(), "HEAD..--output=probe")
+	if err == nil {
+		t.Fatal("expected option-like commit range endpoint error")
+	}
+	if !strings.Contains(err.Error(), "invalid commit range endpoint") {
+		t.Fatalf("error = %q, want invalid commit range endpoint", err.Error())
+	}
+}
+
 func containsText(values []string, want string) bool {
 	for _, value := range values {
 		if strings.Contains(value, want) {

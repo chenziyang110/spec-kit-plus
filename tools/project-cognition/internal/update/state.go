@@ -334,7 +334,15 @@ func gitDiffPathsFromCommitRange(root string, commitRange string) ([]string, err
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		return nil, fmt.Errorf("invalid commit range %q: expected base..head", commitRange)
 	}
-	entries, err := rt.GitDiffNameStatus(root, strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+	base := strings.TrimSpace(parts[0])
+	head := strings.TrimSpace(parts[1])
+	if strings.HasPrefix(base, "-") {
+		return nil, fmt.Errorf("invalid commit range endpoint %q: endpoints must not start with '-'", base)
+	}
+	if strings.HasPrefix(head, "-") {
+		return nil, fmt.Errorf("invalid commit range endpoint %q: endpoints must not start with '-'", head)
+	}
+	entries, err := rt.GitDiffNameStatus(root, base, head)
 	if err != nil {
 		return nil, fmt.Errorf("git diff commit range %q: %w", commitRange, err)
 	}
