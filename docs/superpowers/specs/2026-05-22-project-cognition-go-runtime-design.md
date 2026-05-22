@@ -54,12 +54,16 @@ The Go runtime owns:
 
 The first Go version must cover the current Python `project-cognition` command family rather than leaving dual implementations.
 
-Required commands:
+The Go CLI must preserve workflow-dependent options even though the runtime
+storage format is a hard switch. Removing these options would require prompt and
+script rewrites beyond the intended rendering change.
+
+Required commands and options:
 
 ```text
 project-cognition status --format json
 project-cognition check --format json
-project-cognition mark-dirty --reason <reason> --format json
+project-cognition mark-dirty [REASON] --reason <reason> --origin-command <command> --origin-feature-dir <path> --origin-lane-id <id> --packet-file <path> --format json
 project-cognition clear-dirty --format json
 project-cognition record-refresh --reason <reason> --format json
 project-cognition complete-refresh --format json
@@ -68,15 +72,32 @@ project-cognition refresh-topics <topic>... --reason <reason> --format json
 project-cognition validate-scan --format json
 project-cognition validate-build --format json
 project-cognition publish-runtime-metadata --format json
-project-cognition update --changed-path <path> --reason <reason> --format json
+project-cognition update --changed-paths <path> --scope <path> --reason <reason> --format json
 
-project-cognition lexicon --intent <intent> --query <text> --format json
-project-cognition query --intent <intent> --query-plan <json> --format json
+project-cognition lexicon --intent <intent> --query <text> --limit <n> --format json
+project-cognition query --intent <intent> --query <text> --expanded-query <text> --paths <path> --query-plan <json> --query-plan-file <path> --format json
 project-cognition discover --root <path> --format json
-project-cognition read --root <path> --format json
+project-cognition read --project <path> --slice <name> --include-graph <name> --format json
 project-cognition doctor --format json
 project-cognition rebuild
 ```
+
+`update` must support repeated `--changed-paths` and repeated `--scope` as
+aliases for changed-path input. If neither is supplied, it must derive the
+changed paths from git diff/status using the current runtime baseline metadata.
+Supporting a singular `--changed-path` alias is allowed, but not required by the
+current workflow contract.
+
+`query` must support both inline `--query-plan` JSON and `--query-plan-file`.
+For parity with the current workflow, `--query-plan @path/to/file.json` may also
+be accepted as file input. The query plan payload must accept `raw_query`,
+`expanded_queries`, `paths`, `path_hints`, `selected_concepts`,
+`rejected_concepts`, `selection_reason`, and `reason`.
+
+`mark-dirty` must preserve origin metadata because downstream resume and
+preflight behavior use it to distinguish a broad dirty baseline from a
+lane-scoped fallback. `--packet-file` must derive dirty scope paths from the
+validated worker packet when available.
 
 All workflow-facing commands must support `--format json`. Human-readable output may exist, but JSON is the contract for generated workflows and tests.
 
@@ -93,6 +114,26 @@ The JSON schema can change with the new runtime, but the first implementation mu
 - `ignored_paths`
 - `status_path`
 - `graph_store_path` or its new-schema equivalent
+
+## Namespace Decisions
+
+`project-cognition` is the only Go runtime namespace.
+
+Current Python cross-project helpers under `specify cognition discover` and
+`specify cognition read` move into the Go executable as:
+
+```text
+project-cognition discover --root <path> --format json
+project-cognition read --project <path> --slice <name> --include-graph <name> --format json
+```
+
+The implementation must update docs, templates, scripts, and tests that still
+teach `cognition discover` or `cognition read`. Those helpers are runtime
+support because they validate and read project cognition artifacts from
+reference projects; they must not remain as active Python support commands.
+
+`project-map` remains removed. There is no `project-cognition project-map` alias
+and no `specify project-map ...` runtime compatibility path.
 
 ## Template Rendering
 
@@ -122,6 +163,36 @@ The directory remains:
 
 The contents become Go-runtime-owned. The Go runtime defines a new `status.json`, runtime marker, DB schema, and metadata contract. It does not need to preserve the current Python-era shape.
 
+The hard storage switch applies to runtime-owned truth files:
+
+- `.specify/project-cognition/status.json`
+- `.specify/project-cognition/project-cognition.db`
+- runtime marker and schema metadata
+- query/update helper readiness metadata
+
+The hard storage switch does not remove the prompt-owned scan/build workbench
+artifact contract. Because `sp-map-scan`, `sp-map-build`, and `sp-map-update`
+prompt semantics stay unchanged, these paths remain stable workflow artifacts
+that the Go validation commands must understand:
+
+- `.specify/project-cognition/evidence/`
+- `.specify/project-cognition/provisional/nodes.json`
+- `.specify/project-cognition/provisional/edges.json`
+- `.specify/project-cognition/provisional/observations.json`
+- `.specify/project-cognition/coverage.json`
+- `.specify/project-cognition/workbench/map-scan.md`
+- `.specify/project-cognition/workbench/coverage-ledger.md`
+- `.specify/project-cognition/workbench/coverage-ledger.json`
+- `.specify/project-cognition/workbench/scan-packets/`
+- `.specify/project-cognition/workbench/map-state.md`
+- `.specify/project-cognition/workbench/repository-universe.json`
+- `.specify/project-cognition/workbench/capability-ledger.json`
+- `.specify/project-cognition/workbench/control-ledger.json`
+- `.specify/project-cognition/workbench/worker-results/`
+
+The Go runtime may define new fields inside those workbench artifacts only when
+the `sp-map-*` prompts and validation tests are updated in the same change.
+
 Hard switch rules:
 
 - If `.specify/project-cognition/` is missing, commands either initialize the new runtime state where appropriate or return a missing-baseline result.
@@ -150,7 +221,191 @@ Generated docs and tests must stop teaching `specify project-cognition ...` and 
 
 Release packaging must build and include the Go artifact. At minimum, Windows `.exe` is required because the requested distribution target is a compiled executable. The implementation plan should decide whether to ship all supported platform binaries in the same release pass.
 
-Generated projects must have a documented requirement that `project-cognition` is on `PATH` before `sp-map-*` workflows use project cognition runtime commands.
+Generated projects must have a documented requirement that `project-cognition`
+is on `PATH` before `sp-map-*` workflows use project cognition runtime
+commands. Generated helper scripts that currently call the persisted Specify
+launcher and append `project-cognition` must be retargeted to invoke the Go
+binary directly.
+
+Launcher rule:
+
+- Prefer `PROJECT_COGNITION_BIN` when set.
+- Otherwise invoke `project-cognition` from `PATH`.
+- Do not call `specify project-cognition ...`.
+- Do not read `.specify/config.json` `specify_launcher.argv` for project cognition runtime commands.
+- Fail with a clear install error when the binary cannot be found.
+
+This applies to `project-cognition-freshness.sh`, `project-cognition-freshness.ps1`,
+and any legacy freshness scripts that still shell out through `specify
+project-cognition`.
+
+## Workflow JSON Contract Appendix
+
+The Go runtime may evolve internal schemas, but these workflow-facing JSON
+payload shapes are part of the first release contract.
+
+### Shared Error Shape
+
+Any command that receives Python-era runtime state must return JSON with:
+
+- `status`: `blocked` or `error`
+- `readiness`: `unsupported_runtime`
+- `error_code`: `unsupported_legacy_runtime`
+- `recommended_next_action`: `run_map_scan_build`
+- `errors`: non-empty list explaining that the old runtime format is not supported
+- `status_path`: `.specify/project-cognition/status.json` when known
+
+### Status, Check, Doctor
+
+Must return:
+
+- `status`
+- `freshness`
+- `readiness`
+- `recommended_next_action`
+- `status_path`
+- `graph_store_path` or the new equivalent
+- `dirty`
+- `dirty_reasons`
+- `dirty_origin_command`
+- `dirty_origin_feature_dir`
+- `dirty_origin_lane_id`
+- `dirty_scope_paths`
+- `stale_paths`
+- `stale_reasons`
+- `last_refresh_reason`
+- `last_refresh_basis`
+- `last_refresh_changed_files_basis`
+- runtime format and schema version fields
+
+### Dirty And Refresh Commands
+
+`mark-dirty`, `clear-dirty`, `record-refresh`, `complete-refresh`, and
+`refresh-topics` return the same status/check shape after applying the state
+transition. `mark-dirty` must echo preserved origin metadata and any scope paths
+derived from `--packet-file`.
+
+### Validate Scan
+
+Must return:
+
+- `status`: `ok` or `blocked`
+- `gate`: `scan_acceptance`
+- `readiness`: `scan_ready` or `blocked`
+- `errors`
+- `warnings`
+- `checked_paths`
+- `details`
+
+### Validate Build
+
+Must return:
+
+- `status`: `ok` or `blocked`
+- `gate`: `build_acceptance`
+- `readiness`: `query_ready` or `blocked`
+- `errors`
+- `warnings`
+- `checked_paths`
+- `details`, including active runtime generation/schema metadata and query smoke-test diagnostics
+
+### Publish Runtime Metadata
+
+Must return:
+
+- `status`
+- `metadata`
+- `status_path`
+- `graph_store_path` or the new equivalent
+- `errors`
+- `warnings`
+
+### Update
+
+Must return:
+
+- `readiness`
+- `recommended_next_action`
+- `update_id`
+- `changed_paths`
+- `ignored_paths`
+- `affected_nodes`
+- `missing_coverage`
+- `adopted_paths`
+- `review_paths`
+- `unadoptable_paths`
+- `known_unknowns`
+- `minimal_live_reads`
+- `path_adoption`
+
+### Lexicon
+
+Must return:
+
+- `readiness`
+- `recommended_next_action`
+- `intent`
+- `query`
+- `terms`
+- `available_terms`
+- `concept_candidates`
+- `query_planning_contract`
+
+Each `concept_candidates` item should include enough information for an agent to
+build a query plan: `concept_id`, label or title, target type, aliases or
+matched terms, query examples when available, evidence ids when available, and
+a disambiguation hint when available.
+
+### Query
+
+Must return:
+
+- `baseline_health`
+- `query_coverage`
+- `workflow_requirement`
+- `path_adoption`
+- `readiness`
+- `recommended_next_action`
+- `intent`
+- `query`
+- `query_plan`
+- `selected_concepts`
+- `rejected_concepts`
+- `selection_reason`
+- `capability_candidates`
+- `symptom_candidates`
+- `affected_nodes`
+- `minimal_live_reads`
+- `missing_coverage`
+- `route_pack`
+- `subgraph`
+
+`route_pack` must include `items`, `routes`, `minimal_live_reads`, and
+`why_these_reads` or equivalent explanatory fields. `subgraph` must include the
+accepted node, edge, claim, and conflict slices needed by downstream workflows.
+
+### Discover
+
+Must return:
+
+- `projects`
+- per-project `root`
+- per-project `status_path`
+- per-project `graph_store_path` or equivalent
+- per-project `reference_readiness`
+- per-project `freshness`
+- per-project `graph_ready`
+- per-project blockers or warnings
+
+### Read
+
+Must return:
+
+- `admission`
+- `slice`
+- `graph`
+- `provenance`
+- `minimal_read_order`
 
 ## Implementation Stages
 
