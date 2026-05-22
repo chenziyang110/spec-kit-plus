@@ -148,6 +148,22 @@ func TestAnchoredPatternWithoutSlashMatchesDirectoryDescendants(t *testing.T) {
 	}
 }
 
+func TestAnchoredSlashlessPatternMatchesOnlyRootComponentDescendants(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("/generated\n"), 0o644); err != nil {
+		t.Fatalf("write root .cognitionignore: %v", err)
+	}
+
+	matcher := Load(root)
+
+	if !matcher.Ignored("generated/a.go") {
+		t.Fatal("expected root generated descendant to be ignored")
+	}
+	if matcher.Ignored("src/generated/a.go") {
+		t.Fatal("did not expect nested generated descendant to be ignored")
+	}
+}
+
 func TestUnanchoredSlashPatternWithoutSlashMatchesDirectoryDescendants(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("src/generated\n"), 0o644); err != nil {

@@ -144,6 +144,9 @@ func (r rule) matchesDirectory(path string) bool {
 
 func matchPattern(pattern string, path string, anchored bool) bool {
 	if !strings.Contains(pattern, "/") {
+		if anchored {
+			return matchPathOrDescendant(pattern, path)
+		}
 		for _, part := range strings.Split(path, "/") {
 			if globMatch(pattern, part) {
 				return true
