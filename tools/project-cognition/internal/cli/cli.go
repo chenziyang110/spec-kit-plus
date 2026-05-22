@@ -481,7 +481,6 @@ func parseDeltaGitStatusZ(output string) []string {
 		}
 		path := field[3:]
 		if (strings.HasPrefix(code, "R") || strings.HasPrefix(code, "C")) && i+1 < len(fields) {
-			path = fields[i+1]
 			i++
 		}
 		path = filepath.ToSlash(strings.TrimSpace(path))

@@ -221,6 +221,17 @@ func TestDeltaGitMetadataParsesRawZStatusNonASCIIPath(t *testing.T) {
 	}
 }
 
+func TestParseDeltaGitStatusZKeepsRenameTargetPath(t *testing.T) {
+	paths := parseDeltaGitStatusZ("R  new.txt\x00old.txt\x00")
+
+	if got := paths; len(got) != 1 || got[0] != "new.txt" {
+		t.Fatalf("paths = %#v, want new.txt", got)
+	}
+	if hasString(paths, "old.txt") {
+		t.Fatalf("paths = %#v, did not want old.txt", paths)
+	}
+}
+
 func TestDeltaAppendCommandWritesEvent(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
@@ -401,6 +412,70 @@ func TestUpdateCommandTreatsQuotedInitialDirtyUnicodePathAsAmbiguous(t *testing.
 	}
 }
 
+func TestUpdateCommandTreatsStagedRenameTargetAsAmbiguous(t *testing.T) {
+	root := t.TempDir()
+	runGit(t, root, "init")
+	runGit(t, root, "checkout", "-b", "main")
+	runGit(t, root, "config", "user.email", "test@example.com")
+	runGit(t, root, "config", "user.name", "Test User")
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".specify", ".keep"), []byte("keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "old.txt"), []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, root, "add", ".specify/.keep", "old.txt")
+	runGit(t, root, "commit", "-m", "initial")
+	runGit(t, root, "mv", "old.txt", "new.txt")
+
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	sessionID := beginDeltaSession(t)
+	var appendStdout, appendStderr bytes.Buffer
+	appendCode := Run([]string{
+		"delta", "append",
+		"--session", sessionID,
+		"--event-type", "worker_result",
+		"--changed-path", "new.txt",
+		"--format", "json",
+	}, &appendStdout, &appendStderr, "test")
+	if appendCode != 0 {
+		t.Fatalf("append code = %d stderr=%s", appendCode, appendStderr.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"update",
+		"--delta-session", sessionID,
+		"--reason", "workflow-finalize",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	boundary, ok := payload["boundary"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if !jsonStringSliceContains(boundary["ambiguous_paths"], "new.txt") {
+		t.Fatalf("boundary ambiguous_paths = %#v, want new.txt", boundary["ambiguous_paths"])
+	}
+	if jsonStringSliceContains(boundary["workflow_owned_paths"], "new.txt") {
+		t.Fatalf("boundary workflow_owned_paths = %#v, did not want new.txt", boundary["workflow_owned_paths"])
+	}
+}
+
 func TestUpdateCommandRejectsBadDeltaCommitRange(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
@@ -458,6 +533,15 @@ func runGit(t *testing.T, dir string, args ...string) string {
 func hasCall(calls []string, want string) bool {
 	for _, call := range calls {
 		if call == want {
+			return true
+		}
+	}
+	return false
+}
+
+func hasString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
 			return true
 		}
 	}
