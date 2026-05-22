@@ -157,6 +157,8 @@ jobs:
           fi
 
       - name: Open pull request
+        id: open_pr
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -175,6 +177,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run release.yml --ref main -f tag="${{ steps.version.outputs.tag }}"
+
+      - name: Report pull request creation failure
+        if: steps.open_pr.outcome == 'failure'
+        run: |
+          echo "::warning::Could not create release PR. The release tag was pushed and release workflow was triggered. Create a PR manually from ${{ env.branch }} to main."
 
       - name: Summary
         run: |

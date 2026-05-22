@@ -22,7 +22,9 @@ def test_release_trigger_has_token_fallback_and_dispatches_release_workflow():
 
     assert "actions: write" in content
     assert "${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}" in content
+    assert "continue-on-error: true" in content
     assert 'gh workflow run release.yml --ref main -f tag="${{ steps.version.outputs.tag }}"' in content
+    assert "Create a PR manually from ${{ env.branch }} to main" in content
 
 
 def test_project_cognition_attach_workflow_remains_fallback_only():
