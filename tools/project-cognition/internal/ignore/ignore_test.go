@@ -99,3 +99,38 @@ func TestDoubleStarPatternMatchesNestedDistOutputs(t *testing.T) {
 		t.Fatal("did not expect non-dist path to be ignored")
 	}
 }
+
+func TestAnchoredDirectoryPatternMatchesOnlyRootDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("/generated/\n"), 0o644); err != nil {
+		t.Fatalf("write root .cognitionignore: %v", err)
+	}
+
+	matcher := Load(root)
+
+	if !matcher.Ignored("generated/a.go") {
+		t.Fatal("expected root generated path to be ignored")
+	}
+	if matcher.Ignored("src/generated/a.go") {
+		t.Fatal("did not expect nested generated path to be ignored")
+	}
+}
+
+func TestDoubleStarSlashMatchesZeroOrMoreDirectories(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("examples/**/*.generated.ts\n"), 0o644); err != nil {
+		t.Fatalf("write root .cognitionignore: %v", err)
+	}
+
+	matcher := Load(root)
+
+	if !matcher.Ignored("examples/app.generated.ts") {
+		t.Fatal("expected direct generated example to be ignored")
+	}
+	if !matcher.Ignored("examples/demo/app.generated.ts") {
+		t.Fatal("expected nested generated example to be ignored")
+	}
+	if matcher.Ignored("examples/app.ts") {
+		t.Fatal("did not expect non-generated example to be ignored")
+	}
+}

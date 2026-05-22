@@ -113,6 +113,14 @@ func (r rule) matches(path string) bool {
 }
 
 func (r rule) matchesDirectory(path string) bool {
+	if r.anchored {
+		root := path
+		if slash := strings.Index(root, "/"); slash >= 0 {
+			root = root[:slash]
+		}
+		return globMatch(r.pattern, root)
+	}
+
 	parts := strings.Split(path, "/")
 	if !strings.Contains(r.pattern, "/") {
 		for _, part := range parts {
@@ -175,6 +183,11 @@ func globRegex(pattern string) string {
 		switch pattern[i] {
 		case '*':
 			if i+1 < len(pattern) && pattern[i+1] == '*' {
+				if i+2 < len(pattern) && pattern[i+2] == '/' {
+					out.WriteString("(?:.*/)?")
+					i += 3
+					continue
+				}
 				out.WriteString(".*")
 				i += 2
 				continue
