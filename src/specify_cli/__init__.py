@@ -3022,6 +3022,7 @@ def init(
     tracker.add("shared-infra", "Install shared infrastructure")
 
     for key, label in [
+        ("project-cognition", "Install project cognition runtime"),
         ("chmod", "Ensure scripts executable"),
         ("constitution", "Constitution setup"),
         ("learning-memory", "Project learning memory"),
@@ -3032,11 +3033,27 @@ def init(
 
     # Track git error message outside Live context so it persists
     git_error_message = None
+    project_cognition_warning = None
     with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
         tracker.attach_refresh(lambda: live.update(tracker.render()))
         try:
             # Integration-based scaffolding
             from .integrations.manifest import IntegrationManifest
+
+            tracker.start("project-cognition")
+            try:
+                from specify_cli.project_cognition_runtime import (
+                    ensure_binary as _ensure_project_cognition,
+                    write_project_launcher_config as _write_project_cognition_launcher,
+                )
+
+                project_cognition_binary = _ensure_project_cognition()
+                _write_project_cognition_launcher(project_path, project_cognition_binary)
+                tracker.complete("project-cognition", "available")
+            except Exception as exc:
+                project_cognition_warning = str(exc)
+                tracker.skip("project-cognition", "download skipped")
+
             tracker.start("integration")
             manifest = IntegrationManifest(
                 resolved_integration.key, project_path, version=get_speckit_version()
@@ -3190,6 +3207,23 @@ def init(
         _ensure_lint()
     except Exception:
         pass  # spec-lint download is best-effort during init
+
+    if project_cognition_warning:
+        console.print()
+        console.print(_open_block(
+            "Project Cognition Runtime",
+            [
+                "[yellow]Warning:[/yellow] project-cognition could not be auto-installed during init.",
+                project_cognition_warning,
+                "",
+                "[dim]Install the prebuilt release binary manually:[/dim]",
+                "[cyan]curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash[/cyan]",
+                "[cyan]irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex[/cyan]",
+                "",
+                "[dim]Or set PROJECT_COGNITION_BIN to an existing binary path.[/dim]",
+            ],
+            accent="yellow",
+        ))
 
     # Show git error details if initialization failed
     if git_error_message:

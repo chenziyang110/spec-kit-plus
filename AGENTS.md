@@ -579,6 +579,15 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 - If AGENTS-level guidance changes should ship into generated projects, update the managed block renderers inside `scripts/bash/update-agent-context.sh` and `scripts/powershell/update-agent-context.ps1`. Keep custom repository-only maintenance notes in this unmanaged section.
 - Release/install/documentation surfaces that can drift from workflow reality are `README.md`, `.github/workflows/release.yml`, `.github/workflows/release-trigger.yml`, and `.github/workflows/release-spec-lint.yml`.
 
+### Project Cognition Runtime Distribution
+
+- `tools/project-cognition/` is the standalone Go runtime used by generated `sp-map-scan`, `sp-map-build`, `sp-map-update`, and project-cognition-backed workflow guidance. It is a user-facing binary, not a Python `specify` subcommand.
+- Distribution must follow the same release-tool pattern as `spec-lint`: `.github/workflows/release-project-cognition.yml` cross-compiles linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, and windows/amd64 release assets.
+- `tools/project-cognition/install.sh` and `tools/project-cognition/install.ps1` must download the matching prebuilt release binary by default and verify it with `project-cognition --version`.
+- `specify init` must best-effort auto-download/cache the prebuilt binary, then persist the resolved executable in `.specify/config.json` under `project_cognition_launcher` so generated command templates invoke the pinned binary path instead of relying only on PATH.
+- If init cannot download the binary, it must not fail project initialization; it should leave generated commands usable via `PROJECT_COGNITION_BIN` or `project-cognition` on PATH and print a clear install warning.
+- When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/project_cognition_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass.
+
 ### Workflow Family Map
 
 - `sp-specify`, `sp-clarify`, `sp-deep-research`, `sp-plan`, `sp-tasks`, `sp-analyze`

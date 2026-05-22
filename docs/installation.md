@@ -90,9 +90,10 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 
 Generated project cognition workflows call the standalone `project-cognition`
 binary directly. Releases publish prebuilt binaries for Windows, Linux, and
-macOS; the installers below download those release assets by default. Set
-`PROJECT_COGNITION_BIN` only when you want generated helpers to use a custom
-binary path.
+macOS. `specify init` best-effort downloads the matching release asset into
+`~/.specify/bin/` and pins that executable in the generated project's
+`.specify/config.json`. If automatic download is unavailable, use the
+installers below or set `PROJECT_COGNITION_BIN` to a custom binary path.
 
 ```bash
 # Linux / macOS
@@ -110,8 +111,9 @@ Go users can also install from source:
 go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@latest
 ```
 
-Generated helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise
-call `project-cognition` from PATH.
+Generated helper scripts prefer `PROJECT_COGNITION_BIN` when set, then the
+project-pinned `.specify/config.json` launcher when generated from `specify
+init`, and otherwise call `project-cognition` from PATH.
 
 ## Verification
 

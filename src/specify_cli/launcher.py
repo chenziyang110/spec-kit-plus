@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 SPECIFY_PACKAGE_NAME = "specify-cli"
 SPECIFY_CONFIG_FILE = ".specify/config.json"
 SPECIFY_LAUNCHER_CONFIG_KEY = "specify_launcher"
+PROJECT_COGNITION_LAUNCHER_CONFIG_KEY = "project_cognition_launcher"
 HOOK_RUNTIME_ARGV_ENV = "SPECIFY_HOOK_RUNTIME_ARGV"
 HOOK_RUNTIME_COMMAND_ENV = "SPECIFY_HOOK_RUNTIME_COMMAND"
 HOOK_LAUNCHER_POSIX = "specify-hook"
@@ -300,6 +301,16 @@ def load_project_specify_launcher(project_root: Path) -> SpecifyLauncherSpec | N
     return _normalize_launcher_payload(payload.get(SPECIFY_LAUNCHER_CONFIG_KEY))
 
 
+def load_project_cognition_launcher(project_root: Path) -> SpecifyLauncherSpec | None:
+    """Load the persisted project-cognition launcher from ``.specify/config.json``."""
+
+    config_path = project_root / SPECIFY_CONFIG_FILE
+    payload = _load_config(config_path)
+    if payload is None:
+        return None
+    return _normalize_launcher_payload(payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY))
+
+
 def project_specify_subcommand(
     project_root: Path,
     args: list[str] | tuple[str, ...],
@@ -322,6 +333,7 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         return body
 
     launcher = load_project_specify_launcher(project_root)
+    cognition_launcher = load_project_cognition_launcher(project_root)
     default = default_specify_launcher_spec()
     active_launcher = launcher or default
 
@@ -339,6 +351,14 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         if not tokens:
             return match.group(0)
         if tokens[0] == "project-cognition":
+            if cognition_launcher is not None:
+                return render_command((*cognition_launcher.argv, *tokens[1:]))
+            if launcher is None:
+                return (
+                    f"{render_command(tokens)} "
+                    "(requires project-cognition on PATH or PROJECT_COGNITION_BIN; "
+                    "project launcher configured in `.specify/config.json` can pin the downloaded binary)"
+                )
             return render_command(tokens)
         if launcher is None:
             return render_command((*default.argv, *tokens))
@@ -372,6 +392,35 @@ def write_project_specify_launcher_config(
         return config_path
 
     payload[SPECIFY_LAUNCHER_CONFIG_KEY] = desired
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def write_project_cognition_launcher_config(project_root: Path, binary: str | Path) -> Path | None:
+    """Persist the preferred ``project-cognition`` binary into ``.specify/config.json``."""
+
+    binary_path = Path(binary).expanduser()
+    if not binary_path.is_absolute():
+        binary_path = binary_path.resolve()
+
+    launcher = SpecifyLauncherSpec(
+        command=render_command((str(binary_path),)),
+        argv=(str(binary_path),),
+    )
+    config_path = project_root / SPECIFY_CONFIG_FILE
+    payload = _load_config(config_path)
+    if payload is None:
+        return None
+
+    desired = _launcher_payload(launcher)
+    if payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY) == desired:
+        return config_path
+
+    payload[PROJECT_COGNITION_LAUNCHER_CONFIG_KEY] = desired
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
