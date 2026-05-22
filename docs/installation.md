@@ -89,8 +89,10 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 ### Install Project Cognition Runtime
 
 Generated project cognition workflows call the standalone `project-cognition`
-binary directly. Install it from release assets, or set `PROJECT_COGNITION_BIN`
-to an explicit binary path.
+binary directly. Releases publish prebuilt binaries for Windows, Linux, and
+macOS; the installers below download those release assets by default. Set
+`PROJECT_COGNITION_BIN` only when you want generated helpers to use a custom
+binary path.
 
 ```bash
 # Linux / macOS
@@ -102,7 +104,7 @@ curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/too
 irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
 ```
 
-Go users can install from source:
+Go users can also install from source:
 
 ```bash
 go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@latest

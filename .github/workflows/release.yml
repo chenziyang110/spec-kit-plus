@@ -91,9 +91,9 @@ jobs:
 
           ### project-cognition runtime
 
-          Generated project cognition workflows require the standalone `project-cognition` binary.
+          Generated project cognition workflows require the standalone `project-cognition` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS.
 
-          **Install from the release assets**
+          **Install the prebuilt release binary**
           \`\`\`bash
           # Linux / macOS
           curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash
@@ -101,7 +101,7 @@ jobs:
           irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
           \`\`\`
 
-          **Go users**
+          **Go users can also install from source**
           \`\`\`bash
           go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@${VERSION}
           \`\`\`

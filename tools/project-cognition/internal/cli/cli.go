@@ -35,7 +35,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return 0
 	}
 	if args[0] == "--version" || args[0] == "version" {
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintf(stdout, "project-cognition %s\n", version)
 		return 0
 	}
 

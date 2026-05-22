@@ -5,8 +5,20 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestVersionPrintsBinaryName(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--version"}, &stdout, &stderr, "v1.2.3")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if strings.TrimSpace(stdout.String()) != "project-cognition v1.2.3" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
 
 func TestStatusReturnsUnsupportedLegacyJSON(t *testing.T) {
 	root := t.TempDir()

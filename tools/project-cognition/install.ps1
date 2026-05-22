@@ -4,43 +4,61 @@ param(
     [string]$InstallDir = $env:PROJECT_COGNITION_INSTALL_DIR
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = 'latest'
+    $Version = "latest"
 }
 if ([string]::IsNullOrWhiteSpace($Repo)) {
-    $Repo = 'chenziyang110/spec-kit-plus'
+    $Repo = "chenziyang110/spec-kit-plus"
 }
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
-    $InstallDir = Join-Path $HOME '.specify/bin'
+    $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\project-cognition"
 }
 
-$arch = switch ((Get-CimInstance Win32_OperatingSystem).OSArchitecture) {
-    { $_ -match 'ARM64' } { 'arm64'; break }
-    default { 'amd64' }
-}
-
-if ($arch -ne 'amd64') {
+$arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "x86" }
+if ($arch -ne "amd64") {
     throw "Unsupported Windows architecture for published project-cognition asset: $arch"
 }
 
-$asset = 'project-cognition-windows-amd64.exe'
-if ($Version -eq 'latest') {
-    $url = "https://github.com/$Repo/releases/latest/download/$asset"
+$binary = "project-cognition"
+$asset = "${binary}-windows-${arch}.exe"
+if ($Version -eq "latest") {
+    $url = "https://github.com/${Repo}/releases/latest/download/${asset}"
 } else {
-    $url = "https://github.com/$Repo/releases/download/$Version/$asset"
+    $url = "https://github.com/${Repo}/releases/download/${Version}/${asset}"
 }
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-$target = Join-Path $InstallDir 'project-cognition.exe'
+$target = Join-Path $InstallDir "${binary}.exe"
 
-Write-Host "Downloading $url"
-Invoke-WebRequest -Uri $url -OutFile $target
+Write-Host "==> project-cognition installer"
+Write-Host "    platform: windows/${arch}"
+Write-Host "    install:  ${target}"
+Write-Host ""
 
-Write-Host "Installed project-cognition to $target"
-$pathParts = ($env:PATH -split ';') | Where-Object { $_ }
-if ($pathParts -notcontains $InstallDir) {
-    Write-Host "Add this directory to PATH if needed:"
-    Write-Host "  $InstallDir"
+Write-Host "==> Downloading prebuilt release asset..."
+try {
+    $ProgressPreference = "SilentlyContinue"
+    Invoke-WebRequest -Uri $url -OutFile $target
+} catch {
+    Write-Host "Error: download failed from ${url}"
+    Write-Host "Make sure a release exists with project-cognition binaries attached."
+    Write-Host "Go users can also install from source: go install github.com/${Repo}/tools/project-cognition@latest"
+    exit 1
 }
+
+Write-Host "==> Verifying..."
+& $target --version
+
+$userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+if ($userPath -notlike "*$InstallDir*") {
+    [Environment]::SetEnvironmentVariable("PATH", "$userPath;$InstallDir", "User")
+    $env:PATH = "$env:PATH;$InstallDir"
+    Write-Host ""
+    Write-Host "==> Added to user PATH (restart terminal to use from any directory)"
+}
+
+Write-Host ""
+Write-Host "==> project-cognition installed successfully."
+Write-Host "    Generated workflows will find it as 'project-cognition' on PATH."
