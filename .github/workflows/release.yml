@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release, for example v0.5.1'
+        required: true
+        type: string
 
 jobs:
   release:
@@ -16,11 +22,20 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Extract version from tag
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.tag }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          if [[ ! "$VERSION" =~ ^v[0-9]+(\.[0-9]+){2}([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $VERSION"
+            exit 1
+          fi
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
           echo "Building release for $VERSION"
 
@@ -166,9 +181,15 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
           VERSION_NO_V=${VERSION#v}
-          gh release create "$VERSION" \
+          if gh release create "$VERSION" \
             --title "Spec Kit Plus - $VERSION_NO_V" \
             --notes-file release_notes.md \
-            dist/release-tools/*
+            dist/release-tools/*; then
+            echo "Release $VERSION created."
+          elif gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists after a concurrent release run; treating as success."
+          else
+            exit 1
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
