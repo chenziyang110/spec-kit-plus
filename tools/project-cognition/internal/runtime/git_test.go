@@ -85,6 +85,31 @@ func TestGitStatusEntriesIncludeStatusCodes(t *testing.T) {
 	}
 }
 
+func TestGitStatusEntriesUnquoteEscapedPaths(t *testing.T) {
+	root := initGitRepo(t)
+	runGit(t, root, "config", "core.quotePath", "true")
+
+	path := "caf\u00e9.go"
+	if err := os.WriteFile(filepath.Join(root, path), []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+
+	entries, err := GitStatusEntries(root)
+	if err != nil {
+		t.Fatalf("GitStatusEntries returned error: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.Path == path {
+			if entry.Code != "??" {
+				t.Fatalf("%s status code = %q, want ??; entries=%v", path, entry.Code, entries)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing unquoted path %q; entries=%v", path, entries)
+}
+
 func TestGitDiffNameStatus(t *testing.T) {
 	root := initGitRepo(t)
 	base, err := GitHead(root)
@@ -112,5 +137,37 @@ func TestGitDiffNameStatus(t *testing.T) {
 	}
 	if entries[0].Path != "feature.txt" || entries[0].Code != "A" {
 		t.Fatalf("entry = %+v, want {Path:%q Code:%q}", entries[0], "feature.txt", "A")
+	}
+}
+
+func TestGitDiffNameStatusUnquoteEscapedPaths(t *testing.T) {
+	root := initGitRepo(t)
+	runGit(t, root, "config", "core.quotePath", "true")
+	base, err := GitHead(root)
+	if err != nil {
+		t.Fatalf("GitHead(base) returned error: %v", err)
+	}
+
+	path := "caf\u00e9.txt"
+	if err := os.WriteFile(filepath.Join(root, path), []byte("feature\n"), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	runGit(t, root, "add", path)
+	runGit(t, root, "commit", "-m", "add quoted path")
+
+	head, err := GitHead(root)
+	if err != nil {
+		t.Fatalf("GitHead(head) returned error: %v", err)
+	}
+
+	entries, err := GitDiffNameStatus(root, base, head)
+	if err != nil {
+		t.Fatalf("GitDiffNameStatus returned error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1; entries=%v", len(entries), entries)
+	}
+	if entries[0].Path != path || entries[0].Code != "A" {
+		t.Fatalf("entry = %+v, want {Path:%q Code:%q}", entries[0], path, "A")
 	}
 }
