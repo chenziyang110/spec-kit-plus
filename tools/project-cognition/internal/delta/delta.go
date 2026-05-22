@@ -2,6 +2,7 @@ package delta
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,10 @@ import (
 	"strings"
 	"time"
 )
+
+var nowUTC = func() time.Time {
+	return time.Now().UTC()
+}
 
 type BeginInput struct {
 	Root              string
@@ -100,7 +105,7 @@ type packetEvent struct {
 }
 
 func Begin(input BeginInput) (Session, error) {
-	now := time.Now().UTC()
+	now := nowUTC()
 	session := Session{
 		SessionID:     "delta-" + now.Format("20060102T150405.000000000Z"),
 		OriginCommand: strings.TrimSpace(input.OriginCommand),
@@ -128,17 +133,19 @@ func Begin(input BeginInput) (Session, error) {
 }
 
 func Append(input AppendInput) (Event, error) {
-	if strings.TrimSpace(input.SessionID) == "" {
-		return Event{}, fmt.Errorf("session id is required")
+	sessionID, err := validateSessionID(input.SessionID)
+	if err != nil {
+		return Event{}, err
 	}
-	if _, err := os.Stat(filepath.Join(sessionDir(input.RuntimeDir, input.SessionID), "session.json")); err != nil {
+	dir := sessionDir(input.RuntimeDir, sessionID)
+	if _, err := os.Stat(filepath.Join(dir, "session.json")); err != nil {
 		return Event{}, fmt.Errorf("load delta session: %w", err)
 	}
 
-	now := time.Now().UTC()
+	now := nowUTC()
+	baseEventID := "event-" + now.Format("20060102T150405.000000000Z")
 	event := Event{
-		EventID:           "event-" + now.Format("20060102T150405.000000000Z"),
-		SessionID:         strings.TrimSpace(input.SessionID),
+		SessionID:         sessionID,
 		EventType:         strings.TrimSpace(input.EventType),
 		OriginCommand:     strings.TrimSpace(input.OriginCommand),
 		OriginLaneID:      strings.TrimSpace(input.OriginLaneID),
@@ -155,10 +162,19 @@ func Append(input AppendInput) (Event, error) {
 		CreatedAt:         now.Format(time.RFC3339Nano),
 	}
 
-	if err := writeJSON(filepath.Join(sessionDir(input.RuntimeDir, input.SessionID), "events", event.EventID+".json"), event); err != nil {
-		return Event{}, err
+	for suffix := 0; ; suffix++ {
+		event.EventID = baseEventID
+		if suffix > 0 {
+			event.EventID = fmt.Sprintf("%s-%d", baseEventID, suffix)
+		}
+		if err := writeJSONExclusive(filepath.Join(dir, "events", event.EventID+".json"), event); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				continue
+			}
+			return Event{}, err
+		}
+		return event, nil
 	}
-	return event, nil
 }
 
 func AppendPacketFile(runtimeDir string, sessionID string, packetFile string) (Event, error) {
@@ -190,6 +206,10 @@ func AppendPacketFile(runtimeDir string, sessionID string, packetFile string) (E
 }
 
 func Load(runtimeDir string, sessionID string) (Bundle, error) {
+	sessionID, err := validateSessionID(sessionID)
+	if err != nil {
+		return Bundle{}, err
+	}
 	dir := sessionDir(runtimeDir, sessionID)
 	data, err := os.ReadFile(filepath.Join(dir, "session.json"))
 	if err != nil {
@@ -237,7 +257,36 @@ func Load(runtimeDir string, sessionID string) (Bundle, error) {
 }
 
 func sessionDir(runtimeDir string, sessionID string) string {
-	return filepath.Join(runtimeDir, "delta-sessions", strings.TrimSpace(sessionID))
+	return filepath.Join(runtimeDir, "delta-sessions", sessionID)
+}
+
+func validateSessionID(sessionID string) (string, error) {
+	normalized := strings.TrimSpace(sessionID)
+	if normalized == "" {
+		return "", fmt.Errorf("session id is required")
+	}
+	if !strings.HasPrefix(normalized, "delta-") || len(normalized) == len("delta-") {
+		return "", fmt.Errorf("invalid session id %q", sessionID)
+	}
+	if strings.ContainsAny(normalized, `/\`) || strings.Contains(normalized, "..") {
+		return "", fmt.Errorf("invalid session id %q", sessionID)
+	}
+	for _, char := range normalized[len("delta-"):] {
+		if char >= 'a' && char <= 'z' {
+			continue
+		}
+		if char >= 'A' && char <= 'Z' {
+			continue
+		}
+		if char >= '0' && char <= '9' {
+			continue
+		}
+		if char == '.' || char == '-' || char == '_' {
+			continue
+		}
+		return "", fmt.Errorf("invalid session id %q", sessionID)
+	}
+	return normalized, nil
 }
 
 func writeJSON(path string, value any) error {
@@ -247,6 +296,23 @@ func writeJSON(path string, value any) error {
 	}
 	data = append(data, '\n')
 	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write json: %w", err)
+	}
+	return nil
+}
+
+func writeJSONExclusive(path string, value any) error {
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal json: %w", err)
+	}
+	data = append(data, '\n')
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return fmt.Errorf("write json: %w", err)
+	}
+	defer file.Close()
+	if _, err := file.Write(data); err != nil {
 		return fmt.Errorf("write json: %w", err)
 	}
 	return nil

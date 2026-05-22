@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestBeginCreatesSessionWithNormalizedInitialDirtyPaths(t *testing.T) {
@@ -83,6 +84,84 @@ func TestAppendEventPersistsNormalizedPaths(t *testing.T) {
 	}
 	if got := loaded.Events[0].ChangedPaths; len(got) != 1 || got[0] != "src/a.go" {
 		t.Fatalf("ChangedPaths = %#v", got)
+	}
+}
+
+func TestAppendRejectsSessionIDWithTraversal(t *testing.T) {
+	root := t.TempDir()
+	runtimeDir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Append(AppendInput{
+		RuntimeDir: runtimeDir,
+		SessionID:  ".." + string(os.PathSeparator) + "outside",
+		EventType:  "worker_result",
+	}); err == nil {
+		t.Fatal("expected invalid session id error")
+	}
+}
+
+func TestLoadRejectsSessionIDWithTraversal(t *testing.T) {
+	root := t.TempDir()
+	runtimeDir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load(runtimeDir, ".."+string(os.PathSeparator)+"outside"); err == nil {
+		t.Fatal("expected invalid session id error")
+	}
+}
+
+func TestAppendRetriesEventIDCollisionWithoutOverwriting(t *testing.T) {
+	root := t.TempDir()
+	runtimeDir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	session, err := Begin(BeginInput{Root: root, RuntimeDir: runtimeDir, OriginCommand: "quick"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixedNow := time.Date(2026, 5, 22, 12, 0, 0, 123, time.UTC)
+	previousNowUTC := nowUTC
+	nowUTC = func() time.Time { return fixedNow }
+	t.Cleanup(func() { nowUTC = previousNowUTC })
+
+	eventsDir := filepath.Join(runtimeDir, "delta-sessions", session.SessionID, "events")
+	firstCandidate := "event-" + fixedNow.Format("20060102T150405.000000000Z")
+	existing := filepath.Join(eventsDir, firstCandidate+".json")
+	existingData := []byte(`{"event_id":"` + firstCandidate + `","session_id":"` + session.SessionID + `","event_type":"existing"}` + "\n")
+	if err := os.WriteFile(existing, existingData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := Append(AppendInput{
+		RuntimeDir: runtimeDir,
+		SessionID:  session.SessionID,
+		EventType:  "worker_result",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if event.EventID == firstCandidate {
+		t.Fatalf("EventID reused colliding candidate %q", firstCandidate)
+	}
+	if event.EventID != firstCandidate+"-1" {
+		t.Fatalf("EventID = %q, want %q", event.EventID, firstCandidate+"-1")
+	}
+	data, err := os.ReadFile(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != string(existingData) {
+		t.Fatalf("colliding event file was overwritten: %s", data)
+	}
+	if _, err := os.Stat(filepath.Join(eventsDir, event.EventID+".json")); err != nil {
+		t.Fatal(err)
 	}
 }
 
