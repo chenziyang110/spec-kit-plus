@@ -80,8 +80,8 @@ func TestGitStatusEntriesIncludeStatusCodes(t *testing.T) {
 	if codes["src.go"] != "??" {
 		t.Fatalf("src.go status code = %q, want ??; entries=%v", codes["src.go"], entries)
 	}
-	if codes["README.md"] == "" {
-		t.Fatalf("README.md status code is empty; entries=%v", entries)
+	if codes["README.md"] != "M" {
+		t.Fatalf("README.md status code = %q, want M; entries=%v", codes["README.md"], entries)
 	}
 }
 
