@@ -132,6 +132,36 @@ func TestIgnoredPathsAreRemoved(t *testing.T) {
 	}
 }
 
+func TestLocalProjectCognitionIgnorePathsAreRemoved(t *testing.T) {
+	root := t.TempDir()
+	ignoreDir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(ignoreDir, 0o755); err != nil {
+		t.Fatalf("create local ignore dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ignoreDir, ".cognitionignore"), []byte("generated/\n"), 0o644); err != nil {
+		t.Fatalf("write local .cognitionignore: %v", err)
+	}
+
+	result := Resolve(ResolveInput{
+		Root: root,
+		Config: config.Config{
+			ProjectCognition: config.ProjectCognitionConfig{AutoCommit: true},
+		},
+		Bundle: delta.Bundle{
+			Events: []delta.Event{
+				{ChangedPaths: []string{"src/a.go", "generated/a.go"}},
+			},
+		},
+	})
+
+	if contains(result.ChangedPaths, "generated/a.go") {
+		t.Fatalf("ChangedPaths = %v, did not want generated/a.go", result.ChangedPaths)
+	}
+	if !contains(result.IgnoredPaths, "generated/a.go") {
+		t.Fatalf("IgnoredPaths = %v, want generated/a.go", result.IgnoredPaths)
+	}
+}
+
 func contains(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

@@ -11,9 +11,20 @@ type Matcher struct {
 }
 
 func Load(root string) Matcher {
-	data, err := os.ReadFile(filepath.Join(root, ".cognitionignore"))
+	var patterns []string
+	for _, ignorePath := range []string{
+		filepath.Join(root, ".cognitionignore"),
+		filepath.Join(root, ".specify", "project-cognition", ".cognitionignore"),
+	} {
+		patterns = append(patterns, readPatterns(ignorePath)...)
+	}
+	return Matcher{patterns: patterns}
+}
+
+func readPatterns(path string) []string {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return Matcher{}
+		return nil
 	}
 	var patterns []string
 	for _, line := range strings.Split(string(data), "\n") {
@@ -23,7 +34,7 @@ func Load(root string) Matcher {
 		}
 		patterns = append(patterns, filepath.ToSlash(line))
 	}
-	return Matcher{patterns: patterns}
+	return patterns
 }
 
 func (m Matcher) Filter(paths []string) (kept []string, ignored []string) {
