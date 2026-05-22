@@ -397,26 +397,25 @@ class IntegrationBase(ABC):
 
         return content + "\n".join(lines) + "\n"
 
-    def _append_specify_brainstorming_kernel_guidance(
+    def _append_specify_semantic_traceability_guidance(
         self,
         *,
         content: str,
     ) -> str:
-        """Append brainstorming-kernel `sp-specify` lifecycle guidance when absent."""
+        """Append simplified `sp-specify` semantic-traceability guidance when absent."""
 
-        marker = "## Brainstorming Kernel"
+        marker = "## Semantic Traceability Guidance"
         if marker in content:
             return content
 
         addendum = (
             "\n"
-            "## Brainstorming Kernel\n\n"
-            "- `sp-specify` is the public entry shell and must begin with the internal brainstorming kernel.\n"
-            "- Progress through `facts-lock`, `route-lock`, `intent-lock`, and `complexity-lock` before compiling the final specification package.\n"
-            "- Ask questions only for unresolved fields or rule predicates.\n"
-            "- Dynamic routing is valid only when it is derived from persisted facts and explicit rules.\n"
-            "- Conversation memory is not a valid handoff surface; only persisted truth files count.\n"
-            "- Downstream stages must reopen upstream truth explicitly instead of silently mutating it.\n"
+            "## Semantic Traceability Guidance\n\n"
+            "- Preserve the concise `sp-specify` flow: explore project context, ask one high-impact question at a time, compare two or three approaches, write artifacts, self-review, and ask for user review.\n"
+            "- When `sp-specify` comes from `sp-discussion`, read discussion source files such as `discussion-log.md`, `requirements.md`, and `open-questions.md`, not only the handoff summary.\n"
+            "- Record inspected files in `source_files_read` and every capability-like upstream signal in `source_signal_disposition`.\n"
+            "- Decompose semantic terms before narrowing scope and keep unconfirmed narrowing out of planning-ready state.\n"
+            "- Downstream stages must reopen upstream intent explicitly instead of silently reinterpreting it.\n"
         )
         return content + addendum
 
@@ -1836,7 +1835,7 @@ class SkillsIntegration(IntegrationBase):
                 command_name=command_name,
             )
             if command_name == "specify":
-                skill_content = self._append_specify_brainstorming_kernel_guidance(
+                skill_content = self._append_specify_semantic_traceability_guidance(
                     content=skill_content,
                 )
             skill_content = self._append_planning_skill_cognition_refresh_guidance(

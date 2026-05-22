@@ -19,17 +19,8 @@ FILE_REQUIRED_ARTIFACTS = {
         "spec.md",
         "alignment.md",
         "context.md",
-        "specify-draft.md",
         "workflow-state.md",
-        "brainstorming/facts.json",
-        "brainstorming/route.json",
-        "brainstorming/intent.json",
-        "brainstorming/complexity.json",
         "brainstorming/handoff-to-specify.json",
-        "brainstorming/journal.ndjson",
-        "brainstorming/stage-manifest.json",
-        "brainstorming/domains.json",
-        "brainstorming/evidence-index.json",
     ),
     "clarify": (
         "spec.md",
@@ -109,7 +100,7 @@ FILE_REQUIRED_ARTIFACTS = {
 }
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
-    "specify": ("brainstorming/evidence",),
+    "specify": (),
     "clarify": ("clarification/handoffs",),
     "plan": ("planning/handoffs",),
     "tasks": ("task-packets", "task-generation/handoffs"),
@@ -137,18 +128,8 @@ REQUIRED_ARTIFACTS = {
         "spec.md",
         "alignment.md",
         "context.md",
-        "specify-draft.md",
         "workflow-state.md",
-        "brainstorming/facts.json",
-        "brainstorming/route.json",
-        "brainstorming/intent.json",
-        "brainstorming/complexity.json",
         "brainstorming/handoff-to-specify.json",
-        "brainstorming/journal.ndjson",
-        "brainstorming/stage-manifest.json",
-        "brainstorming/domains.json",
-        "brainstorming/evidence-index.json",
-        "brainstorming/evidence",
     ),
     "clarify": (
         "spec.md",
@@ -271,7 +252,7 @@ DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS = (
     "## Next Command",
 )
 
-SPECIFY_DRAFT_REQUIRED_HEADINGS = (
+SPECIFY_LEGACY_DRAFT_REQUIRED_HEADINGS = (
     "## Intent Analysis Record",
     "## Domain Progress Ledger",
     "## Question Batch Ledger",
@@ -280,9 +261,17 @@ SPECIFY_DRAFT_REQUIRED_HEADINGS = (
     "## Final Audit Inputs",
 )
 
-SPECIFY_ALIGNMENT_REQUIRED_HEADINGS = ("## Alignment Summary",)
+SPECIFY_LEGACY_ALIGNMENT_REQUIRED_HEADINGS = ("## Alignment Summary",)
 
-SPECIFY_CONTEXT_REQUIRED_HEADINGS = ("## Change Propagation Matrix",)
+SPECIFY_LEGACY_CONTEXT_REQUIRED_HEADINGS = ("## Change Propagation Matrix",)
+
+SPECIFY_ALIGNMENT_REQUIRED_HEADINGS = (
+    "## Semantic Term Decisions",
+    "## Upstream Intent Disposition",
+    "## Out-Of-Scope Conflicts",
+)
+
+SPECIFY_CONTEXT_REQUIRED_HEADINGS = ("## Planning Context",)
 
 PRD_BUILD_REQUIRED_EXPORTS = (
     "exports/README.md",
@@ -541,7 +530,12 @@ def _validate_markdown_contains(path: Path, required_items: tuple[str, ...], lab
 
 
 def _validate_markdown_headings(path: Path, required_headings: tuple[str, ...], label: str) -> list[str]:
-    content = path.read_text(encoding="utf-8", errors="replace")
+    if path.exists() and path.is_dir():
+        return [f"{label} must be a file, not a directory"]
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return [f"{label} could not be read: {exc}"]
     present_headings = {match.group(0).strip() for match in re.finditer(r"(?m)^#{1,6}\s+.+$", content)}
     return [
         f"{label} is missing required heading: {heading}"
@@ -812,6 +806,10 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
     if not isinstance(payload, dict):
         return errors
 
+    stage = str(payload.get("stage") or "").strip()
+    if stage and stage != "consequence-risk":
+        errors.append(f"{label} stage must be consequence-risk, got {stage}")
+
     coverage_status = str(payload.get("coverage_status") or "").strip()
     planning_gate_status = str(payload.get("planning_gate_status") or "").strip()
     if coverage_status and coverage_status not in MP_VALID_COVERAGE_STATUSES:
@@ -822,6 +820,7 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
     errors.extend(_validate_must_preserve_items(payload, label))
     errors.extend(_validate_conflict_records(payload, label))
     errors.extend(_validate_source_evidence_entries(payload, label))
+    errors.extend(_validate_source_signal_disposition(payload, label))
 
     hard_unknown_count = payload.get("hard_unknown_count", 0)
     open_conflict_count = payload.get("open_conflict_count", 0)
@@ -850,6 +849,53 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
         errors.append(
             f"{label} handoff integrity blocks must also set planning_gate_status blocked_by_handoff_integrity"
         )
+    return errors
+
+
+def _validate_source_signal_disposition(payload: dict[str, Any], label: str) -> list[str]:
+    errors: list[str] = []
+    source_files_read = payload.get("source_files_read", [])
+    if source_files_read is None:
+        source_files_read = []
+    if not isinstance(source_files_read, list):
+        errors.append(f"{label} source_files_read must be a list")
+    elif any(not isinstance(item, str) or not item.strip() for item in source_files_read):
+        errors.append(f"{label} source_files_read must contain only non-empty strings")
+
+    dispositions = payload.get("source_signal_disposition", [])
+    if dispositions is None:
+        dispositions = []
+    if not isinstance(dispositions, list):
+        errors.append(f"{label} source_signal_disposition must be a list")
+        return errors
+
+    entry_source = str(payload.get("entry_source") or "").strip()
+    source_handoff = str(payload.get("source_handoff") or "").strip()
+    source_handoff_json = str(payload.get("source_handoff_json") or "").strip()
+    if entry_source == "sp-discussion" or source_handoff or source_handoff_json:
+        if not source_files_read:
+            errors.append(f"{label} source_files_read is required for discussion-originated specify handoff")
+        if not dispositions:
+            errors.append(f"{label} source_signal_disposition is required for discussion-originated specify handoff")
+
+    allowed = {"preserved", "in_scope", "deferred", "dropped", "clarification_blocker"}
+    required = ("signal", "source", "disposition", "artifact_location", "user_confirmed", "reopen_trigger")
+    for index, item in enumerate(dispositions):
+        item_label = f"{label} source_signal_disposition[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{item_label} must be an object")
+            continue
+        for field in required:
+            if field not in item:
+                errors.append(f"{item_label} missing {field}")
+        disposition = str(item.get("disposition") or "").strip()
+        if disposition and disposition not in allowed:
+            errors.append(f"{item_label} has invalid disposition")
+        if disposition in {"deferred", "dropped", "clarification_blocker"}:
+            if not str(item.get("source") or "").strip():
+                errors.append(f"{item_label} requires source for {disposition}")
+            if not str(item.get("reopen_trigger") or "").strip():
+                errors.append(f"{item_label} requires reopen_trigger for {disposition}")
     return errors
 
 
@@ -2018,39 +2064,85 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _is_legacy_specify_package(feature_dir: Path, workflow_state_content: str) -> bool:
+    return (
+        (feature_dir / "brainstorming" / "legacy-state.json").exists()
+        or "## Fixed Lifecycle State" in workflow_state_content
+    )
+
+
 def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_state: bool = True) -> list[str]:
     errors: list[str] = []
-    draft_path = feature_dir / "specify-draft.md"
     alignment_path = feature_dir / "alignment.md"
     context_path = feature_dir / "context.md"
     workflow_state_path = feature_dir / "workflow-state.md"
+    workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
 
-    errors.extend(_validate_markdown_headings(draft_path, SPECIFY_DRAFT_REQUIRED_HEADINGS, "specify-draft.md"))
+    if _is_legacy_specify_package(feature_dir, workflow_state_content):
+        draft_path = feature_dir / "specify-draft.md"
+        errors.extend(_validate_markdown_headings(draft_path, SPECIFY_LEGACY_DRAFT_REQUIRED_HEADINGS, "specify-draft.md"))
+        errors.extend(_validate_markdown_headings(alignment_path, SPECIFY_LEGACY_ALIGNMENT_REQUIRED_HEADINGS, "alignment.md"))
+        errors.extend(_validate_markdown_headings(context_path, SPECIFY_LEGACY_CONTEXT_REQUIRED_HEADINGS, "context.md"))
+
+        fixed_lifecycle_state = _extract_markdown_section(workflow_state_content, "Fixed Lifecycle State")
+        required_state_fields = (
+            "current_stage",
+            "current_domain",
+            "next_action",
+            "blocker_reason",
+            "final_handoff_decision",
+        )
+        for field in required_state_fields:
+            value = extract_field(fixed_lifecycle_state, field)
+            if not value.strip():
+                errors.append(f"workflow-state.md is missing Fixed Lifecycle State field: {field}")
+
+        for legacy_field in ("coverage_mode", "observer_status", "last_observer_pass", "draft_file"):
+            if re.search(rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content):
+                errors.append(f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}")
+
+        if validate_lossless_state:
+            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/facts.json", validate_unknowns=True))
+            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/route.json", validate_unknowns=False))
+            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/intent.json", validate_unknowns=False))
+            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/complexity.json", validate_unknowns=False))
+            errors.extend(_validate_lossless_specify_state(feature_dir))
+
+        handoff_payload, handoff_errors = _read_json_artifact(
+            feature_dir / "brainstorming" / "handoff-to-specify.json",
+            "brainstorming/handoff-to-specify.json",
+        )
+        if handoff_errors:
+            errors.extend(handoff_errors)
+        else:
+            errors.extend(_validate_handoff_to_specify_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
+            errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
+        return errors
+
     errors.extend(_validate_markdown_headings(alignment_path, SPECIFY_ALIGNMENT_REQUIRED_HEADINGS, "alignment.md"))
     errors.extend(_validate_markdown_headings(context_path, SPECIFY_CONTEXT_REQUIRED_HEADINGS, "context.md"))
 
-    workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
-    fixed_lifecycle_state = _extract_markdown_section(workflow_state_content, "Fixed Lifecycle State")
+    stage_state = _extract_markdown_section(workflow_state_content, "Stage State")
+    review_state = _extract_markdown_section(workflow_state_content, "Review State")
     required_state_fields = (
         "current_stage",
-        "current_domain",
         "next_action",
         "blocker_reason",
         "final_handoff_decision",
     )
     for field in required_state_fields:
-        value = extract_field(fixed_lifecycle_state, field)
+        value = extract_field(stage_state, field)
         if not value.strip():
-            errors.append(f"workflow-state.md is missing Fixed Lifecycle State field: {field}")
+            errors.append(f"workflow-state.md is missing Stage State field: {field}")
+    for field in ("last_user_reviewed_artifact_state", "source_files_read", "source_signal_disposition_status"):
+        value = extract_field(review_state, field)
+        if not value.strip():
+            errors.append(f"workflow-state.md is missing Review State field: {field}")
 
-    for legacy_field in ("active_profile", "coverage_mode", "observer_status", "last_observer_pass", "draft_file"):
+    for legacy_field in ("coverage_mode", "observer_status", "last_observer_pass", "draft_file"):
         if re.search(rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content):
             errors.append(f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}")
 
-    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/facts.json", validate_unknowns=True))
-    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/route.json", validate_unknowns=False))
-    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/intent.json", validate_unknowns=False))
-    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/complexity.json", validate_unknowns=False))
     handoff_payload, handoff_errors = _read_json_artifact(
         feature_dir / "brainstorming" / "handoff-to-specify.json",
         "brainstorming/handoff-to-specify.json",
@@ -2062,7 +2154,16 @@ def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_st
         errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
 
     if validate_lossless_state:
-        errors.extend(_validate_lossless_specify_state(feature_dir))
+        legacy_paths = (
+            "brainstorming/journal.ndjson",
+            "brainstorming/stage-manifest.json",
+            "brainstorming/facts.json",
+            "brainstorming/route.json",
+            "brainstorming/intent.json",
+            "brainstorming/complexity.json",
+        )
+        if any((feature_dir / relative_path).exists() for relative_path in legacy_paths):
+            errors.extend(_validate_lossless_specify_state(feature_dir))
 
     return errors
 
@@ -2153,9 +2254,9 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
     legacy_lossless_missing = (
         command_name == "specify"
         and (feature_dir / "brainstorming" / "legacy-state.json").exists()
-        and missing
+        and not missing
         and not type_errors
-        and all(name in SPECIFY_LOSSLESS_REQUIRED_ARTIFACTS for name in missing)
+        and any(not (feature_dir / name).exists() for name in SPECIFY_LOSSLESS_REQUIRED_ARTIFACTS)
     )
     if missing or type_errors:
         if not legacy_lossless_missing:

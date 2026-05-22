@@ -1,116 +1,73 @@
-# Impact and Constraint Map: [FEATURE NAME]
+# Planning Context: [FEATURE NAME]
 
 **Feature Branch**: `[###-feature-name]`  
 **Created**: [DATE]  
 **Status**: Ready for planning  
-**Derived From**: `spec.md`, `alignment.md`, retained references, and discovery evidence
+**Derived From**: `spec.md`, `alignment.md`, retained references, discussion sources, and repository evidence
 
-## Brainstorming-Derived Execution Context
+## Planning Context
 
-- **Truth Owner**: [repo | prd | mixed]
-- **Primary Route**: [compiled route]
-- **Complexity Level**: [T1 | T2 | T3 | T4]
-- **Compatibility Constraints**:
-  - [constraint]
-- **Must-Preserve Invariants**:
-  - [invariant]
-- **Allowed Internal Redesign**:
-  - [yes/no and notes]
-- **Allowed Optimization Scope**:
-  - [scope planners and implementers may improve without reopening intent]
-- **Stop-And-Reopen Conditions**:
-  - [condition that requires upstream truth to reopen]
+- [Planning boundary, confirmed scope, and current next command]
+- [Key assumptions or unresolved items planners must preserve]
 
-
-## Lossless Source Map
-
-- Journal: `brainstorming/journal.ndjson`
-- Stage Manifest: `brainstorming/stage-manifest.json`
-- Source Event IDs:
-  - EVT-###: [Decision, evidence, answer, or checkpoint used]
-- Evidence IDs:
-  - EVD-###: [Evidence record used]
-- Compiled From:
-  - `compiled_from`: [journal range and stage artifact inputs]
-
-## Must-Preserve Execution Constraints
-
-- `MP-###`: [implementation-shaping decision, reference, non-goal, or trade-off]
-- Stop-and-reopen conditions:
-  - [condition tied to MP ID]
-
-## Affected Surfaces
+## Relevant Repository Context
 
 - [Primary module, workflow, interface, or artifact this feature changes]
-- [Secondary surface that must change to preserve usability or correctness]
+- [Repository pattern or ownership note that affects planning]
 
-## Affected Object Map
+## Existing Patterns And Reuse Notes
 
-| Obligation ID | Object / State Surface | Owner | Consumers | Evidence | Coverage Gap |
-| --- | --- | --- | --- | --- | --- |
-| CA-### | [object] | [owner] | [consumers] | [project cognition or live read] | [gap or none] |
+- [Existing component, workflow, or pattern that changes what complete means here]
+- [Reusable implementation surface, precedent, or constraint already present in the repo]
 
-## Dependency Impact Table
-
-| Obligation ID | Upstream / Downstream Surface | Impact | Required Handling |
-| --- | --- | --- | --- |
-| CA-### | [surface] | [impact] | [handling] |
-
-## Brainstorming-Derived Execution Context
-
-- **Truth Owner**: [Which locked brainstorming truth artifacts own the route, intent, and complexity decisions]
-- **Compatibility Constraints**: [Compatibility obligations carried forward from the locked requirement package]
-- **Allowed Internal Redesign**: [Where execution may improve internal quality without violating preserved outcomes]
-
-## Upstream Dependencies
+## Integration Boundaries
 
 - [Trigger, input, external contract, repository subsystem, or prerequisite]
-- [Existing workflow, data producer, or policy that shapes this feature]
-
-## Downstream Dependencies and Consumers
-
-- [Direct consumer, adjacent workflow, or later stage that depends on this behavior]
-- [Indirect consumer, reporting surface, operator flow, or integration seam]
+- [Trust boundary, auth, protocol, lifecycle, or compatibility note]
 
 ## Product Boundary Constraints
 
 - [Current product or release boundary that limits what this feature should deliver]
 - [Policy, compatibility, architecture, or ownership boundary planners must preserve]
 
-## Domain-Expected Completeness Checks
+## Affected Object Map
 
-- [Normal domain expectation that must be satisfied for the feature to feel complete]
-- [Permission, lifecycle, state, supportability, or failure-path expectation]
-- [Acceptance or validation expectation that planners must carry forward]
+Obligation ID: CA-###
+Object / State Surface: [object]
+Owner: [owner]
+Consumers: [consumers]
+Evidence: [project cognition or live read]
+Coverage Gap: [gap or none]
 
-## Critical Adjacent Effects
+## Consequence Notes
 
-- [Adjacent behavior that would break or feel incomplete if omitted]
-- [Downstream, migration, notification, observability, or support consequence]
+- `CA-###`: [Consequence obligation and planning impact]
+- [Recovery, validation, or stop-and-reopen condition]
 
-## Existing Capability and Reuse Notes
+## Dependency Impact Table
 
-- [Existing component, workflow, or pattern that changes what "complete" means here]
-- [Reusable implementation surface, precedent, or constraint already present in the repo]
-
-## Brainstorming-Derived Execution Context
-
-- **Truth Owner**: [repo | PRD | mixed]
-- **Compatibility Constraints**:
-  - [Constraint compiled from brainstorming truth]
-- **Allowed Internal Redesign**:
-  - [yes/no plus boundary note]
+Obligation ID: CA-###
+Upstream / Downstream Surface: [surface]
+Impact: [impact]
+Required Handling: [handling]
 
 ## Change Propagation Matrix
 
-| Change Surface | Upstream Inputs | Downstream Consumers | Constraint / Risk |
-| --- | --- | --- | --- |
-| [surface] | [input] | [consumer] | [constraint or propagation risk] |
+Change Surface: [surface]
+Upstream Inputs: [input]
+Downstream Consumers: [consumer]
+Constraint / Risk: [constraint or propagation risk]
 
 ## Locked Decisions Carry-Forward
 
 - [Decision from `spec.md#decision-capture` that planners and implementers must preserve]
 - [Boundary or dependency rule that must survive into implementation planning]
+
+## Must-Preserve Carry-Forward
+
+- `MP-###`: [implementation-shaping decision, reference, non-goal, or trade-off]
+- Stop-and-reopen conditions:
+  - [condition tied to MP ID]
 
 ## Canonical References
 

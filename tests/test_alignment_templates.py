@@ -647,20 +647,21 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert "authoritative input" in lowered
-    assert "not a bypass" in lowered
-    assert "discussion handoff" in lowered
     assert "entry_source: sp-discussion" in content
     assert "coverage_status" in content
     assert "planning_gate_status" in content
     assert "hard_unknown_count" in content
     assert "open_conflict_count" in content
-    assert "blocked_by_handoff_integrity" in content
-    assert "handoff integrity error" in lowered
-    assert (
-        "if candidate markdown exists but candidate json is missing, reconstruct the active feature copy into `brainstorming/handoff-to-specify.json`"
-        not in lowered
-    )
+    assert "read the handoff-declared source files" in lowered
+    assert "discussion-log.md" in content
+    assert "requirements.md" in content
+    assert "open-questions.md" in content
+    assert "technical-options.md" in content
+    assert "project-context.md" in content
+    assert "source_signal_disposition" in content
+    assert "source_files_read" in content
+    assert "capability-like" in lowered
+    assert "not only the handoff summary" in lowered
 
 
 def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
@@ -764,7 +765,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "minimal_live_reads" in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
-    assert "legacy export artifacts" in lowered
+    assert "minimal compatibility handoff" in lowered
     assert "support-only project-map artifacts" not in lowered
     assert "WORKFLOW_STATE_FILE" in content
     assert "workflow-state.md" in content
@@ -920,29 +921,25 @@ def test_specify_template_uses_alignment_first_contract():
     assert "desired happy-path behavior" in content
     assert "edge case or failure-path behavior" in content
     assert "compatibility, migration, or neighboring-workflow impact" in content
-    assert "fixed heavy discovery lifecycle" in lowered
-    assert "always execute these ten canonical `sp-specify` stages in order" in lowered
-    assert "release-decision" in content
-    assert (
-        "The previous fixed heavy discovery lifecycle terms (`intent-analysis`, `intent-confirmation`, "
-        "`question-batch`, `batch-adversarial-review`, `completeness-audit`) may appear only as "
-        "compatibility labels inside the draft ledger"
-    ) in content
-    assert (
-        'Legacy compatibility wording may still describe the old fixed-heavy narrative as "always execute '
-        'these six stages in order"; treat that phrase as a historical label set'
-    ) in content
-    assert "intent-analyst" in content
-    assert "adversarial-reviewer" in content
-    assert "completeness-auditor" in content
-    assert "goal-and-users" in content
-    assert "triggers-and-primary-flow" in content
-    assert "boundaries-and-non-goals" in content
-    assert "failure-paths-exceptions-and-permissions" in content
-    assert "dependencies-constraints-and-upstream-downstream-impact" in content
-    assert "acceptance-and-completeness-gap-closure" in content
-    assert "Only `release-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in content
-    assert "Legacy compatibility wording: Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in content
+    assert "explore project context" in lowered
+    assert "one high-impact question at a time" in lowered
+    assert "two or three approaches" in lowered or "2-3 approaches" in lowered
+    assert "semantic term" in lowered
+    assert "user review" in lowered
+    assert "source_signal_disposition" in content
+    assert "source_files_read" in content
+    assert "discussion-log.md" in content
+    assert "requirements.md" in content
+    assert "open-questions.md" in content
+    assert "checklists/requirements.md" in content
+    assert "brainstorming/handoff-to-specify.json" in content
+    assert "fixed heavy discovery lifecycle" not in lowered
+    assert "always execute these ten canonical `sp-specify` stages in order" not in lowered
+    assert "release-decision" not in content
+    assert "final-handoff-decision" not in content
+    assert "intent-analyst" not in content
+    assert "adversarial-reviewer" not in content
+    assert "completeness-auditor" not in content
     assert "## Scenario Profile Routing" not in content
     assert "active_profile" not in content
     assert "coverage_mode" not in content
@@ -1623,17 +1620,28 @@ def test_analyze_template_separates_canonical_state_token_from_manual_invocation
     assert "tell them to run `{{invoke:implement}}` while preserving canonical `/sp.implement`" not in content
 
 
-def test_workflow_state_template_supports_analyze_gate_phase():
+def test_workflow_state_template_supports_analyze_gate_without_fixed_heavy_labels():
     content = _read("templates/workflow-state-template.md")
     lowered = content.lower()
 
-    assert "fixed lifecycle state" in lowered
-    assert "release-decision" in content
-    assert "## Legacy Fixed-Heavy Compatibility Labels" in content
-    assert (
-        "compatibility_stage_aliases: [intent-analysis | intent-confirmation | question-batch | "
-        "batch-adversarial-review | completeness-audit | final-handoff-decision]"
-    ) in content
+    assert "## Review State" in content
+    assert "last_user_reviewed_artifact_state" in content
+    assert "source_files_read" in content
+    assert "source_signal_disposition_status" in content
+    for stage in (
+        "context-intake",
+        "clarification",
+        "approach-comparison",
+        "section-approval",
+        "artifact-writing",
+        "artifact-review",
+        "user-review",
+    ):
+        assert stage in content
+    assert "fixed lifecycle state" not in lowered
+    assert "release-decision" not in content
+    assert "## Legacy Fixed-Heavy Compatibility Labels" not in content
+    assert "final-handoff-decision" not in content
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
@@ -1656,7 +1664,7 @@ def test_workflow_state_template_supports_analyze_gate_phase():
 def test_workflow_state_template_includes_lane_context():
     content = _read("templates/workflow-state-template.md")
 
-    assert "## Fixed Lifecycle State" in content
+    assert "## Stage State" in content
     assert "current_stage:" in content
     assert "current_domain:" in content
     assert "next_action:" in content
@@ -1770,10 +1778,9 @@ def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_in
     assert "`next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
     assert "Default handoff: /sp-plan" not in content
     assert "Default handoff: /sp.plan" not in content
-    assert "{{invoke:plan}}" in content
-    assert "{{specify-subcmd:lane register" in content
-    assert "LANE_ID" in content
-    assert "LANE_WORKTREE" in content
+    assert "/sp.plan" in content
+    assert "brainstorming/handoff-to-specify.json" in content
+    assert "source_signal_disposition" in content
 
 
 def test_auto_template_requires_reconcile_before_resume():
@@ -1823,12 +1830,16 @@ def test_analyze_template_requires_lane_resolution_before_branch_guessing() -> N
 def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research():
     specify = _read("templates/commands/specify.md")
     plan = _read("templates/commands/plan.md")
+    specify_lowered = specify.lower()
 
-    assert "label: Prove Feasibility Before Plan" in specify
-    assert "agent: sp.deep-research" in specify
-    assert "Only `release-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in specify
-    assert "Legacy compatibility wording: Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in specify
-    assert "Use `/sp.deep-research` when the requirements are clear enough but a planning-critical implementation chain still needs external proof or a disposable demo." in specify
+    assert "/sp.deep-research" in specify
+    assert "/sp.plan" in specify
+    assert "/sp.clarify" in specify
+    assert "recommend exactly one next command" in specify_lowered
+    assert "user review" in specify_lowered
+    assert "planning-critical" in specify_lowered
+    assert "release-decision" not in specify
+    assert "final-handoff-decision" not in specify
     assert "Feasibility Evidence From Deep Research" in plan
     assert "Planning Handoff From Deep Research" in plan
     assert "Deep Research Traceability Matrix" in plan
@@ -1881,46 +1892,37 @@ def test_spec_template_defines_scope_boundaries_without_open_clarification_examp
     content = _read("templates/spec-template.md")
     lowered = content.lower()
 
-    assert "## Ideal Complete Requirement Shape" in content
-    assert "### Complete Capability Shape" in content
-    assert "### Complete Usage Expectations" in content
-    assert "### Domain-Expected Completeness Checks" in content
-    assert "## Current Delivery Boundary" in content
+    assert "## Confirmed Scope" in content
     assert "### In Scope" in content
     assert "### Out of Scope" in content
+    assert "### Deferred Or Future Scope" in content
     assert "### Boundary Constraints" in content
+    assert "## Acceptance Proof" in content
     assert "## Decision Capture" in content
     assert "### Locked Decisions" in content
-    assert "### Claude Discretion" in content
+    assert "### User-Confirmed Deferrals" in content
     assert "### Canonical References" in content
-    assert "### Deferred / Future Ideas" in content
-    assert "### Event / Trigger Model" in content
-    assert "### Protocol / Contract Notes" in content
-    assert "### Failure, Retry, and Visibility Semantics" in content
-    assert "### Configuration and Rollout Notes" in content
-    assert "retention, archival, or cleanup concern" in content
     assert "[NEEDS CLARIFICATION:" not in content
     assert "confirmed product outcome" in lowered
-    assert "user-confirmed delivery boundary" in lowered
+    assert "confirmed scope" in lowered
     assert "coherent first release" not in lowered
     assert "viable mvp" not in lowered
-    assert "scope boundaries" not in lowered
 
 
 def test_shared_artifact_templates_include_profile_fidelity_overlays():
     spec_content = _read("templates/spec-template.md")
-    assert "Ideal Complete Requirement Shape" in spec_content
-    assert "Current Delivery Boundary" in spec_content
+    assert "Confirmed Scope" in spec_content
+    assert "Acceptance Proof" in spec_content
     assert "## Fidelity Requirements" in spec_content
     assert "### Reference Object" in spec_content
     assert "### Required Fidelity" in spec_content
     assert "### Reference Behavior Inventory" in spec_content
 
     alignment_lowered = _read("templates/alignment-template.md").lower()
-    assert "completeness convergence report" in alignment_lowered
-    assert "domain closure log" in alignment_lowered
-    assert "batch adversarial review summary" in alignment_lowered
-    assert "critical gaps and reopen decisions" in alignment_lowered
+    assert "specification alignment report" in alignment_lowered
+    assert "semantic term decisions" in alignment_lowered
+    assert "upstream intent disposition" in alignment_lowered
+    assert "out-of-scope conflicts" in alignment_lowered
 
 
 def test_reference_fidelity_templates_propagate_behavior_inventory() -> None:
@@ -1944,22 +1946,19 @@ def test_reference_fidelity_templates_propagate_behavior_inventory() -> None:
     assert "reference behavior" in tasks_command.lower()
 
     context_lowered = _read("templates/context-template.md").lower()
-    assert "impact and constraint map" in context_lowered
-    assert "critical adjacent effects" in context_lowered
+    assert "planning context" in context_lowered
+    assert "integration boundaries" in context_lowered
     assert "change propagation matrix" in context_lowered
 
 
 def test_context_template_exists_and_captures_planning_context():
     content = _read("templates/context-template.md")
 
-    assert "# Impact and Constraint Map:" in content
-    assert "## Affected Surfaces" in content
-    assert "## Upstream Dependencies" in content
-    assert "## Downstream Dependencies and Consumers" in content
+    assert "# Planning Context:" in content
+    assert "## Relevant Repository Context" in content
+    assert "## Existing Patterns And Reuse Notes" in content
+    assert "## Integration Boundaries" in content
     assert "## Product Boundary Constraints" in content
-    assert "## Domain-Expected Completeness Checks" in content
-    assert "## Critical Adjacent Effects" in content
-    assert "## Existing Capability and Reuse Notes" in content
     assert "## Change Propagation Matrix" in content
     assert "## Locked Decisions Carry-Forward" in content
     assert "## Canonical References" in content
@@ -1968,7 +1967,7 @@ def test_context_template_exists_and_captures_planning_context():
     assert "# Feature Context:" not in content
 
 
-def test_workflow_state_template_exists_and_captures_phase_lock_contract():
+def test_workflow_state_template_exists_and_captures_simplified_review_contract():
     content = _read("templates/workflow-state-template.md")
 
     assert "# Workflow State:" in content
@@ -1978,20 +1977,27 @@ def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     assert "## Phase Mode" in content
     assert "phase_mode:" in content
     assert "summary:" in content
-    assert "## Fixed Lifecycle State" in content
     assert "current_stage:" in content
-    assert "current_domain:" in content
-    assert "next_action:" in content
-    assert "blocker_reason:" in content
-    assert "final_handoff_decision:" in content
-    assert "release-decision" in content
-    assert "## Legacy Fixed-Heavy Compatibility Labels" in content
-    assert (
-        "compatibility_stage_aliases: [intent-analysis | intent-confirmation | question-batch | "
-        "batch-adversarial-review | completeness-audit | final-handoff-decision]"
-    ) in content
-    assert "goal-and-users" in content
-    assert "acceptance-and-completeness-gap-closure" in content
+    assert "## Review State" in content
+    assert "last_user_reviewed_artifact_state" in content
+    assert "source_files_read" in content
+    assert "source_signal_disposition_status" in content
+    for stage in (
+        "context-intake",
+        "clarification",
+        "approach-comparison",
+        "section-approval",
+        "artifact-writing",
+        "artifact-review",
+        "user-review",
+    ):
+        assert stage in content
+    assert "## Fixed Lifecycle State" not in content
+    assert "release-decision" not in content
+    assert "## Legacy Fixed-Heavy Compatibility Labels" not in content
+    assert "final-handoff-decision" not in content
+    assert "goal-and-users" not in content
+    assert "acceptance-and-completeness-gap-closure" not in content
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
@@ -2002,8 +2008,8 @@ def test_workflow_state_template_documents_recovery_sections() -> None:
 
     assert "## Current Command" in content
     assert "## Phase Mode" in content
-    assert "## Fixed Lifecycle State" in content
-    assert "blocker_reason: [None | Why progress is blocked or why a domain was reopened]" in content
+    assert "## Stage State" in content
+    assert "blocker_reason: [None | Why progress is blocked]" in content
     assert "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]" in content
     assert "Re-read this file first after compaction or session recovery." not in content
 
@@ -2578,14 +2584,15 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
 def test_alignment_template_exists():
     content = _read("templates/alignment-template.md")
 
-    assert "# Completeness Convergence Report:" in content
-    assert "## Initial Intent Analysis" in content
-    assert "## Domain Closure Log" in content
-    assert "## Batch Adversarial Review Summary" in content
-    assert "## Critical Gaps and Reopen Decisions" in content
-    assert "## Completeness Audit Outcome" in content
-    assert "## Planning Gate Recommendation" in content
-    assert "## Release Decision" in content
+    assert "# Specification Alignment Report:" in content
+    assert "## Current Understanding" in content
+    assert "## Confirmed Facts" in content
+    assert "## Low-Risk Assumptions" in content
+    assert "## Open Questions" in content
+    assert "## Semantic Term Decisions" in content
+    assert "## Upstream Intent Disposition" in content
+    assert "## Out-Of-Scope Conflicts" in content
+    assert "## Readiness Decision" in content
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
     assert "# Requirement Alignment Report:" not in content
@@ -3030,149 +3037,129 @@ def test_brainstorming_handoff_template_supports_context_boundary_quality_gate_a
     assert template.get("candidate_id") is None
     assert template.get("source_split_plan") is None
 
-def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
+def test_specify_template_does_not_require_fixed_heavy_discovery_contract() -> None:
     content = _read("templates/commands/specify.md")
-    observer_prompt = _read("templates/worker-prompts/specify-observer.md")
     lowered = content.lower()
 
-    assert "specify-draft.md" in content
-    assert "create or resume `specify_draft_file` immediately after `feature_dir` is known" in lowered
-    assert "content ledger for the whole discovery run" in lowered
-    assert "current domain" in lowered
-    assert "recent question-batch disposition" in lowered
-    assert "adversarial-review findings" in lowered
-    assert "confirmed facts" in lowered
-    assert "reopen the current domain" in lowered
-    assert "completeness gaps" in lowered
-    assert "next question target" in lowered
-    assert "# Specify Observer Worker Prompt" in observer_prompt
-    assert "missing_critical_capabilities" in observer_prompt
-    assert "release_blockers" in observer_prompt
+    assert "explore project context" in lowered
+    assert "one high-impact question at a time" in lowered
+    assert "two or three approaches" in lowered or "2-3 approaches" in lowered
+    assert "semantic term" in lowered
+    assert "user review" in lowered
+    assert "content ledger for the whole discovery run" not in lowered
+    assert "recent question-batch disposition" not in lowered
+    assert "adversarial-review findings" not in lowered
+    assert "reopen the current domain" not in lowered
+    assert "completeness gaps" not in lowered
 
 
-def test_specify_template_requires_lossless_journal_stage_manifest_and_checkpoints() -> None:
+def test_specify_template_does_not_require_lossless_journal_stage_manifest_and_checkpoints() -> None:
     specify = _read("templates/commands/specify.md")
     shell = _read("templates/command-partials/specify/shell.md")
     workflow_state = _read("templates/workflow-state-template.md")
-    draft = _read("templates/specify-draft-template.md")
+    handoff = _read("templates/brainstorming-handoff-specify-template.json")
 
-    combined = "\n".join([specify, shell, workflow_state, draft])
-    for expected in (
+    combined = "\n".join([specify, shell, workflow_state, handoff])
+    for obsolete in (
         "brainstorming/journal.ndjson",
         "brainstorming/stage-manifest.json",
-        "brainstorming/domains.json",
-        "brainstorming/evidence-index.json",
-        "checkpoint_written",
         "compiled_from",
-        "last_checkpoint_id",
-        "last_event_id",
+        "facts_file",
+        "route_file",
+        "intent_file",
+        "complexity_file",
         "journal replay wins",
         "Markdown is not a trusted recovery source",
     ):
-        assert expected in combined
+        assert obsolete not in combined
 
     assert (
         "Create or resume `BRAINSTORMING_JOURNAL_FILE` and `BRAINSTORMING_STAGE_MANIFEST_FILE` "
         "immediately after `FEATURE_DIR` is known"
-    ) in shell
-    assert "before relying on workflow-state, draft Markdown, or chat history" in shell
-
-    assert "20. Apply `release-decision`." in specify
+    ) not in shell
+    assert "before relying on workflow-state, draft Markdown, or chat history" not in shell
+    assert "brainstorming/handoff-to-specify.json" in specify
+    assert "source_files_read" in specify
+    assert "source_signal_disposition" in specify
     assert "20. Apply `final-handoff-decision`." not in specify
-    assert "until `release-decision` determines the appropriate next command" in specify
     assert "until `final-handoff-decision` determines the appropriate next command" not in specify
-    assert "final_handoff_decision: undecided" in specify
-    assert (
-        "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]"
-        in workflow_state
-    )
-    assert "final_handoff_decision: pending" not in specify
-    assert "Legacy compatibility wording: Only `final-handoff-decision`" in specify
-    assert (
-        "final-handoff-decision` determines the appropriate next command" not in specify
-    )
+    assert "Legacy compatibility wording: Only `final-handoff-decision`" not in specify
+    assert "last_user_reviewed_artifact_state" in workflow_state
 
-    for stage in (
-        "intake",
-        "evidence-intake",
+    for obsolete_stage in (
         "facts-lock",
         "route-lock",
         "intent-lock",
         "complexity-lock",
-        "domain-clarification",
-        "consequence-risk",
-        "specify-compile",
         "release-decision",
     ):
-        assert stage in workflow_state
-        assert stage in specify
+        assert obsolete_stage not in workflow_state
+        assert obsolete_stage not in specify
 
 
-def test_specify_template_requires_brainstorming_lock_flow_and_handoff_chain() -> None:
+def test_specify_template_uses_compatibility_handoff_without_brainstorming_lock_flow() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert "brainstorming kernel" in lowered
-    assert "facts-lock" in lowered
-    assert "route-lock" in lowered
-    assert "intent-lock" in lowered
-    assert "complexity-lock" in lowered
-    assert "brainstorming/facts.json" in content
-    assert "brainstorming/route.json" in content
-    assert "brainstorming/intent.json" in content
-    assert "brainstorming/complexity.json" in content
-    assert "handoff-to-specify.json" in content
-    assert "dynamic is allowed only" in lowered or "dynamic routing only" in lowered
-    assert "hard unknown" in lowered
-    assert "reopen upstream truth" in lowered or "reopen is a first-class workflow action" in lowered
-    assert "reopen" in lowered
+    assert "brainstorming/handoff-to-specify.json" in content
+    assert "source_signal_disposition" in content
+    assert "source_files_read" in content
+    assert "coverage_status" in content
+    assert "planning_gate_status" in content
+    assert "hard_unknown_count" in content
+    assert "open_conflict_count" in content
+    assert "capability-like" in lowered
+    assert "not only the handoff summary" in lowered
+    assert "brainstorming kernel" not in lowered
+    assert "facts-lock" not in content
+    assert "route-lock" not in content
+    assert "intent-lock" not in content
+    assert "complexity-lock" not in content
+    assert "brainstorming/facts.json" not in content
+    assert "brainstorming/route.json" not in content
+    assert "brainstorming/intent.json" not in content
+    assert "brainstorming/complexity.json" not in content
 
 
-def test_compiled_artifact_templates_preserve_route_and_complexity_truth() -> None:
+def test_specify_artifact_templates_use_semantic_traceability_not_route_complexity_locks() -> None:
     spec = _read("templates/spec-template.md")
     alignment = _read("templates/alignment-template.md")
     context = _read("templates/context-template.md")
     references = _read("templates/references-template.md")
 
-    assert "## Brainstorming Truth Inputs" in spec
-    assert "**Locked route**" in spec
-    assert "`brainstorming/route.json`" in spec
-    assert "**Locked complexity**" in spec
-    assert "`brainstorming/complexity.json`" in spec
-    assert "Must Preserve" in spec
-    assert "Allowed Optimization Scope" in spec
+    assert "Confirmed Scope" in spec
+    assert "Acceptance Proof" in spec
+    assert "Semantic Term Decisions" in alignment
+    assert "Upstream Intent Disposition" in alignment
+    assert "Out-Of-Scope Conflicts" in alignment
+    assert "Planning Context" in context
+    assert "Canonical References" in context
 
-    assert "## Route And Complexity Summary" in alignment
-    assert "Primary Route" in alignment
-    assert "**Complexity Level**: [T1 Local | T2 Structured | T3 Cross-Boundary | T4 Reconstruction]" in alignment
-    assert "Hard Unknowns Cleared" in alignment
-    assert "Reopen Required" in alignment
-
-    assert "## Brainstorming-Derived Execution Context" in context
-    assert "Truth Owner" in context
-    assert "Compatibility Constraints" in context
-    assert "Allowed Internal Redesign" in context
-
-    assert "## Truth Sources Used For Route And Intent Lock" in references
+    combined = "\n".join([spec, alignment, context, references])
+    assert "## Brainstorming Truth Inputs" not in combined
+    assert "**Locked route**" not in combined
+    assert "`brainstorming/route.json`" not in combined
+    assert "**Locked complexity**" not in combined
+    assert "`brainstorming/complexity.json`" not in combined
+    assert "## Route And Complexity Summary" not in combined
+    assert "## Brainstorming-Derived Execution Context" not in combined
+    assert "## Truth Sources Used For Route And Intent Lock" not in references
 
 
-def test_final_artifact_templates_preserve_lossless_source_map_guidance() -> None:
+def test_compiled_artifact_templates_do_not_require_lossless_source_maps() -> None:
     spec = _read("templates/spec-template.md")
     alignment = _read("templates/alignment-template.md")
     context = _read("templates/context-template.md")
     references = _read("templates/references-template.md")
     checklist = _read("templates/checklist-template.md")
 
-    for content in (spec, alignment, context, references):
-        assert "## Lossless Source Map" in content
-        assert "brainstorming/journal.ndjson" in content
-        assert "brainstorming/stage-manifest.json" in content
-        assert "EVT-" in content
-        assert "EVD-" in content
-        assert "`compiled_from`" in content
-
-    assert "lossless source map" in checklist.lower()
-    assert "compiled_from" in checklist
+    for content in (spec, alignment, context, references, checklist):
+        assert "Lossless Source Map" not in content
+        assert "brainstorming/journal.ndjson" not in content
+        assert "brainstorming/stage-manifest.json" not in content
+        assert "EVT-" not in content
+        assert "EVD-" not in content
+        assert "`compiled_from`" not in content
 
 
 def test_compiled_artifact_templates_preserve_must_preserve_ids() -> None:
@@ -3344,60 +3331,50 @@ def test_implement_execution_state_template_requires_structured_execution_contra
     assert '"hard_unknown_count": 0' in content
 
 
-def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
+def test_specify_template_uses_simplified_collaborative_spec_flow() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert "release-decision" in content
-    assert (
-        "The previous fixed heavy discovery lifecycle terms (`intent-analysis`, `intent-confirmation`, "
-        "`question-batch`, `batch-adversarial-review`, `completeness-audit`) may appear only as "
-        "compatibility labels inside the draft ledger"
-    ) in content
-    assert "Legacy compatibility wording: Only `final-handoff-decision`" in content
-    assert (
-        'Legacy compatibility wording may still describe the old fixed-heavy narrative as "always execute '
-        'these six stages in order"; treat that phrase as a historical label set'
-    ) in content
-
-    assert "intent-analyst" in content
-    assert "adversarial-reviewer" in content
-    assert "completeness-auditor" in content
-
-    assert "goal-and-users" in content
-    assert "triggers-and-primary-flow" in content
-    assert "boundaries-and-non-goals" in content
-    assert "failure-paths-exceptions-and-permissions" in content
-    assert "dependencies-constraints-and-upstream-downstream-impact" in content
-    assert "acceptance-and-completeness-gap-closure" in content
-
-    assert "task classification" not in lowered
-    assert "active_profile" not in content
-    assert "coverage_mode" not in content
-    assert "observer gate" not in lowered
+    assert "explore project context" in lowered
+    assert "one high-impact question at a time" in lowered
+    assert "2-3 approaches" in lowered or "two or three approaches" in lowered
+    assert "semantic term" in lowered
+    assert "user review" in lowered
+    assert "source_signal_disposition" in content
+    assert "discussion-log.md" in content
+    assert "requirements.md" in content
+    assert "open-questions.md" in content
+    assert "brainstorming/handoff-to-specify.json" in content
+    assert "checklists/requirements.md" in content
+    assert "facts-lock" not in content
+    assert "route-lock" not in content
+    assert "intent-lock" not in content
+    assert "complexity-lock" not in content
+    assert "brainstorming/journal.ndjson" not in content
+    assert "stage-manifest.json" not in content
 
 
-def test_specify_artifact_templates_lock_fixed_heavy_discovery_shapes() -> None:
-    alignment = _read("templates/alignment-template.md")
-    alignment_lowered = alignment.lower()
+def test_specify_artifact_templates_use_semantic_traceability_surfaces() -> None:
     spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    workflow_state = _read("templates/workflow-state-template.md")
+    checklist = _read("templates/checklist-template.md")
 
-    assert "completeness convergence report" in alignment_lowered
-    assert "initial intent analysis" in alignment_lowered
-    assert "domain closure log" in alignment_lowered
-    assert "batch adversarial review summary" in alignment_lowered
-    assert "Critical Gaps and Reopen Decisions" in alignment
-    assert "completeness audit outcome" in alignment_lowered
-    assert "High-Impact Decision Forks" not in alignment
-    assert "active_profile" not in alignment
-    assert "task classification" not in alignment_lowered
-    assert "coverage mode" not in alignment_lowered
-    assert "observer gate" not in alignment_lowered
+    assert "Semantic Term Decisions" in alignment
+    assert "Upstream Intent Disposition" in alignment
+    assert "Out-Of-Scope Conflicts" in alignment
+    assert "User Confirmation" in alignment
+    assert "Confirmed Scope" in spec
+    assert "Acceptance Proof" in spec
+    assert "Planning Context" in context
+    assert "last_user_reviewed_artifact_state" in workflow_state
+    assert "checklists/requirements.md" in _read("templates/commands/specify.md")
 
-    assert "Ideal Complete Requirement Shape" in spec
-    assert "Current Delivery Boundary" in spec
-    assert "This layer captures the complete useful feature form" in spec
-    assert "This layer captures the current project-bound delivery boundary" in spec
+    combined = "\n".join([spec, alignment, context, workflow_state, checklist])
+    assert "brainstorming/journal.ndjson" not in combined
+    assert "stage-manifest.json" not in combined
+    assert "`compiled_from`" not in combined
 
 
 def test_agent_file_template_keeps_project_specific_context_only():

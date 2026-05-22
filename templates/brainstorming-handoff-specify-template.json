@@ -98,12 +98,27 @@
     "user_confirmed_at": null,
     "blocked_reasons": []
   },
-  "facts_file": "brainstorming/facts.json",
-  "route_file": "brainstorming/route.json",
-  "intent_file": "brainstorming/intent.json",
-  "complexity_file": "brainstorming/complexity.json",
   "soft_unknowns": [],
   "unknowns": [],
+  "source_files_read": [],
+  "source_signal_disposition": [],
+  "source_signal_disposition_contract": {
+    "required_fields": [
+      "signal",
+      "source",
+      "disposition",
+      "artifact_location",
+      "user_confirmed",
+      "reopen_trigger"
+    ],
+    "allowed_dispositions": [
+      "preserved",
+      "in_scope",
+      "deferred",
+      "dropped",
+      "clarification_blocker"
+    ]
+  },
   "must_preserve": [],
   "conflicts": [],
   "coverage_status": "not_started",
@@ -126,12 +141,5 @@
     "coverage_gaps": []
   },
   "consequence_obligations": [],
-  "stop_and_reopen_conditions": [],
-  "compiled_from": {
-    "journal": "brainstorming/journal.ndjson",
-    "event_range": [],
-    "key_events": [],
-    "evidence_ids": [],
-    "compiled_at": null
-  }
+  "stop_and_reopen_conditions": []
 }

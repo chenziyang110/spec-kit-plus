@@ -106,11 +106,23 @@ Invocation syntax depends on the integration:
 syntax generated for your selected integration rather than copying Claude-style
 examples into Codex or Kimi projects.
 
-`sp-specify` is lossless-state backed for new feature packages. The trusted
-recovery source is `brainstorming/journal.ndjson` plus JSON stage artifacts
-indexed by `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
-Final artifacts carry `compiled_from` / source-map references
-so planning can trace major claims to event IDs or evidence IDs.
+`sp-specify` is a collaborative reviewed specification flow. It explores
+project context, asks one question at a time, compares two or three concrete
+approaches when scope needs a choice, and forces semantic
+traceability for ambiguous terms such as "capability", "real", "usable", or
+"end-to-end".
+
+When `specify` starts from a `discussion` handoff, it must read the named
+discussion source files, at least `discussion-log.md`, `requirements.md`, and
+`open-questions.md` when present, instead of trusting the handoff summary
+alone. The compatibility handoff JSON records `source_files_read` and
+`source_signal_disposition`; `alignment.md` carries `Semantic Term Decisions`,
+`Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` so a capability-like
+upstream signal cannot silently disappear before planning.
+
+Before planning, `specify` performs artifact self-review and asks for user review
+against the original wording so unconfirmed scope narrowing is reopened instead
+of passed downstream.
 
 Use the canonical `prd-scan -> prd-build` workflow when an existing repository
 needs a repository-first current-state PRD reconstruction archive. It is the

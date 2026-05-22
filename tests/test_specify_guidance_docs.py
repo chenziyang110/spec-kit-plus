@@ -283,60 +283,72 @@ def test_quickstart_taskify_walkthrough_frames_literal_sp_examples_as_claude_sty
     assert "using the `/sp-" not in walkthrough
 
 
-def test_guidance_docs_teach_fixed_heavy_specify_lifecycle() -> None:
+def test_guidance_docs_do_not_teach_fixed_heavy_specify_lifecycle() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
+    installation = _read("docs/installation.md")
 
-    for content in (readme, quickstart):
+    for content in (readme, quickstart, installation):
         lowered = content.lower()
-        assert "fixed heavy discovery" in lowered
-        assert "intent-analysis" in content
-        assert "intent-confirmation" in content
-        assert "question-batch" in content
-        assert "batch-adversarial-review" in content
-        assert "completeness-audit" in content
-        assert "final-handoff-decision" in content
-        assert "intent-analyst" in content
-        assert "adversarial-reviewer" in content
-        assert "completeness-auditor" in content
-        assert "goal-and-users" in content
-        assert "triggers-and-primary-flow" in content
-        assert "boundaries-and-non-goals" in content
-        assert "failure-paths-exceptions-and-permissions" in content
-        assert "dependencies-constraints-and-upstream-downstream-impact" in content
-        assert "acceptance-and-completeness-gap-closure" in content
+        assert "fixed heavy discovery" not in lowered
+        assert "intent-analysis" not in content
+        assert "intent-confirmation" not in content
+        assert "question-batch" not in content
+        assert "batch-adversarial-review" not in content
+        assert "completeness-audit" not in content
+        assert "final-handoff-decision" not in content
+        assert "intent-analyst" not in content
+        assert "adversarial-reviewer" not in content
+        assert "completeness-auditor" not in content
+        assert "goal-and-users" not in content
+        assert "triggers-and-primary-flow" not in content
+        assert "boundaries-and-non-goals" not in content
+        assert "failure-paths-exceptions-and-permissions" not in content
+        assert "dependencies-constraints-and-upstream-downstream-impact" not in content
+        assert "acceptance-and-completeness-gap-closure" not in content
         assert "task classification" not in lowered
 
 
-def test_guidance_docs_teach_specify_as_public_shell_with_internal_brainstorming() -> None:
+def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
     readme = _read("README.md")
-    quickstart = _read("docs/quickstart.md")
-
-    for content in (readme, quickstart):
-        lowered = content.lower()
-        assert "brainstorming" in lowered
-        assert "public entrypoint" in lowered or "public entry shell" in lowered or "public shell" in lowered
-        assert "structured handoff" in lowered
-        assert "facts-lock" in lowered or "facts lock" in lowered or "facts" in lowered
-        assert "route-lock" in lowered or "route lock" in lowered or "route" in lowered
-        assert "intent-lock" in lowered or "intent lock" in lowered or "intent" in lowered
-        assert "sp-implement" in content
-
-
-def test_guidance_docs_explain_lossless_specify_state() -> None:
-    readme = _read("README.md")
-    handbook = _read("PROJECT-HANDBOOK.md")
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
+
+    for content in (readme, quickstart, installation):
+        lowered = content.lower()
+        assert "collaborative reviewed specification flow" in lowered
+        assert "one question at a time" in lowered
+        assert "semantic term" in lowered
+        assert "two or three" in lowered and "approaches" in lowered
+        assert "user review" in lowered
+        assert "source_signal_disposition" in content
+        assert "discussion-log.md" in content
+        assert "requirements.md" in content
+        assert "open-questions.md" in content
+        assert "facts-lock" not in lowered
+        assert "route-lock" not in lowered
+        assert "intent-lock" not in lowered
+        assert "complexity-lock" not in lowered
+
+
+def test_guidance_docs_explain_semantic_specify_traceability() -> None:
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+    installation = _read("docs/installation.md")
+    handbook = _read("PROJECT-HANDBOOK.md")
     generated_handbook = _read("templates/project-handbook-template.md")
 
-    for content in (readme, handbook, quickstart, installation, generated_handbook):
+    for content in (readme, quickstart, installation, handbook, generated_handbook):
         lowered = content.lower()
-        assert "journal.ndjson" in content
-        assert "stage-manifest.json" in content
-        assert "lossless" in lowered
-        assert "compiled_from" in content
-        assert "markdown is not a trusted recovery source" in lowered
+        assert "semantic" in lowered
+        assert "source_signal_disposition" in content
+        assert "semantic term decisions" in lowered
+        assert "upstream intent disposition" in lowered
+        assert "out-of-scope conflicts" in lowered
+        assert "journal.ndjson" not in content
+        assert "stage-manifest.json" not in content
+        assert "lossless" not in lowered
+        assert "compiled_from" not in content
 
 
 def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:

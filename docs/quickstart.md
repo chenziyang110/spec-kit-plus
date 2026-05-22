@@ -102,16 +102,26 @@ Built-in profiles:
 
 **In the chat**, run the `specify` workflow to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
 
-Think of `specify` as a public shell: it first runs the internal brainstorming kernel, then compiles the planning-ready package.
+Think of `specify` as a collaborative requirements shell: it turns rough intent into a reviewed, planning-ready package.
 
-`sp-specify` is lossless-state backed for new feature packages. The trusted
-recovery source is `brainstorming/journal.ndjson` plus JSON stage artifacts
-indexed by `brainstorming/stage-manifest.json`; Markdown is not a trusted recovery source.
-Final artifacts carry `compiled_from` / source-map references
-so planning can trace major claims to event IDs or evidence IDs.
+`sp-specify` is now a collaborative reviewed specification flow. It explores
+the project context, asks one question at a time, decomposes
+ambiguous terms such as "capability" or "real", compares two or three concrete
+approaches when scope needs a choice, and writes artifacts only after the
+important meaning decisions are explicit.
 
-The deterministic lock sequence is `facts-lock`, `route-lock`, `intent-lock`,
-and `complexity-lock`.
+When `specify` starts from a `discussion` handoff, it must read the named
+discussion source files, at least `discussion-log.md`, `requirements.md`, and
+`open-questions.md` when present, instead of trusting the handoff summary alone.
+The compatibility handoff JSON records `source_files_read` and
+`source_signal_disposition` so upstream capability-like signals are preserved,
+deferred, dropped, or reopened explicitly.
+
+The planning package centers on `spec.md`, `alignment.md`, `context.md`,
+`workflow-state.md`, `checklists/requirements.md`, and a minimal compatibility
+`brainstorming/handoff-to-specify.json`. `alignment.md` carries the semantic
+traceability table through `Semantic Term Decisions`, `Upstream Intent Disposition`,
+and `Out-Of-Scope Conflicts`.
 
 That package then moves forward through structured handoff contracts into
 `plan`, `tasks`, and `implement`.
@@ -122,35 +132,11 @@ Treat `sp-specify` plus the generated create-feature script at
 feature-creation path. Do not look for or teach a separate branch-creation
 command family.
 
-`sp-specify` now follows a fixed heavy discovery lifecycle. It does not switch
-between lighter and heavier requirement-discovery modes based on inferred task
-shape. Before it decides whether to hand off to `plan`, `clarify`, or
-`deep-research`, it always runs these six stages in order:
-
-1. `intent-analysis`
-2. `intent-confirmation`
-3. `question-batch`
-4. `batch-adversarial-review`
-5. `completeness-audit`
-6. `final-handoff-decision`
-
-The fixed role set is:
-
-- `intent-analyst`
-- `adversarial-reviewer`
-- `completeness-auditor`
-
-The fixed requirement domains are:
-
-1. `goal-and-users`
-2. `triggers-and-primary-flow`
-3. `boundaries-and-non-goals`
-4. `failure-paths-exceptions-and-permissions`
-5. `dependencies-constraints-and-upstream-downstream-impact`
-6. `acceptance-and-completeness-gap-closure`
-
-In practice, this means `specify` treats even short requests as potentially
-incomplete and closes requirement gaps before planning.
+Before moving to `plan`, `specify` performs artifact self-review and asks for
+user review against the original wording, not just its own narrowed
+interpretation. If a user-facing term was narrowed, omitted, or placed out of
+scope without confirmation, it routes back to clarification instead of
+producing a planning-ready package.
 
 ```markdown
 /sp-specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
@@ -182,7 +168,7 @@ writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to
 Use `clarify` only when an existing spec needs deeper analysis before planning.
 Use `deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
 Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
-When `specify` records an unproven implementation chain after the fixed heavy discovery lifecycle completes, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
+When `specify` records an unproven implementation chain after artifact review, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
 Generated workflows preserve the user's confirmed product scope. Scope reduction requires user confirmation: a smaller MVP, pilot, prototype, or staged delivery boundary is valid only when the user asks for it, the request already defines it, or the agent names a constraint and the user confirms the scope decision.
 
