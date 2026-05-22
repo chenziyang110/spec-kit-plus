@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
@@ -19,6 +21,8 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
+
+const deltaGitProbeTimeout = 750 * time.Millisecond
 
 type stringList []string
 
@@ -380,27 +384,65 @@ func deltaBeginCommand(args []string, stdout io.Writer, stderr io.Writer, paths 
 		return 2
 	}
 
-	var baseCommit string
-	var branch string
-	var initialDirty []string
-	if rt.GitAvailable(paths.Root) {
-		baseCommit, _ = rt.GitHead(paths.Root)
-		branch, _ = rt.GitBranch(paths.Root)
-		if hasGitRoot(paths.Root) {
-			initialDirty, _ = rt.GitChangedPaths(paths.Root)
-		}
-	}
+	gitMetadata := collectDeltaGitMetadata(paths.Root, deltaGitProbeTimeout, runGitCommand)
 	session, err := delta.Begin(delta.BeginInput{
 		Root:              paths.Root,
 		RuntimeDir:        paths.RuntimeDir,
 		OriginCommand:     *originCommand,
 		OriginFeatureDir:  *originFeatureDir,
 		OriginLaneID:      *originLaneID,
-		BaseCommit:        baseCommit,
-		Branch:            branch,
-		InitialDirtyPaths: initialDirty,
+		BaseCommit:        gitMetadata.baseCommit,
+		Branch:            gitMetadata.branch,
+		InitialDirtyPaths: gitMetadata.initialDirty,
 	})
 	return writeCommandResult(stdout, stderr, paths, session, err)
+}
+
+type deltaGitMetadata struct {
+	baseCommit   string
+	branch       string
+	initialDirty []string
+}
+
+type gitCommandRunner func(context.Context, string, ...string) (string, error)
+
+func collectDeltaGitMetadata(root string, timeout time.Duration, run gitCommandRunner) deltaGitMetadata {
+	if output, err := runGitProbe(root, timeout, run, "rev-parse", "--is-inside-work-tree"); err != nil || strings.TrimSpace(output) != "true" {
+		return deltaGitMetadata{}
+	}
+
+	metadata := deltaGitMetadata{}
+	if output, err := runGitProbe(root, timeout, run, "rev-parse", "HEAD"); err == nil {
+		metadata.baseCommit = strings.TrimSpace(output)
+	}
+	if output, err := runGitProbe(root, timeout, run, "branch", "--show-current"); err == nil {
+		metadata.branch = strings.TrimSpace(output)
+	}
+	if hasGitRoot(root) {
+		if output, err := runGitProbe(root, timeout, run, "status", "--short", "--untracked-files=all"); err == nil {
+			metadata.initialDirty = parseDeltaGitStatusShort(output)
+		}
+	}
+	return metadata
+}
+
+func runGitProbe(root string, timeout time.Duration, run gitCommandRunner, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return run(ctx, root, args...)
+}
+
+func runGitCommand(ctx context.Context, root string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = root
+	data, err := cmd.Output()
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func hasGitRoot(root string) bool {
@@ -408,6 +450,38 @@ func hasGitRoot(root string) bool {
 		return true
 	}
 	return false
+}
+
+func parseDeltaGitStatusShort(output string) []string {
+	var paths []string
+	for _, line := range strings.Split(output, "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		path := strings.TrimSpace(line[3:])
+		if strings.Contains(path, " -> ") {
+			parts := strings.Split(path, " -> ")
+			path = parts[len(parts)-1]
+		}
+		path = filepath.ToSlash(strings.TrimSpace(path))
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return uniqueDeltaStrings(paths)
+}
+
+func uniqueDeltaStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func deltaAppendCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
