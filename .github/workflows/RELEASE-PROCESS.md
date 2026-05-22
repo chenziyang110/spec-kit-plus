@@ -88,7 +88,7 @@ Once the release trigger workflow completes:
 1. A `chore/release-vX.Y.Z` branch is pushed with the version bump commit
 2. The git tag is pushed, pointing to that commit
 3. The **Release Workflow** is automatically triggered by the tag push
-4. Release artifacts are built for all supported agents
+4. Release tool binaries are cross-compiled
 5. A GitHub Release is created with all assets
 6. A PR is opened to merge the version bump branch into `main`
 
@@ -127,9 +127,9 @@ Once the release trigger workflow completes:
 1. Checkout repository at tag
 2. Extract version from tag name
 3. Check if release already exists
-4. Build release package variants (all agents × shell/powershell)
-5. Generate release notes from commits
-6. Create GitHub Release with all assets
+4. Generate release notes from commits
+5. Cross-compile release tool binaries (`spec-lint` and `project-cognition`)
+6. Create GitHub Release with all assets, including `spec-lint-*` and `project-cognition-*` binaries
 
 ## Version Constraints
 

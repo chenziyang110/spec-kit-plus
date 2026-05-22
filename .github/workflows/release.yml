@@ -91,7 +91,7 @@ jobs:
 
           ### project-cognition runtime
 
-          Generated project cognition workflows require the standalone `project-cognition` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS.
+          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS.
 
           **Install the prebuilt release binary**
           \`\`\`bash
@@ -106,13 +106,60 @@ jobs:
           go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@${VERSION}
           \`\`\`
 
-          The generated helper scripts prefer `PROJECT_COGNITION_BIN` when it is set and otherwise call `project-cognition` from PATH.
+          The generated helper scripts prefer \`PROJECT_COGNITION_BIN\` when it is set and otherwise call \`project-cognition\` from PATH.
 
           NOTES_EOF
 
           echo "## What's Changed" >> release_notes.md
           echo "" >> release_notes.md
           echo "$COMMITS" >> release_notes.md
+
+      - uses: actions/setup-go@v6
+        if: steps.check_release.outputs.exists == 'false'
+        with:
+          go-version: '1.21'
+
+      - name: Cross-compile release tool binaries
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.tag }}"
+          mkdir -p dist/release-tools
+
+          TARGETS="
+          linux/amd64
+          linux/arm64
+          darwin/amd64
+          darwin/arm64
+          windows/amd64
+          "
+
+          build_tool() {
+            local tool="$1"
+            local dir="$2"
+            echo "Building ${tool} ${VERSION}..."
+            for target in $TARGETS; do
+              goos="${target%/*}"
+              goarch="${target#*/}"
+              ext=""
+              if [ "$goos" = "windows" ]; then ext=".exe"; fi
+
+              echo "  -> ${tool} ${goos}/${goarch}"
+              (
+                cd "$dir"
+                GOOS=${goos} GOARCH=${goarch} CGO_ENABLED=0 \
+                  go build -trimpath \
+                    -ldflags="-s -w -X 'main.version=${VERSION}'" \
+                    -o "../../dist/release-tools/${tool}-${goos}-${goarch}${ext}" .
+              )
+            done
+          }
+
+          build_tool "spec-lint" "tools/spec-lint"
+          build_tool "project-cognition" "tools/project-cognition"
+
+          echo ""
+          echo "=== Built release tool binaries ==="
+          ls -lh dist/release-tools/
 
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'
@@ -121,6 +168,7 @@ jobs:
           VERSION_NO_V=${VERSION#v}
           gh release create "$VERSION" \
             --title "Spec Kit Plus - $VERSION_NO_V" \
-            --notes-file release_notes.md
+            --notes-file release_notes.md \
+            dist/release-tools/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
