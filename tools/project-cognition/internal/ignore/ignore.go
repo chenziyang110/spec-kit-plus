@@ -158,7 +158,7 @@ func matchPattern(pattern string, path string, anchored bool) bool {
 	}
 
 	for _, candidate := range patterns {
-		if globMatch(candidate, path) {
+		if matchPathOrDescendant(candidate, path) {
 			return true
 		}
 		if anchored {
@@ -166,9 +166,23 @@ func matchPattern(pattern string, path string, anchored bool) bool {
 		}
 		parts := strings.Split(path, "/")
 		for i := 1; i < len(parts); i++ {
-			if globMatch(candidate, strings.Join(parts[i:], "/")) {
+			if matchPathOrDescendant(candidate, strings.Join(parts[i:], "/")) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func matchPathOrDescendant(pattern string, path string) bool {
+	if globMatch(pattern, path) {
+		return true
+	}
+	parts := strings.Split(path, "/")
+	for i := 0; i < len(parts)-1; i++ {
+		prefix := strings.Join(parts[:i+1], "/")
+		if globMatch(pattern, prefix) {
+			return true
 		}
 	}
 	return false
