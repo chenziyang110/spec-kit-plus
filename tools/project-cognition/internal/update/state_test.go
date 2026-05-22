@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
@@ -80,5 +81,86 @@ func TestCompleteRefreshClearsDirtyState(t *testing.T) {
 	}
 	if status.Freshness != rt.ReadyFreshness {
 		t.Fatalf("freshness = %q", status.Freshness)
+	}
+}
+
+func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
+	paths := testPaths(t)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:              paths.Root,
+		RuntimeDir:        paths.RuntimeDir,
+		OriginCommand:     "quick",
+		InitialDirtyPaths: []string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := delta.Append(delta.AppendInput{
+		RuntimeDir:   paths.RuntimeDir,
+		SessionID:    session.SessionID,
+		EventType:    "worker_result",
+		ChangedPaths: []string{"src/a.go"},
+		Verification: []string{"go test ./... PASS"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.Readiness == rt.ReadyReadiness {
+		t.Fatalf("Readiness = %q, did not want ready", payload.Readiness)
+	}
+	if payload.UpdateOutcome != "boundary_resolved" {
+		t.Fatalf("UpdateOutcome = %q, want boundary_resolved", payload.UpdateOutcome)
+	}
+	if payload.Boundary == nil {
+		t.Fatal("Boundary is nil")
+	}
+	if payload.Boundary.BoundarySource != "delta_journal" {
+		t.Fatalf("BoundarySource = %q, want delta_journal", payload.Boundary.BoundarySource)
+	}
+}
+
+func TestRunUpdateWithDeltaSessionRecordsStatusMetadata(t *testing.T) {
+	paths := testPaths(t)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:          paths.Root,
+		RuntimeDir:    paths.RuntimeDir,
+		OriginCommand: "quick",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := delta.Append(delta.AppendInput{
+		RuntimeDir:   paths.RuntimeDir,
+		SessionID:    session.SessionID,
+		EventType:    "worker_result",
+		ChangedPaths: []string{"src/a.go"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastDeltaSessionID != session.SessionID {
+		t.Fatalf("LastDeltaSessionID = %q, want %q", status.LastDeltaSessionID, session.SessionID)
+	}
+	if status.LastUpdateOutcome != "boundary_resolved" {
+		t.Fatalf("LastUpdateOutcome = %q, want boundary_resolved", status.LastUpdateOutcome)
 	}
 }

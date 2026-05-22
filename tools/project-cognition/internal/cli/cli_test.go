@@ -231,6 +231,52 @@ func TestDeltaAppendCommandAcceptsPacketFile(t *testing.T) {
 	}
 }
 
+func TestUpdateCommandAcceptsDeltaSession(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	sessionID := beginDeltaSession(t)
+	var appendStdout, appendStderr bytes.Buffer
+	appendCode := Run([]string{
+		"delta", "append",
+		"--session", sessionID,
+		"--event-type", "worker_result",
+		"--changed-path", "src/a.go",
+		"--format", "json",
+	}, &appendStdout, &appendStderr, "test")
+	if appendCode != 0 {
+		t.Fatalf("append code = %d stderr=%s", appendCode, appendStderr.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"update",
+		"--delta-session", sessionID,
+		"--reason", "workflow-finalize",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["update_outcome"] != "boundary_resolved" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["readiness"] == "query_ready" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
 func beginDeltaSession(t *testing.T) string {
 	t.Helper()
 	var stdout, stderr bytes.Buffer

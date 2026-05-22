@@ -253,11 +253,19 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	fs.Var(&changed, "changed-path", "Changed path")
 	fs.Var(&scopes, "scope", "Scope path")
 	reason := fs.String("reason", "update", "Update reason")
+	deltaSession := fs.String("delta-session", "", "Delta session id")
+	commitRange := fs.String("commit-range", "", "Commit range base..head")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	payload, err := update.RunUpdate(paths, update.UpdateInput{ChangedPaths: changed, ScopePaths: scopes, Reason: *reason})
+	payload, err := update.RunUpdate(paths, update.UpdateInput{
+		ChangedPaths:   changed,
+		ScopePaths:     scopes,
+		Reason:         *reason,
+		DeltaSessionID: *deltaSession,
+		CommitRange:    *commitRange,
+	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 
