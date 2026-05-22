@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -426,10 +427,8 @@ func collectDeltaGitMetadata(root string, timeout time.Duration, run gitCommandR
 	if output, err := runGitProbe(root, timeout, run, "branch", "--show-current"); err == nil {
 		metadata.branch = strings.TrimSpace(output)
 	}
-	if hasGitRoot(root) {
-		if output, err := runGitProbe(root, timeout, run, "status", "--short", "--untracked-files=all"); err == nil {
-			metadata.initialDirty = parseDeltaGitStatusShort(output)
-		}
+	if output, err := runGitProbe(root, timeout, run, "status", "--short", "--untracked-files=all"); err == nil {
+		metadata.initialDirty = parseDeltaGitStatusShort(output)
 	}
 	return metadata
 }
@@ -441,23 +440,31 @@ func runGitProbe(root string, timeout time.Duration, run gitCommandRunner, args 
 }
 
 func runGitCommand(ctx context.Context, root string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.Command("git", args...)
 	cmd.Dir = root
-	data, err := cmd.Output()
-	if ctx.Err() != nil {
-		return "", ctx.Err()
-	}
-	if err != nil {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	return string(data), nil
-}
-
-func hasGitRoot(root string) bool {
-	if _, err := os.Stat(filepath.Join(root, ".git")); err == nil {
-		return true
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			return "", err
+		}
+		return stdout.String(), nil
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		return "", ctx.Err()
 	}
-	return false
 }
 
 func parseDeltaGitStatusShort(output string) []string {

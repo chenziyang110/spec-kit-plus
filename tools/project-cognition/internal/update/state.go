@@ -250,13 +250,17 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 		return UpdatePayload{}, err
 	}
 
-	gitDiff := gitDiffPathsFromCommitRange(paths.Root, input.CommitRange)
+	gitDiff, err := gitDiffPathsFromCommitRange(paths.Root, input.CommitRange)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
 	result := boundary.Resolve(boundary.ResolveInput{
 		Root:         paths.Root,
 		Config:       cfg,
 		Bundle:       bundle,
 		GitDiffPaths: gitDiff,
 	})
+	forceBoundaryOnlyAutoCommitDecision(&result)
 
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 	st, err := store.Open(paths)
@@ -312,20 +316,33 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	}, nil
 }
 
-func gitDiffPathsFromCommitRange(root string, commitRange string) []string {
-	parts := strings.Split(strings.TrimSpace(commitRange), "..")
+func forceBoundaryOnlyAutoCommitDecision(result *boundary.Result) {
+	const warning = "auto-commit not attempted by boundary-only update layer"
+	result.AutoCommitDecision = "commit_skipped"
+	if !containsString(result.Warnings, warning) {
+		result.Warnings = append(result.Warnings, warning)
+		sort.Strings(result.Warnings)
+	}
+}
+
+func gitDiffPathsFromCommitRange(root string, commitRange string) ([]string, error) {
+	commitRange = strings.TrimSpace(commitRange)
+	if commitRange == "" {
+		return []string{}, nil
+	}
+	parts := strings.Split(commitRange, "..")
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return []string{}
+		return nil, fmt.Errorf("invalid commit range %q: expected base..head", commitRange)
 	}
 	entries, err := rt.GitDiffNameStatus(root, strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 	if err != nil {
-		return []string{}
+		return nil, fmt.Errorf("git diff commit range %q: %w", commitRange, err)
 	}
 	paths := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		paths = append(paths, entry.Path)
 	}
-	return normalizePaths(paths)
+	return normalizePaths(paths), nil
 }
 
 func ScopeFromPacket(packetFile string) ([]string, error) {
@@ -397,4 +414,13 @@ func appendUnique(existing []string, values ...string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

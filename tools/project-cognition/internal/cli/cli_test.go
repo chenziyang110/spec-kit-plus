@@ -161,6 +161,36 @@ func TestDeltaGitMetadataSkipsDirtyPathsOnTimeout(t *testing.T) {
 	}
 }
 
+func TestDeltaGitMetadataCapturesDirtyPathsWithoutRootGitDirectory(t *testing.T) {
+	root := t.TempDir()
+	calls := []string{}
+	runner := func(ctx context.Context, root string, args ...string) (string, error) {
+		command := strings.Join(args, " ")
+		calls = append(calls, command)
+		switch command {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "rev-parse HEAD":
+			return "abc123\n", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "status --short --untracked-files=all":
+			return " M src/a.go\n", nil
+		default:
+			return "", errors.New("unexpected git command: " + command)
+		}
+	}
+
+	metadata := collectDeltaGitMetadata(root, time.Millisecond, runner)
+
+	if !hasCall(calls, "status --short --untracked-files=all") {
+		t.Fatalf("calls = %#v", calls)
+	}
+	if got := metadata.initialDirty; len(got) != 1 || got[0] != "src/a.go" {
+		t.Fatalf("initialDirty = %#v, want src/a.go", got)
+	}
+}
+
 func TestDeltaAppendCommandWritesEvent(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
@@ -274,6 +304,31 @@ func TestUpdateCommandAcceptsDeltaSession(t *testing.T) {
 	}
 	if payload["readiness"] == "query_ready" {
 		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestUpdateCommandRejectsBadDeltaCommitRange(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	sessionID := beginDeltaSession(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"update",
+		"--delta-session", sessionID,
+		"--commit-range", "bad-range",
+		"--reason", "workflow-finalize",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = %d stdout=%s stderr=%s, want non-zero", code, stdout.String(), stderr.String())
 	}
 }
 

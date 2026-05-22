@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
@@ -163,4 +164,84 @@ func TestRunUpdateWithDeltaSessionRecordsStatusMetadata(t *testing.T) {
 	if status.LastUpdateOutcome != "boundary_resolved" {
 		t.Fatalf("LastUpdateOutcome = %q, want boundary_resolved", status.LastUpdateOutcome)
 	}
+}
+
+func TestRunUpdateWithDeltaSessionSkipsAutoCommitInBoundaryOnlyLayer(t *testing.T) {
+	paths := testPaths(t)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:          paths.Root,
+		RuntimeDir:    paths.RuntimeDir,
+		OriginCommand: "quick",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := delta.Append(delta.AppendInput{
+		RuntimeDir:   paths.RuntimeDir,
+		SessionID:    session.SessionID,
+		EventType:    "worker_result",
+		ChangedPaths: []string{"src/a.go"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := payload.PathAdoption["auto_commit_decision"]; got != "commit_skipped" {
+		t.Fatalf("path adoption auto_commit_decision = %#v, want commit_skipped", got)
+	}
+	if payload.Boundary == nil {
+		t.Fatal("Boundary is nil")
+	}
+	if payload.Boundary.AutoCommitDecision != "commit_skipped" {
+		t.Fatalf("Boundary AutoCommitDecision = %q, want commit_skipped", payload.Boundary.AutoCommitDecision)
+	}
+	if !containsText(payload.KnownUnknowns, "auto-commit not attempted") {
+		t.Fatalf("KnownUnknowns = %#v, want auto-commit not attempted warning", payload.KnownUnknowns)
+	}
+	if !containsText(payload.Boundary.Warnings, "auto-commit not attempted") {
+		t.Fatalf("Boundary Warnings = %#v, want auto-commit not attempted warning", payload.Boundary.Warnings)
+	}
+}
+
+func TestRunUpdateWithDeltaSessionRejectsMalformedCommitRange(t *testing.T) {
+	paths := testPaths(t)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:          paths.Root,
+		RuntimeDir:    paths.RuntimeDir,
+		OriginCommand: "quick",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		CommitRange:    "bad-range",
+		Reason:         "workflow-finalize",
+	}); err == nil {
+		t.Fatal("expected malformed commit range error")
+	}
+}
+
+func TestGitDiffPathsFromCommitRangeReturnsErrorWhenGitDiffFails(t *testing.T) {
+	_, err := gitDiffPathsFromCommitRange(t.TempDir(), "base..head")
+	if err == nil {
+		t.Fatal("expected git diff error")
+	}
+}
+
+func containsText(values []string, want string) bool {
+	for _, value := range values {
+		if strings.Contains(value, want) {
+			return true
+		}
+	}
+	return false
 }
