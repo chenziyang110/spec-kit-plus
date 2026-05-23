@@ -14,7 +14,8 @@ user coordination problem when native subagents are available.
 
 Current routing vocabulary:
 
-- Use subagents-first execution for bounded delegated work.
+- Use subagents-first execution for bounded delegated work after the owning
+  workflow selects or permits delegation.
 - Dispatch `one-subagent` when one safe lane is ready.
 - Dispatch `parallel-subagents` when two or more independent lanes can run
   concurrently.
@@ -40,6 +41,9 @@ Current routing vocabulary:
    `{{invoke:map-build}}`, or `{{invoke:implement}}`.
 2. **Split lanes**: Name each lane, purpose, read context, write-set, forbidden
    paths, shared surfaces, and verification target.
+   `sp-debug` dispatches parallel agents only when the investigation exposes
+   independent evidence lanes; small focused investigations may stay
+   leader-inline under the debug session contract.
 3. **Check conflicts**: Do not dispatch two writers to the same file or shared
    state unless one lane is explicitly read-only or the workflow defines a safe
    join point.

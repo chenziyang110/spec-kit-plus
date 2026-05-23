@@ -36,8 +36,7 @@ judgment in an established Spec Kit Plus repository:
   returned `route_pack` and `minimal_live_reads`.
 - For `sp-discussion`, product framing may begin before the cognition gate. Before
   technical options, affected-surface claims, source-code reads, or
-  source-grounded recommendations, use the active workflow's launcher-backed
-  project cognition query planning flow to retrieve the task-local project
+  source-grounded recommendations, use the active workflow's launcher-backed project cognition query planning flow to retrieve the task-local project
   cognition bundle. Use `project-cognition lexicon --intent discussion` and
   `project-cognition query --intent discussion` for discussion grounding. Do not
   use `--intent plan` from `sp-discussion`.

@@ -5,9 +5,11 @@ description: "Use when executing implementation plans, working on independent ta
 # Subagent-Driven Development (Spec Kit Plus)
 
 Spec Kit Plus keeps workflow state in `sp-*` artifacts, but it should still use
-native subagents aggressively once the work is safely packetized. Subagents are
-not a competing workflow; they are the execution workers behind `sp-quick`,
-`sp-debug`, `sp-map-scan`, `sp-map-build`, and `sp-implement`.
+native subagents aggressively once the owning workflow permits delegation and
+the work is safely packetized. Subagents are not a competing workflow; they are
+the execution workers behind packetized `sp-quick` work after understanding
+confirmation, broad or independent `sp-debug` evidence lanes, `sp-map-scan`,
+`sp-map-build`, and `sp-implement`.
 
 ## Core Rule
 
@@ -17,12 +19,16 @@ Route first, packetize second, dispatch third.
   investigation begins.
 - Compile and validate a `WorkerTaskPacket` or equivalent execution contract
   before any subagent work begins.
-- Use subagents-first execution for bounded delegated work.
+- Use subagents-first execution for bounded delegated work only after the owning
+  workflow selects or permits delegation.
 - Dispatch `one-subagent` when one safe lane is ready.
 - Dispatch `parallel-subagents` when two or more independent lanes can run
   concurrently.
 - Use `leader-inline-fallback` only after recording why delegation is
   unavailable, unsafe, or not packetized.
+- `sp-debug` may stay leader-inline for small focused investigations; use
+  subagent-assisted execution when the investigation exposes broad, independent,
+  or parallel evidence lanes.
 - Do not use old strategy labels as routing choices.
 - `sp-teams` only when Codex work needs durable team state, explicit join-point
   tracking, result files, or lifecycle control beyond one in-session subagent
@@ -45,7 +51,8 @@ Route first, packetize second, dispatch third.
    leader owns packet quality, lane selection, and integration, but should not
    implement the lane locally while subagent execution is active. Use
    `managed-team` only for durable team state or lifecycle control, and use
-   `leader-inline` only as a recorded fallback.
+   `leader-inline` only as the owning workflow's selected mode or a recorded
+   fallback.
 4. **Join on evidence**: Wait for every subagent's structured handoff. The
    handoff must name changed files, verification run, failures, open risks, and
    any spec or plan gaps. An idle or silent subagent is not completed work.
@@ -85,9 +92,13 @@ packet before dispatch.
 
 ## Red Flags
 
-- Doing leader-inline implementation because the task looks "small" after an
-  `sp-quick`, `sp-debug`, or `sp-implement` route selected an executable lane,
-  without recording a `leader-inline-fallback` reason.
+- Doing leader-inline implementation because the task looks "small" after
+  `sp-quick` understanding confirmation, or after an `sp-implement` route
+  selected an executable lane, without recording a `leader-inline-fallback`
+  reason.
+- Doing leader-inline work after a `sp-debug` route selected
+  `subagent-assisted` execution or after independent evidence lanes are
+  available, without recording why the investigation remains small and focused.
 - Dispatching raw task text without a validated `WorkerTaskPacket`.
 - Asking the user to open separate terminals when native subagents are available
   in the current runtime.

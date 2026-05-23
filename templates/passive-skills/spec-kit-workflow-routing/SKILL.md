@@ -63,6 +63,10 @@ standalone branch-creation command.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
+- `sp-quick` performs one Understanding Checkpoint before substantive execution:
+  confirm the understood problem, intended outcome, scope boundary, execution
+  approach, and validation evidence before code edits, broad repo analysis,
+  delegation, or validation commands continue.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
 - Use `sp-discussion` before `sp-specify` when the request is a rough idea, not-yet-ready requirement, unsettled product direction, or depends on unclear project boundaries.
@@ -93,6 +97,10 @@ standalone branch-creation command.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
+- `sp-debug` is complexity-based: small focused investigations may stay
+  leader-inline, while broad, independent, or parallel evidence lanes use
+  subagent-assisted execution. If the next safe step is unavailable, unsafe, or
+  cannot be packetized, record the blocked state instead of forcing delegation.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
   coverage is stale or too weak for a localized touched area and the user wants
   map maintenance first, including ordinary existing-baseline gaps.
@@ -133,18 +141,25 @@ user what to type:
 
 ## Subagent Routing
 
-- Use subagents-first execution for bounded delegated work.
+- Use native subagents for bounded delegated work after the owning workflow
+  selects or permits delegation.
 - Dispatch `one-subagent` when one safe lane is ready.
 - Dispatch `parallel-subagents` when two or more independent lanes can run
   concurrently.
-- Use `leader-inline-fallback` only after recording why delegation is
-  unavailable, unsafe, or not packetized.
+- Record a fallback or blocked reason when a workflow-selected delegated lane
+  cannot proceed because delegation is unavailable, unsafe, or not packetized.
 - Do not use old strategy labels as routing choices.
 - `sp-fast` is the main leader-inline route; use it only when the work is
   trivial, local, low risk, and does not benefit from delegated verification.
-- For `sp-quick`, `sp-debug`, `sp-map-scan`, `sp-map-build`, and
-  `sp-implement`, leader + subagents is the default execution shape for
-  independent bounded lanes when the current runtime supports delegation.
+- For `sp-quick`, complete the one-time Understanding Checkpoint before
+  substantive execution; after confirmation, use delegated lanes when they are
+  safe and packetized.
+- For `sp-debug`, choose leader-inline for small focused investigations and
+  subagent-assisted execution for broad, independent, or parallel evidence
+  lanes.
+- For `sp-map-scan`, `sp-map-build`, and `sp-implement`, leader + subagents is
+  the default execution shape for independent bounded lanes when the current
+  runtime supports delegation.
 - Use `sp-teams` only when Codex work needs durable team state, explicit join-point
   tracking, or lifecycle control beyond one in-session subagent burst.
 
