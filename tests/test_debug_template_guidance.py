@@ -241,6 +241,27 @@ def test_debug_session_template_uses_canonical_intake_fields() -> None:
     assert "log_investigation_plan_completed:" in content
     assert "observer_framing_completed:" in content
     assert "legacy_session_needs_reintake:" in content
+    assert "execution_model:" in content
+    assert "leader-inline | subagent-assisted | blocked" in content
+    assert "dispatch_shape:" in content
+    assert "leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content
+    assert "execution_surface:" in content
+    assert "leader-inline | native-subagents | none" in content
+    assert "dispatch_reason:" in content
+    assert "blocked_reason:" in content
+    session_template = content.split("```markdown", 1)[1].split("```", 1)[0]
+    frontmatter = session_template.split("---", 2)[1]
+    execution_field_order = [
+        "legacy_session_needs_reintake:",
+        "execution_model:",
+        "dispatch_shape:",
+        "execution_surface:",
+        "dispatch_reason:",
+        "blocked_reason:",
+        "waiting_on_child_human_followup:",
+    ]
+    execution_field_offsets = [frontmatter.index(field) for field in execution_field_order]
+    assert execution_field_offsets == sorted(execution_field_offsets)
     assert "map-backed or deep canonical intake package is complete" in lowered
     assert "## Observer Framing" in content
     assert "## Transition Memo" in content
