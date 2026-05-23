@@ -153,6 +153,44 @@ func TestCheckAgreementBlocksSplitBrainActiveGeneration(t *testing.T) {
 	}
 }
 
+func TestBlockIfExistingSkipsMissingBaselineAndBlocksSplitBrain(t *testing.T) {
+	missingPaths := testPaths(t)
+	if err := BlockIfExisting(missingPaths); err != nil {
+		t.Fatalf("missing baseline error = %v, want nil", err)
+	}
+
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-db", Kind: "full"}); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-old"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	err = BlockIfExisting(paths)
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+}
+
 func testPaths(t *testing.T) rt.Paths {
 	t.Helper()
 	root := t.TempDir()

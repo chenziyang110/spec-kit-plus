@@ -60,10 +60,14 @@ func Discover(root string) (DiscoverPayload, error) {
 			info.ReferenceReadiness = status.Readiness
 			info.Freshness = status.Freshness
 			info.GraphReady = status.Readiness == rt.ReadyReadiness
-			if agreement, ok := checkExistingAgreement(paths); ok && len(agreement.Errors) > 0 {
+			if agreement, ok := runtimegate.CheckExisting(paths); ok && agreement.Status != "ok" {
 				info.ReferenceReadiness = rt.BlockedReadiness
 				info.GraphReady = false
-				info.Blockers = append(info.Blockers, agreement.RecoveryAction)
+				if agreement.RecoveryAction != "" {
+					info.Blockers = append(info.Blockers, agreement.RecoveryAction)
+				} else if agreement.RecommendedNextAction != "" {
+					info.Blockers = append(info.Blockers, agreement.RecommendedNextAction)
+				}
 				info.Blockers = append(info.Blockers, agreement.Errors...)
 			}
 		}
@@ -74,14 +78,4 @@ func Discover(root string) (DiscoverPayload, error) {
 		return DiscoverPayload{}, err
 	}
 	return DiscoverPayload{Projects: projects}, nil
-}
-
-func checkExistingAgreement(paths rt.Paths) (runtimegate.Agreement, bool) {
-	if _, err := os.Stat(paths.StatusPath); err != nil {
-		return runtimegate.Agreement{}, false
-	}
-	if _, err := os.Stat(paths.DatabasePath); err != nil {
-		return runtimegate.Agreement{}, false
-	}
-	return runtimegate.Check(paths), true
 }

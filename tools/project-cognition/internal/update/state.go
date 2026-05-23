@@ -56,6 +56,9 @@ type UpdatePayload struct {
 }
 
 func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	if input.Reason == "" {
 		input.Reason = "manual"
 	}
@@ -90,6 +93,9 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 }
 
 func ClearDirty(paths rt.Paths) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return rt.Status{}, err
@@ -110,6 +116,9 @@ func ClearDirty(paths rt.Paths) (rt.Status, error) {
 }
 
 func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	if reason == "" {
 		reason = "manual"
 	}
@@ -126,6 +135,9 @@ func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
 }
 
 func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return rt.Status{}, err
@@ -153,6 +165,9 @@ func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
 }
 
 func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	if reason == "" {
 		reason = "topic-refresh"
 	}
@@ -245,17 +260,7 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 }
 
 func blockSplitBrainBaseline(paths rt.Paths) error {
-	if _, err := os.Stat(paths.StatusPath); err != nil {
-		return nil
-	}
-	if _, err := os.Stat(paths.DatabasePath); err != nil {
-		return nil
-	}
-	agreement := runtimegate.Check(paths)
-	if len(agreement.Errors) == 0 {
-		return nil
-	}
-	return fmt.Errorf("project cognition agreement blocked: %s: %s", agreement.RecoveryAction, strings.Join(agreement.Errors, "; "))
+	return runtimegate.BlockIfExisting(paths)
 }
 
 func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {

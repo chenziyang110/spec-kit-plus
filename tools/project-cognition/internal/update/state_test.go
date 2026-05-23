@@ -130,6 +130,36 @@ func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
 	}
 }
 
+func TestCompleteRefreshBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+
+	_, err := CompleteRefresh(paths, "manual")
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+	assertStatusActiveGeneration(t, paths, "GEN-old")
+}
+
+func TestMarkDirtyBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+
+	_, err := MarkDirty(paths, DirtyInput{Reason: "manual", ScopePaths: []string{"src/app.go"}})
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+	assertStatusActiveGeneration(t, paths, "GEN-old")
+}
+
 func TestRunUpdateBlocksSplitBrainBaselineBeforeMutation(t *testing.T) {
 	paths := testPaths(t)
 	seedSplitBrainRuntime(t, paths)
@@ -152,6 +182,9 @@ func TestRunUpdateBlocksSplitBrainBaselineBeforeMutation(t *testing.T) {
 	}
 	if status.LastUpdateID != "" {
 		t.Fatalf("LastUpdateID = %q, want no mutation", status.LastUpdateID)
+	}
+	if status.ActiveGenerationID != "GEN-old" {
+		t.Fatalf("ActiveGenerationID = %q, want GEN-old", status.ActiveGenerationID)
 	}
 }
 
@@ -351,5 +384,16 @@ func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 	status.ActiveGenerationID = "GEN-old"
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func assertStatusActiveGeneration(t *testing.T, paths rt.Paths, want string) {
+	t.Helper()
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ActiveGenerationID != want {
+		t.Fatalf("ActiveGenerationID = %q, want %q", status.ActiveGenerationID, want)
 	}
 }

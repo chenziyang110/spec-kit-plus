@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
@@ -85,15 +84,5 @@ func readJSON(path string) (any, error) {
 }
 
 func blockSplitBrainReference(paths rt.Paths) error {
-	if _, err := os.Stat(paths.StatusPath); err != nil {
-		return nil
-	}
-	if _, err := os.Stat(paths.DatabasePath); err != nil {
-		return nil
-	}
-	agreement := runtimegate.Check(paths)
-	if len(agreement.Errors) == 0 {
-		return nil
-	}
-	return fmt.Errorf("project cognition agreement blocked: %s: %s", agreement.RecoveryAction, strings.Join(agreement.Errors, "; "))
+	return runtimegate.BlockIfExisting(paths)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -89,6 +90,24 @@ func Check(paths rt.Paths) Agreement {
 	return agreement
 }
 
+func CheckExisting(paths rt.Paths) (Agreement, bool) {
+	if _, err := os.Stat(paths.StatusPath); err != nil {
+		return Agreement{}, false
+	}
+	if _, err := os.Stat(paths.DatabasePath); err != nil {
+		return Agreement{}, false
+	}
+	return Check(paths), true
+}
+
+func BlockIfExisting(paths rt.Paths) error {
+	agreement, ok := CheckExisting(paths)
+	if !ok || agreement.Status == "ok" {
+		return nil
+	}
+	return fmt.Errorf("project cognition agreement blocked: %s: %s", agreementAction(agreement), strings.Join(agreement.Errors, "; "))
+}
+
 func BlockedPayload(paths rt.Paths, agreement Agreement) map[string]any {
 	if agreement.StatusPath == "" {
 		agreement.StatusPath = rt.RelativeRuntimePath(paths, paths.StatusPath)
@@ -108,6 +127,13 @@ func BlockedPayload(paths rt.Paths, agreement Agreement) map[string]any {
 		"status_generation_id":    agreement.StatusGenerationID,
 		"db_active_generation_id": agreement.DBActiveGenerationID,
 	}
+}
+
+func agreementAction(agreement Agreement) string {
+	if agreement.RecoveryAction != "" {
+		return agreement.RecoveryAction
+	}
+	return agreement.RecommendedNextAction
 }
 
 func baseAgreement(paths rt.Paths) Agreement {
