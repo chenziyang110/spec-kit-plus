@@ -265,6 +265,52 @@ func TestValidateBuildAllowsMissingScanIdentityCoveredByDecision(t *testing.T) {
 	}
 }
 
+func TestValidateBuildAllowsMissingCoveragePathCoveredByDecision(t *testing.T) {
+	tests := []struct {
+		name         string
+		rejections   []store.RowDecision
+		mergeRecords []store.MergeRecord
+	}{
+		{
+			name:       "coverage rejection",
+			rejections: []store.RowDecision{{Category: "coverage", Identity: "src/app.go", Reason: "covered_elsewhere"}},
+		},
+		{
+			name:         "coverage merge",
+			mergeRecords: []store.MergeRecord{{Category: "coverage_paths", SourceIdentity: "src/app.go", TargetIdentity: "docs/app.md", Reason: "canonical_path"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths := validationTestPaths(t)
+			writeBuildAcceptanceInputs(t, paths)
+			writeMatchingScanPackage(t, paths)
+			seedMatchingQueryReadyDatabase(t, paths, tt.rejections, tt.mergeRecords)
+			st, err := store.OpenExisting(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := st.DB().ExecContext(context.Background(), `UPDATE path_index SET path = 'docs/app.md' WHERE path = 'src/app.go'`); err != nil {
+				_ = st.Close()
+				t.Fatal(err)
+			}
+			if err := st.Close(); err != nil {
+				t.Fatal(err)
+			}
+			writeReadyStatus(t, paths, "GEN-0001")
+
+			payload := ValidateBuild(paths)
+
+			if hasValidationError(payload.Errors, "missing scan coverage path identities") {
+				t.Fatalf("Errors = %#v, missing scan coverage path identity should be covered by decision", payload.Errors)
+			}
+			if !hasValidationError(payload.Errors, "unexpected DB coverage path identities") {
+				t.Fatalf("Errors = %#v, want unexpected canonical DB coverage path", payload.Errors)
+			}
+		})
+	}
+}
+
 func TestValidateBuildReportsCategorySpecificMissingIdentities(t *testing.T) {
 	paths := validationTestPaths(t)
 	writeBuildAcceptanceInputs(t, paths)
@@ -319,6 +365,31 @@ func TestValidateBuildBlocksGenerationMismatchWithRecoveryAction(t *testing.T) {
 	}
 	if payload.Details["recovery_action"] != "rewrite_status_from_db_metadata" {
 		t.Fatalf("recovery_action = %#v, want rewrite_status_from_db_metadata; details=%#v", payload.Details["recovery_action"], payload.Details)
+	}
+	if hasValidationError(payload.Errors, "status.json active_generation_id") {
+		t.Fatalf("Errors = %#v, graph validation should not duplicate runtimegate generation mismatch", payload.Errors)
+	}
+}
+
+func TestValidateBuildSurfacesPartialScanPackageDiagnostics(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
+	writeReadyStatus(t, paths, "GEN-0001")
+	if err := os.MkdirAll(filepath.Join(paths.RuntimeDir, "evidence"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.RuntimeDir, "evidence", "E-001.json"), []byte(`{"id":"E-001","source_path":"src/app.go","content_hash":"hash-app"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := ValidateBuild(paths)
+
+	if payload.Details["identity_reconciliation"] != "skipped_invalid_scan_package" {
+		t.Fatalf("identity_reconciliation = %#v, want skipped_invalid_scan_package; details=%#v", payload.Details["identity_reconciliation"], payload.Details)
+	}
+	if !hasValidationError(payload.Errors, "missing .specify/project-cognition/provisional/nodes.json") {
+		t.Fatalf("Errors = %#v, want missing scan package member diagnostic", payload.Errors)
 	}
 }
 

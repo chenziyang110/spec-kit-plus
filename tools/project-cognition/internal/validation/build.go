@@ -79,7 +79,7 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		payload.Details[key] = value
 	}
 	payload.Errors = append(payload.Errors, reconciliationErrors...)
-	graphDetails, graphErrors := validateGraphStore(paths, status)
+	graphDetails, graphErrors := validateGraphStore(paths, status, agreement)
 	for key, value := range graphDetails {
 		payload.Details[key] = value
 	}
@@ -103,13 +103,14 @@ func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
 	errors := []string{}
 	pkg, result := scanartifacts.Load(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
 	details["scan_artifact_counts"] = identityCounts(pkg.Identities)
-	if !scanArtifactsPresent(paths, result.CheckedPaths) {
+	presentCount := scanArtifactPresentCount(paths)
+	if presentCount == 0 {
 		details["identity_reconciliation"] = "skipped_no_scan_package"
 		return details, errors
 	}
 	if result.Status != "ok" {
 		details["identity_reconciliation"] = "skipped_invalid_scan_package"
-		return details, errors
+		return details, result.Errors
 	}
 	st, err := store.OpenExisting(paths)
 	if err != nil {
@@ -136,13 +137,28 @@ func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
 	return details, errors
 }
 
-func scanArtifactsPresent(paths rt.Paths, checkedPaths []string) bool {
-	for _, rel := range checkedPaths {
-		if _, err := os.Stat(filepath.Join(paths.Root, filepath.FromSlash(rel))); err != nil {
-			return false
+func scanArtifactPresentCount(paths rt.Paths) int {
+	count := 0
+	for _, rel := range scanArtifactAnchorPaths() {
+		if _, err := os.Stat(filepath.Join(paths.Root, filepath.FromSlash(rel))); err == nil {
+			count++
 		}
 	}
-	return true
+	return count
+}
+
+func scanArtifactAnchorPaths() []string {
+	return []string{
+		".specify/project-cognition/evidence",
+		".specify/project-cognition/provisional/nodes.json",
+		".specify/project-cognition/provisional/edges.json",
+		".specify/project-cognition/provisional/observations.json",
+		".specify/project-cognition/coverage.json",
+		".specify/project-cognition/workbench/map-scan.md",
+		".specify/project-cognition/workbench/scan-packets",
+		".specify/project-cognition/workbench/map-state.md",
+		".specify/project-cognition/workbench/repository-universe.json",
+	}
 }
 
 func identityCounts(identities scanartifacts.IdentitySet) map[string]int {
@@ -205,9 +221,16 @@ func identityCoveredByDecision(category string, identity string, snapshot store.
 }
 
 func sameIdentityCategory(actual string, expected string) bool {
-	actual = strings.TrimSuffix(strings.TrimSpace(actual), "s")
-	expected = strings.TrimSuffix(strings.TrimSpace(expected), "s")
-	return actual == expected
+	return canonicalIdentityCategory(actual) == canonicalIdentityCategory(expected)
+}
+
+func canonicalIdentityCategory(category string) string {
+	switch strings.TrimSuffix(strings.TrimSpace(category), "s") {
+	case "coverage", "coverage_path":
+		return "coverage_path"
+	default:
+		return strings.TrimSuffix(strings.TrimSpace(category), "s")
+	}
 }
 
 func identityErrorNoun(category string) string {
@@ -219,7 +242,7 @@ func identityErrorNoun(category string) string {
 	}
 }
 
-func validateGraphStore(paths rt.Paths, status rt.Status) (map[string]any, []string) {
+func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.Agreement) (map[string]any, []string) {
 	details := map[string]any{}
 	errors := []string{}
 	info, err := os.Stat(paths.DatabasePath)
@@ -279,7 +302,7 @@ func validateGraphStore(paths rt.Paths, status rt.Status) (map[string]any, []str
 		errors = append(errors, "project-cognition.db has no active generation")
 	} else {
 		details["active_generation_id"] = activeGenerationID
-		if status.ActiveGenerationID != "" && status.ActiveGenerationID != activeGenerationID {
+		if shouldReportGraphGenerationMismatch(status, activeGenerationID, agreement) {
 			errors = append(errors, fmt.Sprintf("status.json active_generation_id %s does not match DB active generation %s", status.ActiveGenerationID, activeGenerationID))
 		}
 		nodeCount, err := countGenerationRows(db, "nodes", activeGenerationID)
@@ -345,6 +368,13 @@ func validateGraphStore(paths rt.Paths, status rt.Status) (map[string]any, []str
 		}
 	}
 	return details, errors
+}
+
+func shouldReportGraphGenerationMismatch(status rt.Status, activeGenerationID string, agreement runtimegate.Agreement) bool {
+	if status.ActiveGenerationID == "" || status.ActiveGenerationID == activeGenerationID {
+		return false
+	}
+	return agreement.Status != "blocked" || agreement.StatusGenerationID != status.ActiveGenerationID || agreement.DBActiveGenerationID != activeGenerationID
 }
 
 func sqliteTableNames(db *sql.DB) (map[string]bool, error) {
