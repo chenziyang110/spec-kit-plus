@@ -62,6 +62,22 @@ Treat task-relevant coverage as insufficient when the touched area still lacks
 ownership, placement, workflow, integration, or verification guidance before
 choosing the quick-task lane shape.
 
+## Understanding Checkpoint
+
+`sp-quick` has one default understanding checkpoint before substantive execution. This is not a full spec, not a `sp-plan` substitute, and not a detailed task-plan approval. It exists so the user can confirm that the quick-task direction is correct before the workflow runs to completion.
+
+After the constitution gate, quick workspace initialization, project cognition gate, and any required minimal reads, present one concise checkpoint:
+
+- `Problem understood`: what you believe the user wants solved.
+- `Planned outcome`: what result you intend to deliver.
+- `Scope boundary`: what you will not do in this quick task.
+- `Execution approach`: how you expect to proceed.
+- `Validation`: what evidence will prove the quick task is complete.
+
+Wait for user confirmation before code edits, broad repository analysis, delegation, implementation commands, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
+
+Record the confirmed checkpoint in `STATUS.md`. `understanding_confirmed: false` blocks substantive execution on resume. While it is false, only read the minimal context needed to reconstruct or revise the checkpoint; you must not proceed to code edits, broad repository analysis, delegation, or validation commands until the checkpoint is confirmed and `STATUS.md` is updated.
+
 ## Workflow Quality Requirements
 
 - Confirm project cognition freshness and valid quick-task entry before deeper execution.
@@ -126,7 +142,7 @@ The following flags are available and composable:
 - Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, subagent dispatch, or local analysis.
 - If the project cognition runtime is missing, rebuild it through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before `STATUS.md` initialization or touched-area analysis proceeds.
 - Before the first subagent is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first subagent path.
-- Before implementation work starts, identify whether the quick task is best handled by one bounded subagent or by two or more independent subagents that can safely proceed in parallel.
+- Before implementation work starts, confirm the Understanding Checkpoint and persist `understanding_confirmed: true` in `STATUS.md`; only then identify whether the quick task is best handled by one bounded subagent or by two or more independent subagents that can safely proceed in parallel.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)`.
 - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
 - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current subagent path. If confidence is `low`, prefer the native subagent workflow or record `subagent-blocked` over fragile dispatch.
@@ -137,7 +153,7 @@ The following flags are available and composable:
 - If two or more independent subagent lanes can safely run in parallel and that fan-out materially improves throughput, dispatch multiple subagents instead of serial execution.
 - `subagent-blocked` is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through subagents or the native subagent workflow.
 - If subagent-blocked status is used, record the concrete reason in `STATUS.md`, including which subagent path was unavailable or blocked for the current batch.
-- The first actionable execution step after scope lock is to dispatch the first subagent batch, not to continue local deep-dive analysis.
+- The first actionable execution step after scope lock and understanding confirmation is to dispatch the first subagent batch, not to continue local deep-dive analysis.
 - Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
 - Prefer structured subagent results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
 - If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized subagent result envelope to `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
@@ -183,6 +199,7 @@ slug: [quick-task slug]
 title: [short quick-task title]
 status: gathering | planned | executing | validating | blocked | resolved
 trigger: "[verbatim user input]"
+understanding_confirmed: false | true
 execution_model: subagent-mandatory
 dispatch_shape: one-subagent | parallel-subagents
 execution_surface: native-subagents
@@ -211,6 +228,18 @@ cognition_facts:
     - [project-cognition minimal_live_reads entry used before wider inspection]
   validation_route: [test, command, manual check, or unknown]
   known_risk: [ambiguity, weak coverage, forbidden drift, or none]
+
+## Understanding Checkpoint
+<!-- OVERWRITE/REFINE before substantive execution starts -->
+
+confirmed_problem: [what the user confirmed the quick task should solve]
+confirmed_outcome: [the result the user confirmed]
+confirmed_scope_boundary:
+  - [explicit non-goals, excluded files, excluded workflows, or escalation boundaries]
+confirmed_execution_approach:
+  - [the confirmed execution path]
+confirmed_validation:
+  - [the confirmed evidence required before closeout]
 
 ## Execution
 <!-- OVERWRITE/REFINE as the lane or batch changes -->
@@ -280,9 +309,10 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 - The leader must continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
 - Do not stop after a single edit, single command, or single failed attempt when the next recovery step is obvious and low-risk.
+- Do not start execution routing while `understanding_confirmed: false`; repair or confirm the Understanding Checkpoint first.
 - Dispatch subagents when `snapshot.native_subagents` is true and the workload has one or more safe validated lanes.
 - Substantive quick-task lanes must use subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that readiness bar is not met, finish compiling the missing contract first; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
-- After `STATUS.md` is initialized and the first lane is defined, dispatch that subagent path before doing any further local repository deep dive.
+- After `STATUS.md` is initialized, `understanding_confirmed: true` is recorded, and the first lane is defined, dispatch that subagent path before doing any further local repository deep dive.
 - If multiple safe subagent lanes exist and they can improve throughput without creating write conflicts, dispatch them in parallel instead of artificially serializing the work.
 - Use `subagent-blocked` only after subagent execution is concretely unavailable for the current batch and the native subagent workflow is also unavailable or unsuitable.
 - Re-evaluate after every join point, recovery step, and validation result instead of assuming the first plan still holds.
@@ -405,8 +435,8 @@ resume_decision: [resume here | blocked waiting | resolved]
 4. **Lightweight planning**
    - Produce only the plan needed to execute this ad-hoc task safely.
    - Keep the work atomic and self-contained.
-   - Keep local planning shallow until the first subagent batch has been launched.
-   - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
+   - Keep local planning shallow until the Understanding Checkpoint is confirmed and the first subagent batch has been launched.
+   - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts, but do not dispatch until `understanding_confirmed: true` is recorded.
    - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
    - Do not write production code until the RED state is captured and recorded in `STATUS.md`.
    - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `{{invoke:specify}}`.
@@ -417,9 +447,10 @@ resume_decision: [resume here | blocked waiting | resolved]
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 
 5. **Execution**
+   - Start execution only after `understanding_confirmed: true` is recorded in `STATUS.md`.
    - Execute the current quick-task lane or ready batch through the selected dispatch shape and execution surface.
    - For `one-subagent`, dispatch one subagent once the subagent-readiness bar is satisfied; otherwise finish compiling the missing contract before dispatch. If the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
-   - The first concrete execution action should normally be dispatching that subagent batch, not continuing local repository analysis.
+   - The first concrete execution action after understanding confirmation should normally be dispatching that subagent batch, not continuing local repository analysis.
    - If multiple subagent lanes are safe and useful, dispatch them in parallel as the current ready batch instead of holding back fan-out without a concrete coordination reason.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate dispatch at each join point instead of assuming the first choice remains correct.

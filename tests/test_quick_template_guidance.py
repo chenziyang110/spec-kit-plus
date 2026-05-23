@@ -98,7 +98,10 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "leader" in content
     assert "join point" in content
     assert "task contract" in content
-    assert "the first actionable execution step after scope lock is to dispatch the first subagent" in content
+    assert (
+        "the first actionable execution step after scope lock and understanding confirmation "
+        "is to dispatch the first subagent"
+    ) in content
     assert "if two or more independent subagent lanes can safely run in parallel" in content
     assert ".planning/quick/<id>-<slug>/" in content
     assert ".planning/quick/index.json" in content
@@ -112,6 +115,21 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "resolved/" in content
 
 
+def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
+    content = read_template("templates/commands/quick.md").lower()
+
+    assert "## understanding checkpoint" in content
+    assert "problem understood" in content
+    assert "planned outcome" in content
+    assert "scope boundary" in content
+    assert "execution approach" in content
+    assert "validation" in content
+    assert "wait for user confirmation" in content
+    assert "revise the checkpoint" in content
+    assert "not a full spec" in content
+    assert "not a `sp-plan` substitute" in content
+
+
 def test_quick_template_includes_concrete_status_template() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
@@ -119,6 +137,7 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "id: [quick-task id]" in content
     assert "slug: [quick-task slug]" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
+    assert "understanding_confirmed: false | true" in content
     assert "execution_model: subagent-mandatory" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
@@ -127,6 +146,12 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "intent_outcome:" in content
     assert "intent_constraints:" in content
     assert "success_evidence:" in content
+    assert "## understanding checkpoint" in content
+    assert "confirmed_problem:" in content
+    assert "confirmed_outcome:" in content
+    assert "confirmed_scope_boundary:" in content
+    assert "confirmed_execution_approach:" in content
+    assert "confirmed_validation:" in content
     assert "status.md" in content
     assert "validation route" in content
     assert "known risk" in content
@@ -177,7 +202,10 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
     assert "constitution first" in content
     assert "before `status.md` initialization or touched-area analysis proceeds" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
-    assert "dispatch that subagent path before doing any further local repository deep dive" in content
+    assert (
+        "after `status.md` is initialized, `understanding_confirmed: true` is recorded, "
+        "and the first lane is defined, dispatch that subagent path before doing any further local repository deep dive"
+    ) in content
     assert "resolved" in content
     assert "blocked" in content
 
@@ -270,6 +298,22 @@ def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -
     assert "unfinished quick-task states" in content or "unfinished quick tasks" in content
     assert "close" in content
     assert "archive" in content
+
+
+def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None:
+    content = read_template("templates/commands/quick.md").lower()
+
+    assert "understanding_confirmed: false" in content
+    assert "blocks substantive execution" in content
+    assert "must not proceed to code edits" in content
+    assert "broad repository analysis" in content
+    assert "delegation" in content
+    assert "validation commands" in content
+    assert "until the checkpoint is confirmed" in content
+    assert "do not start execution routing while `understanding_confirmed: false`" in content
+    assert "do not dispatch until `understanding_confirmed: true` is recorded" in content
+    assert "start execution only after `understanding_confirmed: true` is recorded in `status.md`" in content
+    assert "the first concrete execution action after understanding confirmation" in content
 
 
 def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent_marker() -> None:
