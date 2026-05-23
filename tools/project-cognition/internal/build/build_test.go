@@ -1,0 +1,229 @@
+package build
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
+)
+
+func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+	if payload.Readiness != rt.ReadyReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.ReadyReadiness)
+	}
+	if payload.ActiveGenerationID == "" {
+		t.Fatal("ActiveGenerationID is empty")
+	}
+	if payload.ScanArtifactCounts["nodes"] != 1 || payload.ScanArtifactCounts["coverage_paths"] != 2 {
+		t.Fatalf("ScanArtifactCounts = %#v, want one node and two coverage paths", payload.ScanArtifactCounts)
+	}
+	if payload.DBCounts["nodes"] != 1 || payload.DBCounts["coverage_paths"] != 1 {
+		t.Fatalf("DBCounts = %#v, want one node and one indexed coverage path", payload.DBCounts)
+	}
+	if payload.IdentityReconciliation["nodes"].Status != "ok" {
+		t.Fatalf("node reconciliation = %#v, want ok", payload.IdentityReconciliation["nodes"])
+	}
+	if len(payload.Rejections) != 1 || payload.Rejections[0].Identity != "docs/guide.md" || payload.Rejections[0].Reason != "no_node_relation" {
+		t.Fatalf("Rejections = %#v, want coverage rejection for docs/guide.md", payload.Rejections)
+	}
+	if payload.MergeRecords == nil {
+		t.Fatal("MergeRecords is nil, want present empty slice")
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ActiveGenerationID != payload.ActiveGenerationID {
+		t.Fatalf("status ActiveGenerationID = %q, want payload %q", status.ActiveGenerationID, payload.ActiveGenerationID)
+	}
+	if !status.GraphReady || status.QueryContractVersion != 1 || status.UpdateContractVersion != 1 {
+		t.Fatalf("status graph contract fields = %#v", status)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	snapshot, err := st.ActiveIdentitySnapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snapshot.Nodes["N-app"] {
+		t.Fatalf("snapshot nodes = %#v, want N-app", snapshot.Nodes)
+	}
+	if !snapshot.CoveragePaths["src/app.go"] {
+		t.Fatalf("snapshot coverage paths = %#v, want src/app.go", snapshot.CoveragePaths)
+	}
+}
+
+func TestRunReplacesLegacyStatus(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	data, _ := json.Marshal(map[string]any{"freshness": "fresh", "graph_ready": true})
+	if err := os.WriteFile(paths.StatusPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !payload.LegacyRuntimeReplaced {
+		t.Fatal("LegacyRuntimeReplaced = false, want true")
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.RuntimeFormat != rt.RuntimeFormat {
+		t.Fatalf("RuntimeFormat = %q, want %q", status.RuntimeFormat, rt.RuntimeFormat)
+	}
+}
+
+func TestRunBlocksWhenStatusWriteFailsAfterDBCommit(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	badStatusPath := filepath.Join(paths.Root, "missing-parent", "status.json")
+	paths.StatusPath = badStatusPath
+
+	payload, err := Run(paths)
+	if err == nil {
+		t.Fatal("Run() error = nil, want status write error")
+	}
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.RecoveryAction != "rewrite_status_from_db_metadata" {
+		t.Fatalf("RecoveryAction = %q, want rewrite_status_from_db_metadata", payload.RecoveryAction)
+	}
+	if payload.ActiveGenerationID == "" {
+		t.Fatal("ActiveGenerationID is empty after status write failure")
+	}
+
+	st, openErr := store.OpenExisting(paths)
+	if openErr != nil {
+		t.Fatal(openErr)
+	}
+	defer st.Close()
+	activeID, activeErr := st.ActiveGenerationID(context.Background())
+	if activeErr != nil {
+		t.Fatal(activeErr)
+	}
+	if activeID != payload.ActiveGenerationID {
+		t.Fatalf("DB active generation = %q, want payload %q", activeID, payload.ActiveGenerationID)
+	}
+	if _, statErr := os.Stat(paths.StatusPath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("status file stat error = %v, want missing file", statErr)
+	}
+}
+
+func writeMinimalScanPackage(t *testing.T) rt.Paths {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mkdirs := []string{
+		filepath.Join(paths.RuntimeDir, "evidence"),
+		filepath.Join(paths.RuntimeDir, "provisional"),
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets"),
+	}
+	for _, dir := range mkdirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "app.json"), map[string]any{
+		"rows": []map[string]any{{
+			"id":           "E-001",
+			"source_kind":  "source",
+			"source_path":  "src/app.go",
+			"commit_sha":   "abc123",
+			"span":         "1:1-10:1",
+			"extractor":    "test",
+			"content_hash": "hash-app",
+			"attrs":        map[string]any{"language": "go"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"id":           "N-app",
+			"type":         "capability",
+			"title":        "App",
+			"confidence":   "verified",
+			"paths":        []string{"src/app.go"},
+			"evidence_ids": []string{"E-001"},
+			"attrs":        map[string]any{"owner": "test"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":           "EDGE-app-self",
+			"type":         "owns",
+			"source_id":    "N-app",
+			"target_id":    "N-app",
+			"confidence":   "verified",
+			"evidence_ids": []string{"E-001"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), map[string]any{
+		"observations": []map[string]any{{
+			"id":               "OBS-app",
+			"observation_type": "summary",
+			"summary":          "App observed",
+			"evidence_ids":     []string{"E-001"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "coverage.json"), map[string]any{
+		"rows": []map[string]any{
+			{"path": "src/app.go"},
+			{"path": "docs/guide.md"},
+		},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), map[string]any{
+		"rows":      []map[string]any{{"path": "src/app.go", "status": "covered"}},
+		"open_gaps": []map[string]any{},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), map[string]any{
+		"rows": []map[string]any{{"path": "src/app.go"}},
+	})
+	for _, rel := range []string{
+		filepath.Join("workbench", "map-scan.md"),
+		filepath.Join("workbench", "coverage-ledger.md"),
+		filepath.Join("workbench", "map-state.md"),
+	} {
+		if err := os.WriteFile(filepath.Join(paths.RuntimeDir, rel), []byte("# Test\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return paths
+}
+
+func writeJSON(t *testing.T, path string, payload any) {
+	t.Helper()
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
