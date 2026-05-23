@@ -351,9 +351,11 @@ Routing guide for lightweight work:
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- `sp-quick` performs one Understanding Checkpoint before substantive execution. The agent states the understood problem, planned outcome, scope boundary, execution approach, and validation evidence, then waits for confirmation before continuing.
 - Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json`, have the agent translate the raw request into a `query_plan` using returned map terms, then run `project-cognition query --intent implement --query-plan "<query_plan_json>" --format json`. Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH for these helpers; helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise call `project-cognition` from PATH. Continue from the returned readiness, task-local bundle, and `minimal_live_reads` before source reads continue.
 - On shells or native command launchers that strip nested JSON quotes, write the planned object to a file and call `project-cognition query --intent <intent> --query-plan-file <path> --format json`; `path_hints`/`reason` are accepted aliases for `paths`/`selection_reason`.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
+- `sp-debug` is complexity-based: small focused investigations may run leader-inline, while broad or independent evidence lanes use one or more subagents. Unsafe or unavailable dispatch remains `subagent-blocked` with `execution_surface: none`.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, add the smallest safe bootstrap in the owning workflow or escalate to `sp-quick`/`sp-specify`.
 - Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
@@ -519,7 +521,7 @@ Current `sp-implement` runtime model in this fork:
 
 Shared runtime-facing guidance across integrations:
 
-- `sp-implement`, `sp-debug`, and `sp-quick` now all carry a shared leader contract, subagent-dispatch contract, and subagent-result contract across Markdown, TOML, and skills-based integrations.
+- `sp-implement`, `sp-debug`, and `sp-quick` now all carry shared leader and result handoff expectations across Markdown, TOML, and skills-based integrations. `sp-quick` gates substantive execution on the one-time Understanding Checkpoint, while `sp-debug` uses complexity-based leader-inline, subagent-assisted, or blocked session state.
 - The shared contract is integration-neutral: leader role, join-point discipline, structured handoff expectations, and `reported_status` preservation are common across CLIs. Workflow-specific fallback semantics stay explicit in the command guidance.
 - Only the concrete dispatch command remains integration-specific. For example, Codex names `spawn_agent` and uses `sp-teams` only when durable team state is needed.
 
@@ -539,7 +541,7 @@ Current orchestration status in this fork:
 - generic orchestration core exists under `src/specify_cli/orchestration/`
 - `sp-plan` and `sp-tasks` are adaptive: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`.
 - Adaptive `sp-plan`/`sp-tasks` use leader-inline for light work, native subagents for standard work when available, leader-inline degradation with `capability_degraded: true` only for standard native-unavailable work without high-risk triggers, and `subagent-blocked` for standard no-safe-lane or unpacketizable work plus heavy/safety-critical unavailable or unpacketizable work; managed-team fallback is not part of adaptive plan/tasks dispatch.
-- Workflows that remain mandatory-subagent, such as `sp-implement`, `sp-debug`, `sp-map-scan`, `sp-map-build`, `sp-prd-scan`, and `sp-prd-build`, still use `execution_model: subagent-mandatory`.
+- Workflows that remain mandatory-subagent, such as `sp-implement`, `sp-quick`, `sp-map-scan`, `sp-map-build`, `sp-prd-scan`, and `sp-prd-build`, still use `execution_model: subagent-mandatory`. `sp-debug` records its own session-level `execution_model: leader-inline | subagent-assisted | blocked` without expanding the shared orchestration enum.
 - in execution-oriented workflows, use subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `sp-teams` remains the Codex `managed-team` execution surface for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst

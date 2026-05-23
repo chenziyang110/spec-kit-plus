@@ -18,7 +18,7 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     assert (target / ".cursor" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
 
 
-def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
+def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -36,17 +36,18 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".specify/memory/constitution.md" in content
-    assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
+    assert "understanding checkpoint" in content
+    assert "understanding_confirmed: true" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
     assert "cursor leader gate" in content
     assert "cursor subagent execution" in content
-    assert "dispatch `one-subagent` or `parallel-subagents` before broad leader-inline repository analysis" in content
+    assert "do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded" in content
     assert "subagent-blocked" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "do **not** perform broad repository analysis" in content
     assert "use cursor's native subagent path for bounded lanes when available" in content
-    assert "the next concrete action must be dispatch" in content
+    assert "start execution routing only after `status.md` exists and `understanding_confirmed: true` is recorded" in content
     assert "materially improve throughput" in content
     assert "managed-team" in content
     assert "subagent-blocked" in content
@@ -62,7 +63,9 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     assert "done_with_concerns" in content
     assert "needs_context" in content
     assert "workertaskresult" in content
+    assert ".planning/quick/<id>-<slug>/status.md" in content
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in content
+    assert ".planning/quick/<slug>" not in content
 
 
 def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
@@ -123,12 +126,12 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         ) in content
         assert "crucial first step" in content
         if "sp-debug" in rel:
-            assert "project-cognition query --intent debug" in content
+            assert "query --intent debug" in content
             assert "debug session state" in content
             assert "debug-handbook.md" not in content
             assert "debug-workflow-contract" not in content
         else:
-            assert "project-cognition query --intent implement" in content
+            assert "query --intent implement" in content
             assert "task-local bundle" in content
             assert "minimal_live_reads" in content
             assert "build-handbook.md" not in content

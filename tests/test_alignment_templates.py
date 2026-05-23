@@ -183,6 +183,17 @@ def _assert_adaptive_plan_tasks_contract(text: str, command_name: str) -> None:
     assert "execution_model: subagent-mandatory" not in lowered
 
 
+def _assert_complexity_based_debug_contract(text: str) -> None:
+    lowered = text.lower()
+    assert 'choose_subagent_dispatch(command_name="debug"' in text
+    assert "execution_model: leader-inline | subagent-assisted | blocked" in lowered
+    assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in lowered
+    assert "execution_surface: leader-inline | native-subagents | none" in lowered
+    assert "subagent-blocked" in lowered
+    assert "execution_surface: none" in lowered
+    assert "execution_model: subagent-mandatory" not in lowered
+
+
 def _assert_default_handoff_contract(content: str, expected_fragment: str) -> None:
     match = re.search(r"(?m)^  default_handoff: (?P<value>.+)$", content)
     assert match is not None
@@ -1686,10 +1697,12 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
 
 
 def test_debug_templates_lock_map_backed_intake_contract() -> None:
-    debug_command = _read("templates/commands/debug.md").lower()
+    debug_command_content = _read("templates/commands/debug.md")
+    debug_command = debug_command_content.lower()
     debug_thinker = _read("templates/worker-prompts/debug-thinker.md").lower()
     debug_contract_planner = _read("templates/worker-prompts/debug-contract-planner.md").lower()
 
+    _assert_complexity_based_debug_contract(debug_command_content)
     assert "map-backed minimum intake" in debug_command
     assert "deep intake is fallback, not the default" in debug_command
     assert "stage 1a: causal map" in debug_command

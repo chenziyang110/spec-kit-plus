@@ -147,8 +147,8 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
-        assert "project-cognition lexicon --intent implement" in content
-        assert "project-cognition query --intent implement" in content
+        assert "lexicon --intent implement" in content
+        assert "query --intent implement" in content
         assert "--query-plan" in content
         assert "readiness" in content
         assert "task-local bundle" in content
@@ -192,7 +192,7 @@ class TestInitIntegrationFlag:
 
         skills_dir = project / ".claude" / "skills"
         assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
-        for skill_name in ("sp-specify", "sp-explain", "sp-debug"):
+        for skill_name in ("sp-specify", "sp-explain"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "execution_model: subagent-mandatory" in content
             assert "dispatch_shape: one-subagent | parallel-subagents" in content
@@ -206,10 +206,15 @@ class TestInitIntegrationFlag:
             assert "specify team" not in content
 
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "execution_model: leader-inline | subagent-assisted | blocked" in debug_content
+        assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in debug_content
+        assert "execution_surface: leader-inline | native-subagents | none" in debug_content
+        assert "small focused investigation" in debug_content
+        assert "subagent-assisted" in debug_content
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
-        assert "project-cognition lexicon --intent debug" in debug_content
-        assert "project-cognition query --intent debug" in debug_content
+        assert "lexicon --intent debug" in debug_content
+        assert "query --intent debug" in debug_content
         assert "--query-plan" in debug_content
         assert "returned readiness" in debug_content
         assert "task-local bundle" in debug_content
@@ -222,8 +227,8 @@ class TestInitIntegrationFlag:
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "project-cognition lexicon --intent implement" in fast_content
-        assert "project-cognition query --intent implement" in fast_content
+        assert "lexicon --intent implement" in fast_content
+        assert "query --intent implement" in fast_content
         assert "--query-plan" in fast_content
         assert "returned readiness" in fast_content
         assert "task-local bundle" in fast_content
@@ -241,13 +246,15 @@ class TestInitIntegrationFlag:
         assert "future senior engineer" in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
-        assert "project-cognition lexicon --intent implement" in quick_content
-        assert "project-cognition query --intent implement" in quick_content
+        assert "lexicon --intent implement" in quick_content
+        assert "query --intent implement" in quick_content
         assert "--query-plan" in quick_content
         assert "project cognition query" in quick_content
         assert "returned readiness" in quick_content
         assert "task-local bundle" in quick_content
         assert "minimal_live_reads" in quick_content
+        assert "understanding checkpoint" in quick_content
+        assert "understanding_confirmed" in quick_content
         assert "status and slice artifacts" not in quick_content
         assert ".specify/project-cognition/slices/change.json" not in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content

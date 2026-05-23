@@ -621,14 +621,17 @@ class SkillsIntegrationTests:
         assert f"## {agent_name} Leader Gate".lower() in debug_content
         assert "you are the **leader**, not a freeform debugger" in debug_content
         assert "investigation routing contract" in debug_content
-        assert "execution_model: subagent-mandatory" in debug_content or "execution model: `subagents-first`" in debug_content
-        assert "dispatch_shape: one-subagent | parallel-subagents" in debug_content
-        assert "execution_surface: native-subagents" in debug_content or "execution surface: `native-subagents`" in debug_content
+        assert "execution_model: leader-inline | subagent-assisted | blocked" in debug_content
+        assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in debug_content
+        assert "execution_surface: leader-inline | native-subagents | none" in debug_content
+        assert "small focused investigation" in debug_content
+        assert "subagent-assisted" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
-        assert "execution_model: subagent-mandatory" in quick_content or "execution model: `subagents-first`" in quick_content
+        assert "understanding checkpoint" in quick_content
+        assert "understanding_confirmed: true" in quick_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
         assert "execution_surface: native-subagents" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content

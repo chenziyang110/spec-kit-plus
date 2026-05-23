@@ -11,17 +11,25 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
-## Mandatory Subagent Execution
+## Complexity-Based Debug Execution
 
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+`sp-debug` is leader-owned and evidence-first. Choose the execution path from the shape of the investigation, then record the decision in the debug session file.
 
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+Use `leader-inline` when the investigation is small, focused, and has a short evidence chain, such as one failing test, one clear error, one local module, or one reproduction path.
 
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+Use `subagent-assisted` when the investigation has multiple independent evidence lanes, broad surface area, multiple plausible causes, multiple modules or logs to inspect, independent repro or verification lanes, or meaningful parallelism.
 
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
+Use `blocked` when the next safe step is unsafe, unavailable, or unpacketizable. Preserve the blocked state as `dispatch_shape: subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`.
+
+Persist these fields in the debug session:
+
+- `execution_model: leader-inline | subagent-assisted | blocked`
+- `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`
+- `execution_surface: leader-inline | native-subagents | none`
+- `dispatch_reason: [why this execution path was selected]`
+- `blocked_reason: [required for subagent-blocked or none]`
+
+Subagents may collect evidence or execute a bounded lane. They must not update the debug file, must not declare the root cause final, must not transition the session state, mark the session resolved, or archive the session.
 
 
 ## Role
@@ -30,10 +38,10 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - The user is the reporter. They describe symptoms and confirm whether the final behavior is fixed.
 - You are the workflow leader and orchestrator.
 - You own routing, task splitting, task contracts, dispatch, join points, integration, verification, and state updates.
-- Subagents own the substantive task lanes assigned through task contracts.
+- Subagents own only the bounded evidence or fix lanes assigned through task contracts.
 - The leader owns the session file, the current hypothesis, all state transitions, the final fix decision, and the verification checkpoint.
 - Evidence-collection subagents do not own the investigation and must not decide that the bug is resolved.
-- You are not the default evidence worker for every lane; substantive evidence work belongs on subagent lanes after observer framing and task contracts are ready.
+- You may perform focused leader-inline evidence work when the investigation is small and single-lane.
 - When the investigation splits into safe bounded lanes, route, integrate, and decide rather than manually performing every lane sequentially.
 
 ## Operating Principles
@@ -125,8 +133,9 @@ When a defect touches lifecycle, running-state, shared-state, destructive behavi
    - Append every disproven theory to `Eliminated`.
 
 4. **Fix and Verify**
-   - Packetize the smallest safe fix that addresses the confirmed root cause and delegate it through a validated subagent lane.
-   - If the fix lane cannot be safely packetized or dispatched, record `subagent-blocked` with the escalation or recovery reason instead of making the fix directly.
+   - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
+   - When `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned handoff on the leader path.
+   - When the fix cannot proceed safely, cannot be packetized, or cannot be verified, record `subagent-blocked` with `execution_surface: none` and a concrete blocked reason instead of layering a speculative fix.
    - Verify with the reproduction steps and relevant tests.
 
 5. **Human Verification**
@@ -405,13 +414,15 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
 - Candidate queue entries must be consumed explicitly: confirm them, rule them out, or deprioritize them with evidence. Do not let high-priority candidates silently disappear from the session.
 
 - During `investigating`, determine whether the current investigation has one or more safe evidence-collection lanes before running multiple independent evidence-gathering actions sequentially.
-- [AGENT] Use the shared policy function with the current capability snapshot: `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)`.
-- Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-- Treat runtime safety as a dispatch-blocking decision. If a validated evidence lane cannot be packetized or dispatched safely, use `subagent-blocked` and stop instead of widening brittle native fan-out.
+- [AGENT] Use the shared policy function with the current capability snapshot when the investigation has safe delegated lanes: `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)`.
+- Persist the decision fields exactly: `execution_model: leader-inline | subagent-assisted | blocked`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`, `execution_surface: leader-inline | native-subagents | none`, `dispatch_reason`, and `blocked_reason` when blocked.
+- Treat runtime safety as a dispatch-blocking decision. If the next step is unsafe, unavailable, or unpacketizable, use `subagent-blocked`, record `execution_surface: none`, and stop instead of widening brittle native fan-out.
 - Debug routing decision order:
-  - One safe validated evidence lane -> `one-subagent` on `native-subagents` when available.
-  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, shared mutable state, missing contract, incomplete packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-- Dispatch that single subagent only when the evidence-lane contract is complete: probe intent, required evidence, authoritative inputs, and validation targets must all be recorded before dispatch.
+  - Small focused investigation with one short evidence chain -> `leader-inline`.
+  - One safe validated evidence lane where isolation improves quality -> `one-subagent` on `native-subagents` when available.
+  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.
+  - No safe lane, shared mutable state, missing contract, incomplete packet, unavailable delegation, or unsafe next step -> `subagent-blocked` with `execution_surface: none` and a recorded reason.
+- Dispatch a subagent only when the evidence-lane contract is complete: probe intent, required evidence, authoritative inputs, and validation targets must all be recorded before dispatch.
 - If that subagent-readiness bar is not met, compile the missing evidence-lane contract before dispatch; if the lane cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
 - `parallel-subagents` means the leader dispatches bounded evidence-gathering subagents and rejoins at an explicit join point.
 - `native-subagents` means the leader uses the current runtime native subagent surface for dispatched evidence lanes.
@@ -466,7 +477,8 @@ The session file must always make it clear:
 - Write a failing automated repro test before changing production code.
 - Do not modify production behavior until the RED state is proven.
 - If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-quick` or `/sp-specify` before code changes.
-- Apply the minimum code change needed to address that root cause.
+- Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`; when `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned evidence on the leader path.
+- If the fix cannot proceed safely, cannot be packetized for the selected execution path, or cannot be verified, record `subagent-blocked` with `execution_surface: none` and a concrete `blocked_reason`.
 - Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
 - Classify the fix before verification:
   - write the classification to `fix_scope`

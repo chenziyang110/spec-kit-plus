@@ -301,6 +301,23 @@ def test_execution_decision_rejects_invalid_execution_model():
         raise AssertionError("invalid execution model should be rejected")
 
 
+def test_debug_execution_labels_stay_out_of_shared_orchestration_execution_model():
+    assert get_args(ExecutionModel) == ("subagent-mandatory", "adaptive")
+
+    for execution_model in ("leader-inline", "subagent-assisted", "blocked"):
+        try:
+            ExecutionDecision(
+                command_name="debug",
+                dispatch_shape="one-subagent",
+                reason="debug-session-field-not-runtime-model",
+                execution_model=execution_model,  # type: ignore[arg-type]
+            )
+        except ValueError as exc:
+            assert "Unsupported execution model" in str(exc)
+        else:
+            raise AssertionError(f"{execution_model} must remain debug session state only")
+
+
 def test_execution_decision_rejects_invalid_workflow_status():
     try:
         ExecutionDecision(

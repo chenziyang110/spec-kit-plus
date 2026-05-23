@@ -97,7 +97,7 @@ Synchronization surfaces that may need updates when tests expose drift:
 - README and project handbook wording that currently describes `sp-quick` or `sp-debug` as mandatory-subagent execution.
 - Template, generated-asset, and integration-rendering tests that lock dispatch wording.
 
-Implementation planning must search for quick/debug runtime addenda, not only command templates. Existing generated integrations can inject additional guidance after template rendering, including subagents-first language, managed-team fallback language, and `subagent-blocked` handling. Those generated surfaces must be updated or explicitly proven unaffected so downstream agent assets do not contradict the new workflow contracts.
+Implementation planning must search for quick/debug runtime addenda, not only command templates. Existing generated integrations can inject additional guidance after template rendering, including stale delegated-execution language, managed-team fallback language, and `subagent-blocked` handling. Those generated surfaces must be updated or explicitly proven unaffected so downstream agent assets do not contradict the new workflow contracts.
 
 This design should not start with a broad runtime rewrite. Runtime helpers or schemas should change only if existing tests or generated-surface requirements prove that template wording alone leaves contradictory behavior.
 

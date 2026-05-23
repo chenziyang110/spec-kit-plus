@@ -18,6 +18,11 @@ log_investigation_plan_completed: [true after map-backed minimum intake or the S
 observer_framing_completed: [true after the map-backed or deep canonical intake package is complete]
 framing_gate_passed: [true only after family coverage, candidate queue, and related-risk gate checks pass]
 legacy_session_needs_reintake: [true only when a resumed legacy session cannot satisfy the new intake contract safely]
+execution_model: leader-inline | subagent-assisted | blocked
+dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked
+execution_surface: leader-inline | native-subagents | none
+dispatch_reason: [why leader-inline, subagent-assisted, or blocked was selected]
+blocked_reason: [required when dispatch_shape is subagent-blocked or execution_surface is none]
 waiting_on_child_human_followup: [true when a parent session is blocked on a derived child issue]
 skip_observer_reason: [map-backed-minimum-intake when deep Stage 1A/1B was not required]
 atlas_read_completed: [true only after the atlas gate is complete]
