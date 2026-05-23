@@ -165,11 +165,14 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "packet evidence intake" in lowered
     assert "structural-only refresh is a failed build" in lowered
     assert "reverse coverage validation" in lowered
-    assert "complete-refresh" in content
-    assert "project-cognition publish-runtime-metadata --format json" in content
+    assert "project-cognition build-from-scan --format json" in content
+    assert "project-cognition publish-runtime-metadata --format json" not in content
     assert "project-cognition validate-build --format json" in content
     assert "validate-build" in lowered
-    assert "only after `validate-build`" in lowered or "only after validate-build" in lowered
+    assert "manual sql" in lowered
+    assert "hand-picked node subsets" in lowered
+    assert "build-from-scan" in lowered
+    assert "identity reconciliation" in lowered
     assert "DEBUG-HANDBOOK.md" not in content
     assert "BUILD-HANDBOOK.md" not in content
     assert "PROJECT-HANDBOOK.md" not in content
