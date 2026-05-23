@@ -15,11 +15,12 @@
 
 ## Session Routing
 
-- current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | handoff-assessment | handoff-draft | handoff-self-review | handoff-user-review | handoff-ready
+- current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | ui-interaction-discussion | handoff-assessment | handoff-draft | handoff-self-review | handoff-user-review | handoff-ready
 - current_topic: [Short topic label]
 - next_question: [One boundary or high-impact question, or none]
 - blocker_reason: none
 - readiness_note: [why the discussion is or is not ready for explicit handoff]
+- ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred
 
 ## Lightweight Recovery
 

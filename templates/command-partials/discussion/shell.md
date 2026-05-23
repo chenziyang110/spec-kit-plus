@@ -20,6 +20,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Ask one boundary, product, trade-off, evidence-conflict, or high-impact question at a time only when the answer cannot be proven from available evidence.
 - Append compact ordinary-turn events to `discussion-log.md`.
 - Refresh `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only at semantic checkpoints.
+- After functional discussion is stable, offer an optional UI and interaction discussion for UI-facing requirements; record `ui_discussion_status` and preserve confirmed or deferred UI decisions; the UI pass is not a mandatory handoff gate.
 - If the user asks to transfer functionality into another project, lock `target_project_root` immediately before technicalizing.
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.
 - If the direction is coherent and boundary-locked after explicit handoff request, write exactly one draft handoff package: `handoff-to-specify.md` and `handoff-to-specify.json`.
@@ -37,6 +38,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - When explicit handoff is requested, include `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger.
 - Do not mark handoff ready if role objects, target path context, evidence provenance, self-review status, user confirmation, or blocking unknown handling is missing.
 - Preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` for the downstream fidelity gate.
+- For UI-facing work, preserve `ui_discussion_status`; confirmed UI decisions; deferred UI unknowns; and Markdown-carried ASCII sketches with JSON fields `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`.
 
 ## Guardrails
 
