@@ -95,6 +95,63 @@ func TestRunReplacesLegacyStatus(t *testing.T) {
 	}
 }
 
+func TestRunIndexesNodePathWithoutEvidence(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"id":         "N-docs",
+			"type":       "doc",
+			"title":      "Docs",
+			"confidence": "",
+			"paths":      []string{"docs/guide.md"},
+			"attrs":      map[string]any{"owner": "test"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), map[string]any{
+		"observations": []map[string]any{},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+	for _, rejection := range payload.Rejections {
+		if rejection.Category == "coverage" && rejection.Identity == "docs/guide.md" && rejection.Reason == "no_node_relation" {
+			t.Fatalf("Rejections = %#v, want no no_node_relation rejection for docs/guide.md", payload.Rejections)
+		}
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	snapshot, err := st.ActiveIdentitySnapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snapshot.CoveragePaths["docs/guide.md"] {
+		t.Fatalf("snapshot coverage paths = %#v, want docs/guide.md", snapshot.CoveragePaths)
+	}
+
+	var evidenceID, confidence string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT evidence_id, confidence FROM path_index WHERE path = ?`, "docs/guide.md").Scan(&evidenceID, &confidence); err != nil {
+		t.Fatal(err)
+	}
+	if evidenceID != "" {
+		t.Fatalf("path_index evidence_id = %q, want empty", evidenceID)
+	}
+	if confidence != "provisional" {
+		t.Fatalf("path_index confidence = %q, want provisional", confidence)
+	}
+}
+
 func TestRunBlocksWhenStatusWriteFailsAfterDBCommit(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	badStatusPath := filepath.Join(paths.Root, "missing-parent", "status.json")

@@ -222,23 +222,28 @@ func TestImportGenerationRollsBackInvalidPathIndexAndPreservesActiveGeneration(t
 	}
 }
 
-func TestImportGenerationRollsBackOnEmptyPathIndexEvidence(t *testing.T) {
+func TestImportGenerationAllowsEmptyPathIndexEvidence(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
 	defer st.Close()
 
 	input := validImportInput("GEN-empty-path-evidence")
 	input.PathIndex[0].EvidenceID = ""
-	_, err := st.ImportGeneration(ctx, input)
-	if err == nil {
-		t.Fatal("ImportGeneration error = nil, want empty path_index evidence error")
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
 	}
-	activeID, err := st.ActiveGenerationID(ctx)
+	snapshot, err := st.ActiveIdentitySnapshot(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if activeID != "" {
-		t.Fatalf("activeID = %q, want empty after rollback", activeID)
+	assertSnapshotIdentity(t, snapshot.CoveragePaths, "src/app.go")
+
+	var evidenceID string
+	if err := st.DB().QueryRowContext(ctx, `SELECT evidence_id FROM path_index WHERE id = ?`, input.PathIndex[0].ID).Scan(&evidenceID); err != nil {
+		t.Fatal(err)
+	}
+	if evidenceID != "" {
+		t.Fatalf("path_index evidence_id = %q, want empty", evidenceID)
 	}
 }
 

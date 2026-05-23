@@ -218,12 +218,13 @@ func observationImports(rows []scanartifacts.ObservationRow) []store.Observation
 func pathIndexImports(nodes []scanartifacts.NodeRow) []store.PathIndexImport {
 	out := []store.PathIndexImport{}
 	for _, node := range nodes {
-		if len(node.EvidenceIDs) == 0 {
-			continue
-		}
 		confidence := node.Confidence
 		if confidence == "" {
 			confidence = "provisional"
+		}
+		evidenceID := ""
+		if len(node.EvidenceIDs) > 0 {
+			evidenceID = node.EvidenceIDs[0]
 		}
 		for _, path := range node.Paths {
 			out = append(out, store.PathIndexImport{
@@ -232,7 +233,7 @@ func pathIndexImports(nodes []scanartifacts.NodeRow) []store.PathIndexImport {
 				NodeID:     node.ID,
 				Relation:   "owns",
 				Confidence: confidence,
-				EvidenceID: node.EvidenceIDs[0],
+				EvidenceID: evidenceID,
 			})
 		}
 	}
@@ -242,9 +243,6 @@ func pathIndexImports(nodes []scanartifacts.NodeRow) []store.PathIndexImport {
 func coverageRejections(pkg scanartifacts.Package) []store.RowDecision {
 	relatedPaths := map[string]bool{}
 	for _, node := range pkg.Nodes {
-		if len(node.EvidenceIDs) == 0 {
-			continue
-		}
 		for _, path := range node.Paths {
 			relatedPaths[path] = true
 		}

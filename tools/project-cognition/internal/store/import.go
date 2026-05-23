@@ -357,11 +357,10 @@ func validateImportReferences(input ImportInput) error {
 		if !nodeIDs[pathIndex.NodeID] {
 			return fmt.Errorf("path_index %s references missing node %s", pathIndex.ID, pathIndex.NodeID)
 		}
-		if pathIndex.EvidenceID == "" {
-			return fmt.Errorf("path_index %s requires evidence", pathIndex.ID)
-		}
-		if err := validateImportedEvidenceID("path_index", pathIndex.ID, pathIndex.EvidenceID, evidenceIDs); err != nil {
-			return err
+		if pathIndex.EvidenceID != "" {
+			if err := validateImportedEvidenceID("path_index", pathIndex.ID, pathIndex.EvidenceID, evidenceIDs); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
