@@ -2,6 +2,7 @@ package runtimegate
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -153,6 +154,92 @@ func TestCheckAgreementBlocksSplitBrainActiveGeneration(t *testing.T) {
 	}
 }
 
+func TestCheckAgreementBlocksIncompatibleDatabaseWithoutArchiving(t *testing.T) {
+	paths := testPaths(t)
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		`CREATE TABLE metadata(key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+		`CREATE TABLE generations(id TEXT PRIMARY KEY, state TEXT NOT NULL)`,
+		`INSERT INTO metadata(key, value_json, updated_at) VALUES('active_generation_id', '"GEN-db"', 'now')`,
+		`INSERT INTO generations(id, state) VALUES('GEN-db', 'active')`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			_ = db.Close()
+			t.Fatal(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-db"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	agreement := Check(paths)
+
+	if agreement.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%v", agreement.Status, agreement.Errors)
+	}
+	if !strings.Contains(strings.Join(agreement.Errors, "\n"), "schema is incompatible") {
+		t.Fatalf("Errors = %#v, want incompatible schema error", agreement.Errors)
+	}
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !os.IsNotExist(err) {
+		t.Fatalf("legacy archive stat err = %v, want no archive", err)
+	}
+}
+
+func TestCheckAgreementBlocksMissingRequiredMetadata(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-1", Kind: "full"}); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM metadata WHERE key = 'runtime_format'`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-1"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	agreement := Check(paths)
+
+	if agreement.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%v", agreement.Status, agreement.Errors)
+	}
+	if agreement.RecoveryAction != "rewrite_status_from_db_metadata" {
+		t.Fatalf("RecoveryAction = %q, want rewrite_status_from_db_metadata", agreement.RecoveryAction)
+	}
+	if !strings.Contains(strings.Join(agreement.Errors, "\n"), "metadata missing runtime_format") {
+		t.Fatalf("Errors = %#v, want missing metadata error", agreement.Errors)
+	}
+}
+
 func TestBlockIfExistingSkipsMissingBaselineAndBlocksSplitBrain(t *testing.T) {
 	missingPaths := testPaths(t)
 	if err := BlockIfExisting(missingPaths); err != nil {
@@ -188,6 +275,46 @@ func TestBlockIfExistingSkipsMissingBaselineAndBlocksSplitBrain(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
 		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+}
+
+func TestBlockIfExistingBlocksOneSidedRuntimeState(t *testing.T) {
+	statusOnly := testPaths(t)
+	status := rt.DefaultStatus(statusOnly)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-status"
+	if err := rt.WriteStatus(statusOnly, status); err != nil {
+		t.Fatal(err)
+	}
+	err := BlockIfExisting(statusOnly)
+	if err == nil {
+		t.Fatal("expected status-only agreement error")
+	}
+	if !strings.Contains(err.Error(), "project-cognition.db is missing") {
+		t.Fatalf("error = %q, want missing DB", err.Error())
+	}
+
+	dbOnly := testPaths(t)
+	st, err := store.Open(dbOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-db", Kind: "full"}); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	err = BlockIfExisting(dbOnly)
+	if err == nil {
+		t.Fatal("expected DB-only agreement error")
+	}
+	if !strings.Contains(err.Error(), "status.json is missing") {
+		t.Fatalf("error = %q, want missing status", err.Error())
 	}
 }
 

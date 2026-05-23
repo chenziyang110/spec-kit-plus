@@ -119,6 +119,15 @@ func OpenExisting(paths rt.Paths) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	compatible, err := SchemaCompatible(context.Background(), db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("check sqlite schema compatibility: %w", err)
+	}
+	if !compatible {
+		_ = db.Close()
+		return nil, fmt.Errorf("project-cognition.db schema is incompatible; run sp-map-scan followed by sp-map-build")
+	}
 	return &Store{db: db}, nil
 }
 

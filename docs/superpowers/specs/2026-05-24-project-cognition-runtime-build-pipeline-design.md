@@ -1,7 +1,7 @@
 # Project Cognition Runtime Build Pipeline Design
 
-**Date:** 2026-05-24  
-**Status:** Draft for user review  
+**Date:** 2026-05-24
+**Status:** Draft for user review
 **Owner:** Codex
 
 ## Summary

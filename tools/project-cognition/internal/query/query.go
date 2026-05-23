@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -109,14 +110,21 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	if len(plan.Paths) == 0 {
 		plan.Paths = normalizePaths(input.Paths)
 	}
-	st, err := store.Open(paths)
+	nodes := []map[string]any{}
+	st, err := store.OpenExisting(paths)
+	if errors.Is(err, os.ErrNotExist) {
+		st = nil
+		err = nil
+	}
 	if err != nil {
 		return QueryPayload{}, err
 	}
-	defer st.Close()
-	nodes, err := st.NodesForPaths(context.Background(), plan.Paths)
-	if err != nil {
-		return QueryPayload{}, err
+	if st != nil {
+		defer st.Close()
+		nodes, err = st.NodesForPaths(context.Background(), plan.Paths)
+		if err != nil {
+			return QueryPayload{}, err
+		}
 	}
 	reads := plan.Paths
 	if len(reads) == 0 {

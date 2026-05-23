@@ -99,6 +99,10 @@ func Run(paths rt.Paths) (Payload, error) {
 	}
 	payload.DBCounts = dbCounts(snapshot)
 	payload.IdentityReconciliation = summarizeReconciliation(pkg.Identities, snapshot)
+	if errors := reconciliationErrors(payload.IdentityReconciliation, snapshot); len(errors) > 0 {
+		payload.Errors = append(payload.Errors, errors...)
+		return payload, nil
+	}
 
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
@@ -328,6 +332,73 @@ func compareIdentityMaps(expected, actual map[string]bool) ReconciliationCategor
 		status = "ok"
 	}
 	return ReconciliationCategory{Status: status, Missing: missing, Unexpected: unexpected}
+}
+
+func reconciliationErrors(reconciliation map[string]ReconciliationCategory, snapshot store.IdentitySnapshot) []string {
+	errors := []string{}
+	for category, result := range reconciliation {
+		missing := uncoveredMissingIdentities(category, result.Missing, snapshot)
+		if len(missing) > 0 {
+			errors = append(errors, "missing scan "+identityErrorNoun(category)+" identities: "+strings.Join(missing, ", "))
+		}
+		if len(result.Unexpected) > 0 {
+			errors = append(errors, "unexpected DB "+identityErrorNoun(category)+" identities: "+strings.Join(result.Unexpected, ", "))
+		}
+	}
+	sort.Strings(errors)
+	return errors
+}
+
+func uncoveredMissingIdentities(category string, identities []string, snapshot store.IdentitySnapshot) []string {
+	missing := []string{}
+	for _, identity := range identities {
+		if !identityCoveredByDecision(category, identity, snapshot) {
+			missing = append(missing, identity)
+		}
+	}
+	return missing
+}
+
+func identityCoveredByDecision(category string, identity string, snapshot store.IdentitySnapshot) bool {
+	for _, rejection := range snapshot.Rejections {
+		if sameIdentityCategory(rejection.Category, category) && rejection.Identity == identity {
+			return true
+		}
+	}
+	for _, record := range snapshot.MergeRecords {
+		if sameIdentityCategory(record.Category, category) && record.SourceIdentity == identity {
+			return true
+		}
+	}
+	return false
+}
+
+func sameIdentityCategory(actual string, expected string) bool {
+	return canonicalIdentityCategory(actual) == canonicalIdentityCategory(expected)
+}
+
+func canonicalIdentityCategory(category string) string {
+	switch strings.TrimSuffix(strings.TrimSpace(category), "s") {
+	case "coverage", "coverage_path":
+		return "coverage_path"
+	default:
+		return strings.TrimSuffix(strings.TrimSpace(category), "s")
+	}
+}
+
+func identityErrorNoun(category string) string {
+	switch canonicalIdentityCategory(category) {
+	case "coverage_path":
+		return "coverage path"
+	case "node":
+		return "node"
+	case "edge":
+		return "edge"
+	case "observation":
+		return "observation"
+	default:
+		return category
+	}
 }
 
 func emptyCounts() map[string]int {

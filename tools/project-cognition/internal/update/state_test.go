@@ -72,10 +72,22 @@ func TestMarkDirtyDerivesScopeFromPacket(t *testing.T) {
 
 func TestCompleteRefreshClearsDirtyState(t *testing.T) {
 	paths := testPaths(t)
-	if _, err := MarkDirty(paths, DirtyInput{Reason: "manual"}); err != nil {
+	seedReadyRuntime(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := CompleteRefresh(paths, "map-build")
+	status.Dirty = true
+	status.Status = "stale"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.BlockedReadiness
+	status.DirtyReasons = []string{"manual"}
+	status.StalePaths = []string{"src/app.go"}
+	status.StaleReasons = []string{"manual"}
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	status, err = CompleteRefresh(paths, "map-build")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +96,22 @@ func TestCompleteRefreshClearsDirtyState(t *testing.T) {
 	}
 	if status.Freshness != rt.ReadyFreshness {
 		t.Fatalf("freshness = %q", status.Freshness)
+	}
+}
+
+func TestCompleteRefreshBlocksStatusOnlyRuntime(t *testing.T) {
+	paths := testPaths(t)
+	if _, err := MarkDirty(paths, DirtyInput{Reason: "manual"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := CompleteRefresh(paths, "map-build")
+
+	if err == nil {
+		t.Fatal("expected status-only agreement error")
+	}
+	if !strings.Contains(err.Error(), "project-cognition.db is missing") {
+		t.Fatalf("error = %q, want missing DB", err.Error())
 	}
 }
 
@@ -357,12 +385,42 @@ func containsText(values []string, want string) bool {
 
 func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 	t.Helper()
+	seedRuntimeGeneration(t, paths, "GEN-db")
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-old"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedReadyRuntime(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	seedRuntimeGeneration(t, paths, "GEN-db")
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-db"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
+	t.Helper()
 	st, err := store.Open(paths)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
-		GenerationID: "GEN-db",
+		GenerationID: generationID,
 		Kind:         "full",
 		SourceCommit: "abc123",
 		Evidence:     []store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
@@ -373,16 +431,6 @@ func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 		t.Fatal(closeErr)
 	}
 	if err != nil {
-		t.Fatal(err)
-	}
-	status := rt.DefaultStatus(paths)
-	status.Status = "ok"
-	status.Freshness = rt.ReadyFreshness
-	status.Readiness = rt.ReadyReadiness
-	status.RecommendedNextAction = "use_project_cognition"
-	status.GraphReady = true
-	status.ActiveGenerationID = "GEN-old"
-	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
 	}
 }

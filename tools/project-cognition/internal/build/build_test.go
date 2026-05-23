@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -37,6 +38,9 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 	if payload.IdentityReconciliation["nodes"].Status != "ok" {
 		t.Fatalf("node reconciliation = %#v, want ok", payload.IdentityReconciliation["nodes"])
+	}
+	if payload.IdentityReconciliation["coverage_paths"].Status != "mismatch" {
+		t.Fatalf("coverage reconciliation = %#v, want decision-covered mismatch", payload.IdentityReconciliation["coverage_paths"])
 	}
 	if len(payload.Rejections) != 1 || payload.Rejections[0].Identity != "docs/guide.md" || payload.Rejections[0].Reason != "no_node_relation" {
 		t.Fatalf("Rejections = %#v, want coverage rejection for docs/guide.md", payload.Rejections)
@@ -70,6 +74,22 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 	if !snapshot.CoveragePaths["src/app.go"] {
 		t.Fatalf("snapshot coverage paths = %#v, want src/app.go", snapshot.CoveragePaths)
+	}
+}
+
+func TestReconciliationErrorsRequireExplicitDecisionRecords(t *testing.T) {
+	reconciliation := map[string]ReconciliationCategory{
+		"coverage_paths": {Status: "mismatch", Missing: []string{"docs/guide.md"}},
+		"nodes":          {Status: "mismatch", Missing: []string{"N-missing"}},
+	}
+	snapshot := store.IdentitySnapshot{
+		Rejections: []store.RowDecision{{Category: "coverage", Identity: "docs/guide.md", Reason: "no_node_relation"}},
+	}
+
+	errors := reconciliationErrors(reconciliation, snapshot)
+
+	if len(errors) != 1 || !strings.Contains(errors[0], "missing scan node identities: N-missing") {
+		t.Fatalf("errors = %#v, want only uncovered missing node", errors)
 	}
 }
 
@@ -432,4 +452,13 @@ func writeJSON(t *testing.T, path string, payload any) {
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func containsError(errors []string, want string) bool {
+	for _, err := range errors {
+		if strings.Contains(err, want) {
+			return true
+		}
+	}
+	return false
 }

@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -203,18 +204,25 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	kept, ignored := matcher.Filter(changed)
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 
-	st, err := store.Open(paths)
+	st, err := store.OpenExisting(paths)
+	if errors.Is(err, os.ErrNotExist) {
+		st = nil
+		err = nil
+	}
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	defer st.Close()
-	nodes, err := st.NodesForPaths(context.Background(), kept)
-	if err != nil {
-		return UpdatePayload{}, err
-	}
-	changedJSON, _ := json.Marshal(kept)
-	if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
-		return UpdatePayload{}, err
+	nodes := []map[string]any{}
+	if st != nil {
+		defer st.Close()
+		nodes, err = st.NodesForPaths(context.Background(), kept)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		changedJSON, _ := json.Marshal(kept)
+		if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
+			return UpdatePayload{}, err
+		}
 	}
 
 	status, err := rt.ReadStatus(paths)
@@ -286,14 +294,20 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	forceBoundaryOnlyAutoCommitDecision(&result)
 
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
-	st, err := store.Open(paths)
+	st, err := store.OpenExisting(paths)
+	if errors.Is(err, os.ErrNotExist) {
+		st = nil
+		err = nil
+	}
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	defer st.Close()
-	changedJSON, _ := json.Marshal(result.ChangedPaths)
-	if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
-		return UpdatePayload{}, err
+	if st != nil {
+		defer st.Close()
+		changedJSON, _ := json.Marshal(result.ChangedPaths)
+		if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
+			return UpdatePayload{}, err
+		}
 	}
 
 	status, err := rt.ReadStatus(paths)

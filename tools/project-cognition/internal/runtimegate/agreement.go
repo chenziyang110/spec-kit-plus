@@ -84,6 +84,12 @@ func Check(paths rt.Paths) Agreement {
 		agreement.Errors = append(agreement.Errors, fmt.Sprintf("active_generation_id mismatch: status.json has %q, DB has %q", status.ActiveGenerationID, activeGenerationID))
 		return agreement
 	}
+	if err := verifyDBMetadata(context.Background(), st, activeGenerationID, agreement.GraphStorePath); err != nil {
+		agreement.Readiness = rt.BlockedReadiness
+		agreement.RecoveryAction = rewriteStatusAction
+		agreement.Errors = append(agreement.Errors, err.Error())
+		return agreement
+	}
 	agreement.Status = "ok"
 	agreement.Readiness = status.Readiness
 	agreement.RecommendedNextAction = status.RecommendedNextAction
@@ -91,11 +97,30 @@ func Check(paths rt.Paths) Agreement {
 }
 
 func CheckExisting(paths rt.Paths) (Agreement, bool) {
-	if _, err := os.Stat(paths.StatusPath); err != nil {
+	statusExists, statusErr := pathExists(paths.StatusPath)
+	dbExists, dbErr := pathExists(paths.DatabasePath)
+	if statusErr != nil || dbErr != nil {
+		agreement := baseAgreement(paths)
+		if statusErr != nil {
+			agreement.Errors = append(agreement.Errors, fmt.Sprintf("stat status.json: %v", statusErr))
+		}
+		if dbErr != nil {
+			agreement.Errors = append(agreement.Errors, fmt.Sprintf("stat project-cognition.db: %v", dbErr))
+		}
+		return agreement, true
+	}
+	if !statusExists && !dbExists {
 		return Agreement{}, false
 	}
-	if _, err := os.Stat(paths.DatabasePath); err != nil {
-		return Agreement{}, false
+	if statusExists != dbExists {
+		agreement := baseAgreement(paths)
+		agreement.RecoveryAction = rebuildAction
+		if statusExists {
+			agreement.Errors = append(agreement.Errors, "status.json exists but project-cognition.db is missing")
+		} else {
+			agreement.Errors = append(agreement.Errors, "project-cognition.db exists but status.json is missing")
+		}
+		return agreement, true
 	}
 	return Check(paths), true
 }
@@ -157,4 +182,50 @@ func normalizeGraphStorePath(path string) string {
 		return graphStorePath
 	}
 	return strings.TrimPrefix(cleaned, "./")
+}
+
+func pathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+func verifyDBMetadata(ctx context.Context, st *store.Store, activeGenerationID string, statusGraphStorePath string) error {
+	meta, err := st.Metadata(ctx)
+	if err != nil {
+		return fmt.Errorf("read DB metadata: %w", err)
+	}
+	required := map[string]string{
+		"runtime_format":          rt.RuntimeFormat,
+		"runtime_schema":          fmt.Sprint(rt.RuntimeSchema),
+		"schema_version":          fmt.Sprint(store.SchemaVersion),
+		"active_generation_id":    activeGenerationID,
+		"graph_store_path":        graphStorePath,
+		"graph_ready":             "true",
+		"baseline_state":          "fresh",
+		"query_contract_version":  "1",
+		"update_contract_version": "1",
+	}
+	for key, want := range required {
+		got, ok := meta[key]
+		if !ok {
+			return fmt.Errorf("project-cognition.db metadata missing %s", key)
+		}
+		if key == "graph_store_path" {
+			got = normalizeGraphStorePath(got)
+			want = normalizeGraphStorePath(want)
+		}
+		if got != want {
+			return fmt.Errorf("project-cognition.db metadata %s has %q, expected %q", key, got, want)
+		}
+	}
+	if normalizeGraphStorePath(statusGraphStorePath) != normalizeGraphStorePath(meta["graph_store_path"]) {
+		return fmt.Errorf("graph_store_path mismatch: status.json has %q, DB metadata has %q", statusGraphStorePath, meta["graph_store_path"])
+	}
+	return nil
 }
