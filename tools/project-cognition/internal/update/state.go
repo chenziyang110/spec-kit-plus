@@ -136,8 +136,12 @@ func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
 }
 
 func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
-	if err := blockSplitBrainBaseline(paths); err != nil {
-		return rt.Status{}, err
+	agreement, ok := runtimegate.CheckExisting(paths)
+	if !ok {
+		return rt.Status{}, fmt.Errorf("project cognition agreement blocked: run_map_scan_build: status.json and project-cognition.db are missing")
+	}
+	if agreement.Status != "ok" {
+		return rt.Status{}, fmt.Errorf("project cognition agreement blocked: %s: %s", agreementAction(agreement), strings.Join(agreement.Errors, "; "))
 	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
@@ -269,6 +273,13 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 
 func blockSplitBrainBaseline(paths rt.Paths) error {
 	return runtimegate.BlockIfExisting(paths)
+}
+
+func agreementAction(agreement runtimegate.Agreement) string {
+	if agreement.RecoveryAction != "" {
+		return agreement.RecoveryAction
+	}
+	return agreement.RecommendedNextAction
 }
 
 func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {

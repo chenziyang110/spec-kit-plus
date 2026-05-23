@@ -115,6 +115,22 @@ func TestCompleteRefreshBlocksStatusOnlyRuntime(t *testing.T) {
 	}
 }
 
+func TestCompleteRefreshBlocksPristineMissingBaseline(t *testing.T) {
+	paths := testPaths(t)
+
+	_, err := CompleteRefresh(paths, "map-build")
+
+	if err == nil {
+		t.Fatal("expected missing baseline agreement error")
+	}
+	if !strings.Contains(err.Error(), "status.json and project-cognition.db are missing") {
+		t.Fatalf("error = %q, want missing baseline", err.Error())
+	}
+	if _, statErr := os.Stat(paths.StatusPath); !os.IsNotExist(statErr) {
+		t.Fatalf("status stat err = %v, want missing status", statErr)
+	}
+}
+
 func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
 	paths := testPaths(t)
 	session, err := delta.Begin(delta.BeginInput{

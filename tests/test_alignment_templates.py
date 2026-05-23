@@ -2348,7 +2348,8 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "if you cannot complete that refresh in the current pass" in lowered
     assert ".specify/project-map/index/status.json" not in lowered
     assert "project-cognition validate-build --format json" in lowered
-    assert "only when build acceptance passes" in lowered
+    assert "incremental freshness finalization" in lowered
+    assert "do not run `complete-refresh` as a rebuild finalizer" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
