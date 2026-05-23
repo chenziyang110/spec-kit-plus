@@ -44,6 +44,21 @@ func TestValidateArtifactsReportsUTF8BOM(t *testing.T) {
 	}
 }
 
+func TestValidateArtifactsRequiresStatusJSONObjectWhenRequested(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "status.json"), []byte("[]\n"))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: true})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "status.json must contain a top-level JSON object") {
+		t.Fatalf("Errors = %#v, want status object error", result.Errors)
+	}
+}
+
 func TestLoadExtractsIdentitySets(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

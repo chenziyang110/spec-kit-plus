@@ -99,6 +99,12 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 			continue
 		}
 		if !info.IsDir() && filepath.Ext(full) == ".json" {
+			if rel == ".specify/project-cognition/status.json" {
+				if err := validateJSONObjectFile(full, filepath.Base(rel)); err != nil {
+					result.Errors = append(result.Errors, err.Error())
+				}
+				continue
+			}
 			if _, err := readJSONFile(full, filepath.Base(rel)); err != nil {
 				result.Errors = append(result.Errors, err.Error())
 			}
@@ -149,6 +155,17 @@ func validateCoverageLedger(paths rt.Paths, owner string) []string {
 		}
 	}
 	return errors
+}
+
+func validateJSONObjectFile(path string, label string) error {
+	payload, err := readJSONFile(path, label)
+	if err != nil {
+		return err
+	}
+	if _, ok := payload.(map[string]any); !ok {
+		return fmt.Errorf("%s must contain a top-level JSON object", label)
+	}
+	return nil
 }
 
 func newResult(checked []string) Result {
