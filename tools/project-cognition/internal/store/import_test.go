@@ -222,6 +222,93 @@ func TestImportGenerationRollsBackInvalidPathIndexAndPreservesActiveGeneration(t
 	}
 }
 
+func TestImportGenerationRollsBackOnEmptyPathIndexEvidence(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	input := validImportInput("GEN-empty-path-evidence")
+	input.PathIndex[0].EvidenceID = ""
+	_, err := st.ImportGeneration(ctx, input)
+	if err == nil {
+		t.Fatal("ImportGeneration error = nil, want empty path_index evidence error")
+	}
+	activeID, err := st.ActiveGenerationID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeID != "" {
+		t.Fatalf("activeID = %q, want empty after rollback", activeID)
+	}
+}
+
+func TestImportGenerationAllowsStableRowIDsAcrossGenerations(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-active")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-next")); err != nil {
+		t.Fatal(err)
+	}
+
+	activeID, err := st.ActiveGenerationID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeID != "GEN-next" {
+		t.Fatalf("activeID = %q, want GEN-next", activeID)
+	}
+	snapshot, err := st.ActiveIdentitySnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSnapshotIdentity(t, snapshot.Evidence, "E-001|src/app.go|hash-app")
+	assertSnapshotIdentity(t, snapshot.Nodes, "N-app")
+	assertSnapshotIdentity(t, snapshot.CoveragePaths, "src/app.go")
+
+	var activeOldCount int
+	if err := st.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM generations WHERE id = ? AND state = 'active'`, "GEN-active").Scan(&activeOldCount); err != nil {
+		t.Fatal(err)
+	}
+	if activeOldCount != 0 {
+		t.Fatalf("GEN-active active count = %d, want 0", activeOldCount)
+	}
+}
+
+func TestImportGenerationStableIDFailurePreservesPriorActiveGeneration(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-active")); err != nil {
+		t.Fatal(err)
+	}
+	input := validImportInput("GEN-next")
+	input.PathIndex[0].EvidenceID = "E-missing"
+	_, err := st.ImportGeneration(ctx, input)
+	if err == nil {
+		t.Fatal("ImportGeneration error = nil, want invalid path_index evidence error")
+	}
+
+	activeID, err := st.ActiveGenerationID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeID != "GEN-active" {
+		t.Fatalf("activeID = %q, want GEN-active after rollback", activeID)
+	}
+	snapshot, err := st.ActiveIdentitySnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSnapshotIdentity(t, snapshot.Evidence, "E-001|src/app.go|hash-app")
+	assertSnapshotIdentity(t, snapshot.Nodes, "N-app")
+	assertSnapshotIdentity(t, snapshot.CoveragePaths, "src/app.go")
+}
+
 func TestImportGenerationRollsBackOnInvalidEdgeOrObservationEvidence(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)

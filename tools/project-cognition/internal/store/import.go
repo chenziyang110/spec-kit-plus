@@ -102,6 +102,9 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 	if input.Kind == "" {
 		input.Kind = "full"
 	}
+	if err := validateImportReferences(input); err != nil {
+		return "", err
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -126,8 +129,10 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 	if _, err := tx.ExecContext(ctx, `INSERT INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) VALUES(?, ?, ?, 'building', ?, ?, '', '', ?)`, input.GenerationID, sequence, input.Kind, input.SourceCommit, now, attrsJSON); err != nil {
 		return "", fmt.Errorf("insert generation %s: %w", input.GenerationID, err)
 	}
+	if err := supersedeAndDeleteActiveGenerationData(ctx, tx, input.GenerationID, now); err != nil {
+		return "", err
+	}
 
-	evidenceIDs := map[string]bool{}
 	for _, evidence := range input.Evidence {
 		attrs, err := attrsJSONOrEmpty(evidence.Attrs)
 		if err != nil {
@@ -136,10 +141,8 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 		if _, err := tx.ExecContext(ctx, `INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, evidence.ID, input.GenerationID, evidence.SourceKind, evidence.SourcePath, evidence.CommitSHA, evidence.Span, evidence.Extractor, evidence.ContentHash, now, attrs); err != nil {
 			return "", fmt.Errorf("insert evidence %s: %w", evidence.ID, err)
 		}
-		evidenceIDs[evidence.ID] = true
 	}
 
-	nodeIDs := map[string]bool{}
 	for _, node := range input.Nodes {
 		attrs, err := attrsJSONOrEmpty(node.Attrs)
 		if err != nil {
@@ -148,11 +151,7 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 		if _, err := tx.ExecContext(ctx, `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, node.ID, input.GenerationID, node.Type, node.Title, node.Confidence, attrs, now, now); err != nil {
 			return "", fmt.Errorf("insert node %s: %w", node.ID, err)
 		}
-		nodeIDs[node.ID] = true
 		for _, evidenceID := range node.EvidenceIDs {
-			if err := validateImportedEvidenceID("node", node.ID, evidenceID, evidenceIDs); err != nil {
-				return "", err
-			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO node_evidence(node_id, evidence_id) VALUES(?, ?)`, node.ID, evidenceID); err != nil {
 				return "", fmt.Errorf("insert node evidence %s/%s: %w", node.ID, evidenceID, err)
 			}
@@ -171,9 +170,6 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 			return "", fmt.Errorf("insert edge %s: %w", edge.ID, err)
 		}
 		for _, evidenceID := range edge.EvidenceIDs {
-			if err := validateImportedEvidenceID("edge", edge.ID, evidenceID, evidenceIDs); err != nil {
-				return "", err
-			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO edge_evidence(edge_id, evidence_id) VALUES(?, ?)`, edge.ID, evidenceID); err != nil {
 				return "", fmt.Errorf("insert edge evidence %s/%s: %w", edge.ID, evidenceID, err)
 			}
@@ -189,9 +185,6 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 			return "", fmt.Errorf("insert observation %s: %w", observation.ID, err)
 		}
 		for _, evidenceID := range observation.EvidenceIDs {
-			if err := validateImportedEvidenceID("observation", observation.ID, evidenceID, evidenceIDs); err != nil {
-				return "", err
-			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO observation_evidence(observation_id, evidence_id) VALUES(?, ?)`, observation.ID, evidenceID); err != nil {
 				return "", fmt.Errorf("insert observation evidence %s/%s: %w", observation.ID, evidenceID, err)
 			}
@@ -199,22 +192,11 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 	}
 
 	for _, pathIndex := range input.PathIndex {
-		if !nodeIDs[pathIndex.NodeID] {
-			return "", fmt.Errorf("path_index %s references missing node %s", pathIndex.ID, pathIndex.NodeID)
-		}
-		if pathIndex.EvidenceID != "" {
-			if err := validateImportedEvidenceID("path_index", pathIndex.ID, pathIndex.EvidenceID, evidenceIDs); err != nil {
-				return "", err
-			}
-		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, pathIndex.ID, input.GenerationID, pathIndex.Path, pathIndex.NodeID, pathIndex.Relation, pathIndex.Confidence, pathIndex.EvidenceID, now); err != nil {
 			return "", fmt.Errorf("insert path index %s: %w", pathIndex.ID, err)
 		}
 	}
 
-	if _, err := tx.ExecContext(ctx, `UPDATE generations SET state = 'superseded', superseded_at = ? WHERE state = 'active' AND id <> ?`, now, input.GenerationID); err != nil {
-		return "", fmt.Errorf("supersede active generations: %w", err)
-	}
 	if _, err := tx.ExecContext(ctx, `UPDATE generations SET state = 'active', published_at = ? WHERE id = ?`, now, input.GenerationID); err != nil {
 		return "", fmt.Errorf("publish generation %s: %w", input.GenerationID, err)
 	}
@@ -343,9 +325,108 @@ func validateEdgeNodes(ctx context.Context, tx *sql.Tx, generationID string, edg
 	return nil
 }
 
+func validateImportReferences(input ImportInput) error {
+	evidenceIDs := map[string]bool{}
+	for _, evidence := range input.Evidence {
+		evidenceIDs[evidence.ID] = true
+	}
+	nodeIDs := map[string]bool{}
+	for _, node := range input.Nodes {
+		nodeIDs[node.ID] = true
+		for _, evidenceID := range node.EvidenceIDs {
+			if err := validateImportedEvidenceID("node", node.ID, evidenceID, evidenceIDs); err != nil {
+				return err
+			}
+		}
+	}
+	for _, edge := range input.Edges {
+		for _, evidenceID := range edge.EvidenceIDs {
+			if err := validateImportedEvidenceID("edge", edge.ID, evidenceID, evidenceIDs); err != nil {
+				return err
+			}
+		}
+	}
+	for _, observation := range input.Observations {
+		for _, evidenceID := range observation.EvidenceIDs {
+			if err := validateImportedEvidenceID("observation", observation.ID, evidenceID, evidenceIDs); err != nil {
+				return err
+			}
+		}
+	}
+	for _, pathIndex := range input.PathIndex {
+		if !nodeIDs[pathIndex.NodeID] {
+			return fmt.Errorf("path_index %s references missing node %s", pathIndex.ID, pathIndex.NodeID)
+		}
+		if pathIndex.EvidenceID == "" {
+			return fmt.Errorf("path_index %s requires evidence", pathIndex.ID)
+		}
+		if err := validateImportedEvidenceID("path_index", pathIndex.ID, pathIndex.EvidenceID, evidenceIDs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateImportedEvidenceID(rowType, rowID, evidenceID string, evidenceIDs map[string]bool) error {
 	if !evidenceIDs[evidenceID] {
 		return fmt.Errorf("%s %s references missing evidence %s", rowType, rowID, evidenceID)
+	}
+	return nil
+}
+
+func supersedeAndDeleteActiveGenerationData(ctx context.Context, tx *sql.Tx, newGenerationID, now string) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM generations WHERE state = 'active' AND id <> ?`, newGenerationID)
+	if err != nil {
+		return fmt.Errorf("read active generations for replacement: %w", err)
+	}
+	defer rows.Close()
+	activeGenerationIDs := []string{}
+	for rows.Next() {
+		var generationID string
+		if err := rows.Scan(&generationID); err != nil {
+			return fmt.Errorf("scan active generation for replacement: %w", err)
+		}
+		activeGenerationIDs = append(activeGenerationIDs, generationID)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, generationID := range activeGenerationIDs {
+		if err := deleteGenerationData(ctx, tx, generationID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE generations SET state = 'superseded', superseded_at = ? WHERE state = 'active' AND id <> ?`, now, newGenerationID); err != nil {
+		return fmt.Errorf("supersede active generations: %w", err)
+	}
+	return nil
+}
+
+func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) error {
+	statements := []string{
+		`DELETE FROM observation_evidence WHERE observation_id IN (SELECT id FROM observations WHERE generation_id = ?)`,
+		`DELETE FROM node_evidence WHERE node_id IN (SELECT id FROM nodes WHERE generation_id = ?)`,
+		`DELETE FROM edge_evidence WHERE edge_id IN (SELECT id FROM edges WHERE generation_id = ?)`,
+		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claims WHERE generation_id = ?)`,
+		`DELETE FROM conflict_claims WHERE conflict_id IN (SELECT id FROM conflicts WHERE generation_id = ?)`,
+		`DELETE FROM query_examples WHERE generation_id = ?`,
+		`DELETE FROM slice_members WHERE generation_id = ?`,
+		`DELETE FROM test_index WHERE generation_id = ?`,
+		`DELETE FROM entrypoint_index WHERE generation_id = ?`,
+		`DELETE FROM alias_index WHERE generation_id = ?`,
+		`DELETE FROM symbol_index WHERE generation_id = ?`,
+		`DELETE FROM path_index WHERE generation_id = ?`,
+		`DELETE FROM conflicts WHERE generation_id = ?`,
+		`DELETE FROM claims WHERE generation_id = ?`,
+		`DELETE FROM edges WHERE generation_id = ?`,
+		`DELETE FROM observations WHERE generation_id = ?`,
+		`DELETE FROM nodes WHERE generation_id = ?`,
+		`DELETE FROM evidence WHERE generation_id = ?`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement, generationID); err != nil {
+			return fmt.Errorf("delete generation data %s: %w", generationID, err)
+		}
 	}
 	return nil
 }
