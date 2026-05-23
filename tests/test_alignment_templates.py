@@ -489,10 +489,10 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "sp-discussion" in content
     assert "senior technical expert" in lowered
     assert "senior product manager" in lowered
-    assert "senior UI and interaction designer" in content
+    assert "senior ui and interaction designer" in lowered
     assert "15 years" in content
     assert "ui-interaction-discussion" in content
-    assert "ASCII sketches" in content
+    assert "ascii sketches" in lowered
     assert ".specify/discussions/<slug>/" in content
     assert "discussion-state.md" in content
     assert "discussion-log.md" in content
@@ -560,21 +560,36 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")
     state = _read("templates/discussion-state-template.md")
-    combined = "\n".join([content, shell, state])
-    lowered = combined.lower()
+    content_lower = content.lower()
+    shell_lower = shell.lower()
+    state_lower = state.lower()
 
-    assert "ui-interaction-discussion" in combined
+    assert "ui-interaction-discussion" in content
+    assert "after functional discussion is stable" in content_lower
+    assert "optional ui and interaction discussion" in content_lower
+    assert "senior ui and interaction designer" in content_lower
+    assert "15 years" in content
+    assert "ascii sketches" in content_lower
+    assert "markdown is the primary carrier" in content_lower
+    assert "json" in content_lower
+    assert "ui_sketches_present" in content
+    assert "ui_sketch_summary" in content
+    assert "ui_sketch_reference" in content
+    assert "not a blocking gate" in content_lower or "not a blocker" in content_lower
+
+    assert "after functional discussion is stable" in shell_lower
+    assert "optional ui and interaction discussion" in shell_lower
+    assert "ui_discussion_status" in shell
+    assert "preserve" in shell_lower
+    assert "mandatory handoff gate" in shell_lower
+    assert "ui_sketches_present" in shell
+    assert "ui_sketch_summary" in shell
+    assert "ui_sketch_reference" in shell_lower
+
+    assert "current_stage:" in state
+    assert "ui-interaction-discussion" in state
     assert "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred" in state
-    assert "after functional discussion is stable" in lowered
-    assert "optional ui and interaction discussion" in lowered
-    assert "senior ui and interaction designer" in lowered
-    assert "15 years" in combined
-    assert "ascii sketches" in lowered
-    assert "markdown is the primary carrier" in lowered
-    assert "ui_sketches_present" in combined
-    assert "ui_sketch_summary" in combined
-    assert "ui_sketch_reference" in combined
-    assert "not a blocking gate" in lowered or "not a blocker" in lowered
+    assert "feature workflow" not in state_lower
 
 
 def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:

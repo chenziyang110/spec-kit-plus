@@ -160,7 +160,7 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 
 
 
-TOML_INTEGRATION_SAMPLE_KEYS = ("gemini",)
+TOML_INTEGRATION_SAMPLE_KEYS = ("gemini", "tabnine")
 
 
 def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):

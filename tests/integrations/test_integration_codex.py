@@ -231,8 +231,8 @@ class TestCodexAutoPromote:
         assert "project-cognition query --intent discussion" in generated_discussion
         assert "project-cognition query --intent plan" not in generated_discussion
         assert "ui-interaction-discussion" in generated_discussion
-        assert "senior UI and interaction designer" in generated_discussion
-        assert "ASCII sketches" in generated_discussion
+        assert "senior ui and interaction designer" in generated_lower
+        assert "ascii sketches" in generated_lower
         assert "ui_sketches_present" in generated_discussion
         assert "ordinary turns append" in generated_lower
         assert "semantic checkpoints" in generated_lower
