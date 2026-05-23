@@ -54,7 +54,7 @@ def describe_delegation_surface(
     native_join_hint = (
         "Stay on the leader path and keep the current lane explicit."
         if normalized_command == "implement"
-        else "Stay on the leader path or use the managed team workflow."
+        else "Stay on the leader path and keep the current lane explicit."
     )
 
     if snapshot.native_worker_surface == "spawn_agent":
@@ -68,7 +68,11 @@ def describe_delegation_surface(
             "Use the integration-native join point, then integrate results back on the leader path."
         )
 
-    if normalized_command == "implement":
+    if normalized_command == "debug":
+        managed_team_hint = (
+            "No managed-team or leader-inline fallback for `sp-debug`; choose `leader-inline` up front for a small focused investigation, or record `subagent-blocked` with `execution_surface: none` when the next safe step cannot proceed."
+        )
+    elif normalized_command == "implement":
         managed_team_hint = (
             "No in-command team fallback for `sp-implement`; if subagents cannot proceed safely, stay on the leader path and record why."
         )

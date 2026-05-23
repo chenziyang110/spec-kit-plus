@@ -48,6 +48,8 @@ def test_describe_delegation_surface_for_claude_debug_uses_evidence_contract() -
     assert descriptor.intent == "evidence"
     assert descriptor.native_subagent_surface == "native-cli"
     assert "native subagent support" in descriptor.native_dispatch_hint.lower()
+    assert "no managed-team or leader-inline fallback" in descriptor.managed_team_hint.lower()
+    assert "execution_surface: none" in descriptor.managed_team_hint.lower()
     assert "evidence payload" in descriptor.result_contract_hint.lower()
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in descriptor.result_handoff_hint
     assert descriptor.structured_results_expected is True
