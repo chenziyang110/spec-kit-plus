@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
 func TestVersionPrintsBinaryName(t *testing.T) {
@@ -73,6 +75,31 @@ func TestImportScanAliasUsesBuildFromScan(t *testing.T) {
 				t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
 			}
 		})
+	}
+}
+
+func TestBuildFromScanCommandReturnsNonzeroForOperationalErrorPayload(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths.StatusPath = filepath.Join(root, "missing-parent", "status.json")
+
+	var stdout, stderr bytes.Buffer
+	code := buildFromScanCommand([]string{"--format", "json"}, &stdout, &stderr, paths)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
 }
 

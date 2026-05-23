@@ -218,7 +218,14 @@ func buildFromScanCommand(args []string, stdout io.Writer, stderr io.Writer, pat
 		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
 		return 1
 	}
-	return writeJSON(stdout, payload)
+	code := writeJSON(stdout, payload)
+	if code != 0 {
+		return code
+	}
+	if err != nil {
+		return 1
+	}
+	return 0
 }
 
 func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
