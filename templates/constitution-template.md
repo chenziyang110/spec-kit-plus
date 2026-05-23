@@ -134,6 +134,12 @@ The system MUST make failures easy to detect, explain, and reproduce.
   after a usable baseline. Recommend `map-scan` followed by `map-build` only for
   first/missing/unusable baseline, schema failure, zero active-generation
   `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+- **Follow Project Style and Structure**: Before implementing, inspect and follow
+  the current project's established style, file organization, naming
+  conventions, helper APIs, framework patterns, and architecture boundaries.
+  Extend existing patterns when they satisfy the requirement. If a broader
+  architecture improvement appears warranted, present the recommendation,
+  trade-offs, and expected impact to the user before changing direction.
 - **Encoding Preservation**: When modifying an existing file, changes MUST
   preserve the file's existing character encoding and BOM behavior unless the
   task explicitly requires an encoding conversion.

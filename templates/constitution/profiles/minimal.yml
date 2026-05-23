@@ -1,6 +1,6 @@
 id: minimal
 name: Minimal Delivery
-version: 1.1.0
+version: 1.2.0
 description: Lean default for small repositories and low-ceremony teams.
 core_principles: |
   ## Core Principles
@@ -70,6 +70,12 @@ engineering_standards: |
     source inspection, planning, debugging, implementation, task decomposition,
     or subagent dispatch. The query result MUST guide routing, minimal live
     reads, scope boundaries, and verification strategy.
+  - **Follow Project Style and Structure**: Before implementing, inspect and follow
+    the current project's established style, file organization, naming
+    conventions, helper APIs, framework patterns, and architecture boundaries.
+    Extend existing patterns when they satisfy the requirement. If a broader
+    architecture improvement appears warranted, present the recommendation,
+    trade-offs, and expected impact to the user before changing direction.
   - **Clear Naming**: Code, tasks, and docs SHOULD prefer descriptive names over
     terse shortcuts.
   - **Local Documentation Sync**: Update the nearest relevant README, inline

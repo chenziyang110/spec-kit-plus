@@ -1,6 +1,6 @@
 id: library
 name: Reusable Library
-version: 1.1.0
+version: 1.2.0
 description: Compatibility-focused default for packages, CLIs, SDKs, and shared libraries.
 core_principles: |
   ## Core Principles
@@ -100,6 +100,12 @@ engineering_standards: |
   - **SemVer and Release Discipline**: Treat changelog, version bumps, and
     deprecation windows as first-class engineering work when the published
     contract changes.
+  - **Follow Project Style and Structure**: Before implementing, inspect and follow
+    the current project's established style, file organization, naming
+    conventions, helper APIs, framework patterns, and architecture boundaries.
+    Extend existing patterns when they satisfy the requirement. If a broader
+    architecture improvement appears warranted, present the recommendation,
+    trade-offs, and expected impact to the user before changing direction.
   - **Examples and Upgrade Paths**: Update usage examples, sample configs, and
     migration notes when the public surface changes.
   - **Encoding Preservation**: When modifying an existing file, changes MUST
