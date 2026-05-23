@@ -6,7 +6,9 @@ Add two lightweight workflow improvements:
 
 1. Generated project constitutions should tell agents to follow the current
    project's established style, structure, helper APIs, and architecture
-   boundaries before inventing a different approach.
+   boundaries before inventing a different approach. This applies to every
+   built-in constitution profile: `product`, `library`, `minimal`, and
+   `regulated`.
 2. `sp-discussion` should offer an optional UI and interaction discussion stage
    after product/functionality requirements are stable when the request has a
    user-interface surface.
@@ -57,7 +59,8 @@ senior UI and interaction design partner.
 
 ### Constitution Engineering Standard
 
-Add a concise engineering standard to the built-in constitution defaults:
+Add a concise engineering standard to all built-in constitution profiles:
+`product`, `library`, `minimal`, and `regulated`.
 
 - Before implementing, agents should inspect and follow the current project's
   established style, file organization, naming conventions, helper APIs,
@@ -68,9 +71,10 @@ Add a concise engineering standard to the built-in constitution defaults:
   should present the recommendation, trade-offs, and expected impact to the user
   before making the change.
 
-The rule should live in the default constitution/profile layer so newly
-initialized projects inherit it. Existing tests that assert constitution profile
-content should be updated so this behavior cannot drift.
+The rule should live in the constitution profile layer so newly initialized
+projects inherit it regardless of the selected built-in profile. Existing tests
+that assert constitution profile content should be updated so this behavior
+cannot drift.
 
 ### Optional UI and Interaction Stage
 
@@ -140,16 +144,21 @@ or implementation agents.
 The change should reuse the existing discussion package instead of adding a new
 required file:
 
-- `discussion-state.md` records whether UI discussion was offered, accepted,
-  skipped, completed, or deferred.
+- `discussion-state.md` records `ui_discussion_status` with one of:
+  `not_applicable`, `offered`, `accepted`, `skipped`, `completed`, or
+  `deferred`.
 - `requirements.md` captures confirmed UI requirements when they affect product
   behavior.
 - `technical-options.md` captures UI implementation options only when strategy
   materially affects requirements.
 - `open-questions.md` records unresolved UI decisions that must not be silently
   invented later.
-- `handoff-to-specify.md` and `handoff-to-specify.json` preserve confirmed UI
-  decisions, ASCII sketches when useful, and deferred UI unknowns.
+- `handoff-to-specify.md` is the primary carrier for any ASCII sketches because
+  Markdown preserves multi-line readability.
+- `handoff-to-specify.json` preserves structured UI status and references
+  instead of duplicating raw multi-line sketches. Use fields such as
+  `ui_discussion_status`, `ui_sketches_present`, `ui_sketch_summary`, and
+  `ui_sketch_reference` to point back to the Markdown section.
 
 The unified handoff remains the only handoff package. The UI stage must not
 create candidate-specific handoffs or route automatically to `sp-specify`.
@@ -183,8 +192,9 @@ integration rendering tests affected by these files.
 
 ## Acceptance Criteria
 
-- New initialized projects receive constitution guidance to follow current
-  project style and structure before inventing new architecture.
+- New initialized projects using any built-in constitution profile receive
+  constitution guidance to follow current project style and structure before
+  inventing new architecture.
 - Generated discussion workflow guidance offers an optional UI/interaction stage
   for UI-facing requirements after functional discussion stabilizes.
 - The UI stage uses a senior UI/interaction design persona and remains
