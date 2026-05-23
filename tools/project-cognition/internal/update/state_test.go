@@ -1,6 +1,7 @@
 package update
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
 func testPaths(t *testing.T) rt.Paths {
@@ -70,10 +72,22 @@ func TestMarkDirtyDerivesScopeFromPacket(t *testing.T) {
 
 func TestCompleteRefreshClearsDirtyState(t *testing.T) {
 	paths := testPaths(t)
-	if _, err := MarkDirty(paths, DirtyInput{Reason: "manual"}); err != nil {
+	seedReadyRuntime(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := CompleteRefresh(paths, "map-build")
+	status.Dirty = true
+	status.Status = "stale"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.BlockedReadiness
+	status.DirtyReasons = []string{"manual"}
+	status.StalePaths = []string{"src/app.go"}
+	status.StaleReasons = []string{"manual"}
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	status, err = CompleteRefresh(paths, "map-build")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,6 +96,38 @@ func TestCompleteRefreshClearsDirtyState(t *testing.T) {
 	}
 	if status.Freshness != rt.ReadyFreshness {
 		t.Fatalf("freshness = %q", status.Freshness)
+	}
+}
+
+func TestCompleteRefreshBlocksStatusOnlyRuntime(t *testing.T) {
+	paths := testPaths(t)
+	if _, err := MarkDirty(paths, DirtyInput{Reason: "manual"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := CompleteRefresh(paths, "map-build")
+
+	if err == nil {
+		t.Fatal("expected status-only agreement error")
+	}
+	if !strings.Contains(err.Error(), "project-cognition.db is missing") {
+		t.Fatalf("error = %q, want missing DB", err.Error())
+	}
+}
+
+func TestCompleteRefreshBlocksPristineMissingBaseline(t *testing.T) {
+	paths := testPaths(t)
+
+	_, err := CompleteRefresh(paths, "map-build")
+
+	if err == nil {
+		t.Fatal("expected missing baseline agreement error")
+	}
+	if !strings.Contains(err.Error(), "status.json and project-cognition.db are missing") {
+		t.Fatalf("error = %q, want missing baseline", err.Error())
+	}
+	if _, statErr := os.Stat(paths.StatusPath); !os.IsNotExist(statErr) {
+		t.Fatalf("status stat err = %v, want missing status", statErr)
 	}
 }
 
@@ -125,6 +171,89 @@ func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
 	}
 	if payload.Boundary.BoundarySource != "delta_journal" {
 		t.Fatalf("BoundarySource = %q, want delta_journal", payload.Boundary.BoundarySource)
+	}
+}
+
+func TestCompleteRefreshBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+
+	_, err := CompleteRefresh(paths, "manual")
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+	assertStatusActiveGeneration(t, paths, "GEN-old")
+}
+
+func TestMarkDirtyBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+
+	_, err := MarkDirty(paths, DirtyInput{Reason: "manual", ScopePaths: []string{"src/app.go"}})
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+	assertStatusActiveGeneration(t, paths, "GEN-old")
+}
+
+func TestRunUpdateBlocksSplitBrainBaselineBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+
+	_, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "manual",
+	})
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastUpdateID != "" {
+		t.Fatalf("LastUpdateID = %q, want no mutation", status.LastUpdateID)
+	}
+	if status.ActiveGenerationID != "GEN-old" {
+		t.Fatalf("ActiveGenerationID = %q, want GEN-old", status.ActiveGenerationID)
+	}
+}
+
+func TestRunUpdateWithDeltaSessionBlocksSplitBrainBaselineBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:          paths.Root,
+		RuntimeDir:    paths.RuntimeDir,
+		OriginCommand: "quick",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	})
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
 	}
 }
 
@@ -268,4 +397,67 @@ func containsText(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	seedRuntimeGeneration(t, paths, "GEN-db")
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-old"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedReadyRuntime(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	seedRuntimeGeneration(t, paths, "GEN-db")
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-db"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: generationID,
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence:     []store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
+		Nodes:        []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
+		PathIndex:    []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+	})
+	if closeErr := st.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertStatusActiveGeneration(t *testing.T, paths rt.Paths, want string) {
+	t.Helper()
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ActiveGenerationID != want {
+		t.Fatalf("ActiveGenerationID = %q, want %q", status.ActiveGenerationID, want)
+	}
 }

@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
@@ -55,6 +57,9 @@ type UpdatePayload struct {
 }
 
 func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	if input.Reason == "" {
 		input.Reason = "manual"
 	}
@@ -89,6 +94,9 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 }
 
 func ClearDirty(paths rt.Paths) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return rt.Status{}, err
@@ -109,6 +117,9 @@ func ClearDirty(paths rt.Paths) (rt.Status, error) {
 }
 
 func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	if reason == "" {
 		reason = "manual"
 	}
@@ -125,6 +136,13 @@ func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
 }
 
 func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
+	agreement, ok := runtimegate.CheckExisting(paths)
+	if !ok {
+		return rt.Status{}, fmt.Errorf("project cognition agreement blocked: run_map_scan_build: status.json and project-cognition.db are missing")
+	}
+	if agreement.Status != "ok" {
+		return rt.Status{}, fmt.Errorf("project cognition agreement blocked: %s: %s", agreementAction(agreement), strings.Join(agreement.Errors, "; "))
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return rt.Status{}, err
@@ -152,6 +170,9 @@ func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
 }
 
 func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return rt.Status{}, err
+	}
 	if reason == "" {
 		reason = "topic-refresh"
 	}
@@ -167,6 +188,9 @@ func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, e
 }
 
 func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return UpdatePayload{}, err
+	}
 	if input.DeltaSessionID != "" {
 		return runDeltaSessionUpdate(paths, input)
 	}
@@ -184,18 +208,25 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	kept, ignored := matcher.Filter(changed)
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 
-	st, err := store.Open(paths)
+	st, err := store.OpenExisting(paths)
+	if errors.Is(err, os.ErrNotExist) {
+		st = nil
+		err = nil
+	}
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	defer st.Close()
-	nodes, err := st.NodesForPaths(context.Background(), kept)
-	if err != nil {
-		return UpdatePayload{}, err
-	}
-	changedJSON, _ := json.Marshal(kept)
-	if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
-		return UpdatePayload{}, err
+	nodes := []map[string]any{}
+	if st != nil {
+		defer st.Close()
+		nodes, err = st.NodesForPaths(context.Background(), kept)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		changedJSON, _ := json.Marshal(kept)
+		if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
+			return UpdatePayload{}, err
+		}
 	}
 
 	status, err := rt.ReadStatus(paths)
@@ -240,6 +271,17 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	}, nil
 }
 
+func blockSplitBrainBaseline(paths rt.Paths) error {
+	return runtimegate.BlockIfExisting(paths)
+}
+
+func agreementAction(agreement runtimegate.Agreement) string {
+	if agreement.RecoveryAction != "" {
+		return agreement.RecoveryAction
+	}
+	return agreement.RecommendedNextAction
+}
+
 func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	cfg, err := config.Load(paths.Root)
 	if err != nil {
@@ -263,14 +305,20 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	forceBoundaryOnlyAutoCommitDecision(&result)
 
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
-	st, err := store.Open(paths)
+	st, err := store.OpenExisting(paths)
+	if errors.Is(err, os.ErrNotExist) {
+		st = nil
+		err = nil
+	}
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	defer st.Close()
-	changedJSON, _ := json.Marshal(result.ChangedPaths)
-	if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
-		return UpdatePayload{}, err
+	if st != nil {
+		defer st.Close()
+		changedJSON, _ := json.Marshal(result.ChangedPaths)
+		if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
+			return UpdatePayload{}, err
+		}
 	}
 
 	status, err := rt.ReadStatus(paths)

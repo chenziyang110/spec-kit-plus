@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
 func TestVersionPrintsBinaryName(t *testing.T) {
@@ -50,6 +52,54 @@ func TestStatusReturnsUnsupportedLegacyJSON(t *testing.T) {
 	}
 	if payload["error_code"] != "unsupported_legacy_runtime" {
 		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestBuildFromScanCommandCreatesRuntime(t *testing.T) {
+	payload := runBuildFromScanCLI(t, "build-from-scan")
+
+	if payload["status"] != "ok" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if _, ok := payload["identity_reconciliation"].(map[string]any); !ok {
+		t.Fatalf("identity_reconciliation missing from payload = %#v", payload)
+	}
+}
+
+func TestImportScanAliasUsesBuildFromScan(t *testing.T) {
+	for _, command := range []string{"import-scan", "rebuild-from-scan"} {
+		t.Run(command, func(t *testing.T) {
+			payload := runBuildFromScanCLI(t, command)
+
+			if payload["status"] != "ok" {
+				t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+			}
+		})
+	}
+}
+
+func TestBuildFromScanCommandReturnsNonzeroForOperationalErrorPayload(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths.StatusPath = filepath.Join(root, "missing-parent", "status.json")
+
+	var stdout, stderr bytes.Buffer
+	code := buildFromScanCommand([]string{"--format", "json"}, &stdout, &stderr, paths)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
 }
 
@@ -517,6 +567,114 @@ func beginDeltaSession(t *testing.T) string {
 		t.Fatalf("payload = %#v", payload)
 	}
 	return sessionID
+}
+
+func runBuildFromScanCLI(t *testing.T, command string) map[string]any {
+	t.Helper()
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{command, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("%s code = %d stderr=%s", command, code, stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	return payload
+}
+
+func writeMinimalCLIScanPackage(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	runtimeDir := filepath.Join(root, ".specify", "project-cognition")
+	for _, dir := range []string{
+		filepath.Join(runtimeDir, "evidence"),
+		filepath.Join(runtimeDir, "provisional"),
+		filepath.Join(runtimeDir, "workbench", "scan-packets"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeTestJSON(t, filepath.Join(runtimeDir, "evidence", "app.json"), map[string]any{
+		"rows": []map[string]any{{
+			"id":           "E-001",
+			"source_kind":  "source",
+			"source_path":  "src/app.go",
+			"commit_sha":   "abc123",
+			"span":         "1:1-10:1",
+			"extractor":    "test",
+			"content_hash": "hash-app",
+			"attrs":        map[string]any{"language": "go"},
+		}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"id":           "N-app",
+			"type":         "capability",
+			"title":        "App",
+			"confidence":   "verified",
+			"paths":        []string{"src/app.go"},
+			"evidence_ids": []string{"E-001"},
+			"attrs":        map[string]any{"owner": "test"},
+		}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":           "EDGE-app-self",
+			"type":         "owns",
+			"source_id":    "N-app",
+			"target_id":    "N-app",
+			"confidence":   "verified",
+			"evidence_ids": []string{"E-001"},
+		}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "provisional", "observations.json"), map[string]any{
+		"observations": []map[string]any{{
+			"id":               "OBS-app",
+			"observation_type": "summary",
+			"summary":          "App observed",
+			"evidence_ids":     []string{"E-001"},
+		}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "coverage.json"), map[string]any{
+		"rows": []map[string]any{{"path": "src/app.go"}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "coverage-ledger.json"), map[string]any{
+		"rows":      []map[string]any{{"path": "src/app.go", "status": "covered"}},
+		"open_gaps": []map[string]any{},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
+		"rows": []map[string]any{{"path": "src/app.go"}},
+	})
+	for _, rel := range []string{
+		filepath.Join("workbench", "map-scan.md"),
+		filepath.Join("workbench", "coverage-ledger.md"),
+		filepath.Join("workbench", "map-state.md"),
+	} {
+		if err := os.WriteFile(filepath.Join(runtimeDir, rel), []byte("# Test\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func writeTestJSON(t *testing.T, path string, payload any) {
+	t.Helper()
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func runGit(t *testing.T, dir string, args ...string) string {

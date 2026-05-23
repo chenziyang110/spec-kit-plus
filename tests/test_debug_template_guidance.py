@@ -164,7 +164,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert ".specify/project-map/index/status.json" not in content
     assert "complete-refresh" in content
     assert "project-cognition validate-build --format json" in content
-    assert "only when build acceptance passes" in content
+    assert "incremental freshness finalization" in content
+    assert "do not run `complete-refresh` as a rebuild finalizer" in content
     assert "if that refresh cannot be completed now" in content
     assert "manual override/fallback" in content
     assert "highest-signal" in content

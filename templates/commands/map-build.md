@@ -41,9 +41,10 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Run `{{specify-subcmd:project-cognition publish-runtime-metadata --format json}}` immediately after publishing `.specify/project-cognition/project-cognition.db` so DB metadata and `.specify/project-cognition/status.json` agree on `baseline_state`, `graph_ready`, `graph_store_path`, and `active_generation_id`.
-- Run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing runtime metadata.
-- Use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after `validate-build` returns `status=ok` and `readiness=query_ready`.
+- Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import.
+- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation; this owns DB import, metadata, status publication, and DB/status agreement.
+- If `build-from-scan` returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action` and do not proceed to build validation.
+- Run `{{specify-subcmd:project-cognition validate-build --format json}}` after `build-from-scan`.
 
 ## Machine-Readable Blocked State
 
@@ -106,6 +107,7 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - Do not treat raw scan prose or raw Markdown checklist items alone as accepted build evidence.
 - Do not accept packet results without inspected paths, evidence, and confidence.
 - Do not perform a structural-only refresh and call it success.
+- Do not accept manual SQL, sqlite shell scripting, hand-picked node subsets, or leader-memory graph reconstruction as normal build paths.
 - If the build lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 - If a delegated lane returns unresolved evidence gaps, preserve the scan gap report and stop for escalation or recovery instead of inventing closure.
 
@@ -202,9 +204,10 @@ At minimum, claims must include:
 
 Before reporting completion:
 
-- run `{{specify-subcmd:project-cognition publish-runtime-metadata --format json}}` after publishing `.specify/project-cognition/project-cognition.db`
-- run `{{specify-subcmd:project-cognition validate-build --format json}}` after publishing runtime metadata
-- use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only after `validate-build` returns `status=ok` and `readiness=query_ready`
+- run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import
+- run `{{specify-subcmd:project-cognition build-from-scan --format json}}`; if it returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action`
+- run `{{specify-subcmd:project-cognition validate-build --format json}}` after `build-from-scan`
+- report completion only after `validate-build` returns `status=ok` and `readiness=query_ready`
 - confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then generate a query_plan from returned map terms, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`
 - if `validate-build` returns `status=blocked`, report the specific DB, schema, active generation, status, or smoke-query error and do not mark the baseline fresh
 - confirm that `status.json` reflects a query-ready baseline

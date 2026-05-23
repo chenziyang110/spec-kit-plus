@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 )
 
 type ReadPayload struct {
@@ -26,6 +27,9 @@ func Read(project, slice string, includeGraphs []string) (ReadPayload, error) {
 	}
 	paths, err := rt.ResolvePaths(project)
 	if err != nil {
+		return ReadPayload{}, err
+	}
+	if err := blockSplitBrainReference(paths); err != nil {
 		return ReadPayload{}, err
 	}
 	status, err := rt.ReadStatus(paths)
@@ -77,4 +81,8 @@ func readJSON(path string) (any, error) {
 		return nil, err
 	}
 	return raw, nil
+}
+
+func blockSplitBrainReference(paths rt.Paths) error {
+	return runtimegate.BlockIfExisting(paths)
 }

@@ -37,6 +37,7 @@ class TestGenericIntegration:
     def _expected_inventory(cls, script_variant: str) -> list[str]:
         expected = [
             *(f".myagent/commands/sp.{stem}.md" for stem in cls._command_stems()),
+            ".specify/config.json",
             ".specify/init-options.json",
             ".specify/integration.json",
             ".specify/integrations/generic.manifest.json",
@@ -47,7 +48,6 @@ class TestGenericIntegration:
             ".specify/memory/learnings/INDEX.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
-            ".specify/project-cognition/status.json",
         ]
 
         if script_variant == "sh":

@@ -276,7 +276,8 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
     assert "complete-refresh" in content
     assert "project-cognition validate-build --format json" in content
-    assert "only when build acceptance passes" in content
+    assert "incremental freshness finalization" in content
+    assert "do not run `complete-refresh` as a rebuild finalizer" in content
     assert "if a refresh cannot be completed now" in content
     assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
     assert "manual override/fallback" in content

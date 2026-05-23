@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,5 +48,65 @@ func TestReadStatusRejectsLegacyRuntime(t *testing.T) {
 	_, err = ReadStatus(paths)
 	if !errors.Is(err, ErrUnsupportedLegacy) {
 		t.Fatalf("expected ErrUnsupportedLegacy, got %v", err)
+	}
+}
+
+func TestWriteStatusUsesGoRuntimeMarker(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := DefaultStatus(paths)
+	status.ActiveGenerationID = "GEN-atomic"
+	if err := WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"runtime_format": "project-cognition-go"`) {
+		t.Fatalf("status payload missing Go runtime marker: %s", data)
+	}
+}
+
+func TestWriteStatusDoesNotUseFixedTempPath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fixedTempPath := paths.StatusPath + ".tmp"
+	if err := os.WriteFile(fixedTempPath, []byte("stale temp from another writer"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status := DefaultStatus(paths)
+	status.ActiveGenerationID = "GEN-unique-temp"
+	if err := WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(fixedTempPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "stale temp from another writer" {
+		t.Fatalf("fixed temp path was clobbered: %q", data)
+	}
+	matches, err := filepath.Glob(filepath.Join(paths.RuntimeDir, ".status-*.tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("unexpected stale unique temp files: %v", matches)
 	}
 }

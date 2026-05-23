@@ -46,6 +46,7 @@ class TestCopilotIntegration:
         expected.extend(
             [
                 ".vscode/settings.json",
+                ".specify/config.json",
                 ".specify/integration.json",
                 ".specify/init-options.json",
                 ".specify/integrations/copilot.manifest.json",
@@ -56,7 +57,6 @@ class TestCopilotIntegration:
                 ".specify/memory/learnings/INDEX.md",
                 ".specify/memory/project-learnings.md",
                 ".specify/memory/project-rules.md",
-                ".specify/project-cognition/status.json",
             ]
         )
 

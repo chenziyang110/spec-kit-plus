@@ -419,6 +419,32 @@ class IntegrationBase(ABC):
         )
         return content + addendum
 
+    def _append_specify_pre_analysis_protocol(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        """Keep skills-based specify prompts explicit when includes are trimmed."""
+
+        marker = "## Pre-Analysis Protocol"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            f"{marker}\n\n"
+            "- Before drafting or asking clarification questions, identify the scope boundary, key constraints, affected surface area, known unknowns, and safest next step.\n"
+            "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
+            "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
+            "- Run project cognition planning navigation with `project-cognition lexicon --intent plan`, then generate a `query_plan`, then run `project-cognition query --intent plan --query-plan`; carry returned `minimal_live_reads` into the coverage-model check.\n"
+            "- The coverage-model check should identify truth-owning surfaces, change-propagation hotspots, verification entry points, and known unknowns relevant to the request, including module ownership, reusable components/services/hooks, integration points, and neighboring workflow constraints.\n"
+            "- Read `.specify/templates/workflow-state-template.md`. Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known with `phase_mode: planning-only`. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
+            "- If the topical coverage for the touched area is missing, stale, or too broad: Run a codebase scout before clarification. Build a concise internal scout summary for the request area covering truth-owning surfaces and shared coordination surfaces, change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review, verification entry points and regression-sensitive checks, and known unknowns, stale evidence boundaries, or observability gaps.\n"
+            "- Clarify planning-critical ambiguity, decompose the request into capabilities when needed, use default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof. Write `context.md` to `CONTEXT_FILE`. Locked decisions are preserved in context.md. Provide the recommended review follow-up to `/sp.clarify` or `/sp.deep-research` when appropriate.\n"
+            "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
+        )
+        return content + addendum
+
     def _append_planning_skill_cognition_refresh_guidance(
         self,
         *,
@@ -439,10 +465,30 @@ class IntegrationBase(ABC):
             f"{marker}\n\n"
             "- This workflow is artifact-only unless the user explicitly requested source/runtime changes; do not call `project-cognition mark-dirty`, `project-cognition complete-refresh`, or `project-cognition validate-build --format json` just because `sp-specify`, `sp-plan`, or `sp-tasks` wrote planning artifacts.\n"
             "- When later actual source/runtime changes update truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, refresh through `/sp-map-update` using the changed paths.\n"
-            "- After a successful refresh, update git-baseline freshness with `project-cognition record-refresh` or `project-cognition complete-refresh`; use `complete-refresh` only after build acceptance passes.\n"
-            "- If a first baseline or structural recovery refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then `project-cognition validate-build --format json`, and only then `project-cognition complete-refresh --format json` when validation is ready.\n"
+            "- After a successful incremental `sp-map-update`, update git-baseline freshness with `project-cognition record-refresh` or `project-cognition complete-refresh`; do not use `complete-refresh` to finish first baseline construction.\n"
+            "- If a first baseline or structural recovery refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`; `sp-map-build` owns `project-cognition build-from-scan --format json`, then `project-cognition validate-build --format json`, and completion when validation is ready.\n"
             "- If refresh cannot be completed now, use the manual override/fallback path with `project-cognition mark-dirty --reason \"<reason>\" --format json` and report the required follow-up.\n"
             "- Use `/sp-map-update` for ordinary existing-baseline gaps. Use `/sp-map-scan` followed by `/sp-map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
+        )
+        return content + addendum
+
+    def _append_checklist_project_cognition_guidance(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        """Keep checklist skills explicit about brownfield navigation inputs."""
+
+        marker = "## Checklist Project Cognition Intake"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            f"{marker}\n\n"
+            "- Run `project-cognition lexicon --intent plan`, generate a `query_plan`, then run `project-cognition query --intent plan --query-plan` before shaping the checklist.\n"
+            "- Use the returned task-local bundle and `minimal_live_reads` to decide whether the touched area's owning surfaces are covered; if coverage is missing, stale, or too broad, follow the returned `recommended_next_action`.\n"
+            "- `needs_update`: route through `{{invoke:map-update}}` or `/sp-map-update`; when planning-critical requirement gaps remain, recommend `/sp-specify`, and when technical planning gaps remain, recommend `/sp-plan`.\n"
         )
         return content + addendum
 
@@ -1843,7 +1889,14 @@ class SkillsIntegration(IntegrationBase):
                 command_name=command_name,
             )
             if command_name == "specify":
+                skill_content = self._append_specify_pre_analysis_protocol(
+                    content=skill_content,
+                )
                 skill_content = self._append_specify_semantic_traceability_guidance(
+                    content=skill_content,
+                )
+            if command_name == "checklist":
+                skill_content = self._append_checklist_project_cognition_guidance(
                     content=skill_content,
                 )
             skill_content = self._append_planning_skill_cognition_refresh_guidance(

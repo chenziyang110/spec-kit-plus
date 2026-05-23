@@ -3,12 +3,14 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
@@ -91,6 +93,9 @@ func NormalizePlan(plan Plan) Plan {
 }
 
 func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return QueryPayload{}, err
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return QueryPayload{}, err
@@ -105,14 +110,21 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	if len(plan.Paths) == 0 {
 		plan.Paths = normalizePaths(input.Paths)
 	}
-	st, err := store.Open(paths)
+	nodes := []map[string]any{}
+	st, err := store.OpenExisting(paths)
+	if errors.Is(err, os.ErrNotExist) {
+		st = nil
+		err = nil
+	}
 	if err != nil {
 		return QueryPayload{}, err
 	}
-	defer st.Close()
-	nodes, err := st.NodesForPaths(context.Background(), plan.Paths)
-	if err != nil {
-		return QueryPayload{}, err
+	if st != nil {
+		defer st.Close()
+		nodes, err = st.NodesForPaths(context.Background(), plan.Paths)
+		if err != nil {
+			return QueryPayload{}, err
+		}
 	}
 	reads := plan.Paths
 	if len(reads) == 0 {
@@ -158,6 +170,10 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		RoutePack:             routePack,
 		Subgraph:              subgraph,
 	}, nil
+}
+
+func blockSplitBrainBaseline(paths rt.Paths) error {
+	return runtimegate.BlockIfExisting(paths)
 }
 
 func normalizePaths(paths []string) []string {

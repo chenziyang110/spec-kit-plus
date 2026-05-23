@@ -18,6 +18,9 @@ type LexiconPayload struct {
 }
 
 func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return LexiconPayload{}, err
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return LexiconPayload{}, err

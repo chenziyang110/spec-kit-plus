@@ -68,6 +68,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "use map-update for ordinary existing-baseline gaps" in content
     assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
     assert "complete-refresh" in content
+    assert "incremental freshness finalization" in content
+    assert "do not run `complete-refresh` as a rebuild finalizer" in content
     assert "manual override/fallback" in content
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content

@@ -124,7 +124,25 @@ func WriteStatus(paths Paths, status Status) error {
 	if err != nil {
 		return fmt.Errorf("encode status: %w", err)
 	}
-	return os.WriteFile(paths.StatusPath, append(data, '\n'), 0o644)
+	tmpFile, err := os.CreateTemp(paths.RuntimeDir, ".status-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp status: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.Write(append(data, '\n')); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("write temp status: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close temp status: %w", err)
+	}
+	if err := replaceStatusFile(tmpPath, paths.StatusPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 func UnsupportedLegacyPayload(paths Paths) ErrorPayload {

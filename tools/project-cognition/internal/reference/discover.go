@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 )
 
 type DiscoverPayload struct {
@@ -59,6 +60,16 @@ func Discover(root string) (DiscoverPayload, error) {
 			info.ReferenceReadiness = status.Readiness
 			info.Freshness = status.Freshness
 			info.GraphReady = status.Readiness == rt.ReadyReadiness
+			if agreement, ok := runtimegate.CheckExisting(paths); ok && agreement.Status != "ok" {
+				info.ReferenceReadiness = rt.BlockedReadiness
+				info.GraphReady = false
+				if agreement.RecoveryAction != "" {
+					info.Blockers = append(info.Blockers, agreement.RecoveryAction)
+				} else if agreement.RecommendedNextAction != "" {
+					info.Blockers = append(info.Blockers, agreement.RecommendedNextAction)
+				}
+				info.Blockers = append(info.Blockers, agreement.Errors...)
+			}
 		}
 		projects = append(projects, info)
 		return filepath.SkipDir

@@ -174,6 +174,7 @@ class TestClaudeIntegration:
                 ".specify/bin/specify-hook.cmd",
                 ".specify/bin/specify-hook.mjs",
                 ".specify/bin/specify-hook.py",
+                ".specify/config.json",
                 ".specify/init-options.json",
                 ".specify/integration.json",
                 ".specify/integrations/claude.manifest.json",
@@ -184,7 +185,6 @@ class TestClaudeIntegration:
                 ".specify/memory/learnings/INDEX.md",
                 ".specify/memory/project-learnings.md",
                 ".specify/memory/project-rules.md",
-                ".specify/project-cognition/status.json",
             ]
         )
 
