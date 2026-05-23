@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	gort "runtime"
 	"time"
 )
 
@@ -125,28 +124,23 @@ func WriteStatus(paths Paths, status Status) error {
 	if err != nil {
 		return fmt.Errorf("encode status: %w", err)
 	}
-	tmpPath := paths.StatusPath + ".tmp"
-	if err := os.WriteFile(tmpPath, append(data, '\n'), 0o644); err != nil {
+	tmpFile, err := os.CreateTemp(paths.RuntimeDir, ".status-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp status: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.Write(append(data, '\n')); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("write temp status: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close temp status: %w", err)
 	}
 	if err := replaceStatusFile(tmpPath, paths.StatusPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return err
-	}
-	return nil
-}
-
-func replaceStatusFile(tmpPath, statusPath string) error {
-	if err := os.Rename(tmpPath, statusPath); err == nil {
-		return nil
-	} else if gort.GOOS != "windows" || !errors.Is(err, os.ErrExist) {
-		return fmt.Errorf("replace status: %w", err)
-	}
-	if err := os.Remove(statusPath); err != nil {
-		return fmt.Errorf("remove existing status before replace: %w", err)
-	}
-	if err := os.Rename(tmpPath, statusPath); err != nil {
-		return fmt.Errorf("replace status after removing existing file: %w", err)
 	}
 	return nil
 }
