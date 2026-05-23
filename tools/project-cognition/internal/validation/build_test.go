@@ -31,7 +31,7 @@ func validationTestPaths(t *testing.T) rt.Paths {
 func writeBuildAcceptanceInputs(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	workbench := filepath.Join(paths.RuntimeDir, "workbench")
-	if err := os.MkdirAll(filepath.Join(workbench, "worker-results"), 0o755); err != nil {
+	if err := os.MkdirAll(workbench, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	files := map[string]string{

@@ -20,7 +20,6 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 	required := []string{
 		".specify/project-cognition/workbench/capability-ledger.json",
 		".specify/project-cognition/workbench/control-ledger.json",
-		".specify/project-cognition/workbench/worker-results",
 		".specify/project-cognition/project-cognition.db",
 		".specify/project-cognition/status.json",
 	}
