@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,8 +9,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -17,6 +22,8 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
+
+const deltaGitProbeTimeout = 750 * time.Millisecond
 
 type stringList []string
 
@@ -76,6 +83,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return readCommand(args[1:], stdout, stderr)
 	case "rebuild":
 		return rebuildCommand(args[1:], stdout, stderr, paths)
+	case "delta":
+		return deltaCommand(args[1:], stdout, stderr, paths)
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
 		return 2
@@ -85,7 +94,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild")
+	fmt.Fprintln(w, "Commands: status, check, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -245,11 +254,19 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	fs.Var(&changed, "changed-path", "Changed path")
 	fs.Var(&scopes, "scope", "Scope path")
 	reason := fs.String("reason", "update", "Update reason")
+	deltaSession := fs.String("delta-session", "", "Delta session id")
+	commitRange := fs.String("commit-range", "", "Commit range base..head")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	payload, err := update.RunUpdate(paths, update.UpdateInput{ChangedPaths: changed, ScopePaths: scopes, Reason: *reason})
+	payload, err := update.RunUpdate(paths, update.UpdateInput{
+		ChangedPaths:   changed,
+		ScopePaths:     scopes,
+		Reason:         *reason,
+		DeltaSessionID: *deltaSession,
+		CommitRange:    *commitRange,
+	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 
@@ -345,6 +362,220 @@ func rebuildCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	}
 	fmt.Fprintln(stdout, "Run /sp-map-scan, then /sp-map-build to rebuild project cognition.")
 	return 0
+}
+
+func deltaCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "project-cognition: delta subcommand is required")
+		return 2
+	}
+	switch args[0] {
+	case "begin":
+		return deltaBeginCommand(args[1:], stdout, stderr, paths)
+	case "append":
+		return deltaAppendCommand(args[1:], stdout, stderr, paths)
+	case "status":
+		return deltaStatusCommand(args[1:], stdout, stderr, paths)
+	default:
+		fmt.Fprintf(stderr, "project-cognition: unknown delta subcommand: %s\n", args[0])
+		return 2
+	}
+}
+
+func deltaBeginCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("delta begin", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	originCommand := fs.String("origin-command", "", "Origin command")
+	originFeatureDir := fs.String("origin-feature-dir", "", "Origin feature directory")
+	originLaneID := fs.String("origin-lane-id", "", "Origin lane id")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	gitMetadata := collectDeltaGitMetadata(paths.Root, deltaGitProbeTimeout, runGitCommand)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:              paths.Root,
+		RuntimeDir:        paths.RuntimeDir,
+		OriginCommand:     *originCommand,
+		OriginFeatureDir:  *originFeatureDir,
+		OriginLaneID:      *originLaneID,
+		BaseCommit:        gitMetadata.baseCommit,
+		Branch:            gitMetadata.branch,
+		InitialDirtyPaths: gitMetadata.initialDirty,
+	})
+	return writeCommandResult(stdout, stderr, paths, session, err)
+}
+
+type deltaGitMetadata struct {
+	baseCommit   string
+	branch       string
+	initialDirty []string
+}
+
+type gitCommandRunner func(context.Context, string, ...string) (string, error)
+
+func collectDeltaGitMetadata(root string, timeout time.Duration, run gitCommandRunner) deltaGitMetadata {
+	if output, err := runGitProbe(root, timeout, run, "rev-parse", "--is-inside-work-tree"); err != nil || strings.TrimSpace(output) != "true" {
+		return deltaGitMetadata{}
+	}
+
+	metadata := deltaGitMetadata{}
+	if output, err := runGitProbe(root, timeout, run, "rev-parse", "HEAD"); err == nil {
+		metadata.baseCommit = strings.TrimSpace(output)
+	}
+	if output, err := runGitProbe(root, timeout, run, "branch", "--show-current"); err == nil {
+		metadata.branch = strings.TrimSpace(output)
+	}
+	if output, err := runGitProbe(root, timeout, run, "status", "--porcelain=v1", "-z", "--untracked-files=all"); err == nil {
+		metadata.initialDirty = parseDeltaGitStatusZ(output)
+	}
+	return metadata
+}
+
+func runGitProbe(root string, timeout time.Duration, run gitCommandRunner, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return run(ctx, root, args...)
+}
+
+func runGitCommand(ctx context.Context, root string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			return "", err
+		}
+		return stdout.String(), nil
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		return "", ctx.Err()
+	}
+}
+
+func parseDeltaGitStatusZ(output string) []string {
+	var paths []string
+	fields := splitNUL(output)
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
+		if len(field) < 4 {
+			continue
+		}
+		code := strings.TrimSpace(field[:2])
+		if code == "" {
+			continue
+		}
+		path := field[3:]
+		if (strings.HasPrefix(code, "R") || strings.HasPrefix(code, "C")) && i+1 < len(fields) {
+			i++
+		}
+		path = filepath.ToSlash(strings.TrimSpace(path))
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return uniqueDeltaStrings(paths)
+}
+
+func splitNUL(output string) []string {
+	raw := strings.Split(output, "\x00")
+	fields := make([]string, 0, len(raw))
+	for _, field := range raw {
+		if field != "" {
+			fields = append(fields, field)
+		}
+	}
+	return fields
+}
+
+func uniqueDeltaStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func deltaAppendCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("delta append", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	sessionID := fs.String("session", "", "Delta session id")
+	packetFile := fs.String("packet-file", "", "Worker packet JSON")
+	eventType := fs.String("event-type", "event", "Delta event type")
+	originCommand := fs.String("origin-command", "", "Origin command")
+	originLaneID := fs.String("origin-lane-id", "", "Origin lane id")
+	phase := fs.String("phase", "", "Workflow phase")
+	confidence := fs.String("confidence", "", "Confidence")
+	var changedPaths stringList
+	var readPaths stringList
+	var behaviorSurfaces stringList
+	var knownUnknowns stringList
+	var verification stringList
+	var generatedSurfaces stringList
+	fs.Var(&changedPaths, "changed-path", "Changed path")
+	fs.Var(&readPaths, "read-path", "Read path")
+	fs.Var(&behaviorSurfaces, "behavior-surface", "Behavior surface")
+	fs.Var(&knownUnknowns, "known-unknown", "Known unknown")
+	fs.Var(&verification, "verification", "Verification evidence")
+	fs.Var(&generatedSurfaces, "generated-surface", "Generated surface note")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	var event delta.Event
+	var err error
+	if *packetFile != "" {
+		event, err = delta.AppendPacketFile(paths.RuntimeDir, *sessionID, *packetFile)
+	} else {
+		event, err = delta.Append(delta.AppendInput{
+			RuntimeDir:        paths.RuntimeDir,
+			SessionID:         *sessionID,
+			EventType:         *eventType,
+			OriginCommand:     *originCommand,
+			OriginLaneID:      *originLaneID,
+			Phase:             *phase,
+			ChangedPaths:      changedPaths,
+			ReadPaths:         readPaths,
+			BehaviorSurfaces:  behaviorSurfaces,
+			GeneratedSurfaces: generatedSurfaces,
+			KnownUnknowns:     knownUnknowns,
+			Verification:      verification,
+			Confidence:        *confidence,
+		})
+	}
+	return writeCommandResult(stdout, stderr, paths, event, err)
+}
+
+func deltaStatusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("delta status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	sessionID := fs.String("session", "", "Delta session id")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	bundle, err := delta.Load(paths.RuntimeDir, *sessionID)
+	return writeCommandResult(stdout, stderr, paths, bundle, err)
 }
 
 func writeCommandResult(stdout io.Writer, stderr io.Writer, paths rt.Paths, payload any, err error) int {

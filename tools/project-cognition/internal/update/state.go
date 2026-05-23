@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/boundary"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/config"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
@@ -25,15 +28,18 @@ type DirtyInput struct {
 }
 
 type UpdateInput struct {
-	ChangedPaths []string
-	ScopePaths   []string
-	Reason       string
+	ChangedPaths   []string
+	ScopePaths     []string
+	Reason         string
+	DeltaSessionID string
+	CommitRange    string
 }
 
 type UpdatePayload struct {
 	Readiness               string           `json:"readiness"`
 	RecommendedNextAction   string           `json:"recommended_next_action"`
 	UpdateID                string           `json:"update_id"`
+	UpdateOutcome           string           `json:"update_outcome"`
 	ChangedPaths            []string         `json:"changed_paths"`
 	IgnoredPaths            []string         `json:"ignored_paths"`
 	AffectedNodes           []map[string]any `json:"affected_nodes"`
@@ -45,6 +51,7 @@ type UpdatePayload struct {
 	MinimalLiveReads        []string         `json:"minimal_live_reads"`
 	PathAdoption            map[string]any   `json:"path_adoption"`
 	LastRefreshChangedBasis []string         `json:"last_refresh_changed_files_basis"`
+	Boundary                *boundary.Result `json:"boundary,omitempty"`
 }
 
 func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
@@ -160,6 +167,9 @@ func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, e
 }
 
 func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
+	if input.DeltaSessionID != "" {
+		return runDeltaSessionUpdate(paths, input)
+	}
 	changed := append([]string{}, input.ChangedPaths...)
 	changed = append(changed, input.ScopePaths...)
 	if len(changed) == 0 {
@@ -228,6 +238,119 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		PathAdoption:            pathAdoption,
 		LastRefreshChangedBasis: kept,
 	}, nil
+}
+
+func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
+	cfg, err := config.Load(paths.Root)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	bundle, err := delta.Load(paths.RuntimeDir, input.DeltaSessionID)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+
+	gitDiff, err := gitDiffPathsFromCommitRange(paths.Root, input.CommitRange)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	result := boundary.Resolve(boundary.ResolveInput{
+		Root:         paths.Root,
+		Config:       cfg,
+		Bundle:       bundle,
+		GitDiffPaths: gitDiff,
+	})
+	forceBoundaryOnlyAutoCommitDecision(&result)
+
+	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
+	st, err := store.Open(paths)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	defer st.Close()
+	changedJSON, _ := json.Marshal(result.ChangedPaths)
+	if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
+		return UpdatePayload{}, err
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	status.LastUpdateID = updateID
+	status.LastDeltaSessionID = input.DeltaSessionID
+	status.LastUpdateOutcome = result.Outcome
+	status.LastUpdateBoundary = result.BoundarySource
+	status.LastRefreshChangedFilesBasis = result.ChangedPaths
+	status.StalePaths = appendUnique(status.StalePaths, result.ChangedPaths...)
+	status.StaleReasons = appendUnique(status.StaleReasons, input.Reason)
+	status.Dirty = true
+	status.Status = "stale"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.BlockedReadiness
+	status.RecommendedNextAction = "review_project_cognition_update"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		return UpdatePayload{}, err
+	}
+
+	return UpdatePayload{
+		Readiness:             status.Readiness,
+		RecommendedNextAction: status.RecommendedNextAction,
+		UpdateID:              updateID,
+		UpdateOutcome:         result.Outcome,
+		ChangedPaths:          result.ChangedPaths,
+		IgnoredPaths:          result.IgnoredPaths,
+		AffectedNodes:         []map[string]any{},
+		MissingCoverage:       []string{},
+		AdoptedPaths:          []string{},
+		ReviewPaths:           result.AmbiguousPaths,
+		UnadoptablePaths:      []string{},
+		KnownUnknowns:         result.Warnings,
+		MinimalLiveReads:      result.WorkflowOwnedPaths,
+		PathAdoption: map[string]any{
+			"phase":                "boundary_only",
+			"auto_commit_decision": result.AutoCommitDecision,
+		},
+		LastRefreshChangedBasis: result.ChangedPaths,
+		Boundary:                &result,
+	}, nil
+}
+
+func forceBoundaryOnlyAutoCommitDecision(result *boundary.Result) {
+	const warning = "auto-commit not attempted by boundary-only update layer"
+	result.AutoCommitDecision = "commit_skipped"
+	if !containsString(result.Warnings, warning) {
+		result.Warnings = append(result.Warnings, warning)
+		sort.Strings(result.Warnings)
+	}
+}
+
+func gitDiffPathsFromCommitRange(root string, commitRange string) ([]string, error) {
+	commitRange = strings.TrimSpace(commitRange)
+	if commitRange == "" {
+		return []string{}, nil
+	}
+	parts := strings.Split(commitRange, "..")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return nil, fmt.Errorf("invalid commit range %q: expected base..head", commitRange)
+	}
+	base := strings.TrimSpace(parts[0])
+	head := strings.TrimSpace(parts[1])
+	if strings.HasPrefix(base, "-") {
+		return nil, fmt.Errorf("invalid commit range endpoint %q: endpoints must not start with '-'", base)
+	}
+	if strings.HasPrefix(head, "-") {
+		return nil, fmt.Errorf("invalid commit range endpoint %q: endpoints must not start with '-'", head)
+	}
+	entries, err := rt.GitDiffNameStatus(root, base, head)
+	if err != nil {
+		return nil, fmt.Errorf("git diff commit range %q: %w", commitRange, err)
+	}
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+	}
+	return normalizePaths(paths), nil
 }
 
 func ScopeFromPacket(packetFile string) ([]string, error) {
@@ -299,4 +422,13 @@ func appendUnique(existing []string, values ...string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

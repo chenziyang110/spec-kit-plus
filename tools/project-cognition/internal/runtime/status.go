@@ -45,6 +45,9 @@ type Status struct {
 	LastRefreshBasis             string   `json:"last_refresh_basis"`
 	LastRefreshChangedFilesBasis []string `json:"last_refresh_changed_files_basis"`
 	LastUpdateID                 string   `json:"last_update_id"`
+	LastDeltaSessionID           string   `json:"last_delta_session_id"`
+	LastUpdateOutcome            string   `json:"last_update_outcome"`
+	LastUpdateBoundary           string   `json:"last_update_boundary"`
 	UpdatedAt                    string   `json:"updated_at"`
 }
 
