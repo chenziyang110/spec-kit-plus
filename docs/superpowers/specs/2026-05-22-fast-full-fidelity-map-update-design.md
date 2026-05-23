@@ -1,7 +1,7 @@
 # Fast Full-Fidelity Map Update Design
 
-**Date:** 2026-05-22  
-**Status:** Approved direction; review updates applied  
+**Date:** 2026-05-22
+**Status:** Approved direction; review updates applied
 **Owner:** Codex
 
 ## Summary
