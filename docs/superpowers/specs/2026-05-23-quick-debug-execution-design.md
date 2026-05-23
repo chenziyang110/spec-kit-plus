@@ -31,10 +31,15 @@ Once enough information is available, the workflow must present:
 
 The workflow then waits for user confirmation. If the user corrects the understanding, the workflow revises the checkpoint and asks again. Once the user confirms, `sp-quick` continues through its existing quick-task loop: workspace state, execution strategy, implementation, validation, summary, and learning capture when relevant.
 
-`STATUS.md` should record the checkpoint so resumed work does not depend on chat memory. The status template should include:
+`STATUS.md` should record the checkpoint so resumed work does not depend on chat memory. The status template should add the confirmation gate to frontmatter, because execution strategy fields already live there and resume logic must be able to block before reading a long body section.
+
+The quick-task status frontmatter should include:
 
 - `understanding_confirmed: false | true`
-- a compact confirmation summary covering the confirmed problem, outcome, scope boundary, approach, and validation evidence.
+
+The body should include an `Understanding Checkpoint` section near `Execution Intent`, with a compact confirmation summary covering the confirmed problem, outcome, scope boundary, approach, and validation evidence.
+
+On resume, `understanding_confirmed: false` blocks substantive execution. The workflow may read the minimal context needed to reconstruct or revise the checkpoint, but it must not proceed to code edits, broad repository analysis, delegation, or validation commands until the checkpoint is confirmed and `STATUS.md` is updated.
 
 ## `sp-debug` Complexity-Based Execution
 
@@ -49,12 +54,15 @@ Subagent-assisted debug work remains the right path when there are multiple plau
 
 The debug session remains leader-owned in both paths. Subagents may collect evidence or execute a bounded lane, but they must not own the debug session file, decide the final root cause, mark the session resolved, or archive the session.
 
+The debug execution state should preserve a blocked path as a first-class outcome. Inline capability means the leader may do small focused investigations directly; it does not mean unsafe or unpacketizable work can continue without a recorded blocker.
+
 The debug execution state should use these fields:
 
-- `execution_model: leader-inline | subagent-assisted`
-- `dispatch_shape: leader-inline | one-subagent | parallel-subagents`
-- `execution_surface: leader-inline | native-subagents`
+- `execution_model: leader-inline | subagent-assisted | blocked`
+- `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`
+- `execution_surface: leader-inline | native-subagents | none`
 - `dispatch_reason`: why the leader chose inline work or subagent assistance.
+- `blocked_reason`: required when `dispatch_shape: subagent-blocked` or `execution_surface: none`.
 
 The leader may change from `leader-inline` to `subagent-assisted` at a join point if the investigation grows beyond the original focused path.
 
@@ -78,6 +86,8 @@ Primary implementation surfaces:
 - `templates/command-partials/quick/shell.md`
 - `templates/commands/debug.md`
 - `templates/command-partials/debug/shell.md`
+- `src/specify_cli/integrations/base.py`, especially shared quick/debug leader gates, routing contracts, and generated-skill augmentation paths.
+- Integration-specific quick/debug augmentation hooks that override or append shared behavior, especially `src/specify_cli/integrations/cursor_agent/__init__.py`.
 
 Synchronization surfaces that may need updates when tests expose drift:
 
@@ -85,7 +95,9 @@ Synchronization surfaces that may need updates when tests expose drift:
 - `templates/passive-skills/subagent-driven-development/SKILL.md`
 - `templates/passive-skills/dispatching-parallel-agents/SKILL.md`
 - README and project handbook wording that currently describes `sp-quick` or `sp-debug` as mandatory-subagent execution.
-- Template and integration tests that lock dispatch wording.
+- Template, generated-asset, and integration-rendering tests that lock dispatch wording.
+
+Implementation planning must search for quick/debug runtime addenda, not only command templates. Existing generated integrations can inject additional guidance after template rendering, including subagents-first language, managed-team fallback language, and `subagent-blocked` handling. Those generated surfaces must be updated or explicitly proven unaffected so downstream agent assets do not contradict the new workflow contracts.
 
 This design should not start with a broad runtime rewrite. Runtime helpers or schemas should change only if existing tests or generated-surface requirements prove that template wording alone leaves contradictory behavior.
 
@@ -95,18 +107,25 @@ Template-focused verification should prove:
 
 - `sp-quick` includes an `Understanding Checkpoint` before substantive execution.
 - `sp-quick` records `understanding_confirmed`.
+- `sp-quick` resume guidance treats `understanding_confirmed: false` as a block on substantive execution until the checkpoint is confirmed.
 - `sp-quick` still resumes quick-task state and validates completion.
 - `sp-debug` allows `leader-inline` for small focused investigations.
 - `sp-debug` still uses `one-subagent` or `parallel-subagents` for broad or independent evidence lanes.
+- `sp-debug` still preserves `subagent-blocked` and `execution_surface: none` for unsafe, unavailable, or unpacketizable dispatch.
 - `sp-debug` still states that subagents cannot own the debug session, final root-cause decision, or session closure.
 - Documentation and passive-skill guidance no longer contradict the new quick/debug execution contracts.
+- Generated integration assets do not reintroduce stale subagents-first quick/debug wording that contradicts the base templates.
 
 Expected regression targets include:
 
 - `tests/test_quick_template_guidance.py`
 - `tests/test_debug_template_guidance.py`
 - `tests/test_alignment_templates.py`
-- Any integration tests that assert generated `quick` or `debug` command text.
+- `tests/integrations/test_integration_base_markdown.py`
+- `tests/integrations/test_integration_base_skills.py`
+- `tests/integrations/test_integration_codex.py`
+- `tests/integrations/test_integration_cursor_agent.py`
+- Any other integration tests that assert generated `quick` or `debug` command text.
 
 ## Out Of Scope
 
