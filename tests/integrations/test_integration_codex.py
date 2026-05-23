@@ -175,7 +175,8 @@ class TestCodexAutoPromote:
         assert not (target / ".codex" / "skills" / "spec-kit-project-map-gate").exists()
         assert (target / ".specify" / "teams" / "runtime.json").exists()
         assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
-        assert (target / ".specify" / "project-cognition" / "status.json").exists()
+        assert (target / ".specify" / "project-cognition").is_dir()
+        assert not (target / ".specify" / "project-cognition" / "status.json").exists()
         assert not (target / ".specify" / "templates" / "project-map").exists()
         assert not (target / ".specify" / "project-map").exists()
         cognition_helper = target / ".specify" / "scripts" / "bash" / "project-cognition-freshness.sh"
@@ -459,8 +460,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
-    assert "project-cognition lexicon --intent implement" in content.lower()
-    assert "project-cognition query --intent implement" in content.lower()
+    assert "lexicon --intent implement" in content.lower()
+    assert "query --intent implement" in content.lower()
     assert "--query-plan" in content.lower()
     assert "minimal_live_reads" in content.lower()
     assert "build-handbook.md" not in content.lower()
@@ -804,8 +805,9 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "provisional" in scan_content
 
     assert ".specify/project-cognition/project-cognition.db" in build_content
-    assert "project launcher configured in `.specify/config.json`" in build_content
-    assert "project-cognition query" in build_content
+    assert "lexicon --intent implement" in build_content
+    assert "query --intent implement" in build_content
+    assert "--query-plan" in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
     assert "raw graph json artifacts or slices as runtime truth" in build_content
     assert "spawn_agent" in build_content

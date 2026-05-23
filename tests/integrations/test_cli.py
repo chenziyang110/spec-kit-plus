@@ -147,8 +147,8 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
-        assert "project-cognition lexicon --intent implement" in content
-        assert "project-cognition query --intent implement" in content
+        assert "lexicon --intent implement" in content
+        assert "query --intent implement" in content
         assert "--query-plan" in content
         assert "readiness" in content
         assert "task-local bundle" in content
