@@ -24,13 +24,15 @@ def _assert_tier_roles(content: str) -> None:
 def test_debug_template_documents_map_backed_intake_contract() -> None:
     content = read_template("templates/commands/debug.md").lower()
 
-    assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in content
-    assert "the leader orchestrates:" in content
-    assert "before dispatch, every subagent lane needs a task contract" in content
+    assert "complexity-based debug execution" in content
+    assert "execution_model: leader-inline | subagent-assisted | blocked" in content
+    assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content
+    assert "execution_surface: leader-inline | native-subagents | none" in content
+    assert "dispatch_reason" in content
+    assert "blocked_reason" in content
+    assert "use `leader-inline` when the investigation is small, focused, and has a short evidence chain" in content
+    assert "use `subagent-assisted` when the investigation has multiple independent evidence lanes" in content
     assert "structured handoff" in content
-    assert "execution_model: subagent-mandatory" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents" in content
-    assert "execution_surface: native-subagents" in content
     assert "project-map first" in content
     assert "map-backed minimum intake" in content
     assert "deep intake is fallback, not the default" in content
@@ -49,7 +51,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "skip_observer_reason: map-backed-minimum-intake" in content
     assert "think subagent" in content
     assert "observer_framing_completed" in content
-    assert "you are not the default evidence worker for every lane" in content
+    assert "you may perform focused leader-inline evidence work when the investigation is small and single-lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/learnings/index.md" in content
@@ -98,13 +100,14 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "control state is not observation state" in content
     assert "debug the loop, not just the point" in content
     assert "escalate diagnostics when the loop is still ambiguous" in content
-    assert "execution_model: subagent-mandatory" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents" in content
-    assert "execution_surface: native-subagents" in content
+    assert "subagent-assisted" in content
+    assert "leader-inline" in content
+    assert "subagent-blocked" in content
+    assert "execution_surface: none" in content
     assert "one-subagent" in content
     assert "parallel-subagents" in content
     assert "native-subagents" in content
-    assert "dispatch that single subagent only when the evidence-lane contract is complete" in content
+    assert "dispatch a subagent only when the evidence-lane contract is complete" in content
     assert "enough context" not in content
     assert 'choose_subagent_dispatch(command_name="debug"' in content
     assert "leader-led" in content
@@ -186,6 +189,18 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "compressed observer framing" not in content
     assert "optional expanded observer" not in content
     assert "user can agree or decline" not in content
+
+
+def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> None:
+    content = read_template("templates/commands/debug.md").lower()
+
+    assert "subagent-blocked" in content
+    assert "execution_surface: none" in content
+    assert "unsafe, unavailable, or unpacketizable" in content
+    assert "subagents may collect evidence" in content
+    assert "must not update the debug file" in content
+    assert "must not declare the root cause final" in content
+    assert "must not transition the session state" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:

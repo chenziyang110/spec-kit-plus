@@ -9,7 +9,6 @@ MANDATORY_COMMANDS = (
     "checklist",
     "clarify",
     "constitution",
-    "debug",
     "deep-research",
     "explain",
     "implement",
@@ -22,6 +21,7 @@ MANDATORY_COMMANDS = (
 )
 
 ADAPTIVE_COMMANDS = ("plan", "tasks")
+COMPLEXITY_BASED_COMMANDS = ("debug",)
 TEAM_COMMANDS = ("implement-teams", "team")
 
 
@@ -46,6 +46,16 @@ def test_plan_and_tasks_use_adaptive_execution_instead_of_mandatory_partial() ->
         assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content, command_name
         assert "workflow_status: ready | blocked" in content, command_name
         assert "execution_model: subagent-mandatory" not in content, command_name
+
+
+def test_debug_uses_complexity_based_execution_instead_of_mandatory_subagents() -> None:
+    content = _read_command("debug").lower()
+
+    assert "execution_model: leader-inline | subagent-assisted | blocked" in content
+    assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content
+    assert "execution_surface: leader-inline | native-subagents | none" in content
+    assert "subagent-blocked" in content
+    assert "execution_model: subagent-mandatory" not in content
 
 
 def test_team_commands_keep_team_surface_separate() -> None:
@@ -87,7 +97,6 @@ def test_ordinary_templates_do_not_allow_leader_or_team_fallback_for_subagent_wo
 
 def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() -> None:
     targeted_commands = (
-        "debug",
         "map-build",
         "map-scan",
         "prd-build",
@@ -216,7 +225,8 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
     assert "the leader performs the change directly" in fast_content
     assert "no subagent dispatch" in fast_content
 
-    assert "apply the smallest fix that addresses the confirmed root cause" not in debug_content
-    assert "packetize the smallest safe fix that addresses the confirmed root cause" in debug_content
+    assert "apply the minimum code change needed to address the confirmed root cause" in debug_content
+    assert "when `execution_model: subagent-assisted`" in debug_content
     assert "delegate it through a validated subagent lane" in debug_content
-    assert "record `subagent-blocked` with the escalation or recovery reason instead of making the fix directly" in debug_content
+    assert "when the fix cannot proceed safely" in debug_content
+    assert "record `subagent-blocked`" in debug_content

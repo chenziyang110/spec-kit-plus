@@ -9,6 +9,7 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 - Primary inputs: the user's report, the active debug-session state, the failing runtime or verification evidence, and the task-local project cognition query bundle with readiness and returned `minimal_live_reads`.
 - The debug session file under `.planning/debug/` is the durable state source of truth for this workflow.
 - Delegated helpers are evidence collectors, not owners of the overall investigation.
+- Debug execution is complexity-based: small focused investigations may stay leader-inline, while broad or independent evidence lanes use one or more subagents.
 
 ## Process
 
@@ -29,3 +30,4 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 - No speculative fixes before evidence supports the failure mechanism.
 - No final resolution without fresh verification evidence.
 - No subagent may take ownership of the debug session state.
+- No subagent-assisted work may continue without a safe lane; blocked debug execution records `subagent-blocked`, `execution_surface: none`, and a concrete blocked reason.
