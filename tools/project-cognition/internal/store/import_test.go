@@ -125,6 +125,160 @@ func TestImportGenerationRollsBackOnInvalidEdge(t *testing.T) {
 	}
 }
 
+func TestImportGenerationRollsBackOnInvalidNodeEvidence(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	_, err := st.ImportGeneration(ctx, ImportInput{
+		GenerationID: "GEN-bad-node-evidence",
+		Nodes: []NodeImport{{
+			ID:          "N-app",
+			Type:        "capability",
+			Title:       "App",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-missing"},
+		}},
+	})
+	if err == nil {
+		t.Fatal("ImportGeneration error = nil, want invalid node evidence error")
+	}
+	activeID, err := st.ActiveGenerationID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeID != "" {
+		t.Fatalf("activeID = %q, want empty after rollback", activeID)
+	}
+}
+
+func TestImportGenerationRollsBackInvalidPathIndexAndPreservesActiveGeneration(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-active")); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name      string
+		pathIndex PathIndexImport
+	}{
+		{
+			name: "missing node",
+			pathIndex: PathIndexImport{
+				ID:         "P-missing-node",
+				Path:       "src/app.go",
+				NodeID:     "N-missing",
+				Relation:   "owns",
+				Confidence: "verified",
+				EvidenceID: "E-002",
+			},
+		},
+		{
+			name: "missing evidence",
+			pathIndex: PathIndexImport{
+				ID:         "P-missing-evidence",
+				Path:       "src/app.go",
+				NodeID:     "N-app-2",
+				Relation:   "owns",
+				Confidence: "verified",
+				EvidenceID: "E-missing",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := st.ImportGeneration(ctx, ImportInput{
+				GenerationID: "GEN-bad-path-" + tt.name,
+				Evidence: []EvidenceImport{{
+					ID:          "E-002",
+					SourcePath:  "src/app.go",
+					SourceKind:  "source",
+					CommitSHA:   "abc123",
+					Extractor:   "test",
+					ContentHash: "hash-app",
+				}},
+				Nodes: []NodeImport{{
+					ID:         "N-app-2",
+					Type:       "capability",
+					Title:      "App",
+					Confidence: "verified",
+				}},
+				PathIndex: []PathIndexImport{tt.pathIndex},
+			})
+			if err == nil {
+				t.Fatal("ImportGeneration error = nil, want invalid path_index reference error")
+			}
+			activeID, err := st.ActiveGenerationID(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if activeID != "GEN-active" {
+				t.Fatalf("activeID = %q, want GEN-active after rollback", activeID)
+			}
+		})
+	}
+}
+
+func TestImportGenerationRollsBackOnInvalidEdgeOrObservationEvidence(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	tests := []struct {
+		name  string
+		input ImportInput
+	}{
+		{
+			name: "edge evidence",
+			input: ImportInput{
+				GenerationID: "GEN-bad-edge-evidence",
+				Nodes: []NodeImport{
+					{ID: "N-source", Type: "capability", Title: "Source", Confidence: "verified"},
+					{ID: "N-target", Type: "capability", Title: "Target", Confidence: "verified"},
+				},
+				Edges: []EdgeImport{{
+					ID:          "EDGE-bad",
+					Type:        "owns",
+					SourceID:    "N-source",
+					TargetID:    "N-target",
+					Confidence:  "verified",
+					EvidenceIDs: []string{"E-missing"},
+				}},
+			},
+		},
+		{
+			name: "observation evidence",
+			input: ImportInput{
+				GenerationID: "GEN-bad-observation-evidence",
+				Observations: []ObservationImport{{
+					ID:              "OBS-bad",
+					ObservationType: "summary",
+					Summary:         "Bad evidence",
+					EvidenceIDs:     []string{"E-missing"},
+				}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := st.ImportGeneration(ctx, tt.input)
+			if err == nil {
+				t.Fatal("ImportGeneration error = nil, want invalid evidence error")
+			}
+			activeID, err := st.ActiveGenerationID(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if activeID != "" {
+				t.Fatalf("activeID = %q, want empty after rollback", activeID)
+			}
+		})
+	}
+}
+
 func TestImportGenerationStoresRejectionsInGenerationAttrs(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
@@ -172,6 +326,37 @@ func openImportTestStore(t *testing.T) *Store {
 		t.Fatal(err)
 	}
 	return st
+}
+
+func validImportInput(generationID string) ImportInput {
+	return ImportInput{
+		GenerationID: generationID,
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []EvidenceImport{{
+			ID:          "E-001",
+			SourcePath:  "src/app.go",
+			SourceKind:  "source",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-app",
+		}},
+		Nodes: []NodeImport{{
+			ID:          "N-app",
+			Type:        "capability",
+			Title:       "App",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-001"},
+		}},
+		PathIndex: []PathIndexImport{{
+			ID:         "P-src-app-go",
+			Path:       "src/app.go",
+			NodeID:     "N-app",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-001",
+		}},
+	}
 }
 
 func assertSnapshotIdentity(t *testing.T, identities map[string]bool, identity string) {
