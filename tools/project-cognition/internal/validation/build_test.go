@@ -181,6 +181,68 @@ func TestValidateBuildAcceptsQueryReadyDatabase(t *testing.T) {
 	}
 }
 
+func TestValidateBuildIgnoresBlockedScanOwnedCoverageGap(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeCoverageLedger(t, paths, `{"rows":[],"open_gaps":[{"owner":"scan","status":"blocked"}]}`)
+	seedQueryReadyDatabase(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.ActiveGenerationID = "GEN-0001"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", payload.Status, payload.Errors)
+	}
+}
+
+func TestValidateBuildBlocksBuildOwnedOrOwnerlessCoverageGap(t *testing.T) {
+	tests := []struct {
+		name   string
+		ledger string
+	}{
+		{
+			name:   "build owned",
+			ledger: `{"rows":[],"open_gaps":[{"owner":"build","status":"blocked"}]}`,
+		},
+		{
+			name:   "ownerless",
+			ledger: `{"rows":[],"open_gaps":[{"status":"blocked"}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths := validationTestPaths(t)
+			writeBuildAcceptanceInputs(t, paths)
+			writeCoverageLedger(t, paths, tt.ledger)
+			seedQueryReadyDatabase(t, paths)
+			status, err := rt.ReadStatus(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status.ActiveGenerationID = "GEN-0001"
+			if err := rt.WriteStatus(paths, status); err != nil {
+				t.Fatal(err)
+			}
+
+			payload := ValidateBuild(paths)
+
+			if payload.Status != "blocked" {
+				t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+			}
+			if !hasValidationError(payload.Errors, "coverage gap must be resolved") {
+				t.Fatalf("Errors = %#v, want coverage gap error", payload.Errors)
+			}
+		})
+	}
+}
+
 func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	st, err := store.Open(paths)
@@ -206,6 +268,14 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 		if _, err := db.ExecContext(context.Background(), statement, args[i]...); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func writeCoverageLedger(t *testing.T, paths rt.Paths, content string) {
+	t.Helper()
+	path := filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json")
+	if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
