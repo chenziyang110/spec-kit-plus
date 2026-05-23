@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -21,6 +24,9 @@ func Open(paths rt.Paths) (*Store, error) {
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create runtime dir: %w", err)
 	}
+	if _, err := ReplaceIncompatibleDatabase(paths); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -31,6 +37,70 @@ func Open(paths rt.Paths) (*Store, error) {
 		return nil, err
 	}
 	return store, nil
+}
+
+func ReplaceIncompatibleDatabase(paths rt.Paths) (bool, error) {
+	compatible, err := ExistingDatabaseCompatible(paths)
+	if err != nil {
+		return false, err
+	}
+	if compatible {
+		return false, nil
+	}
+	archivePath, err := archiveDatabasePath(paths.DatabasePath)
+	if err != nil {
+		return false, err
+	}
+	if err := os.Rename(paths.DatabasePath, archivePath); err != nil {
+		return false, fmt.Errorf("archive incompatible project-cognition.db: %w", err)
+	}
+	return true, nil
+}
+
+func ExistingDatabaseCompatible(paths rt.Paths) (bool, error) {
+	info, err := os.Stat(paths.DatabasePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("stat project-cognition.db: %w", err)
+	}
+	if info.Size() == 0 {
+		return false, nil
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		return false, fmt.Errorf("open sqlite for schema compatibility check: %w", err)
+	}
+	defer db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		return false, fmt.Errorf("open sqlite for schema compatibility check: %w", err)
+	}
+	return SchemaCompatible(context.Background(), db)
+}
+
+func SchemaCompatible(ctx context.Context, db *sql.DB) (bool, error) {
+	for _, table := range RequiredTables() {
+		exists, err := tableExists(ctx, db, table)
+		if err != nil {
+			return false, err
+		}
+		if !exists {
+			return false, nil
+		}
+	}
+	for table, requiredColumns := range RequiredTableColumns() {
+		columns, err := tableColumns(ctx, db, table)
+		if err != nil {
+			return false, err
+		}
+		for _, column := range requiredColumns {
+			if !columns[column] {
+				return false, nil
+			}
+		}
+	}
+	return true, nil
 }
 
 func OpenExisting(paths rt.Paths) (*Store, error) {
@@ -50,6 +120,65 @@ func OpenExisting(paths rt.Paths) (*Store, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	return &Store{db: db}, nil
+}
+
+func tableExists(ctx context.Context, db *sql.DB, table string) (bool, error) {
+	var name string
+	err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?`, table).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect table %s: %w", table, err)
+	}
+	return true, nil
+}
+
+func tableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, `PRAGMA table_info(`+quoteSQLiteIdentifier(table)+`)`)
+	if err != nil {
+		return nil, fmt.Errorf("inspect %s schema: %w", table, err)
+	}
+	defer rows.Close()
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
+			return nil, fmt.Errorf("scan %s schema: %w", table, err)
+		}
+		columns[name] = true
+	}
+	return columns, rows.Err()
+}
+
+func archiveDatabasePath(databasePath string) (string, error) {
+	base := databasePath + ".legacy"
+	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
+		return base, nil
+	} else if err != nil {
+		return "", fmt.Errorf("stat legacy database archive: %w", err)
+	}
+	now := time.Now().UTC().Format("20060102T150405.000000000Z")
+	for i := 0; i < 100; i++ {
+		candidate := filepath.Join(filepath.Dir(databasePath), filepath.Base(databasePath)+".legacy."+now)
+		if i > 0 {
+			candidate = fmt.Sprintf("%s.%02d", candidate, i)
+		}
+		if _, err := os.Stat(candidate); errors.Is(err, os.ErrNotExist) {
+			return candidate, nil
+		} else if err != nil {
+			return "", fmt.Errorf("stat legacy database archive: %w", err)
+		}
+	}
+	return "", fmt.Errorf("could not choose legacy database archive path for %s", databasePath)
+}
+
+func quoteSQLiteIdentifier(identifier string) string {
+	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
 }
 
 func (s *Store) Close() error {

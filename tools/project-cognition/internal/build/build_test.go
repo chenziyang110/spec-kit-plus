@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"os"
@@ -149,6 +150,154 @@ func TestRunIndexesNodePathWithoutEvidence(t *testing.T) {
 	}
 	if confidence != "provisional" {
 		t.Fatalf("path_index confidence = %q, want provisional", confidence)
+	}
+}
+
+func TestRunImportsPathIndexRowsWithCollidingSanitizedPaths(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "app.json"), map[string]any{
+		"rows": []map[string]any{
+			{
+				"id":           "E-001",
+				"source_kind":  "source",
+				"source_path":  "src/a/b.go",
+				"commit_sha":   "abc123",
+				"span":         "1:1-10:1",
+				"extractor":    "test",
+				"content_hash": "hash-a-b",
+				"attrs":        map[string]any{"language": "go"},
+			},
+			{
+				"id":           "E-002",
+				"source_kind":  "source",
+				"source_path":  "src/a-b.go",
+				"commit_sha":   "abc123",
+				"span":         "1:1-10:1",
+				"extractor":    "test",
+				"content_hash": "hash-a-dash-b",
+				"attrs":        map[string]any{"language": "go"},
+			},
+		},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"id":           "N-app",
+			"type":         "capability",
+			"title":        "App",
+			"confidence":   "verified",
+			"paths":        []string{"src/a/b.go", "src/a-b.go"},
+			"evidence_ids": []string{"E-001", "E-002"},
+			"attrs":        map[string]any{"owner": "test"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "coverage.json"), map[string]any{
+		"rows": []map[string]any{
+			{"path": "src/a/b.go"},
+			{"path": "src/a-b.go"},
+		},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	rows, err := st.DB().QueryContext(context.Background(), `SELECT id, path, node_id FROM path_index ORDER BY path`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	seen := map[string]string{}
+	ids := map[string]bool{}
+	for rows.Next() {
+		var id, path, nodeID string
+		if err := rows.Scan(&id, &path, &nodeID); err != nil {
+			t.Fatal(err)
+		}
+		seen[path] = nodeID
+		if ids[id] {
+			t.Fatalf("duplicate path_index id %q", id)
+		}
+		ids[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"src/a/b.go", "src/a-b.go"} {
+		if seen[path] != "N-app" {
+			t.Fatalf("path_index rows = %#v, want %s owned by N-app", seen, path)
+		}
+	}
+}
+
+func TestRunArchivesLegacyThinDatabaseBeforeImport(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		`CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+		`CREATE TABLE generations(id TEXT PRIMARY KEY, state TEXT NOT NULL)`,
+		`INSERT INTO metadata(key, value) VALUES('schema_version', '0')`,
+		`INSERT INTO generations(id, state) VALUES('GEN-legacy', 'active')`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			_ = db.Close()
+			t.Fatal(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+	if !payload.LegacyRuntimeReplaced {
+		t.Fatal("LegacyRuntimeReplaced = false, want true")
+	}
+	if payload.ActiveGenerationID == "" || payload.ActiveGenerationID == "GEN-legacy" {
+		t.Fatalf("ActiveGenerationID = %q, want fresh non-legacy generation", payload.ActiveGenerationID)
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ActiveGenerationID != payload.ActiveGenerationID || !status.GraphReady {
+		t.Fatalf("status = %#v, want active fresh graph", status)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	activeID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeID != payload.ActiveGenerationID {
+		t.Fatalf("active generation = %q, want payload %q", activeID, payload.ActiveGenerationID)
+	}
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
+		t.Fatalf("legacy database archive missing: %v", err)
 	}
 }
 

@@ -2,6 +2,8 @@ package build
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -62,6 +64,15 @@ func Run(paths rt.Paths) (Payload, error) {
 	} else if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("read status: %v", err))
 		return payload, err
+	}
+
+	replacedDB, err := store.ReplaceIncompatibleDatabase(paths)
+	if err != nil {
+		payload.Errors = append(payload.Errors, fmt.Sprintf("recover graph store: %v", err))
+		return payload, err
+	}
+	if replacedDB {
+		payload.LegacyRuntimeReplaced = true
 	}
 
 	st, err := store.Open(paths)
@@ -228,7 +239,7 @@ func pathIndexImports(nodes []scanartifacts.NodeRow) []store.PathIndexImport {
 		}
 		for _, path := range node.Paths {
 			out = append(out, store.PathIndexImport{
-				ID:         "PI-" + sanitizeIDPart(path) + "-" + sanitizeIDPart(node.ID),
+				ID:         pathIndexID(path, node.ID),
 				Path:       path,
 				NodeID:     node.ID,
 				Relation:   "owns",
@@ -238,6 +249,13 @@ func pathIndexImports(nodes []scanartifacts.NodeRow) []store.PathIndexImport {
 		}
 	}
 	return out
+}
+
+func pathIndexID(path, nodeID string) string {
+	normalizedPath := filepath.ToSlash(strings.TrimSpace(path))
+	normalizedPath = strings.TrimPrefix(normalizedPath, "./")
+	hash := sha256.Sum256([]byte(normalizedPath + "\x00" + nodeID))
+	return "PI-" + sanitizeIDPart(normalizedPath) + "-" + sanitizeIDPart(nodeID) + "-" + hex.EncodeToString(hash[:])[:16]
 }
 
 func coverageRejections(pkg scanartifacts.Package) []store.RowDecision {
