@@ -563,13 +563,18 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     content_lower = content.lower()
     shell_lower = shell.lower()
     state_lower = state.lower()
+    ui_section = content_lower.split("## optional ui and interaction discussion", 1)[1]
+    ui_section = ui_section.split("## handoff assessment", 1)[0]
 
     assert "ui-interaction-discussion" in content
     assert "after functional discussion is stable" in content_lower
     assert "no explicit handoff request is active" in content_lower
     assert "handoff-assessment.md` first" in content
+    assert "only when no explicit handoff request is active" in content_lower
+    assert "handoff-assessment.md` first" in content.split("6. `ui-interaction-discussion`", 1)[1]
     assert "optional ui and interaction discussion" in content_lower
     assert "ui decisions are blocking readiness" in content_lower
+    assert ui_section.index("handoff-assessment.md` first") < ui_section.index("return to `ui-interaction-discussion`")
     assert "ui_discussion_status: offered" in content
     assert "ui_discussion_status: accepted" in content
     assert "ui_discussion_status: completed" in content

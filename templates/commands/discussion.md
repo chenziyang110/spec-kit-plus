@@ -120,7 +120,8 @@ When evidence lookup fails, report what was checked and ask one focused question
 
 6. `ui-interaction-discussion`
    - Enter only after functional discussion is stable and the matured requirement includes UI-facing scope such as screens, components, layout, navigation, visual hierarchy, interaction states, user-facing copy, accessibility, or workflow feedback.
-   - Offer the stage as an optional UI and interaction discussion before handoff assessment. If the user skips it, record `ui_discussion_status: skipped` or `deferred` and continue when other handoff gates are satisfied.
+   - Offer the stage as an optional UI and interaction discussion only when no explicit handoff request is active. If an explicit handoff request is active, run `handoff-assessment.md` first and return to this stage only when UI decisions block readiness or the user reopens UI discussion.
+   - If the user skips it, record `ui_discussion_status: skipped` or `deferred` and continue when other handoff gates are satisfied.
    - Act as a senior UI and interaction designer with 15 years of practical project experience. Guide the user through primary screens, user journey, information hierarchy, component responsibilities, key interactions, loading, empty, success, warning, error, disabled, permission, responsive, density, accessibility, keyboard, focus, and copy expectations when relevant.
    - Use natural language first. ASCII sketches are allowed when they clarify rough screen structure, layout grouping, state transitions, or flow relationships for downstream implementers.
 
