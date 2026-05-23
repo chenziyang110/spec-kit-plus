@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
@@ -81,12 +83,6 @@ func Check(paths rt.Paths) Agreement {
 		agreement.Errors = append(agreement.Errors, fmt.Sprintf("active_generation_id mismatch: status.json has %q, DB has %q", status.ActiveGenerationID, activeGenerationID))
 		return agreement
 	}
-	if status.Status != "ok" {
-		agreement.Readiness = rt.BlockedReadiness
-		agreement.Errors = append(agreement.Errors, fmt.Sprintf("status.json status is %q, expected ok", status.Status))
-		return agreement
-	}
-
 	agreement.Status = "ok"
 	agreement.Readiness = status.Readiness
 	agreement.RecommendedNextAction = status.RecommendedNextAction
@@ -130,5 +126,9 @@ func normalizeGraphStorePath(path string) string {
 	if path == "" {
 		return graphStorePath
 	}
-	return path
+	cleaned := filepath.ToSlash(filepath.Clean(strings.ReplaceAll(path, `\`, `/`)))
+	if cleaned == "." {
+		return graphStorePath
+	}
+	return strings.TrimPrefix(cleaned, "./")
 }
