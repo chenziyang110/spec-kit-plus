@@ -1,6 +1,7 @@
 package update
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
 func testPaths(t *testing.T) rt.Paths {
@@ -125,6 +127,56 @@ func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
 	}
 	if payload.Boundary.BoundarySource != "delta_journal" {
 		t.Fatalf("BoundarySource = %q, want delta_journal", payload.Boundary.BoundarySource)
+	}
+}
+
+func TestRunUpdateBlocksSplitBrainBaselineBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+
+	_, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "manual",
+	})
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastUpdateID != "" {
+		t.Fatalf("LastUpdateID = %q, want no mutation", status.LastUpdateID)
+	}
+}
+
+func TestRunUpdateWithDeltaSessionBlocksSplitBrainBaselineBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedSplitBrainRuntime(t, paths)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:          paths.Root,
+		RuntimeDir:    paths.RuntimeDir,
+		OriginCommand: "quick",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	})
+
+	if err == nil {
+		t.Fatal("expected split-brain agreement error")
+	}
+	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
+		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
 	}
 }
 
@@ -268,4 +320,36 @@ func containsText(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-db",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence:     []store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
+		Nodes:        []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
+		PathIndex:    []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+	})
+	if closeErr := st.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-old"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
 }

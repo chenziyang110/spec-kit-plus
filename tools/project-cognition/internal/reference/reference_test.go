@@ -1,4 +1,4 @@
-package query
+package reference
 
 import (
 	"context"
@@ -11,63 +11,45 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
-func TestParsePlanNormalizesLegacyAliases(t *testing.T) {
-	plan, err := ParsePlan(`{"path_hints":["./src/a.go"],"reason":"because"}`, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Paths) != 1 || plan.Paths[0] != "src/a.go" {
-		t.Fatalf("paths = %#v", plan.Paths)
-	}
-	if plan.SelectionReason != "because" {
-		t.Fatalf("selection reason = %q", plan.SelectionReason)
-	}
-}
-
-func TestParsePlanSupportsAtFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "plan.json")
-	if err := os.WriteFile(path, []byte(`{"paths":["docs/x.md"]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	plan, err := ParsePlan("@"+path, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Paths) != 1 || plan.Paths[0] != "docs/x.md" {
-		t.Fatalf("paths = %#v", plan.Paths)
-	}
-}
-
-func TestRunBlocksSplitBrainBaseline(t *testing.T) {
-	paths := queryTestPaths(t)
+func TestDiscoverReportsSplitBrainReferenceAsBlocked(t *testing.T) {
+	paths := referenceTestPaths(t)
 	seedSplitBrainRuntime(t, paths)
 
-	_, err := Run(paths, QueryInput{Query: "app", Plan: Plan{Paths: []string{"src/app.go"}}})
+	payload, err := Discover(paths.Root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Projects) != 1 {
+		t.Fatalf("Projects = %#v, want one project", payload.Projects)
+	}
+	project := payload.Projects[0]
+	if project.GraphReady {
+		t.Fatalf("GraphReady = true, want false for split-brain reference")
+	}
+	if project.ReferenceReadiness != rt.BlockedReadiness {
+		t.Fatalf("ReferenceReadiness = %q, want %q", project.ReferenceReadiness, rt.BlockedReadiness)
+	}
+	if !containsText(project.Blockers, "rewrite_status_from_db_metadata") {
+		t.Fatalf("Blockers = %#v, want rewrite_status_from_db_metadata", project.Blockers)
+	}
+}
+
+func TestReadRejectsSplitBrainReference(t *testing.T) {
+	paths := referenceTestPaths(t)
+	seedSplitBrainRuntime(t, paths)
+	writeReferenceSlice(t, paths, "overview", `{"summary":"demo"}`)
+
+	_, err := Read(paths.Root, "overview", nil)
 
 	if err == nil {
-		t.Fatal("expected split-brain agreement error")
+		t.Fatal("expected split-brain reference error")
 	}
 	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
 		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
 	}
 }
 
-func TestLexiconBlocksSplitBrainBaseline(t *testing.T) {
-	paths := queryTestPaths(t)
-	seedSplitBrainRuntime(t, paths)
-
-	_, err := Lexicon(paths, "plan", "app", 10)
-
-	if err == nil {
-		t.Fatal("expected split-brain agreement error")
-	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
-	}
-}
-
-func queryTestPaths(t *testing.T) rt.Paths {
+func referenceTestPaths(t *testing.T) rt.Paths {
 	t.Helper()
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
@@ -110,4 +92,24 @@ func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeReferenceSlice(t *testing.T, paths rt.Paths, name, content string) {
+	t.Helper()
+	path := filepath.Join(paths.RuntimeDir, "slices", name+".json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func containsText(values []string, want string) bool {
+	for _, value := range values {
+		if strings.Contains(value, want) {
+			return true
+		}
+	}
+	return false
 }

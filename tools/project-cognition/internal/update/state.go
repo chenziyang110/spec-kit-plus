@@ -15,6 +15,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
@@ -167,6 +168,9 @@ func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, e
 }
 
 func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
+	if err := blockSplitBrainBaseline(paths); err != nil {
+		return UpdatePayload{}, err
+	}
 	if input.DeltaSessionID != "" {
 		return runDeltaSessionUpdate(paths, input)
 	}
@@ -238,6 +242,20 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		PathAdoption:            pathAdoption,
 		LastRefreshChangedBasis: kept,
 	}, nil
+}
+
+func blockSplitBrainBaseline(paths rt.Paths) error {
+	if _, err := os.Stat(paths.StatusPath); err != nil {
+		return nil
+	}
+	if _, err := os.Stat(paths.DatabasePath); err != nil {
+		return nil
+	}
+	agreement := runtimegate.Check(paths)
+	if len(agreement.Errors) == 0 {
+		return nil
+	}
+	return fmt.Errorf("project cognition agreement blocked: %s: %s", agreement.RecoveryAction, strings.Join(agreement.Errors, "; "))
 }
 
 func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
