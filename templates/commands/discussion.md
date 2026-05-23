@@ -249,7 +249,13 @@ For each option, include product behavior enabled, impacted modules or files, co
 
 ## Optional UI and Interaction Discussion
 
-When the functional discussion is stable and the requirement includes UI-facing scope, offer an optional `ui-interaction-discussion` stage before handoff assessment.
+When the functional discussion is stable, no explicit handoff request is active,
+and the requirement includes UI-facing scope, offer an optional
+`ui-interaction-discussion` stage before handoff assessment. If the user has
+explicitly asked to hand off or continue to the next stage, run
+`handoff-assessment.md` first; return to `ui-interaction-discussion` only when
+the assessment finds UI decisions are blocking readiness or the user chooses to
+reopen UI discussion.
 
 Trigger examples:
 
@@ -259,7 +265,14 @@ Trigger examples:
 - loading, empty, success, warning, error, disabled, or permission states
 - accessibility, keyboard behavior, focus management, or user-facing copy that affects interaction quality
 
-If the user accepts, set `ui_discussion_status: accepted` and guide the discussion as a senior UI and interaction designer with 15 years of practical UI delivery experience. Ask only high-impact UI questions. Provide opinionated recommendations when the user benefits from design judgment, and preserve confirmed UI decisions in `requirements.md`, `technical-options.md`, `open-questions.md`, and the unified handoff pair.
+Set `ui_discussion_status: offered` when presenting the optional stage. If the
+user accepts, set `ui_discussion_status: accepted` and guide the discussion as a
+senior UI and interaction designer with 15 years of practical UI delivery
+experience. Ask only high-impact UI questions. Provide opinionated
+recommendations when the user benefits from design judgment, and preserve
+confirmed UI decisions in `requirements.md`, `technical-options.md`,
+`open-questions.md`, and the unified handoff pair. When the UI pass is complete,
+set `ui_discussion_status: completed`.
 
 If the user skips, set `ui_discussion_status: skipped` or `deferred`. Skipping the UI pass is not a blocking gate unless the feature cannot be specified without a UI decision. Preserve deferred UI decisions in `open-questions.md` and in the handoff's blocking or soft unknowns.
 

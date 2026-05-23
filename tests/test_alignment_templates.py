@@ -566,7 +566,13 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
 
     assert "ui-interaction-discussion" in content
     assert "after functional discussion is stable" in content_lower
+    assert "no explicit handoff request is active" in content_lower
+    assert "handoff-assessment.md` first" in content
     assert "optional ui and interaction discussion" in content_lower
+    assert "ui decisions are blocking readiness" in content_lower
+    assert "ui_discussion_status: offered" in content
+    assert "ui_discussion_status: accepted" in content
+    assert "ui_discussion_status: completed" in content
     assert "senior ui and interaction designer" in content_lower
     assert "15 years" in content
     assert "ascii sketches" in content_lower
@@ -578,7 +584,10 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     assert "not a blocking gate" in content_lower or "not a blocker" in content_lower
 
     assert "after functional discussion is stable" in shell_lower
+    assert "no explicit handoff request is active" in shell_lower
     assert "optional ui and interaction discussion" in shell_lower
+    assert "handoff assessment first" in shell_lower
+    assert "ui decisions block readiness" in shell_lower
     assert "ui_discussion_status" in shell
     assert "preserve" in shell_lower
     assert "not a mandatory handoff gate" in shell_lower

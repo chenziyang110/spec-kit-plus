@@ -20,9 +20,10 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Ask one boundary, product, trade-off, evidence-conflict, or high-impact question at a time only when the answer cannot be proven from available evidence.
 - Append compact ordinary-turn events to `discussion-log.md`.
 - Refresh `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only at semantic checkpoints.
-- After functional discussion is stable, offer an optional UI and interaction discussion for UI-facing requirements; record `ui_discussion_status` and preserve confirmed or deferred UI decisions; the UI pass is not a mandatory handoff gate.
 - If the user asks to transfer functionality into another project, lock `target_project_root` immediately before technicalizing.
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.
+- After functional discussion is stable and when no explicit handoff request is active, offer an optional UI and interaction discussion for UI-facing requirements; record `ui_discussion_status` and preserve confirmed or deferred UI decisions; the UI pass is not a mandatory handoff gate.
+- If explicit handoff is already requested, run handoff assessment first and return to UI discussion only when UI decisions block readiness or the user reopens UI discussion.
 - If the direction is coherent and boundary-locked after explicit handoff request, write exactly one draft handoff package: `handoff-to-specify.md` and `handoff-to-specify.json`.
 - If the direction is too broad to express as one coherent package, continue the discussion instead of writing candidate-specific handoff files.
 - Run handoff self-review and require user confirmation before marking `handoff-ready`.
