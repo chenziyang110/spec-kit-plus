@@ -376,16 +376,10 @@ Run:
 
 ```bash
 pytest tests/test_alignment_templates.py::test_discussion_command_contract_is_pre_spec_and_resumable tests/test_alignment_templates.py::test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements tests/test_alignment_templates.py::test_discussion_state_template_is_independent_from_feature_workflow_state tests/integrations/test_integration_codex.py::TestCodexAutoPromote::test_codex_init_installs_lightweight_discussion_recovery_contract -q
-pytest tests/integrations/test_integration_base_toml.py -k discussion_command_preserves_pre_specification_contract -q
+pytest tests/integrations/test_integration_base_toml.py::test_collected_toml_integrations_preserve_shared_contracts -q
 ```
 
 Expected: FAIL because the templates do not yet include `ui-interaction-discussion`, `ui_discussion_status`, or UI sketch fields.
-
-If the TOML integration test class name differs, run:
-
-```bash
-pytest tests/integrations/test_integration_base_toml.py -k discussion_command_preserves_pre_specification_contract -q
-```
 
 Expected: FAIL for the same missing UI-stage strings.
 
@@ -489,7 +483,7 @@ Run:
 
 ```bash
 pytest tests/test_alignment_templates.py::test_discussion_command_contract_is_pre_spec_and_resumable tests/test_alignment_templates.py::test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements tests/test_alignment_templates.py::test_discussion_state_template_is_independent_from_feature_workflow_state tests/integrations/test_integration_codex.py::TestCodexAutoPromote::test_codex_init_installs_lightweight_discussion_recovery_contract -q
-pytest tests/integrations/test_integration_base_toml.py -k discussion_command_preserves_pre_specification_contract -q
+pytest tests/integrations/test_integration_base_toml.py::test_collected_toml_integrations_preserve_shared_contracts -q
 ```
 
 Expected: PASS.
