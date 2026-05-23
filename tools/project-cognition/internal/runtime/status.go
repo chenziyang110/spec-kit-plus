@@ -33,6 +33,10 @@ type Status struct {
 	RecommendedNextAction        string   `json:"recommended_next_action"`
 	StatusPath                   string   `json:"status_path"`
 	GraphStorePath               string   `json:"graph_store_path"`
+	GraphReady                   bool     `json:"graph_ready"`
+	ActiveGenerationID           string   `json:"active_generation_id,omitempty"`
+	QueryContractVersion         int      `json:"query_contract_version,omitempty"`
+	UpdateContractVersion        int      `json:"update_contract_version,omitempty"`
 	Dirty                        bool     `json:"dirty"`
 	DirtyReasons                 []string `json:"dirty_reasons"`
 	DirtyOriginCommand           string   `json:"dirty_origin_command"`

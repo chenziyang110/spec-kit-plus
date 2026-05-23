@@ -252,20 +252,89 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 row[0]
                                 for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
                             }
-                            if "metadata" not in table_names and "generations" not in table_names:
+                            required = {
+                                "metadata",
+                                "generations",
+                                "evidence",
+                                "observations",
+                                "observation_evidence",
+                                "nodes",
+                                "node_evidence",
+                                "edges",
+                                "edge_evidence",
+                                "claims",
+                                "claim_evidence",
+                                "conflicts",
+                                "conflict_claims",
+                                "path_index",
+                                "symbol_index",
+                                "alias_index",
+                                "entrypoint_index",
+                                "test_index",
+                                "slice_members",
+                                "query_examples",
+                                "updates",
+                            }
+                            missing_tables = sorted(required - table_names)
+                            if missing_tables:
+                                errors.append(
+                                    "project-cognition.db missing required query tables: "
+                                    + ", ".join(missing_tables)
+                                )
+                            elif "metadata" not in table_names and "generations" not in table_names:
                                 errors.append("project-cognition.db is not query ready")
+                            active_generation_id = ""
+                            if "generations" in table_names:
+                                row = conn.execute(
+                                    "SELECT id FROM generations WHERE state = 'active' ORDER BY id LIMIT 1"
+                                ).fetchone()
+                                if row:
+                                    active_generation_id = str(row[0])
+                                else:
+                                    errors.append("project-cognition.db has no active generation")
+                            if active_generation_id and "path_index" in table_names:
+                                path_count = conn.execute(
+                                    "SELECT COUNT(*) FROM path_index WHERE generation_id = ?",
+                                    (active_generation_id,),
+                                ).fetchone()[0]
+                                if int(path_count) == 0:
+                                    errors.append("active_generation_has_no_path_index_rows")
+                            if active_generation_id and "nodes" in table_names:
+                                node_count = conn.execute(
+                                    "SELECT COUNT(*) FROM nodes WHERE generation_id = ?",
+                                    (active_generation_id,),
+                                ).fetchone()[0]
+                                if int(node_count) == 0:
+                                    errors.append("active generation has no nodes")
+                            if active_generation_id and "evidence" in table_names:
+                                evidence_count = conn.execute(
+                                    "SELECT COUNT(*) FROM evidence WHERE generation_id = ?",
+                                    (active_generation_id,),
+                                ).fetchone()[0]
+                                if int(evidence_count) == 0:
+                                    errors.append("active generation has no evidence rows")
                             if "path_index" in table_names:
                                 for row in conn.execute("SELECT path FROM path_index"):
                                     if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
                                         errors.append(".specify/** must not enter project cognition graph store")
                                         break
-                            if "nodes" in table_names:
-                                for row in conn.execute("SELECT path FROM nodes WHERE path IS NOT NULL"):
+                            if "evidence" in table_names:
+                                for row in conn.execute("SELECT source_path FROM evidence WHERE source_path IS NOT NULL"):
                                     if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
                                         errors.append(".specify/** must not enter project cognition graph store")
                                         break
-                            if "evidence" in table_names:
-                                for row in conn.execute("SELECT source_path FROM evidence WHERE source_path IS NOT NULL"):
+                            if "symbol_index" in table_names:
+                                for row in conn.execute("SELECT path FROM symbol_index"):
+                                    if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
+                                        errors.append(".specify/** must not enter project cognition graph store")
+                                        break
+                            if "entrypoint_index" in table_names:
+                                for row in conn.execute("SELECT path FROM entrypoint_index"):
+                                    if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
+                                        errors.append(".specify/** must not enter project cognition graph store")
+                                        break
+                            if "test_index" in table_names:
+                                for row in conn.execute("SELECT test_path FROM test_index"):
                                     if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
                                         errors.append(".specify/** must not enter project cognition graph store")
                                         break

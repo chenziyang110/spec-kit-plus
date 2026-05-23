@@ -163,22 +163,56 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
     generation_id = "GEN-0001"
     run_dir.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(run_dir / "project-cognition.db") as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute("CREATE TABLE IF NOT EXISTS generations(id TEXT PRIMARY KEY, state TEXT NOT NULL)")
-        conn.execute("CREATE TABLE IF NOT EXISTS evidence(id TEXT PRIMARY KEY, generation_id TEXT, source_path TEXT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS path_index(id TEXT PRIMARY KEY, generation_id TEXT, path TEXT, node_id TEXT)")
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES('runtime_format', 'project-cognition-go')")
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES('runtime_schema', '1')")
-        conn.execute("INSERT OR REPLACE INTO generations(id, state) VALUES(?, 'active')", (generation_id,))
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS generations(id TEXT PRIMARY KEY, sequence INTEGER NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL, source_commit TEXT NOT NULL, started_at TEXT NOT NULL, published_at TEXT NOT NULL, superseded_at TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}');
+            CREATE TABLE IF NOT EXISTS evidence(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, source_kind TEXT NOT NULL, source_path TEXT NOT NULL, commit_sha TEXT NOT NULL, span TEXT NOT NULL, extractor TEXT NOT NULL, content_hash TEXT NOT NULL, captured_at TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}');
+            CREATE TABLE IF NOT EXISTS observations(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, observation_type TEXT NOT NULL, summary TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS observation_evidence(observation_id TEXT NOT NULL, evidence_id TEXT NOT NULL, PRIMARY KEY(observation_id, evidence_id));
+            CREATE TABLE IF NOT EXISTS nodes(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL, confidence TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS node_evidence(node_id TEXT NOT NULL, evidence_id TEXT NOT NULL, PRIMARY KEY(node_id, evidence_id));
+            CREATE TABLE IF NOT EXISTS edges(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, type TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, confidence TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS edge_evidence(edge_id TEXT NOT NULL, evidence_id TEXT NOT NULL, PRIMARY KEY(edge_id, evidence_id));
+            CREATE TABLE IF NOT EXISTS claims(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, subject_ref TEXT NOT NULL, predicate TEXT NOT NULL, object_ref TEXT NOT NULL, object_value TEXT NOT NULL, truth_layer TEXT NOT NULL, confidence TEXT NOT NULL, status TEXT NOT NULL, last_validated_at TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}');
+            CREATE TABLE IF NOT EXISTS claim_evidence(claim_id TEXT NOT NULL, evidence_id TEXT NOT NULL, PRIMARY KEY(claim_id, evidence_id));
+            CREATE TABLE IF NOT EXISTS conflicts(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, subject_ref TEXT NOT NULL, conflict_type TEXT NOT NULL, impact_scope TEXT NOT NULL, agent_behavior_rule TEXT NOT NULL, resolution_status TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS conflict_claims(conflict_id TEXT NOT NULL, claim_id TEXT NOT NULL, PRIMARY KEY(conflict_id, claim_id));
+            CREATE TABLE IF NOT EXISTS alias_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, alias TEXT NOT NULL, normalized_alias TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, language TEXT NOT NULL, source TEXT NOT NULL, confidence TEXT NOT NULL, evidence_id TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS path_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, path TEXT NOT NULL, node_id TEXT NOT NULL, relation TEXT NOT NULL, confidence TEXT NOT NULL, evidence_id TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS symbol_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, symbol_name TEXT NOT NULL, normalized_symbol TEXT NOT NULL, node_id TEXT NOT NULL, path TEXT NOT NULL, relation TEXT NOT NULL, evidence_id TEXT NOT NULL, confidence TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS entrypoint_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, entrypoint_key TEXT NOT NULL, entrypoint_type TEXT NOT NULL, node_id TEXT NOT NULL, capability_id TEXT NOT NULL, path TEXT NOT NULL, evidence_id TEXT NOT NULL, confidence TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS test_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, test_path TEXT NOT NULL, test_name TEXT NOT NULL, node_id TEXT NOT NULL, capability_id TEXT NOT NULL, verification_node_id TEXT NOT NULL, evidence_id TEXT NOT NULL, confidence TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS slice_members(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, slice_id TEXT NOT NULL, object_type TEXT NOT NULL, object_id TEXT NOT NULL, rank INTEGER NOT NULL, reason TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS query_examples(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, query_text TEXT NOT NULL, intent TEXT NOT NULL, expected_target_type TEXT NOT NULL, expected_target_id TEXT NOT NULL, language TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS updates(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, trigger TEXT NOT NULL, changed_paths_json TEXT NOT NULL, affected_nodes_json TEXT NOT NULL, affected_claims_json TEXT NOT NULL, affected_slices_json TEXT NOT NULL, result_state TEXT NOT NULL, completed_at TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}');
+            """
+        )
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_format', '\"project-cognition-go\"', '2026-05-23T00:00:00Z')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '1', '2026-05-23T00:00:00Z')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('schema_version', '1', '2026-05-23T00:00:00Z')")
         conn.execute(
-            "INSERT OR REPLACE INTO evidence(id, generation_id, source_path) VALUES('E-login', ?, 'src/auth/login.ts')",
+            "INSERT OR REPLACE INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) VALUES(?, 1, 'full', 'active', 'abc123', '2026-05-23T00:00:00Z', '2026-05-23T00:00:00Z', '', '{}')",
             (generation_id,),
         )
         conn.execute(
-            "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id) VALUES('P-login', ?, 'src/auth/login.ts', 'capability:auth.login')",
+            "INSERT OR REPLACE INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES('E-login', ?, 'source', 'src/auth/login.ts', 'abc123', '', 'test', 'hash', '2026-05-23T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES('capability:auth.login', ?, 'capability', 'Login', 'verified', '{}', '2026-05-23T00:00:00Z', '2026-05-23T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-login', ?, 'src/auth/login.ts', 'capability:auth.login', 'owns', 'verified', 'E-login', '2026-05-23T00:00:00Z')",
             (generation_id,),
         )
         conn.commit()
+    workbench = run_dir / "workbench"
+    (workbench / "worker-results").mkdir(parents=True, exist_ok=True)
+    (workbench / "capability-ledger.json").write_text('{"rows":[]}\n', encoding="utf-8")
+    (workbench / "control-ledger.json").write_text('{"rows":[]}\n', encoding="utf-8")
+    (workbench / "coverage-ledger.json").write_text('{"rows":[],"open_gaps":[]}\n', encoding="utf-8")
     write_project_cognition_status(
         project_root,
         status="ok",
@@ -1394,11 +1428,11 @@ def test_hook_validate_artifacts_blocks_map_build_when_specify_paths_enter_graph
     with sqlite3.connect(run_dir / "project-cognition.db") as conn:
         generation_id = conn.execute("SELECT id FROM generations WHERE state = 'active'").fetchone()[0]
         conn.execute(
-            "INSERT OR REPLACE INTO evidence(id, generation_id, source_path) VALUES ('E-specify', ?, '.specify/memory/project-rules.md')",
+            "INSERT OR REPLACE INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES ('E-specify', ?, 'source', '.specify/memory/project-rules.md', 'abc123', '', 'test', 'hash-specify', '2026-05-23T00:00:00Z', '{}')",
             (generation_id,),
         )
         conn.execute(
-            "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id) VALUES ('P-specify', ?, '.specify/memory/project-rules.md', 'capability:auth.login')",
+            "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES ('P-specify', ?, '.specify/memory/project-rules.md', 'capability:auth.login', 'owns', 'verified', 'E-specify', '2026-05-23T00:00:00Z')",
             (generation_id,),
         )
         conn.commit()

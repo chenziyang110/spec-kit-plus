@@ -210,12 +210,12 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	st, err := store.Open(paths)
+	st, err := store.OpenExisting(paths)
 	if err != nil {
 		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}
 	defer st.Close()
-	meta, err := st.Metadata(context.Background())
+	meta, activeGenerationID, err := st.PublishRuntimeMetadata(context.Background())
 	if err != nil {
 		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}
@@ -226,22 +226,25 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	if err != nil {
 		status = rt.DefaultStatus(paths)
 	}
-	if status.Status == "missing" {
-		status.Status = "ok"
-		status.Freshness = rt.ReadyFreshness
-		status.Readiness = rt.ReadyReadiness
-		status.RecommendedNextAction = "use_project_cognition"
-		if err := rt.WriteStatus(paths, status); err != nil {
-			return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
-		}
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = activeGenerationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	if err := rt.WriteStatus(paths, status); err != nil {
+		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}
 	return writeJSON(stdout, map[string]any{
-		"status":           "ok",
-		"metadata":         meta,
-		"status_path":      status.StatusPath,
-		"graph_store_path": status.GraphStorePath,
-		"errors":           []string{},
-		"warnings":         []string{},
+		"status":               "ok",
+		"metadata":             meta,
+		"active_generation_id": activeGenerationID,
+		"status_path":          status.StatusPath,
+		"graph_store_path":     status.GraphStorePath,
+		"errors":               []string{},
+		"warnings":             []string{},
 	})
 }
 

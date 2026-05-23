@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -51,7 +53,7 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		payload.Details["runtime_schema"] = status.RuntimeSchema
 		payload.Details["freshness"] = status.Freshness
 	}
-	st, err := store.Open(paths)
+	st, err := store.OpenExisting(paths)
 	if err != nil {
 		payload.Errors = append(payload.Errors, err.Error())
 	} else {
@@ -61,10 +63,13 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 			payload.Errors = append(payload.Errors, err.Error())
 		} else {
 			payload.Details["metadata"] = meta
-			payload.Details["query_smoke_test"] = "ok"
 		}
 	}
-	payload.Errors = append(payload.Errors, validateGraphStorePaths(paths)...)
+	graphDetails, graphErrors := validateGraphStore(paths, status)
+	for key, value := range graphDetails {
+		payload.Details[key] = value
+	}
+	payload.Errors = append(payload.Errors, graphErrors...)
 	payload.Errors = append(payload.Errors, validateCoverageLedger(paths, "build")...)
 	if len(payload.Errors) > 0 {
 		payload.Status = "blocked"
@@ -73,61 +78,218 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 	return payload
 }
 
-func validateGraphStorePaths(paths rt.Paths) []string {
+func validateGraphStore(paths rt.Paths, status rt.Status) (map[string]any, []string) {
+	details := map[string]any{}
+	errors := []string{}
+	info, err := os.Stat(paths.DatabasePath)
+	if err != nil {
+		return details, []string{"missing .specify/project-cognition/project-cognition.db"}
+	}
+	if info.Size() == 0 {
+		return details, []string{"project-cognition.db must not be empty"}
+	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
-		return []string{err.Error()}
+		return details, []string{err.Error()}
 	}
 	defer db.Close()
 	if _, err := db.Exec("SELECT 1"); err != nil {
-		return []string{err.Error()}
+		return details, []string{fmt.Sprintf("project-cognition.db is not query ready: %v", err)}
 	}
-	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('path_index', 'nodes', 'evidence')")
+
+	tableNames, err := sqliteTableNames(db)
 	if err != nil {
-		return []string{err.Error()}
+		return details, []string{err.Error()}
 	}
-	tableNames := map[string]bool{}
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			_ = rows.Close()
-			return []string{err.Error()}
+	missing := []string{}
+	for _, table := range store.RequiredTables() {
+		if !tableNames[table] {
+			missing = append(missing, table)
 		}
-		tableNames[name] = true
 	}
-	if err := rows.Close(); err != nil {
-		return []string{err.Error()}
+	if len(missing) > 0 {
+		errors = append(errors, "project-cognition.db missing required query tables: "+strings.Join(missing, ", "))
+		return details, errors
 	}
+	missingColumns, err := missingRequiredColumns(db)
+	if err != nil {
+		errors = append(errors, err.Error())
+		return details, errors
+	}
+	if len(missingColumns) > 0 {
+		errors = append(errors, "project-cognition.db missing required query columns: "+strings.Join(missingColumns, ", "))
+		return details, errors
+	}
+
+	schemaVersion, err := metadataScalar(db, "schema_version")
+	if err != nil {
+		errors = append(errors, err.Error())
+	} else {
+		details["schema_version"] = schemaVersion
+		if schemaVersion != fmt.Sprint(store.SchemaVersion) {
+			errors = append(errors, fmt.Sprintf("project-cognition.db schema_version %s is not supported; expected %d", schemaVersion, store.SchemaVersion))
+		}
+	}
+
+	activeGenerationID, err := activeGenerationID(db)
+	if err != nil {
+		errors = append(errors, err.Error())
+	} else if activeGenerationID == "" {
+		errors = append(errors, "project-cognition.db has no active generation")
+	} else {
+		details["active_generation_id"] = activeGenerationID
+		if status.ActiveGenerationID != "" && status.ActiveGenerationID != activeGenerationID {
+			errors = append(errors, fmt.Sprintf("status.json active_generation_id %s does not match DB active generation %s", status.ActiveGenerationID, activeGenerationID))
+		}
+		nodeCount, err := countGenerationRows(db, "nodes", activeGenerationID)
+		if err != nil {
+			errors = append(errors, err.Error())
+		}
+		pathCount, err := countGenerationRows(db, "path_index", activeGenerationID)
+		if err != nil {
+			errors = append(errors, err.Error())
+		}
+		evidenceCount, err := countGenerationRows(db, "evidence", activeGenerationID)
+		if err != nil {
+			errors = append(errors, err.Error())
+		}
+		details["node_count"] = nodeCount
+		details["path_index_count"] = pathCount
+		details["evidence_count"] = evidenceCount
+		if nodeCount == 0 {
+			errors = append(errors, "active generation has no nodes")
+		}
+		if pathCount == 0 {
+			errors = append(errors, "active_generation_has_no_path_index_rows")
+		}
+		if evidenceCount == 0 {
+			errors = append(errors, "active generation has no evidence rows")
+		}
+		if len(errors) == 0 {
+			details["query_smoke_test"] = "ok"
+		}
+	}
+
 	checks := []struct {
 		table  string
 		column string
 	}{
 		{table: "path_index", column: "path"},
-		{table: "nodes", column: "path"},
 		{table: "evidence", column: "source_path"},
+		{table: "symbol_index", column: "path"},
+		{table: "entrypoint_index", column: "path"},
+		{table: "test_index", column: "test_path"},
 	}
 	for _, check := range checks {
-		if !tableNames[check.table] {
-			continue
-		}
 		rows, err := db.Query("SELECT " + check.column + " FROM " + check.table)
 		if err != nil {
-			return []string{err.Error()}
+			errors = append(errors, err.Error())
+			continue
 		}
 		for rows.Next() {
 			var raw sql.NullString
 			if err := rows.Scan(&raw); err != nil {
 				_ = rows.Close()
-				return []string{err.Error()}
+				errors = append(errors, err.Error())
+				break
 			}
 			if raw.Valid && strings.HasPrefix(filepath.ToSlash(strings.TrimSpace(raw.String)), ".specify/") {
 				_ = rows.Close()
-				return []string{".specify/** must not enter project cognition graph store"}
+				errors = append(errors, ".specify/** must not enter project cognition graph store")
+				break
 			}
 		}
 		if err := rows.Close(); err != nil {
-			return []string{err.Error()}
+			errors = append(errors, err.Error())
 		}
 	}
-	return nil
+	return details, errors
+}
+
+func sqliteTableNames(db *sql.DB) (map[string]bool, error) {
+	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tableNames := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		tableNames[name] = true
+	}
+	return tableNames, rows.Err()
+}
+
+func missingRequiredColumns(db *sql.DB) ([]string, error) {
+	missing := []string{}
+	for table, requiredColumns := range store.RequiredTableColumns() {
+		columns, err := sqliteTableColumns(db, table)
+		if err != nil {
+			return nil, err
+		}
+		for _, column := range requiredColumns {
+			if !columns[column] {
+				missing = append(missing, table+"."+column)
+			}
+		}
+	}
+	sort.Strings(missing)
+	return missing, nil
+}
+
+func sqliteTableColumns(db *sql.DB, table string) (map[string]bool, error) {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
+			return nil, err
+		}
+		columns[name] = true
+	}
+	return columns, rows.Err()
+}
+
+func metadataScalar(db *sql.DB, key string) (string, error) {
+	var raw string
+	err := db.QueryRow("SELECT value_json FROM metadata WHERE key = ?", key).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("project-cognition.db metadata.%s is missing", key)
+	}
+	if err != nil {
+		return "", fmt.Errorf("read project-cognition.db metadata.%s: %w", key, err)
+	}
+	return strings.Trim(strings.TrimSpace(raw), `"`), nil
+}
+
+func activeGenerationID(db *sql.DB) (string, error) {
+	var id string
+	err := db.QueryRow("SELECT id FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1").Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read active generation: %w", err)
+	}
+	return id, nil
+}
+
+func countGenerationRows(db *sql.DB, table string, generationID string) (int, error) {
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM "+table+" WHERE generation_id = ?", generationID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count %s rows: %w", table, err)
+	}
+	return count, nil
 }
