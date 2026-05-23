@@ -55,8 +55,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
-    assert "`needs_update`: route through `{{invoke:map-update}}`" in content
+    assert "`needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required after the understanding checkpoint is confirmed" in content
+    assert "`needs_update`: record that `{{invoke:map-update}}` is required after the understanding checkpoint is confirmed" in content
     assert "returned task-local bundle" in content
     assert "must_refresh_topics" not in content
     assert "review_topics" not in content
@@ -200,7 +200,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
 
     assert ".specify/memory/constitution.md" in content
     assert "constitution first" in content
-    assert "before `status.md` initialization or touched-area analysis proceeds" in content
+    assert "record that requirement in `status.md` while `understanding_confirmed: false`" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert (
         "after `status.md` is initialized, `understanding_confirmed: true` is recorded, "
@@ -305,10 +305,14 @@ def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None
 
     assert "understanding_confirmed: false" in content
     assert "blocks substantive execution" in content
+    assert "create or update `status.md` with `understanding_confirmed: false` before any map maintenance handoff" in content
     assert "must not proceed to code edits" in content
     assert "broad repository analysis" in content
     assert "delegation" in content
     assert "validation commands" in content
+    assert "{{invoke:map-update}}" in content
+    assert "{{invoke:map-scan}}" in content
+    assert "{{invoke:map-build}}" in content
     assert "until the checkpoint is confirmed" in content
     assert "do not start execution routing while `understanding_confirmed: false`" in content
     assert "do not dispatch until `understanding_confirmed: true` is recorded" in content
@@ -320,8 +324,8 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     content = read_template("templates/commands/quick.md")
     lowered = content.lower()
 
-    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in lowered
-    assert "`needs_update`: route through `{{invoke:map-update}}`" in lowered
+    assert "`needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required after the understanding checkpoint is confirmed" in lowered
+    assert "`needs_update`: record that `{{invoke:map-update}}` is required after the understanding checkpoint is confirmed" in lowered
     assert "must_refresh_topics" not in lowered
     assert "review_topics" not in lowered
     assert "ownership, placement, workflow, integration, or verification guidance" in content

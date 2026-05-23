@@ -46,13 +46,14 @@ Run or emulate:
 {{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}
 ```
 
-Use the returned readiness:
+Use the returned readiness only to prepare the Understanding Checkpoint and
+write early quick-task state:
 
 - `ready`: continue with the returned task-local bundle.
 - `review`: perform only the returned `minimal_live_reads` before continuing.
 - `ambiguous`: ask the user to select the intended candidate.
-- `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
+- `needs_update`: record that `{{invoke:map-update}}` is required after the Understanding Checkpoint is confirmed; this includes adoptable missing path-index coverage.
+- `needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required after the Understanding Checkpoint is confirmed; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
 - `blocked`: stop and report the blocking runtime issue.
 - **CARRY FORWARD**: Write the selected capability, minimal reads, validation route,
   and known risk into quick-task `STATUS.md` before implementation
@@ -66,7 +67,7 @@ choosing the quick-task lane shape.
 
 `sp-quick` has one default understanding checkpoint before substantive execution. This is not a full spec, not a `sp-plan` substitute, and not a detailed task-plan approval. It exists so the user can confirm that the quick-task direction is correct before the workflow runs to completion.
 
-After the constitution gate, quick workspace initialization, project cognition gate, and any required minimal reads, present one concise checkpoint:
+After the constitution gate, quick workspace initialization, project cognition query, and any bounded `minimal_live_reads`, present one concise checkpoint:
 
 - `Problem understood`: what you believe the user wants solved.
 - `Planned outcome`: what result you intend to deliver.
@@ -76,7 +77,7 @@ After the constitution gate, quick workspace initialization, project cognition g
 
 Wait for user confirmation before code edits, broad repository analysis, delegation, implementation commands, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
 
-Record the confirmed checkpoint in `STATUS.md`. `understanding_confirmed: false` blocks substantive execution on resume. While it is false, only read the minimal context needed to reconstruct or revise the checkpoint; you must not proceed to code edits, broad repository analysis, delegation, or validation commands until the checkpoint is confirmed and `STATUS.md` is updated.
+Create or update `STATUS.md` with `understanding_confirmed: false` before any map maintenance handoff, broad repository analysis, delegation, implementation command, or validation command. Record the confirmed checkpoint in `STATUS.md`. `understanding_confirmed: false` blocks substantive execution on resume. While it is false, only read the minimal context needed to reconstruct or revise the checkpoint; you must not proceed to code edits, broad repository analysis, delegation, validation commands, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and `STATUS.md` is updated.
 
 ## Workflow Quality Requirements
 
@@ -140,7 +141,7 @@ The following flags are available and composable:
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded subagent.
 - Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, subagent dispatch, or local analysis.
-- If the project cognition runtime is missing, rebuild it through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before `STATUS.md` initialization or touched-area analysis proceeds.
+- If project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`, record that requirement in `STATUS.md` while `understanding_confirmed: false`, present the Understanding Checkpoint, and only hand off to map maintenance after confirmation.
 - Before the first subagent is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first subagent path.
 - Before implementation work starts, confirm the Understanding Checkpoint and persist `understanding_confirmed: true` in `STATUS.md`; only then identify whether the quick task is best handled by one bounded subagent or by two or more independent subagents that can safely proceed in parallel.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)`.

@@ -63,7 +63,9 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert "done_with_concerns" in content
     assert "needs_context" in content
     assert "workertaskresult" in content
+    assert ".planning/quick/<id>-<slug>/status.md" in content
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in content
+    assert ".planning/quick/<slug>" not in content
 
 
 def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
