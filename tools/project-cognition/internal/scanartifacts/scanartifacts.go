@@ -88,11 +88,6 @@ func Validate(paths rt.Paths, opts ValidateOptions) Result {
 	return result
 }
 
-func ValidateJSONFile(path string, label string) error {
-	_, err := readJSONFile(path, label)
-	return err
-}
-
 func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	result := newResult(requiredArtifactPaths(opts))
 	pkg := Package{Identities: newIdentitySet()}
@@ -116,7 +111,7 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadEdges(paths, &pkg, &result)
 	loadObservations(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
-	result.Errors = append(result.Errors, ValidateCoverageLedger(paths, "scan")...)
+	result.Errors = append(result.Errors, validateCoverageLedger(paths, "scan")...)
 	buildIdentities(&pkg)
 	if len(result.Errors) > 0 {
 		result.Status = "blocked"
@@ -126,7 +121,7 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	return pkg, result
 }
 
-func ValidateCoverageLedger(paths rt.Paths, owner string) []string {
+func validateCoverageLedger(paths rt.Paths, owner string) []string {
 	ledgerPath := filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json")
 	payload, err := readJSONFile(ledgerPath, "coverage-ledger.json")
 	if err != nil {
@@ -148,11 +143,8 @@ func ValidateCoverageLedger(paths rt.Paths, owner string) []string {
 			}
 			reason := normalizedString(gapObj["reason"])
 			status := normalizedString(gapObj["status"])
-			gapOwner := normalizedString(gapObj["owner"])
 			if reason == "subagent_blocked" || status == "blocked" {
-				if owner == "" || gapOwner == "" || gapOwner == owner {
-					errors = append(errors, "subagent_blocked coverage gap must be resolved before project cognition acceptance")
-				}
+				errors = append(errors, "subagent_blocked coverage gap must be resolved before project cognition acceptance")
 			}
 		}
 	}
@@ -433,20 +425,71 @@ func evidenceFromObject(row map[string]any, fileStem string, index int) Evidence
 	if id == "" {
 		id = fmt.Sprintf("%s-%d", fileStem, index)
 	}
+	normalized := normalizedEvidenceObject(row)
 	contentHash := normalizedString(row["content_hash"])
 	if contentHash == "" {
-		contentHash = hashNormalizedObject(row)
+		contentHash = hashNormalizedObject(normalized)
 	}
 	return EvidenceRow{
 		ID:          id,
-		SourceKind:  normalizedString(row["source_kind"]),
-		SourcePath:  normalizedString(row["source_path"]),
-		CommitSHA:   normalizedString(row["commit_sha"]),
-		Span:        normalizedString(row["span"]),
-		Extractor:   normalizedString(row["extractor"]),
+		SourceKind:  stringFromMap(normalized, "source_kind"),
+		SourcePath:  stringFromMap(normalized, "source_path"),
+		CommitSHA:   stringFromMap(normalized, "commit_sha"),
+		Span:        stringFromMap(normalized, "span"),
+		Extractor:   stringFromMap(normalized, "extractor"),
 		ContentHash: contentHash,
 		Attrs:       objectMap(row["attrs"]),
 	}
+}
+
+func normalizedEvidenceObject(row map[string]any) map[string]any {
+	normalized := make(map[string]any, len(row))
+	for key, value := range row {
+		normalized[key] = normalizeEvidenceValue(key, value)
+	}
+	return normalized
+}
+
+func normalizeEvidenceValue(key string, value any) any {
+	switch typed := value.(type) {
+	case string:
+		if isEvidenceStringField(key) || isPathField(key) {
+			return normalizedString(typed)
+		}
+		return typed
+	case []any:
+		values := make([]any, 0, len(typed))
+		for _, item := range typed {
+			values = append(values, normalizeEvidenceValue(key, item))
+		}
+		return values
+	case map[string]any:
+		values := make(map[string]any, len(typed))
+		for childKey, item := range typed {
+			values[childKey] = normalizeEvidenceValue(childKey, item)
+		}
+		return values
+	default:
+		return value
+	}
+}
+
+func isEvidenceStringField(key string) bool {
+	switch key {
+	case "source_kind", "source_path", "commit_sha", "span", "extractor":
+		return true
+	default:
+		return false
+	}
+}
+
+func isPathField(key string) bool {
+	return key == "path" || strings.HasSuffix(key, "_path") || strings.HasSuffix(key, "_paths")
+}
+
+func stringFromMap(values map[string]any, key string) string {
+	text, _ := values[key].(string)
+	return text
 }
 
 func hashNormalizedObject(obj map[string]any) string {

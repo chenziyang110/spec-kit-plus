@@ -1,7 +1,9 @@
 package validation
 
 import (
-	"path/filepath"
+	"encoding/json"
+	"os"
+	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
@@ -31,9 +33,22 @@ func ValidateScan(paths rt.Paths) GatePayload {
 }
 
 func validateJSONFile(path string) error {
-	return scanartifacts.ValidateJSONFile(path, filepath.Base(path))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var raw any
+	return json.Unmarshal(data, &raw)
 }
 
 func validateCoverageLedger(paths rt.Paths, owner string) []string {
-	return scanartifacts.ValidateCoverageLedger(paths, owner)
+	result := scanartifacts.Validate(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
+	errors := []string{}
+	for _, err := range result.Errors {
+		if strings.Contains(err, "coverage-ledger.json") ||
+			err == "subagent_blocked coverage gap must be resolved before project cognition acceptance" {
+			errors = append(errors, err)
+		}
+	}
+	return errors
 }

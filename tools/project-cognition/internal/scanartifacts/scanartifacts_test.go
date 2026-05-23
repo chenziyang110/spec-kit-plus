@@ -3,6 +3,7 @@ package scanartifacts
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -59,6 +60,33 @@ func TestLoadExtractsIdentitySets(t *testing.T) {
 	assertIdentity(t, pkg.Identities.CoveragePaths, "src/app.go")
 }
 
+func TestValidateArtifactsBlocksOpenGapForAnyOwner(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go"}],
+		"open_gaps":[{"owner":"other","status":"blocked"}]
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "coverage gap must be resolved") {
+		t.Fatalf("Errors = %#v, want blocked coverage gap error", result.Errors)
+	}
+}
+
+func TestLoadFallbackContentHashUsesNormalizedEvidenceObject(t *testing.T) {
+	first := fallbackEvidenceIdentityForSourcePath(t, `./src\app.go`)
+	second := fallbackEvidenceIdentityForSourcePath(t, `src/app.go`)
+
+	if first != second {
+		t.Fatalf("fallback evidence identities differ:\nfirst:  %s\nsecond: %s", first, second)
+	}
+}
+
 func scanArtifactTestPaths(t *testing.T) rt.Paths {
 	t.Helper()
 	root := t.TempDir()
@@ -70,6 +98,31 @@ func scanArtifactTestPaths(t *testing.T) rt.Paths {
 		t.Fatal(err)
 	}
 	return paths
+}
+
+func fallbackEvidenceIdentityForSourcePath(t *testing.T, sourcePath string) string {
+	t.Helper()
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "evidence", "E-001.json"), []byte(`{
+		"id":"E-001",
+		"source_kind":" file ",
+		"source_path":`+strconv.Quote(sourcePath)+`,
+		"commit_sha":" abc123 ",
+		"span":" L1-L5 ",
+		"extractor":" test ",
+		"attrs":{"language":"go"}
+	}`))
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	for identity := range pkg.Identities.Evidence {
+		return identity
+	}
+	t.Fatal("missing evidence identity")
+	return ""
 }
 
 func writeMinimalScanPackage(t *testing.T, paths rt.Paths) {
