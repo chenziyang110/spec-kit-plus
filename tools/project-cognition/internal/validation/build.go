@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
@@ -53,6 +55,13 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		payload.Details["runtime_schema"] = status.RuntimeSchema
 		payload.Details["freshness"] = status.Freshness
 	}
+	agreement := runtimegate.Check(paths)
+	if agreement.Status == "blocked" {
+		payload.Errors = append(payload.Errors, agreement.Errors...)
+		if agreement.RecoveryAction != "" {
+			payload.Details["recovery_action"] = agreement.RecoveryAction
+		}
+	}
 	st, err := store.OpenExisting(paths)
 	if err != nil {
 		payload.Errors = append(payload.Errors, err.Error())
@@ -65,6 +74,11 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 			payload.Details["metadata"] = meta
 		}
 	}
+	reconciliationDetails, reconciliationErrors := validateIdentityReconciliation(paths)
+	for key, value := range reconciliationDetails {
+		payload.Details[key] = value
+	}
+	payload.Errors = append(payload.Errors, reconciliationErrors...)
 	graphDetails, graphErrors := validateGraphStore(paths, status)
 	for key, value := range graphDetails {
 		payload.Details[key] = value
@@ -76,6 +90,133 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		payload.Readiness = "blocked"
 	}
 	return payload
+}
+
+func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
+	details := map[string]any{
+		"identity_reconciliation": "not_run",
+		"scan_artifact_counts":    identityCounts(scanartifacts.IdentitySet{}),
+		"db_counts":               identitySnapshotCounts(store.IdentitySnapshot{}),
+		"rejections":              []store.RowDecision{},
+		"merge_records":           []store.MergeRecord{},
+	}
+	errors := []string{}
+	pkg, result := scanartifacts.Load(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
+	details["scan_artifact_counts"] = identityCounts(pkg.Identities)
+	if !scanArtifactsPresent(paths, result.CheckedPaths) {
+		details["identity_reconciliation"] = "skipped_no_scan_package"
+		return details, errors
+	}
+	if result.Status != "ok" {
+		details["identity_reconciliation"] = "skipped_invalid_scan_package"
+		return details, errors
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		return details, []string{err.Error()}
+	}
+	defer st.Close()
+	snapshot, err := st.ActiveIdentitySnapshot(context.Background())
+	if err != nil {
+		return details, []string{err.Error()}
+	}
+	details["db_counts"] = identitySnapshotCounts(snapshot)
+	details["rejections"] = snapshot.Rejections
+	details["merge_records"] = snapshot.MergeRecords
+	errors = append(errors, compareIdentityCategory("evidence", pkg.Identities.Evidence, snapshot.Evidence, snapshot)...)
+	errors = append(errors, compareIdentityCategory("node", pkg.Identities.Nodes, snapshot.Nodes, snapshot)...)
+	errors = append(errors, compareIdentityCategory("edge", pkg.Identities.Edges, snapshot.Edges, snapshot)...)
+	errors = append(errors, compareIdentityCategory("observation", pkg.Identities.Observations, snapshot.Observations, snapshot)...)
+	errors = append(errors, compareIdentityCategory("coverage_path", pkg.Identities.CoveragePaths, snapshot.CoveragePaths, snapshot)...)
+	if len(errors) > 0 {
+		details["identity_reconciliation"] = "blocked"
+	} else {
+		details["identity_reconciliation"] = "ok"
+	}
+	return details, errors
+}
+
+func scanArtifactsPresent(paths rt.Paths, checkedPaths []string) bool {
+	for _, rel := range checkedPaths {
+		if _, err := os.Stat(filepath.Join(paths.Root, filepath.FromSlash(rel))); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func identityCounts(identities scanartifacts.IdentitySet) map[string]int {
+	return map[string]int{
+		"evidence":       len(identities.Evidence),
+		"nodes":          len(identities.Nodes),
+		"edges":          len(identities.Edges),
+		"observations":   len(identities.Observations),
+		"coverage_paths": len(identities.CoveragePaths),
+	}
+}
+
+func identitySnapshotCounts(snapshot store.IdentitySnapshot) map[string]int {
+	return map[string]int{
+		"evidence":       len(snapshot.Evidence),
+		"nodes":          len(snapshot.Nodes),
+		"edges":          len(snapshot.Edges),
+		"observations":   len(snapshot.Observations),
+		"coverage_paths": len(snapshot.CoveragePaths),
+	}
+}
+
+func compareIdentityCategory(category string, expected map[string]bool, actual map[string]bool, snapshot store.IdentitySnapshot) []string {
+	missing := []string{}
+	unexpected := []string{}
+	for identity := range expected {
+		if !actual[identity] && !identityCoveredByDecision(category, identity, snapshot) {
+			missing = append(missing, identity)
+		}
+	}
+	for identity := range actual {
+		if !expected[identity] {
+			unexpected = append(unexpected, identity)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(unexpected)
+	errors := []string{}
+	if len(missing) > 0 {
+		errors = append(errors, "missing scan "+identityErrorNoun(category)+" identities: "+strings.Join(missing, ", "))
+	}
+	if len(unexpected) > 0 {
+		errors = append(errors, "unexpected DB "+identityErrorNoun(category)+" identities: "+strings.Join(unexpected, ", "))
+	}
+	return errors
+}
+
+func identityCoveredByDecision(category string, identity string, snapshot store.IdentitySnapshot) bool {
+	for _, rejection := range snapshot.Rejections {
+		if sameIdentityCategory(rejection.Category, category) && rejection.Identity == identity {
+			return true
+		}
+	}
+	for _, record := range snapshot.MergeRecords {
+		if sameIdentityCategory(record.Category, category) && record.SourceIdentity == identity {
+			return true
+		}
+	}
+	return false
+}
+
+func sameIdentityCategory(actual string, expected string) bool {
+	actual = strings.TrimSuffix(strings.TrimSpace(actual), "s")
+	expected = strings.TrimSuffix(strings.TrimSpace(expected), "s")
+	return actual == expected
+}
+
+func identityErrorNoun(category string) string {
+	switch category {
+	case "coverage_path":
+		return "coverage path"
+	default:
+		return category
+	}
 }
 
 func validateGraphStore(paths rt.Paths, status rt.Status) (map[string]any, []string) {

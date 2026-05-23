@@ -158,7 +158,8 @@ func TestValidateBuildBlocksLegacyThinSchema(t *testing.T) {
 func TestValidateBuildAcceptsQueryReadyDatabase(t *testing.T) {
 	paths := validationTestPaths(t)
 	writeBuildAcceptanceInputs(t, paths)
-	seedQueryReadyDatabase(t, paths)
+	writeMatchingScanPackage(t, paths)
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		t.Fatal(err)
@@ -178,6 +179,146 @@ func TestValidateBuildAcceptsQueryReadyDatabase(t *testing.T) {
 	}
 	if payload.Details["query_smoke_test"] != "ok" {
 		t.Fatalf("Details = %#v, want query smoke test", payload.Details)
+	}
+}
+
+func TestValidateBuildBlocksMissingScanNodeIdentity(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeMatchingScanPackage(t, paths)
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM nodes WHERE id = 'N-app'`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "missing scan node identities") {
+		t.Fatalf("Errors = %#v, want missing scan node identities", payload.Errors)
+	}
+}
+
+func TestValidateBuildBlocksUnexpectedDBNodeIdentityWithSameCount(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeMatchingScanPackage(t, paths)
+	seedQueryReadyDatabaseWithNodeID(t, paths, "N-substituted")
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "unexpected DB node identities") {
+		t.Fatalf("Errors = %#v, want unexpected DB node identities", payload.Errors)
+	}
+}
+
+func TestValidateBuildAllowsMissingScanIdentityCoveredByDecision(t *testing.T) {
+	tests := []struct {
+		name         string
+		rejections   []store.RowDecision
+		mergeRecords []store.MergeRecord
+	}{
+		{
+			name:       "rejection",
+			rejections: []store.RowDecision{{Category: "node", Identity: "N-app", Reason: "explicitly_rejected"}},
+		},
+		{
+			name:         "merge",
+			mergeRecords: []store.MergeRecord{{Category: "node", SourceIdentity: "N-app", TargetIdentity: "N-canonical", Reason: "duplicate"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths := validationTestPaths(t)
+			writeBuildAcceptanceInputs(t, paths)
+			writeMatchingScanPackage(t, paths)
+			seedQueryReadyDatabaseWithNodeIDAndDecisions(t, paths, "N-canonical", tt.rejections, tt.mergeRecords)
+			writeReadyStatus(t, paths, "GEN-0001")
+
+			payload := ValidateBuild(paths)
+
+			if payload.Status != "blocked" {
+				t.Fatalf("Status = %q, want blocked only for unexpected canonical node; errors=%#v", payload.Status, payload.Errors)
+			}
+			if hasValidationError(payload.Errors, "missing scan node identities") {
+				t.Fatalf("Errors = %#v, missing scan node identity should be covered by decision", payload.Errors)
+			}
+			if !hasValidationError(payload.Errors, "unexpected DB node identities") {
+				t.Fatalf("Errors = %#v, want unexpected canonical DB node", payload.Errors)
+			}
+		})
+	}
+}
+
+func TestValidateBuildReportsCategorySpecificMissingIdentities(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeMatchingScanPackage(t, paths)
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deletes := []string{
+		`DELETE FROM evidence WHERE id = 'E-001'`,
+		`DELETE FROM edges WHERE id = 'EDGE-app-self'`,
+		`DELETE FROM observations WHERE id = 'OBS-app'`,
+		`DELETE FROM path_index WHERE path = 'src/app.go'`,
+	}
+	for _, statement := range deletes {
+		if _, err := st.DB().ExecContext(context.Background(), statement); err != nil {
+			_ = st.Close()
+			t.Fatal(err)
+		}
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	for _, want := range []string{
+		"missing scan evidence identities",
+		"missing scan edge identities",
+		"missing scan observation identities",
+		"missing scan coverage path identities",
+	} {
+		if !hasValidationError(payload.Errors, want) {
+			t.Fatalf("Errors = %#v, want %q", payload.Errors, want)
+		}
+	}
+}
+
+func TestValidateBuildBlocksGenerationMismatchWithRecoveryAction(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeMatchingScanPackage(t, paths)
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
+	writeReadyStatus(t, paths, "GEN-stale")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if payload.Details["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, want rewrite_status_from_db_metadata; details=%#v", payload.Details["recovery_action"], payload.Details)
 	}
 }
 
@@ -243,6 +384,57 @@ func TestValidateBuildBlocksBuildOwnedOrOwnerlessCoverageGap(t *testing.T) {
 	}
 }
 
+func seedMatchingQueryReadyDatabase(t *testing.T, paths rt.Paths, rejections []store.RowDecision, mergeRecords []store.MergeRecord) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-0001",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence:     []store.EvidenceImport{{ID: "E-001", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Span: "L1-L5", Extractor: "test", ContentHash: "hash-app", Attrs: map[string]any{"language": "go"}}},
+		Nodes:        []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-001"}, Attrs: map[string]any{"owner": "app"}}},
+		Edges:        []store.EdgeImport{{ID: "EDGE-app-self", Type: "owns", SourceID: "N-app", TargetID: "N-app", Confidence: "verified", EvidenceIDs: []string{"E-001"}, Attrs: map[string]any{"relation": "self"}}},
+		Observations: []store.ObservationImport{{ID: "OBS-app", ObservationType: "implementation", Summary: "App exists", EvidenceIDs: []string{"E-001"}, Attrs: map[string]any{"source": "test"}}},
+		PathIndex:    []store.PathIndexImport{{ID: "P-001", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-001"}},
+		Rejections:   rejections,
+		MergeRecords: mergeRecords,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedQueryReadyDatabaseWithNodeID(t *testing.T, paths rt.Paths, nodeID string) {
+	t.Helper()
+	seedQueryReadyDatabaseWithNodeIDAndDecisions(t, paths, nodeID, nil, nil)
+}
+
+func seedQueryReadyDatabaseWithNodeIDAndDecisions(t *testing.T, paths rt.Paths, nodeID string, rejections []store.RowDecision, mergeRecords []store.MergeRecord) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-0001",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence:     []store.EvidenceImport{{ID: "E-001", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Span: "L1-L5", Extractor: "test", ContentHash: "hash-app"}},
+		Nodes:        []store.NodeImport{{ID: nodeID, Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-001"}}},
+		PathIndex:    []store.PathIndexImport{{ID: "P-001", Path: "src/app.go", NodeID: nodeID, Relation: "owns", Confidence: "verified", EvidenceID: "E-001"}},
+		Rejections:   rejections,
+		MergeRecords: mergeRecords,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	st, err := store.Open(paths)
@@ -268,6 +460,43 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 		if _, err := db.ExecContext(context.Background(), statement, args[i]...); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func writeMatchingScanPackage(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	files := map[string]string{
+		filepath.Join(paths.RuntimeDir, "evidence", "E-001.json"):                 `{"id":"E-001","source_kind":"file","source_path":"src/app.go","commit_sha":"abc123","span":"L1-L5","extractor":"test","content_hash":"hash-app","attrs":{"language":"go"}}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"):              `{"nodes":[{"id":"N-app","type":"capability","title":"App","confidence":"verified","paths":["src/app.go"],"evidence_ids":["E-001"],"attrs":{"owner":"app"}}]}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "edges.json"):              `{"edges":[{"id":"EDGE-app-self","type":"owns","source_id":"N-app","target_id":"N-app","confidence":"verified","evidence_ids":["E-001"],"attrs":{"relation":"self"}}]}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "observations.json"):       `{"observations":[{"id":"OBS-app","observation_type":"implementation","summary":"App exists","evidence_ids":["E-001"],"attrs":{"source":"test"}}]}`,
+		filepath.Join(paths.RuntimeDir, "coverage.json"):                          `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-scan.md"):               `# Map Scan`,
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"):        `# Coverage Ledger`,
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"): `# Lane 1`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):              `# Map State`,
+		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"):  `{"rows":[{"path":"src/app.go"}]}`,
+	}
+	for path, content := range files {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func writeReadyStatus(t *testing.T, paths rt.Paths, generationID string) {
+	t.Helper()
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.ActiveGenerationID = generationID
+	status.GraphReady = true
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
 	}
 }
 
