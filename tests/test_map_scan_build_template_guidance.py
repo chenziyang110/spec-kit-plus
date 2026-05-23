@@ -167,6 +167,7 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "reverse coverage validation" in lowered
     assert "project-cognition build-from-scan --format json" in content
     assert "project-cognition publish-runtime-metadata --format json" not in content
+    assert "project-cognition complete-refresh --format json" not in content
     assert "project-cognition validate-build --format json" in content
     assert "validate-build" in lowered
     assert "manual sql" in lowered
