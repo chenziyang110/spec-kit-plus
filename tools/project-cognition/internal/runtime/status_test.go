@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,5 +48,28 @@ func TestReadStatusRejectsLegacyRuntime(t *testing.T) {
 	_, err = ReadStatus(paths)
 	if !errors.Is(err, ErrUnsupportedLegacy) {
 		t.Fatalf("expected ErrUnsupportedLegacy, got %v", err)
+	}
+}
+
+func TestWriteStatusUsesGoRuntimeMarker(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := DefaultStatus(paths)
+	status.ActiveGenerationID = "GEN-atomic"
+	if err := WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"runtime_format": "project-cognition-go"`) {
+		t.Fatalf("status payload missing Go runtime marker: %s", data)
 	}
 }
