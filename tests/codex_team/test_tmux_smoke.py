@@ -94,6 +94,9 @@ def test_team_command_dispatch_warns_when_project_cognition_is_dirty(monkeypatch
     status_path = specify_dir / "project-cognition" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     payload["freshness"] = "stale"
+    payload["state"] = "runtime_stale"
+    payload["readiness"] = "review"
+    payload["recommended_next_action"] = "run_map_update"
     payload["dirty"] = True
     payload["dirty_reasons"] = ["shared_surface_changed"]
     status_path.write_text(json.dumps(payload), encoding="utf-8")

@@ -968,6 +968,7 @@ class SkillsIntegrationTests:
         files.append(self.CONTEXT_FILE)
         # Integration metadata
         files += [
+            ".specify/config.json",
             ".specify/init-options.json",
             ".specify/integration.json",
             f".specify/integrations/{self.KEY}.manifest.json",
@@ -978,7 +979,6 @@ class SkillsIntegrationTests:
             ".specify/memory/learnings/INDEX.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
-            ".specify/project-cognition/status.json",
         ]
         # Script variant
         if script_variant == "sh":

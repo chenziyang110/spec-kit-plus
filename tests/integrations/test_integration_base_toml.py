@@ -822,6 +822,7 @@ class TomlIntegrationTests:
         files.append(self.CONTEXT_FILE)
 
         # Framework files
+        files.append(".specify/config.json")
         files.append(".specify/integration.json")
         files.append(".specify/init-options.json")
         files.append(f".specify/integrations/{self.KEY}.manifest.json")
@@ -844,7 +845,6 @@ class TomlIntegrationTests:
         files.append(".specify/memory/learnings/INDEX.md")
         files.append(".specify/memory/project-learnings.md")
         files.append(".specify/memory/project-rules.md")
-        files.append(".specify/project-cognition/status.json")
         return sorted(files)
 
     def test_complete_file_inventory_sh(self, tmp_path):
