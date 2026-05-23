@@ -10,6 +10,14 @@ def _compact(text: str) -> str:
     return " ".join(text.split())
 
 
+def _assert_project_style_standard(content: str) -> None:
+    compact = _compact(content)
+    assert "Follow Project Style and Structure" in content
+    assert "current project's established style, file organization, naming conventions" in compact
+    assert "helper APIs, framework patterns, and architecture boundaries" in compact
+    assert "present the recommendation, trade-offs, and expected impact to the user" in compact
+
+
 def _seed_constitution_template(project_path: Path) -> None:
     source_template = Path(__file__).resolve().parents[1] / "templates" / "constitution-template.md"
     target_template = project_path / ".specify" / "templates" / "constitution-template.md"
@@ -80,9 +88,10 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
         "schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, "
         "or `baseline_identity_invalid`."
     ) in compact_content
+    _assert_project_style_standard(content)
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
-    assert "**Version**: 1.2.0" in content
+    assert "**Version**: 1.3.0" in content
     assert f"**Ratified**: {date.today().isoformat()}" in content
 
 
@@ -122,7 +131,8 @@ def test_ensure_constitution_from_template_materializes_library_profile(tmp_path
     assert "# [PROJECT_NAME] Constitution" in template_content
     assert "Stable Public Surface" in template_content
     assert "[PROJECT_NAME]" not in content
-    assert "**Version**: 1.1.0" in content
+    _assert_project_style_standard(content)
+    assert "**Version**: 1.2.0" in content
     assert f"**Ratified**: {date.today().isoformat()}" in content
 
 
@@ -141,7 +151,8 @@ def test_ensure_constitution_from_template_materializes_minimal_profile(tmp_path
     assert "Project Cognition Before Existing-System Judgment" in content
     assert "scope boundaries" in content
     assert ".specify/project-cognition/status.json" not in content
-    assert "**Version**: 1.1.0" in content
+    _assert_project_style_standard(content)
+    assert "**Version**: 1.2.0" in content
 
 
 def test_ensure_constitution_from_template_materializes_regulated_profile(tmp_path):
@@ -160,7 +171,8 @@ def test_ensure_constitution_from_template_materializes_regulated_profile(tmp_pa
     assert "trust boundaries" in content
     assert "control impact" in content
     assert ".specify/project-cognition/status.json" not in content
-    assert "**Version**: 1.1.0" in content
+    _assert_project_style_standard(content)
+    assert "**Version**: 1.2.0" in content
 
 
 def test_ensure_constitution_from_template_preserves_existing_constitution(tmp_path):

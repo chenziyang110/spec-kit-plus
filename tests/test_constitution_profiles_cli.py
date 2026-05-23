@@ -6,6 +6,14 @@ def _compact(text):
     return " ".join(text.split())
 
 
+def _assert_project_style_standard(content: str) -> None:
+    compact = _compact(content)
+    assert "Follow Project Style and Structure" in content
+    assert "current project's established style, file organization, naming conventions" in compact
+    assert "helper APIs, framework patterns, and architecture boundaries" in compact
+    assert "present the recommendation, trade-offs, and expected impact to the user" in compact
+
+
 def _run_init_for_constitution_profile(tmp_path, project_name, profile=None):
     from typer.testing import CliRunner
     from specify_cli import app
@@ -53,6 +61,7 @@ def test_init_defaults_to_product_constitution_profile(tmp_path):
     assert "Project Cognition Before Existing-System Judgment" in constitution
     assert "agents MUST query project cognition before broad source inspection" in _compact(constitution)
     assert "map-update" in constitution
+    _assert_project_style_standard(constitution)
 
 
 def test_init_with_library_constitution_profile_materializes_project_template(tmp_path):
@@ -76,6 +85,7 @@ def test_init_with_library_constitution_profile_materializes_project_template(tm
     assert "Stable Public Surface" in constitution
     assert "Project Cognition Before Existing-System Judgment" in constitution
     assert "library constitution profile" in result.output.lower()
+    _assert_project_style_standard(constitution)
 
 
 def test_init_with_minimal_constitution_profile_materializes_project_constitution(tmp_path):
@@ -90,6 +100,7 @@ def test_init_with_minimal_constitution_profile_materializes_project_constitutio
     assert "scope boundaries" in constitution
     assert ".specify/project-cognition/status.json" not in constitution
     assert "minimal constitution profile" in result.output.lower()
+    _assert_project_style_standard(constitution)
 
 
 def test_init_with_regulated_constitution_profile_materializes_project_constitution(tmp_path):
@@ -105,6 +116,7 @@ def test_init_with_regulated_constitution_profile_materializes_project_constitut
     assert "control impact" in constitution
     assert ".specify/project-cognition/status.json" not in constitution
     assert "regulated constitution profile" in result.output.lower()
+    _assert_project_style_standard(constitution)
 
 
 def test_init_rejects_unknown_constitution_profile(tmp_path):
