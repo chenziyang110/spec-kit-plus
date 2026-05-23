@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
@@ -69,6 +70,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return jsonOnlyCommand(args[1:], stdout, stderr, validation.ValidateScan(paths))
 	case "validate-build":
 		return jsonOnlyCommand(args[1:], stdout, stderr, validation.ValidateBuild(paths))
+	case "build-from-scan", "import-scan", "rebuild-from-scan":
+		return buildFromScanCommand(args[1:], stdout, stderr, paths)
 	case "publish-runtime-metadata":
 		return publishMetadataCommand(args[1:], stdout, stderr, paths)
 	case "update":
@@ -94,7 +97,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -199,6 +202,21 @@ func jsonOnlyCommand(args []string, stdout io.Writer, stderr io.Writer, payload 
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	return writeJSON(stdout, payload)
+}
+
+func buildFromScanCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("build-from-scan", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := build.Run(paths)
+	if err != nil && payload.Status == "" {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
 	}
 	return writeJSON(stdout, payload)
 }
