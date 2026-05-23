@@ -9,7 +9,6 @@ adapted for TOML output format.
 """
 
 import os
-import re
 import tomllib
 
 import pytest
@@ -108,9 +107,9 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "project-cognition query --intent discussion" in command_content
     assert "project-cognition query --intent plan" not in command_content
     assert "ui-interaction-discussion" in command_content
-    assert "optional UI and interaction discussion" in command_content
-    assert "senior UI and interaction designer" in command_content
-    assert "ASCII sketches" in command_content
+    assert "optional ui and interaction discussion" in command_lower
+    assert "senior ui and interaction designer" in command_lower
+    assert "ascii sketches" in command_lower
     assert "ui_sketches_present" in command_content
     assert "ordinary turns append" in command_lower
     assert "semantic checkpoints" in command_lower

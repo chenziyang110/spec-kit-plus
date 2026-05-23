@@ -581,7 +581,7 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     assert "optional ui and interaction discussion" in shell_lower
     assert "ui_discussion_status" in shell
     assert "preserve" in shell_lower
-    assert "mandatory handoff gate" in shell_lower
+    assert "not a mandatory handoff gate" in shell_lower
     assert "ui_sketches_present" in shell
     assert "ui_sketch_summary" in shell
     assert "ui_sketch_reference" in shell_lower
