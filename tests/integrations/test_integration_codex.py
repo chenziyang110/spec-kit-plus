@@ -851,10 +851,16 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "codex subagent evidence collection" in content
-    assert "project-cognition lexicon --intent debug" in content
-    assert "project-cognition query --intent debug" in content
+    assert "lexicon --intent debug" in content
+    assert "query --intent debug" in content
     assert "--query-plan" in content
     assert "minimal_live_reads" in content
+    assert "execution_model: leader-inline | subagent-assisted | blocked" in content
+    assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content
+    assert "execution_surface: leader-inline | native-subagents | none" in content
+    assert "small focused investigation" in content
+    assert "subagent-assisted" in content
+    assert "execution_surface: none" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
     assert "symptom-to-surface-routing" not in content
@@ -1008,8 +1014,8 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "do not read constitution, project-rules, or project-learnings" in content
     assert "leave `.specify/memory/learnings/index.md`" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
-    assert "project-cognition lexicon --intent implement" in content
-    assert "project-cognition query --intent implement" in content
+    assert "lexicon --intent implement" in content
+    assert "query --intent implement" in content
     assert "--query-plan" in content
     assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
@@ -1050,8 +1056,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".specify/memory/learnings/index.md" in content
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
-    assert "project-cognition lexicon --intent implement" in content
-    assert "project-cognition query --intent implement" in content
+    assert "lexicon --intent implement" in content
+    assert "query --intent implement" in content
     assert "--query-plan" in content
     assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
@@ -1069,7 +1075,13 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "wait_agent" in content
     assert "close_agent" in content
     assert "managed-team" in content
-    assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
+    assert "understanding checkpoint" in content
+    assert "understanding_confirmed: true" in content
+    assert "problem understood" in content
+    assert "planned outcome" in content
+    assert "scope boundary" in content
+    assert "execution approach" in content
+    assert "confirmed_validation" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
     assert "dispatch to one subagent with a task contract" in content or "one-subagent" in content

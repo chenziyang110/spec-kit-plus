@@ -27,7 +27,8 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert ".planning/quick/index.json" in body
     assert 'choose_subagent_dispatch(command_name="quick"' in body
     assert "read `.specify/memory/constitution.md` first" in body
-    assert "execution_model: subagent-mandatory" in body
+    assert "understanding checkpoint" in body
+    assert "understanding_confirmed: true" in body
     assert "dispatch_shape: one-subagent | parallel-subagents" in body
     assert "execution_surface: native-subagents" in body
     assert "one-subagent" in body
@@ -41,7 +42,10 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert "close_agent" in body
     assert "managed team" in body
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in body
-    assert "the next concrete action must be dispatch" in body or "first actionable execution step after scope lock is to dispatch" in body
+    assert (
+        "the next concrete action must be dispatch" in body
+        or "first actionable execution step after scope lock and understanding confirmation is to dispatch" in body
+    )
     assert "materially improve throughput" in body
     assert "blocked_dispatch" in body
     assert "continue automatically until the quick task is complete or blocked" in body
