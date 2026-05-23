@@ -230,6 +230,10 @@ class TestCodexAutoPromote:
         assert "project-cognition lexicon --intent discussion" in generated_discussion
         assert "project-cognition query --intent discussion" in generated_discussion
         assert "project-cognition query --intent plan" not in generated_discussion
+        assert "ui-interaction-discussion" in generated_discussion
+        assert "senior UI and interaction designer" in generated_discussion
+        assert "ASCII sketches" in generated_discussion
+        assert "ui_sketches_present" in generated_discussion
         assert "ordinary turns append" in generated_lower
         assert "semantic checkpoints" in generated_lower
         assert "draft handoff package can be produced" in generated_lower
@@ -238,6 +242,10 @@ class TestCodexAutoPromote:
 
         assert "latest_event_checkpoint:" in state_template
         assert "latest_cognition_readiness:" in state_template
+        assert (
+            "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred"
+            in state_template
+        )
         assert "handoff-to-specify.md draft after explicit user request and boundary lock" in state_template
 
         source_contract = handoff_template["source_evidence_contract"]

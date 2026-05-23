@@ -489,6 +489,10 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "sp-discussion" in content
     assert "senior technical expert" in lowered
     assert "senior product manager" in lowered
+    assert "senior UI and interaction designer" in content
+    assert "15 years" in content
+    assert "ui-interaction-discussion" in content
+    assert "ASCII sketches" in content
     assert ".specify/discussions/<slug>/" in content
     assert "discussion-state.md" in content
     assert "discussion-log.md" in content
@@ -550,6 +554,27 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "minimal viable path" not in lowered
     assert "scope reduction requires user confirmation" in lowered
     assert "2-3" in content
+
+
+def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    state = _read("templates/discussion-state-template.md")
+    combined = "\n".join([content, shell, state])
+    lowered = combined.lower()
+
+    assert "ui-interaction-discussion" in combined
+    assert "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred" in state
+    assert "after functional discussion is stable" in lowered
+    assert "optional ui and interaction discussion" in lowered
+    assert "senior ui and interaction designer" in lowered
+    assert "15 years" in combined
+    assert "ascii sketches" in lowered
+    assert "markdown is the primary carrier" in lowered
+    assert "ui_sketches_present" in combined
+    assert "ui_sketch_summary" in combined
+    assert "ui_sketch_reference" in combined
+    assert "not a blocking gate" in lowered or "not a blocker" in lowered
 
 
 def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
@@ -622,6 +647,8 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "active_command: sp-discussion" in content
     assert "phase_mode: discussion-only" in content
     assert "status: active | blocked | handoff-ready | completed | abandoned" in content
+    assert "ui-interaction-discussion" in content
+    assert "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred" in content
     assert "updated_at:" in content
     assert "## Allowed Artifact Writes" in content
     assert "discussion-state.md" in content
