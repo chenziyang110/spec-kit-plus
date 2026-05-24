@@ -177,6 +177,7 @@ func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
 
 func TestRunUpdateKeepsIgnoredPathsOutOfMinimalLiveReads(t *testing.T) {
 	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
 	if err := os.WriteFile(filepath.Join(paths.Root, ".cognitionignore"), []byte("vendor/\n"), 0o644); err != nil {
 		t.Fatalf("write .cognitionignore: %v", err)
 	}
@@ -201,6 +202,26 @@ func TestRunUpdateKeepsIgnoredPathsOutOfMinimalLiveReads(t *testing.T) {
 	}
 	if _, ok := accounting["vendor/a.go"]; !ok {
 		t.Fatalf("path_accounting = %#v, want vendor/a.go", accounting)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var changedPathsJSON string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT changed_paths_json FROM updates WHERE id = ?`, payload.UpdateID).Scan(&changedPathsJSON); err != nil {
+		t.Fatal(err)
+	}
+	var recordedChangedPaths []string
+	if err := json.Unmarshal([]byte(changedPathsJSON), &recordedChangedPaths); err != nil {
+		t.Fatalf("parse recorded changed paths: %v", err)
+	}
+	if !containsString(recordedChangedPaths, "src/a.go") {
+		t.Fatalf("recorded changed paths = %v, want src/a.go", recordedChangedPaths)
+	}
+	if containsString(recordedChangedPaths, "vendor/a.go") {
+		t.Fatalf("recorded changed paths = %v, did not want vendor/a.go", recordedChangedPaths)
 	}
 }
 
