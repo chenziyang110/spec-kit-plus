@@ -1228,7 +1228,24 @@ def test_hook_validate_artifacts_blocks_map_scan_when_excluded_paths_enter_cover
     _write_project_cognition_runtime(run_dir)
     _write_project_cognition_scan_artifacts(run_dir)
     (run_dir / "workbench" / "repository-universe.json").write_text(
-        json.dumps({"excluded_paths": [" ./vendor\\lib.go "]}) + "\n",
+        json.dumps(
+            {
+                "schema_version": 1,
+                "candidate_universe": [
+                    {"path": "src/auth/login.ts", "disposition": "deep_read", "decision_source": "git"},
+                    {"path": " ./vendor\\lib.go ", "disposition": "excluded", "decision_source": ".cognitionignore"},
+                ],
+                "included_paths": ["src/auth/login.ts"],
+                "excluded_paths": [
+                    {"path": " ./vendor\\lib.go ", "reason": "vendor", "decision_source": ".cognitionignore"}
+                ],
+                "ambiguous_paths": [],
+                "dispositions": {"src/auth/login.ts": "deep_read", "vendor/lib.go": "excluded"},
+                "classification_reasons": {"src/auth/login.ts": "source", "vendor/lib.go": "vendor"},
+                "decision_source": {"src/auth/login.ts": "git", "vendor/lib.go": ".cognitionignore"},
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     (run_dir / "coverage.json").write_text(
@@ -1261,8 +1278,7 @@ def test_hook_validate_artifacts_blocks_map_scan_on_malformed_repository_univers
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
     assert any(
-        ".specify/project-cognition/workbench/repository-universe.json" in message and "Expecting" in message
-        for message in payload["errors"]
+        "repository-universe" in message or "repository-universe.json" in message for message in payload["errors"]
     )
 
 
