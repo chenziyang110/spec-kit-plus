@@ -182,6 +182,54 @@ func TestValidateBuildAcceptsQueryReadyDatabase(t *testing.T) {
 	}
 }
 
+func TestValidateBuildBlocksExcludedBoundaryPathInDB(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeMatchingScanPackage(t, paths)
+	if err := os.WriteFile(
+		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"),
+		[]byte(`{
+			"schema_version":1,
+			"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"vendor/lib.go","disposition":"excluded","decision_source":".cognitionignore"}],
+			"included_paths":["src/app.go"],
+			"excluded_paths":[{"path":"vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
+			"ambiguous_paths":[],
+			"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+			"classification_reasons":{"src/app.go":"source file","vendor/lib.go":"vendor"},
+			"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
+		}`+"\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(
+		context.Background(),
+		`INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-vendor', 'GEN-0001', 'vendor/lib.go', 'N-app', 'owns', 'verified', 'E-001', ?)`,
+		time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "excluded boundary path vendor/lib.go must not enter project cognition graph store") {
+		t.Fatalf("Errors = %#v, want excluded boundary path leakage error", payload.Errors)
+	}
+}
+
 func TestValidateBuildBlocksMissingScanNodeIdentity(t *testing.T) {
 	paths := validationTestPaths(t)
 	writeBuildAcceptanceInputs(t, paths)

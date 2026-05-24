@@ -3,6 +3,7 @@ package validation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -333,17 +334,8 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		}
 	}
 
-	checks := []struct {
-		table  string
-		column string
-	}{
-		{table: "path_index", column: "path"},
-		{table: "evidence", column: "source_path"},
-		{table: "symbol_index", column: "path"},
-		{table: "entrypoint_index", column: "path"},
-		{table: "test_index", column: "test_path"},
-	}
-	for _, check := range checks {
+	excludedPaths := excludedBoundaryPaths(paths)
+	for _, check := range graphPathTableChecks() {
 		rows, err := db.Query("SELECT " + check.column + " FROM " + check.table)
 		if err != nil {
 			errors = append(errors, err.Error())
@@ -356,10 +348,18 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 				errors = append(errors, err.Error())
 				break
 			}
-			if raw.Valid && strings.HasPrefix(filepath.ToSlash(strings.TrimSpace(raw.String)), ".specify/") {
-				_ = rows.Close()
-				errors = append(errors, ".specify/** must not enter project cognition graph store")
-				break
+			if raw.Valid {
+				normalized := filepath.ToSlash(strings.TrimSpace(raw.String))
+				if strings.HasPrefix(normalized, ".specify/") {
+					_ = rows.Close()
+					errors = append(errors, ".specify/** must not enter project cognition graph store")
+					break
+				}
+				if excludedPaths[normalized] {
+					_ = rows.Close()
+					errors = append(errors, fmt.Sprintf("excluded boundary path %s must not enter project cognition graph store", normalized))
+					break
+				}
 			}
 		}
 		if err := rows.Close(); err != nil {
@@ -367,6 +367,55 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		}
 	}
 	return details, errors
+}
+
+func excludedBoundaryPaths(paths rt.Paths) map[string]bool {
+	boundaryPath := filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json")
+	raw, err := os.ReadFile(boundaryPath)
+	if err != nil {
+		return map[string]bool{}
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return map[string]bool{}
+	}
+	rawExcluded, ok := obj["excluded_paths"].([]any)
+	if !ok {
+		return map[string]bool{}
+	}
+	excluded := map[string]bool{}
+	for _, entry := range rawExcluded {
+		path := ""
+		switch value := entry.(type) {
+		case string:
+			path = value
+		case map[string]any:
+			if rawPath, ok := value["path"].(string); ok {
+				path = rawPath
+			}
+		}
+		normalized := filepath.ToSlash(strings.TrimSpace(path))
+		if normalized != "" {
+			excluded[normalized] = true
+		}
+	}
+	return excluded
+}
+
+func graphPathTableChecks() []struct {
+	table  string
+	column string
+} {
+	return []struct {
+		table  string
+		column string
+	}{
+		{table: "path_index", column: "path"},
+		{table: "evidence", column: "source_path"},
+		{table: "symbol_index", column: "path"},
+		{table: "entrypoint_index", column: "path"},
+		{table: "test_index", column: "test_path"},
+	}
 }
 
 func shouldReportGraphGenerationMismatch(status rt.Status, activeGenerationID string, agreement runtimegate.Agreement) bool {
