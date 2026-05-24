@@ -1277,9 +1277,7 @@ def test_hook_validate_artifacts_blocks_map_scan_on_malformed_repository_univers
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any(
-        "repository-universe" in message or "repository-universe.json" in message for message in payload["errors"]
-    )
+    assert ".specify/project-cognition/workbench/repository-universe.json: malformed JSON" in payload["errors"]
 
 
 def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_evidence_files(tmp_path: Path):

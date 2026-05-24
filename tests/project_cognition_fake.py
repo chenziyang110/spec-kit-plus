@@ -207,8 +207,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 if universe_path.exists():
                     try:
                         universe = json.loads(universe_path.read_text(encoding="utf-8"))
-                    except json.JSONDecodeError as exc:
-                        errors.append(f"{universe_rel}: {exc}")
+                    except json.JSONDecodeError:
+                        errors.append(f"{universe_rel}: malformed JSON")
                     else:
                         if isinstance(universe, dict):
                             excluded_paths = set()
