@@ -149,6 +149,12 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
 
 
             def _validate_scan():
+                def _normalize_path(value):
+                    normalized = str(value).replace("\\", "/").strip()
+                    while normalized.startswith("./"):
+                        normalized = normalized[2:].strip()
+                    return normalized
+
                 required = [
                     ".specify/project-cognition/evidence",
                     ".specify/project-cognition/status.json",
@@ -178,6 +184,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         except json.JSONDecodeError as exc:
                             errors.append(f"{rel}: {exc}")
                 coverage_path = Path.cwd() / ".specify/project-cognition/coverage.json"
+                coverage_paths = set()
                 if coverage_path.exists():
                     try:
                         coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
@@ -186,11 +193,32 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                             errors.append("coverage.json must define a top-level rows array")
                         else:
                             for row in rows:
-                                if isinstance(row, dict) and str(row.get("path", "")).replace("\\\\", "/").startswith(".specify/"):
-                                    errors.append(".specify/** must not enter project cognition graph evidence")
-                                    break
+                                if isinstance(row, dict):
+                                    row_path = _normalize_path(row.get("path", ""))
+                                    if row_path:
+                                        coverage_paths.add(row_path)
+                                    if row_path.startswith(".specify/"):
+                                        errors.append(".specify/** must not enter project cognition graph evidence")
+                                        break
                     except json.JSONDecodeError:
                         pass
+                universe_rel = ".specify/project-cognition/workbench/repository-universe.json"
+                universe_path = Path.cwd() / universe_rel
+                if universe_path.exists():
+                    try:
+                        universe = json.loads(universe_path.read_text(encoding="utf-8"))
+                    except json.JSONDecodeError as exc:
+                        errors.append(f"{universe_rel}: {exc}")
+                    else:
+                        if isinstance(universe, dict):
+                            excluded_paths = set()
+                            for item in universe.get("excluded_paths", []):
+                                value = item.get("path") if isinstance(item, dict) else item
+                                path = _normalize_path(value)
+                                if path:
+                                    excluded_paths.add(path)
+                            for path in sorted(excluded_paths & coverage_paths):
+                                errors.append(f"excluded path {path} must not appear in coverage.json")
                 evidence_dir = Path.cwd() / ".specify/project-cognition/evidence"
                 if evidence_dir.exists():
                     for evidence_path in evidence_dir.rglob("*.json"):

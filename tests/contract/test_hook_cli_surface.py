@@ -1222,6 +1222,50 @@ def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_graph_
     assert any(".specify/** must not enter project cognition graph evidence" in message for message in payload["errors"])
 
 
+def test_hook_validate_artifacts_blocks_map_scan_when_excluded_paths_enter_coverage(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps({"excluded_paths": [" ./vendor\\lib.go "]}) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "coverage.json").write_text(
+        json.dumps({"rows": [{"path": "vendor/lib.go", "criticality": "excluded"}]}) + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("excluded path vendor/lib.go must not appear in coverage.json" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_scan_on_malformed_repository_universe(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "repository-universe.json").write_text("{broken\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(
+        ".specify/project-cognition/workbench/repository-universe.json" in message and "Expecting" in message
+        for message in payload["errors"]
+    )
+
+
 def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_evidence_files(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
