@@ -420,6 +420,30 @@ func TestValidateBlocksBlockedCandidateMissingFromBoundaryLists(t *testing.T) {
 	}
 }
 
+func TestValidateBlocksBlockedCandidateInIncludedPaths(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"src/blocked.go","disposition":"blocked","decision_source":"scan"}],
+		"included_paths":["src/app.go","src/blocked.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","src/blocked.go":"blocked"},
+		"classification_reasons":{"src/app.go":"source","src/blocked.go":"ambiguous"},
+		"decision_source":{"src/app.go":"git","src/blocked.go":"scan"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe candidate path src/blocked.go with blocked disposition must be listed in ambiguous_paths") {
+		t.Fatalf("Errors = %#v, want blocked candidate ambiguous membership error", result.Errors)
+	}
+}
+
 func TestValidateBlocksIncludedAndAmbiguousOverlap(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

@@ -584,6 +584,10 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 			if coveragePaths[path] {
 				result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in coverage.json", path))
 			}
+		case disposition == "blocked":
+			if !boundary.AmbiguousPaths[path] {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s with blocked disposition must be listed in ambiguous_paths", path))
+			}
 		}
 	}
 	for path := range boundary.IncludedPaths {
