@@ -39,6 +39,7 @@ type Package struct {
 
 type Boundary struct {
 	SchemaVersion         int
+	LegacyRows            bool
 	CandidatePaths        map[string]string
 	IncludedPaths         map[string]bool
 	ExcludedPaths         map[string]bool
@@ -402,6 +403,7 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 		return boundary
 	}
 	if rows, ok := obj["rows"]; ok {
+		boundary.LegacyRows = true
 		boundary.CandidatePaths = boundaryCandidatePaths(rows)
 		for path := range boundary.CandidatePaths {
 			boundary.IncludedPaths[path] = true
@@ -482,6 +484,9 @@ func boundaryCandidatePaths(value any) map[string]string {
 }
 
 func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
+	if boundary.LegacyRows {
+		return
+	}
 	coveragePaths := map[string]bool{}
 	for _, path := range pkg.CoveragePaths {
 		coveragePaths[path] = true

@@ -163,6 +163,18 @@ func TestValidateAcceptsBoundaryExcludedPathOutsideCoverage(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsLegacyRowsUniverseWithoutStrictCoverageMatch(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"rows":[{"path":"src/renamed.go"}]}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+}
+
 func TestValidateAcceptsIncludedPathCoveredByAcceptedGapPath(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
