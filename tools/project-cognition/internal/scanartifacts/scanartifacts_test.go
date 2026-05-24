@@ -142,6 +142,73 @@ func TestValidateBlocksExcludedPathInCoverage(t *testing.T) {
 	}
 }
 
+func TestValidateBlocksExcludedPathInEvidence(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "evidence", "E-002.json"), []byte(`{
+		"id":"E-002",
+		"source_kind":"file",
+		"source_path":"vendor/lib.go",
+		"commit_sha":"abc123",
+		"span":"L1-L5",
+		"extractor":"test",
+		"content_hash":"hash-vendor",
+		"attrs":{"language":"go"}
+	}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"vendor/lib.go","disposition":"excluded","decision_source":".cognitionignore"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":["vendor/lib.go"],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
+		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "excluded path vendor/lib.go must not appear in evidence source paths") {
+		t.Fatalf("Errors = %#v, want excluded evidence path error", result.Errors)
+	}
+}
+
+func TestValidateBlocksExcludedPathInNodePaths(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), []byte(`{"nodes":[{
+		"id":"N-app",
+		"type":"capability",
+		"title":"App",
+		"confidence":"verified",
+		"paths":["src/app.go","vendor/lib.go"],
+		"evidence_ids":["E-001"],
+		"attrs":{"owner":"app"}
+	}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"vendor/lib.go","disposition":"excluded","decision_source":".cognitionignore"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":["vendor/lib.go"],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
+		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "excluded path vendor/lib.go must not appear in node paths") {
+		t.Fatalf("Errors = %#v, want excluded node path error", result.Errors)
+	}
+}
+
 func TestValidateAcceptsBoundaryExcludedPathOutsideCoverage(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -160,6 +227,31 @@ func TestValidateAcceptsBoundaryExcludedPathOutsideCoverage(t *testing.T) {
 
 	if result.Status != "ok" {
 		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+}
+
+func TestValidateBlocksCoveragePathOutsideBoundary(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"rows":[{"path":"src/app.go"},{"path":"src/extra.go"}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read"},
+		"classification_reasons":{"src/app.go":"source"},
+		"decision_source":{"src/app.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "coverage path src/extra.go must be listed in repository-universe candidate_universe and included_paths with coverage-eligible disposition") {
+		t.Fatalf("Errors = %#v, want coverage outside boundary error", result.Errors)
 	}
 }
 
@@ -301,6 +393,54 @@ func TestValidateBlocksPathInIncludedAndExcludedPaths(t *testing.T) {
 	}
 	if !containsError(result.Errors, "repository-universe path src/app.go must not appear in both included_paths and excluded_paths") {
 		t.Fatalf("Errors = %#v, want conflicting boundary list error", result.Errors)
+	}
+}
+
+func TestValidateBlocksBlockedCandidateMissingFromBoundaryLists(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"src/blocked.go","disposition":"blocked","decision_source":"scan"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","src/blocked.go":"blocked"},
+		"classification_reasons":{"src/app.go":"source","src/blocked.go":"ambiguous"},
+		"decision_source":{"src/app.go":"git","src/blocked.go":"scan"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe candidate path src/blocked.go must appear in exactly one boundary list") {
+		t.Fatalf("Errors = %#v, want missing candidate list membership error", result.Errors)
+	}
+}
+
+func TestValidateBlocksIncludedAndAmbiguousOverlap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":["src/app.go"],
+		"dispositions":{"src/app.go":"deep_read"},
+		"classification_reasons":{"src/app.go":"source"},
+		"decision_source":{"src/app.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe path src/app.go must not appear in both included_paths and ambiguous_paths") {
+		t.Fatalf("Errors = %#v, want included ambiguous overlap error", result.Errors)
 	}
 }
 
@@ -498,6 +638,30 @@ func TestValidateBlocksVersionedBoundaryNonNumericSchemaVersion(t *testing.T) {
 	}
 	if !containsError(result.Errors, "repository-universe schema_version must be a number") {
 		t.Fatalf("Errors = %#v, want non-numeric schema_version error", result.Errors)
+	}
+}
+
+func TestValidateBlocksMismatchedCandidateAndDispositionMap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"sampled"},
+		"classification_reasons":{"src/app.go":"source"},
+		"decision_source":{"src/app.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe candidate path src/app.go disposition deep_read conflicts with dispositions map sampled") {
+		t.Fatalf("Errors = %#v, want disposition mismatch error", result.Errors)
 	}
 }
 

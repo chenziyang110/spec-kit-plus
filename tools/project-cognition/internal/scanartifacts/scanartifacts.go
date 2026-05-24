@@ -548,8 +548,13 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 	validateBoundaryListCandidates("included", boundary.IncludedPaths, boundary.CandidatePaths, result)
 	validateBoundaryListCandidates("excluded", boundary.ExcludedPaths, boundary.CandidatePaths, result)
 	validateBoundaryListCandidates("ambiguous", boundary.AmbiguousPaths, boundary.CandidatePaths, result)
+	validateCoveragePathsInBoundary(coveragePaths, boundary, result)
 	for path, candidateDisposition := range boundary.CandidatePaths {
 		disposition := boundary.Dispositions[path]
+		if disposition != "" && candidateDisposition != "" && disposition != candidateDisposition {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s disposition %s conflicts with dispositions map %s", path, candidateDisposition, disposition))
+			continue
+		}
 		if disposition == "" {
 			disposition = candidateDisposition
 		}
@@ -560,6 +565,9 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 		if !validBoundaryDisposition(disposition) {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s has invalid disposition %s", path, disposition))
 			continue
+		}
+		if boundaryListMembershipCount(path, boundary) != 1 {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s must appear in exactly one boundary list", path))
 		}
 		switch {
 		case includedDispositionRequiresCoverage(disposition):
@@ -581,6 +589,14 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 	for path := range boundary.IncludedPaths {
 		if boundary.ExcludedPaths[path] {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe path %s must not appear in both included_paths and excluded_paths", path))
+		}
+		if boundary.AmbiguousPaths[path] {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe path %s must not appear in both included_paths and ambiguous_paths", path))
+		}
+	}
+	for path := range boundary.ExcludedPaths {
+		if boundary.AmbiguousPaths[path] {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe path %s must not appear in both excluded_paths and ambiguous_paths", path))
 		}
 	}
 	for path := range boundary.IncludedPaths {
@@ -620,7 +636,51 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 		if coveragePaths[path] {
 			result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in coverage.json", path))
 		}
+		validateExcludedPathNotInGraphArtifacts(path, pkg, result)
 	}
+}
+
+func validateCoveragePathsInBoundary(coveragePaths map[string]bool, boundary Boundary, result *Result) {
+	for path := range coveragePaths {
+		disposition := boundary.Dispositions[path]
+		if disposition == "" {
+			disposition = boundary.CandidatePaths[path]
+		}
+		if _, ok := boundary.CandidatePaths[path]; !ok ||
+			!boundary.IncludedPaths[path] ||
+			!includedDispositionRequiresCoverage(disposition) {
+			result.Errors = append(result.Errors, fmt.Sprintf("coverage path %s must be listed in repository-universe candidate_universe and included_paths with coverage-eligible disposition", path))
+		}
+	}
+}
+
+func validateExcludedPathNotInGraphArtifacts(path string, pkg Package, result *Result) {
+	for _, row := range pkg.Evidence {
+		if row.SourcePath == path {
+			result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in evidence source paths", path))
+		}
+	}
+	for _, row := range pkg.Nodes {
+		for _, nodePath := range row.Paths {
+			if nodePath == path {
+				result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in node paths", path))
+			}
+		}
+	}
+}
+
+func boundaryListMembershipCount(path string, boundary Boundary) int {
+	count := 0
+	if boundary.IncludedPaths[path] {
+		count++
+	}
+	if boundary.ExcludedPaths[path] {
+		count++
+	}
+	if boundary.AmbiguousPaths[path] {
+		count++
+	}
+	return count
 }
 
 func validateBoundaryListCandidates(label string, paths map[string]bool, candidates map[string]string, result *Result) {
