@@ -206,6 +206,9 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	changed = normalizePaths(changed)
 	matcher := ignore.Load(paths.Root)
 	kept, ignored := matcher.Filter(changed)
+	kept = normalizePaths(kept)
+	ignored = normalizePaths(ignored)
+	pathAccounting := updatePathAccounting(kept, ignored)
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 
 	st, err := store.OpenExisting(paths)
@@ -249,9 +252,10 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	}
 
 	pathAdoption := map[string]any{
-		"adopted":      kept,
-		"ignored":      ignored,
-		"needs_review": kept,
+		"adopted":         kept,
+		"ignored":         ignored,
+		"needs_review":    kept,
+		"path_accounting": pathAccounting,
 	}
 	return UpdatePayload{
 		Readiness:               status.Readiness,
@@ -358,10 +362,32 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 		PathAdoption: map[string]any{
 			"phase":                "boundary_only",
 			"auto_commit_decision": result.AutoCommitDecision,
+			"path_accounting":      result.PathAccounting,
 		},
 		LastRefreshChangedBasis: result.ChangedPaths,
 		Boundary:                &result,
 	}, nil
+}
+
+func updatePathAccounting(kept []string, ignored []string) map[string]boundary.PathAccounting {
+	accounting := make(map[string]boundary.PathAccounting, len(kept)+len(ignored))
+	for _, path := range kept {
+		accounting[path] = boundary.PathAccounting{
+			Path:           path,
+			Disposition:    "updated",
+			DecisionSource: "changed_paths",
+			Reason:         "kept for project cognition update",
+		}
+	}
+	for _, path := range ignored {
+		accounting[path] = boundary.PathAccounting{
+			Path:           path,
+			Disposition:    "ignored",
+			DecisionSource: ".cognitionignore",
+			Reason:         "matched cognition ignore rule",
+		}
+	}
+	return accounting
 }
 
 func forceBoundaryOnlyAutoCommitDecision(result *boundary.Result) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/boundary"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
@@ -171,6 +172,35 @@ func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
 	}
 	if payload.Boundary.BoundarySource != "delta_journal" {
 		t.Fatalf("BoundarySource = %q, want delta_journal", payload.Boundary.BoundarySource)
+	}
+}
+
+func TestRunUpdateKeepsIgnoredPathsOutOfMinimalLiveReads(t *testing.T) {
+	paths := testPaths(t)
+	if err := os.WriteFile(filepath.Join(paths.Root, ".cognitionignore"), []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatalf("write .cognitionignore: %v", err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/a.go", "vendor/a.go"},
+		Reason:       "manual",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if containsString(payload.MinimalLiveReads, "vendor/a.go") {
+		t.Fatalf("MinimalLiveReads = %v, did not want vendor/a.go", payload.MinimalLiveReads)
+	}
+	if !containsString(payload.IgnoredPaths, "vendor/a.go") {
+		t.Fatalf("IgnoredPaths = %v, want vendor/a.go", payload.IgnoredPaths)
+	}
+	accounting, ok := payload.PathAdoption["path_accounting"].(map[string]boundary.PathAccounting)
+	if !ok {
+		t.Fatalf("path_accounting = %#v, want map[string]boundary.PathAccounting", payload.PathAdoption["path_accounting"])
+	}
+	if _, ok := accounting["vendor/a.go"]; !ok {
+		t.Fatalf("path_accounting = %#v, want vendor/a.go", accounting)
 	}
 }
 

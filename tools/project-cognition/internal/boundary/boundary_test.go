@@ -132,6 +132,37 @@ func TestIgnoredPathsAreRemoved(t *testing.T) {
 	}
 }
 
+func TestResolveReportsPerPathAccounting(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatalf("write .cognitionignore: %v", err)
+	}
+
+	result := Resolve(ResolveInput{
+		Root: root,
+		Config: config.Config{
+			ProjectCognition: config.ProjectCognitionConfig{AutoCommit: true},
+		},
+		Bundle: delta.Bundle{
+			Events: []delta.Event{
+				{ChangedPaths: []string{"src/a.go", "vendor/a.go"}},
+			},
+		},
+	})
+
+	updated := result.PathAccounting["src/a.go"]
+	if updated.Disposition != "updated" {
+		t.Fatalf("src/a.go disposition = %q, want updated", updated.Disposition)
+	}
+	ignored := result.PathAccounting["vendor/a.go"]
+	if ignored.Disposition != "ignored" {
+		t.Fatalf("vendor/a.go disposition = %q, want ignored", ignored.Disposition)
+	}
+	if ignored.DecisionSource == "" {
+		t.Fatalf("vendor/a.go DecisionSource is empty")
+	}
+}
+
 func TestLocalProjectCognitionIgnorePathsAreRemoved(t *testing.T) {
 	root := t.TempDir()
 	ignoreDir := filepath.Join(root, ".specify", "project-cognition")

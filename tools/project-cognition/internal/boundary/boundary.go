@@ -19,14 +19,22 @@ type ResolveInput struct {
 }
 
 type Result struct {
-	Outcome            string   `json:"outcome"`
-	AutoCommitDecision string   `json:"auto_commit_decision"`
-	BoundarySource     string   `json:"boundary_source"`
-	ChangedPaths       []string `json:"changed_paths"`
-	WorkflowOwnedPaths []string `json:"workflow_owned_paths"`
-	AmbiguousPaths     []string `json:"ambiguous_paths"`
-	IgnoredPaths       []string `json:"ignored_paths"`
-	Warnings           []string `json:"warnings"`
+	Outcome            string                    `json:"outcome"`
+	AutoCommitDecision string                    `json:"auto_commit_decision"`
+	BoundarySource     string                    `json:"boundary_source"`
+	ChangedPaths       []string                  `json:"changed_paths"`
+	WorkflowOwnedPaths []string                  `json:"workflow_owned_paths"`
+	AmbiguousPaths     []string                  `json:"ambiguous_paths"`
+	IgnoredPaths       []string                  `json:"ignored_paths"`
+	PathAccounting     map[string]PathAccounting `json:"path_accounting"`
+	Warnings           []string                  `json:"warnings"`
+}
+
+type PathAccounting struct {
+	Path           string `json:"path"`
+	Disposition    string `json:"disposition"`
+	DecisionSource string `json:"decision_source"`
+	Reason         string `json:"reason"`
 }
 
 func Resolve(input ResolveInput) Result {
@@ -47,14 +55,35 @@ func Resolve(input ResolveInput) Result {
 
 	owned := make([]string, 0, len(kept))
 	ambiguous := make([]string, 0)
+	accounting := make(map[string]PathAccounting, len(kept)+len(ignored))
+	for _, path := range ignored {
+		accounting[path] = PathAccounting{
+			Path:           path,
+			Disposition:    "ignored",
+			DecisionSource: ".cognitionignore",
+			Reason:         "matched cognition ignore rule",
+		}
+	}
 	for _, path := range kept {
 		if _, wasInitiallyDirty := initialDirty[path]; wasInitiallyDirty {
 			if _, isClaimed := claimed[path]; !isClaimed {
 				ambiguous = append(ambiguous, path)
+				accounting[path] = PathAccounting{
+					Path:           path,
+					Disposition:    "partial",
+					DecisionSource: boundarySource,
+					Reason:         "ambiguous_initial_dirty_path",
+				}
 				continue
 			}
 		}
 		owned = append(owned, path)
+		accounting[path] = PathAccounting{
+			Path:           path,
+			Disposition:    "updated",
+			DecisionSource: boundarySource,
+			Reason:         "kept for project cognition update",
+		}
 	}
 
 	owned = normalizePaths(owned)
@@ -81,6 +110,7 @@ func Resolve(input ResolveInput) Result {
 		WorkflowOwnedPaths: owned,
 		AmbiguousPaths:     ambiguous,
 		IgnoredPaths:       ignored,
+		PathAccounting:     accounting,
 		Warnings:           warnings,
 	}
 }
