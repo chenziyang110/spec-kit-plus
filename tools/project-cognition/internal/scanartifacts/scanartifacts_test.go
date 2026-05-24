@@ -304,6 +304,79 @@ func TestValidateBlocksPathInIncludedAndExcludedPaths(t *testing.T) {
 	}
 }
 
+func TestValidateBlocksStrayIncludedPathMissingFromCandidateUniverse(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"rows":[{"path":"src/app.go"},{"path":"src/extra.go"}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go","src/extra.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","src/extra.go":"deep_read"},
+		"classification_reasons":{"src/app.go":"source","src/extra.go":"source"},
+		"decision_source":{"src/app.go":"git","src/extra.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe included path src/extra.go is missing from candidate_universe") {
+		t.Fatalf("Errors = %#v, want stray included path error", result.Errors)
+	}
+}
+
+func TestValidateBlocksStrayExcludedPathMissingFromCandidateUniverse(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":["vendor/extra.go"],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","vendor/extra.go":"excluded"},
+		"classification_reasons":{"src/app.go":"source","vendor/extra.go":"vendor"},
+		"decision_source":{"src/app.go":"git","vendor/extra.go":".cognitionignore"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe excluded path vendor/extra.go is missing from candidate_universe") {
+		t.Fatalf("Errors = %#v, want stray excluded path error", result.Errors)
+	}
+}
+
+func TestValidateBlocksStrayAmbiguousPathMissingFromCandidateUniverse(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":["src/unknown.go"],
+		"dispositions":{"src/app.go":"deep_read","src/unknown.go":"blocked"},
+		"classification_reasons":{"src/app.go":"source","src/unknown.go":"ambiguous"},
+		"decision_source":{"src/app.go":"git","src/unknown.go":"scan"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe ambiguous path src/unknown.go is missing from candidate_universe") {
+		t.Fatalf("Errors = %#v, want stray ambiguous path error", result.Errors)
+	}
+}
+
 func TestValidateBlocksMetadataIncompleteGapForBoundaryCoverage(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

@@ -545,6 +545,9 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 	if acceptedGaps == nil {
 		acceptedGaps = map[string]bool{}
 	}
+	validateBoundaryListCandidates("included", boundary.IncludedPaths, boundary.CandidatePaths, result)
+	validateBoundaryListCandidates("excluded", boundary.ExcludedPaths, boundary.CandidatePaths, result)
+	validateBoundaryListCandidates("ambiguous", boundary.AmbiguousPaths, boundary.CandidatePaths, result)
 	for path, candidateDisposition := range boundary.CandidatePaths {
 		disposition := boundary.Dispositions[path]
 		if disposition == "" {
@@ -616,6 +619,14 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 		}
 		if coveragePaths[path] {
 			result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in coverage.json", path))
+		}
+	}
+}
+
+func validateBoundaryListCandidates(label string, paths map[string]bool, candidates map[string]string, result *Result) {
+	for path := range paths {
+		if _, ok := candidates[path]; !ok {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s path %s is missing from candidate_universe", label, path))
 		}
 	}
 }
