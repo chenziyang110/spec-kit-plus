@@ -33,7 +33,19 @@ type Package struct {
 	Edges         []EdgeRow
 	Observations  []ObservationRow
 	CoveragePaths []string
+	AcceptedGaps  map[string]bool
 	Identities    IdentitySet
+}
+
+type Boundary struct {
+	SchemaVersion         int
+	CandidatePaths        map[string]string
+	IncludedPaths         map[string]bool
+	ExcludedPaths         map[string]bool
+	AmbiguousPaths        map[string]bool
+	Dispositions          map[string]string
+	ClassificationReasons map[string]string
+	DecisionSource        map[string]string
 }
 
 type IdentitySet struct {
@@ -117,6 +129,9 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadEdges(paths, &pkg, &result)
 	loadObservations(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
+	pkg.AcceptedGaps = acceptedGapPaths(paths)
+	boundary := loadBoundary(paths, &result)
+	validateBoundaryCoverage(boundary, pkg, &result)
 	result.Errors = append(result.Errors, validateCoverageLedger(paths, "scan")...)
 	buildIdentities(&pkg)
 	if len(result.Errors) > 0 {
@@ -124,6 +139,12 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 		result.Readiness = "blocked"
 	}
 	result.Details["required_artifacts"] = result.CheckedPaths
+	result.Details["boundary"] = map[string]any{
+		"candidate_count": len(boundary.CandidatePaths),
+		"included_count":  len(boundary.IncludedPaths),
+		"excluded_count":  len(boundary.ExcludedPaths),
+		"ambiguous_count": len(boundary.AmbiguousPaths),
+	}
 	return pkg, result
 }
 
@@ -360,6 +381,216 @@ func loadCoverage(paths rt.Paths, pkg *Package, result *Result) {
 	}
 }
 
+func loadBoundary(paths rt.Paths, result *Result) Boundary {
+	boundary := Boundary{
+		CandidatePaths:        map[string]string{},
+		IncludedPaths:         map[string]bool{},
+		ExcludedPaths:         map[string]bool{},
+		AmbiguousPaths:        map[string]bool{},
+		Dispositions:          map[string]string{},
+		ClassificationReasons: map[string]string{},
+		DecisionSource:        map[string]string{},
+	}
+	raw, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), "repository-universe.json")
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return boundary
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		result.Errors = append(result.Errors, "repository-universe.json must contain a top-level JSON object")
+		return boundary
+	}
+	if rows, ok := obj["rows"]; ok {
+		boundary.CandidatePaths = boundaryCandidatePaths(rows)
+		for path := range boundary.CandidatePaths {
+			boundary.IncludedPaths[path] = true
+			boundary.CandidatePaths[path] = "inventory_only"
+			boundary.Dispositions[path] = "inventory_only"
+		}
+		return boundary
+	}
+	boundary.SchemaVersion = intFromValue(obj["schema_version"])
+	boundary.CandidatePaths = boundaryCandidatePaths(obj["candidate_universe"])
+	boundary.IncludedPaths = boundaryPathsFromValue(obj["included_paths"])
+	boundary.ExcludedPaths = boundaryPathsFromValue(obj["excluded_paths"])
+	boundary.AmbiguousPaths = boundaryPathsFromValue(obj["ambiguous_paths"])
+	boundary.Dispositions = boundaryDispositionMap(obj["dispositions"])
+	boundary.ClassificationReasons = boundaryDispositionMap(obj["classification_reasons"])
+	boundary.DecisionSource = boundaryDispositionMap(obj["decision_source"])
+	return boundary
+}
+
+func boundaryPathsFromValue(value any) map[string]bool {
+	paths := map[string]bool{}
+	rows, ok := value.([]any)
+	if !ok {
+		return paths
+	}
+	for _, row := range rows {
+		path := ""
+		switch typed := row.(type) {
+		case string:
+			path = normalizedString(typed)
+		case map[string]any:
+			path = normalizedString(typed["path"])
+		}
+		if path != "" {
+			paths[path] = true
+		}
+	}
+	return paths
+}
+
+func boundaryDispositionMap(value any) map[string]string {
+	values := map[string]string{}
+	obj, ok := value.(map[string]any)
+	if !ok {
+		return values
+	}
+	for rawPath, rawValue := range obj {
+		path := normalizedString(rawPath)
+		item := normalizedString(rawValue)
+		if path != "" && item != "" {
+			values[path] = item
+		}
+	}
+	return values
+}
+
+func boundaryCandidatePaths(value any) map[string]string {
+	paths := map[string]string{}
+	rows, ok := value.([]any)
+	if !ok {
+		return paths
+	}
+	for _, row := range rows {
+		path := ""
+		disposition := ""
+		switch typed := row.(type) {
+		case string:
+			path = normalizedString(typed)
+		case map[string]any:
+			path = normalizedString(typed["path"])
+			disposition = normalizedString(typed["disposition"])
+		}
+		if path != "" {
+			paths[path] = disposition
+		}
+	}
+	return paths
+}
+
+func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
+	coveragePaths := map[string]bool{}
+	for _, path := range pkg.CoveragePaths {
+		coveragePaths[path] = true
+	}
+	acceptedGaps := pkg.AcceptedGaps
+	if acceptedGaps == nil {
+		acceptedGaps = map[string]bool{}
+	}
+	for path, candidateDisposition := range boundary.CandidatePaths {
+		disposition := boundary.Dispositions[path]
+		if disposition == "" {
+			disposition = candidateDisposition
+		}
+		if disposition == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s has no disposition", path))
+			continue
+		}
+		if !validBoundaryDisposition(disposition) {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s has invalid disposition %s", path, disposition))
+			continue
+		}
+	}
+	for path := range boundary.IncludedPaths {
+		disposition := boundary.Dispositions[path]
+		if disposition == "" {
+			disposition = boundary.CandidatePaths[path]
+		}
+		if disposition == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no disposition", path))
+			continue
+		}
+		if !validBoundaryDisposition(disposition) {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has invalid disposition %s", path, disposition))
+			continue
+		}
+		if includedDispositionRequiresCoverage(disposition) && !coveragePaths[path] && !acceptedGaps[path] {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted gap", path))
+		}
+	}
+	for path := range boundary.ExcludedPaths {
+		if coveragePaths[path] {
+			result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in coverage.json", path))
+		}
+	}
+}
+
+func acceptedGapPaths(paths rt.Paths) map[string]bool {
+	accepted := map[string]bool{}
+	raw, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), "coverage-ledger.json")
+	if err != nil {
+		return accepted
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return accepted
+	}
+	gaps, ok := obj["open_gaps"].([]any)
+	if !ok {
+		return accepted
+	}
+	for _, gap := range gaps {
+		gapObj, ok := gap.(map[string]any)
+		if !ok {
+			continue
+		}
+		status := normalizedString(gapObj["status"])
+		reason := normalizedString(gapObj["reason"])
+		if blockedGapStatusOrReason(status) || blockedGapStatusOrReason(reason) {
+			continue
+		}
+		path := normalizedString(gapObj["path"])
+		if path == "" {
+			continue
+		}
+		accepted[path] = true
+		for _, item := range normalizedStringSlice(gapObj["paths"]) {
+			accepted[item] = true
+		}
+	}
+	return accepted
+}
+
+func includedDispositionRequiresCoverage(disposition string) bool {
+	switch disposition {
+	case "deep_read", "sampled", "inventory_only":
+		return true
+	default:
+		return false
+	}
+}
+
+func validBoundaryDisposition(disposition string) bool {
+	switch disposition {
+	case "deep_read", "sampled", "inventory_only", "excluded", "blocked":
+		return true
+	default:
+		return false
+	}
+}
+
+func blockedGapStatusOrReason(value string) bool {
+	switch value {
+	case "blocked", "unknown", "subagent_blocked", "critical_open_gap":
+		return true
+	default:
+		return false
+	}
+}
+
 func buildIdentities(pkg *Package) {
 	for _, row := range pkg.Evidence {
 		pkg.Identities.Evidence[row.ID+"|"+row.SourcePath+"|"+row.ContentHash] = true
@@ -524,6 +755,17 @@ func objectMap(value any) map[string]any {
 		return map[string]any{}
 	}
 	return obj
+}
+
+func intFromValue(value any) int {
+	switch typed := value.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	default:
+		return 0
+	}
 }
 
 func normalizedStringSlice(value any) []string {

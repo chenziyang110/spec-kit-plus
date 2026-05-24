@@ -93,6 +93,76 @@ func TestValidateArtifactsBlocksOpenGapForAnyOwner(t *testing.T) {
 	}
 }
 
+func TestValidateBlocksIncludedCandidateWithoutCoverageOrGap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"src/missing.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go","src/missing.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","src/missing.go":"deep_read"},
+		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
+		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted gap") {
+		t.Fatalf("Errors = %#v, want missing included path coverage error", result.Errors)
+	}
+}
+
+func TestValidateBlocksExcludedPathInCoverage(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"rows":[{"path":"src/app.go"},{"path":"vendor/lib.go"}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"vendor/lib.go","disposition":"excluded","decision_source":".cognitionignore"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[{"path":"vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
+		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "excluded path vendor/lib.go must not appear in coverage.json") {
+		t.Fatalf("Errors = %#v, want excluded coverage error", result.Errors)
+	}
+}
+
+func TestValidateAcceptsBoundaryExcludedPathOutsideCoverage(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"vendor/lib.go","disposition":"excluded","decision_source":".cognitionignore"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[{"path":"vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
+		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+}
+
 func TestLoadFallbackContentHashUsesNormalizedEvidenceObject(t *testing.T) {
 	first := fallbackEvidenceIdentityForSourcePath(t, `./src\app.go`)
 	second := fallbackEvidenceIdentityForSourcePath(t, `src/app.go`)
