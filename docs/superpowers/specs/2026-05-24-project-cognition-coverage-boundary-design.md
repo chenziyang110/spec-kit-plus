@@ -37,8 +37,9 @@ Use automatic scan boundary planning with low-interruption user review.
    rules.
 3. The leader classifies every candidate path into a required disposition.
 4. Only high-impact ambiguous boundaries require user confirmation.
-5. The workflow persists the final boundary and every subagent packet must
-   account for assigned paths.
+5. The workflow persists the final boundary in
+   `.specify/project-cognition/workbench/repository-universe.json` and every
+   subagent packet must account for assigned paths.
 6. Validation fails when included paths are not explained by coverage rows,
    accepted gaps, or exclusions.
 
@@ -57,7 +58,8 @@ The project cognition boundary has these inputs:
   project-specific overrides.
 - User answers for ambiguous high-impact paths.
 
-Every candidate path receives exactly one disposition:
+Every candidate path receives exactly one disposition. Disposition is a coverage
+handling decision, separate from criticality and scan depth priority:
 
 - `deep_read`: content must be read and evidence extracted.
 - `sampled`: representative examples are read and the sampling reason is
@@ -67,8 +69,21 @@ Every candidate path receives exactly one disposition:
 - `excluded`: path is intentionally outside project cognition scope.
 - `blocked`: path should be handled but cannot be safely processed now.
 
-"Not deep-read" is not the same as "not recorded." Inventory-only, sampled, and
-excluded paths still need explicit ledger rows.
+"Not deep-read" is not the same as "not recorded." Inventory-only and sampled
+paths still need explicit coverage rows. Excluded paths need explicit boundary
+accounting in `repository-universe.json` or a grouped exclusion ledger, but must
+not appear in graph-facing `coverage.json` rows, project evidence, or runtime
+indexes.
+
+Criticality remains a separate classification used after disposition:
+
+- `critical`
+- `important`
+- `low_risk`
+
+The workflow may derive criticality from ownership, entrypoint status,
+downstream consumers, state/lifecycle role, generated-surface propagation,
+verification reachability, security sensitivity, and recent Git evolution.
 
 ## User Review Policy
 
@@ -93,16 +108,25 @@ project cognition policy surface or converted into a suggested
 
 `sp-map-scan` owns the full boundary and packetization contract.
 
-Before dispatching subagents, the leader must write or stage a boundary artifact
-that includes:
+Before dispatching subagents, the leader must write or stage the canonical
+boundary artifact:
 
+- `.specify/project-cognition/workbench/repository-universe.json`
+
+The schema should evolve from a loose inventory into a versioned boundary
+contract. It must include:
+
+- `schema_version`
+- `candidate_universe`
 - `included_paths`
 - `excluded_paths`
 - `ambiguous_paths`
 - `dispositions`
 - `classification_reasons`
-- `source` for each decision, such as git, built-in heuristic,
+- `decision_source` for each decision, such as git, built-in heuristic,
   `.cognitionignore`, or user decision
+- optional grouped exclusion summaries for large generated, cache, fixture,
+  archive, or vendor trees
 
 Each `MapScanPacket` must include a bounded `assigned_paths` list. Subagents may
 not silently narrow this list. For every assigned path, the handoff must return
@@ -127,6 +151,8 @@ Before publishing query-backed runtime truth, build validation must confirm:
 
 - every included path is represented in scan coverage or an accepted gap
 - every critical and important coverage row has supporting evidence
+- excluded paths are represented only by the boundary artifact or grouped
+  exclusion ledger, not by graph-facing coverage rows
 - every scan packet has been consumed
 - every accepted packet result reports paths read or a non-read disposition
 - no `.cognitionignore`-excluded path enters graph evidence or runtime route
@@ -173,10 +199,13 @@ packet, coverage, and result artifacts.
 
 At minimum, `validate-scan` should fail when:
 
-- a Git-tracked included path has no disposition
+- a Git-tracked candidate path has no disposition in
+  `repository-universe.json`
 - a scan packet omits assigned path accounting
 - a subagent handoff summarizes work without path-level evidence or disposition
 - `coverage.json` and `coverage-ledger.json` disagree on represented paths
+- excluded paths appear in `coverage.json`, graph-facing coverage rows, project
+  evidence, provisional graph rows, runtime indexes, or `minimal_live_reads`
 - blocked or unknown critical gaps remain unresolved
 - ignored paths leak into evidence, provisional nodes, provisional edges,
   observations, route indexes, or `minimal_live_reads`
@@ -193,9 +222,12 @@ paths are not accounted for by update records, ignored-path reports,
 The workflow should persist boundary decisions in generated project state so
 later runs are stable:
 
-- a scan boundary artifact under `.specify/project-cognition/workbench/`
+- the canonical boundary artifact at
+  `.specify/project-cognition/workbench/repository-universe.json`
 - coverage rows in `.specify/project-cognition/coverage.json`
 - ledger rows in `.specify/project-cognition/workbench/coverage-ledger.json`
+- grouped exclusion rows in the boundary artifact or a dedicated exclusion
+  ledger that does not feed graph-facing coverage
 - optional project policy for repeated user decisions
 - optional generated `.cognitionignore` suggestions for durable exclusions
 
