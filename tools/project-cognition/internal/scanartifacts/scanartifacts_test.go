@@ -381,6 +381,53 @@ func TestValidateBlocksMalformedVersionedBoundaryFieldShape(t *testing.T) {
 	}
 }
 
+func TestValidateBlocksVersionedBoundaryMissingSchemaVersion(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read"},
+		"classification_reasons":{"src/app.go":"source"},
+		"decision_source":{"src/app.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe schema_version is required") {
+		t.Fatalf("Errors = %#v, want missing schema_version error", result.Errors)
+	}
+}
+
+func TestValidateBlocksVersionedBoundaryNonNumericSchemaVersion(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":"1",
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read"},
+		"classification_reasons":{"src/app.go":"source"},
+		"decision_source":{"src/app.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe schema_version must be a number") {
+		t.Fatalf("Errors = %#v, want non-numeric schema_version error", result.Errors)
+	}
+}
+
 func TestValidateBlocksIncludedPathWithoutDisposition(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

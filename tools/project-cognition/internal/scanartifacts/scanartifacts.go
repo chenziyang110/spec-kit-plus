@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -443,6 +444,12 @@ func isVersionedBoundaryObject(obj map[string]any) bool {
 }
 
 func validateVersionedBoundaryShapes(obj map[string]any, result *Result) {
+	schemaVersion, ok := obj["schema_version"]
+	if !ok {
+		result.Errors = append(result.Errors, "repository-universe schema_version is required")
+	} else if !isNumericSchemaVersion(schemaVersion) {
+		result.Errors = append(result.Errors, "repository-universe schema_version must be a number")
+	}
 	for _, key := range []string{"candidate_universe", "included_paths", "excluded_paths", "ambiguous_paths"} {
 		if _, ok := obj[key].([]any); !ok {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an array", key))
@@ -452,6 +459,17 @@ func validateVersionedBoundaryShapes(obj map[string]any, result *Result) {
 		if _, ok := obj[key].(map[string]any); !ok {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an object", key))
 		}
+	}
+}
+
+func isNumericSchemaVersion(value any) bool {
+	switch typed := value.(type) {
+	case float64:
+		return typed == math.Trunc(typed)
+	case int:
+		return true
+	default:
+		return false
 	}
 }
 
