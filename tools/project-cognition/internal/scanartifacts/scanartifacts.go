@@ -402,9 +402,9 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 		result.Errors = append(result.Errors, "repository-universe.json must contain a top-level JSON object")
 		return boundary
 	}
-	if rows, ok := obj["rows"]; ok {
+	if !isVersionedBoundaryObject(obj) {
 		boundary.LegacyRows = true
-		boundary.CandidatePaths = boundaryCandidatePaths(rows)
+		boundary.CandidatePaths = boundaryCandidatePaths(obj["rows"])
 		for path := range boundary.CandidatePaths {
 			boundary.IncludedPaths[path] = true
 			boundary.CandidatePaths[path] = "inventory_only"
@@ -412,6 +412,7 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 		}
 		return boundary
 	}
+	validateVersionedBoundaryShapes(obj, result)
 	boundary.SchemaVersion = intFromValue(obj["schema_version"])
 	boundary.CandidatePaths = boundaryCandidatePaths(obj["candidate_universe"])
 	boundary.IncludedPaths = boundaryPathsFromValue(obj["included_paths"])
@@ -421,6 +422,37 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 	boundary.ClassificationReasons = boundaryDispositionMap(obj["classification_reasons"])
 	boundary.DecisionSource = boundaryDispositionMap(obj["decision_source"])
 	return boundary
+}
+
+func isVersionedBoundaryObject(obj map[string]any) bool {
+	for _, key := range []string{
+		"schema_version",
+		"candidate_universe",
+		"included_paths",
+		"excluded_paths",
+		"ambiguous_paths",
+		"dispositions",
+		"classification_reasons",
+		"decision_source",
+	} {
+		if _, ok := obj[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func validateVersionedBoundaryShapes(obj map[string]any, result *Result) {
+	for _, key := range []string{"candidate_universe", "included_paths", "excluded_paths", "ambiguous_paths"} {
+		if _, ok := obj[key].([]any); !ok {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an array", key))
+		}
+	}
+	for _, key := range []string{"dispositions", "classification_reasons", "decision_source"} {
+		if _, ok := obj[key].(map[string]any); !ok {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an object", key))
+		}
+	}
 }
 
 func boundaryPathsFromValue(value any) map[string]bool {
@@ -508,6 +540,27 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s has invalid disposition %s", path, disposition))
 			continue
 		}
+		switch {
+		case includedDispositionRequiresCoverage(disposition):
+			if !boundary.IncludedPaths[path] {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s with disposition %s must be listed in included_paths", path, disposition))
+			}
+			if !coveragePaths[path] && !acceptedGaps[path] {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted gap", path))
+			}
+		case disposition == "excluded":
+			if !boundary.ExcludedPaths[path] {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s with excluded disposition must be listed in excluded_paths", path))
+			}
+			if coveragePaths[path] {
+				result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in coverage.json", path))
+			}
+		}
+	}
+	for path := range boundary.IncludedPaths {
+		if boundary.ExcludedPaths[path] {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe path %s must not appear in both included_paths and excluded_paths", path))
+		}
 	}
 	for path := range boundary.IncludedPaths {
 		disposition := boundary.Dispositions[path]
@@ -570,7 +623,17 @@ func acceptedGapPaths(paths rt.Paths) map[string]bool {
 		}
 		status := normalizedString(gapObj["status"])
 		reason := normalizedString(gapObj["reason"])
-		if blockedGapStatusOrReason(status) || blockedGapStatusOrReason(reason) {
+		coverageState := normalizedString(gapObj["coverage_state"])
+		if blockedGapStatusOrReason(status) || blockedGapStatusOrReason(reason) || blockedGapStatusOrReason(coverageState) {
+			continue
+		}
+		if status != "low_risk_open_gap" && coverageState != "low_risk_open_gap" {
+			continue
+		}
+		if normalizedString(gapObj["owner"]) == "" ||
+			reason == "" ||
+			normalizedString(gapObj["evidence_expectation"]) == "" ||
+			normalizedString(gapObj["revisit_condition"]) == "" {
 			continue
 		}
 		path := normalizedString(gapObj["path"])
