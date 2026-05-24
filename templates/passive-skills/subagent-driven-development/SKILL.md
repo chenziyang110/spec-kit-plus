@@ -70,6 +70,7 @@ A subagent prompt must include:
 - Source artifacts that are truth for the lane, including spec, plan, tasks,
   workflow state, project cognition entries, and memory rules when present.
 - Required RED/GREEN or diagnosis evidence.
+- For scan, build, PRD scan, and map-update evidence lanes, include explicit `assigned_paths` or changed paths. A subagent must not silently narrow assigned scope; if the set does not fit, it returns `overflow` or `blocked` with the smallest safe split suggestion.
 - Required structured handoff format.
 
 The leader must not dispatch from raw task text alone. If the packet is missing,

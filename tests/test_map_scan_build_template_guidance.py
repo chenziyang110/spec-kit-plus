@@ -271,3 +271,42 @@ def test_map_build_template_requires_truth_layer_outputs() -> None:
     assert "BUILD-HANDBOOK.md" not in content
     assert "DEBUG-WORKFLOW-CONTRACT" not in content
     assert "BUILD-WORKFLOW-CONTRACT" not in content
+
+
+def test_map_scan_template_requires_canonical_boundary_contract() -> None:
+    content = _read("templates/commands/map-scan.md")
+    lowered = content.lower()
+
+    assert "canonical boundary artifact" in lowered
+    assert "`.specify/project-cognition/workbench/repository-universe.json`" in content
+    assert "`schema_version`" in content
+    assert "`candidate_universe`" in content
+    assert "`decision_source`" in content
+    assert "`assigned_paths`" in content
+    assert "`deep_read`" in content
+    assert "`inventory_only`" in content
+    assert "disposition is separate from criticality" in lowered
+    assert "excluded paths must not appear in graph-facing `coverage.json` rows" in lowered
+    assert "overflow" in lowered
+
+
+def test_map_build_template_rejects_incomplete_boundary_coverage() -> None:
+    content = _read("templates/commands/map-build.md")
+    lowered = content.lower()
+
+    assert "repository-universe.json" in content
+    assert "every included path is represented in scan coverage or an accepted gap" in lowered
+    assert "excluded paths are represented only by the boundary artifact" in lowered
+    assert "not by graph-facing coverage rows" in lowered
+    assert "scan gap report" in lowered
+
+
+def test_map_update_template_requires_changed_path_accounting() -> None:
+    content = _read("templates/commands/map-update.md")
+    lowered = content.lower()
+
+    assert "every changed path must be accounted for" in lowered
+    assert "ignored with reason" in lowered
+    assert "partial with `minimal_live_reads`" in lowered
+    assert "must not write `.cognitionignore`-excluded paths into update records" in lowered
+    assert "reserved rebuild reason" in lowered

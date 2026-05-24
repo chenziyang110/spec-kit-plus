@@ -88,6 +88,17 @@ Before writing query-backed truth, read:
 
 If those artifacts are missing, stop and route back to `/sp-map-scan`.
 
+## Boundary Acceptance
+
+`sp-map-build` must validate `.specify/project-cognition/workbench/repository-universe.json` before publishing runtime truth.
+
+- Every `included_paths` entry must appear in `coverage.json`, `coverage-ledger.json`, or an accepted non-blocking gap.
+- Every included path is represented in scan coverage or an accepted gap.
+- Every `excluded_paths` entry must stay only in the boundary artifact or grouped exclusion ledger.
+- Excluded paths are represented only by the boundary artifact, not by graph-facing coverage rows.
+- Excluded paths must not appear in graph-facing coverage rows, evidence rows, provisional graph rows, DB path indexes, route indexes, or `minimal_live_reads`.
+- If repository-universe, coverage, and packet handoffs cannot explain the same path universe, return a scan gap report and route back to `sp-map-scan`.
+
 ## Output Contract
 
 The only canonical runtime outputs for this command are:

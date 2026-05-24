@@ -116,6 +116,17 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 - Even when freshness is `fresh`, `sp-map-scan` still reasons from the git baseline diff before deciding whether the refresh workbench needs new coverage.
 - Reference-only material is a live surface only for refresh-workbench validation; it must not become a scan target by default.
 
+## Canonical Boundary Contract
+
+- `.specify/project-cognition/workbench/repository-universe.json` is the canonical boundary artifact.
+- It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `classification_reasons`, and `decision_source`.
+- Every candidate path must receive exactly one disposition: `deep_read`, `sampled`, `inventory_only`, `excluded`, or `blocked`.
+- Disposition is separate from criticality. Criticality remains `critical`, `important`, or `low_risk`.
+- Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, or `minimal_live_reads`.
+- `MapScanPacket` must include bounded `assigned_paths`.
+- Subagents must account for every assigned path with evidence, `sampled`, `inventory_only`, `excluded`, `blocked`, or `overflow`.
+- If assigned paths do not fit in context, the subagent must return `overflow` or `blocked`; the leader must split and redispatch or record an open gap.
+
 ## Scan Duties
 
 `sp-map-scan` must:
