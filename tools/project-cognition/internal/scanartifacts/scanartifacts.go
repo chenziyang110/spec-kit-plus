@@ -522,6 +522,22 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 		}
 	}
 	for path := range boundary.ExcludedPaths {
+		disposition := boundary.Dispositions[path]
+		if disposition == "" {
+			disposition = boundary.CandidatePaths[path]
+		}
+		if disposition == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe excluded path %s has no disposition", path))
+			continue
+		}
+		if !validBoundaryDisposition(disposition) {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe excluded path %s has invalid disposition %s", path, disposition))
+			continue
+		}
+		if disposition != "excluded" {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe excluded path %s must have excluded disposition", path))
+			continue
+		}
 		if coveragePaths[path] {
 			result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in coverage.json", path))
 		}
@@ -553,10 +569,9 @@ func acceptedGapPaths(paths rt.Paths) map[string]bool {
 			continue
 		}
 		path := normalizedString(gapObj["path"])
-		if path == "" {
-			continue
+		if path != "" {
+			accepted[path] = true
 		}
-		accepted[path] = true
 		for _, item := range normalizedStringSlice(gapObj["paths"]) {
 			accepted[item] = true
 		}
