@@ -192,7 +192,7 @@ func TestValidateBuildBlocksExcludedBoundaryPathInDB(t *testing.T) {
 			"schema_version":1,
 			"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"vendor/lib.go","disposition":"excluded","decision_source":".cognitionignore"}],
 			"included_paths":["src/app.go"],
-			"excluded_paths":[{"path":"vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
+			"excluded_paths":[{"path":"./vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
 			"ambiguous_paths":[],
 			"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
 			"classification_reasons":{"src/app.go":"source file","vendor/lib.go":"vendor"},

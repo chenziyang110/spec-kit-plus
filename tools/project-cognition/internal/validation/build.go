@@ -349,7 +349,7 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 				break
 			}
 			if raw.Valid {
-				normalized := filepath.ToSlash(strings.TrimSpace(raw.String))
+				normalized := canonicalGraphPath(raw.String)
 				if strings.HasPrefix(normalized, ".specify/") {
 					_ = rows.Close()
 					errors = append(errors, ".specify/** must not enter project cognition graph store")
@@ -394,12 +394,20 @@ func excludedBoundaryPaths(paths rt.Paths) map[string]bool {
 				path = rawPath
 			}
 		}
-		normalized := filepath.ToSlash(strings.TrimSpace(path))
+		normalized := canonicalGraphPath(path)
 		if normalized != "" {
 			excluded[normalized] = true
 		}
 	}
 	return excluded
+}
+
+func canonicalGraphPath(path string) string {
+	normalized := filepath.ToSlash(strings.TrimSpace(path))
+	for strings.HasPrefix(normalized, "./") {
+		normalized = strings.TrimPrefix(normalized, "./")
+	}
+	return normalized
 }
 
 func graphPathTableChecks() []struct {
