@@ -43,10 +43,12 @@ Use a two-level contract:
    assigns paths to packets by module or directory boundary.
 2. Each packet carries a subagent-local task ledger that acts like mini
    `tasks.md`: `todo`, `doing`, `done`, `blocked`, `overflow`.
-3. The subagent must account for every assigned path and cannot silently narrow
+3. The subagent writes a structured result handoff under
+   `workbench/worker-results/<packet-id>.json`.
+4. The subagent must account for every assigned path and cannot silently narrow
    scope.
-4. The leader accepts only handoffs that pass both coverage and quality checks.
-5. When a packet fails, the leader repacks only the remaining or low-quality
+5. The leader accepts only handoffs that pass both coverage and quality checks.
+6. When a packet fails, the leader repacks only the remaining or low-quality
    subset and redispatches.
 
 This keeps the leader responsible for distribution and final acceptance, while
@@ -62,7 +64,7 @@ The packet boundary should be semantic first:
   subdirectory, public entrypoint, or dependency cluster rather than arbitrary
   file count
 
-Each packet should include:
+Each input packet under `workbench/scan-packets/<lane-id>.md` should include:
 
 - packet id and owning lane
 - assigned paths
@@ -71,6 +73,19 @@ Each packet should include:
 - allowed reads and forbidden paths
 - acceptance checks
 - overflow handling rule
+- `result_handoff_path` pointing to
+  `workbench/worker-results/<packet-id>.json`
+
+Each accepted worker result handoff should repeat `assigned_paths`, include
+`paths_read` as a non-empty array of concrete paths, include packet-local
+coverage rows, include confidence, and report the acceptance outcome. Boolean
+read flags such as `paths_read: true` are not path-level evidence and must fail
+acceptance.
+
+The Markdown input packet and JSON result handoff must be bound by packet id:
+`workbench/scan-packets/<lane-id>.md` needs a matching
+`workbench/worker-results/<lane-id>.json`, and orphan worker results are
+invalid.
 
 The packet-local ledger should be mandatory, not advisory. It exists so the
 subagent can answer:
@@ -80,6 +95,22 @@ subagent can answer:
 - what is blocked
 - what overflowed
 - what evidence supports completion
+
+## Disposition Alignment
+
+`sampled` and `inventory_only` are not free-form convenience labels. They must
+align with the path disposition and criticality already recorded in
+`repository-universe.json`.
+
+As a default rule:
+
+- critical entrypoints, shared state, configuration, tests, verification
+  surfaces, and generated-surface propagation chains should not pass as
+  `sampled` just because a packet is bounded
+- those surfaces should be `deep_read` unless the boundary artifact already
+  records an explicit accepted gap or an equally explicit lower-depth decision
+- `sampled` and `inventory_only` are acceptable only when the disposition and
+  criticality together justify them
 
 ## Leader Acceptance
 
@@ -115,7 +146,22 @@ The leader should classify failure as:
 
 - `fail_gap`: some assigned paths still need work
 - `fail_quality`: paths were read, but the evidence is too weak or inconsistent
+- `fail_contract`: the packet, handoff, or ledger schema is invalid, or the
+  packet boundary itself is wrong
+- `fail_systemic`: the same class of problem repeats across multiple sibling
+  packets or indicates the partitioning strategy itself is wrong
 - `pass`: the packet is accepted
+
+When `fail_quality` is returned, the handoff must include a machine-checkable
+repack subset. That subset must name at least one of:
+
+- `paths[]`
+- `claim_ids[]`
+- `coverage_row_ids[]`
+- `evidence_ids[]`
+
+The subset is the repair target. A quality failure without a repackable subset
+is a contract failure, not a quality failure.
 
 ## Redispatch Rule
 
@@ -124,9 +170,12 @@ default.
 
 Preferred retry order:
 
-1. repack the remaining uncovered paths
-2. repack the low-quality subset into a smaller packet
-3. redispatch only the specific follow-up work needed
+1. `fail_gap`: repack the remaining uncovered, overflowed, or blocked paths
+2. `fail_quality`: repack the declared quality subset only
+3. `fail_contract`: repair the packet boundary, handoff schema, or ledger
+   schema, then regenerate the packet
+4. `fail_systemic`: repack the affected packet family or rerun partitioning
+   before attempting local retries
 
 This keeps retries bounded and prevents a single large packet failure from
 restarting the entire scan wave.
@@ -136,13 +185,30 @@ restarting the entire scan wave.
 The scan runtime should be able to validate these invariants:
 
 - every packet has a packet-local task ledger
+- every packet result handoff is read from `workbench/worker-results/*.json`,
+  not from the Markdown scan-packet instruction files
+- `repository-universe.json` includes a `criticality` object alongside
+  `dispositions`
 - every assigned path appears in a declared final outcome
+- `paths_read` is a non-empty array of concrete paths and agrees with read /
+  deep_read coverage rows
+- accepted packet results include confidence
+- read / deep_read coverage rows reference existing evidence ids, and at least
+  one referenced evidence row has `source_path` equal to the covered path
+- any non-`pass` packet outcome blocks scan acceptance until it is repacked,
+  repaired, or recorded as an explicit unresolved gap
+- every sampled or inventory_only outcome agrees with the repository-universe
+  disposition and criticality for that path
 - packet outcomes distinguish gap, quality failure, and pass
+- quality failures include a repackable subset
 - the leader can tell whether a retry is about missing coverage or weak evidence
 - acceptance cannot succeed from summary-only handoffs
+- contract-invalid packets are rejected before local redispatch
+- repeated sibling-packet quality failures can escalate to systemic repack
 
 `validate-scan` should fail when a handoff omits ledger state, omits assigned
-path accounting, or collapses a weak packet into a fake pass.
+path accounting, collapses a weak packet into a fake pass, or uses sampled /
+inventory_only outcomes outside the recorded disposition and criticality.
 
 ## Open Risks
 
@@ -158,7 +224,11 @@ path accounting, or collapses a weak packet into a fake pass.
 - A large repository can be partitioned into bounded scan packets without
   silently dropping tracked files.
 - Each subagent packet returns a machine-checkable task ledger.
+- `sampled` and `inventory_only` only appear when the recorded disposition and
+  criticality justify them.
 - The leader can distinguish gap failure from quality failure.
 - Failed packets can be repacked and redispatched without rerunning the full
   original packet.
+- `fail_contract` and `fail_systemic` trigger schema repair or repackaging of
+  the affected packet family instead of local patching.
 - Subagent outputs that only summarize work cannot pass scan acceptance.

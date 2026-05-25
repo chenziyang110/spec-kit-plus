@@ -611,8 +611,18 @@ func writeMatchingScanPackage(t *testing.T, paths rt.Paths) {
 		filepath.Join(paths.RuntimeDir, "workbench", "map-scan.md"):               `# Map Scan`,
 		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"):        `# Coverage Ledger`,
 		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"): `# Lane 1`,
-		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):              `# Map State`,
-		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"):  `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"): `{
+			"packet_id":"lane-1",
+			"family_id":"app",
+			"assigned_paths":["src/app.go"],
+			"paths_read":["src/app.go"],
+			"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+			"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+			"confidence":"high",
+			"acceptance":"pass"
+		}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):             `# Map State`,
+		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"): `{"rows":[{"path":"src/app.go"}]}`,
 	}
 	for path, content := range files {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

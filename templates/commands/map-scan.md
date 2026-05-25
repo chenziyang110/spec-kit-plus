@@ -81,6 +81,7 @@ The only canonical outputs for this command are:
 - `.specify/project-cognition/workbench/coverage-ledger.md`
 - `.specify/project-cognition/workbench/coverage-ledger.json`
 - `.specify/project-cognition/workbench/scan-packets/<lane-id>.md`
+- `.specify/project-cognition/workbench/worker-results/<packet-id>.json`
 - `.specify/project-cognition/workbench/map-state.md`
 - `.specify/project-cognition/workbench/repository-universe.json`
 - `.specify/project-cognition/workbench/capability-ledger.json`
@@ -108,6 +109,9 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 - Scan packets are executable read instructions, not final truth documents.
 - `MapScanPacket` is the required packet contract for each delegated scan lane.
 - Each packet must declare `mode: read_only` and a `result_handoff_path`.
+- Each `result_handoff_path` must point to `.specify/project-cognition/workbench/worker-results/<packet-id>.json`.
+- Every `scan-packets/<lane-id>.md` file must have exactly one matching `worker-results/<lane-id>.json` handoff, and worker results without a matching scan packet are invalid.
+- Worker result handoffs are the machine-checkable evidence surface for packet acceptance.
 - Prefer `rg --files` for inventory discovery before escalating to deeper reads.
 - Filter `rg --files`, Git-tracked file lists, and any user-provided scan hints through `.cognitionignore` before writing `.specify/project-cognition/workbench/repository-universe.json`.
 - Raw inventory notes or raw chat summaries are not sufficient.
@@ -119,13 +123,25 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 ## Canonical Boundary Contract
 
 - `.specify/project-cognition/workbench/repository-universe.json` is the canonical boundary artifact.
-- It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `classification_reasons`, and `decision_source`.
+- It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `criticality`, `classification_reasons`, and `decision_source`.
 - Every candidate path must receive exactly one disposition: `deep_read`, `sampled`, `inventory_only`, `excluded`, or `blocked`.
 - Disposition is separate from criticality. Criticality remains `critical`, `important`, or `low_risk`.
+- sampled and inventory_only are not free-form convenience labels; they must align with the recorded disposition and criticality in `repository-universe.json`.
+- Critical entrypoints, shared state, configuration, tests, verification surfaces, and generated-surface propagation chains should not pass as `sampled` unless the boundary artifact already records an explicit accepted gap or an equally explicit lower-depth decision.
+- `sampled` and `inventory_only` are acceptable only when the disposition and criticality together justify them.
 - Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, or `minimal_live_reads`.
 - `MapScanPacket` must include bounded `assigned_paths`.
+- Each packet carries a packet-local task ledger with `todo`, `doing`, `done`, `blocked`, and `overflow`.
+- Each accepted worker result must repeat `assigned_paths`, include `paths_read` as a non-empty array of concrete repository paths, include packet-local `coverage` rows for the final outcome of each assigned path, and include confidence.
+- `paths_read: true`, summary-only read claims, and boolean read flags are invalid.
+- `read` and `deep_read` outcomes must reference existing `evidence_ids`, and at least one referenced evidence row must have `source_path` equal to the covered path.
 - Subagents must account for every assigned path with evidence, `sampled`, `inventory_only`, `excluded`, `blocked`, or `overflow`.
 - If assigned paths do not fit in context, the subagent must return `overflow` or `blocked`; the leader must split and redispatch or record an open gap.
+- Leader acceptance has two gates: a coverage gate that requires every assigned path to have a declared outcome, and a quality gate that rejects summary-only or inconsistent evidence.
+- The leader may classify packet failure as `fail_gap`, `fail_quality`, `fail_contract`, or `fail_systemic`.
+- `fail_quality` must return a machine-checkable repack subset naming at least one of `paths[]`, `claim_ids[]`, `coverage_row_ids[]`, or `evidence_ids[]`; otherwise treat it as `fail_contract`.
+- Any acceptance value other than `pass` blocks scan acceptance until the leader repacks, repairs, or explicitly records the unresolved gap.
+- `fail_contract` and `fail_systemic` do not use local patch-only redispatch; repair the packet schema/boundary or repack the affected packet family.
 
 ## Scan Duties
 

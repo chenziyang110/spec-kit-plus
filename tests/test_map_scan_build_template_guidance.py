@@ -45,6 +45,7 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert ".specify/project-cognition/workbench/coverage-ledger.md" in content
     assert ".specify/project-cognition/workbench/coverage-ledger.json" in content
     assert ".specify/project-cognition/workbench/scan-packets/<lane-id>.md" in content
+    assert ".specify/project-cognition/workbench/worker-results/<packet-id>.json" in content
     assert ".specify/project-cognition/workbench/map-state.md" in content
     assert "Project Cognition Workbench State Protocol" in content
     assert "MAP_STATE_FILE=.specify/project-cognition/workbench/map-state.md" in content
@@ -52,6 +53,9 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "MapScanPacket" in content
     assert "`mode: read_only`" in content
     assert "`result_handoff_path`" in content
+    assert "worker result handoffs" in lowered
+    assert "worker-results/<packet-id>.json" in content
+    assert "worker-results/<lane-id>.json" in content
     assert "full project-relevant inventory" in lowered
     assert "nested directories" in lowered
     assert "scan packets are executable read instructions" in lowered
@@ -286,8 +290,34 @@ def test_map_scan_template_requires_canonical_boundary_contract() -> None:
     assert "`deep_read`" in content
     assert "`inventory_only`" in content
     assert "disposition is separate from criticality" in lowered
+    assert "`criticality`" in content
     assert "excluded paths must not appear in graph-facing `coverage.json` rows" in lowered
     assert "overflow" in lowered
+
+
+def test_map_scan_template_requires_packet_ledger_contract() -> None:
+    content = _read("templates/commands/map-scan.md")
+    lowered = content.lower()
+
+    assert "packet-local task ledger" in lowered
+    assert "paths_read" in content
+    assert "non-empty array of concrete repository paths" in lowered
+    assert "include confidence" in lowered
+    assert "paths_read: true" in lowered
+    assert "boolean read flags are invalid" in lowered
+    assert "existing `evidence_ids`" in lowered
+    assert "source_path" in lowered
+    assert "acceptance value other than `pass` blocks" in lowered
+    assert "worker results without a matching scan packet are invalid" in lowered
+    assert "coverage gate" in lowered
+    assert "quality gate" in lowered
+    assert "fail_gap" in lowered
+    assert "fail_quality" in lowered
+    assert "fail_contract" in lowered
+    assert "fail_systemic" in lowered
+    assert "sampled and inventory_only are not free-form" in lowered
+    assert "repository-universe.json" in content
+    assert "disposition and criticality together justify" in lowered
 
 
 def test_map_build_template_rejects_incomplete_boundary_coverage() -> None:
@@ -299,6 +329,23 @@ def test_map_build_template_rejects_incomplete_boundary_coverage() -> None:
     assert "excluded paths are represented only by the boundary artifact" in lowered
     assert "not by graph-facing coverage rows" in lowered
     assert "scan gap report" in lowered
+
+
+def test_map_build_template_routes_back_on_contract_and_systemic_failures() -> None:
+    content = _read("templates/commands/map-build.md")
+    lowered = content.lower()
+
+    assert "repository-universe.json" in content
+    assert "scan gap report" in lowered
+    assert "contract" in lowered
+    assert "systemic" in lowered
+    assert "paths_read" in content
+    assert "non-empty array of concrete paths" in lowered
+    assert "different `source_path`" in lowered
+    assert "orphan packet results" in lowered
+    assert "non-`pass` packet outcomes" in lowered
+    assert "not `true`" in lowered
+    assert "not only a local patch" in lowered or "not local patch" in lowered
 
 
 def test_map_update_template_requires_changed_path_accounting() -> None:

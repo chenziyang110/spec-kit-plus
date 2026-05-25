@@ -103,6 +103,7 @@ func TestValidateBlocksIncludedCandidateWithoutCoverageOrGap(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/missing.go":"deep_read"},
+		"criticality":{"src/app.go":"important","src/missing.go":"important"},
 		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
 		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
 	}`))
@@ -128,6 +129,7 @@ func TestValidateBlocksExcludedPathInCoverage(t *testing.T) {
 		"excluded_paths":[{"path":"vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"criticality":{"src/app.go":"important","vendor/lib.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
 		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
 	}`))
@@ -162,6 +164,7 @@ func TestValidateBlocksExcludedPathInEvidence(t *testing.T) {
 		"excluded_paths":["vendor/lib.go"],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"criticality":{"src/app.go":"important","vendor/lib.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
 		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
 	}`))
@@ -195,6 +198,7 @@ func TestValidateBlocksExcludedPathInNodePaths(t *testing.T) {
 		"excluded_paths":["vendor/lib.go"],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"criticality":{"src/app.go":"important","vendor/lib.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
 		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
 	}`))
@@ -219,6 +223,7 @@ func TestValidateAcceptsBoundaryExcludedPathOutsideCoverage(t *testing.T) {
 		"excluded_paths":[{"path":"vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"criticality":{"src/app.go":"important","vendor/lib.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
 		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
 	}`))
@@ -241,6 +246,7 @@ func TestValidateBlocksCoveragePathOutsideBoundary(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read"},
+		"criticality":{"src/app.go":"important"},
 		"classification_reasons":{"src/app.go":"source"},
 		"decision_source":{"src/app.go":"git"}
 	}`))
@@ -281,6 +287,7 @@ func TestValidateAcceptsIncludedPathCoveredByAcceptedGapPath(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/missing.go":"sampled"},
+		"criticality":{"src/app.go":"important","src/missing.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
 		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
 	}`))
@@ -306,6 +313,7 @@ func TestValidateAcceptsIncludedPathCoveredByAcceptedGapPathsArray(t *testing.T)
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/missing.go":"sampled"},
+		"criticality":{"src/app.go":"important","src/missing.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
 		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
 	}`))
@@ -314,6 +322,581 @@ func TestValidateAcceptsIncludedPathCoveredByAcceptedGapPathsArray(t *testing.T)
 
 	if result.Status != "ok" {
 		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+}
+
+func TestValidateAcceptsPacketLedgerAlignedSampledOutcome(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"sampled","criticality":"low_risk","decision_source":"scan"}
+	]`, `{"src/app.go":"sampled"}`, `{"src/app.go":"low_risk"}`)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"sampled","evidence_ids":["E-001"]}],
+		"confidence":"medium",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+}
+
+func TestValidateBlocksSampledCriticalEntrypointWithoutAcceptedGap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"sampled","criticality":"critical","decision_source":"scan"}
+	]`, `{"src/app.go":"sampled"}`, `{"src/app.go":"critical"}`)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"sampled","evidence_ids":["E-001"]}],
+		"confidence":"medium",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 path src/app.go outcome sampled is not allowed for criticality critical without accepted gap") {
+		t.Fatalf("Errors = %#v, want critical sampled disposition error", result.Errors)
+	}
+}
+
+func TestValidateBlocksInventoryOnlyCriticalStateWithoutDispositionSupport(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"deep_read","criticality":"critical","decision_source":"scan"}
+	]`, `{"src/app.go":"deep_read"}`, `{"src/app.go":"critical"}`)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"inventory_only","evidence_ids":["E-001"]}],
+		"confidence":"medium",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 path src/app.go outcome inventory_only conflicts with repository-universe disposition deep_read") {
+		t.Fatalf("Errors = %#v, want inventory disposition error", result.Errors)
+	}
+}
+
+func TestValidateBlocksVersionedBoundaryWithoutCriticalityMap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"scan"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read"},
+		"classification_reasons":{"src/app.go":"source"},
+		"decision_source":{"src/app.go":"scan"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe criticality must be an object") {
+		t.Fatalf("Errors = %#v, want missing criticality schema error", result.Errors)
+	}
+}
+
+func TestValidateBlocksVersionedBoundaryWithoutCandidateCriticality(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"deep_read","criticality":"important","decision_source":"scan"}
+	]`, `{"src/app.go":"deep_read"}`, `{}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe candidate path src/app.go has no criticality") {
+		t.Fatalf("Errors = %#v, want missing candidate criticality error", result.Errors)
+	}
+}
+
+func TestValidateBlocksInvalidCandidateCriticality(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"deep_read","criticality":"urgent","decision_source":"scan"}
+	]`, `{"src/app.go":"deep_read"}`, `{"src/app.go":"urgent"}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe candidate path src/app.go has invalid criticality urgent") {
+		t.Fatalf("Errors = %#v, want invalid candidate criticality error", result.Errors)
+	}
+}
+
+func TestValidateReturnsFailSubsetForQualityFailure(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"deep_read","criticality":"important","decision_source":"scan"}
+	]`, `{"src/app.go":"deep_read"}`, `{"src/app.go":"important"}`)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"acceptance":"fail_quality",
+		"repack_subset":{"paths":["src/app.go"]}
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked for quality redispatch; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 failed quality gate for repack subset") {
+		t.Fatalf("Errors = %#v, want quality repack subset error", result.Errors)
+	}
+}
+
+func TestValidateBlocksContractInvalidPacketLedger(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"deep_read","criticality":"important","decision_source":"scan"}
+	]`, `{"src/app.go":"deep_read"}`, `{"src/app.go":"important"}`)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"acceptance":"fail_contract",
+		"redispatch":"local_patch"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 must define packet-local ledger") {
+		t.Fatalf("Errors = %#v, want missing ledger error", result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 acceptance fail_contract must not request local patch redispatch") {
+		t.Fatalf("Errors = %#v, want contract local patch error", result.Errors)
+	}
+}
+
+func TestValidateBlocksSystemicRepeatedPacketFamilyFailure(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"rows":[{"path":"src/app.go"},{"path":"src/worker.go"}]}`))
+	writeVersionedUniverse(t, paths, `[
+		{"path":"src/app.go","disposition":"deep_read","criticality":"important","decision_source":"scan"},
+		{"path":"src/worker.go","disposition":"deep_read","criticality":"important","decision_source":"scan"}
+	]`, `{"src/app.go":"deep_read","src/worker.go":"deep_read"}`, `{"src/app.go":"important","src/worker.go":"important"}`)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"acceptance":"fail_quality",
+		"repack_subset":{"paths":["src/app.go"]}
+	}`)
+	writeWorkerResult(t, paths, "lane-2.json", `{
+		"packet_id":"lane-2",
+		"family_id":"app",
+		"assigned_paths":["src/worker.go"],
+		"paths_read":["src/worker.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/worker.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/worker.go","outcome":"read","evidence_ids":["E-002"]}],
+		"acceptance":"fail_quality",
+		"repack_subset":{"paths":["src/worker.go"]}
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet family app has repeated fail_quality outcomes; escalate to fail_systemic") {
+		t.Fatalf("Errors = %#v, want systemic family escalation error", result.Errors)
+	}
+}
+
+func TestValidateBlocksBooleanPathsReadInWorkerResult(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":true,
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 paths_read must be an array of concrete paths") {
+		t.Fatalf("Errors = %#v, want boolean paths_read rejection", result.Errors)
+	}
+}
+
+func TestValidateBlocksPassingWorkerResultWithoutConfidence(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 pass acceptance must include confidence") {
+		t.Fatalf("Errors = %#v, want missing confidence rejection", result.Errors)
+	}
+}
+
+func TestValidateBlocksWorkerResultsRegularFile(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	workerResultsDir := filepath.Join(paths.RuntimeDir, "workbench", "worker-results")
+	if err := os.RemoveAll(workerResultsDir); err != nil {
+		t.Fatal(err)
+	}
+	writeFileBytes(t, workerResultsDir, []byte("not a directory\n"))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "required artifact must be a directory: .specify/project-cognition/workbench/worker-results") {
+		t.Fatalf("Errors = %#v, want worker-results directory error", result.Errors)
+	}
+}
+
+func TestValidateBlocksScanPacketsRegularFile(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	scanPacketsDir := filepath.Join(paths.RuntimeDir, "workbench", "scan-packets")
+	if err := os.RemoveAll(scanPacketsDir); err != nil {
+		t.Fatal(err)
+	}
+	writeFileBytes(t, scanPacketsDir, []byte("not a directory\n"))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "required artifact must be a directory: .specify/project-cognition/workbench/scan-packets") {
+		t.Fatalf("Errors = %#v, want scan-packets directory error", result.Errors)
+	}
+}
+
+func TestValidateBlocksAcceptedFailGapPacket(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":[],
+		"ledger":{"todo":[],"doing":[],"done":[],"blocked":["src/app.go"],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"blocked"}],
+		"acceptance":"fail_gap"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 failed coverage gate") {
+		t.Fatalf("Errors = %#v, want fail_gap blocking error", result.Errors)
+	}
+}
+
+func TestValidateBlocksAcceptedFailContractPacket(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":[],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"acceptance":"fail_contract"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 acceptance fail_contract requires scan packet schema repair or packet-family repack") {
+		t.Fatalf("Errors = %#v, want fail_contract blocking error", result.Errors)
+	}
+}
+
+func TestValidateBlocksAcceptedFailSystemicPacket(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":[],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"acceptance":"fail_systemic"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 acceptance fail_systemic requires scan packet schema repair or packet-family repack") {
+		t.Fatalf("Errors = %#v, want fail_systemic blocking error", result.Errors)
+	}
+}
+
+func TestValidateBlocksWorkerResultWithMissingEvidenceID(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-missing"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 path src/app.go references missing evidence_id E-missing") {
+		t.Fatalf("Errors = %#v, want missing evidence id error", result.Errors)
+	}
+}
+
+func TestValidateBlocksWorkerResultEvidenceForDifferentPath(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "evidence", "E-002.json"), []byte(`{
+		"id":"E-002",
+		"source_kind":"file",
+		"source_path":"docs/app.md",
+		"commit_sha":"abc123",
+		"span":"L1-L5",
+		"extractor":"test",
+		"content_hash":"hash-docs"
+	}`))
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-002"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 path src/app.go read outcome must reference evidence with matching source_path") {
+		t.Fatalf("Errors = %#v, want evidence source_path mismatch error", result.Errors)
+	}
+}
+
+func TestValidateBlocksEmptyScanPacketsDirectory(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	scanPacketsDir := filepath.Join(paths.RuntimeDir, "workbench", "scan-packets")
+	if err := os.RemoveAll(scanPacketsDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(scanPacketsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "workbench/scan-packets must contain at least one scan packet Markdown file") {
+		t.Fatalf("Errors = %#v, want empty scan-packets error", result.Errors)
+	}
+}
+
+func TestValidateBlocksOrphanWorkerResult(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "orphan.json", `{
+		"packet_id":"orphan",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "worker result orphan.json has no matching scan packet") {
+		t.Fatalf("Errors = %#v, want orphan worker result error", result.Errors)
+	}
+}
+
+func TestValidateBlocksScanPacketWithoutWorkerResult(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-2.md"), []byte("# Lane 2\n"))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan packet lane-2 has no matching worker result") {
+		t.Fatalf("Errors = %#v, want missing worker result error", result.Errors)
+	}
+}
+
+func TestValidateBlocksWorkerResultPacketIDMismatch(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"different-lane",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "worker result lane-1.json packet_id different-lane must match file stem lane-1") {
+		t.Fatalf("Errors = %#v, want packet id mismatch error", result.Errors)
+	}
+}
+
+func TestValidateBlocksDuplicateWorkerResultPacketID(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-2.md"), []byte("# Lane 2\n"))
+	writeWorkerResult(t, paths, "lane-2.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "worker result packet_id lane-1 appears more than once") {
+		t.Fatalf("Errors = %#v, want duplicate packet id error", result.Errors)
+	}
+}
+
+func TestValidateBlocksNonStringPathsReadItem(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go",7],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 paths_read[1] must be a concrete path string") {
+		t.Fatalf("Errors = %#v, want mixed paths_read item error", result.Errors)
 	}
 }
 
@@ -327,6 +910,7 @@ func TestValidateBlocksDeepReadCandidateOmittedFromIncludedPaths(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/missing.go":"deep_read"},
+		"criticality":{"src/app.go":"important","src/missing.go":"important"},
 		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
 		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
 	}`))
@@ -355,6 +939,7 @@ func TestValidateBlocksExcludedCandidateOmittedFromExcludedPathsInCoverage(t *te
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"criticality":{"src/app.go":"important","vendor/lib.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
 		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
 	}`))
@@ -382,6 +967,7 @@ func TestValidateBlocksPathInIncludedAndExcludedPaths(t *testing.T) {
 		"excluded_paths":["src/app.go"],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read"},
+		"criticality":{"src/app.go":"important"},
 		"classification_reasons":{"src/app.go":"source"},
 		"decision_source":{"src/app.go":"git"}
 	}`))
@@ -406,6 +992,7 @@ func TestValidateBlocksBlockedCandidateMissingFromBoundaryLists(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/blocked.go":"blocked"},
+		"criticality":{"src/app.go":"important","src/blocked.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","src/blocked.go":"ambiguous"},
 		"decision_source":{"src/app.go":"git","src/blocked.go":"scan"}
 	}`))
@@ -430,6 +1017,7 @@ func TestValidateBlocksBlockedCandidateInIncludedPaths(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/blocked.go":"blocked"},
+		"criticality":{"src/app.go":"important","src/blocked.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","src/blocked.go":"ambiguous"},
 		"decision_source":{"src/app.go":"git","src/blocked.go":"scan"}
 	}`))
@@ -454,6 +1042,7 @@ func TestValidateBlocksIncludedAndAmbiguousOverlap(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":["src/app.go"],
 		"dispositions":{"src/app.go":"deep_read"},
+		"criticality":{"src/app.go":"important"},
 		"classification_reasons":{"src/app.go":"source"},
 		"decision_source":{"src/app.go":"git"}
 	}`))
@@ -479,6 +1068,7 @@ func TestValidateBlocksStrayIncludedPathMissingFromCandidateUniverse(t *testing.
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/extra.go":"deep_read"},
+		"criticality":{"src/app.go":"important","src/extra.go":"important"},
 		"classification_reasons":{"src/app.go":"source","src/extra.go":"source"},
 		"decision_source":{"src/app.go":"git","src/extra.go":"git"}
 	}`))
@@ -503,6 +1093,7 @@ func TestValidateBlocksStrayExcludedPathMissingFromCandidateUniverse(t *testing.
 		"excluded_paths":["vendor/extra.go"],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","vendor/extra.go":"excluded"},
+		"criticality":{"src/app.go":"important","vendor/extra.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","vendor/extra.go":"vendor"},
 		"decision_source":{"src/app.go":"git","vendor/extra.go":".cognitionignore"}
 	}`))
@@ -527,6 +1118,7 @@ func TestValidateBlocksStrayAmbiguousPathMissingFromCandidateUniverse(t *testing
 		"excluded_paths":[],
 		"ambiguous_paths":["src/unknown.go"],
 		"dispositions":{"src/app.go":"deep_read","src/unknown.go":"blocked"},
+		"criticality":{"src/app.go":"important","src/unknown.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","src/unknown.go":"ambiguous"},
 		"decision_source":{"src/app.go":"git","src/unknown.go":"scan"}
 	}`))
@@ -555,6 +1147,7 @@ func TestValidateBlocksMetadataIncompleteGapForBoundaryCoverage(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/missing.go":"sampled"},
+		"criticality":{"src/app.go":"important","src/missing.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
 		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
 	}`))
@@ -583,6 +1176,7 @@ func TestValidateAcceptsLowRiskGapPathsArrayWithRequiredMetadata(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","src/missing.go":"sampled"},
+		"criticality":{"src/app.go":"important","src/missing.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
 		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
 	}`))
@@ -604,6 +1198,7 @@ func TestValidateBlocksMalformedVersionedBoundaryFieldShape(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read"},
+		"criticality":{"src/app.go":"important"},
 		"classification_reasons":{"src/app.go":"source"},
 		"decision_source":{"src/app.go":"git"}
 	}`))
@@ -627,6 +1222,7 @@ func TestValidateBlocksVersionedBoundaryMissingSchemaVersion(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read"},
+		"criticality":{"src/app.go":"important"},
 		"classification_reasons":{"src/app.go":"source"},
 		"decision_source":{"src/app.go":"git"}
 	}`))
@@ -675,6 +1271,7 @@ func TestValidateBlocksMismatchedCandidateAndDispositionMap(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"sampled"},
+		"criticality":{"src/app.go":"important"},
 		"classification_reasons":{"src/app.go":"source"},
 		"decision_source":{"src/app.go":"git"}
 	}`))
@@ -699,6 +1296,7 @@ func TestValidateBlocksIncludedPathWithoutDisposition(t *testing.T) {
 		"excluded_paths":[],
 		"ambiguous_paths":[],
 		"dispositions":{},
+		"criticality":{"src/app.go":"important"},
 		"classification_reasons":{"src/app.go":"source"},
 		"decision_source":{"src/app.go":"git"}
 	}`))
@@ -723,6 +1321,7 @@ func TestValidateBlocksExcludedPathWithDeepReadDisposition(t *testing.T) {
 		"excluded_paths":[{"path":"vendor/lib.go","reason":"vendor","decision_source":".cognitionignore"}],
 		"ambiguous_paths":[],
 		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"deep_read"},
+		"criticality":{"src/app.go":"important","vendor/lib.go":"low_risk"},
 		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
 		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
 	}`))
@@ -827,14 +1426,55 @@ func writeMinimalScanPackage(t *testing.T, paths rt.Paths) {
 		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"):        `# Coverage Ledger`,
 		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"):      `{"rows":[{"path":"src/app.go"}],"open_gaps":[]}`,
 		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"): `# Lane 1`,
-		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):              `# Map State`,
-		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"):  `{"rows":[{"path":"src/app.go"}]}`,
-		filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json"):    `{"rows":[]}`,
-		filepath.Join(paths.RuntimeDir, "workbench", "control-ledger.json"):       `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"): `{
+			"packet_id":"lane-1",
+			"family_id":"app",
+			"assigned_paths":["src/app.go"],
+			"paths_read":["src/app.go"],
+			"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+			"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+			"confidence":"high",
+			"acceptance":"pass"
+		}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):             `# Map State`,
+		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"): `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json"):   `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "control-ledger.json"):      `{"rows":[]}`,
 	}
 	for path, content := range files {
 		writeFileBytes(t, path, []byte(content+"\n"))
 	}
+}
+
+func writeVersionedUniverse(t *testing.T, paths rt.Paths, candidateUniverse string, dispositions string, criticality string) {
+	t.Helper()
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":`+candidateUniverse+`,
+		"included_paths":`+universeIncludedPaths(candidateUniverse)+`,
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":`+dispositions+`,
+		"criticality":`+criticality+`,
+		"classification_reasons":{"src/app.go":"source","src/worker.go":"source"},
+		"decision_source":{"src/app.go":"scan","src/worker.go":"scan"}
+	}`))
+}
+
+func universeIncludedPaths(candidateUniverse string) string {
+	paths := []string{}
+	if strings.Contains(candidateUniverse, `"src/app.go"`) {
+		paths = append(paths, `"src/app.go"`)
+	}
+	if strings.Contains(candidateUniverse, `"src/worker.go"`) {
+		paths = append(paths, `"src/worker.go"`)
+	}
+	return "[" + strings.Join(paths, ",") + "]"
+}
+
+func writeWorkerResult(t *testing.T, paths rt.Paths, name string, content string) {
+	t.Helper()
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", name), []byte(content+"\n"))
 }
 
 func writeFileBytes(t *testing.T, path string, content []byte) {

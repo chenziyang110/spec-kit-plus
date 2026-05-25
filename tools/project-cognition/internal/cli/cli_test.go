@@ -598,6 +598,7 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 		filepath.Join(runtimeDir, "evidence"),
 		filepath.Join(runtimeDir, "provisional"),
 		filepath.Join(runtimeDir, "workbench", "scan-packets"),
+		filepath.Join(runtimeDir, "workbench", "worker-results"),
 	} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -653,6 +654,29 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 	})
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
 		"rows": []map[string]any{{"path": "src/app.go"}},
+	})
+	if err := os.WriteFile(filepath.Join(runtimeDir, "workbench", "scan-packets", "lane-1.md"), []byte("# Lane 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
+		"packet_id":      "lane-1",
+		"family_id":      "app",
+		"assigned_paths": []string{"src/app.go"},
+		"paths_read":     []string{"src/app.go"},
+		"ledger": map[string]any{
+			"todo":     []string{},
+			"doing":    []string{},
+			"done":     []string{"src/app.go"},
+			"blocked":  []string{},
+			"overflow": []string{},
+		},
+		"coverage": []map[string]any{{
+			"path":         "src/app.go",
+			"outcome":      "read",
+			"evidence_ids": []string{"E-001"},
+		}},
+		"confidence": "high",
+		"acceptance": "pass",
 	})
 	for _, rel := range []string{
 		filepath.Join("workbench", "map-scan.md"),

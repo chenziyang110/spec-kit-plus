@@ -216,6 +216,25 @@ func TestRunImportsPathIndexRowsWithCollidingSanitizedPaths(t *testing.T) {
 			{"path": "src/a-b.go"},
 		},
 	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
+		"packet_id":      "lane-1",
+		"family_id":      "app",
+		"assigned_paths": []string{"src/a/b.go", "src/a-b.go"},
+		"paths_read":     []string{"src/a/b.go", "src/a-b.go"},
+		"ledger": map[string]any{
+			"todo":     []string{},
+			"doing":    []string{},
+			"done":     []string{"src/a/b.go", "src/a-b.go"},
+			"blocked":  []string{},
+			"overflow": []string{},
+		},
+		"coverage": []map[string]any{
+			{"path": "src/a/b.go", "outcome": "read", "evidence_ids": []string{"E-001"}},
+			{"path": "src/a-b.go", "outcome": "read", "evidence_ids": []string{"E-002"}},
+		},
+		"confidence": "high",
+		"acceptance": "pass",
+	})
 
 	payload, err := Run(paths)
 	if err != nil {
@@ -371,6 +390,7 @@ func writeMinimalScanPackage(t *testing.T) rt.Paths {
 		filepath.Join(paths.RuntimeDir, "evidence"),
 		filepath.Join(paths.RuntimeDir, "provisional"),
 		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets"),
+		filepath.Join(paths.RuntimeDir, "workbench", "worker-results"),
 	}
 	for _, dir := range mkdirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -430,6 +450,29 @@ func writeMinimalScanPackage(t *testing.T) rt.Paths {
 	})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), map[string]any{
 		"rows": []map[string]any{{"path": "src/app.go"}},
+	})
+	if err := os.WriteFile(filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"), []byte("# Lane 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
+		"packet_id":      "lane-1",
+		"family_id":      "app",
+		"assigned_paths": []string{"src/app.go"},
+		"paths_read":     []string{"src/app.go"},
+		"ledger": map[string]any{
+			"todo":     []string{},
+			"doing":    []string{},
+			"done":     []string{"src/app.go"},
+			"blocked":  []string{},
+			"overflow": []string{},
+		},
+		"coverage": []map[string]any{{
+			"path":         "src/app.go",
+			"outcome":      "read",
+			"evidence_ids": []string{"E-001"},
+		}},
+		"confidence": "high",
+		"acceptance": "pass",
 	})
 	for _, rel := range []string{
 		filepath.Join("workbench", "map-scan.md"),

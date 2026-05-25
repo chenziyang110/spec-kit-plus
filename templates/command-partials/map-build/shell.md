@@ -11,6 +11,7 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation; it owns DB import, metadata, status publication, and DB/status agreement.
 - Do not construct `.specify/project-cognition/project-cognition.db` with manual SQL as the normal workflow path.
 - If the evidence baseline is incomplete or the accepted evidence cannot support graph reconstruction, produce a scan gap report and return to `sp-map-scan`.
+- If scan packet intake exposes contract-invalid, systemic packet-family failures, or `paths_read` values that are not concrete path arrays, preserve the scan gap report and route back to `sp-map-scan`; this is not only a local patch in build.
 - Record accepted and rejected reconstruction evidence as DB/runtime update records and queryable task-local bundle readiness metadata. Treat any raw graph or slice files as compatibility/export artifacts, not runtime truth.
 - Apply project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`; rejected paths remain outside graph evidence and DB route indexes even when scan artifacts mention them.
 - Validate `repository-universe.json` as the canonical scan boundary before graph reconstruction; excluded paths are boundary facts, not graph evidence.

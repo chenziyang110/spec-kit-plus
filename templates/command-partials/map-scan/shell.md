@@ -12,6 +12,7 @@ Generate a complete graph-native evidence baseline for the current codebase.
 - `.specify/**` is workflow/runtime state, not project graph evidence; `.specify/**` paths may be read only for command operation or validation and must not become scan targets or graph paths.
 - Apply project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore` before accepting repository-universe, evidence, coverage, or packet scope. These files use gitignore-compatible patterns for project cognition only.
 - Before subagent dispatch, write the canonical boundary in `.specify/project-cognition/workbench/repository-universe.json`; do not rely on user-maintained `.cognitionignore` as the primary boundary mechanism.
+- Stage the canonical boundary artifact before dispatch, then accept scan packets only after the leader verifies packet-local ledger accounting for every assigned path and a `worker-results/<packet-id>.json` handoff whose `paths_read` is a non-empty concrete path array.
 - Treat `.cognitionignore` as an override source recorded in `decision_source`; excluded paths stay in boundary accounting and out of graph-facing coverage.
 - The resulting evidence baseline must let `sp-map-build` reconstruct the project cognition graph from live-surface evidence without inventing scan scope.
 - Maintain `.specify/project-cognition/status.json` as the baseline state surface for graph-native cognition readiness.

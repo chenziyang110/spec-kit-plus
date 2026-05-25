@@ -98,6 +98,7 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 - Excluded paths are represented only by the boundary artifact, not by graph-facing coverage rows.
 - Excluded paths must not appear in graph-facing coverage rows, evidence rows, provisional graph rows, DB path indexes, route indexes, or `minimal_live_reads`.
 - If repository-universe, coverage, and packet handoffs cannot explain the same path universe, return a scan gap report and route back to `sp-map-scan`.
+- If scan packet acceptance reports `fail_contract` or `fail_systemic`, route back to `sp-map-scan` with a scan gap report because the repair is not only a local patch.
 
 ## Output Contract
 
@@ -117,8 +118,12 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - Do not guess and continue when required scan inputs are incomplete.
 - Do not treat raw scan prose or raw Markdown checklist items alone as accepted build evidence.
 - Do not accept packet results without inspected paths, evidence, and confidence.
+- Do not accept packet results whose `paths_read` is a boolean, summary flag, or anything other than a non-empty array of concrete paths.
+- Do not accept read/deep_read packet results whose `evidence_ids` are missing from the scan evidence package or point only to a different `source_path`.
+- Do not accept orphan packet results that do not correspond to a `scan-packets/<lane-id>.md` input packet.
 - Do not perform a structural-only refresh and call it success.
 - Do not accept manual SQL, sqlite shell scripting, hand-picked node subsets, or leader-memory graph reconstruction as normal build paths.
+- Do not locally patch around contract-invalid or systemic scan packet failures.
 - If the build lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 - If a delegated lane returns unresolved evidence gaps, preserve the scan gap report and stop for escalation or recovery instead of inventing closure.
 
@@ -132,7 +137,9 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - Raw scan prose or raw Markdown checklist items alone are insufficient.
 - raw scan prose or raw Markdown checklist items alone
 - Packet evidence intake must reject packet results without paths read.
+- Packet evidence intake must require `paths_read` to be a non-empty array of concrete paths, not `true` or another summary flag.
 - Packet evidence intake must reject packet results that only summarize without evidence.
+- Packet evidence intake must reject non-`pass` packet outcomes until the scan lane is repacked, repaired, or recorded as an explicit unresolved gap.
 - derived-only evidence is insufficient for final graph acceptance.
 - Structural-only refresh is a failed build.
 - The build phase is not a scaffold, migration, or file-moving command.

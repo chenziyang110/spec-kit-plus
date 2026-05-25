@@ -156,6 +156,7 @@ func scanArtifactAnchorPaths() []string {
 		".specify/project-cognition/coverage.json",
 		".specify/project-cognition/workbench/map-scan.md",
 		".specify/project-cognition/workbench/scan-packets",
+		".specify/project-cognition/workbench/worker-results",
 		".specify/project-cognition/workbench/map-state.md",
 		".specify/project-cognition/workbench/repository-universe.json",
 	}
