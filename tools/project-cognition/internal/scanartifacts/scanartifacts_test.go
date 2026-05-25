@@ -75,6 +75,147 @@ func TestLoadExtractsIdentitySets(t *testing.T) {
 	assertIdentity(t, pkg.Identities.CoveragePaths, "src/app.go")
 }
 
+func TestLoadAcceptsSingularEvidenceAndEdgeEndpointAliases(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "evidence", "E-001.json"), []byte(`{
+		"evidence_id":"mod-001",
+		"source_kind":"file",
+		"source_path":"src/app.go",
+		"commit_sha":"abc123",
+		"span":"L1-L5",
+		"extractor":"test",
+		"content_hash":"hash-app",
+		"attrs":{"language":"go"}
+	}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), []byte(`{"nodes":[{
+		"id":"N-app",
+		"type":"capability",
+		"title":"App",
+		"confidence":"verified",
+		"paths":["src/app.go"],
+		"evidence_id":"mod-001",
+		"attrs":{"owner":"app"}
+	}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), []byte(`{"edges":[{
+		"id":"EDGE-app-self",
+		"type":"owns",
+		"source":"N-app",
+		"target":"N-app",
+		"confidence":"verified",
+		"evidence_id":"mod-001",
+		"attrs":{"relation":"self"}
+	}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), []byte(`{"observations":[{
+		"id":"OBS-app",
+		"observation_type":"implementation",
+		"summary":"App exists",
+		"evidence_id":"mod-001",
+		"attrs":{"source":"test"}
+	}]}`))
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_id":"mod-001"}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if got := pkg.Evidence[0].ID; got != "mod-001" {
+		t.Fatalf("Evidence ID = %q, want mod-001", got)
+	}
+	if got := strings.Join(pkg.Nodes[0].EvidenceIDs, ","); got != "mod-001" {
+		t.Fatalf("Node EvidenceIDs = %q, want mod-001", got)
+	}
+	if got := pkg.Edges[0].SourceID + "->" + pkg.Edges[0].TargetID; got != "N-app->N-app" {
+		t.Fatalf("Edge endpoints = %q, want N-app->N-app", got)
+	}
+	if got := strings.Join(pkg.Edges[0].EvidenceIDs, ","); got != "mod-001" {
+		t.Fatalf("Edge EvidenceIDs = %q, want mod-001", got)
+	}
+	if got := strings.Join(pkg.Observations[0].EvidenceIDs, ","); got != "mod-001" {
+		t.Fatalf("Observation EvidenceIDs = %q, want mod-001", got)
+	}
+	assertIdentity(t, pkg.Identities.Evidence, "mod-001|src/app.go|hash-app")
+	assertIdentity(t, pkg.Identities.Edges, "EDGE-app-self|N-app|N-app|owns")
+}
+
+func TestLoadResolvesPathEdgeEndpointsToOwningNodes(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), []byte(`{"edges":[{
+		"id":"EDGE-app-path",
+		"type":"owns",
+		"source":"src/app.go",
+		"target":"src/app.go",
+		"confidence":"verified",
+		"evidence_ids":["E-001"],
+		"attrs":{"relation":"self"}
+	}]}`))
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if got := pkg.Edges[0].SourceID + "->" + pkg.Edges[0].TargetID; got != "N-app->N-app" {
+		t.Fatalf("Edge endpoints = %q, want N-app->N-app", got)
+	}
+	assertIdentity(t, pkg.Identities.Edges, "EDGE-app-path|N-app|N-app|owns")
+}
+
+func TestLoadKeepsExplicitNodeIDWhenItAlsoMatchesNodePath(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), []byte(`{"nodes":[
+		{
+			"id":"src/app.go",
+			"type":"file",
+			"title":"Path Named Node",
+			"confidence":"verified",
+			"paths":["src/other.go"],
+			"evidence_ids":["E-001"],
+			"attrs":{"owner":"app"}
+		},
+		{
+			"id":"N-owner",
+			"type":"capability",
+			"title":"Owner",
+			"confidence":"verified",
+			"paths":["src/app.go"],
+			"evidence_ids":["E-001"],
+			"attrs":{"owner":"app"}
+		}
+	]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), []byte(`{"edges":[{
+		"id":"EDGE-explicit-node",
+		"type":"owns",
+		"source":"src/app.go",
+		"target":"src/app.go",
+		"confidence":"verified",
+		"evidence_ids":["E-001"],
+		"attrs":{"relation":"self"}
+	}]}`))
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if got := pkg.Edges[0].SourceID + "->" + pkg.Edges[0].TargetID; got != "src/app.go->src/app.go" {
+		t.Fatalf("Edge endpoints = %q, want src/app.go->src/app.go", got)
+	}
+	assertIdentity(t, pkg.Identities.Edges, "EDGE-explicit-node|src/app.go|src/app.go|owns")
+}
+
 func TestValidateArtifactsBlocksOpenGapForAnyOwner(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -210,6 +351,40 @@ func TestValidateBlocksExcludedPathInNodePaths(t *testing.T) {
 	}
 	if !containsError(result.Errors, "excluded path vendor/lib.go must not appear in node paths") {
 		t.Fatalf("Errors = %#v, want excluded node path error", result.Errors)
+	}
+}
+
+func TestValidateBlocksExcludedPathInEdgeEndpoints(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), []byte(`{"edges":[{
+		"id":"EDGE-vendor",
+		"type":"owns",
+		"source":"vendor/lib.go",
+		"target":"N-app",
+		"confidence":"verified",
+		"evidence_ids":["E-001"],
+		"attrs":{"relation":"vendor"}
+	}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"vendor/lib.go","disposition":"excluded","decision_source":".cognitionignore"}],
+		"included_paths":["src/app.go"],
+		"excluded_paths":["vendor/lib.go"],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","vendor/lib.go":"excluded"},
+		"criticality":{"src/app.go":"important","vendor/lib.go":"low_risk"},
+		"classification_reasons":{"src/app.go":"source","vendor/lib.go":"vendor"},
+		"decision_source":{"src/app.go":"git","vendor/lib.go":".cognitionignore"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "excluded path vendor/lib.go must not appear in edge endpoints") {
+		t.Fatalf("Errors = %#v, want excluded edge endpoint error", result.Errors)
 	}
 }
 

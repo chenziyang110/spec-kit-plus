@@ -412,14 +412,17 @@ func emptyCounts() map[string]int {
 }
 
 func emptyReconciliation() map[string]ReconciliationCategory {
-	empty := map[string]bool{}
 	return map[string]ReconciliationCategory{
-		"evidence":       compareIdentityMaps(empty, empty),
-		"nodes":          compareIdentityMaps(empty, empty),
-		"edges":          compareIdentityMaps(empty, empty),
-		"observations":   compareIdentityMaps(empty, empty),
-		"coverage_paths": compareIdentityMaps(empty, empty),
+		"evidence":       notRunReconciliation(),
+		"nodes":          notRunReconciliation(),
+		"edges":          notRunReconciliation(),
+		"observations":   notRunReconciliation(),
+		"coverage_paths": notRunReconciliation(),
 	}
+}
+
+func notRunReconciliation() ReconciliationCategory {
+	return ReconciliationCategory{Status: "not_run", Missing: []string{}, Unexpected: []string{}}
 }
 
 func sanitizeIDPart(value string) string {

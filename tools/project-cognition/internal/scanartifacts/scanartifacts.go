@@ -141,6 +141,7 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadEvidence(paths, &pkg, &result)
 	loadNodes(paths, &pkg, &result)
 	loadEdges(paths, &pkg, &result)
+	normalizeEdgeEndpoints(&pkg)
 	loadObservations(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
 	pkg.AcceptedGaps = acceptedGapPaths(paths)
@@ -323,7 +324,7 @@ func loadNodes(paths rt.Paths, pkg *Package, result *Result) {
 			Title:       normalizedString(row["title"]),
 			Confidence:  normalizedString(row["confidence"]),
 			Paths:       normalizedStringSlice(row["paths"]),
-			EvidenceIDs: normalizedStringSlice(row["evidence_ids"]),
+			EvidenceIDs: evidenceRefs(row),
 			Attrs:       objectMap(row["attrs"]),
 		}
 		if item.ID == "" {
@@ -348,10 +349,10 @@ func loadEdges(paths rt.Paths, pkg *Package, result *Result) {
 		item := EdgeRow{
 			ID:          normalizedString(row["id"]),
 			Type:        normalizedString(row["type"]),
-			SourceID:    normalizedString(row["source_id"]),
-			TargetID:    normalizedString(row["target_id"]),
+			SourceID:    firstNormalizedString(row, "source_id", "source"),
+			TargetID:    firstNormalizedString(row, "target_id", "target"),
 			Confidence:  normalizedString(row["confidence"]),
-			EvidenceIDs: normalizedStringSlice(row["evidence_ids"]),
+			EvidenceIDs: evidenceRefs(row),
 			Attrs:       objectMap(row["attrs"]),
 		}
 		if item.ID == "" {
@@ -377,7 +378,7 @@ func loadObservations(paths rt.Paths, pkg *Package, result *Result) {
 			ID:              normalizedString(row["id"]),
 			ObservationType: normalizedString(row["observation_type"]),
 			Summary:         normalizedString(row["summary"]),
-			EvidenceIDs:     normalizedStringSlice(row["evidence_ids"]),
+			EvidenceIDs:     evidenceRefs(row),
 			Attrs:           objectMap(row["attrs"]),
 		}
 		if item.ID == "" {
@@ -385,6 +386,44 @@ func loadObservations(paths rt.Paths, pkg *Package, result *Result) {
 		}
 		pkg.Observations = append(pkg.Observations, item)
 	}
+}
+
+func normalizeEdgeEndpoints(pkg *Package) {
+	nodeIDs := nodeIDSet(pkg.Nodes)
+	pathOwners := nodeIDsByPath(pkg.Nodes)
+	for i := range pkg.Edges {
+		pkg.Edges[i].SourceID = resolveEdgeEndpoint(pkg.Edges[i].SourceID, nodeIDs, pathOwners)
+		pkg.Edges[i].TargetID = resolveEdgeEndpoint(pkg.Edges[i].TargetID, nodeIDs, pathOwners)
+	}
+}
+
+func nodeIDSet(nodes []NodeRow) map[string]bool {
+	out := map[string]bool{}
+	for _, node := range nodes {
+		out[node.ID] = true
+	}
+	return out
+}
+
+func nodeIDsByPath(nodes []NodeRow) map[string][]string {
+	out := map[string][]string{}
+	for _, node := range nodes {
+		for _, path := range node.Paths {
+			out[path] = append(out[path], node.ID)
+		}
+	}
+	return out
+}
+
+func resolveEdgeEndpoint(endpoint string, nodeIDs map[string]bool, pathOwners map[string][]string) string {
+	if nodeIDs[endpoint] {
+		return endpoint
+	}
+	owners := pathOwners[endpoint]
+	if len(owners) == 1 {
+		return owners[0]
+	}
+	return endpoint
 }
 
 func loadCoverage(paths rt.Paths, pkg *Package, result *Result) {
@@ -881,7 +920,7 @@ func validatePacketCoverageOutcome(packetID string, path string, row map[string]
 		}
 	}
 	if outcome == "read" || outcome == "deep_read" {
-		if len(normalizedStringSlice(row["evidence_ids"])) == 0 {
+		if len(evidenceRefs(row)) == 0 {
 			result.Errors = append(result.Errors, fmt.Sprintf("packet %s path %s read outcome must include evidence_ids", packetID, path))
 		}
 	}
@@ -892,7 +931,7 @@ func validatePacketCoverageEvidence(packetID string, path string, row map[string
 	if outcome != "read" && outcome != "deep_read" {
 		return
 	}
-	evidenceIDs := normalizedStringSlice(row["evidence_ids"])
+	evidenceIDs := evidenceRefs(row)
 	if len(evidenceIDs) == 0 {
 		return
 	}
@@ -1146,6 +1185,11 @@ func validateExcludedPathNotInGraphArtifacts(path string, pkg Package, result *R
 			}
 		}
 	}
+	for _, row := range pkg.Edges {
+		if row.SourceID == path || row.TargetID == path {
+			result.Errors = append(result.Errors, fmt.Sprintf("excluded path %s must not appear in edge endpoints", path))
+		}
+	}
 }
 
 func boundaryListMembershipCount(path string, boundary Boundary) int {
@@ -1329,7 +1373,7 @@ func objectRows(rows []any) ([]map[string]any, error) {
 }
 
 func evidenceFromObject(row map[string]any, fileStem string, index int) EvidenceRow {
-	id := normalizedString(row["id"])
+	id := firstNormalizedString(row, "id", "evidence_id")
 	if id == "" {
 		id = fmt.Sprintf("%s-%d", fileStem, index)
 	}
@@ -1400,6 +1444,16 @@ func stringFromMap(values map[string]any, key string) string {
 	return text
 }
 
+func firstNormalizedString(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		text := normalizedString(values[key])
+		if text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
 func hashNormalizedObject(obj map[string]any) string {
 	data, err := json.Marshal(obj)
 	if err != nil {
@@ -1441,6 +1495,27 @@ func normalizedStringSlice(value any) []string {
 		}
 	}
 	return values
+}
+
+func evidenceRefs(row map[string]any) []string {
+	values := normalizedStringSlice(row["evidence_ids"])
+	if single := normalizedString(row["evidence_id"]); single != "" {
+		values = append(values, single)
+	}
+	return uniqueStrings(values)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func normalizedString(value any) string {

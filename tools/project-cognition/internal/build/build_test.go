@@ -277,6 +277,184 @@ func TestRunImportsPathIndexRowsWithCollidingSanitizedPaths(t *testing.T) {
 	}
 }
 
+func TestRunAcceptsEvidenceIDAliasDuringImport(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "app.json"), map[string]any{
+		"rows": []map[string]any{{
+			"evidence_id":  "mod-001",
+			"source_kind":  "source",
+			"source_path":  "src/app.go",
+			"commit_sha":   "abc123",
+			"span":         "1:1-10:1",
+			"extractor":    "test",
+			"content_hash": "hash-app",
+			"attrs":        map[string]any{"language": "go"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"id":          "project-root",
+			"type":        "capability",
+			"title":       "Project Root",
+			"confidence":  "verified",
+			"paths":       []string{"src/app.go"},
+			"evidence_id": "mod-001",
+			"attrs":       map[string]any{"owner": "test"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":          "EDGE-root-self",
+			"type":        "owns",
+			"source_id":   "project-root",
+			"target_id":   "project-root",
+			"confidence":  "verified",
+			"evidence_id": "mod-001",
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), map[string]any{
+		"observations": []map[string]any{{
+			"id":               "OBS-root",
+			"observation_type": "summary",
+			"summary":          "Root observed",
+			"evidence_id":      "mod-001",
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
+		"packet_id":      "lane-1",
+		"family_id":      "app",
+		"assigned_paths": []string{"src/app.go"},
+		"paths_read":     []string{"src/app.go"},
+		"ledger": map[string]any{
+			"todo":     []string{},
+			"doing":    []string{},
+			"done":     []string{"src/app.go"},
+			"blocked":  []string{},
+			"overflow": []string{},
+		},
+		"coverage": []map[string]any{{
+			"path":        "src/app.go",
+			"outcome":     "read",
+			"evidence_id": "mod-001",
+		}},
+		"confidence": "high",
+		"acceptance": "pass",
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var count int
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM evidence WHERE id = ?`, "mod-001").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("evidence id mod-001 count = %d, want 1", count)
+	}
+}
+
+func TestRunAcceptsSourceTargetEdgeAliases(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":           "EDGE-app-self",
+			"type":         "owns",
+			"source":       "N-app",
+			"target":       "N-app",
+			"confidence":   "verified",
+			"evidence_ids": []string{"E-001"},
+		}},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var count int
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM edges WHERE source_id = ? AND target_id = ?`, "N-app", "N-app").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("edge count = %d, want 1", count)
+	}
+}
+
+func TestRunResolvesPathEdgeEndpointsToOwningNodes(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":           "EDGE-app-path",
+			"type":         "owns",
+			"source":       "src/app.go",
+			"target":       "src/app.go",
+			"confidence":   "verified",
+			"evidence_ids": []string{"E-001"},
+		}},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var count int
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM edges WHERE source_id = ? AND target_id = ?`, "N-app", "N-app").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("edge count = %d, want 1", count)
+	}
+}
+
+func TestRunImportFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":           "EDGE-bad",
+			"type":         "owns",
+			"source_id":    "N-app",
+			"target_id":    "N-missing",
+			"confidence":   "verified",
+			"evidence_ids": []string{"E-001"},
+		}},
+	})
+
+	payload, err := Run(paths)
+	if err == nil {
+		t.Fatal("Run() error = nil, want import failure")
+	}
+	if payload.IdentityReconciliation["evidence"].Status != "not_run" {
+		t.Fatalf("evidence reconciliation = %#v, want not_run", payload.IdentityReconciliation["evidence"])
+	}
+}
+
 func TestRunArchivesLegacyThinDatabaseBeforeImport(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
