@@ -23,6 +23,12 @@ def test_ensure_project_cognition_binary_downloads_release_asset(monkeypatch, tm
     monkeypatch.setattr(project_cognition_runtime, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Linux")
     monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_binary_supports_required_commands",
+        lambda binary: True,
+        raising=False,
+    )
 
     def fake_urlretrieve(url: str, dest: Path):
         downloads.append((url, dest))
@@ -41,6 +47,142 @@ def test_ensure_project_cognition_binary_downloads_release_asset(monkeypatch, tm
             tmp_path / "project-cognition",
         )
     ]
+
+
+def test_ensure_project_cognition_binary_refreshes_cached_binary_without_required_commands(
+    monkeypatch, tmp_path: Path
+):
+    downloads: list[tuple[str, Path]] = []
+
+    monkeypatch.setattr(project_cognition_runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(project_cognition_runtime.os, "chmod", lambda path, mode: None)
+
+    cached_binary = tmp_path / "project-cognition"
+    cached_binary.write_text("old runtime", encoding="utf-8")
+
+    def fake_supports_required_commands(binary: Path) -> bool:
+        return binary.read_text(encoding="utf-8") == "new runtime"
+
+    def fake_urlretrieve(url: str, dest: Path):
+        downloads.append((url, dest))
+        dest.write_text("new runtime", encoding="utf-8")
+        return dest, None
+
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_binary_supports_required_commands",
+        fake_supports_required_commands,
+        raising=False,
+    )
+    monkeypatch.setattr(project_cognition_runtime, "urlretrieve", fake_urlretrieve)
+
+    binary = project_cognition_runtime.ensure_binary(version="v1.2.3")
+
+    assert binary == cached_binary
+    assert cached_binary.read_text(encoding="utf-8") == "new runtime"
+    assert downloads == [
+        (
+            "https://github.com/chenziyang110/spec-kit-plus/releases/download/v1.2.3/project-cognition-linux-amd64",
+            cached_binary,
+        )
+    ]
+
+
+def test_ensure_project_cognition_binary_builds_bundled_source_when_release_lacks_required_commands(
+    monkeypatch, tmp_path: Path
+):
+    built: list[Path] = []
+    source_dir = tmp_path / "source" / "project-cognition"
+    source_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(project_cognition_runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(project_cognition_runtime.os, "chmod", lambda path, mode: None)
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_bundled_project_cognition_source",
+        lambda: source_dir,
+        raising=False,
+    )
+
+    def fake_supports_required_commands(binary: Path) -> bool:
+        return binary.read_text(encoding="utf-8") == "built runtime"
+
+    def fake_urlretrieve(url: str, dest: Path):
+        dest.write_text("release runtime", encoding="utf-8")
+        return dest, None
+
+    def fake_build_from_source(source: Path, dest: Path) -> Path:
+        built.append(source)
+        dest.write_text("built runtime", encoding="utf-8")
+        return dest
+
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_binary_supports_required_commands",
+        fake_supports_required_commands,
+        raising=False,
+    )
+    monkeypatch.setattr(project_cognition_runtime, "urlretrieve", fake_urlretrieve)
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_build_from_source",
+        fake_build_from_source,
+        raising=False,
+    )
+
+    binary = project_cognition_runtime.ensure_binary(version="v1.2.3")
+
+    assert binary == tmp_path / "project-cognition"
+    assert binary.read_text(encoding="utf-8") == "built runtime"
+    assert built == [source_dir]
+
+
+def test_ensure_project_cognition_binary_builds_bundled_source_when_download_fails(
+    monkeypatch, tmp_path: Path
+):
+    source_dir = tmp_path / "source" / "project-cognition"
+    source_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(project_cognition_runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(project_cognition_runtime.os, "chmod", lambda path, mode: None)
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_bundled_project_cognition_source",
+        lambda: source_dir,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_binary_supports_required_commands",
+        lambda binary: binary.read_text(encoding="utf-8") == "built runtime",
+        raising=False,
+    )
+
+    def fake_urlretrieve(url: str, dest: Path):
+        raise OSError("release unavailable")
+
+    def fake_build_from_source(source: Path, dest: Path) -> Path:
+        dest.write_text("built runtime", encoding="utf-8")
+        return dest
+
+    monkeypatch.setattr(project_cognition_runtime, "urlretrieve", fake_urlretrieve)
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_build_from_source",
+        fake_build_from_source,
+        raising=False,
+    )
+
+    binary = project_cognition_runtime.ensure_binary(version="v1.2.3")
+
+    assert binary == tmp_path / "project-cognition"
+    assert binary.read_text(encoding="utf-8") == "built runtime"
 
 
 def test_write_project_cognition_launcher_records_downloaded_binary(tmp_path: Path):

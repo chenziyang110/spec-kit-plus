@@ -104,6 +104,15 @@ def test_wheel_force_include_bundles_shared_prd_state_helper() -> None:
     assert '"scripts/shared" = "specify_cli/core_pack/scripts/shared"' in pyproject
 
 
+def test_wheel_force_include_bundles_project_cognition_source() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert (
+        '"tools/project-cognition" = '
+        '"specify_cli/core_pack/tools/project-cognition"'
+    ) in pyproject
+
+
 def test_internal_codex_team_runtime_cargo_lock_is_tracked_for_force_include() -> None:
     tracked = subprocess.run(
         ["git", "ls-files", "extensions/agent-teams/engine/Cargo.lock"],
