@@ -415,6 +415,85 @@ func TestPublishRuntimeMetadataReturnsNonzeroWhenBlockedStatusWriteFails(t *test
 	}
 }
 
+func TestPublishRuntimeMetadataReturnsNonzeroWhenReadyStatusWriteFails(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `UPDATE metadata SET value_json = 'false' WHERE key = 'graph_ready'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM metadata WHERE key IN ('query_contract_version', 'update_contract_version')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	originalStatusPath := paths.StatusPath
+	if err := os.Remove(originalStatusPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(originalStatusPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := publishMetadataCommand([]string{"--format", "json"}, &stdout, &stderr, paths)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "error" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceHasPrefix(payload["errors"], "write ready status:") {
+		t.Fatalf("errors = %#v, want ready status write failure", payload["errors"])
+	}
+	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
+	}
+
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["graph_ready"] != "false" {
+		t.Fatalf("metadata = %#v, want failed ready metadata rollback", meta)
+	}
+	if _, ok := meta["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after failed ready status write: %#v", meta)
+	}
+	if _, ok := meta["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after failed ready status write: %#v", meta)
+	}
+}
+
 func TestBuildFromScanCommandReturnsNonzeroForOperationalErrorPayload(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)

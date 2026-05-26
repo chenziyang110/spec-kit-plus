@@ -307,12 +307,21 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	status.UpdateContractVersion = 1
 	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID, func() error {
 		if err := rt.WriteStatus(paths, status); err != nil {
-			return err
+			return fmt.Errorf("write ready status: %w", err)
 		}
 		return nil
 	})
 	if err != nil {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+		payload := map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}}
+		if strings.HasPrefix(err.Error(), "write ready status:") {
+			payload["recovery_action"] = "rewrite_status_from_db_metadata"
+			code := writeJSON(stdout, payload)
+			if code != 0 {
+				return code
+			}
+			return 1
+		}
+		return writeJSON(stdout, payload)
 	}
 	if readyGenerationID != activeGenerationID {
 		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, activeGenerationID)}, "warnings": []string{}})
