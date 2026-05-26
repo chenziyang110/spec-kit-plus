@@ -103,15 +103,15 @@ type EvidenceRow struct {
 type EvidenceIndex map[string][]EvidenceRow
 
 type NodeRow struct {
-	ID                     string
-	Type                   string
-	Title                  string
-	Confidence             string
-	Paths                  []string
-	CanonicalPathCount     int
-	CompatibilityPathCount int
-	EvidenceIDs            []string
-	Attrs                  map[string]any
+	ID                 string
+	Type               string
+	Title              string
+	Confidence         string
+	Paths              []string
+	CanonicalPaths     []string
+	CompatibilityPaths []string
+	EvidenceIDs        []string
+	Attrs              map[string]any
 }
 
 type EdgeRow struct {
@@ -561,17 +561,17 @@ func loadNodes(paths rt.Paths, pkg *Package, result *Result) {
 	}
 	for i, row := range rows {
 		attrs := objectMapFromAliases(row, "attrs", "attrs_json")
-		nodePaths, canonicalPathCount, compatibilityPathCount := nodePathInfo(row, attrs)
+		nodePaths, canonicalPaths, compatibilityPaths := nodePathInfo(row, attrs)
 		item := NodeRow{
-			ID:                     normalizedIdentityString(firstValue(row, "id", "node_id")),
-			Type:                   firstNormalizedString(row, "type", "kind"),
-			Title:                  firstNormalizedString(row, "title", "label", "name"),
-			Confidence:             normalizedString(row["confidence"]),
-			Paths:                  nodePaths,
-			CanonicalPathCount:     canonicalPathCount,
-			CompatibilityPathCount: compatibilityPathCount,
-			EvidenceIDs:            evidenceRefs(row),
-			Attrs:                  attrs,
+			ID:                 normalizedIdentityString(firstValue(row, "id", "node_id")),
+			Type:               firstNormalizedString(row, "type", "kind"),
+			Title:              firstNormalizedString(row, "title", "label", "name"),
+			Confidence:         normalizedString(row["confidence"]),
+			Paths:              nodePaths,
+			CanonicalPaths:     canonicalPaths,
+			CompatibilityPaths: compatibilityPaths,
+			EvidenceIDs:        evidenceRefs(row),
+			Attrs:              attrs,
 		}
 		if item.ID == "" {
 			item.ID = generatedRowID("N", row, i, item.Type, item.Title, strings.Join(item.Paths, "|"))
@@ -1993,7 +1993,7 @@ func objectMapFromAliases(row map[string]any, keys ...string) map[string]any {
 	return map[string]any{}
 }
 
-func nodePathInfo(row map[string]any, attrs map[string]any) ([]string, int, int) {
+func nodePathInfo(row map[string]any, attrs map[string]any) ([]string, []string, []string) {
 	canonical := normalizedStringSlice(row["paths"])
 	compatibility := []string{}
 	for _, key := range []string{"path", "source_path", "file_path"} {
@@ -2004,17 +2004,23 @@ func nodePathInfo(row map[string]any, attrs map[string]any) ([]string, int, int)
 			compatibility = append(compatibility, path)
 		}
 	}
-	return uniqueStrings(append(canonical, compatibility...)), len(uniqueStrings(canonical)), len(uniqueStrings(compatibility))
+	canonical = uniqueStrings(canonical)
+	compatibility = uniqueStrings(compatibility)
+	return uniqueStrings(append(canonical, compatibility...)), canonical, compatibility
 }
 
 func nodePathCounts(nodes []NodeRow) (int, int) {
-	canonical := 0
-	compatibility := 0
+	canonical := map[string]bool{}
+	compatibility := map[string]bool{}
 	for _, node := range nodes {
-		canonical += node.CanonicalPathCount
-		compatibility += node.CompatibilityPathCount
+		for _, path := range node.CanonicalPaths {
+			canonical[path] = true
+		}
+		for _, path := range node.CompatibilityPaths {
+			compatibility[path] = true
+		}
 	}
-	return canonical, compatibility
+	return len(canonical), len(compatibility)
 }
 
 func intFromValue(value any) int {
