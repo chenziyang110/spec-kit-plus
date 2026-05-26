@@ -1395,6 +1395,114 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_missing_packet_le
     assert "packet core must define ledger object" in payload["errors"]
 
 
+def test_hook_validate_artifacts_blocks_map_scan_worker_result_legacy_ledger_updates_only(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [
+                {
+                    "path": "src/auth/login.ts",
+                    "outcome": "deep_read",
+                    "evidence_ids": ["E-001"],
+                    "confidence": "high",
+                }
+            ],
+            "acceptance": "pass",
+            "confidence": "high",
+            "ledger_updates": _project_cognition_packet_ledger(),
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "packet core must define ledger object" in payload["errors"]
+
+
+def test_hook_validate_artifacts_blocks_map_scan_worker_result_without_matching_queue_row(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "scan-queue.json").write_text('{"packets": []}\n', encoding="utf-8")
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "worker result core has no matching scan-queue row" in payload["errors"]
+
+
+def test_hook_validate_artifacts_blocks_map_scan_worker_result_without_matching_handoff_return(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "handoff-ledger.json").write_text(
+        (
+            '{"events": ['
+            '{"event_id": "dispatch-core", "packet_id": "core", "event_type": "dispatched"}'
+            "]}\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "worker result core has no matching return event in handoff-ledger.json" in payload["errors"]
+
+
+def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_assigned_path_closure(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [],
+            "acceptance": "pass",
+            "confidence": "high",
+            "ledger": {
+                "todo": [],
+                "doing": [],
+                "done": [],
+                "blocked": [],
+                "overflow": [],
+            },
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "packet core assigned path src/auth/login.ts has no declared final outcome" in payload["errors"]
+    assert "packet core assigned path src/auth/login.ts is missing from packet-local ledger" in payload["errors"]
+    assert "packet core cannot pass with unresolved path src/auth/login.ts" in payload["errors"]
+
+
 def test_hook_validate_artifacts_blocks_map_scan_worker_result_path_level_overflow_without_acceptance(
     tmp_path: Path,
 ):
