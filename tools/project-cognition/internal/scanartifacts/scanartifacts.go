@@ -1246,7 +1246,7 @@ func queueRowHasOpenGap(row queueRow, queue queueState) bool {
 		if closure.PacketID != "" && closure.PacketID == row.PacketID {
 			return true
 		}
-		if closure.ParentPacketID != "" && (closure.ParentPacketID == row.PacketID || closure.ParentPacketID == row.ParentPacketID) {
+		if closure.ParentPacketID != "" && closure.ParentPacketID == row.PacketID {
 			return true
 		}
 		if closure.SourcePacketID != "" && closure.SourcePacketID == row.PacketID {

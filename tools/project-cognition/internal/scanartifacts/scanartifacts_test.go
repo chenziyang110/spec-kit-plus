@@ -389,6 +389,31 @@ func TestLoadRejectsOverflowQueueWithSamePathOpenGapWithoutLineage(t *testing.T)
 	}
 }
 
+func TestLoadRejectsOverflowQueueWithSiblingParentOpenGap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-2.md"), []byte("# Lane 2\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[
+			{"packet_id":"lane-1","state":"accepted","assigned_paths":["src/app.go"],"parent_packet_id":"parent-1","result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"},
+			{"packet_id":"lane-2","state":"overflow","assigned_paths":["src/other.go"],"parent_packet_id":"parent-1"}
+		]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go","status":"covered"}],
+		"open_gaps":[{"parent_packet_id":"parent-1","owner":"scan","reason":"sibling packet split","evidence_expectation":"child packet closes src/other.go","revisit_condition":"child packet returns","paths":["src/other.go"],"coverage_state":"low_risk_open_gap"}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-2 state overflow requires an open coverage gap or child packet") {
+		t.Fatalf("Errors = %#v, want lane-2 unclosed queue-state error", result.Errors)
+	}
+}
+
 func TestLoadRejectsUnclosedOverflowQueueState(t *testing.T) {
 	for _, state := range []string{"overflow", "blocked", "repack_required"} {
 		t.Run(state, func(t *testing.T) {
