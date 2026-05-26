@@ -383,6 +383,45 @@ func TestPublishRuntimeMetadataReturnsNonzeroWhenNoActiveGeneration(t *testing.T
 	}
 }
 
+func TestPublishRuntimeMetadataReturnsNonzeroForUnsupportedLegacyStatus(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.StatusPath, []byte(`{"freshness":"fresh"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["error_code"] != rt.ErrLegacyCode {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+}
+
 func TestPublishRuntimeMetadataReturnsNonzeroWhenReadyMetadataWriteFails(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	old, _ := os.Getwd()

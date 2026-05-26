@@ -300,7 +300,7 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	}
 	status, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {
-		return writeJSON(stdout, rt.UnsupportedLegacyPayload(paths))
+		return writeErrorJSON(stdout, rt.UnsupportedLegacyPayload(paths))
 	}
 	if err != nil {
 		status = rt.DefaultStatus(paths)
