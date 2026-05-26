@@ -121,6 +121,9 @@ func TestRunBlocksReadyPublicationWhenSparsePathIndexFails(t *testing.T) {
 	if metadata["graph_ready"] == "true" || metadata["baseline_state"] == "fresh" {
 		t.Fatalf("metadata = %#v, want non-ready metadata after sparse gate failure", metadata)
 	}
+	if metadata["query_contract_version"] == "1" || metadata["update_contract_version"] == "1" {
+		t.Fatalf("metadata = %#v, want blocked metadata without ready contract versions", metadata)
+	}
 }
 
 func TestRunRewritesPreexistingReadyStatusWhenSparsePathIndexFails(t *testing.T) {
