@@ -128,6 +128,7 @@ func TestRunBuildsPathIndexFromDownstreamNaturalNodeFields(t *testing.T) {
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), map[string]any{
 		"rows": []map[string]any{{"path": pagePath}},
 	})
+	writeAcceptedScanQueue(t, paths, []string{pagePath})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
 		"packet_id":      "lane-1",
 		"family_id":      "desktop",
@@ -321,6 +322,7 @@ func TestRunImportsPathIndexRowsWithCollidingSanitizedPaths(t *testing.T) {
 			{"path": "src/a-b.go"},
 		},
 	})
+	writeAcceptedScanQueue(t, paths, []string{"src/a/b.go", "src/a-b.go"})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
 		"packet_id":      "lane-1",
 		"family_id":      "app",
@@ -734,6 +736,20 @@ func writeMinimalScanPackage(t *testing.T) rt.Paths {
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), map[string]any{
 		"rows": []map[string]any{{"path": "src/app.go"}},
 	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), map[string]any{
+		"packets": []map[string]any{{
+			"packet_id":           "lane-1",
+			"state":               "accepted",
+			"assigned_paths":      []string{"src/app.go"},
+			"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), map[string]any{
+		"events": []map[string]any{
+			{"event_id": "dispatch-1", "packet_id": "lane-1", "event_type": "dispatched", "created_at": "2026-05-26T00:00:00Z"},
+			{"event_id": "return-1", "packet_id": "lane-1", "event_type": "returned", "worker_result_path": ".specify/project-cognition/workbench/worker-results/lane-1.json", "created_at": "2026-05-26T00:01:00Z"},
+		},
+	})
 	if err := os.WriteFile(filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"), []byte("# Lane 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -778,6 +794,18 @@ func writeJSON(t *testing.T, path string, payload any) {
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeAcceptedScanQueue(t *testing.T, paths rt.Paths, assignedPaths []string) {
+	t.Helper()
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), map[string]any{
+		"packets": []map[string]any{{
+			"packet_id":           "lane-1",
+			"state":               "accepted",
+			"assigned_paths":      assignedPaths,
+			"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+		}},
+	})
 }
 
 func containsError(errors []string, want string) bool {

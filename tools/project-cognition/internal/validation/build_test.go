@@ -623,6 +623,16 @@ func writeMatchingScanPackage(t *testing.T, paths rt.Paths) {
 		}`,
 		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):             `# Map State`,
 		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"): `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"): `{"packets":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"assigned_paths":["src/app.go"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"): `{"events":[
+			{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+			{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-1.json","created_at":"2026-05-26T00:01:00Z"}
+		]}`,
 	}
 	for path, content := range files {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

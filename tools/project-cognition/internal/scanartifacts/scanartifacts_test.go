@@ -59,6 +59,122 @@ func TestValidateArtifactsRequiresStatusJSONObjectWhenRequested(t *testing.T) {
 	}
 }
 
+func TestLoadRequiresSchedulerArtifacts(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	removeFile(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	removeFile(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	for _, want := range []string{
+		"missing .specify/project-cognition/workbench/scan-queue.json",
+		"missing .specify/project-cognition/workbench/handoff-ledger.json",
+	} {
+		if !containsError(result.Errors, want) {
+			t.Fatalf("Errors = %#v, want %q", result.Errors, want)
+		}
+	}
+}
+
+func TestLoadRejectsWorkerResultWithoutQueueReturn(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "p1.md"), []byte("# P1\n"))
+	writeWorkerResult(t, paths, "p1.json", `{
+		"packet_id":"p1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	for _, want := range []string{
+		"worker result p1 has no matching scan-queue row",
+		"worker result p1 has no matching return event in handoff-ledger.json",
+	} {
+		if !containsError(result.Errors, want) {
+			t.Fatalf("Errors = %#v, want %q", result.Errors, want)
+		}
+	}
+}
+
+func TestLoadRejectsAcceptedQueueWithoutCoverage(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{"packet_id":"lane-1","state":"accepted","assigned_paths":["src/app.go"]}]
+	}`+"\n"))
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":[],
+		"ledger":{"todo":[],"doing":[],"done":[],"blocked":["src/app.go"],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"blocked"}],
+		"acceptance":"fail_gap"
+	}`)
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires accepted coverage for assigned path src/app.go") {
+		t.Fatalf("Errors = %#v, want accepted queue coverage error", result.Errors)
+	}
+}
+
+func TestLoadRejectsUnclosedOverflowQueueState(t *testing.T) {
+	for _, state := range []string{"overflow", "blocked", "repack_required"} {
+		t.Run(state, func(t *testing.T) {
+			paths := scanArtifactTestPaths(t)
+			writeMinimalScanPackage(t, paths)
+			writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+				"rows":[{"packet_id":"lane-1","state":"`+state+`","assigned_paths":["src/app.go"]}]
+			}`+"\n"))
+
+			_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+			if result.Status != "blocked" {
+				t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+			}
+			if !containsError(result.Errors, "scan-queue packet lane-1 state "+state+" requires an open coverage gap or child packet") {
+				t.Fatalf("Errors = %#v, want unclosed queue-state error", result.Errors)
+			}
+		})
+	}
+}
+
+func TestLoadAcceptsOverflowQueueWithOpenGap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{"packet_id":"lane-1","state":"overflow","assigned_paths":["src/app.go"]}]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go"}],
+		"open_gaps":[{"packet_id":"lane-1","owner":"scan","status":"blocked"}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if containsError(result.Errors, "scan-queue packet lane-1 state overflow requires an open coverage gap or child packet") {
+		t.Fatalf("Errors = %#v, want no unclosed queue-state error", result.Errors)
+	}
+}
+
 func TestLoadExtractsIdentitySets(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -182,6 +298,14 @@ func TestLoadNormalizesDownstreamNaturalScanArtifactFields(t *testing.T) {
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), []byte(`{"observations":["Active session page owns session UI state"]}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"coverage":[{"path":"`+pagePath+`"}]}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{"rows":[{"path":"`+pagePath+`"}],"open_gaps":[]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"packets":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"assigned_paths":["`+pagePath+`"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]
+	}`))
 	writeWorkerResult(t, paths, "lane-1.json", `{
 		"packet_id":"lane-1",
 		"family_id":"desktop",
@@ -1742,8 +1866,18 @@ func writeMinimalScanPackage(t *testing.T, paths rt.Paths) {
 		}`,
 		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):             `# Map State`,
 		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"): `{"rows":[{"path":"src/app.go"}]}`,
-		filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json"):   `{"rows":[]}`,
-		filepath.Join(paths.RuntimeDir, "workbench", "control-ledger.json"):      `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"): `{"packets":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"assigned_paths":["src/app.go"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"): `{"events":[
+			{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+			{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-1.json","created_at":"2026-05-26T00:01:00Z"}
+		]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json"): `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "control-ledger.json"):    `{"rows":[]}`,
 	}
 	for path, content := range files {
 		writeFileBytes(t, path, []byte(content+"\n"))
@@ -1779,6 +1913,13 @@ func universeIncludedPaths(candidateUniverse string) string {
 func writeWorkerResult(t *testing.T, paths rt.Paths, name string, content string) {
 	t.Helper()
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", name), []byte(content+"\n"))
+}
+
+func removeFile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
 }
 
 func writeFileBytes(t *testing.T, path string, content []byte) {
