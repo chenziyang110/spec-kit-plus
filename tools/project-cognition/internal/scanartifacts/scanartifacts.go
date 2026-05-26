@@ -1162,6 +1162,7 @@ func validateQueueResultHandoffPath(packetID string, row queueRow, resultFileNam
 
 func validateHandoffWorkerResultPath(packetID string, path string, resultFileName string, result *Result) {
 	if path == "" {
+		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path must match %s", packetID, canonicalWorkerResultPath(resultFileName)))
 		return
 	}
 	if !workerResultPathMatches(path, resultFileName) {
@@ -1245,7 +1246,7 @@ func queueRowHasOpenGap(row queueRow, queue queueState) bool {
 		if closure.PacketID != "" && closure.PacketID == row.PacketID {
 			return true
 		}
-		if closure.ParentPacketID != "" && row.ParentPacketID != "" && closure.ParentPacketID == row.ParentPacketID {
+		if closure.ParentPacketID != "" && (closure.ParentPacketID == row.PacketID || closure.ParentPacketID == row.ParentPacketID) {
 			return true
 		}
 		if closure.SourcePacketID != "" && closure.SourcePacketID == row.PacketID {

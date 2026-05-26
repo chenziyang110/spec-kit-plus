@@ -171,6 +171,24 @@ func TestLoadRejectsHandoffReturnWrongWorkerResultPath(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsHandoffReturnMissingWorkerResultPath(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), []byte(`{"events":[
+		{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+		{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","created_at":"2026-05-26T00:01:00Z"}
+	]}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "handoff-ledger return for packet lane-1 worker_result_path") {
+		t.Fatalf("Errors = %#v, want handoff worker_result_path error", result.Errors)
+	}
+}
+
 func TestLoadRejectsHandoffReturnWrongResultHandoffPathAlias(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -401,6 +419,24 @@ func TestLoadAcceptsOverflowQueueWithOpenGap(t *testing.T) {
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
 		"rows":[{"path":"src/app.go"}],
 		"open_gaps":[{"packet_id":"lane-1","owner":"scan","reason":"packet split","evidence_expectation":"child packet closes src/app.go","revisit_condition":"child packet returns","paths":["src/app.go"],"coverage_state":"low_risk_open_gap"}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if containsError(result.Errors, "scan-queue packet lane-1 state overflow requires an open coverage gap or child packet") {
+		t.Fatalf("Errors = %#v, want no unclosed queue-state error", result.Errors)
+	}
+}
+
+func TestLoadAcceptsOverflowQueueWithParentPacketOpenGap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{"packet_id":"lane-1","state":"overflow","assigned_paths":["src/app.go"]}]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go"}],
+		"open_gaps":[{"parent_packet_id":"lane-1","owner":"scan","reason":"packet split","evidence_expectation":"child packet closes src/app.go","revisit_condition":"child packet returns","paths":["src/app.go"],"coverage_state":"low_risk_open_gap"}]
 	}`+"\n"))
 
 	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
