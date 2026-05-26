@@ -786,6 +786,32 @@ func TestLoadMergesCoverageRowsAndCompatibilityCoverageArrays(t *testing.T) {
 	}
 }
 
+func TestLoadReportsCanonicalAndCompatibilityNodePathCounts(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), []byte(`{
+		"nodes":[
+			{"id":"N-canonical","type":"file","title":"Canonical","paths":["src/app.go"],"evidence_ids":["E-001"]},
+			{"id":"N-compat","type":"file","title":"Compat","attrs_json":{"path":"src/compat.go"},"evidence_ids":["E-001"]}
+		]
+	}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"rows":[{"path":"src/app.go"},{"path":"src/compat.go"}]}`))
+	writeVersionedUniverse(t, paths,
+		`[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"src/compat.go","disposition":"deep_read","decision_source":"git"}]`,
+		`{"src/app.go":"deep_read","src/compat.go":"deep_read"}`,
+		`{"src/app.go":"important","src/compat.go":"important"}`,
+	)
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Details["canonical_node_path_count"] != 1 {
+		t.Fatalf("canonical_node_path_count = %#v, want 1", result.Details["canonical_node_path_count"])
+	}
+	if result.Details["compatibility_derived_node_path_count"] != 1 {
+		t.Fatalf("compatibility_derived_node_path_count = %#v, want 1", result.Details["compatibility_derived_node_path_count"])
+	}
+}
+
 func TestLoadDoesNotMergeCanonicalGraphRowsWithGenericRowsFallback(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

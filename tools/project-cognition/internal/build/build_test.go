@@ -77,7 +77,7 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 }
 
-func TestRunBuildsPathIndexFromDownstreamNaturalNodeFields(t *testing.T) {
+func TestRunBuildsPathIndexFromCompatibilityNodeFields(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	const pagePath = "desktop/src/pages/ActiveSession.tsx"
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "app.json"), map[string]any{
