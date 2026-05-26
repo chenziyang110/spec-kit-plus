@@ -119,6 +119,7 @@ func TestValidateScanCommandAcceptsDownstreamCompatibilityShapes(t *testing.T) {
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
 		"rows": []map[string]any{{"path": pagePath}},
 	})
+	writeAcceptedCLIScanQueue(t, runtimeDir, []string{pagePath})
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
 		"packet_id":      "lane-1",
 		"family_id":      "desktop",
@@ -749,6 +750,13 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
 		"rows": []map[string]any{{"path": "src/app.go"}},
 	})
+	writeAcceptedCLIScanQueue(t, runtimeDir, []string{"src/app.go"})
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "handoff-ledger.json"), map[string]any{
+		"events": []map[string]any{
+			{"event_id": "dispatch-1", "packet_id": "lane-1", "event_type": "dispatched", "created_at": "2026-05-26T00:00:00Z"},
+			{"event_id": "return-1", "packet_id": "lane-1", "event_type": "returned", "worker_result_path": ".specify/project-cognition/workbench/worker-results/lane-1.json", "created_at": "2026-05-26T00:01:00Z"},
+		},
+	})
 	if err := os.WriteFile(filepath.Join(runtimeDir, "workbench", "scan-packets", "lane-1.md"), []byte("# Lane 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -782,6 +790,18 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 		}
 	}
 	return root
+}
+
+func writeAcceptedCLIScanQueue(t *testing.T, runtimeDir string, assignedPaths []string) {
+	t.Helper()
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "scan-queue.json"), map[string]any{
+		"packets": []map[string]any{{
+			"packet_id":           "lane-1",
+			"state":               "accepted",
+			"assigned_paths":      assignedPaths,
+			"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+		}},
+	})
 }
 
 func writeTestJSON(t *testing.T, path string, payload any) {
