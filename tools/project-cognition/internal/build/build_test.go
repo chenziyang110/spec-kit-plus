@@ -77,6 +77,77 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 }
 
+func TestRunBlocksReadyPublicationWhenSparsePathIndexFails(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeSparseBuildBoundary(t, paths, []sparseBuildPath{
+		{Path: "src/app.go", Criticality: "critical", Indexed: true},
+		{Path: "src/important.go", Criticality: "important", Indexed: false},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%v", payload.Status, payload.Errors)
+	}
+	if payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+	}
+	if !containsError(payload.Errors, "important_missing_path_index: src/important.go") {
+		t.Fatalf("Errors = %#v, want sparse path-index failure", payload.Errors)
+	}
+	if payload.SparsePathIndexDetails["index_required_count"] != 2 {
+		t.Fatalf("SparsePathIndexDetails = %#v, want sparse gate details", payload.SparsePathIndexDetails)
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Readiness == rt.ReadyReadiness || status.Freshness == rt.ReadyFreshness || status.GraphReady {
+		t.Fatalf("status = %#v, want non-ready status after sparse gate failure", status)
+	}
+}
+
+func TestRunPublishesReadyWhenSparsePathIndexOnlyWarns(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeSparseBuildBoundary(t, paths, []sparseBuildPath{
+		{Path: "src/app.go", Criticality: "critical", Indexed: true},
+		{Path: "src/important.go", Criticality: "important", Indexed: true},
+		{Path: "src/low-1.go", Criticality: "low_risk", Indexed: true},
+		{Path: "src/low-2.go", Criticality: "low_risk", Indexed: true},
+		{Path: "src/low-3.go", Criticality: "low_risk", Indexed: true},
+		{Path: "src/low-4.go", Criticality: "low_risk", Indexed: false},
+		{Path: "src/low-5.go", Criticality: "low_risk", Indexed: false},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+	if payload.Readiness != rt.ReadyReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.ReadyReadiness)
+	}
+	if !containsError(payload.Warnings, "path_index_to_included_ratio 0.71 is below warning threshold 0.90") {
+		t.Fatalf("Warnings = %#v, want sparse warning", payload.Warnings)
+	}
+	if payload.SparsePathIndexDetails["path_index_to_included_ratio"] != "0.71" {
+		t.Fatalf("SparsePathIndexDetails = %#v, want warning ratio detail", payload.SparsePathIndexDetails)
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Readiness != rt.ReadyReadiness || status.Freshness != rt.ReadyFreshness || !status.GraphReady {
+		t.Fatalf("status = %#v, want query-ready graph", status)
+	}
+}
+
 func TestRunBuildsPathIndexFromCompatibilityNodeFields(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	const pagePath = "desktop/src/pages/ActiveSession.tsx"
@@ -224,6 +295,9 @@ func TestRunReplacesLegacyStatus(t *testing.T) {
 
 func TestRunIndexesNodePathWithoutEvidence(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
+	writeSparseBuildBoundary(t, paths, []sparseBuildPath{
+		{Path: "docs/guide.md", Criticality: "low_risk", Indexed: true},
+	})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
 		"nodes": []map[string]any{{
 			"id":         "N-docs",
@@ -281,6 +355,10 @@ func TestRunIndexesNodePathWithoutEvidence(t *testing.T) {
 
 func TestRunImportsPathIndexRowsWithCollidingSanitizedPaths(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
+	writeSparseBuildBoundary(t, paths, []sparseBuildPath{
+		{Path: "src/a/b.go", Criticality: "low_risk", Indexed: true},
+		{Path: "src/a-b.go", Criticality: "low_risk", Indexed: true},
+	})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "app.json"), map[string]any{
 		"rows": []map[string]any{
 			{
@@ -813,6 +891,113 @@ func writeAcceptedScanQueue(t *testing.T, paths rt.Paths, assignedPaths []string
 			"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
 		}},
 	})
+}
+
+type sparseBuildPath struct {
+	Path        string
+	Criticality string
+	Indexed     bool
+}
+
+func writeSparseBuildBoundary(t *testing.T, paths rt.Paths, entries []sparseBuildPath) {
+	t.Helper()
+	candidates := []map[string]any{}
+	dispositions := map[string]string{}
+	criticality := map[string]string{}
+	reasons := map[string]string{}
+	sources := map[string]string{}
+	coverage := []map[string]any{}
+	ledgerRows := []map[string]any{}
+	queuePaths := []string{}
+	readPaths := []string{}
+	nodes := []map[string]any{}
+	evidence := []map[string]any{}
+	for i, entry := range entries {
+		candidates = append(candidates, map[string]any{
+			"path":            entry.Path,
+			"disposition":     "deep_read",
+			"decision_source": "test",
+		})
+		dispositions[entry.Path] = "deep_read"
+		criticality[entry.Path] = entry.Criticality
+		reasons[entry.Path] = "test"
+		sources[entry.Path] = "test"
+		coverage = append(coverage, map[string]any{"path": entry.Path})
+		ledgerRows = append(ledgerRows, map[string]any{"path": entry.Path, "status": "covered"})
+		queuePaths = append(queuePaths, entry.Path)
+		readPaths = append(readPaths, entry.Path)
+		evidenceID := "E-sparse-" + sanitizeIDPart(entry.Path)
+		evidence = append(evidence, map[string]any{
+			"id":           evidenceID,
+			"source_kind":  "source",
+			"source_path":  entry.Path,
+			"commit_sha":   "abc123",
+			"span":         "1:1-10:1",
+			"extractor":    "test",
+			"content_hash": "hash-sparse-" + sanitizeIDPart(entry.Path),
+			"attrs":        map[string]any{"language": "go"},
+		})
+		if entry.Indexed {
+			nodes = append(nodes, map[string]any{
+				"id":           "N-sparse-" + sanitizeIDPart(entry.Path),
+				"type":         "capability",
+				"title":        "Sparse Path",
+				"confidence":   "verified",
+				"paths":        []string{entry.Path},
+				"evidence_ids": []string{evidenceID},
+				"attrs":        map[string]any{"index": i},
+			})
+		}
+	}
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), map[string]any{
+		"schema_version":         1,
+		"candidate_universe":     candidates,
+		"included_paths":         queuePaths,
+		"excluded_paths":         []string{},
+		"ambiguous_paths":        []string{},
+		"dispositions":           dispositions,
+		"criticality":            criticality,
+		"classification_reasons": reasons,
+		"decision_source":        sources,
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "coverage.json"), map[string]any{"rows": coverage})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), map[string]any{
+		"rows":      ledgerRows,
+		"open_gaps": []map[string]any{},
+	})
+	writeAcceptedScanQueue(t, paths, queuePaths)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
+		"packet_id":      "lane-1",
+		"family_id":      "sparse",
+		"assigned_paths": queuePaths,
+		"paths_read":     readPaths,
+		"ledger": map[string]any{
+			"todo":     []string{},
+			"doing":    []string{},
+			"done":     readPaths,
+			"blocked":  []string{},
+			"overflow": []string{},
+		},
+		"coverage":   sparseCoverageRows(entries),
+		"confidence": "high",
+		"acceptance": "pass",
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "app.json"), map[string]any{"rows": evidence})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{"nodes": nodes})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{"edges": []map[string]any{}})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), map[string]any{"observations": []map[string]any{}})
+}
+
+func sparseCoverageRows(entries []sparseBuildPath) []map[string]any {
+	rows := []map[string]any{}
+	for _, entry := range entries {
+		rows = append(rows, map[string]any{
+			"path":        entry.Path,
+			"outcome":     "read",
+			"evidence_id": "E-sparse-" + sanitizeIDPart(entry.Path),
+		})
+	}
+	return rows
 }
 
 func containsError(errors []string, want string) bool {

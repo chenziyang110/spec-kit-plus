@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
@@ -32,6 +33,7 @@ type Payload struct {
 	Warnings               []string                          `json:"warnings"`
 	ScanArtifactCounts     map[string]int                    `json:"scan_artifact_counts"`
 	DBCounts               map[string]int                    `json:"db_counts"`
+	SparsePathIndexDetails map[string]any                    `json:"sparse_path_index_details"`
 	IdentityReconciliation map[string]ReconciliationCategory `json:"identity_reconciliation"`
 	Rejections             []store.RowDecision               `json:"rejections"`
 	MergeRecords           []store.MergeRecord               `json:"merge_records"`
@@ -104,6 +106,14 @@ func Run(paths rt.Paths) (Payload, error) {
 		return payload, nil
 	}
 
+	sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), generationID)
+	payload.SparsePathIndexDetails = sparse.Details
+	payload.Warnings = append(payload.Warnings, sparse.Warnings...)
+	if len(sparse.Errors) > 0 {
+		payload.Errors = append(payload.Errors, sparse.Errors...)
+		return payload, nil
+	}
+
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -144,6 +154,7 @@ func basePayload(paths rt.Paths) Payload {
 		Warnings:               []string{},
 		ScanArtifactCounts:     emptyCounts(),
 		DBCounts:               emptyCounts(),
+		SparsePathIndexDetails: map[string]any{},
 		IdentityReconciliation: emptyReconciliation(),
 		Rejections:             []store.RowDecision{},
 		MergeRecords:           []store.MergeRecord{},
