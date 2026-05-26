@@ -586,7 +586,7 @@ func seedMatchingQueryReadyDatabase(t *testing.T, paths rt.Paths, rejections []s
 		t.Fatal(err)
 	}
 	defer st.Close()
-	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+	generationID, err := st.ImportGeneration(context.Background(), store.ImportInput{
 		GenerationID: "GEN-0001",
 		Kind:         "full",
 		SourceCommit: "abc123",
@@ -601,7 +601,7 @@ func seedMatchingQueryReadyDatabase(t *testing.T, paths rt.Paths, rejections []s
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -618,7 +618,7 @@ func seedQueryReadyDatabaseWithNodeIDAndDecisions(t *testing.T, paths rt.Paths, 
 		t.Fatal(err)
 	}
 	defer st.Close()
-	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+	generationID, err := st.ImportGeneration(context.Background(), store.ImportInput{
 		GenerationID: "GEN-0001",
 		Kind:         "full",
 		SourceCommit: "abc123",
@@ -631,7 +631,7 @@ func seedQueryReadyDatabaseWithNodeIDAndDecisions(t *testing.T, paths rt.Paths, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -761,10 +761,11 @@ func seedQueryReadyDatabaseWithPaths(t *testing.T, paths rt.Paths, pathsInScan, 
 			EvidenceIDs: []string{"E-001"},
 		})
 	}
-	if _, err := st.ImportGeneration(context.Background(), input); err != nil {
+	generationID, err := st.ImportGeneration(context.Background(), input)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
 		t.Fatal(err)
 	}
 }

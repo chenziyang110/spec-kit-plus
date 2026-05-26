@@ -127,7 +127,7 @@ func Run(paths rt.Paths) (Payload, error) {
 		return payload, nil
 	}
 
-	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("publish ready DB metadata: %v", err))
 		return payload, err
 	} else if readyGenerationID != generationID {

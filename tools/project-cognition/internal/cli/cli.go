@@ -269,7 +269,7 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			"warnings":                  sparse.Warnings,
 		})
 	}
-	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background())
+	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID)
 	if err != nil {
 		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}

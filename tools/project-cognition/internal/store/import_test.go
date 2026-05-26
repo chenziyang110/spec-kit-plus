@@ -137,7 +137,7 @@ func TestImportGenerationClearsPriorReadyContractMetadata(t *testing.T) {
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(ctx); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-next")); err != nil {
@@ -159,6 +159,41 @@ func TestImportGenerationClearsPriorReadyContractMetadata(t *testing.T) {
 	}
 	if _, ok := metadata["update_contract_version"]; ok {
 		t.Fatalf("update_contract_version present after replacement import: %#v", metadata)
+	}
+}
+
+func TestPublishRuntimeMetadataRefusesGenerationMismatch(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-validated")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-current")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-validated")
+	if err == nil {
+		t.Fatal("PublishRuntimeMetadata error = nil, want generation mismatch error")
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-current" {
+		t.Fatalf("active_generation_id = %q, want GEN-current", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" {
+		t.Fatalf("graph_ready = %q, want false after refused ready publish", metadata["graph_ready"])
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after refused ready publish: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after refused ready publish: %#v", metadata)
 	}
 }
 

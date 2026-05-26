@@ -304,13 +304,10 @@ func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON s
 	return nil
 }
 
-func (s *Store) PublishRuntimeMetadata(ctx context.Context) (map[string]string, string, error) {
-	generationID, err := s.ActiveGenerationID(ctx)
-	if err != nil {
-		return nil, "", err
-	}
-	if generationID == "" {
-		return nil, "", fmt.Errorf("project-cognition.db has no active generation")
+func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string) (map[string]string, string, error) {
+	expectedGenerationID = strings.TrimSpace(expectedGenerationID)
+	if expectedGenerationID == "" {
+		return nil, "", fmt.Errorf("expected generation id is required")
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -318,6 +315,17 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context) (map[string]string, 
 		return nil, "", fmt.Errorf("begin ready metadata transaction: %w", err)
 	}
 	defer tx.Rollback()
+
+	generationID, err := activeGenerationIDTx(ctx, tx)
+	if err != nil {
+		return nil, "", err
+	}
+	if generationID == "" {
+		return nil, "", fmt.Errorf("project-cognition.db has no active generation")
+	}
+	if generationID != expectedGenerationID {
+		return nil, "", fmt.Errorf("active generation changed before ready metadata publication: got %s, want %s", generationID, expectedGenerationID)
+	}
 
 	pairs := map[string]any{
 		"runtime_format":          rt.RuntimeFormat,
@@ -348,6 +356,18 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context) (map[string]string, 
 		return nil, "", err
 	}
 	return meta, generationID, nil
+}
+
+func activeGenerationIDTx(ctx context.Context, tx *sql.Tx) (string, error) {
+	var id string
+	err := tx.QueryRowContext(ctx, `SELECT id FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read active generation: %w", err)
+	}
+	return id, nil
 }
 
 func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID string) error {

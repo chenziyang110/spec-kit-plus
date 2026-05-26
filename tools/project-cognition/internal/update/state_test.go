@@ -498,7 +498,7 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 		_ = st.Close()
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
 		_ = st.Close()
 		t.Fatal(err)
 	}
