@@ -111,6 +111,10 @@ func Run(paths rt.Paths) (Payload, error) {
 	payload.Warnings = append(payload.Warnings, sparse.Warnings...)
 	if len(sparse.Errors) > 0 {
 		payload.Errors = append(payload.Errors, sparse.Errors...)
+		if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID); err != nil {
+			payload.Errors = append(payload.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
+			return payload, err
+		}
 		status := rt.DefaultStatus(paths)
 		status.Status = "blocked"
 		status.Readiness = rt.BlockedReadiness

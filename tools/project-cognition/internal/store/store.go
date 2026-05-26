@@ -341,6 +341,30 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context) (map[string]string, 
 	return meta, generationID, nil
 }
 
+func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	pairs := map[string]any{
+		"runtime_format":       rt.RuntimeFormat,
+		"runtime_schema":       rt.RuntimeSchema,
+		"schema_version":       SchemaVersion,
+		"active_generation_id": generationID,
+		"graph_store_path":     ".specify/project-cognition/project-cognition.db",
+		"graph_ready":          false,
+		"baseline_state":       "blocked",
+		"published_at":         now,
+	}
+	for key, value := range pairs {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("encode metadata %s: %w", key, err)
+		}
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO metadata(key, value_json, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`, key, string(encoded), now); err != nil {
+			return fmt.Errorf("write metadata %s: %w", key, err)
+		}
+	}
+	return nil
+}
+
 func (s *Store) ActiveGenerationID(ctx context.Context) (string, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`)
 	if err != nil {

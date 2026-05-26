@@ -108,6 +108,19 @@ func TestRunBlocksReadyPublicationWhenSparsePathIndexFails(t *testing.T) {
 	if status.Readiness == rt.ReadyReadiness || status.Freshness == rt.ReadyFreshness || status.GraphReady {
 		t.Fatalf("status = %#v, want non-ready status after sparse gate failure", status)
 	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	metadata, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["graph_ready"] == "true" || metadata["baseline_state"] == "fresh" {
+		t.Fatalf("metadata = %#v, want non-ready metadata after sparse gate failure", metadata)
+	}
 }
 
 func TestRunRewritesPreexistingReadyStatusWhenSparsePathIndexFails(t *testing.T) {
