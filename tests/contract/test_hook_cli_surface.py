@@ -1503,6 +1503,75 @@ def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_assigned_pa
     assert "packet core cannot pass with unresolved path src/auth/login.ts" in payload["errors"]
 
 
+def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_paths_read(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "coverage": [
+                {
+                    "path": "src/auth/login.ts",
+                    "outcome": "deep_read",
+                    "evidence_ids": ["E-001"],
+                    "confidence": "high",
+                }
+            ],
+            "acceptance": "pass",
+            "confidence": "high",
+            "evidence_ids": ["E-001"],
+            "ledger": _project_cognition_packet_ledger(),
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "packet core pass acceptance must include non-empty paths_read" in payload["errors"]
+
+
+@pytest.mark.parametrize("state", ["overflow", "blocked", "repack_required"])
+def test_hook_validate_artifacts_blocks_map_scan_queue_continuation_state_without_gap_or_child_packet(
+    tmp_path: Path, state: str
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "scan-queue.json").write_text(
+        json.dumps(
+            {
+                "packets": [
+                    {
+                        "packet_id": "core",
+                        "state": state,
+                        "assigned_paths": ["src/auth/login.ts"],
+                        "result_handoff_path": ".specify/project-cognition/workbench/worker-results/core.json",
+                        "next_action": state,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert f"scan-queue packet core state {state} must have an open coverage gap or child continuation packet" in payload[
+        "errors"
+    ]
+
+
 def test_hook_validate_artifacts_blocks_map_scan_worker_result_path_level_overflow_without_acceptance(
     tmp_path: Path,
 ):
@@ -1872,6 +1941,48 @@ def test_hook_validate_artifacts_blocks_map_build_when_only_unrelated_extra_rows
         "path_index_to_included_ratio 0.33 is below hard threshold 0.70" in message
         for message in payload["errors"]
     )
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_important_path_missing_even_if_ratio_dense(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    generation_id = "GEN-0001"
+    with sqlite3.connect(run_dir / "project-cognition.db") as conn:
+        for path in ["src/orders.ts", "src/reports.ts"]:
+            conn.execute(
+                "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, 'capability:auth.login', 'owns', 'verified', 'E-login', '2026-05-23T00:00:00Z')",
+                (f"P-{path}", generation_id, path),
+            )
+        conn.commit()
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "included_paths": ["src/auth/login.ts", "src/billing.ts", "src/orders.ts", "src/reports.ts"],
+                "excluded_paths": [],
+                "criticality": {
+                    "src/auth/login.ts": "critical",
+                    "src/billing.ts": "important",
+                    "src/orders.ts": "low_risk",
+                    "src/reports.ts": "low_risk",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "required path src/billing.ts with criticality important is missing from path_index" in payload["errors"]
 
 
 def test_hook_validate_artifacts_excludes_accepted_nonblocking_gaps_from_path_index_denominator(

@@ -274,6 +274,54 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 return accepted
 
 
+            def _open_coverage_gap_paths(ledger):
+                if not isinstance(ledger, dict):
+                    return set()
+                open_paths = set()
+                for gap in ledger.get("open_gaps", []):
+                    if not isinstance(gap, dict):
+                        continue
+                    paths = _path_values(gap.get("paths"))
+                    path = _normalize_path(gap.get("path", ""))
+                    if path:
+                        paths.add(path)
+                    blocked_scope = _path_values(gap.get("blocked_scope"))
+                    open_paths.update(paths)
+                    open_paths.update(blocked_scope)
+                return open_paths
+
+
+            def _queue_row_has_child_continuation(packet_id, queue_row, queue_rows):
+                child_ids = set()
+                for field in ("child_packet_ids", "children", "continuation_packet_ids", "split_packet_ids"):
+                    value = queue_row.get(field)
+                    if isinstance(value, list):
+                        for item in value:
+                            child_id = _normalize_path(item.get("packet_id", "") if isinstance(item, dict) else item)
+                            if child_id:
+                                child_ids.add(child_id)
+                continuation = _normalize_path(queue_row.get("continuation_packet_id", ""))
+                if continuation:
+                    child_ids.add(continuation)
+                if any(child_id in queue_rows for child_id in child_ids):
+                    return True
+                for candidate_id, candidate in queue_rows.items():
+                    if candidate_id == packet_id or not isinstance(candidate, dict):
+                        continue
+                    if _normalize_path(candidate.get("parent_packet_id", "")) == packet_id:
+                        return True
+                    parent_ids = set()
+                    value = candidate.get("parent_packet_ids")
+                    if isinstance(value, list):
+                        parent_ids = {
+                            _normalize_path(item.get("packet_id", "") if isinstance(item, dict) else item)
+                            for item in value
+                        }
+                    if packet_id in parent_ids:
+                        return True
+                return False
+
+
             def _validate_scan():
                 required = [
                     ".specify/project-cognition/evidence",
@@ -360,9 +408,11 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                             errors.append(".specify/** must not enter project cognition graph evidence")
                             break
                 ledger_path = Path.cwd() / ".specify/project-cognition/workbench/coverage-ledger.json"
+                open_coverage_gap_paths = set()
                 if ledger_path.exists():
                     try:
                         ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+                        open_coverage_gap_paths = _open_coverage_gap_paths(ledger)
                         rows = ledger.get("rows") if isinstance(ledger, dict) else None
                         if not isinstance(rows, list):
                             errors.append("coverage-ledger.json must define a top-level rows array")
@@ -435,6 +485,16 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                     return_paths_by_packet[packet_id] = result_handoff_path
                     except json.JSONDecodeError:
                         pass
+                for packet_id, queue_row in sorted(queue_rows.items()):
+                    state = str(queue_row.get("state") or queue_row.get("status") or "").strip().lower()
+                    if state not in {"overflow", "blocked", "repack_required"}:
+                        continue
+                    assigned_paths = _path_values(queue_row.get("assigned_paths"))
+                    has_open_gap = bool(assigned_paths & open_coverage_gap_paths)
+                    if not has_open_gap and not _queue_row_has_child_continuation(packet_id, queue_row, queue_rows):
+                        errors.append(
+                            f"scan-queue packet {packet_id} state {state} must have an open coverage gap or child continuation packet"
+                        )
                 worker_results_dir = Path.cwd() / ".specify/project-cognition/workbench/worker-results"
                 if worker_results_dir.is_dir():
                     for result_path in sorted(worker_results_dir.glob("*.json")):
@@ -524,6 +584,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                             if path not in assigned_paths:
                                 errors.append(f"packet {packet_id} paths_read path {path} is not in assigned_paths")
                         if acceptance == "pass":
+                            if not paths_read:
+                                errors.append(f"packet {packet_id} pass acceptance must include non-empty paths_read")
                             if not str(result_payload.get("confidence") or result_payload.get("confidence_level") or "").strip():
                                 errors.append(f"packet {packet_id} pass acceptance must include confidence")
                             for path in sorted(assigned_paths):
@@ -653,6 +715,13 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                                 errors.append(
                                                     f"path_index_to_included_ratio {ratio:.2f} is below hard threshold 0.70"
                                                 )
+                                            missing_required_paths = required_paths - indexed_paths
+                                            for path in sorted(missing_required_paths):
+                                                criticality = criticality_by_path.get(path, "")
+                                                if criticality in {"important", "critical"}:
+                                                    errors.append(
+                                                        f"required path {path} with criticality {criticality} is missing from path_index"
+                                                    )
                             if active_generation_id and "nodes" in table_names:
                                 node_count = conn.execute(
                                     "SELECT COUNT(*) FROM nodes WHERE generation_id = ?",
