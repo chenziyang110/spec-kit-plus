@@ -391,7 +391,9 @@ func loadCoverageLedgerState(paths rt.Paths, result *Result) map[string]bool {
 			result.Errors = append(result.Errors, fmt.Sprintf("coverage-ledger.json rows[%d] is missing path", i))
 			continue
 		}
-		accepted[path] = true
+		if coverageLedgerRowIsAccepted(obj) {
+			accepted[path] = true
+		}
 	}
 	return accepted
 }
@@ -444,6 +446,45 @@ func loadOpenGapClosures(paths rt.Paths, result *Result) []openGapClosure {
 		})
 	}
 	return closures
+}
+
+func coverageLedgerRowIsAccepted(obj map[string]any) bool {
+	if status := normalizedString(obj["status"]); status != "" {
+		switch status {
+		case "read", "deep_read", "sampled", "inventory_only", "covered", "accepted":
+			return true
+		default:
+			return false
+		}
+	}
+	if rowState := normalizedString(obj["state"]); rowState != "" {
+		switch rowState {
+		case "read", "deep_read", "sampled", "inventory_only", "covered", "accepted":
+			return true
+		default:
+			return false
+		}
+	}
+	if coverageState := normalizedString(obj["coverage_state"]); coverageState != "" {
+		switch coverageState {
+		case "read", "deep_read", "sampled", "inventory_only", "covered", "accepted":
+			return true
+		default:
+			return false
+		}
+	}
+	if outcome := normalizedString(obj["outcome"]); outcome != "" {
+		switch outcome {
+		case "read", "deep_read", "sampled", "inventory_only":
+			return true
+		default:
+			return false
+		}
+	}
+	if accepted := normalizedString(obj["accepted"]); accepted != "" {
+		return accepted == "true"
+	}
+	return true
 }
 
 func openGapRowHasRequiredMetadata(obj map[string]any) bool {
@@ -1112,7 +1153,13 @@ func validateQueueRowClosure(packetID string, row queueRow, queue queueState, re
 
 func queueRowHasOpenGap(row queueRow, queue queueState) bool {
 	for _, closure := range queue.openGaps {
-		if closure.PacketID == row.PacketID || closure.ParentPacketID == row.ParentPacketID || closure.SourcePacketID == row.PacketID {
+		if closure.PacketID != "" && closure.PacketID == row.PacketID {
+			return true
+		}
+		if closure.ParentPacketID != "" && row.ParentPacketID != "" && closure.ParentPacketID == row.ParentPacketID {
+			return true
+		}
+		if closure.SourcePacketID != "" && closure.SourcePacketID == row.PacketID {
 			return true
 		}
 		if len(closure.Paths) == 0 {

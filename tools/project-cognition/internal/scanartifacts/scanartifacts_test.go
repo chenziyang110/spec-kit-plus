@@ -140,6 +140,32 @@ func TestLoadRejectsAcceptedQueueWithoutCoverage(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsAcceptedQueueWithBlockedOrPartialLedgerRows(t *testing.T) {
+	for _, row := range []string{
+		`{"path":"src/app.go","status":"blocked"}`,
+		`{"path":"src/app.go","coverage_state":"partial"}`,
+		`{"path":"src/app.go","outcome":"overflow"}`,
+	} {
+		t.Run(row, func(t *testing.T) {
+			paths := scanArtifactTestPaths(t)
+			writeMinimalScanPackage(t, paths)
+			writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+				"rows":[`+row+`],
+				"open_gaps":[]
+			}`+"\n"))
+
+			_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+			if result.Status != "blocked" {
+				t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+			}
+			if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires accepted coverage for assigned path src/app.go") {
+				t.Fatalf("Errors = %#v, want accepted queue coverage error", result.Errors)
+			}
+		})
+	}
+}
+
 func TestLoadRejectsMalformedOverflowOpenGapMetadata(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -158,6 +184,27 @@ func TestLoadRejectsMalformedOverflowOpenGapMetadata(t *testing.T) {
 	}
 	if !containsError(result.Errors, "coverage-ledger open_gaps[0] is missing required metadata") {
 		t.Fatalf("Errors = %#v, want malformed open gap error", result.Errors)
+	}
+}
+
+func TestLoadRejectsOverflowQueueWithUnrelatedValidOpenGap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{"packet_id":"lane-1","state":"overflow","assigned_paths":["src/app.go"]}]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go","status":"covered"}],
+		"open_gaps":[{"owner":"scan","reason":"other packet split","evidence_expectation":"child packet closes src/other.go","revisit_condition":"child packet returns","paths":["src/other.go"],"coverage_state":"low_risk_open_gap"}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 state overflow requires an open coverage gap or child packet") {
+		t.Fatalf("Errors = %#v, want unclosed queue-state error", result.Errors)
 	}
 }
 
