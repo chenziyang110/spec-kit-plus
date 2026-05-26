@@ -1030,15 +1030,11 @@ func validateWorkerResults(paths rt.Paths, boundary Boundary, pkg Package, queue
 		} else {
 			validateHandoffWorkerResultPath(packetID, queue.returnPathsByPacket[packetID], entry.Name(), result)
 		}
-		outcome := normalizedString(packet["acceptance"])
-		if outcome == "" {
-			outcome = normalizedString(packet["outcome"])
+		acceptance, acceptanceOK := workerPacketAcceptance(packetID, packet, result)
+		if acceptanceOK {
+			summary.Outcomes[acceptance]++
 		}
-		if outcome == "" {
-			outcome = "pass"
-		}
-		summary.Outcomes[outcome]++
-		validateScanPacket(packetID, packet, boundary, pkg, row, queue, result)
+		validateScanPacket(packetID, packet, acceptance, acceptanceOK, boundary, pkg, row, queue, result)
 		familyID := normalizedString(packet["family_id"])
 		if familyID == "" {
 			familyID = normalizedString(packet["lane"])
@@ -1046,11 +1042,11 @@ func validateWorkerResults(paths rt.Paths, boundary Boundary, pkg Package, queue
 		if familyID == "" {
 			familyID = packetID
 		}
-		if strings.HasPrefix(outcome, "fail_") {
+		if strings.HasPrefix(acceptance, "fail_") {
 			if familyFailures[familyID] == nil {
 				familyFailures[familyID] = map[string]int{}
 			}
-			familyFailures[familyID][outcome]++
+			familyFailures[familyID][acceptance]++
 		}
 	}
 	if jsonResultCount == 0 {
@@ -1110,7 +1106,19 @@ func validateScanPacketQueueFiles(paths rt.Paths, _ Boundary, _ Package, queue q
 	}
 }
 
-func validateScanPacket(packetID string, packet map[string]any, boundary Boundary, pkg Package, row queueRow, queue queueState, result *Result) {
+func workerPacketAcceptance(packetID string, packet map[string]any, result *Result) (string, bool) {
+	if acceptance := normalizedString(packet["acceptance"]); acceptance != "" {
+		return acceptance, true
+	}
+	if outcome := normalizedString(packet["outcome"]); outcome != "" {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("packet %s uses legacy top-level outcome alias; new worker results must write acceptance", packetID))
+		return outcome, true
+	}
+	result.Errors = append(result.Errors, fmt.Sprintf("packet %s must define acceptance", packetID))
+	return "", false
+}
+
+func validateScanPacket(packetID string, packet map[string]any, acceptance string, acceptanceOK bool, boundary Boundary, pkg Package, row queueRow, queue queueState, result *Result) {
 	assigned := normalizedStringSlice(packet["assigned_paths"])
 	if len(assigned) == 0 {
 		result.Errors = append(result.Errors, fmt.Sprintf("packet %s must define assigned_paths", packetID))
@@ -1143,8 +1151,8 @@ func validateScanPacket(packetID string, packet map[string]any, boundary Boundar
 			result.Errors = append(result.Errors, fmt.Sprintf("packet %s assigned path %s has no declared final outcome", packetID, path))
 		}
 	}
-	validatePacketPathsRead(packetID, packet, assignedSet, coverageByPath, result)
-	validatePacketAcceptance(packetID, packet, assignedSet, ledger, coverageByPath, result)
+	validatePacketPathsRead(packetID, packet, acceptance, acceptanceOK, assignedSet, coverageByPath, result)
+	validatePacketAcceptance(packetID, acceptance, acceptanceOK, packet, assignedSet, ledger, coverageByPath, result)
 	validateQueueRowCoverage(packetID, row, queue.acceptedPaths, result)
 	validateQueueRowClosure(packetID, row, queue, result)
 }
@@ -1390,13 +1398,9 @@ func evidenceIndex(pkg Package) EvidenceIndex {
 	return index
 }
 
-func validatePacketAcceptance(packetID string, packet map[string]any, assigned map[string]bool, ledger map[string]any, coverageByPath map[string]map[string]any, result *Result) {
-	acceptance := normalizedString(packet["acceptance"])
-	if acceptance == "" {
-		acceptance = normalizedString(packet["outcome"])
-	}
-	if acceptance == "" {
-		acceptance = "pass"
+func validatePacketAcceptance(packetID string, acceptance string, acceptanceOK bool, packet map[string]any, assigned map[string]bool, ledger map[string]any, coverageByPath map[string]map[string]any, result *Result) {
+	if !acceptanceOK {
+		return
 	}
 	if !validPacketAcceptance(acceptance) {
 		result.Errors = append(result.Errors, fmt.Sprintf("packet %s has invalid acceptance %s", packetID, acceptance))
@@ -1436,7 +1440,7 @@ func validatePacketAcceptance(packetID string, packet map[string]any, assigned m
 	}
 }
 
-func validatePacketPathsRead(packetID string, packet map[string]any, assigned map[string]bool, coverageByPath map[string]map[string]any, result *Result) {
+func validatePacketPathsRead(packetID string, packet map[string]any, acceptance string, acceptanceOK bool, assigned map[string]bool, coverageByPath map[string]map[string]any, result *Result) {
 	rawPathsRead, ok := packet["paths_read"]
 	if !ok {
 		result.Errors = append(result.Errors, fmt.Sprintf("packet %s must define paths_read as an array of concrete paths", packetID))
@@ -1448,7 +1452,7 @@ func validatePacketPathsRead(packetID string, packet map[string]any, assigned ma
 	}
 	validateConcretePathArray(packetID, "paths_read", rawPathsRead, result)
 	pathsRead := normalizedStringSlice(rawPathsRead)
-	if len(pathsRead) == 0 && packetRequiresPathsRead(packet, coverageByPath) {
+	if len(pathsRead) == 0 && packetRequiresPathsRead(acceptance, acceptanceOK, coverageByPath) {
 		result.Errors = append(result.Errors, fmt.Sprintf("packet %s paths_read must include at least one concrete path", packetID))
 		return
 	}
@@ -1479,12 +1483,8 @@ func validateConcretePathArray(packetID string, field string, value any, result 
 	}
 }
 
-func packetRequiresPathsRead(packet map[string]any, coverageByPath map[string]map[string]any) bool {
-	acceptance := normalizedString(packet["acceptance"])
-	if acceptance == "" {
-		acceptance = normalizedString(packet["outcome"])
-	}
-	if acceptance == "" || acceptance == "pass" {
+func packetRequiresPathsRead(acceptance string, acceptanceOK bool, coverageByPath map[string]map[string]any) bool {
+	if acceptanceOK && acceptance == "pass" {
 		return true
 	}
 	for _, row := range coverageByPath {

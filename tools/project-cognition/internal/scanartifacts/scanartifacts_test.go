@@ -1446,6 +1446,77 @@ func TestValidateBlocksPassingWorkerResultWithoutConfidence(t *testing.T) {
 	}
 }
 
+func TestValidateBlocksWorkerResultMissingAcceptance(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 must define acceptance") {
+		t.Fatalf("Errors = %#v, want missing acceptance error", result.Errors)
+	}
+}
+
+func TestValidateWarnsForLegacyOutcomeAlias(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"outcome":"pass"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsString(result.Warnings, "packet lane-1 uses legacy top-level outcome alias; new worker results must write acceptance") {
+		t.Fatalf("Warnings = %#v, want legacy outcome warning", result.Warnings)
+	}
+}
+
+func TestValidateBlocksPacketLevelOverflowAcceptance(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":[],
+		"ledger":{"todo":[],"doing":[],"done":[],"blocked":[],"overflow":["src/app.go"]},
+		"coverage":[{"path":"src/app.go","outcome":"overflow"}],
+		"confidence":"low",
+		"acceptance":"overflow"
+	}`)
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "packet lane-1 has invalid acceptance overflow") {
+		t.Fatalf("Errors = %#v, want invalid acceptance error", result.Errors)
+	}
+}
+
 func TestValidateBlocksWorkerResultsRegularFile(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
