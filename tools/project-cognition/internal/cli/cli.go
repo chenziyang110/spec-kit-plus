@@ -248,9 +248,15 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	if activeGenerationID == "" {
 		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{"project-cognition.db has no active generation"}, "warnings": []string{}})
 	}
+	status, err := rt.ReadStatus(paths)
+	if errors.Is(err, rt.ErrUnsupportedLegacy) {
+		return writeErrorJSON(stdout, rt.UnsupportedLegacyPayload(paths))
+	}
+	if err != nil {
+		status = rt.DefaultStatus(paths)
+	}
 	sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), activeGenerationID)
 	if len(sparse.Errors) > 0 {
-		status := rt.DefaultStatus(paths)
 		status.Status = "blocked"
 		status.Readiness = rt.BlockedReadiness
 		status.ActiveGenerationID = activeGenerationID
@@ -297,13 +303,6 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			return code
 		}
 		return 1
-	}
-	status, err := rt.ReadStatus(paths)
-	if errors.Is(err, rt.ErrUnsupportedLegacy) {
-		return writeErrorJSON(stdout, rt.UnsupportedLegacyPayload(paths))
-	}
-	if err != nil {
-		status = rt.DefaultStatus(paths)
 	}
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
