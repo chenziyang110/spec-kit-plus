@@ -65,6 +65,19 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
+	metadata, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != payload.ActiveGenerationID {
+		t.Fatalf("metadata active_generation_id = %q, want payload %q", metadata["active_generation_id"], payload.ActiveGenerationID)
+	}
+	if metadata["graph_ready"] != "true" || metadata["baseline_state"] != "fresh" {
+		t.Fatalf("metadata = %#v, want query-ready graph metadata after successful sparse gates", metadata)
+	}
+	if metadata["query_contract_version"] != "1" || metadata["update_contract_version"] != "1" {
+		t.Fatalf("metadata = %#v, want ready contract versions after successful sparse gates", metadata)
+	}
 	snapshot, err := st.ActiveIdentitySnapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)

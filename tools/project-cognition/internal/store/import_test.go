@@ -99,6 +99,69 @@ func TestImportGenerationPublishesActiveIdentitySnapshot(t *testing.T) {
 	}
 }
 
+func TestImportGenerationPublishesOnlyProvisionalRuntimeMetadata(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-import")); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-import" {
+		t.Fatalf("active_generation_id = %q, want GEN-import", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" {
+		t.Fatalf("graph_ready = %q, want false after import before sparse gates", metadata["graph_ready"])
+	}
+	if metadata["baseline_state"] == "fresh" {
+		t.Fatalf("baseline_state = %q, want non-ready state after import before sparse gates", metadata["baseline_state"])
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after import before sparse gates: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after import before sparse gates: %#v", metadata)
+	}
+}
+
+func TestImportGenerationClearsPriorReadyContractMetadata(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-next")); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-next" {
+		t.Fatalf("active_generation_id = %q, want GEN-next", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] == "fresh" {
+		t.Fatalf("metadata = %#v, want non-ready metadata for newly imported generation", metadata)
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after replacement import: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after replacement import: %#v", metadata)
+	}
+}
+
 func TestImportGenerationRollsBackOnInvalidEdge(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)

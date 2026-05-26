@@ -127,6 +127,14 @@ func Run(paths rt.Paths) (Payload, error) {
 		return payload, nil
 	}
 
+	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+		payload.Errors = append(payload.Errors, fmt.Sprintf("publish ready DB metadata: %v", err))
+		return payload, err
+	} else if readyGenerationID != generationID {
+		payload.Errors = append(payload.Errors, fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, generationID))
+		return payload, fmt.Errorf("ready DB metadata active generation mismatch")
+	}
+
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
