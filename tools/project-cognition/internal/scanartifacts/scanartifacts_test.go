@@ -244,6 +244,27 @@ func TestLoadRejectsOverflowQueueWithUnrelatedValidOpenGap(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsOverflowQueueWithSamePathOpenGapWithoutLineage(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{"packet_id":"lane-1","state":"overflow","assigned_paths":["src/app.go"]}]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go","status":"covered"}],
+		"open_gaps":[{"owner":"scan","reason":"packet split","evidence_expectation":"child packet closes src/app.go","revisit_condition":"child packet returns","paths":["src/app.go"],"coverage_state":"low_risk_open_gap"}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 state overflow requires an open coverage gap or child packet") {
+		t.Fatalf("Errors = %#v, want unclosed queue-state error", result.Errors)
+	}
+}
+
 func TestLoadRejectsUnclosedOverflowQueueState(t *testing.T) {
 	for _, state := range []string{"overflow", "blocked", "repack_required"} {
 		t.Run(state, func(t *testing.T) {

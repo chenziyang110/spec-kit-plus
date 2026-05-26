@@ -1164,16 +1164,6 @@ func queueRowHasOpenGap(row queueRow, queue queueState) bool {
 		if closure.SourcePacketID != "" && closure.SourcePacketID == row.PacketID {
 			return true
 		}
-		if len(closure.Paths) == 0 {
-			continue
-		}
-		for _, path := range row.AssignedPaths {
-			for _, gapPath := range closure.Paths {
-				if path == gapPath {
-					return true
-				}
-			}
-		}
 	}
 	return false
 }
