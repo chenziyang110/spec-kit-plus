@@ -407,11 +407,14 @@ func TestPublishRuntimeMetadataReturnsNonzeroWhenBlockedStatusWriteFails(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta["graph_ready"] != "true" || meta["baseline_state"] != "fresh" {
-		t.Fatalf("metadata = %#v, want prior ready metadata after blocked status write rollback", meta)
+	if meta["graph_ready"] != "false" || meta["baseline_state"] != "blocked" {
+		t.Fatalf("metadata = %#v, want committed blocked metadata before blocked status write failure", meta)
 	}
-	if meta["query_contract_version"] != "1" || meta["update_contract_version"] != "1" {
-		t.Fatalf("metadata = %#v, want ready contract versions preserved after blocked status write rollback", meta)
+	if _, ok := meta["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after blocked status write failure: %#v", meta)
+	}
+	if _, ok := meta["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after blocked status write failure: %#v", meta)
 	}
 }
 
@@ -483,14 +486,14 @@ func TestPublishRuntimeMetadataReturnsNonzeroWhenReadyStatusWriteFails(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta["graph_ready"] != "false" {
-		t.Fatalf("metadata = %#v, want failed ready metadata rollback", meta)
+	if meta["graph_ready"] != "true" || meta["baseline_state"] != "fresh" {
+		t.Fatalf("metadata = %#v, want committed ready metadata before status write failure", meta)
 	}
-	if _, ok := meta["query_contract_version"]; ok {
-		t.Fatalf("query_contract_version present after failed ready status write: %#v", meta)
+	if meta["query_contract_version"] != "1" {
+		t.Fatalf("query_contract_version = %q, want 1 after failed ready status write", meta["query_contract_version"])
 	}
-	if _, ok := meta["update_contract_version"]; ok {
-		t.Fatalf("update_contract_version present after failed ready status write: %#v", meta)
+	if meta["update_contract_version"] != "1" {
+		t.Fatalf("update_contract_version = %q, want 1 after failed ready status write", meta["update_contract_version"])
 	}
 }
 

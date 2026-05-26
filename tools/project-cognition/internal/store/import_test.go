@@ -199,7 +199,7 @@ func TestPublishRuntimeMetadataRefusesGenerationMismatch(t *testing.T) {
 	}
 }
 
-func TestPublishRuntimeMetadataRollsBackWhenStatusCallbackFails(t *testing.T) {
+func TestPublishRuntimeMetadataCommitsWhenStatusCallbackFails(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
 	defer st.Close()
@@ -223,18 +223,18 @@ func TestPublishRuntimeMetadataRollsBackWhenStatusCallbackFails(t *testing.T) {
 	if metadata["active_generation_id"] != "GEN-ready" {
 		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
 	}
-	if metadata["graph_ready"] != "false" || metadata["baseline_state"] == "fresh" {
-		t.Fatalf("metadata = %#v, want non-ready metadata after failed status callback", metadata)
+	if metadata["graph_ready"] != "true" || metadata["baseline_state"] != "fresh" {
+		t.Fatalf("metadata = %#v, want committed ready metadata after failed status callback", metadata)
 	}
-	if _, ok := metadata["query_contract_version"]; ok {
-		t.Fatalf("query_contract_version present after failed status callback: %#v", metadata)
+	if metadata["query_contract_version"] != "1" {
+		t.Fatalf("query_contract_version = %q, want 1 after failed status callback", metadata["query_contract_version"])
 	}
-	if _, ok := metadata["update_contract_version"]; ok {
-		t.Fatalf("update_contract_version present after failed status callback: %#v", metadata)
+	if metadata["update_contract_version"] != "1" {
+		t.Fatalf("update_contract_version = %q, want 1 after failed status callback", metadata["update_contract_version"])
 	}
 }
 
-func TestPublishRuntimeMetadataRollsBackIfCallbackActivatesNewGeneration(t *testing.T) {
+func TestPublishRuntimeMetadataDoesNotCallStatusCallbackWhenPostCommitGenerationChanges(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
 	defer st.Close()
@@ -242,31 +242,82 @@ func TestPublishRuntimeMetadataRollsBackIfCallbackActivatesNewGeneration(t *test
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := st.DB().ExecContext(ctx, `
+CREATE TRIGGER activate_generation_after_ready_metadata
+AFTER UPDATE OF value_json ON metadata
+WHEN NEW.key = 'graph_ready' AND NEW.value_json = 'true'
+BEGIN
+	INSERT INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json)
+	VALUES('GEN-current', 9999, 'full', 'active', '', '2026-05-26T00:00:00Z', '2026-05-26T00:00:00Z', '', '{}');
+	UPDATE generations SET state = 'superseded', superseded_at = '2026-05-26T00:00:00Z'
+	WHERE id = 'GEN-ready';
+END`); err != nil {
+		t.Fatal(err)
+	}
+	called := false
 
 	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", func() error {
-		_, importErr := st.ImportGeneration(ctx, validImportInput("GEN-current"))
-		return importErr
+		called = true
+		return nil
 	})
-	if err == nil || !strings.Contains(err.Error(), "database is locked") {
-		t.Fatalf("PublishRuntimeMetadata error = %v, want lock error from overlapping import", err)
+	if err == nil || !strings.Contains(err.Error(), "active generation changed after ready metadata publication") {
+		t.Fatalf("PublishRuntimeMetadata error = %v, want post-commit generation mismatch", err)
+	}
+	if called {
+		t.Fatal("status callback was called after post-commit generation mismatch")
 	}
 
 	activeID, err := st.ActiveGenerationID(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if activeID != "GEN-ready" {
-		t.Fatalf("activeID = %q, want GEN-ready after callback rollback", activeID)
+	if activeID != "GEN-current" {
+		t.Fatalf("activeID = %q, want GEN-current after trigger activation", activeID)
 	}
 	metadata, err := st.Metadata(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metadata["active_generation_id"] != "GEN-ready" || metadata["graph_ready"] != "false" {
-		t.Fatalf("metadata = %#v, want GEN-ready still non-ready after overlapping import attempt", metadata)
+	if metadata["active_generation_id"] != "GEN-ready" || metadata["graph_ready"] != "true" {
+		t.Fatalf("metadata = %#v, want committed GEN-ready metadata without status callback", metadata)
+	}
+}
+
+func TestMarkRuntimeMetadataBlockedCommitsWhenStatusCallbackFails(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+		t.Fatal(err)
+	}
+	callbackErr := errors.New("blocked status write failed")
+
+	err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-ready", func() error {
+		return callbackErr
+	})
+	if !errors.Is(err, callbackErr) {
+		t.Fatalf("MarkRuntimeMetadataBlocked error = %v, want callback error", err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" {
+		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] != "blocked" {
+		t.Fatalf("metadata = %#v, want committed blocked metadata after failed status callback", metadata)
 	}
 	if _, ok := metadata["query_contract_version"]; ok {
-		t.Fatalf("query_contract_version present after overlapping import attempt: %#v", metadata)
+		t.Fatalf("query_contract_version present after committed blocked metadata: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after committed blocked metadata: %#v", metadata)
 	}
 }
 
@@ -302,7 +353,7 @@ func TestMarkRuntimeMetadataBlockedRefusesGenerationMismatch(t *testing.T) {
 	}
 }
 
-func TestMarkRuntimeMetadataBlockedRollsBackWhenStatusCallbackFails(t *testing.T) {
+func TestMarkRuntimeMetadataBlockedDoesNotCallStatusCallbackWhenPostCommitGenerationChanges(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
 	defer st.Close()
@@ -313,13 +364,29 @@ func TestMarkRuntimeMetadataBlockedRollsBackWhenStatusCallbackFails(t *testing.T
 	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
 		t.Fatal(err)
 	}
-	callbackErr := errors.New("blocked status write failed")
+	if _, err := st.DB().ExecContext(ctx, `
+CREATE TRIGGER activate_generation_after_blocked_metadata
+AFTER UPDATE OF value_json ON metadata
+WHEN NEW.key = 'graph_ready' AND NEW.value_json = 'false'
+BEGIN
+	INSERT INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json)
+	VALUES('GEN-current', 9999, 'full', 'active', '', '2026-05-26T00:00:00Z', '2026-05-26T00:00:00Z', '', '{}');
+	UPDATE generations SET state = 'superseded', superseded_at = '2026-05-26T00:00:00Z'
+	WHERE id = 'GEN-ready';
+END`); err != nil {
+		t.Fatal(err)
+	}
+	called := false
 
 	err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-ready", func() error {
-		return callbackErr
+		called = true
+		return nil
 	})
-	if !errors.Is(err, callbackErr) {
-		t.Fatalf("MarkRuntimeMetadataBlocked error = %v, want callback error", err)
+	if err == nil || !strings.Contains(err.Error(), "active generation changed after blocked metadata publication") {
+		t.Fatalf("MarkRuntimeMetadataBlocked error = %v, want post-commit generation mismatch", err)
+	}
+	if called {
+		t.Fatal("status callback was called after post-commit generation mismatch")
 	}
 
 	metadata, err := st.Metadata(ctx)
@@ -329,11 +396,11 @@ func TestMarkRuntimeMetadataBlockedRollsBackWhenStatusCallbackFails(t *testing.T
 	if metadata["active_generation_id"] != "GEN-ready" {
 		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
 	}
-	if metadata["graph_ready"] != "true" || metadata["baseline_state"] != "fresh" {
-		t.Fatalf("metadata = %#v, want prior ready metadata preserved after failed blocked status callback", metadata)
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] != "blocked" {
+		t.Fatalf("metadata = %#v, want committed blocked metadata without status callback", metadata)
 	}
-	if metadata["query_contract_version"] != "1" || metadata["update_contract_version"] != "1" {
-		t.Fatalf("metadata = %#v, want ready contract versions preserved after failed blocked status callback", metadata)
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after committed blocked metadata: %#v", metadata)
 	}
 }
 

@@ -304,7 +304,7 @@ func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON s
 	return nil
 }
 
-func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string, beforeCommit ...func() error) (map[string]string, string, error) {
+func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string, afterCommit ...func() error) (map[string]string, string, error) {
 	expectedGenerationID = strings.TrimSpace(expectedGenerationID)
 	if expectedGenerationID == "" {
 		return nil, "", fmt.Errorf("expected generation id is required")
@@ -348,16 +348,23 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID
 			return nil, "", fmt.Errorf("write metadata %s: %w", key, err)
 		}
 	}
-	for _, fn := range beforeCommit {
+	if err := tx.Commit(); err != nil {
+		return nil, "", fmt.Errorf("commit ready metadata transaction: %w", err)
+	}
+	activeGenerationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	if activeGenerationID != generationID {
+		return nil, "", fmt.Errorf("active generation changed after ready metadata publication: got %s, want %s", activeGenerationID, generationID)
+	}
+	for _, fn := range afterCommit {
 		if fn == nil {
 			continue
 		}
 		if err := fn(); err != nil {
 			return nil, "", err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, "", fmt.Errorf("commit ready metadata transaction: %w", err)
 	}
 	meta, err := s.Metadata(ctx)
 	if err != nil {
@@ -378,7 +385,7 @@ func activeGenerationIDTx(ctx context.Context, tx *sql.Tx) (string, error) {
 	return id, nil
 }
 
-func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID string, beforeCommit ...func() error) error {
+func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID string, afterCommit ...func() error) error {
 	generationID = strings.TrimSpace(generationID)
 	if generationID == "" {
 		return fmt.Errorf("expected generation id is required")
@@ -423,7 +430,17 @@ func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID str
 	if _, err := tx.ExecContext(ctx, `DELETE FROM metadata WHERE key IN (?, ?)`, "query_contract_version", "update_contract_version"); err != nil {
 		return fmt.Errorf("clear ready contract metadata: %w", err)
 	}
-	for _, fn := range beforeCommit {
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit blocked metadata transaction: %w", err)
+	}
+	activeGenerationID, err = s.ActiveGenerationID(ctx)
+	if err != nil {
+		return err
+	}
+	if activeGenerationID != generationID {
+		return fmt.Errorf("active generation changed after blocked metadata publication: got %s, want %s", activeGenerationID, generationID)
+	}
+	for _, fn := range afterCommit {
 		if fn == nil {
 			continue
 		}
@@ -431,7 +448,7 @@ func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID str
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (s *Store) ActiveGenerationID(ctx context.Context) (string, error) {
