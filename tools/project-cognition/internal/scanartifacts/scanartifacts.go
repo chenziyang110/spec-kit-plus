@@ -66,7 +66,7 @@ type queueRow struct {
 
 type queueState struct {
 	rowsByPacket        map[string]queueRow
-	childrenByParent    map[string]bool
+	childrenByParent    map[string][]string
 	returnedPackets     map[string]bool
 	returnPathsByPacket map[string]string
 	acceptedPaths       map[string]bool
@@ -304,7 +304,7 @@ func loadOptionalWorkbenchJSON(paths rt.Paths, result *Result, name string) {
 func loadQueueState(paths rt.Paths, result *Result) queueState {
 	state := queueState{
 		rowsByPacket:        map[string]queueRow{},
-		childrenByParent:    map[string]bool{},
+		childrenByParent:    map[string][]string{},
 		returnedPackets:     map[string]bool{},
 		returnPathsByPacket: map[string]string{},
 		acceptedPaths:       map[string]bool{},
@@ -334,7 +334,7 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 				}
 				parentPacketID := normalizedString(row["parent_packet_id"])
 				if parentPacketID != "" {
-					state.childrenByParent[parentPacketID] = true
+					state.childrenByParent[parentPacketID] = append(state.childrenByParent[parentPacketID], packetID)
 				}
 				state.rowsByPacket[packetID] = queueRow{
 					PacketID:          packetID,
@@ -365,7 +365,9 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		eventType := normalizedString(event["event_type"])
 		if eventType == "returned" || eventType == "return" {
 			state.returnedPackets[packetID] = true
-			if path := firstNormalizedString(event, "worker_result_path", "result_handoff_path"); path != "" {
+			path := firstNormalizedString(event, "worker_result_path", "result_handoff_path")
+			validateHandoffReturnEventPath(paths, packetID, path, result)
+			if path != "" {
 				state.returnPathsByPacket[packetID] = path
 			}
 		}
@@ -1170,6 +1172,20 @@ func validateHandoffWorkerResultPath(packetID string, path string, resultFileNam
 	}
 }
 
+func validateHandoffReturnEventPath(paths rt.Paths, packetID string, path string, result *Result) {
+	if path == "" {
+		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path must match %s", packetID, canonicalWorkerResultPath(packetID+".json")))
+		return
+	}
+	if !workerResultPathMatches(path, packetID+".json") {
+		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path must match %s", packetID, canonicalWorkerResultPath(packetID+".json")))
+		return
+	}
+	if _, err := os.Stat(filepath.Join(paths.RuntimeDir, "workbench", "worker-results", packetID+".json")); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path artifact is missing: %s", packetID, canonicalWorkerResultPath(packetID+".json")))
+	}
+}
+
 func workerResultPathMatches(path string, resultFileName string) bool {
 	normalized := normalizedString(path)
 	for _, expected := range workerResultPathEquivalents(resultFileName) {
@@ -1235,7 +1251,7 @@ func validateQueueRowClosure(packetID string, row queueRow, queue queueState, re
 	}
 	switch row.State {
 	case "overflow", "blocked", "repack_required":
-		if !queueRowHasOpenGap(row, queue) && !queue.childrenByParent[packetID] {
+		if !queueRowHasOpenGap(row, queue) {
 			result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s state %s requires an open coverage gap or child packet", packetID, row.State))
 		}
 	}
@@ -1251,6 +1267,17 @@ func queueRowHasOpenGap(row queueRow, queue queueState) bool {
 		}
 		if closure.SourcePacketID != "" && closure.SourcePacketID == row.PacketID {
 			return true
+		}
+		for _, childPacketID := range queue.childrenByParent[row.PacketID] {
+			if closure.PacketID != "" && closure.PacketID == childPacketID {
+				return true
+			}
+			if closure.ParentPacketID != "" && closure.ParentPacketID == childPacketID {
+				return true
+			}
+			if closure.SourcePacketID != "" && closure.SourcePacketID == childPacketID {
+				return true
+			}
 		}
 	}
 	return false
