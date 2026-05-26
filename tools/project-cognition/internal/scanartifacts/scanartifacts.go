@@ -67,7 +67,15 @@ type queueState struct {
 	rowsByPacket     map[string]queueRow
 	childrenByParent map[string]bool
 	returnedPackets  map[string]bool
-	gapPackets       map[string]bool
+	acceptedPaths    map[string]bool
+	openGaps         []openGapClosure
+}
+
+type openGapClosure struct {
+	PacketID       string
+	ParentPacketID string
+	SourcePacketID string
+	Paths          []string
 }
 
 type IdentitySet struct {
@@ -296,8 +304,11 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		rowsByPacket:     map[string]queueRow{},
 		childrenByParent: map[string]bool{},
 		returnedPackets:  map[string]bool{},
-		gapPackets:       coverageGapPacketIDs(paths),
+		acceptedPaths:    map[string]bool{},
+		openGaps:         []openGapClosure{},
 	}
+	state.acceptedPaths = loadCoverageLedgerState(paths, result)
+	state.openGaps = loadOpenGapClosures(paths, result)
 	raw, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), "scan-queue.json")
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
@@ -353,32 +364,93 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 	return state
 }
 
-func coverageGapPacketIDs(paths rt.Paths) map[string]bool {
-	packetIDs := map[string]bool{}
+func loadCoverageLedgerState(paths rt.Paths, result *Result) map[string]bool {
+	accepted := map[string]bool{}
 	raw, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), "coverage-ledger.json")
 	if err != nil {
-		return packetIDs
+		result.Errors = append(result.Errors, err.Error())
+		return accepted
 	}
 	obj, ok := raw.(map[string]any)
 	if !ok {
-		return packetIDs
+		result.Errors = append(result.Errors, "coverage-ledger.json must contain a top-level JSON object")
+		return accepted
 	}
-	gaps, ok := obj["open_gaps"].([]any)
+	rows, ok := obj["rows"].([]any)
 	if !ok {
-		return packetIDs
+		result.Errors = append(result.Errors, "coverage-ledger.json must define a top-level rows array")
+		return accepted
 	}
-	for _, gap := range gaps {
-		gapObj, ok := gap.(map[string]any)
+	for i, row := range rows {
+		obj, ok := row.(map[string]any)
 		if !ok {
 			continue
 		}
-		for _, key := range []string{"packet_id", "parent_packet_id", "source_packet_id"} {
-			if packetID := normalizedString(gapObj[key]); packetID != "" {
-				packetIDs[packetID] = true
-			}
+		path := normalizedString(obj["path"])
+		if path == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("coverage-ledger.json rows[%d] is missing path", i))
+			continue
 		}
+		accepted[path] = true
 	}
-	return packetIDs
+	return accepted
+}
+
+func loadOpenGapClosures(paths rt.Paths, result *Result) []openGapClosure {
+	closures := []openGapClosure{}
+	raw, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), "coverage-ledger.json")
+	if err != nil {
+		return closures
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return closures
+	}
+	gaps, ok := obj["open_gaps"].([]any)
+	if !ok {
+		return closures
+	}
+	for i, gap := range gaps {
+		obj, ok := gap.(map[string]any)
+		if !ok {
+			continue
+		}
+		if !openGapRowHasRequiredMetadata(obj) {
+			if result != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("coverage-ledger open_gaps[%d] is missing required metadata", i))
+			}
+			continue
+		}
+		paths := uniqueStrings(append(normalizedStringSlice(obj["paths"]), normalizedString(obj["path"])))
+		packetID := normalizedString(obj["packet_id"])
+		parentPacketID := normalizedString(obj["parent_packet_id"])
+		sourcePacketID := normalizedString(obj["source_packet_id"])
+		if len(paths) == 0 && packetID == "" && parentPacketID == "" && sourcePacketID == "" {
+			if result != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("coverage-ledger open_gaps[%d] is missing affected paths or packet linkage", i))
+			}
+			continue
+		}
+		status := normalizedString(obj["status"])
+		coverageState := normalizedString(obj["coverage_state"])
+		if status != "low_risk_open_gap" && coverageState != "low_risk_open_gap" {
+			continue
+		}
+		closures = append(closures, openGapClosure{
+			PacketID:       packetID,
+			ParentPacketID: parentPacketID,
+			SourcePacketID: sourcePacketID,
+			Paths:          paths,
+		})
+	}
+	return closures
+}
+
+func openGapRowHasRequiredMetadata(obj map[string]any) bool {
+	return normalizedString(obj["owner"]) != "" &&
+		normalizedString(obj["reason"]) != "" &&
+		normalizedString(obj["evidence_expectation"]) != "" &&
+		normalizedString(obj["revisit_condition"]) != ""
 }
 
 func loadEvidence(paths rt.Paths, pkg *Package, result *Result) {
@@ -1008,7 +1080,8 @@ func validateScanPacket(packetID string, packet map[string]any, boundary Boundar
 	}
 	validatePacketPathsRead(packetID, packet, assignedSet, coverageByPath, result)
 	validatePacketAcceptance(packetID, packet, assignedSet, ledger, coverageByPath, result)
-	validateQueueRowCoverage(packetID, row, acceptedCoveragePaths(coverageByPath), result)
+	validateQueueRowCoverage(packetID, row, queue.acceptedPaths, result)
+	validateQueueRowClosure(packetID, row, queue, result)
 }
 
 func validateQueueRowCoverage(packetID string, row queueRow, accepted map[string]bool, result *Result) {
@@ -1031,29 +1104,29 @@ func validateQueueRowClosure(packetID string, row queueRow, queue queueState, re
 	}
 	switch row.State {
 	case "overflow", "blocked", "repack_required":
-		if !queue.gapPackets[packetID] && !queue.childrenByParent[packetID] {
+		if !queueRowHasOpenGap(row, queue) && !queue.childrenByParent[packetID] {
 			result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s state %s requires an open coverage gap or child packet", packetID, row.State))
 		}
 	}
 }
 
-func acceptedCoveragePaths(coverageByPath map[string]map[string]any) map[string]bool {
-	accepted := map[string]bool{}
-	for path, row := range coverageByPath {
-		if acceptedCoverageOutcome(normalizedString(row["outcome"])) {
-			accepted[path] = true
+func queueRowHasOpenGap(row queueRow, queue queueState) bool {
+	for _, closure := range queue.openGaps {
+		if closure.PacketID == row.PacketID || closure.ParentPacketID == row.ParentPacketID || closure.SourcePacketID == row.PacketID {
+			return true
+		}
+		if len(closure.Paths) == 0 {
+			continue
+		}
+		for _, path := range row.AssignedPaths {
+			for _, gapPath := range closure.Paths {
+				if path == gapPath {
+					return true
+				}
+			}
 		}
 	}
-	return accepted
-}
-
-func acceptedCoverageOutcome(outcome string) bool {
-	switch outcome {
-	case "read", "deep_read", "sampled", "inventory_only":
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func validatePacketLedger(packetID string, assigned map[string]bool, ledger map[string]any, result *Result) {

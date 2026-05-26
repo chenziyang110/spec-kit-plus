@@ -322,6 +322,13 @@ func TestRunImportsPathIndexRowsWithCollidingSanitizedPaths(t *testing.T) {
 			{"path": "src/a-b.go"},
 		},
 	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), map[string]any{
+		"rows": []map[string]any{
+			{"path": "src/a/b.go", "status": "covered"},
+			{"path": "src/a-b.go", "status": "covered"},
+		},
+		"open_gaps": []map[string]any{},
+	})
 	writeAcceptedScanQueue(t, paths, []string{"src/a/b.go", "src/a-b.go"})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
 		"packet_id":      "lane-1",

@@ -610,6 +610,7 @@ func writeMatchingScanPackage(t *testing.T, paths rt.Paths) {
 		filepath.Join(paths.RuntimeDir, "coverage.json"):                          `{"rows":[{"path":"src/app.go"}]}`,
 		filepath.Join(paths.RuntimeDir, "workbench", "map-scan.md"):               `# Map Scan`,
 		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"):        `# Coverage Ledger`,
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"):      `{"rows":[{"path":"src/app.go","status":"covered"}],"open_gaps":[]}`,
 		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"): `# Lane 1`,
 		filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"): `{
 			"packet_id":"lane-1",

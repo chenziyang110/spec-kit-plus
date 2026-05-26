@@ -113,6 +113,10 @@ func TestLoadRejectsWorkerResultWithoutQueueReturn(t *testing.T) {
 func TestLoadRejectsAcceptedQueueWithoutCoverage(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"docs/guide.md"}],
+		"open_gaps":[]
+	}`+"\n"))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
 		"rows":[{"packet_id":"lane-1","state":"accepted","assigned_paths":["src/app.go"]}]
 	}`+"\n"))
@@ -133,6 +137,27 @@ func TestLoadRejectsAcceptedQueueWithoutCoverage(t *testing.T) {
 	}
 	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires accepted coverage for assigned path src/app.go") {
 		t.Fatalf("Errors = %#v, want accepted queue coverage error", result.Errors)
+	}
+}
+
+func TestLoadRejectsMalformedOverflowOpenGapMetadata(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{"packet_id":"lane-1","state":"overflow","assigned_paths":["src/app.go"]}]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go"}],
+		"open_gaps":[{"packet_id":"lane-1","status":"blocked"}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "coverage-ledger open_gaps[0] is missing required metadata") {
+		t.Fatalf("Errors = %#v, want malformed open gap error", result.Errors)
 	}
 }
 
@@ -165,7 +190,7 @@ func TestLoadAcceptsOverflowQueueWithOpenGap(t *testing.T) {
 	}`+"\n"))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
 		"rows":[{"path":"src/app.go"}],
-		"open_gaps":[{"packet_id":"lane-1","owner":"scan","status":"blocked"}]
+		"open_gaps":[{"packet_id":"lane-1","owner":"scan","reason":"packet split","evidence_expectation":"child packet closes src/app.go","revisit_condition":"child packet returns","paths":["src/app.go"],"coverage_state":"low_risk_open_gap"}]
 	}`+"\n"))
 
 	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
