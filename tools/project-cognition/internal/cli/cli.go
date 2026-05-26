@@ -252,6 +252,14 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	if len(sparse.Errors) > 0 {
 		if err := st.MarkRuntimeMetadataBlocked(context.Background(), activeGenerationID); err != nil {
 			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
+			return writeJSON(stdout, map[string]any{
+				"status":                    "blocked",
+				"readiness":                 rt.BlockedReadiness,
+				"active_generation_id":      activeGenerationID,
+				"sparse_path_index_details": sparse.Details,
+				"errors":                    sparse.Errors,
+				"warnings":                  sparse.Warnings,
+			})
 		}
 		status := rt.DefaultStatus(paths)
 		status.Status = "blocked"

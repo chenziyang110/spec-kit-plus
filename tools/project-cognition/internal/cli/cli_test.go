@@ -264,6 +264,79 @@ func TestPublishRuntimeMetadataRefusesSparseInvalidGeneration(t *testing.T) {
 	}
 }
 
+func TestPublishRuntimeMetadataDoesNotWriteBlockedStatusWhenBlockedMetadataFails(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = ?`, generationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `CREATE TRIGGER metadata_blocked_insert_failure BEFORE INSERT ON metadata BEGIN SELECT RAISE(FAIL, 'blocked metadata insert failed'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `CREATE TRIGGER metadata_blocked_update_failure BEFORE UPDATE ON metadata BEGIN SELECT RAISE(FAIL, 'blocked metadata update failed'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-sentinel"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceHasPrefix(payload["errors"], "write blocked DB metadata:") {
+		t.Fatalf("errors = %#v, want blocked metadata write failure", payload["errors"])
+	}
+
+	persistedStatus, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persistedStatus.ActiveGenerationID != "GEN-sentinel" || persistedStatus.Status != "ok" || !persistedStatus.GraphReady {
+		t.Fatalf("status.json was overwritten after blocked metadata failure: %#v", persistedStatus)
+	}
+}
+
 func TestBuildFromScanCommandReturnsNonzeroForOperationalErrorPayload(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)
@@ -952,6 +1025,19 @@ func jsonStringSliceContains(value any, want string) bool {
 	}
 	for _, value := range values {
 		if text, ok := value.(string); ok && text == want {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonStringSliceHasPrefix(value any, prefix string) bool {
+	values, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, value := range values {
+		if text, ok := value.(string); ok && strings.HasPrefix(text, prefix) {
 			return true
 		}
 	}
