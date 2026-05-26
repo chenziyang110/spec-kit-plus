@@ -135,10 +135,10 @@ docs, and tests. It cannot be optimized in one layer only.
 
 Implement a stateful scan scheduler around four durable workbench artifacts:
 
-- `repository-universe.json`
-- `scan-queue.json`
-- `coverage-ledger.json`
-- `handoff-ledger.json`
+- `.specify/project-cognition/workbench/repository-universe.json`
+- `.specify/project-cognition/workbench/scan-queue.json`
+- `.specify/project-cognition/workbench/coverage-ledger.json`
+- `.specify/project-cognition/workbench/handoff-ledger.json`
 
 The leader initializes the universe and queue, dispatches bounded packets,
 validates structured worker results, updates the ledgers, plans gaps, and
@@ -149,9 +149,141 @@ This is preferred over asking subagents to "scan more thoroughly" because it
 matches the real constraint: subagents have bounded context and need explicit
 handoff rules.
 
+## Contract Clarifications Before Implementation
+
+The implementation plan must settle these contract points before modifying the
+runtime or generated prompts.
+
+### Packet Acceptance Vs Path Outcome
+
+The current runtime distinguishes packet acceptance from per-path coverage
+outcome. Per-path coverage outcomes already include `blocked` and `overflow`,
+while packet acceptance currently accepts only:
+
+- `pass`
+- `fail_gap`
+- `fail_quality`
+- `fail_contract`
+- `fail_systemic`
+
+This design should preserve that split for the first implementation. A worker
+whose packet overflows should return packet acceptance `fail_gap`, with the
+overflowed paths recorded as path-level `coverage[].outcome="overflow"` and in
+the packet ledger `overflow` list. A worker blocked on some paths should also
+return `fail_gap`, with path-level `blocked` rows and blocking metadata.
+
+`scan-queue.json` may still record packet state `overflow` or `blocked` after
+leader intake, but worker result `acceptance` must remain compatible with the
+runtime acceptance enum until the runtime explicitly adds packet-level
+`overflow`, `blocked`, or `repack_required`.
+
+### Required Scheduler Artifacts
+
+The scheduler is not optional metadata. First-baseline `validate-scan` must
+require both:
+
+- `.specify/project-cognition/workbench/scan-queue.json`
+- `.specify/project-cognition/workbench/handoff-ledger.json`
+
+Validation should block when either file is missing, malformed, stale relative
+to packet results, or inconsistent with `coverage-ledger.json`. A compatibility
+period may allow legacy scan packages only behind an explicit migration warning,
+but the stateful scheduler contract treats these files as required artifacts.
+
+### Sparse Path-Index Formula
+
+Sparse path-index validation must use a precise denominator.
+
+For first baseline validation:
+
+```text
+index_required_paths =
+  included_paths
+  - excluded_paths
+  - blocked_paths_with_accepted_gap
+  - low_risk_inventory_only_paths_with_accepted_gap
+```
+
+`included_paths` comes from `repository-universe.json`. `excluded_paths` are not
+in the denominator. A blocked or low-risk inventory-only path is removed from
+the hard-fail denominator only when `coverage-ledger.json.open_gaps[]` contains
+owner, reason, evidence expectation, revisit condition, and a non-blocking
+status such as `low_risk_open_gap`.
+
+Hard failures:
+
+- any critical `index_required_path` missing from `path_index`
+- any important `index_required_path` missing from `path_index` without an
+  accepted gap
+- `path_index_count == 0`
+- `path_index_count / len(index_required_paths) < 0.70` for first baseline
+
+Warnings:
+
+- `0.70 <= path_index_count / len(index_required_paths) < 0.90`
+- low-risk paths missing from `path_index` with accepted gaps
+- coverage paths rejected as `no_node_relation`
+
+The ratio threshold can be made configurable later, but the first implementation
+needs a deterministic default so a baseline with thousands of included paths and
+only dozens of `path_index` rows cannot become query-ready.
+
+### Build Publication Order
+
+Sparse gates must run before the runtime advertises a query-ready baseline.
+There are two acceptable implementation shapes:
+
+1. `build-from-scan` runs the sparse gates as a preflight before writing
+   `Freshness=ready`, `Readiness=query_ready`, and `GraphReady=true`.
+2. `build-from-scan` writes a provisional status after import, then
+   `validate-build` promotes the runtime to query-ready only after all build
+   gates pass.
+
+The first implementation should prefer option 1 because it keeps the current
+single-command build flow simpler. It must not import sparse data, write
+query-ready status, and rely on a later `validate-build` call to discover the
+baseline is unusable.
+
+### Aggregate Node Metadata
+
+Aggregate nodes are allowed only when their limits are explicit. Node rows may
+use `attrs` for this metadata:
+
+- `attrs.paths_complete`: boolean
+- `attrs.aggregate_scope`: path prefix, glob, module id, or package name
+- `attrs.aggregate_reason`: why the node is aggregate
+- `attrs.child_path_count`: number of represented child paths
+
+If `attrs.paths_complete=false`, the node must not be the only ownership route
+for critical paths. File or module child nodes should be connected through an
+edge with `type="contains"` from aggregate node to child node. A critical path
+owned only by an incomplete aggregate node is a hard failure. An important path
+owned only by an incomplete aggregate node is a hard failure unless an accepted
+gap records why file-level ownership is deferred.
+
+### Node Path Compatibility Drift
+
+The current loader still promotes `path`, `source_path`, and `file_path` from a
+node row or its `attrs` into node paths. That is useful as a compatibility
+bridge, but it conflicts with generated guidance that says new build inputs use
+`nodes[].paths`.
+
+Implementation must make this boundary explicit:
+
+- new scan artifacts must write canonical `nodes[].paths`
+- compatibility promotion may remain for legacy/downstream inputs, but the
+  loader should mark promoted paths as compatibility-derived in diagnostics
+- sparse gates must report how many path-index rows came from canonical
+  `nodes[].paths` versus compatibility-derived path fields
+- a future tightening can turn compatibility-derived node paths into warnings
+  or failures for newly generated scan packages
+
+This prevents `attrs_json.path` compatibility from hiding the fact that the scan
+contract failed to write canonical node paths.
+
 ## State Model
 
-### `repository-universe.json`
+### `.specify/project-cognition/workbench/repository-universe.json`
 
 The universe remains the canonical boundary artifact. It should include the
 existing fields and add or standardize packet and closure metadata:
@@ -183,7 +315,7 @@ Criticality remains separate:
 - `important`
 - `low_risk`
 
-### `scan-queue.json`
+### `.specify/project-cognition/workbench/scan-queue.json`
 
 `scan-queue.json` is the leader-owned scheduler state. It records packet
 lifecycle and retry lineage.
@@ -218,7 +350,10 @@ Each packet row should include:
 - `next_action`
 - `blocking_reason`
 
-### `coverage-ledger.json`
+Packet states are leader scheduler states. They are not the same thing as the
+worker result `acceptance` field.
+
+### `.specify/project-cognition/workbench/coverage-ledger.json`
 
 `coverage-ledger.json` is the path-level truth for scan closure. It should
 continue carrying coverage rows and open gaps, but each row must be rich enough
@@ -251,7 +386,7 @@ Important closure states:
 - `blocked`
 - `excluded`
 
-### `handoff-ledger.json`
+### `.specify/project-cognition/workbench/handoff-ledger.json`
 
 `handoff-ledger.json` records every dispatch and return event so another leader
 can resume without reading conversation history.
@@ -387,18 +522,26 @@ Each worker result should be JSON and should include:
 - `outcome`
 - `confidence`
 
-Allowed outcomes:
+Worker result fields should preserve the runtime split between packet
+acceptance and path coverage outcome:
+
+- `acceptance`: packet-level `pass`, `fail_gap`, `fail_quality`,
+  `fail_contract`, or `fail_systemic`
+- `coverage[].outcome`: path-level `read`, `deep_read`, `sampled`,
+  `inventory_only`, `blocked`, `excluded`, or `overflow`
+
+Allowed packet acceptance values:
 
 - `pass`
-- `overflow`
-- `blocked`
 - `fail_gap`
 - `fail_quality`
 - `fail_contract`
 - `fail_systemic`
 
 `pass` is only a worker self-assessment. The leader still owns final
-acceptance.
+acceptance. Packet-level `blocked`, `overflow`, and `repack_required` are
+leader queue states unless the runtime explicitly expands the packet acceptance
+enum in a future change.
 
 ## Intake Validation
 
@@ -426,7 +569,8 @@ Ownership checks:
 
 - queryable paths must be represented in node `paths`
 - broad aggregate nodes must either include file/module child nodes or mark
-  `paths_complete=false`
+  `attrs.paths_complete=false` with `attrs.aggregate_scope`,
+  `attrs.aggregate_reason`, and `attrs.child_path_count`
 - critical paths cannot pass with only aggregate ownership
 
 Quality checks:
@@ -465,7 +609,8 @@ is systemic.
 
 Allowed build behavior:
 
-- normalize accepted compatibility fields
+- normalize accepted compatibility fields and report which paths were derived
+  from compatibility fields rather than canonical `nodes[].paths`
 - generate stable ids for compatible rows when the scan contract allows it
 - create `path_index` rows from node paths
 - record coverage rejections such as `no_node_relation`
@@ -487,6 +632,8 @@ Disallowed build behavior:
 - `important_missing_path_index`
 - `aggregate_nodes_without_file_paths`
 - `coverage_rejections_count`
+- `canonical_node_path_count`
+- `compatibility_derived_node_path_count`
 
 Build should fail when:
 
@@ -496,9 +643,23 @@ Build should fail when:
 - path-index coverage is far below the included path universe threshold
 - aggregate nodes represent broad file sets without file/module closure
 
-The threshold should be configurable or staged, but the observed shape of
+For first-baseline validation, `path_index_to_included_ratio` is:
+
+```text
+path_index_count / len(index_required_paths)
+```
+
+where `index_required_paths` excludes only true `excluded_paths` and paths with
+accepted non-blocking gaps as defined in the contract clarification section.
+The first implementation should hard-fail below `0.70` and warn below `0.90`.
+The threshold can be configurable or staged later, but the observed shape of
 thousands of included paths and only dozens of path-index rows must not pass as
 query-ready.
+
+Build publication must not set `Freshness=ready`, `Readiness=query_ready`, or
+`GraphReady=true` until these sparse path-index gates pass. The preferred first
+implementation is to run the gates inside `build-from-scan` before writing the
+ready status.
 
 ## Runtime And Fake Alignment
 
@@ -541,14 +702,28 @@ enforce the contract the prompt teaches.
 
 Add or update Go tests for:
 
+- missing or malformed `scan-queue.json` blocks first-baseline `validate-scan`
+- missing or malformed `handoff-ledger.json` blocks first-baseline
+  `validate-scan`
+- worker `acceptance=overflow` or `acceptance=blocked` is rejected unless the
+  packet acceptance enum is intentionally expanded
+- worker packet overflow is expressed as `acceptance=fail_gap` plus path-level
+  `coverage[].outcome="overflow"` and queue state `overflow`
 - scan queue lifecycle validation
 - worker result intake validation
 - overflow split packet planning
 - missing evidence to evidence-deepening packet planning
 - missing node paths to repair packet planning
+- `build-from-scan` does not write query-ready status when sparse gates fail
 - sparse path-index build validation failure
+- hard-fail ratio below `0.70` and warning ratio below `0.90`
+- accepted gaps are excluded from the ratio denominator only when required gap
+  metadata exists
 - critical path missing path index failure
 - aggregate node without file-level paths failure
+- incomplete aggregate ownership with `attrs.paths_complete=false` fails for
+  critical paths without `contains` child edges
+- canonical node path counts and compatibility-derived path counts are reported
 - empty compatibility arrays treated as present
 - coverage compatibility merge scoped only to coverage
 
@@ -556,6 +731,8 @@ Add or update Python/template tests for:
 
 - generated `map-scan` teaches the stateful leader loop
 - generated `map-scan` includes the worker prompt contract
+- generated `map-scan` teaches `fail_gap` plus path-level overflow/blocked
+  rather than packet-level overflow/blocked acceptance
 - generated `map-build` explains sparse path-index quality gates
 - fake `project-cognition` mirrors accepted compatibility shapes
 - hook contract tests reject sparse query readiness
@@ -578,12 +755,20 @@ result is `validate-build` blocked with specific sparse-coverage diagnostics.
   history.
 - Every dispatched packet has a queue row and a handoff-ledger entry.
 - Every accepted packet result has path-level coverage accounting.
-- Subagents can return `overflow` or `blocked` without being treated as failed
-  workers.
+- Subagents can report overflowed or blocked paths through `fail_gap` and
+  path-level coverage outcomes without pretending the packet passed.
 - The leader can automatically generate the next packet wave from ledger gaps.
 - Scan cannot be build-ready while critical paths lack evidence or node paths.
 - Build cannot be query-ready with thousands of included paths and only dozens
   of path-index rows.
+- `scan-queue.json` and `handoff-ledger.json` are required and validated scan
+  artifacts for first-baseline stateful scans.
+- Sparse path-index validation uses a defined denominator and accepted-gap
+  rules.
+- `build-from-scan` does not publish ready status before sparse gates pass.
+- Aggregate node metadata and child edge rules are machine-checkable.
+- Compatibility-derived node paths are visible in diagnostics and cannot hide a
+  missing canonical `nodes[].paths` contract.
 - Runtime, fake runtime, hooks, docs, templates, and tests agree on accepted
   artifact shapes.
 - Regression tests protect against broad helper side effects and empty-array
