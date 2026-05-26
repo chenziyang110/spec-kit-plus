@@ -1270,7 +1270,7 @@ func validateQueueRowClosure(packetID string, row queueRow, queue queueState, re
 	}
 	switch row.State {
 	case "overflow", "blocked", "repack_required":
-		if !queueRowHasOpenGap(row, queue) {
+		if !queueRowHasOpenGap(row, queue) && len(queue.childrenByParent[row.PacketID]) == 0 {
 			result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s state %s requires an open coverage gap or child packet", packetID, row.State))
 		}
 	}

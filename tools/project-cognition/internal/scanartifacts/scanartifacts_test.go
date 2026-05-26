@@ -489,7 +489,7 @@ func TestLoadRejectsOverflowQueueWithSiblingParentOpenGap(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsOverflowQueueWithChildPacketButNoOpenGap(t *testing.T) {
+func TestLoadAcceptsOverflowQueueWithChildPacketButNoOpenGap(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-2.md"), []byte("# Lane 2\n"))
@@ -506,11 +506,8 @@ func TestLoadRejectsOverflowQueueWithChildPacketButNoOpenGap(t *testing.T) {
 
 	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
 
-	if result.Status != "blocked" {
-		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
-	}
-	if !containsError(result.Errors, "scan-queue packet lane-1 state overflow requires an open coverage gap or child packet") {
-		t.Fatalf("Errors = %#v, want lane-1 unclosed queue-state error", result.Errors)
+	if containsError(result.Errors, "scan-queue packet lane-1 state overflow requires an open coverage gap or child packet") {
+		t.Fatalf("Errors = %#v, want no lane-1 unclosed queue-state error", result.Errors)
 	}
 }
 
