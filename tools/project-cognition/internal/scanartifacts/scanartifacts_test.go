@@ -207,6 +207,24 @@ func TestLoadRejectsHandoffReturnWrongResultHandoffPathAlias(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsHandoffReturnWithConflictingResultPathAliases(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), []byte(`{"events":[
+		{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+		{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-1.json","result_handoff_path":".specify/project-cognition/workbench/worker-results/wrong.json","created_at":"2026-05-26T00:01:00Z"}
+	]}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "handoff-ledger return for packet lane-1 result_handoff_path") {
+		t.Fatalf("Errors = %#v, want handoff result_handoff_path error", result.Errors)
+	}
+}
+
 func TestLoadRejectsHandoffReturnWithoutWorkerResultArtifact(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -223,6 +241,25 @@ func TestLoadRejectsHandoffReturnWithoutWorkerResultArtifact(t *testing.T) {
 	}
 	if !containsError(result.Errors, "handoff-ledger return for packet lane-1 worker_result_path artifact is missing") {
 		t.Fatalf("Errors = %#v, want missing handoff artifact error", result.Errors)
+	}
+}
+
+func TestLoadRejectsDuplicateValidHandoffReturns(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), []byte(`{"events":[
+		{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+		{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-1.json","created_at":"2026-05-26T00:01:00Z"},
+		{"event_id":"return-2","packet_id":"lane-1","event_type":"returned","result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json","created_at":"2026-05-26T00:02:00Z"}
+	]}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "handoff-ledger packet lane-1 has duplicate return events") {
+		t.Fatalf("Errors = %#v, want duplicate return event error", result.Errors)
 	}
 }
 

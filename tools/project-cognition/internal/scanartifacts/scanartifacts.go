@@ -68,6 +68,7 @@ type queueState struct {
 	rowsByPacket        map[string]queueRow
 	childrenByParent    map[string][]string
 	returnedPackets     map[string]bool
+	returnCounts        map[string]int
 	returnPathsByPacket map[string]string
 	acceptedPaths       map[string]bool
 	openGaps            []openGapClosure
@@ -306,6 +307,7 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		rowsByPacket:        map[string]queueRow{},
 		childrenByParent:    map[string][]string{},
 		returnedPackets:     map[string]bool{},
+		returnCounts:        map[string]int{},
 		returnPathsByPacket: map[string]string{},
 		acceptedPaths:       map[string]bool{},
 		openGaps:            []openGapClosure{},
@@ -365,8 +367,11 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		eventType := normalizedString(event["event_type"])
 		if eventType == "returned" || eventType == "return" {
 			state.returnedPackets[packetID] = true
-			path := firstNormalizedString(event, "worker_result_path", "result_handoff_path")
-			validateHandoffReturnEventPath(paths, packetID, path, result)
+			state.returnCounts[packetID]++
+			if state.returnCounts[packetID] > 1 {
+				result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger packet %s has duplicate return events", packetID))
+			}
+			path := validateHandoffReturnEventPaths(paths, packetID, event, result)
 			if path != "" {
 				state.returnPathsByPacket[packetID] = path
 			}
@@ -1172,17 +1177,31 @@ func validateHandoffWorkerResultPath(packetID string, path string, resultFileNam
 	}
 }
 
-func validateHandoffReturnEventPath(paths rt.Paths, packetID string, path string, result *Result) {
-	if path == "" {
+func validateHandoffReturnEventPaths(paths rt.Paths, packetID string, event map[string]any, result *Result) string {
+	workerResultPath := normalizedString(event["worker_result_path"])
+	resultHandoffPath := normalizedString(event["result_handoff_path"])
+	if workerResultPath == "" && resultHandoffPath == "" {
 		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path must match %s", packetID, canonicalWorkerResultPath(packetID+".json")))
-		return
+		return ""
 	}
-	if !workerResultPathMatches(path, packetID+".json") {
-		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path must match %s", packetID, canonicalWorkerResultPath(packetID+".json")))
-		return
+	if workerResultPath != "" {
+		validateHandoffReturnEventAlias(packetID, "worker_result_path", workerResultPath, result)
+	}
+	if resultHandoffPath != "" {
+		validateHandoffReturnEventAlias(packetID, "result_handoff_path", resultHandoffPath, result)
 	}
 	if _, err := os.Stat(filepath.Join(paths.RuntimeDir, "workbench", "worker-results", packetID+".json")); err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path artifact is missing: %s", packetID, canonicalWorkerResultPath(packetID+".json")))
+	}
+	if workerResultPath != "" {
+		return workerResultPath
+	}
+	return resultHandoffPath
+}
+
+func validateHandoffReturnEventAlias(packetID string, field string, path string, result *Result) {
+	if !workerResultPathMatches(path, packetID+".json") {
+		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s %s must match %s", packetID, field, canonicalWorkerResultPath(packetID+".json")))
 	}
 }
 
