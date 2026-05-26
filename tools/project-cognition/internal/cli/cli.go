@@ -285,7 +285,7 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			}
 			return 1
 		}
-		return writeJSON(stdout, map[string]any{
+		code := writeJSON(stdout, map[string]any{
 			"status":                    "blocked",
 			"readiness":                 rt.BlockedReadiness,
 			"active_generation_id":      activeGenerationID,
@@ -293,6 +293,10 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			"errors":                    sparse.Errors,
 			"warnings":                  sparse.Warnings,
 		})
+		if code != 0 {
+			return code
+		}
+		return 1
 	}
 	status, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {

@@ -226,8 +226,8 @@ func TestPublishRuntimeMetadataRefusesSparseInvalidGeneration(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
-	if code != 0 {
-		t.Fatalf("code = %d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
