@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
@@ -240,9 +241,40 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}
 	defer st.Close()
-	meta, activeGenerationID, err := st.PublishRuntimeMetadata(context.Background())
+	activeGenerationID, err := st.ActiveGenerationID(context.Background())
 	if err != nil {
 		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	if activeGenerationID == "" {
+		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{"project-cognition.db has no active generation"}, "warnings": []string{}})
+	}
+	sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), activeGenerationID)
+	if len(sparse.Errors) > 0 {
+		if err := st.MarkRuntimeMetadataBlocked(context.Background(), activeGenerationID); err != nil {
+			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
+		}
+		status := rt.DefaultStatus(paths)
+		status.Status = "blocked"
+		status.Readiness = rt.BlockedReadiness
+		status.ActiveGenerationID = activeGenerationID
+		if err := rt.WriteStatus(paths, status); err != nil {
+			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked status: %v", err))
+		}
+		return writeJSON(stdout, map[string]any{
+			"status":                    "blocked",
+			"readiness":                 rt.BlockedReadiness,
+			"active_generation_id":      activeGenerationID,
+			"sparse_path_index_details": sparse.Details,
+			"errors":                    sparse.Errors,
+			"warnings":                  sparse.Warnings,
+		})
+	}
+	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background())
+	if err != nil {
+		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	if readyGenerationID != activeGenerationID {
+		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, activeGenerationID)}, "warnings": []string{}})
 	}
 	status, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {

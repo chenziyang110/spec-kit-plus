@@ -13,6 +13,7 @@ import (
 	"time"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
 func TestVersionPrintsBinaryName(t *testing.T) {
@@ -170,6 +171,96 @@ func TestImportScanAliasUsesBuildFromScan(t *testing.T) {
 				t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
 			}
 		})
+	}
+}
+
+func TestPublishRuntimeMetadataRefusesSparseInvalidGeneration(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+	var buildPayload map[string]any
+	if err := json.Unmarshal(buildStdout.Bytes(), &buildPayload); err != nil {
+		t.Fatal(err)
+	}
+	if buildPayload["status"] != "ok" {
+		t.Fatalf("build payload = %#v", buildPayload)
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = ?`, generationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "blocked"
+	status.Readiness = rt.BlockedReadiness
+	status.ActiveGenerationID = generationID
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceContains(payload["errors"], "critical_missing_path_index: src/app.go") {
+		t.Fatalf("errors = %#v, want critical_missing_path_index: src/app.go", payload["errors"])
+	}
+
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["graph_ready"] != "false" {
+		t.Fatalf("metadata graph_ready = %q, want false; metadata = %#v", meta["graph_ready"], meta)
+	}
+	if _, ok := meta["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version metadata present after blocked publish: %#v", meta)
+	}
+	persistedStatus, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persistedStatus.Readiness == rt.ReadyReadiness || persistedStatus.GraphReady {
+		t.Fatalf("status became ready: %#v", persistedStatus)
 	}
 }
 
@@ -748,7 +839,17 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 		"open_gaps": []map[string]any{},
 	})
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
-		"rows": []map[string]any{{"path": "src/app.go"}},
+		"schema_version":     1,
+		"candidate_universe": []map[string]any{{"path": "src/app.go", "source": "test"}},
+		"included_paths":     []string{"src/app.go"},
+		"excluded_paths":     []string{},
+		"ambiguous_paths":    []string{},
+		"dispositions":       map[string]any{"src/app.go": "deep_read"},
+		"criticality":        map[string]any{"src/app.go": "critical"},
+		"classification_reasons": map[string]any{
+			"src/app.go": "test",
+		},
+		"decision_source": map[string]any{"src/app.go": "test"},
 	})
 	writeAcceptedCLIScanQueue(t, runtimeDir, []string{"src/app.go"})
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "handoff-ledger.json"), map[string]any{
