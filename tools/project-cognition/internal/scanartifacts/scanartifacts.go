@@ -169,8 +169,8 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	normalizeEdgeEndpoints(&pkg)
 	loadObservations(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
-	pkg.AcceptedGaps = acceptedGapPaths(paths)
 	boundary := loadBoundary(paths, &result)
+	pkg.AcceptedGaps = acceptedNonblockingGapPaths(paths, boundary)
 	validateBoundaryCoverage(boundary, pkg, &result)
 	queue := loadQueueState(paths, &result)
 	validateScanPacketQueueFiles(paths, boundary, pkg, queue, &result)
@@ -892,7 +892,7 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s with disposition %s must be listed in included_paths", path, disposition))
 			}
 			if !coveragePaths[path] && !acceptedGaps[path] {
-				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted gap", path))
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted nonblocking gap", path))
 			}
 		case disposition == "excluded":
 			if !boundary.ExcludedPaths[path] {
@@ -934,7 +934,7 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 			continue
 		}
 		if includedDispositionRequiresCoverage(disposition) && !coveragePaths[path] && !acceptedGaps[path] {
-			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted gap", path))
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted nonblocking gap", path))
 		}
 	}
 	for path := range boundary.ExcludedPaths {
@@ -1640,7 +1640,7 @@ func validateBoundaryListCandidates(label string, paths map[string]bool, candida
 	}
 }
 
-func acceptedGapPaths(paths rt.Paths) map[string]bool {
+func acceptedNonblockingGapPaths(paths rt.Paths, boundary Boundary) map[string]bool {
 	accepted := map[string]bool{}
 	raw, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), "coverage-ledger.json")
 	if err != nil {
@@ -1674,15 +1674,17 @@ func acceptedGapPaths(paths rt.Paths) map[string]bool {
 			normalizedString(gapObj["revisit_condition"]) == "" {
 			continue
 		}
-		path := normalizedString(gapObj["path"])
-		if path != "" {
-			accepted[path] = true
-		}
-		for _, item := range normalizedStringSlice(gapObj["paths"]) {
-			accepted[item] = true
+		for _, path := range gapPaths(gapObj) {
+			if boundary.Criticality[path] == "low_risk" {
+				accepted[path] = true
+			}
 		}
 	}
 	return accepted
+}
+
+func gapPaths(gapObj map[string]any) []string {
+	return uniqueStrings(append(normalizedStringSlice(gapObj["paths"]), normalizedString(gapObj["path"])))
 }
 
 func includedDispositionRequiresCoverage(disposition string) bool {

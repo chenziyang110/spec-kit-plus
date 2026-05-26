@@ -922,7 +922,7 @@ func TestValidateBlocksIncludedCandidateWithoutCoverageOrGap(t *testing.T) {
 	if result.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
 	}
-	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted gap") {
+	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted nonblocking gap") {
 		t.Fatalf("Errors = %#v, want missing included path coverage error", result.Errors)
 	}
 }
@@ -1837,7 +1837,7 @@ func TestValidateBlocksDeepReadCandidateOmittedFromIncludedPaths(t *testing.T) {
 	if !containsError(result.Errors, "repository-universe candidate path src/missing.go with disposition deep_read must be listed in included_paths") {
 		t.Fatalf("Errors = %#v, want missing included membership error", result.Errors)
 	}
-	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted gap") {
+	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted nonblocking gap") {
 		t.Fatalf("Errors = %#v, want missing candidate coverage error", result.Errors)
 	}
 }
@@ -2071,7 +2071,7 @@ func TestValidateBlocksMetadataIncompleteGapForBoundaryCoverage(t *testing.T) {
 	if result.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
 	}
-	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted gap") {
+	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted nonblocking gap") {
 		t.Fatalf("Errors = %#v, want incomplete gap ignored for coverage", result.Errors)
 	}
 }
@@ -2099,6 +2099,35 @@ func TestValidateAcceptsLowRiskGapPathsArrayWithRequiredMetadata(t *testing.T) {
 
 	if result.Status != "ok" {
 		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+}
+
+func TestValidateBlocksImportantAcceptedGapForBoundaryCoverage(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go","status":"covered"}],
+		"open_gaps":[{"paths":["src/missing.go"],"coverage_state":"low_risk_open_gap","owner":"scan","reason":"deferred","evidence_expectation":"non-critical path","revisit_condition":"next scan"}]
+	}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},{"path":"src/missing.go","disposition":"sampled","decision_source":"git"}],
+		"included_paths":["src/app.go","src/missing.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","src/missing.go":"sampled"},
+		"criticality":{"src/app.go":"important","src/missing.go":"important"},
+		"classification_reasons":{"src/app.go":"source","src/missing.go":"source"},
+		"decision_source":{"src/app.go":"git","src/missing.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted nonblocking gap") {
+		t.Fatalf("Errors = %#v, want important gap denominator error", result.Errors)
 	}
 }
 
