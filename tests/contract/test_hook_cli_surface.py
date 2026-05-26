@@ -239,6 +239,19 @@ def _write_project_cognition_scan_artifacts(run_dir: Path) -> None:
             "{\"rows\": [{\"path\": \"src/auth/login.ts\", \"criticality\": \"critical\", "
             "\"coverage_state\": \"covered\"}], \"open_gaps\": []}\n"
         ),
+        "workbench/scan-queue.json": (
+            "{\"packets\": [{\"packet_id\": \"core\", \"state\": \"accepted\", "
+            "\"assigned_paths\": [\"src/auth/login.ts\"], "
+            "\"result_handoff_path\": \".specify/project-cognition/workbench/worker-results/core.json\", "
+            "\"next_action\": \"none\"}]}\n"
+        ),
+        "workbench/handoff-ledger.json": (
+            "{\"events\": ["
+            "{\"event_id\": \"dispatch-core\", \"packet_id\": \"core\", \"event_type\": \"dispatched\"}, "
+            "{\"event_id\": \"return-core\", \"packet_id\": \"core\", \"event_type\": \"returned\", "
+            "\"worker_result_path\": \".specify/project-cognition/workbench/worker-results/core.json\"}"
+            "]}\n"
+        ),
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -246,6 +259,60 @@ def _write_project_cognition_scan_artifacts(run_dir: Path) -> None:
     packets_dir = run_dir / "workbench" / "scan-packets"
     packets_dir.mkdir(parents=True, exist_ok=True)
     (packets_dir / "core.md").write_text("# Core scan packet\n", encoding="utf-8")
+    worker_results_dir = run_dir / "workbench" / "worker-results"
+    worker_results_dir.mkdir(parents=True, exist_ok=True)
+    (worker_results_dir / "core.json").write_text(
+        json.dumps(
+            {
+                "packet_id": "core",
+                "assigned_paths": ["src/auth/login.ts"],
+                "paths_read": ["src/auth/login.ts"],
+                "coverage": [
+                    {
+                        "path": "src/auth/login.ts",
+                        "outcome": "deep_read",
+                        "evidence_ids": ["E-001"],
+                        "confidence": "high",
+                    }
+                ],
+                "acceptance": "pass",
+                "confidence": "high",
+                "evidence_ids": ["E-001"],
+                "ledger": _project_cognition_packet_ledger(),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _project_cognition_packet_ledger() -> dict[str, list[object]]:
+    return {
+        "todo": [],
+        "doing": [],
+        "done": [
+            {
+                "path": "src/auth/login.ts",
+                "coverage_state": "covered",
+                "evidence_ids": ["E-001"],
+                "confidence": "high",
+            }
+        ],
+        "blocked": [],
+        "overflow": [],
+    }
+
+
+def _write_project_cognition_worker_result(run_dir: Path, payload: dict[str, object]) -> None:
+    worker_result_path = run_dir / "workbench" / "worker-results" / "core.json"
+    worker_result_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+
+def _invoke_map_scan_artifact_validation(project: Path, run_dir: Path):
+    return _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
 
 
 def _update_project_cognition_status(run_dir: Path, **updates: object) -> None:
@@ -1185,6 +1252,8 @@ def test_hook_validate_artifacts_blocks_map_scan_when_graph_baseline_outputs_are
     assert any("provisional/nodes.json" in message for message in payload["errors"])
     assert any("provisional/edges.json" in message for message in payload["errors"])
     assert any("provisional/observations.json" in message for message in payload["errors"])
+    assert any("scan-queue.json" in message for message in payload["errors"])
+    assert any("handoff-ledger.json" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_exist(tmp_path: Path):
@@ -1200,6 +1269,154 @@ def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_ex
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
+
+
+@pytest.mark.parametrize("outcome", ["pass"])
+def test_hook_validate_artifacts_accepts_map_scan_worker_result_legacy_top_level_outcome(
+    tmp_path: Path, outcome: str
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [
+                {
+                    "path": "src/auth/login.ts",
+                    "outcome": "deep_read",
+                    "evidence_ids": ["E-001"],
+                    "confidence": "high",
+                }
+            ],
+            "outcome": outcome,
+            "confidence": "high",
+            "evidence_ids": ["E-001"],
+            "ledger": _project_cognition_packet_ledger(),
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+
+
+@pytest.mark.parametrize(
+    ("field", "acceptance"),
+    [
+        ("acceptance", "overflow"),
+        ("acceptance", "blocked"),
+        ("acceptance", "repack_required"),
+        ("acceptance", "accepted"),
+        ("acceptance", "unknown"),
+        ("outcome", "unknown"),
+    ],
+)
+def test_hook_validate_artifacts_blocks_map_scan_worker_result_invalid_packet_acceptance(
+    tmp_path: Path, field: str, acceptance: str
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [{"path": "src/auth/login.ts", "outcome": "covered"}],
+            field: acceptance,
+            "ledger": _project_cognition_packet_ledger(),
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert f"packet core has invalid acceptance {acceptance}" in payload["errors"]
+
+
+@pytest.mark.parametrize("acceptance", ["fail_gap", "fail_quality", "fail_contract", "fail_systemic"])
+def test_hook_validate_artifacts_blocks_map_scan_worker_result_failed_packet_acceptance(
+    tmp_path: Path, acceptance: str
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [{"path": "src/auth/login.ts", "outcome": "covered"}],
+            "acceptance": acceptance,
+            "ledger": _project_cognition_packet_ledger(),
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert f"packet core failed acceptance/coverage gate with {acceptance}" in payload["errors"]
+
+
+def test_hook_validate_artifacts_blocks_map_scan_worker_result_missing_packet_ledger(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [{"path": "src/auth/login.ts", "outcome": "covered"}],
+            "acceptance": "pass",
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "packet core must define ledger object" in payload["errors"]
+
+
+def test_hook_validate_artifacts_blocks_map_scan_worker_result_path_level_overflow_without_acceptance(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [{"path": "src/auth/login.ts", "outcome": "overflow"}],
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert "packet core must define acceptance" in payload["errors"]
 
 
 def test_hook_validate_artifacts_accepts_map_scan_downstream_compatibility_shapes(tmp_path: Path):
@@ -1475,6 +1692,240 @@ def test_hook_validate_artifacts_accepts_map_build_when_sqlite_database_exists(t
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_path_index_sparse_for_included_paths(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "included_paths": ["src/auth/login.ts", "src/billing.ts"],
+                "excluded_paths": [],
+                "criticality": {
+                    "src/auth/login.ts": "critical",
+                    "src/billing.ts": "low_risk",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(
+        "path_index_to_included_ratio 0.50 is below hard threshold 0.70" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_only_unrelated_extra_rows_make_path_index_look_dense(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    generation_id = "GEN-0001"
+    with sqlite3.connect(run_dir / "project-cognition.db") as conn:
+        for index in range(1, 4):
+            conn.execute(
+                "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, 'capability:auth.login', 'owns', 'verified', 'E-login', '2026-05-23T00:00:00Z')",
+                (f"P-extra-{index}", generation_id, f"src/extra-{index}.ts"),
+            )
+        conn.commit()
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "included_paths": ["src/auth/login.ts", "src/billing.ts", "src/orders.ts"],
+                "excluded_paths": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(
+        "path_index_to_included_ratio 0.33 is below hard threshold 0.70" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_excludes_accepted_nonblocking_gaps_from_path_index_denominator(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "included_paths": ["src/auth/login.ts", "src/billing.ts"],
+                "excluded_paths": [],
+                "criticality": {
+                    "src/auth/login.ts": "critical",
+                    "src/billing.ts": "low_risk",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "coverage-ledger.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {"path": "src/auth/login.ts", "coverage_state": "covered"},
+                ],
+                "open_gaps": [
+                    {
+                        "path": "src/billing.ts",
+                        "status": "low_risk_open_gap",
+                        "coverage_state": "low_risk_open_gap",
+                        "owner": "scan",
+                        "reason": "generated_code",
+                        "evidence_expectation": "generated file remains low-risk inventory",
+                        "revisit_condition": "path changes",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_keeps_loose_accepted_gap_in_path_index_denominator(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "included_paths": ["src/auth/login.ts", "src/billing.ts"],
+                "excluded_paths": [],
+                "criticality": {
+                    "src/auth/login.ts": "critical",
+                    "src/billing.ts": "low_risk",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "coverage-ledger.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {"path": "src/auth/login.ts", "coverage_state": "covered"},
+                    {"path": "src/billing.ts", "coverage_state": "accepted_gap"},
+                ],
+                "open_gaps": [
+                    {
+                        "path": "src/billing.ts",
+                        "status": "accepted",
+                        "reason": "generated_code",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(
+        "path_index_to_included_ratio 0.50 is below hard threshold 0.70" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_keeps_non_low_risk_accepted_gap_in_path_index_denominator(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "included_paths": ["src/auth/login.ts", "src/billing.ts"],
+                "excluded_paths": [],
+                "criticality": {
+                    "src/auth/login.ts": "critical",
+                    "src/billing.ts": "important",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "coverage-ledger.json").write_text(
+        json.dumps(
+            {
+                "rows": [{"path": "src/auth/login.ts", "coverage_state": "covered"}],
+                "open_gaps": [
+                    {
+                        "path": "src/billing.ts",
+                        "status": "low_risk_open_gap",
+                        "coverage_state": "low_risk_open_gap",
+                        "owner": "scan",
+                        "reason": "generated_code",
+                        "evidence_expectation": "generated file remains low-risk inventory",
+                        "revisit_condition": "path changes",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(
+        "path_index_to_included_ratio 0.50 is below hard threshold 0.70" in message
+        for message in payload["errors"]
+    )
 
 
 def test_map_build_artifact_validation_blocks_subagent_blocked_gap(tmp_path: Path):

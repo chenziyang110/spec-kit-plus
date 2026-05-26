@@ -50,6 +50,9 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 "status_path": ".specify/project-cognition/status.json",
                 "graph_store_path": ".specify/project-cognition/project-cognition.db",
             }
+            VALID_PACKET_ACCEPTANCE = {"pass", "fail_gap", "fail_quality", "fail_contract", "fail_systemic"}
+            FAILED_PACKET_ACCEPTANCE = {"fail_gap", "fail_quality", "fail_contract", "fail_systemic"}
+            VALID_PACKET_OUTCOME = {"read", "deep_read", "sampled", "inventory_only", "blocked", "excluded", "overflow"}
 
 
             def _runtime_dir():
@@ -148,13 +151,75 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 return args[index + 1]
 
 
-            def _validate_scan():
-                def _normalize_path(value):
-                    normalized = str(value).replace("\\", "/").strip()
-                    while normalized.startswith("./"):
-                        normalized = normalized[2:].strip()
-                    return normalized
+            def _normalize_path(value):
+                normalized = str(value).replace("\\", "/").strip()
+                while normalized.startswith("./"):
+                    normalized = normalized[2:].strip()
+                return normalized
 
+
+            def _path_values(items):
+                paths = set()
+                if not isinstance(items, list):
+                    return paths
+                for item in items:
+                    value = item.get("path") if isinstance(item, dict) else item
+                    path = _normalize_path(value)
+                    if path:
+                        paths.add(path)
+                return paths
+
+
+            def _universe_criticality(universe):
+                if not isinstance(universe, dict):
+                    return {}
+                criticality = universe.get("criticality")
+                if isinstance(criticality, dict):
+                    return {
+                        _normalize_path(path): str(value).strip().lower()
+                        for path, value in criticality.items()
+                        if _normalize_path(path)
+                    }
+                by_path = {}
+                for row in universe.get("candidate_universe", []):
+                    if not isinstance(row, dict):
+                        continue
+                    path = _normalize_path(row.get("path", ""))
+                    if path:
+                        by_path[path] = str(row.get("criticality") or "").strip().lower()
+                return by_path
+
+
+            def _accepted_nonblocking_gap_paths(ledger, criticality_by_path):
+                if not isinstance(ledger, dict):
+                    return set()
+                accepted = set()
+                for gap in ledger.get("open_gaps", []):
+                    if not isinstance(gap, dict):
+                        continue
+                    status = str(gap.get("status") or "").strip().lower()
+                    coverage_state = str(gap.get("coverage_state") or "").strip().lower()
+                    reason = str(gap.get("reason") or "").strip().lower()
+                    if "blocked" in {status, coverage_state, reason}:
+                        continue
+                    if status != "low_risk_open_gap" and coverage_state != "low_risk_open_gap":
+                        continue
+                    if (
+                        not str(gap.get("owner") or "").strip()
+                        or not reason
+                        or not str(gap.get("evidence_expectation") or "").strip()
+                        or not str(gap.get("revisit_condition") or "").strip()
+                    ):
+                        continue
+                    paths = _path_values(gap.get("paths"))
+                    path = _normalize_path(gap.get("path", ""))
+                    if path:
+                        paths.add(path)
+                    accepted.update(path for path in paths if criticality_by_path.get(path) == "low_risk")
+                return accepted
+
+
+            def _validate_scan():
                 required = [
                     ".specify/project-cognition/evidence",
                     ".specify/project-cognition/status.json",
@@ -163,7 +228,10 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                     ".specify/project-cognition/provisional/observations.json",
                     ".specify/project-cognition/coverage.json",
                     ".specify/project-cognition/workbench/coverage-ledger.json",
+                    ".specify/project-cognition/workbench/scan-queue.json",
+                    ".specify/project-cognition/workbench/handoff-ledger.json",
                     ".specify/project-cognition/workbench/scan-packets",
+                    ".specify/project-cognition/workbench/worker-results",
                 ]
                 root = Path.cwd()
                 errors = [f"missing {rel}" for rel in required if not (root / rel).exists()]
@@ -174,6 +242,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                     ".specify/project-cognition/provisional/observations.json",
                     ".specify/project-cognition/coverage.json",
                     ".specify/project-cognition/workbench/coverage-ledger.json",
+                    ".specify/project-cognition/workbench/scan-queue.json",
+                    ".specify/project-cognition/workbench/handoff-ledger.json",
                 ]:
                     path = root / rel
                     if path.exists():
@@ -221,12 +291,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         errors.append(f"{universe_rel}: malformed JSON")
                     else:
                         if isinstance(universe, dict):
-                            excluded_paths = set()
-                            for item in universe.get("excluded_paths", []):
-                                value = item.get("path") if isinstance(item, dict) else item
-                                path = _normalize_path(value)
-                                if path:
-                                    excluded_paths.add(path)
+                            excluded_paths = _path_values(universe.get("excluded_paths", []))
                             for path in sorted(excluded_paths & coverage_paths):
                                 errors.append(f"excluded path {path} must not appear in coverage.json")
                 evidence_dir = Path.cwd() / ".specify/project-cognition/evidence"
@@ -254,6 +319,43 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 break
                     except json.JSONDecodeError as exc:
                         errors.append(f".specify/project-cognition/workbench/coverage-ledger.json: {exc}")
+                worker_results_dir = Path.cwd() / ".specify/project-cognition/workbench/worker-results"
+                if worker_results_dir.is_dir():
+                    for result_path in sorted(worker_results_dir.glob("*.json")):
+                        try:
+                            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+                        except json.JSONDecodeError as exc:
+                            errors.append(f"{result_path.name}: {exc}")
+                            continue
+                        if not isinstance(result_payload, dict):
+                            errors.append(f"{result_path.name} must contain a top-level JSON object")
+                            continue
+                        if not isinstance(result_payload.get("ledger"), dict):
+                            errors.append(f"packet {result_path.stem} must define ledger object")
+                        acceptance = str(result_payload.get("acceptance") or result_payload.get("outcome") or "").strip()
+                        if not acceptance:
+                            errors.append(f"packet {result_path.stem} must define acceptance")
+                        elif acceptance not in VALID_PACKET_ACCEPTANCE:
+                            errors.append(f"packet {result_path.stem} has invalid acceptance {acceptance}")
+                        elif acceptance in FAILED_PACKET_ACCEPTANCE:
+                            errors.append(
+                                f"packet {result_path.stem} failed acceptance/coverage gate with {acceptance}"
+                            )
+                        coverage_rows = result_payload.get("coverage")
+                        if isinstance(coverage_rows, list):
+                            for row in coverage_rows:
+                                if not isinstance(row, dict):
+                                    continue
+                                path = _normalize_path(row.get("path", ""))
+                                outcome = str(row.get("outcome") or "").strip()
+                                if not outcome:
+                                    errors.append(f"packet {result_path.stem} path {path} coverage outcome is required")
+                                elif outcome not in VALID_PACKET_OUTCOME:
+                                    errors.append(
+                                        f"packet {result_path.stem} path {path} has invalid coverage outcome {outcome}"
+                                    )
+                        if acceptance == "pass" and not str(result_payload.get("confidence") or result_payload.get("confidence_level") or "").strip():
+                            errors.append(f"packet {result_path.stem} pass acceptance must include confidence")
                 return {
                     "status": "blocked" if errors else "ok",
                     "gate": "scan_acceptance",
@@ -337,6 +439,45 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 ).fetchone()[0]
                                 if int(path_count) == 0:
                                     errors.append("active_generation_has_no_path_index_rows")
+                                universe_path = Path.cwd() / ".specify/project-cognition/workbench/repository-universe.json"
+                                if universe_path.exists():
+                                    try:
+                                        universe = json.loads(universe_path.read_text(encoding="utf-8"))
+                                    except json.JSONDecodeError as exc:
+                                        errors.append(f".specify/project-cognition/workbench/repository-universe.json: {exc}")
+                                    else:
+                                        included_paths = _path_values(
+                                            universe.get("included_paths", []) if isinstance(universe, dict) else []
+                                        )
+                                        criticality_by_path = _universe_criticality(universe)
+                                        ledger_path = (
+                                            Path.cwd()
+                                            / ".specify/project-cognition/workbench/coverage-ledger.json"
+                                        )
+                                        accepted_gap_paths = set()
+                                        if ledger_path.exists():
+                                            try:
+                                                accepted_gap_paths = _accepted_nonblocking_gap_paths(
+                                                    json.loads(ledger_path.read_text(encoding="utf-8")),
+                                                    criticality_by_path,
+                                                )
+                                            except json.JSONDecodeError:
+                                                accepted_gap_paths = set()
+                                        required_paths = included_paths - accepted_gap_paths
+                                        if required_paths:
+                                            indexed_paths = {
+                                                _normalize_path(row[0])
+                                                for row in conn.execute(
+                                                    "SELECT DISTINCT path FROM path_index WHERE generation_id = ?",
+                                                    (active_generation_id,),
+                                                )
+                                            }
+                                            matched_paths = indexed_paths & required_paths
+                                            ratio = float(len(matched_paths)) / float(len(required_paths))
+                                            if ratio < 0.70:
+                                                errors.append(
+                                                    f"path_index_to_included_ratio {ratio:.2f} is below hard threshold 0.70"
+                                                )
                             if active_generation_id and "nodes" in table_names:
                                 node_count = conn.execute(
                                     "SELECT COUNT(*) FROM nodes WHERE generation_id = ?",
