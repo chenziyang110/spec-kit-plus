@@ -100,6 +100,13 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 - If repository-universe, coverage, and packet handoffs cannot explain the same path universe, return a scan gap report and route back to `sp-map-scan`.
 - If scan packet acceptance reports `fail_contract` or `fail_systemic`, route back to `sp-map-scan` with a scan gap report because the repair is not only a local patch.
 
+## Path Index Source Contract
+
+build-from-scan creates DB path_index rows from nodes.json `paths`. It does not read `attrs_json.path`, raw node metadata, or `coverage.json` as path-index sources.
+coverage.json rows without matching node paths are recorded as rejected coverage with reason `no_node_relation`. If `validate-build` reports
+`active_generation_has_no_path_index_rows`, route back to `sp-map-scan` to repair
+node `paths` in the scan package instead of inserting SQL manually.
+
 ## Output Contract
 
 The only canonical runtime outputs for this command are:

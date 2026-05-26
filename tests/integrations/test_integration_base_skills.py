@@ -657,7 +657,14 @@ class SkillsIntegrationTests:
         assert ".specify/project-cognition/" in scan_content
         assert "provisional" in scan_content
         assert "evidence" in scan_content
+        assert "machine-readable scan artifact schema" in scan_content
+        assert "source_node_id" in scan_content
+        assert "target_node_id" in scan_content
+        assert "attrs_json" in scan_content
+        assert "coverage.json does not create path_index rows by itself" in scan_content
         assert ".specify/project-cognition/project-cognition.db" in build_content
+        assert "path index source contract" in build_content
+        assert "nodes.json `paths`" in build_content
         assert "project launcher configured in `.specify/config.json`" in build_content
         assert "project-cognition query" in build_content
         assert "raw graph json artifacts or slices as runtime truth" in build_content

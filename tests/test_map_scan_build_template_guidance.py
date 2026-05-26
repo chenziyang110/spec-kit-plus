@@ -320,6 +320,29 @@ def test_map_scan_template_requires_packet_ledger_contract() -> None:
     assert "disposition and criticality together justify" in lowered
 
 
+def test_map_scan_template_defines_machine_readable_scan_artifact_schema() -> None:
+    content = _read("templates/commands/map-scan.md")
+
+    assert "Machine-Readable Scan Artifact Schema" in content
+    assert "nodes.json" in content
+    assert "`id`" in content
+    assert "`type`" in content
+    assert "`title`" in content
+    assert "`paths`" in content
+    assert "`attrs`" in content
+    assert "`kind`" in content
+    assert "`label`" in content
+    assert "`attrs_json`" in content
+    assert "build-from-scan creates path_index rows only from nodes[].paths" in content
+    assert "coverage.json does not create path_index rows by itself" in content
+    assert "source_node_id" in content
+    assert "target_node_id" in content
+    assert "observations.json" in content
+    assert "string observations are accepted only as compatibility input" in content
+    assert "do not maintain separate `rows` and" in content
+    assert "`coverage` lists that can drift" in content
+
+
 def test_map_build_template_rejects_incomplete_boundary_coverage() -> None:
     content = _read("templates/commands/map-build.md")
     lowered = content.lower()
@@ -346,6 +369,16 @@ def test_map_build_template_routes_back_on_contract_and_systemic_failures() -> N
     assert "non-`pass` packet outcomes" in lowered
     assert "not `true`" in lowered
     assert "not only a local patch" in lowered or "not local patch" in lowered
+
+
+def test_map_build_template_explains_path_index_source_contract() -> None:
+    content = _read("templates/commands/map-build.md")
+
+    assert "Path Index Source Contract" in content
+    assert "build-from-scan creates DB path_index rows from nodes.json `paths`" in content
+    assert "does not read `attrs_json.path`" in content
+    assert "coverage.json rows without matching node paths are recorded as rejected coverage" in content
+    assert "active_generation_has_no_path_index_rows" in content
 
 
 def test_map_update_template_requires_changed_path_accounting() -> None:

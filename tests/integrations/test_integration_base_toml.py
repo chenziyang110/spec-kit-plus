@@ -471,6 +471,13 @@ class TomlIntegrationTests:
         assert "execution_surface: native-subagents" in build_content
         assert "coverage-ledger" in scan_content
         assert "map-state.md" in scan_content
+        assert "machine-readable scan artifact schema" in scan_content
+        assert "source_node_id" in scan_content
+        assert "target_node_id" in scan_content
+        assert "attrs_json" in scan_content
+        assert "coverage.json does not create path_index rows by itself" in scan_content
+        assert "path index source contract" in build_content
+        assert "nodes.json `paths`" in build_content
         assert "mapscanpacket" in scan_content
         assert "mapbuildpacket" in build_content
         assert "worker-results" in build_content

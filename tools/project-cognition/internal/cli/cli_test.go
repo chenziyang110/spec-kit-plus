@@ -66,6 +66,100 @@ func TestBuildFromScanCommandCreatesRuntime(t *testing.T) {
 	}
 }
 
+func TestValidateScanCommandAcceptsDownstreamCompatibilityShapes(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	runtimeDir := filepath.Join(root, ".specify", "project-cognition")
+	pagePath := "desktop/src/pages/ActiveSession.tsx"
+	writeTestJSON(t, filepath.Join(runtimeDir, "status.json"), map[string]any{
+		"version":     1,
+		"graph_ready": false,
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "evidence", "app.json"), map[string]any{
+		"rows": []map[string]any{{
+			"id":           "E-active-session",
+			"source_kind":  "source",
+			"source_path":  pagePath,
+			"commit_sha":   "abc123",
+			"span":         "1:1-10:1",
+			"extractor":    "test",
+			"content_hash": "hash-active-session",
+			"attrs_json":   map[string]any{"language": "tsx"},
+		}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"node_id":     "NO_ID",
+			"kind":        "page",
+			"label":       "Active Session Page",
+			"confidence":  "verified",
+			"evidence_id": "E-active-session",
+			"attrs_json":  map[string]any{"path": pagePath},
+		}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":             "NO_ID",
+			"kind":           "owns",
+			"source_node_id": pagePath,
+			"target_node_id": pagePath,
+			"confidence":     "verified",
+			"evidence_id":    "E-active-session",
+		}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "provisional", "observations.json"), map[string]any{
+		"observations": []any{"Active session page owns session UI state"},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "coverage.json"), map[string]any{
+		"coverage": []map[string]any{{"path": pagePath}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "coverage-ledger.json"), map[string]any{
+		"rows":      []map[string]any{{"path": pagePath, "status": "covered"}},
+		"open_gaps": []map[string]any{},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
+		"rows": []map[string]any{{"path": pagePath}},
+	})
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
+		"packet_id":      "lane-1",
+		"family_id":      "desktop",
+		"assigned_paths": []string{pagePath},
+		"paths_read":     []string{pagePath},
+		"ledger": map[string]any{
+			"todo":     []string{},
+			"doing":    []string{},
+			"done":     []string{pagePath},
+			"blocked":  []string{},
+			"overflow": []string{},
+		},
+		"coverage": []map[string]any{{
+			"path":        pagePath,
+			"outcome":     "read",
+			"evidence_id": "E-active-session",
+		}},
+		"confidence": "high",
+		"acceptance": "pass",
+	})
+
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"validate-scan", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "ok" || payload["readiness"] != "scan_ready" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
 func TestImportScanAliasUsesBuildFromScan(t *testing.T) {
 	for _, command := range []string{"import-scan", "rebuild-from-scan"} {
 		t.Run(command, func(t *testing.T) {

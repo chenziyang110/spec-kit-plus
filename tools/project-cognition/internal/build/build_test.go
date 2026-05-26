@@ -77,6 +77,111 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 }
 
+func TestRunBuildsPathIndexFromDownstreamNaturalNodeFields(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	const pagePath = "desktop/src/pages/ActiveSession.tsx"
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "app.json"), map[string]any{
+		"rows": []map[string]any{{
+			"id":           "E-active-session",
+			"source_kind":  "source",
+			"source_path":  pagePath,
+			"commit_sha":   "abc123",
+			"span":         "1:1-10:1",
+			"extractor":    "test",
+			"content_hash": "hash-active-session",
+			"attrs_json":   map[string]any{"language": "tsx"},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"node_id":     "NO_ID",
+			"kind":        "page",
+			"label":       "Active Session Page",
+			"confidence":  "verified",
+			"evidence_id": "E-active-session",
+			"attrs_json": map[string]any{
+				"path":   pagePath,
+				"detail": "session UI",
+			},
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
+		"edges": []map[string]any{{
+			"id":             "NO_ID",
+			"kind":           "owns",
+			"source_node_id": pagePath,
+			"target_node_id": pagePath,
+			"confidence":     "verified",
+			"evidence_id":    "E-active-session",
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), map[string]any{
+		"observations": []any{"Active session page owns session UI state"},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "coverage.json"), map[string]any{
+		"coverage": []map[string]any{{"path": pagePath}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), map[string]any{
+		"rows":      []map[string]any{{"path": pagePath, "status": "covered"}},
+		"open_gaps": []map[string]any{},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), map[string]any{
+		"rows": []map[string]any{{"path": pagePath}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
+		"packet_id":      "lane-1",
+		"family_id":      "desktop",
+		"assigned_paths": []string{pagePath},
+		"paths_read":     []string{pagePath},
+		"ledger": map[string]any{
+			"todo":     []string{},
+			"doing":    []string{},
+			"done":     []string{pagePath},
+			"blocked":  []string{},
+			"overflow": []string{},
+		},
+		"coverage": []map[string]any{{
+			"path":        pagePath,
+			"outcome":     "read",
+			"evidence_id": "E-active-session",
+		}},
+		"confidence": "high",
+		"acceptance": "pass",
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var nodeID, nodeType, nodeTitle, path string
+	err = st.DB().QueryRowContext(
+		context.Background(),
+		`SELECT n.id, n.type, n.title, p.path
+		 FROM nodes n
+		 JOIN path_index p ON p.node_id = n.id
+		 WHERE p.path = ?`,
+		pagePath,
+	).Scan(&nodeID, &nodeType, &nodeTitle, &path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nodeID == "" || nodeID == "NO_ID" {
+		t.Fatalf("nodeID = %q, want generated stable ID", nodeID)
+	}
+	if nodeType != "page" || nodeTitle != "Active Session Page" || path != pagePath {
+		t.Fatalf("row = (%q, %q, %q, %q), want normalized page/title/path", nodeID, nodeType, nodeTitle, path)
+	}
+}
+
 func TestReconciliationErrorsRequireExplicitDecisionRecords(t *testing.T) {
 	reconciliation := map[string]ReconciliationCategory{
 		"coverage_paths": {Status: "mismatch", Missing: []string{"docs/guide.md"}},

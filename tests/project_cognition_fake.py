@@ -188,9 +188,19 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 if coverage_path.exists():
                     try:
                         coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
-                        rows = coverage.get("rows") if isinstance(coverage, dict) else None
-                        if not isinstance(rows, list):
-                            errors.append("coverage.json must define a top-level rows array")
+                        rows = []
+                        found_rows = False
+                        if isinstance(coverage, list):
+                            rows = coverage
+                            found_rows = True
+                        elif isinstance(coverage, dict):
+                            for key in ("rows", "coverage"):
+                                value = coverage.get(key)
+                                if isinstance(value, list):
+                                    rows.extend(value)
+                                    found_rows = True
+                        if not found_rows:
+                            errors.append("coverage.json must define a top-level rows or coverage array")
                         else:
                             for row in rows:
                                 if isinstance(row, dict):

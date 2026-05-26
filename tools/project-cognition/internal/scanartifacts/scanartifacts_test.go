@@ -148,6 +148,135 @@ func TestLoadAcceptsSingularEvidenceAndEdgeEndpointAliases(t *testing.T) {
 	assertIdentity(t, pkg.Identities.Edges, "EDGE-app-self|N-app|N-app|owns")
 }
 
+func TestLoadNormalizesDownstreamNaturalScanArtifactFields(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	const pagePath = "desktop/src/pages/ActiveSession.tsx"
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "evidence", "E-001.json"), []byte(`{
+		"id":"E-001",
+		"source_kind":"file",
+		"source_path":"`+pagePath+`",
+		"commit_sha":"abc123",
+		"span":"L1-L5",
+		"extractor":"test",
+		"content_hash":"hash-page",
+		"attrs_json":{"language":"typescript"}
+	}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), []byte(`{"nodes":[{
+		"node_id":"NO_ID",
+		"kind":"page",
+		"label":"Active Session Page",
+		"confidence":"medium",
+		"evidence_id":"E-001",
+		"attrs_json":{"path":"`+pagePath+`","detail":"session UI"}
+	}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), []byte(`{"edges":[{
+		"id":"NO_ID",
+		"kind":"owns",
+		"source_node_id":"`+pagePath+`",
+		"target_node_id":"`+pagePath+`",
+		"confidence":"medium",
+		"evidence_id":"E-001",
+		"attrs_json":{"detail":"self ownership"}
+	}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), []byte(`{"observations":["Active session page owns session UI state"]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"coverage":[{"path":"`+pagePath+`"}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{"rows":[{"path":"`+pagePath+`"}],"open_gaps":[]}`))
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"desktop",
+		"assigned_paths":["`+pagePath+`"],
+		"paths_read":["`+pagePath+`"],
+		"ledger":{"todo":[],"doing":[],"done":["`+pagePath+`"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"`+pagePath+`","outcome":"read","evidence_id":"E-001"}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{"rows":[{"path":"`+pagePath+`"}]}`))
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if len(pkg.Nodes) != 1 {
+		t.Fatalf("Nodes = %#v, want one normalized node", pkg.Nodes)
+	}
+	node := pkg.Nodes[0]
+	if node.ID == "" || node.ID == "NO_ID" {
+		t.Fatalf("Node ID = %q, want generated stable ID", node.ID)
+	}
+	if node.Type != "page" || node.Title != "Active Session Page" {
+		t.Fatalf("Node = %#v, want kind/label normalized to type/title", node)
+	}
+	if got := strings.Join(node.Paths, ","); got != pagePath {
+		t.Fatalf("Node Paths = %q, want %s", got, pagePath)
+	}
+	if got := node.Attrs["detail"]; got != "session UI" {
+		t.Fatalf("Node Attrs = %#v, want attrs_json detail", node.Attrs)
+	}
+	if len(pkg.Edges) != 1 || pkg.Edges[0].ID == "" || pkg.Edges[0].ID == "NO_ID" {
+		t.Fatalf("Edges = %#v, want generated edge ID", pkg.Edges)
+	}
+	if got := pkg.Edges[0].SourceID + "->" + pkg.Edges[0].TargetID; got != node.ID+"->"+node.ID {
+		t.Fatalf("Edge endpoints = %q, want path endpoints resolved to node ID %s", got, node.ID)
+	}
+	if len(pkg.Observations) != 1 || pkg.Observations[0].Summary != "Active session page owns session UI state" {
+		t.Fatalf("Observations = %#v, want string observation normalized", pkg.Observations)
+	}
+	if got := strings.Join(pkg.CoveragePaths, ","); got != pagePath {
+		t.Fatalf("CoveragePaths = %q, want coverage alias path", got)
+	}
+}
+
+func TestLoadMergesCoverageRowsAndCompatibilityCoverageArrays(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{
+		"rows":[{"path":"src/app.go"}],
+		"coverage":[{"path":"desktop/src/pages/ActiveSession.tsx"}]
+	}`))
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if got := strings.Join(pkg.CoveragePaths, ","); got != "src/app.go,desktop/src/pages/ActiveSession.tsx" {
+		t.Fatalf("CoveragePaths = %q, want merged rows and coverage arrays", got)
+	}
+}
+
+func TestLoadDoesNotMergeCanonicalGraphRowsWithGenericRowsFallback(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), []byte(`{
+		"nodes":[{
+			"id":"N-canonical",
+			"type":"capability",
+			"title":"Canonical",
+			"confidence":"verified",
+			"paths":["src/app.go"]
+		}],
+		"rows":[{
+			"id":"N-generic",
+			"type":"capability",
+			"title":"Generic",
+			"confidence":"verified",
+			"paths":["src/generic.go"]
+		}]
+	}`))
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if len(pkg.Nodes) != 1 || pkg.Nodes[0].ID != "N-canonical" {
+		t.Fatalf("Nodes = %#v, want only canonical nodes array", pkg.Nodes)
+	}
+}
+
 func TestLoadResolvesPathEdgeEndpointsToOwningNodes(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

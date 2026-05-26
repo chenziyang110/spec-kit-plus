@@ -807,6 +807,11 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_content
     assert "evidence" in scan_content
     assert "coverage" in scan_content
+    assert "machine-readable scan artifact schema" in scan_content
+    assert "source_node_id" in scan_content
+    assert "target_node_id" in scan_content
+    assert "attrs_json" in scan_content
+    assert "coverage.json does not create path_index rows by itself" in scan_content
     assert "spawn_agent" in scan_content
     assert "wait_agent" in scan_content
     assert "close_agent" in scan_content
@@ -817,6 +822,8 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "query --intent implement" in build_content
     assert "--query-plan" in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
+    assert "path index source contract" in build_content
+    assert "nodes.json `paths`" in build_content
     assert "raw graph json artifacts or slices as runtime truth" in build_content
     assert "spawn_agent" in build_content
     assert "wait_agent" in build_content

@@ -263,6 +263,30 @@ def test_repo_docs_route_brownfield_runtime_through_cognition_query() -> None:
         assert "workflow-appropriate slices" not in content
 
 
+def test_docs_explain_map_scan_build_artifact_field_contract() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert "scan artifacts" in lowered
+        assert "`node_id`" in content
+        assert "`kind`" in content
+        assert "`label`" in content
+        assert "`source_node_id`" in content
+        assert "`target_node_id`" in content
+        assert "`attrs_json`" in content
+        assert "`coverage`" in content
+        assert "`rows`" in content
+        assert "path_index" in content
+        assert "nodes[].paths" in content
+        assert "coverage.json" in content
+        assert "coverage accounting" in lowered
+
+
 def test_quickstart_taskify_walkthrough_frames_literal_sp_examples_as_claude_style():
     quickstart = _read("docs/quickstart.md")
     walkthrough = _section(quickstart, "## Detailed Example: Building Taskify", "## Key Principles")

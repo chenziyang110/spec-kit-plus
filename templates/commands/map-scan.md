@@ -91,6 +91,44 @@ The only canonical outputs for this command are:
 
 Do not create handbook-first brownfield truth, alternate mapping trees, or canonical runtime documents during `sp-map-scan`.
 
+## Machine-Readable Scan Artifact Schema
+
+Write canonical JSON fields, not agent-local aliases. The runtime accepts a few
+legacy aliases for compatibility, but new scan packets must emit the canonical
+shape below so `sp-map-build` can reconstruct the graph without manual repair.
+
+`provisional/nodes.json` must contain a top-level `nodes` array. Each node row
+uses:
+
+- `id`: stable node identity. Do not write placeholder values such as `NO_ID`.
+- `type`: node class such as `capability`, `module`, `file`, `page`, `command`, `test`, or `state`.
+- `title`: human-readable node title.
+- `paths`: concrete repository file paths owned or represented by this node. build-from-scan creates path_index rows only from nodes[].paths.
+- `confidence`: `verified`, `high`, `medium`, `low`, or `provisional`.
+- `evidence_ids`: evidence row IDs that justify the node.
+- `attrs`: optional object for secondary metadata.
+
+Compatibility aliases accepted by the runtime are `node_id` for `id`, `kind` for
+`type`, `label` or `name` for `title`, and `attrs_json` for `attrs`. These are
+fallbacks only; do not use them in newly generated scan artifacts.
+
+`provisional/edges.json` must contain a top-level `edges` array. Each edge row
+uses `id`, `type`, `source_id`, `target_id`, `confidence`, `evidence_ids`, and
+optional `attrs`. `source_id` and `target_id` should reference node IDs. The
+runtime can resolve a file path endpoint to a node only when exactly one node
+lists that path in `nodes[].paths`. Compatibility aliases accepted by the
+runtime are `source`, `target`, `source_node_id`, `target_node_id`, `kind`, and
+`attrs_json`.
+
+`provisional/observations.json` must contain a top-level `observations` array.
+Each row uses `id`, `observation_type`, `summary`, `evidence_ids`, and optional
+`attrs`. string observations are accepted only as compatibility input and are normalized as `observation_type: note`; new scan artifacts must write objects.
+
+`coverage.json` must contain a top-level `rows` array with `path` values for
+coverage accounting. Compatibility input may use a top-level `coverage` array,
+but new scan artifacts must write `rows`; do not maintain separate `rows` and
+`coverage` lists that can drift. coverage.json does not create path_index rows by itself; every queryable path must also appear in at least one node's `paths` array.
+
 ## Guardrails
 
 - Do not publish final cognition truth from this command.

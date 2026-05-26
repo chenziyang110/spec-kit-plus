@@ -1202,6 +1202,73 @@ def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_ex
     assert payload["status"] == "ok"
 
 
+def test_hook_validate_artifacts_accepts_map_scan_downstream_compatibility_shapes(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    page_path = "desktop/src/pages/ActiveSession.tsx"
+    (run_dir / "evidence" / "E-001.json").write_text(
+        json.dumps(
+            {
+                "id": "E-001",
+                "source_path": page_path,
+                "attrs_json": {"language": "tsx"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "provisional" / "nodes.json").write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "node_id": "NO_ID",
+                        "kind": "page",
+                        "label": "Active Session Page",
+                        "attrs_json": {"path": page_path},
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "provisional" / "edges.json").write_text(
+        json.dumps(
+            {
+                "edges": [
+                    {
+                        "id": "NO_ID",
+                        "kind": "owns",
+                        "source_node_id": page_path,
+                        "target_node_id": page_path,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "provisional" / "observations.json").write_text(
+        json.dumps({"observations": ["Active session page owns session UI state"]}) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "coverage.json").write_text(
+        json.dumps({"coverage": [{"path": page_path}]}) + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+
+
 def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_graph_evidence(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"

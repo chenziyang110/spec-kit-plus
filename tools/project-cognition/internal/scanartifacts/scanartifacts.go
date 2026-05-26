@@ -318,17 +318,18 @@ func loadNodes(paths rt.Paths, pkg *Package, result *Result) {
 		return
 	}
 	for i, row := range rows {
+		attrs := objectMapFromAliases(row, "attrs", "attrs_json")
 		item := NodeRow{
-			ID:          normalizedString(row["id"]),
-			Type:        normalizedString(row["type"]),
-			Title:       normalizedString(row["title"]),
+			ID:          normalizedIdentityString(firstValue(row, "id", "node_id")),
+			Type:        firstNormalizedString(row, "type", "kind"),
+			Title:       firstNormalizedString(row, "title", "label", "name"),
 			Confidence:  normalizedString(row["confidence"]),
-			Paths:       normalizedStringSlice(row["paths"]),
+			Paths:       nodePaths(row, attrs),
 			EvidenceIDs: evidenceRefs(row),
-			Attrs:       objectMap(row["attrs"]),
+			Attrs:       attrs,
 		}
 		if item.ID == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("nodes.json rows[%d] is missing id", i))
+			item.ID = generatedRowID("N", row, i, item.Type, item.Title, strings.Join(item.Paths, "|"))
 		}
 		pkg.Nodes = append(pkg.Nodes, item)
 	}
@@ -347,16 +348,16 @@ func loadEdges(paths rt.Paths, pkg *Package, result *Result) {
 	}
 	for i, row := range rows {
 		item := EdgeRow{
-			ID:          normalizedString(row["id"]),
-			Type:        normalizedString(row["type"]),
-			SourceID:    firstNormalizedString(row, "source_id", "source"),
-			TargetID:    firstNormalizedString(row, "target_id", "target"),
+			ID:          normalizedIdentityString(row["id"]),
+			Type:        firstNormalizedString(row, "type", "kind", "relation"),
+			SourceID:    firstNormalizedString(row, "source_id", "source", "source_node_id"),
+			TargetID:    firstNormalizedString(row, "target_id", "target", "target_node_id"),
 			Confidence:  normalizedString(row["confidence"]),
 			EvidenceIDs: evidenceRefs(row),
-			Attrs:       objectMap(row["attrs"]),
+			Attrs:       objectMapFromAliases(row, "attrs", "attrs_json"),
 		}
 		if item.ID == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("edges.json rows[%d] is missing id", i))
+			item.ID = generatedRowID("EDGE", row, i, item.Type, item.SourceID, item.TargetID)
 		}
 		pkg.Edges = append(pkg.Edges, item)
 	}
@@ -368,21 +369,24 @@ func loadObservations(paths rt.Paths, pkg *Package, result *Result) {
 		result.Errors = append(result.Errors, err.Error())
 		return
 	}
-	rows, err := arrayRows(raw, "observations")
+	rows, err := looseObjectRows(raw, "observations", normalizeObservationRow)
 	if err != nil {
 		result.Errors = append(result.Errors, "observations.json: "+err.Error())
 		return
 	}
 	for i, row := range rows {
 		item := ObservationRow{
-			ID:              normalizedString(row["id"]),
-			ObservationType: normalizedString(row["observation_type"]),
-			Summary:         normalizedString(row["summary"]),
+			ID:              normalizedIdentityString(firstValue(row, "id", "observation_id")),
+			ObservationType: firstNormalizedString(row, "observation_type", "type", "kind"),
+			Summary:         firstNormalizedString(row, "summary", "content", "text"),
 			EvidenceIDs:     evidenceRefs(row),
-			Attrs:           objectMap(row["attrs"]),
+			Attrs:           objectMapFromAliases(row, "attrs", "attrs_json"),
 		}
 		if item.ID == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("observations.json rows[%d] is missing id", i))
+			item.ID = generatedRowID("OBS", row, i, item.ObservationType, item.Summary)
+		}
+		if item.ObservationType == "" {
+			item.ObservationType = "note"
 		}
 		pkg.Observations = append(pkg.Observations, item)
 	}
@@ -432,9 +436,9 @@ func loadCoverage(paths rt.Paths, pkg *Package, result *Result) {
 		result.Errors = append(result.Errors, err.Error())
 		return
 	}
-	rows, err := arrayRows(raw, "rows")
+	rows, err := mergedArrayRowsForKeys(raw, "rows", "coverage")
 	if err != nil {
-		result.Errors = append(result.Errors, "coverage.json must define a top-level rows array")
+		result.Errors = append(result.Errors, "coverage.json must define a top-level rows or coverage array")
 		return
 	}
 	for i, row := range rows {
@@ -1345,6 +1349,10 @@ func evidenceRows(raw any) ([]map[string]any, error) {
 }
 
 func arrayRows(raw any, key string) ([]map[string]any, error) {
+	return arrayRowsForKeys(raw, key, "rows")
+}
+
+func arrayRowsForKeys(raw any, keys ...string) ([]map[string]any, error) {
 	if arr, ok := raw.([]any); ok {
 		return objectRows(arr)
 	}
@@ -1352,12 +1360,76 @@ func arrayRows(raw any, key string) ([]map[string]any, error) {
 	if !ok {
 		return nil, fmt.Errorf("must contain a top-level JSON object or array")
 	}
-	for _, candidate := range []string{key, "rows"} {
+	for _, candidate := range keys {
 		if arr, ok := obj[candidate].([]any); ok {
 			return objectRows(arr)
 		}
 	}
-	return nil, fmt.Errorf("must define a top-level %s array", key)
+	return nil, fmt.Errorf("must define a top-level %s array", keys[0])
+}
+
+func mergedArrayRowsForKeys(raw any, keys ...string) ([]map[string]any, error) {
+	if arr, ok := raw.([]any); ok {
+		return objectRows(arr)
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("must contain a top-level JSON object or array")
+	}
+	merged := make([]any, 0)
+	found := false
+	for _, candidate := range keys {
+		if arr, ok := obj[candidate].([]any); ok {
+			found = true
+			merged = append(merged, arr...)
+		}
+	}
+	if found {
+		return objectRows(merged)
+	}
+	return nil, fmt.Errorf("must define a top-level %s array", keys[0])
+}
+
+func looseObjectRows(raw any, key string, normalize func(any, int) (map[string]any, bool)) ([]map[string]any, error) {
+	values, err := rawRowsForKeys(raw, key, "rows")
+	if err != nil {
+		return nil, err
+	}
+	objects := make([]map[string]any, 0, len(values))
+	for i, row := range values {
+		if obj, ok := normalize(row, i); ok {
+			objects = append(objects, obj)
+			continue
+		}
+		return nil, fmt.Errorf("rows[%d] must be an object", i)
+	}
+	return objects, nil
+}
+
+func rawRowsForKeys(raw any, keys ...string) ([]any, error) {
+	if arr, ok := raw.([]any); ok {
+		return arr, nil
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("must contain a top-level JSON object or array")
+	}
+	for _, candidate := range keys {
+		if arr, ok := obj[candidate].([]any); ok {
+			return arr, nil
+		}
+	}
+	return nil, fmt.Errorf("must define a top-level %s array", keys[0])
+}
+
+func normalizeObservationRow(value any, _ int) (map[string]any, bool) {
+	if obj, ok := value.(map[string]any); ok {
+		return obj, true
+	}
+	if text := normalizedString(value); text != "" {
+		return map[string]any{"summary": text, "observation_type": "note"}, true
+	}
+	return nil, false
 }
 
 func objectRows(rows []any) ([]map[string]any, error) {
@@ -1390,7 +1462,7 @@ func evidenceFromObject(row map[string]any, fileStem string, index int) Evidence
 		Span:        stringFromMap(normalized, "span"),
 		Extractor:   stringFromMap(normalized, "extractor"),
 		ContentHash: contentHash,
-		Attrs:       objectMap(row["attrs"]),
+		Attrs:       objectMapFromAliases(row, "attrs", "attrs_json"),
 	}
 }
 
@@ -1454,6 +1526,15 @@ func firstNormalizedString(values map[string]any, keys ...string) string {
 	return ""
 }
 
+func firstValue(values map[string]any, keys ...string) any {
+	for _, key := range keys {
+		if value, ok := values[key]; ok {
+			return value
+		}
+	}
+	return nil
+}
+
 func hashNormalizedObject(obj map[string]any) string {
 	data, err := json.Marshal(obj)
 	if err != nil {
@@ -1469,6 +1550,28 @@ func objectMap(value any) map[string]any {
 		return map[string]any{}
 	}
 	return obj
+}
+
+func objectMapFromAliases(row map[string]any, keys ...string) map[string]any {
+	for _, key := range keys {
+		if obj := objectMap(row[key]); len(obj) > 0 {
+			return obj
+		}
+	}
+	return map[string]any{}
+}
+
+func nodePaths(row map[string]any, attrs map[string]any) []string {
+	paths := normalizedStringSlice(row["paths"])
+	for _, key := range []string{"path", "source_path", "file_path"} {
+		if path := normalizedString(row[key]); path != "" {
+			paths = append(paths, path)
+		}
+		if path := normalizedString(attrs[key]); path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return uniqueStrings(paths)
 }
 
 func intFromValue(value any) int {
@@ -1516,6 +1619,31 @@ func uniqueStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func generatedRowID(prefix string, row map[string]any, index int, parts ...string) string {
+	seed := strings.Join(parts, "\x00")
+	if seed == strings.Repeat("\x00", len(parts)-1) {
+		data, err := json.Marshal(row)
+		if err == nil {
+			seed = string(data)
+		}
+	}
+	if seed == "" {
+		seed = fmt.Sprintf("%d", index)
+	}
+	sum := sha256.Sum256([]byte(seed))
+	return prefix + "-" + hex.EncodeToString(sum[:])[:16]
+}
+
+func normalizedIdentityString(value any) string {
+	text := normalizedString(value)
+	switch strings.ToUpper(text) {
+	case "", "NO_ID", "UNKNOWN", "TBD", "NULL", "NONE":
+		return ""
+	default:
+		return text
+	}
 }
 
 func normalizedString(value any) string {
