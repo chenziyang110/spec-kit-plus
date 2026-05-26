@@ -184,6 +184,24 @@ func TestLoadRejectsAcceptedQueueWithBareLedgerRow(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsAcceptedQueueClosedOnlyByAcceptedGap(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[],
+		"open_gaps":[{"path":"src/app.go","status":"low_risk_open_gap","owner":"scan","reason":"deferred","evidence_expectation":"non-critical path","revisit_condition":"next scan"}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires accepted coverage for assigned path src/app.go") {
+		t.Fatalf("Errors = %#v, want accepted queue coverage error", result.Errors)
+	}
+}
+
 func TestLoadRejectsMalformedOverflowOpenGapMetadata(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

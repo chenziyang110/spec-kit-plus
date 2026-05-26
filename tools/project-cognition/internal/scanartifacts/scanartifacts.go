@@ -304,7 +304,7 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		rowsByPacket:     map[string]queueRow{},
 		childrenByParent: map[string]bool{},
 		returnedPackets:  map[string]bool{},
-		acceptedPaths:    acceptedGapPaths(paths),
+		acceptedPaths:    map[string]bool{},
 		openGaps:         []openGapClosure{},
 	}
 	for path := range loadCoverageLedgerState(paths, result) {
