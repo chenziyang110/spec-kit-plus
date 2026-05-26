@@ -238,15 +238,15 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	}
 	st, err := store.OpenExisting(paths)
 	if err != nil {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}
 	defer st.Close()
 	activeGenerationID, err := st.ActiveGenerationID(context.Background())
 	if err != nil {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}
 	if activeGenerationID == "" {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{"project-cognition.db has no active generation"}, "warnings": []string{}})
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{"project-cognition.db has no active generation"}, "warnings": []string{}})
 	}
 	sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), activeGenerationID)
 	if len(sparse.Errors) > 0 {
@@ -325,10 +325,10 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			}
 			return 1
 		}
-		return writeJSON(stdout, payload)
+		return writeErrorJSON(stdout, payload)
 	}
 	if readyGenerationID != activeGenerationID {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, activeGenerationID)}, "warnings": []string{}})
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, activeGenerationID)}, "warnings": []string{}})
 	}
 	return writeJSON(stdout, map[string]any{
 		"status":               "ok",
@@ -693,4 +693,11 @@ func writeJSON(w io.Writer, payload any) int {
 		return 1
 	}
 	return 0
+}
+
+func writeErrorJSON(w io.Writer, payload any) int {
+	if code := writeJSON(w, payload); code != 0 {
+		return code
+	}
+	return 1
 }
