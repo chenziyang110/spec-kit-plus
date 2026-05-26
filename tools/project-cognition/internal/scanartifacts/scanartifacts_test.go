@@ -171,6 +171,51 @@ func TestLoadRejectsHandoffReturnWrongWorkerResultPath(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsHandoffReturnWrongResultHandoffPathAlias(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), []byte(`{"events":[
+		{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+		{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","result_handoff_path":".specify/project-cognition/workbench/worker-results/wrong.json","created_at":"2026-05-26T00:01:00Z"}
+	]}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "handoff-ledger return for packet lane-1 worker_result_path") {
+		t.Fatalf("Errors = %#v, want handoff worker result path error", result.Errors)
+	}
+}
+
+func TestLoadRejectsAcceptedQueueWithoutCoverageWhenWorkerResultMissing(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	removeFile(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"docs/guide.md","status":"covered"}],
+		"open_gaps":[]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"assigned_paths":["src/app.go"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires accepted coverage for assigned path src/app.go") {
+		t.Fatalf("Errors = %#v, want accepted queue coverage error", result.Errors)
+	}
+}
+
 func TestLoadRejectsAcceptedQueueWithoutCoverage(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

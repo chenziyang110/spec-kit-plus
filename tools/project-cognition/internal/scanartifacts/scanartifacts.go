@@ -365,7 +365,7 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		eventType := normalizedString(event["event_type"])
 		if eventType == "returned" || eventType == "return" {
 			state.returnedPackets[packetID] = true
-			if path := normalizedString(event["worker_result_path"]); path != "" {
+			if path := firstNormalizedString(event, "worker_result_path", "result_handoff_path"); path != "" {
 				state.returnPathsByPacket[packetID] = path
 			}
 		}
@@ -1097,6 +1097,8 @@ func validateScanPacketQueueFiles(paths rt.Paths, _ Boundary, _ Package, queue q
 		if len(packetIDs) > 0 && !packetIDs[packetID] {
 			result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s has no matching scan packet", packetID))
 		}
+		validateQueueRowAcceptedAssignedPaths(packetID, row, result)
+		validateQueueRowCoverage(packetID, row, queue.acceptedPaths, result)
 		validateQueueRowClosure(packetID, row, queue, result)
 	}
 }
@@ -1146,9 +1148,7 @@ func validateQueueWorkerAssignedPaths(packetID string, row queueRow, workerAssig
 	}
 	queueAssigned := uniqueStrings(row.AssignedPaths)
 	workerAssigned = uniqueStrings(workerAssigned)
-	if row.State == "accepted" && len(queueAssigned) == 0 {
-		result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s accepted state requires assigned_paths", packetID))
-	}
+	validateQueueRowAcceptedAssignedPaths(packetID, row, result)
 	if !sameStringSet(queueAssigned, workerAssigned) {
 		result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s assigned_paths must match worker result assigned_paths", packetID))
 	}
@@ -1203,6 +1203,15 @@ func sameStringSet(left []string, right []string) bool {
 		}
 	}
 	return true
+}
+
+func validateQueueRowAcceptedAssignedPaths(packetID string, row queueRow, result *Result) {
+	if row.PacketID == "" || row.State != "accepted" {
+		return
+	}
+	if len(uniqueStrings(row.AssignedPaths)) == 0 {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s accepted state requires assigned_paths", packetID))
+	}
 }
 
 func validateQueueRowCoverage(packetID string, row queueRow, accepted map[string]bool, result *Result) {
