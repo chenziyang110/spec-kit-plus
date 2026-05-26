@@ -279,7 +279,11 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			}
 			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
 			payload["errors"] = sparse.Errors
-			return writeJSON(stdout, payload)
+			code := writeJSON(stdout, payload)
+			if code != 0 {
+				return code
+			}
+			return 1
 		}
 		return writeJSON(stdout, map[string]any{
 			"status":                    "blocked",
