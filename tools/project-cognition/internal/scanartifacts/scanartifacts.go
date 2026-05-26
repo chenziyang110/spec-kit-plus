@@ -51,6 +51,17 @@ type Boundary struct {
 	DecisionSource        map[string]string
 }
 
+type PathIndexRequirements struct {
+	IncludedPaths                 []string
+	ExcludedPaths                 []string
+	AcceptedNonblockingGapPaths   []string
+	IndexRequiredPaths            []string
+	CriticalIndexRequiredPaths    []string
+	ImportantIndexRequiredPaths   []string
+	CanonicalNodePathCount        int
+	CompatibilityDerivedPathCount int
+}
+
 type PacketValidationSummary struct {
 	ResultCount int
 	Outcomes    map[string]int
@@ -198,6 +209,38 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	result.Details["canonical_node_path_count"] = canonicalNodePathCount
 	result.Details["compatibility_derived_node_path_count"] = compatibilityNodePathCount
 	return pkg, result
+}
+
+func LoadPathIndexRequirements(paths rt.Paths) (PathIndexRequirements, []string) {
+	result := newResult([]string{})
+	boundary := loadBoundary(paths, &result)
+	acceptedGaps := acceptedNonblockingGapPaths(paths, boundary)
+	pkg := Package{}
+	loadNodes(paths, &pkg, &result)
+	canonicalNodePathCount, compatibilityNodePathCount := nodePathCounts(pkg.Nodes)
+	requirements := PathIndexRequirements{
+		IncludedPaths:                 sortedKeys(boundary.IncludedPaths),
+		ExcludedPaths:                 sortedKeys(boundary.ExcludedPaths),
+		AcceptedNonblockingGapPaths:   sortedKeys(acceptedGaps),
+		CanonicalNodePathCount:        canonicalNodePathCount,
+		CompatibilityDerivedPathCount: compatibilityNodePathCount,
+	}
+	for path := range boundary.IncludedPaths {
+		if boundary.ExcludedPaths[path] || acceptedGaps[path] {
+			continue
+		}
+		requirements.IndexRequiredPaths = append(requirements.IndexRequiredPaths, path)
+		switch boundary.Criticality[path] {
+		case "critical":
+			requirements.CriticalIndexRequiredPaths = append(requirements.CriticalIndexRequiredPaths, path)
+		case "important":
+			requirements.ImportantIndexRequiredPaths = append(requirements.ImportantIndexRequiredPaths, path)
+		}
+	}
+	sort.Strings(requirements.IndexRequiredPaths)
+	sort.Strings(requirements.CriticalIndexRequiredPaths)
+	sort.Strings(requirements.ImportantIndexRequiredPaths)
+	return requirements, result.Errors
 }
 
 func validateCoverageLedger(paths rt.Paths, owner string) []string {
@@ -1604,6 +1647,15 @@ func stringSet(values []string) map[string]bool {
 		set[value] = true
 	}
 	return set
+}
+
+func sortedKeys(values map[string]bool) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func validateExcludedPathNotInGraphArtifacts(path string, pkg Package, result *Result) {

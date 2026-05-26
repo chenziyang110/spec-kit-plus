@@ -3,6 +3,8 @@ package validation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -227,6 +229,80 @@ func TestValidateBuildBlocksExcludedBoundaryPathInDB(t *testing.T) {
 	}
 	if !hasValidationError(payload.Errors, "excluded boundary path vendor/lib.go must not enter project cognition graph store") {
 		t.Fatalf("Errors = %#v, want excluded boundary path leakage error", payload.Errors)
+	}
+}
+
+func TestValidateBuildBlocksCriticalAndImportantMissingPathIndex(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	allPaths := []string{"src/critical.go", "src/important.go", "src/low-risk.go"}
+	indexedPaths := []string{"src/low-risk.go"}
+	writeScanPackageWithUniverse(t, paths, allPaths, allPaths, map[string]string{
+		"src/critical.go":  "critical",
+		"src/important.go": "important",
+		"src/low-risk.go":  "low_risk",
+	}, allPaths)
+	seedQueryReadyDatabaseWithPaths(t, paths, allPaths, indexedPaths)
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	for _, want := range []string{
+		"critical_missing_path_index: src/critical.go",
+		"important_missing_path_index: src/important.go",
+	} {
+		if !hasValidationError(payload.Errors, want) {
+			t.Fatalf("Errors = %#v, want %q", payload.Errors, want)
+		}
+	}
+}
+
+func TestValidateBuildWarnsBelowNinetyPercentAndFailsBelowSeventyPercent(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	allPaths := numberedSourcePaths(10)
+	indexedPaths := allPaths[:7]
+	criticality := map[string]string{}
+	for _, path := range allPaths {
+		criticality[path] = "low_risk"
+	}
+	writeScanPackageWithUniverse(t, paths, allPaths, allPaths, criticality, allPaths)
+	seedQueryReadyDatabaseWithPaths(t, paths, allPaths, indexedPaths)
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationWarning(payload.Warnings, "path_index_to_included_ratio 0.70 is below warning threshold 0.90") {
+		t.Fatalf("Warnings = %#v, want sparse ratio warning", payload.Warnings)
+	}
+}
+
+func TestValidateBuildFailsBelowSeventyPercentRatio(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	allPaths := numberedSourcePaths(10)
+	indexedPaths := allPaths[:6]
+	criticality := map[string]string{}
+	for _, path := range allPaths {
+		criticality[path] = "low_risk"
+	}
+	writeScanPackageWithUniverse(t, paths, allPaths, allPaths, criticality, allPaths)
+	seedQueryReadyDatabaseWithPaths(t, paths, allPaths, indexedPaths)
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "path_index_to_included_ratio 0.60 is below hard threshold 0.70") {
+		t.Fatalf("Errors = %#v, want sparse ratio hard failure", payload.Errors)
 	}
 }
 
@@ -600,6 +676,90 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 	}
 }
 
+func seedQueryReadyDatabaseWithPaths(t *testing.T, paths rt.Paths, pathsInScan, indexedPaths []string) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	input := store.ImportInput{
+		GenerationID: "GEN-0001",
+		Kind:         "full",
+		SourceCommit: "abc123",
+	}
+	for i, path := range pathsInScan {
+		evidenceID := fmt.Sprintf("E-%03d", i+1)
+		nodeID := fmt.Sprintf("N-%03d", i+1)
+		input.Evidence = append(input.Evidence, store.EvidenceImport{
+			ID:          evidenceID,
+			SourceKind:  "file",
+			SourcePath:  path,
+			CommitSHA:   "abc123",
+			Span:        "L1-L5",
+			Extractor:   "test",
+			ContentHash: fmt.Sprintf("hash-%03d", i+1),
+		})
+		input.Nodes = append(input.Nodes, store.NodeImport{
+			ID:          nodeID,
+			Type:        "capability",
+			Title:       path,
+			Confidence:  "verified",
+			EvidenceIDs: []string{evidenceID},
+		})
+		input.Observations = append(input.Observations, store.ObservationImport{
+			ID:              fmt.Sprintf("OBS-%03d", i+1),
+			ObservationType: "implementation",
+			Summary:         path + " exists",
+			EvidenceIDs:     []string{evidenceID},
+		})
+	}
+	pathToOrdinal := map[string]int{}
+	for i, path := range pathsInScan {
+		pathToOrdinal[path] = i + 1
+	}
+	indexedSet := map[string]bool{}
+	for _, path := range indexedPaths {
+		indexedSet[path] = true
+	}
+	for _, path := range pathsInScan {
+		if !indexedSet[path] {
+			input.Rejections = append(input.Rejections, store.RowDecision{
+				Category: "coverage",
+				Identity: path,
+				Reason:   "accepted_low_risk_sparse_fixture",
+			})
+		}
+	}
+	for _, path := range indexedPaths {
+		ordinal := pathToOrdinal[path]
+		if ordinal == 0 {
+			t.Fatalf("indexed path %s was not supplied in paths", path)
+		}
+		input.PathIndex = append(input.PathIndex, store.PathIndexImport{
+			ID:         fmt.Sprintf("P-%03d", ordinal),
+			Path:       path,
+			NodeID:     fmt.Sprintf("N-%03d", ordinal),
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: fmt.Sprintf("E-%03d", ordinal),
+		})
+	}
+	if len(pathsInScan) > 0 {
+		input.Edges = append(input.Edges, store.EdgeImport{
+			ID:          "EDGE-self",
+			Type:        "owns",
+			SourceID:    "N-001",
+			TargetID:    "N-001",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-001"},
+		})
+	}
+	if _, err := st.ImportGeneration(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func writeMatchingScanPackage(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	files := map[string]string{
@@ -645,6 +805,219 @@ func writeMatchingScanPackage(t *testing.T, paths rt.Paths) {
 	}
 }
 
+func writeScanPackageWithUniverse(t *testing.T, paths rt.Paths, universePaths, included []string, criticality map[string]string, indexed []string) {
+	t.Helper()
+	indexedSet := map[string]bool{}
+	for _, path := range indexed {
+		indexedSet[path] = true
+	}
+	coverageRows := []map[string]any{}
+	ledgerRows := []map[string]any{}
+	evidenceRows := []map[string]any{}
+	nodeRows := []map[string]any{}
+	workerCoverage := []map[string]any{}
+	for i, path := range universePaths {
+		evidenceID := fmt.Sprintf("E-%03d", i+1)
+		nodeRows = append(nodeRows, map[string]any{
+			"id":           fmt.Sprintf("N-%03d", i+1),
+			"type":         "capability",
+			"title":        path,
+			"confidence":   "verified",
+			"paths":        []string{path},
+			"evidence_ids": []string{evidenceID},
+		})
+		evidenceRows = append(evidenceRows, map[string]any{
+			"id":           evidenceID,
+			"source_kind":  "file",
+			"source_path":  path,
+			"commit_sha":   "abc123",
+			"span":         "L1-L5",
+			"extractor":    "test",
+			"content_hash": fmt.Sprintf("hash-%03d", i+1),
+		})
+	}
+	for _, path := range indexed {
+		ordinal := pathOrdinalForBuildFixture(t, universePaths, path)
+		evidenceID := fmt.Sprintf("E-%03d", ordinal)
+		coverageRows = append(coverageRows, map[string]any{"path": path})
+		ledgerRows = append(ledgerRows, map[string]any{"path": path, "status": "accepted"})
+		workerCoverage = append(workerCoverage, map[string]any{
+			"path":         path,
+			"outcome":      "read",
+			"evidence_ids": []string{evidenceID},
+		})
+	}
+	candidates := []map[string]any{}
+	dispositions := map[string]string{}
+	reasons := map[string]string{}
+	sources := map[string]string{}
+	criticalityMap := map[string]string{}
+	for _, path := range universePaths {
+		candidates = append(candidates, map[string]any{
+			"path":            path,
+			"disposition":     "deep_read",
+			"decision_source": "git",
+		})
+		dispositions[path] = "deep_read"
+		reasons[path] = "test fixture"
+		sources[path] = "git"
+		value := criticality[path]
+		if value == "" {
+			value = "low_risk"
+		}
+		criticalityMap[path] = value
+	}
+	openGaps := []map[string]any{}
+	for _, path := range included {
+		if indexedSet[path] {
+			continue
+		}
+		openGaps = append(openGaps, map[string]any{
+			"path":                 path,
+			"status":               "low_risk_open_gap",
+			"coverage_state":       "low_risk_open_gap",
+			"owner":                "scan",
+			"reason":               "accepted_low_risk_sparse_fixture",
+			"evidence_expectation": "not required for low-risk fixture",
+			"revisit_condition":    "path changes",
+		})
+	}
+	files := map[string]any{
+		filepath.Join(paths.RuntimeDir, "evidence", "rows.json"): map[string]any{"rows": evidenceRows},
+		filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"): map[string]any{
+			"nodes": nodeRows,
+		},
+		filepath.Join(paths.RuntimeDir, "provisional", "edges.json"): map[string]any{
+			"edges": edgeRowsForBuildFixture(universePaths),
+		},
+		filepath.Join(paths.RuntimeDir, "provisional", "observations.json"): map[string]any{
+			"observations": observationRowsForBuildFixture(universePaths),
+		},
+		filepath.Join(paths.RuntimeDir, "coverage.json"): map[string]any{"rows": coverageRows},
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"): map[string]any{
+			"rows":      ledgerRows,
+			"open_gaps": openGaps,
+		},
+		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"): map[string]any{
+			"schema_version":         1,
+			"candidate_universe":     candidates,
+			"included_paths":         included,
+			"excluded_paths":         []string{},
+			"ambiguous_paths":        []string{},
+			"dispositions":           dispositions,
+			"criticality":            criticalityMap,
+			"classification_reasons": reasons,
+			"decision_source":        sources,
+		},
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"): map[string]any{
+			"packets": []map[string]any{{
+				"packet_id":           "lane-1",
+				"state":               "accepted",
+				"assigned_paths":      indexed,
+				"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+			}},
+		},
+		filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"): map[string]any{
+			"events": []map[string]any{
+				{"event_id": "dispatch-1", "packet_id": "lane-1", "event_type": "dispatched", "created_at": "2026-05-26T00:00:00Z"},
+				{"event_id": "return-1", "packet_id": "lane-1", "event_type": "returned", "worker_result_path": ".specify/project-cognition/workbench/worker-results/lane-1.json", "created_at": "2026-05-26T00:01:00Z"},
+			},
+		},
+		filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"): map[string]any{
+			"packet_id":      "lane-1",
+			"family_id":      "sparse-fixture",
+			"assigned_paths": indexed,
+			"paths_read":     indexed,
+			"ledger": map[string]any{
+				"todo":     []string{},
+				"doing":    []string{},
+				"done":     indexed,
+				"blocked":  []string{},
+				"overflow": []string{},
+			},
+			"coverage":   workerCoverage,
+			"confidence": "high",
+			"acceptance": "pass",
+		},
+	}
+	for path, payload := range files {
+		writeJSONFileForBuildTest(t, path, payload)
+	}
+	for _, file := range []string{
+		filepath.Join(paths.RuntimeDir, "workbench", "map-scan.md"),
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"),
+		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"),
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("# Build Test Fixture\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func writeJSONFileForBuildTest(t *testing.T, path string, payload any) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func observationRowsForBuildFixture(paths []string) []map[string]any {
+	rows := make([]map[string]any, 0, len(paths))
+	for i, path := range paths {
+		rows = append(rows, map[string]any{
+			"id":               fmt.Sprintf("OBS-%03d", i+1),
+			"observation_type": "implementation",
+			"summary":          path + " exists",
+			"evidence_ids":     []string{fmt.Sprintf("E-%03d", i+1)},
+		})
+	}
+	return rows
+}
+
+func edgeRowsForBuildFixture(paths []string) []map[string]any {
+	if len(paths) == 0 {
+		return []map[string]any{}
+	}
+	return []map[string]any{{
+		"id":           "EDGE-self",
+		"type":         "owns",
+		"source_id":    "N-001",
+		"target_id":    "N-001",
+		"confidence":   "verified",
+		"evidence_ids": []string{"E-001"},
+	}}
+}
+
+func pathOrdinalForBuildFixture(t *testing.T, paths []string, path string) int {
+	t.Helper()
+	for i, candidate := range paths {
+		if candidate == path {
+			return i + 1
+		}
+	}
+	t.Fatalf("path %s was not supplied in universe paths", path)
+	return 0
+}
+
+func numberedSourcePaths(count int) []string {
+	paths := make([]string, 0, count)
+	for i := 1; i <= count; i++ {
+		paths = append(paths, fmt.Sprintf("src/path-%02d.go", i))
+	}
+	return paths
+}
+
 func writeReadyStatus(t *testing.T, paths rt.Paths, generationID string) {
 	t.Helper()
 	status, err := rt.ReadStatus(paths)
@@ -669,6 +1042,15 @@ func writeCoverageLedger(t *testing.T, paths rt.Paths, content string) {
 func hasValidationError(errors []string, want string) bool {
 	for _, err := range errors {
 		if strings.Contains(err, want) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasValidationWarning(warnings []string, want string) bool {
+	for _, warning := range warnings {
+		if strings.Contains(warning, want) {
 			return true
 		}
 	}
