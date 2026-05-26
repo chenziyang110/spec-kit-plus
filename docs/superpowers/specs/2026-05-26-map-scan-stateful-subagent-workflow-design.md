@@ -190,6 +190,21 @@ to packet results, or inconsistent with `coverage-ledger.json`. A compatibility
 period may allow legacy scan packages only behind an explicit migration warning,
 but the stateful scheduler contract treats these files as required artifacts.
 
+Minimum v1 invariants for "stale relative to packet results" are:
+
+- Every `workbench/scan-packets/<packet-id>.md` has exactly one
+  `scan-queue.json` row with the same `packet_id`.
+- Every `workbench/worker-results/<packet-id>.json` has a matching queue row
+  and a `handoff-ledger.json` return event for the same `packet_id`.
+- A queue row in `accepted` requires every assigned path to have an accepted
+  coverage-ledger closure row or an `accepted_nonblocking_gap_paths` entry as
+  defined below. Accepted queue rows cannot leave assigned paths missing,
+  `blocked`, `overflow`, or `repack_required`.
+- A queue row in `overflow`, `blocked`, or `repack_required` requires either
+  child queue rows with `parent_packet_id` pointing at the packet or matching
+  `coverage-ledger.json.open_gaps[]` entries that record affected paths,
+  reason, owner, and next action.
+
 ### Sparse Path-Index Formula
 
 Sparse path-index validation must use a precise denominator.
@@ -200,28 +215,32 @@ For first baseline validation:
 index_required_paths =
   included_paths
   - excluded_paths
-  - blocked_paths_with_accepted_gap
-  - low_risk_inventory_only_paths_with_accepted_gap
+  - accepted_nonblocking_gap_paths
 ```
 
 `included_paths` comes from `repository-universe.json`. `excluded_paths` are not
-in the denominator. A blocked or low-risk inventory-only path is removed from
-the hard-fail denominator only when `coverage-ledger.json.open_gaps[]` contains
-owner, reason, evidence expectation, revisit condition, and a non-blocking
-status such as `low_risk_open_gap`.
+in the denominator.
+
+`accepted_nonblocking_gap_paths` is a named set, not any accepted gap. A path
+enters it only when `coverage-ledger.json.open_gaps[]` records owner, reason,
+evidence expectation, revisit condition, and status `low_risk_open_gap`, and
+the universe marks the path `criticality=low_risk`. Critical and important
+paths remain in the denominator even when a reviewer accepts a temporary gap;
+they must become indexed, be excluded by the repository universe, or fail hard.
+Paths with gap status `blocked`, `subagent_blocked`, `critical_open_gap`,
+`unknown`, `overflow`, or `repack_required` are not nonblocking and remain in
+the denominator.
 
 Hard failures:
 
-- any critical `index_required_path` missing from `path_index`
-- any important `index_required_path` missing from `path_index` without an
-  accepted gap
+- any critical or important `index_required_path` missing from `path_index`
 - `path_index_count == 0`
 - `path_index_count / len(index_required_paths) < 0.70` for first baseline
 
 Warnings:
 
 - `0.70 <= path_index_count / len(index_required_paths) < 0.90`
-- low-risk paths missing from `path_index` with accepted gaps
+- low-risk `accepted_nonblocking_gap_paths` missing from `path_index`
 - coverage paths rejected as `no_node_relation`
 
 The ratio threshold can be made configurable later, but the first implementation
@@ -458,9 +477,11 @@ Required sections:
    - `file_budget_hint`
    - allowed and forbidden paths
 3. Budget rule:
-   - If the assigned paths exceed budget, return `overflow` with split
+   - If the assigned paths exceed budget, return packet `acceptance=fail_gap`,
+     mark affected paths as `coverage[].outcome="overflow"`, and include split
      recommendations.
-   - `overflow` is a valid handoff; pretending to finish is not.
+   - Overflow is a valid handoff when represented as `fail_gap` plus
+     path-level coverage rows; pretending to finish is not.
 4. Evidence rule:
    - Every `read` or `deep_read` path must produce evidence.
    - Evidence must include `source_path`, span or equivalent location,
@@ -494,7 +515,8 @@ Packet:
 Rules:
 - Read only assigned_paths unless a path is required to understand an assigned
   path.
-- If the packet exceeds budget, stop and return overflow with split
+- If the packet exceeds budget, stop, return acceptance=fail_gap, mark
+  overflowed paths as coverage[].outcome="overflow", and include split
   recommendations.
 - Every read/deep_read outcome must include evidence.
 - Every queryable source path you understand must appear in a node paths array.
@@ -518,8 +540,8 @@ Each worker result should be JSON and should include:
 - `observations`
 - `known_unknowns`
 - `recommended_followup_packets`
+- `acceptance`
 - `acceptance_self_check`
-- `outcome`
 - `confidence`
 
 Worker result fields should preserve the runtime split between packet
@@ -529,6 +551,10 @@ acceptance and path coverage outcome:
   `fail_contract`, or `fail_systemic`
 - `coverage[].outcome`: path-level `read`, `deep_read`, `sampled`,
   `inventory_only`, `blocked`, `excluded`, or `overflow`
+
+Top-level `outcome` is not part of the new worker result schema. During
+migration the runtime may accept it only as a legacy alias for `acceptance`,
+but generated prompts and new tests must require `acceptance`.
 
 Allowed packet acceptance values:
 
@@ -639,7 +665,7 @@ Build should fail when:
 
 - active generation has zero `path_index` rows
 - critical included paths lack path-index ownership
-- important included paths lack path-index ownership without accepted gaps
+- important included paths lack path-index ownership
 - path-index coverage is far below the included path universe threshold
 - aggregate nodes represent broad file sets without file/module closure
 
@@ -650,7 +676,9 @@ path_index_count / len(index_required_paths)
 ```
 
 where `index_required_paths` excludes only true `excluded_paths` and paths with
-accepted non-blocking gaps as defined in the contract clarification section.
+`accepted_nonblocking_gap_paths` as defined in the contract clarification
+section. Critical and important paths stay in the denominator unless they are
+true repository-universe exclusions.
 The first implementation should hard-fail below `0.70` and warn below `0.90`.
 The threshold can be configurable or staged later, but the observed shape of
 thousands of included paths and only dozens of path-index rows must not pass as
@@ -705,6 +733,14 @@ Add or update Go tests for:
 - missing or malformed `scan-queue.json` blocks first-baseline `validate-scan`
 - missing or malformed `handoff-ledger.json` blocks first-baseline
   `validate-scan`
+- every scan packet has exactly one queue row
+- every worker result has a matching queue row and handoff-ledger return event
+- accepted queue rows require accepted coverage-ledger closure rows or
+  `accepted_nonblocking_gap_paths` entries for all assigned paths
+- queue `overflow`, `blocked`, and `repack_required` states require matching
+  coverage-ledger gaps or child packets
+- new worker results require top-level `acceptance`; top-level `outcome` is
+  legacy-only
 - worker `acceptance=overflow` or `acceptance=blocked` is rejected unless the
   packet acceptance enum is intentionally expanded
 - worker packet overflow is expressed as `acceptance=fail_gap` plus path-level
@@ -717,9 +753,11 @@ Add or update Go tests for:
 - `build-from-scan` does not write query-ready status when sparse gates fail
 - sparse path-index build validation failure
 - hard-fail ratio below `0.70` and warning ratio below `0.90`
-- accepted gaps are excluded from the ratio denominator only when required gap
-  metadata exists
+- accepted gaps are excluded from the ratio denominator only when they are
+  `accepted_nonblocking_gap_paths`
 - critical path missing path index failure
+- important path missing path index failure even when a temporary gap is
+  accepted
 - aggregate node without file-level paths failure
 - incomplete aggregate ownership with `attrs.paths_complete=false` fails for
   critical paths without `contains` child edges
@@ -754,6 +792,8 @@ result is `validate-build` blocked with specific sparse-coverage diagnostics.
 - A leader can resume a scan from state files without relying on conversation
   history.
 - Every dispatched packet has a queue row and a handoff-ledger entry.
+- Queue, worker-result, and handoff-ledger relationships are validated by the
+  minimum v1 stale-state invariants.
 - Every accepted packet result has path-level coverage accounting.
 - Subagents can report overflowed or blocked paths through `fail_gap` and
   path-level coverage outcomes without pretending the packet passed.
