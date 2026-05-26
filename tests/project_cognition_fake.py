@@ -158,12 +158,25 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 return normalized
 
 
-            def _path_values(items):
+            def _normalize_path_field(value, label, errors):
+                if value is None:
+                    return ""
+                if not isinstance(value, str):
+                    errors.append(f"{label} must be a string")
+                    return ""
+                return _normalize_path(value)
+
+
+            def _path_values(items, label="", errors=None):
                 paths = set()
                 if not isinstance(items, list):
                     return paths
-                for item in items:
+                for index, item in enumerate(items):
                     value = item.get("path") if isinstance(item, dict) else item
+                    if errors is not None and not isinstance(value, str):
+                        field_label = f"{label}[{index}] path" if label else f"paths[{index}] path"
+                        errors.append(f"{field_label} must be a string")
+                        continue
                     path = _normalize_path(value)
                     if path:
                         paths.add(path)
@@ -194,6 +207,17 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 }
 
 
+            def _worker_result_id_from_path(path):
+                normalized = _normalize_path(path)
+                for prefix in (
+                    ".specify/project-cognition/workbench/worker-results/",
+                    "workbench/worker-results/",
+                ):
+                    if normalized.startswith(prefix) and normalized.endswith(".json"):
+                        return normalized.removeprefix(prefix).removesuffix(".json")
+                return ""
+
+
             def _packet_ledger_accounts_for_path(ledger, path):
                 if not isinstance(ledger, dict):
                     return False
@@ -213,7 +237,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                     if not isinstance(rows, list):
                         errors.append(f"packet {packet_id} ledger.{state} must be an array")
                         continue
-                    for path in _path_values(rows):
+                    for path in _path_values(rows, f"packet {packet_id} ledger.{state}", errors):
                         if path not in assigned_paths:
                             errors.append(f"packet {packet_id} ledger path {path} is not in assigned_paths")
                         previous = accounted.get(path)
@@ -446,6 +470,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         pass
                 returned_packets = set()
                 return_paths_by_packet = {}
+                expected_queue_results = {}
+                expected_handoff_results = {}
                 handoff_path = Path.cwd() / ".specify/project-cognition/workbench/handoff-ledger.json"
                 if handoff_path.exists():
                     try:
@@ -463,8 +489,16 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 if return_counts[packet_id] > 1:
                                     errors.append(f"handoff-ledger packet {packet_id} has duplicate return events")
                                 result_file_name = packet_id + ".json"
-                                worker_result_path = _normalize_path(event.get("worker_result_path", ""))
-                                result_handoff_path = _normalize_path(event.get("result_handoff_path", ""))
+                                worker_result_path = _normalize_path_field(
+                                    event.get("worker_result_path", ""),
+                                    f"handoff-ledger return for packet {packet_id} worker_result_path",
+                                    errors,
+                                )
+                                result_handoff_path = _normalize_path_field(
+                                    event.get("result_handoff_path", ""),
+                                    f"handoff-ledger return for packet {packet_id} result_handoff_path",
+                                    errors,
+                                )
                                 if not worker_result_path and not result_handoff_path:
                                     errors.append(
                                         f"handoff-ledger return for packet {packet_id} worker_result_path must match "
@@ -481,23 +515,48 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                         )
                                 if worker_result_path:
                                     return_paths_by_packet[packet_id] = worker_result_path
+                                    result_id = _worker_result_id_from_path(worker_result_path)
+                                    if result_id:
+                                        expected_handoff_results[result_id] = (
+                                            packet_id,
+                                            "worker_result_path",
+                                            worker_result_path,
+                                        )
                                 elif result_handoff_path:
                                     return_paths_by_packet[packet_id] = result_handoff_path
+                                    result_id = _worker_result_id_from_path(result_handoff_path)
+                                    if result_id:
+                                        expected_handoff_results[result_id] = (
+                                            packet_id,
+                                            "result_handoff_path",
+                                            result_handoff_path,
+                                        )
                     except json.JSONDecodeError:
                         pass
                 for packet_id, queue_row in sorted(queue_rows.items()):
                     state = str(queue_row.get("state") or queue_row.get("status") or "").strip().lower()
+                    result_handoff_path = _normalize_path_field(
+                        queue_row.get("result_handoff_path", ""),
+                        f"scan-queue packet {packet_id} result_handoff_path",
+                        errors,
+                    )
+                    if result_handoff_path:
+                        result_id = _worker_result_id_from_path(result_handoff_path)
+                        if result_id:
+                            expected_queue_results[result_id] = (packet_id, result_handoff_path)
+                    assigned_paths = _path_values(queue_row.get("assigned_paths"), f"scan-queue packet {packet_id} assigned_paths", errors)
                     if state not in {"overflow", "blocked", "repack_required"}:
                         continue
-                    assigned_paths = _path_values(queue_row.get("assigned_paths"))
                     has_open_gap = bool(assigned_paths & open_coverage_gap_paths)
                     if not has_open_gap and not _queue_row_has_child_continuation(packet_id, queue_row, queue_rows):
                         errors.append(
                             f"scan-queue packet {packet_id} state {state} must have an open coverage gap or child continuation packet"
                         )
                 worker_results_dir = Path.cwd() / ".specify/project-cognition/workbench/worker-results"
+                actual_worker_result_ids = set()
                 if worker_results_dir.is_dir():
                     for result_path in sorted(worker_results_dir.glob("*.json")):
+                        actual_worker_result_ids.add(result_path.stem)
                         try:
                             result_payload = json.loads(result_path.read_text(encoding="utf-8"))
                         except json.JSONDecodeError as exc:
@@ -517,13 +576,17 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         if not isinstance(queue_row, dict):
                             errors.append(f"worker result {packet_id} has no matching scan-queue row")
                         else:
-                            queue_assigned = _path_values(queue_row.get("assigned_paths"))
-                            worker_assigned = _path_values(result_payload.get("assigned_paths"))
+                            queue_assigned = _path_values(queue_row.get("assigned_paths"), f"scan-queue packet {packet_id} assigned_paths", errors)
+                            worker_assigned = _path_values(result_payload.get("assigned_paths"), f"worker result {packet_id} assigned_paths", errors)
                             if queue_assigned != worker_assigned:
                                 errors.append(
                                     f"scan-queue packet {packet_id} assigned_paths must match worker result assigned_paths"
                                 )
-                            result_handoff_path = _normalize_path(queue_row.get("result_handoff_path", ""))
+                            result_handoff_path = _normalize_path_field(
+                                queue_row.get("result_handoff_path", ""),
+                                f"scan-queue packet {packet_id} result_handoff_path",
+                                errors,
+                            )
                             if not result_handoff_path or not _worker_result_path_matches(result_handoff_path, result_path.name):
                                 errors.append(
                                     f"scan-queue packet {packet_id} result_handoff_path must match "
@@ -538,10 +601,10 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                     f"handoff-ledger return for packet {packet_id} worker_result_path must match "
                                     f"{_canonical_worker_result_path(result_path.name)}"
                                 )
-                        assigned_paths = _path_values(result_payload.get("assigned_paths"))
+                        assigned_paths = _path_values(result_payload.get("assigned_paths"), f"worker result {packet_id} assigned_paths", errors)
                         if not assigned_paths:
                             errors.append(f"packet {packet_id} must define assigned_paths")
-                        paths_read = _path_values(result_payload.get("paths_read"))
+                        paths_read = _path_values(result_payload.get("paths_read"), f"worker result {packet_id} paths_read", errors)
                         ledger = result_payload.get("ledger")
                         _validate_packet_ledger(packet_id, assigned_paths, ledger, errors)
                         acceptance = str(result_payload.get("acceptance") or result_payload.get("outcome") or "").strip()
@@ -556,10 +619,14 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         coverage_rows = result_payload.get("coverage")
                         coverage_by_path = {}
                         if isinstance(coverage_rows, list):
-                            for row in coverage_rows:
+                            for row_index, row in enumerate(coverage_rows):
                                 if not isinstance(row, dict):
                                     continue
-                                path = _normalize_path(row.get("path", ""))
+                                path = _normalize_path_field(
+                                    row.get("path", ""),
+                                    f"packet {packet_id} coverage[{row_index}].path",
+                                    errors,
+                                )
                                 if path and path not in assigned_paths:
                                     errors.append(f"packet {packet_id} coverage path {path} is not in assigned_paths")
                                 outcome = str(row.get("outcome") or "").strip()
@@ -593,6 +660,16 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 outcome = str(row.get("outcome") or "").strip() if isinstance(row, dict) else ""
                                 if outcome in {"", "blocked", "overflow", "excluded"}:
                                     errors.append(f"packet {packet_id} cannot pass with unresolved path {path}")
+                for result_id, (packet_id, result_path) in sorted(expected_queue_results.items()):
+                    if result_id not in actual_worker_result_ids:
+                        errors.append(
+                            f"scan-queue packet {packet_id} result_handoff_path references missing worker result {result_path}"
+                        )
+                for result_id, (packet_id, field, result_path) in sorted(expected_handoff_results.items()):
+                    if result_id not in actual_worker_result_ids:
+                        errors.append(
+                            f"handoff-ledger return for packet {packet_id} {field} references missing worker result {result_path}"
+                        )
                 return {
                     "status": "blocked" if errors else "ok",
                     "gate": "scan_acceptance",

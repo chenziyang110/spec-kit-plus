@@ -1468,6 +1468,97 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_without_matching_
     assert "worker result core has no matching return event in handoff-ledger.json" in payload["errors"]
 
 
+def test_hook_validate_artifacts_blocks_map_scan_numeric_path_values(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "scan-queue.json").write_text(
+        json.dumps(
+            {
+                "packets": [
+                    {
+                        "packet_id": "core",
+                        "state": "accepted",
+                        "assigned_paths": [123],
+                        "result_handoff_path": ".specify/project-cognition/workbench/worker-results/core.json",
+                        "next_action": "none",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": [123],
+            "paths_read": [123],
+            "coverage": [
+                {
+                    "path": 123,
+                    "outcome": "deep_read",
+                    "evidence_ids": ["E-001"],
+                    "confidence": "high",
+                }
+            ],
+            "acceptance": "pass",
+            "confidence": "high",
+            "evidence_ids": ["E-001"],
+            "ledger": {
+                "todo": [],
+                "doing": [],
+                "done": [
+                    {
+                        "path": 123,
+                        "coverage_state": "covered",
+                        "evidence_ids": ["E-001"],
+                        "confidence": "high",
+                    }
+                ],
+                "blocked": [],
+                "overflow": [],
+            },
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("scan-queue packet core assigned_paths[0] path must be a string" in message for message in payload["errors"])
+    assert any("worker result core assigned_paths[0] path must be a string" in message for message in payload["errors"])
+    assert any("packet core coverage[0].path must be a string" in message for message in payload["errors"])
+    assert any("packet core ledger.done[0] path must be a string" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_scan_missing_expected_worker_result(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "worker-results" / "core.json").unlink()
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert (
+        "scan-queue packet core result_handoff_path references missing worker result "
+        ".specify/project-cognition/workbench/worker-results/core.json"
+    ) in payload["errors"]
+    assert (
+        "handoff-ledger return for packet core worker_result_path references missing worker result "
+        ".specify/project-cognition/workbench/worker-results/core.json"
+    ) in payload["errors"]
+
+
 def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_assigned_path_closure(
     tmp_path: Path,
 ):
