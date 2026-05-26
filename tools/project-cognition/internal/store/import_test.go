@@ -197,6 +197,38 @@ func TestPublishRuntimeMetadataRefusesGenerationMismatch(t *testing.T) {
 	}
 }
 
+func TestMarkRuntimeMetadataBlockedRefusesGenerationMismatch(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-current")); err != nil {
+		t.Fatal(err)
+	}
+
+	err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-ready")
+	if err == nil {
+		t.Fatal("MarkRuntimeMetadataBlocked error = nil, want generation mismatch error")
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-current" {
+		t.Fatalf("active_generation_id = %q, want GEN-current", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" {
+		t.Fatalf("graph_ready = %q, want unchanged non-ready current generation metadata", metadata["graph_ready"])
+	}
+}
+
 func TestImportGenerationRollsBackOnInvalidEdge(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)

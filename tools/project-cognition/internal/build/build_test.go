@@ -178,6 +178,55 @@ func TestRunRewritesPreexistingReadyStatusWhenSparsePathIndexFails(t *testing.T)
 	}
 }
 
+func TestRunRewritesPreexistingReadyStatusWhenReconciliationFails(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	readyStatus := rt.DefaultStatus(paths)
+	readyStatus.Status = "ok"
+	readyStatus.Freshness = rt.ReadyFreshness
+	readyStatus.Readiness = rt.ReadyReadiness
+	readyStatus.RecommendedNextAction = "use_project_cognition"
+	readyStatus.GraphReady = true
+	readyStatus.ActiveGenerationID = "GEN-previous"
+	readyStatus.QueryContractVersion = 1
+	readyStatus.UpdateContractVersion = 1
+	if err := rt.WriteStatus(paths, readyStatus); err != nil {
+		t.Fatal(err)
+	}
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{{
+			"id":           "N-app",
+			"type":         "capability",
+			"title":        "App",
+			"confidence":   "verified",
+			"paths":        []string{"src/app.go", "docs/unexpected.md"},
+			"evidence_ids": []string{"E-001"},
+			"attrs":        map[string]any{"owner": "test"},
+		}},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%v", payload.Status, payload.Errors)
+	}
+	if !containsError(payload.Errors, "unexpected DB coverage path identities: docs/unexpected.md") {
+		t.Fatalf("Errors = %#v, want unexpected reconciliation failure", payload.Errors)
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Readiness == rt.ReadyReadiness || status.Freshness == rt.ReadyFreshness || status.GraphReady {
+		t.Fatalf("status = %#v, want preexisting ready status rewritten as non-ready", status)
+	}
+	if status.ActiveGenerationID != payload.ActiveGenerationID {
+		t.Fatalf("status ActiveGenerationID = %q, want current generation %q", status.ActiveGenerationID, payload.ActiveGenerationID)
+	}
+}
+
 func TestRunPublishesReadyWhenSparsePathIndexOnlyWarns(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	writeSparseBuildBoundary(t, paths, []sparseBuildPath{

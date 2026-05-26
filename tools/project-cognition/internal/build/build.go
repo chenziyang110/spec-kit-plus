@@ -97,12 +97,26 @@ func Run(paths rt.Paths) (Payload, error) {
 	snapshot, err := st.ActiveIdentitySnapshot(context.Background())
 	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("read DB identity snapshot: %v", err))
+		if blockErr := writePostImportBlockedState(paths, st, generationID); blockErr != nil {
+			if isBlockedStatusWriteError(blockErr) {
+				payload.RecoveryAction = rewriteStatusFromDBMetadata
+			}
+			payload.Errors = append(payload.Errors, blockErr.Error())
+			return payload, blockErr
+		}
 		return payload, err
 	}
 	payload.DBCounts = dbCounts(snapshot)
 	payload.IdentityReconciliation = summarizeReconciliation(pkg.Identities, snapshot)
 	if errors := reconciliationErrors(payload.IdentityReconciliation, snapshot); len(errors) > 0 {
 		payload.Errors = append(payload.Errors, errors...)
+		if err := writePostImportBlockedState(paths, st, generationID); err != nil {
+			if isBlockedStatusWriteError(err) {
+				payload.RecoveryAction = rewriteStatusFromDBMetadata
+			}
+			payload.Errors = append(payload.Errors, err.Error())
+			return payload, err
+		}
 		return payload, nil
 	}
 
@@ -111,17 +125,11 @@ func Run(paths rt.Paths) (Payload, error) {
 	payload.Warnings = append(payload.Warnings, sparse.Warnings...)
 	if len(sparse.Errors) > 0 {
 		payload.Errors = append(payload.Errors, sparse.Errors...)
-		if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID); err != nil {
-			payload.Errors = append(payload.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
-			return payload, err
-		}
-		status := rt.DefaultStatus(paths)
-		status.Status = "blocked"
-		status.Readiness = rt.BlockedReadiness
-		status.ActiveGenerationID = generationID
-		if err := rt.WriteStatus(paths, status); err != nil {
-			payload.RecoveryAction = rewriteStatusFromDBMetadata
-			payload.Errors = append(payload.Errors, fmt.Sprintf("write blocked status: %v", err))
+		if err := writePostImportBlockedState(paths, st, generationID); err != nil {
+			if isBlockedStatusWriteError(err) {
+				payload.RecoveryAction = rewriteStatusFromDBMetadata
+			}
+			payload.Errors = append(payload.Errors, err.Error())
 			return payload, err
 		}
 		return payload, nil
@@ -165,6 +173,37 @@ func Run(paths rt.Paths) (Payload, error) {
 	payload.Status = "ok"
 	payload.Readiness = rt.ReadyReadiness
 	return payload, nil
+}
+
+type blockedStatusWriteError struct {
+	err error
+}
+
+func (e blockedStatusWriteError) Error() string {
+	return fmt.Sprintf("write blocked status: %v", e.err)
+}
+
+func (e blockedStatusWriteError) Unwrap() error {
+	return e.err
+}
+
+func isBlockedStatusWriteError(err error) bool {
+	var statusErr blockedStatusWriteError
+	return errors.As(err, &statusErr)
+}
+
+func writePostImportBlockedState(paths rt.Paths, st *store.Store, generationID string) error {
+	if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID); err != nil {
+		return fmt.Errorf("write blocked DB metadata: %w", err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "blocked"
+	status.Readiness = rt.BlockedReadiness
+	status.ActiveGenerationID = generationID
+	if err := rt.WriteStatus(paths, status); err != nil {
+		return blockedStatusWriteError{err: err}
+	}
+	return nil
 }
 
 func basePayload(paths rt.Paths) Payload {

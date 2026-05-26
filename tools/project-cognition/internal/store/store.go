@@ -371,6 +371,10 @@ func activeGenerationIDTx(ctx context.Context, tx *sql.Tx) (string, error) {
 }
 
 func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID string) error {
+	generationID = strings.TrimSpace(generationID)
+	if generationID == "" {
+		return fmt.Errorf("expected generation id is required")
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -378,11 +382,22 @@ func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID str
 	}
 	defer tx.Rollback()
 
+	activeGenerationID, err := activeGenerationIDTx(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if activeGenerationID == "" {
+		return fmt.Errorf("project-cognition.db has no active generation")
+	}
+	if activeGenerationID != generationID {
+		return fmt.Errorf("active generation changed before blocked metadata publication: got %s, want %s", activeGenerationID, generationID)
+	}
+
 	pairs := map[string]any{
 		"runtime_format":       rt.RuntimeFormat,
 		"runtime_schema":       rt.RuntimeSchema,
 		"schema_version":       SchemaVersion,
-		"active_generation_id": generationID,
+		"active_generation_id": activeGenerationID,
 		"graph_store_path":     ".specify/project-cognition/project-cognition.db",
 		"graph_ready":          false,
 		"baseline_state":       "blocked",
