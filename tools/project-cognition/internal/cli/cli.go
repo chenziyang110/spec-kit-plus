@@ -267,6 +267,19 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 		status.ActiveGenerationID = activeGenerationID
 		if err := rt.WriteStatus(paths, status); err != nil {
 			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked status: %v", err))
+			code := writeJSON(stdout, map[string]any{
+				"status":                    "blocked",
+				"readiness":                 rt.BlockedReadiness,
+				"active_generation_id":      activeGenerationID,
+				"sparse_path_index_details": sparse.Details,
+				"errors":                    sparse.Errors,
+				"warnings":                  sparse.Warnings,
+				"recovery_action":           "rewrite_status_from_db_metadata",
+			})
+			if code != 0 {
+				return code
+			}
+			return 1
 		}
 		return writeJSON(stdout, map[string]any{
 			"status":                    "blocked",

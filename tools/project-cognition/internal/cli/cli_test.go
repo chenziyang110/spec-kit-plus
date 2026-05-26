@@ -337,6 +337,66 @@ func TestPublishRuntimeMetadataDoesNotWriteBlockedStatusWhenBlockedMetadataFails
 	}
 }
 
+func TestPublishRuntimeMetadataReturnsNonzeroWhenBlockedStatusWriteFails(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = ?`, generationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	blockedRuntimeDir := filepath.Join(root, "status-write-blocker")
+	if err := os.WriteFile(blockedRuntimeDir, []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths.RuntimeDir = blockedRuntimeDir
+	paths.StatusPath = filepath.Join(blockedRuntimeDir, "status.json")
+
+	var stdout, stderr bytes.Buffer
+	code := publishMetadataCommand([]string{"--format", "json"}, &stdout, &stderr, paths)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceHasPrefix(payload["errors"], "write blocked status:") {
+		t.Fatalf("errors = %#v, want blocked status write failure", payload["errors"])
+	}
+	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
+	}
+}
+
 func TestBuildFromScanCommandReturnsNonzeroForOperationalErrorPayload(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)
