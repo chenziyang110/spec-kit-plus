@@ -111,6 +111,15 @@ func Run(paths rt.Paths) (Payload, error) {
 	payload.Warnings = append(payload.Warnings, sparse.Warnings...)
 	if len(sparse.Errors) > 0 {
 		payload.Errors = append(payload.Errors, sparse.Errors...)
+		status := rt.DefaultStatus(paths)
+		status.Status = "blocked"
+		status.Readiness = rt.BlockedReadiness
+		status.ActiveGenerationID = generationID
+		if err := rt.WriteStatus(paths, status); err != nil {
+			payload.RecoveryAction = rewriteStatusFromDBMetadata
+			payload.Errors = append(payload.Errors, fmt.Sprintf("write blocked status: %v", err))
+			return payload, err
+		}
 		return payload, nil
 	}
 

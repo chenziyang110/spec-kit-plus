@@ -110,6 +110,45 @@ func TestRunBlocksReadyPublicationWhenSparsePathIndexFails(t *testing.T) {
 	}
 }
 
+func TestRunRewritesPreexistingReadyStatusWhenSparsePathIndexFails(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	readyStatus := rt.DefaultStatus(paths)
+	readyStatus.Status = "ok"
+	readyStatus.Freshness = rt.ReadyFreshness
+	readyStatus.Readiness = rt.ReadyReadiness
+	readyStatus.RecommendedNextAction = "use_project_cognition"
+	readyStatus.GraphReady = true
+	readyStatus.ActiveGenerationID = "GEN-previous"
+	readyStatus.QueryContractVersion = 1
+	readyStatus.UpdateContractVersion = 1
+	if err := rt.WriteStatus(paths, readyStatus); err != nil {
+		t.Fatal(err)
+	}
+	writeSparseBuildBoundary(t, paths, []sparseBuildPath{
+		{Path: "src/app.go", Criticality: "critical", Indexed: true},
+		{Path: "src/important.go", Criticality: "important", Indexed: false},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%v", payload.Status, payload.Errors)
+	}
+	if payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Readiness == rt.ReadyReadiness || status.Freshness == rt.ReadyFreshness || status.GraphReady {
+		t.Fatalf("status = %#v, want preexisting ready status rewritten as non-ready", status)
+	}
+}
+
 func TestRunPublishesReadyWhenSparsePathIndexOnlyWarns(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	writeSparseBuildBoundary(t, paths, []sparseBuildPath{
