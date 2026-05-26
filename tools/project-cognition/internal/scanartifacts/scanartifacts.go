@@ -304,10 +304,12 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		rowsByPacket:     map[string]queueRow{},
 		childrenByParent: map[string]bool{},
 		returnedPackets:  map[string]bool{},
-		acceptedPaths:    map[string]bool{},
+		acceptedPaths:    acceptedGapPaths(paths),
 		openGaps:         []openGapClosure{},
 	}
-	state.acceptedPaths = loadCoverageLedgerState(paths, result)
+	for path := range loadCoverageLedgerState(paths, result) {
+		state.acceptedPaths[path] = true
+	}
 	state.openGaps = loadOpenGapClosures(paths, result)
 	raw, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), "scan-queue.json")
 	if err != nil {
@@ -484,7 +486,7 @@ func coverageLedgerRowIsAccepted(obj map[string]any) bool {
 	if accepted := normalizedString(obj["accepted"]); accepted != "" {
 		return accepted == "true"
 	}
-	return true
+	return false
 }
 
 func openGapRowHasRequiredMetadata(obj map[string]any) bool {

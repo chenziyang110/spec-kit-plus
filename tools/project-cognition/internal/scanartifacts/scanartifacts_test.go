@@ -166,6 +166,24 @@ func TestLoadRejectsAcceptedQueueWithBlockedOrPartialLedgerRows(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsAcceptedQueueWithBareLedgerRow(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[{"path":"src/app.go"}],
+		"open_gaps":[]
+	}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires accepted coverage for assigned path src/app.go") {
+		t.Fatalf("Errors = %#v, want accepted queue coverage error", result.Errors)
+	}
+}
+
 func TestLoadRejectsMalformedOverflowOpenGapMetadata(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -369,7 +387,7 @@ func TestLoadNormalizesDownstreamNaturalScanArtifactFields(t *testing.T) {
 	}]}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), []byte(`{"observations":["Active session page owns session UI state"]}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"coverage":[{"path":"`+pagePath+`"}]}`))
-	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{"rows":[{"path":"`+pagePath+`"}],"open_gaps":[]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{"rows":[{"path":"`+pagePath+`","status":"covered"}],"open_gaps":[]}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
 		"packets":[{
 			"packet_id":"lane-1",
@@ -777,7 +795,7 @@ func TestValidateAcceptsIncludedPathCoveredByAcceptedGapPath(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
-		"rows":[{"path":"src/app.go"}],
+		"rows":[{"path":"src/app.go","status":"covered"}],
 		"open_gaps":[{"path":"src/missing.go","status":"low_risk_open_gap","owner":"scan","reason":"deferred","evidence_expectation":"non-critical path","revisit_condition":"next scan"}]
 	}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
@@ -803,7 +821,7 @@ func TestValidateAcceptsIncludedPathCoveredByAcceptedGapPathsArray(t *testing.T)
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
-		"rows":[{"path":"src/app.go"}],
+		"rows":[{"path":"src/app.go","status":"covered"}],
 		"open_gaps":[{"paths":["src/missing.go"],"status":"low_risk_open_gap","owner":"scan","reason":"deferred","evidence_expectation":"non-critical path","revisit_condition":"next scan"}]
 	}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
@@ -1637,7 +1655,7 @@ func TestValidateBlocksMetadataIncompleteGapForBoundaryCoverage(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
-		"rows":[{"path":"src/app.go"}],
+		"rows":[{"path":"src/app.go","status":"covered"}],
 		"open_gaps":[{"path":"src/missing.go","status":"low_risk_open_gap","reason":"deferred","evidence_expectation":"non-critical path","revisit_condition":"next scan"}]
 	}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
@@ -1666,7 +1684,7 @@ func TestValidateAcceptsLowRiskGapPathsArrayWithRequiredMetadata(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
-		"rows":[{"path":"src/app.go"}],
+		"rows":[{"path":"src/app.go","status":"covered"}],
 		"open_gaps":[{"paths":["src/missing.go"],"coverage_state":"low_risk_open_gap","owner":"scan","reason":"deferred","evidence_expectation":"non-critical path","revisit_condition":"next scan"}]
 	}`))
 	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
@@ -1924,7 +1942,7 @@ func writeMinimalScanPackage(t *testing.T, paths rt.Paths) {
 		filepath.Join(paths.RuntimeDir, "coverage.json"):                          `{"rows":[{"path":"src/app.go"}]}`,
 		filepath.Join(paths.RuntimeDir, "workbench", "map-scan.md"):               `# Map Scan`,
 		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"):        `# Coverage Ledger`,
-		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"):      `{"rows":[{"path":"src/app.go"}],"open_gaps":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"):      `{"rows":[{"path":"src/app.go","status":"covered"}],"open_gaps":[]}`,
 		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"): `# Lane 1`,
 		filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"): `{
 			"packet_id":"lane-1",
