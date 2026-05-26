@@ -135,14 +135,6 @@ func Run(paths rt.Paths) (Payload, error) {
 		return payload, nil
 	}
 
-	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
-		payload.Errors = append(payload.Errors, fmt.Sprintf("publish ready DB metadata: %v", err))
-		return payload, err
-	} else if readyGenerationID != generationID {
-		payload.Errors = append(payload.Errors, fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, generationID))
-		return payload, fmt.Errorf("ready DB metadata active generation mismatch")
-	}
-
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -152,12 +144,22 @@ func Run(paths rt.Paths) (Payload, error) {
 	status.ActiveGenerationID = generationID
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
-	if err := rt.WriteStatus(paths, status); err != nil {
+	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), generationID, func() error {
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return fmt.Errorf("write status: %w", err)
+		}
+		return nil
+	}); err != nil {
 		payload.Status = "blocked"
 		payload.Readiness = rt.BlockedReadiness
-		payload.RecoveryAction = rewriteStatusFromDBMetadata
-		payload.Errors = append(payload.Errors, fmt.Sprintf("write status: %v", err))
+		if strings.Contains(err.Error(), "write status:") {
+			payload.RecoveryAction = rewriteStatusFromDBMetadata
+		}
+		payload.Errors = append(payload.Errors, fmt.Sprintf("publish ready runtime metadata: %v", err))
 		return payload, err
+	} else if readyGenerationID != generationID {
+		payload.Errors = append(payload.Errors, fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, generationID))
+		return payload, fmt.Errorf("ready DB metadata active generation mismatch")
 	}
 
 	agreement := runtimegate.Check(paths)
@@ -193,15 +195,21 @@ func isBlockedStatusWriteError(err error) bool {
 }
 
 func writePostImportBlockedState(paths rt.Paths, st *store.Store, generationID string) error {
-	if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID); err != nil {
-		return fmt.Errorf("write blocked DB metadata: %w", err)
-	}
 	status := rt.DefaultStatus(paths)
 	status.Status = "blocked"
 	status.Readiness = rt.BlockedReadiness
 	status.ActiveGenerationID = generationID
-	if err := rt.WriteStatus(paths, status); err != nil {
-		return blockedStatusWriteError{err: err}
+	if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID, func() error {
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return blockedStatusWriteError{err: err}
+		}
+		return nil
+	}); err != nil {
+		var statusErr blockedStatusWriteError
+		if errors.As(err, &statusErr) {
+			return err
+		}
+		return fmt.Errorf("write blocked DB metadata: %w", err)
 	}
 	return nil
 }

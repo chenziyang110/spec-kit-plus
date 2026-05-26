@@ -827,7 +827,7 @@ func TestRunArchivesLegacyThinDatabaseBeforeImport(t *testing.T) {
 	}
 }
 
-func TestRunBlocksWhenStatusWriteFailsAfterDBCommit(t *testing.T) {
+func TestRunBlocksWhenStatusWriteFailsBeforeReadyDBCommit(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	badStatusPath := filepath.Join(paths.Root, "missing-parent", "status.json")
 	paths.StatusPath = badStatusPath
@@ -857,6 +857,22 @@ func TestRunBlocksWhenStatusWriteFailsAfterDBCommit(t *testing.T) {
 	}
 	if activeID != payload.ActiveGenerationID {
 		t.Fatalf("DB active generation = %q, want payload %q", activeID, payload.ActiveGenerationID)
+	}
+	metadata, metadataErr := st.Metadata(context.Background())
+	if metadataErr != nil {
+		t.Fatal(metadataErr)
+	}
+	if metadata["active_generation_id"] != payload.ActiveGenerationID {
+		t.Fatalf("metadata active_generation_id = %q, want payload %q", metadata["active_generation_id"], payload.ActiveGenerationID)
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] == "fresh" {
+		t.Fatalf("metadata = %#v, want non-ready import metadata after status write rollback", metadata)
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after status write rollback: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after status write rollback: %#v", metadata)
 	}
 	if _, statErr := os.Stat(paths.StatusPath); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("status file stat error = %v, want missing file", statErr)

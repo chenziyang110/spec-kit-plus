@@ -3,8 +3,10 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -197,6 +199,77 @@ func TestPublishRuntimeMetadataRefusesGenerationMismatch(t *testing.T) {
 	}
 }
 
+func TestPublishRuntimeMetadataRollsBackWhenStatusCallbackFails(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	callbackErr := errors.New("status write failed")
+
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", func() error {
+		return callbackErr
+	})
+	if !errors.Is(err, callbackErr) {
+		t.Fatalf("PublishRuntimeMetadata error = %v, want callback error", err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" {
+		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] == "fresh" {
+		t.Fatalf("metadata = %#v, want non-ready metadata after failed status callback", metadata)
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after failed status callback: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after failed status callback: %#v", metadata)
+	}
+}
+
+func TestPublishRuntimeMetadataRollsBackIfCallbackActivatesNewGeneration(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", func() error {
+		_, importErr := st.ImportGeneration(ctx, validImportInput("GEN-current"))
+		return importErr
+	})
+	if err == nil || !strings.Contains(err.Error(), "database is locked") {
+		t.Fatalf("PublishRuntimeMetadata error = %v, want lock error from overlapping import", err)
+	}
+
+	activeID, err := st.ActiveGenerationID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeID != "GEN-ready" {
+		t.Fatalf("activeID = %q, want GEN-ready after callback rollback", activeID)
+	}
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" || metadata["graph_ready"] != "false" {
+		t.Fatalf("metadata = %#v, want GEN-ready still non-ready after overlapping import attempt", metadata)
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after overlapping import attempt: %#v", metadata)
+	}
+}
+
 func TestMarkRuntimeMetadataBlockedRefusesGenerationMismatch(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
@@ -226,6 +299,41 @@ func TestMarkRuntimeMetadataBlockedRefusesGenerationMismatch(t *testing.T) {
 	}
 	if metadata["graph_ready"] != "false" {
 		t.Fatalf("graph_ready = %q, want unchanged non-ready current generation metadata", metadata["graph_ready"])
+	}
+}
+
+func TestMarkRuntimeMetadataBlockedRollsBackWhenStatusCallbackFails(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+		t.Fatal(err)
+	}
+	callbackErr := errors.New("blocked status write failed")
+
+	err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-ready", func() error {
+		return callbackErr
+	})
+	if !errors.Is(err, callbackErr) {
+		t.Fatalf("MarkRuntimeMetadataBlocked error = %v, want callback error", err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" {
+		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "true" || metadata["baseline_state"] != "fresh" {
+		t.Fatalf("metadata = %#v, want prior ready metadata preserved after failed blocked status callback", metadata)
+	}
+	if metadata["query_contract_version"] != "1" || metadata["update_contract_version"] != "1" {
+		t.Fatalf("metadata = %#v, want ready contract versions preserved after failed blocked status callback", metadata)
 	}
 }
 

@@ -395,6 +395,24 @@ func TestPublishRuntimeMetadataReturnsNonzeroWhenBlockedStatusWriteFails(t *test
 	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
 		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
+
+	paths.RuntimeDir = filepath.Join(root, ".specify", "project-cognition")
+	paths.StatusPath = filepath.Join(paths.RuntimeDir, "status.json")
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["graph_ready"] != "true" || meta["baseline_state"] != "fresh" {
+		t.Fatalf("metadata = %#v, want prior ready metadata after blocked status write rollback", meta)
+	}
+	if meta["query_contract_version"] != "1" || meta["update_contract_version"] != "1" {
+		t.Fatalf("metadata = %#v, want ready contract versions preserved after blocked status write rollback", meta)
+	}
 }
 
 func TestBuildFromScanCommandReturnsNonzeroForOperationalErrorPayload(t *testing.T) {

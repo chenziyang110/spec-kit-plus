@@ -250,36 +250,36 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	}
 	sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), activeGenerationID)
 	if len(sparse.Errors) > 0 {
-		if err := st.MarkRuntimeMetadataBlocked(context.Background(), activeGenerationID); err != nil {
-			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
-			return writeJSON(stdout, map[string]any{
-				"status":                    "blocked",
-				"readiness":                 rt.BlockedReadiness,
-				"active_generation_id":      activeGenerationID,
-				"sparse_path_index_details": sparse.Details,
-				"errors":                    sparse.Errors,
-				"warnings":                  sparse.Warnings,
-			})
-		}
 		status := rt.DefaultStatus(paths)
 		status.Status = "blocked"
 		status.Readiness = rt.BlockedReadiness
 		status.ActiveGenerationID = activeGenerationID
-		if err := rt.WriteStatus(paths, status); err != nil {
-			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked status: %v", err))
-			code := writeJSON(stdout, map[string]any{
+		if err := st.MarkRuntimeMetadataBlocked(context.Background(), activeGenerationID, func() error {
+			if err := rt.WriteStatus(paths, status); err != nil {
+				return fmt.Errorf("write blocked status: %w", err)
+			}
+			return nil
+		}); err != nil {
+			payload := map[string]any{
 				"status":                    "blocked",
 				"readiness":                 rt.BlockedReadiness,
 				"active_generation_id":      activeGenerationID,
 				"sparse_path_index_details": sparse.Details,
-				"errors":                    sparse.Errors,
 				"warnings":                  sparse.Warnings,
-				"recovery_action":           "rewrite_status_from_db_metadata",
-			})
-			if code != 0 {
-				return code
 			}
-			return 1
+			if strings.HasPrefix(err.Error(), "write blocked status:") {
+				sparse.Errors = append(sparse.Errors, err.Error())
+				payload["recovery_action"] = "rewrite_status_from_db_metadata"
+				payload["errors"] = sparse.Errors
+				code := writeJSON(stdout, payload)
+				if code != 0 {
+					return code
+				}
+				return 1
+			}
+			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
+			payload["errors"] = sparse.Errors
+			return writeJSON(stdout, payload)
 		}
 		return writeJSON(stdout, map[string]any{
 			"status":                    "blocked",
@@ -289,13 +289,6 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			"errors":                    sparse.Errors,
 			"warnings":                  sparse.Warnings,
 		})
-	}
-	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID)
-	if err != nil {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
-	}
-	if readyGenerationID != activeGenerationID {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, activeGenerationID)}, "warnings": []string{}})
 	}
 	status, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {
@@ -312,8 +305,17 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	status.ActiveGenerationID = activeGenerationID
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
-	if err := rt.WriteStatus(paths, status); err != nil {
+	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID, func() error {
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	if readyGenerationID != activeGenerationID {
+		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, activeGenerationID)}, "warnings": []string{}})
 	}
 	return writeJSON(stdout, map[string]any{
 		"status":               "ok",
