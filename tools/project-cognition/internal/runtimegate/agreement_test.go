@@ -20,9 +20,7 @@ func TestCheckAgreementAcceptsMatchingStatusAndDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-1", Kind: "full"}); err != nil {
-		t.Fatal(err)
-	}
+	importAndPublishReady(t, st, "GEN-1")
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -47,9 +45,7 @@ func TestCheckAgreementAcceptsMatchingGenerationRegardlessOfStatusValue(t *testi
 		t.Fatal(err)
 	}
 	defer st.Close()
-	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-1", Kind: "full"}); err != nil {
-		t.Fatal(err)
-	}
+	importAndPublishReady(t, st, "GEN-1")
 	status := rt.DefaultStatus(paths)
 	status.Status = "missing"
 	status.Freshness = rt.ReadyFreshness
@@ -80,9 +76,7 @@ func TestCheckAgreementAcceptsEquivalentGraphStorePathVariants(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer st.Close()
-			if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-1", Kind: "full"}); err != nil {
-				t.Fatal(err)
-			}
+			importAndPublishReady(t, st, "GEN-1")
 			status := rt.DefaultStatus(paths)
 			status.Status = "ok"
 			status.Freshness = rt.ReadyFreshness
@@ -128,9 +122,7 @@ func TestCheckAgreementBlocksSplitBrainActiveGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-db", Kind: "full"}); err != nil {
-		t.Fatal(err)
-	}
+	importAndPublishReady(t, st, "GEN-db")
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -206,10 +198,7 @@ func TestCheckAgreementBlocksMissingRequiredMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-1", Kind: "full"}); err != nil {
-		_ = st.Close()
-		t.Fatal(err)
-	}
+	importAndPublishReady(t, st, "GEN-1")
 	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM metadata WHERE key = 'runtime_format'`); err != nil {
 		_ = st.Close()
 		t.Fatal(err)
@@ -251,10 +240,7 @@ func TestBlockIfExistingSkipsMissingBaselineAndBlocksSplitBrain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-db", Kind: "full"}); err != nil {
-		_ = st.Close()
-		t.Fatal(err)
-	}
+	importAndPublishReady(t, st, "GEN-db")
 	if err := st.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -302,10 +288,7 @@ func TestBlockIfExistingBlocksOneSidedRuntimeState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: "GEN-db", Kind: "full"}); err != nil {
-		_ = st.Close()
-		t.Fatal(err)
-	}
+	importAndPublishReady(t, st, "GEN-db")
 	if err := st.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -315,6 +298,16 @@ func TestBlockIfExistingBlocksOneSidedRuntimeState(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "status.json is missing") {
 		t.Fatalf("error = %q, want missing status", err.Error())
+	}
+}
+
+func importAndPublishReady(t *testing.T, st *store.Store, generationID string) {
+	t.Helper()
+	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: generationID, Kind: "full"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 

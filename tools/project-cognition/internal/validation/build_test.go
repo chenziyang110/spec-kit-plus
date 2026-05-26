@@ -601,6 +601,9 @@ func seedMatchingQueryReadyDatabase(t *testing.T, paths rt.Paths, rejections []s
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func seedQueryReadyDatabaseWithNodeID(t *testing.T, paths rt.Paths, nodeID string) {
@@ -626,6 +629,9 @@ func seedQueryReadyDatabaseWithNodeIDAndDecisions(t *testing.T, paths rt.Paths, 
 		MergeRecords: mergeRecords,
 	})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -756,6 +762,9 @@ func seedQueryReadyDatabaseWithPaths(t *testing.T, paths rt.Paths, pathsInScan, 
 		})
 	}
 	if _, err := st.ImportGeneration(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
