@@ -796,9 +796,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                             for path in sorted(missing_required_paths):
                                                 criticality = criticality_by_path.get(path, "")
                                                 if criticality in {"important", "critical"}:
-                                                    errors.append(
-                                                        f"required path {path} with criticality {criticality} is missing from path_index"
-                                                    )
+                                                    errors.append(f"{criticality}_missing_path_index: {path}")
                             if active_generation_id and "nodes" in table_names:
                                 node_count = conn.execute(
                                     "SELECT COUNT(*) FROM nodes WHERE generation_id = ?",

@@ -2073,7 +2073,7 @@ def test_hook_validate_artifacts_blocks_map_build_when_important_path_missing_ev
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert "required path src/billing.ts with criticality important is missing from path_index" in payload["errors"]
+    assert "important_missing_path_index: src/billing.ts" in payload["errors"]
 
 
 def test_hook_validate_artifacts_excludes_accepted_nonblocking_gaps_from_path_index_denominator(
