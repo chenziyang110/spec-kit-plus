@@ -110,6 +110,67 @@ func TestLoadRejectsWorkerResultWithoutQueueReturn(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsQueueWorkerAssignedPathMismatch(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		queueAssignedJSON string
+		wantExtra         string
+	}{
+		{
+			name:              "empty accepted queue assignment",
+			queueAssignedJSON: `[]`,
+			wantExtra:         "scan-queue packet lane-1 accepted state requires assigned_paths",
+		},
+		{
+			name:              "different queue assignment",
+			queueAssignedJSON: `["src/other.go"]`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			paths := scanArtifactTestPaths(t)
+			writeMinimalScanPackage(t, paths)
+			writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+				"rows":[{
+					"packet_id":"lane-1",
+					"state":"accepted",
+					"assigned_paths":`+tc.queueAssignedJSON+`,
+					"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+				}]
+			}`+"\n"))
+
+			_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+			if result.Status != "blocked" {
+				t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+			}
+			if !containsError(result.Errors, "scan-queue packet lane-1 assigned_paths must match worker result assigned_paths") {
+				t.Fatalf("Errors = %#v, want queue/worker assigned_paths mismatch error", result.Errors)
+			}
+			if tc.wantExtra != "" && !containsError(result.Errors, tc.wantExtra) {
+				t.Fatalf("Errors = %#v, want %q", result.Errors, tc.wantExtra)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsHandoffReturnWrongWorkerResultPath(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), []byte(`{"events":[
+		{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+		{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/wrong.json","created_at":"2026-05-26T00:01:00Z"}
+	]}`+"\n"))
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "handoff-ledger return for packet lane-1 worker_result_path") {
+		t.Fatalf("Errors = %#v, want handoff worker_result_path error", result.Errors)
+	}
+}
+
 func TestLoadRejectsAcceptedQueueWithoutCoverage(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

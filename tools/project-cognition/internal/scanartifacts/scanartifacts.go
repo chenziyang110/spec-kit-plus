@@ -57,18 +57,20 @@ type PacketValidationSummary struct {
 }
 
 type queueRow struct {
-	PacketID       string
-	State          string
-	AssignedPaths  []string
-	ParentPacketID string
+	PacketID          string
+	State             string
+	AssignedPaths     []string
+	ParentPacketID    string
+	ResultHandoffPath string
 }
 
 type queueState struct {
-	rowsByPacket     map[string]queueRow
-	childrenByParent map[string]bool
-	returnedPackets  map[string]bool
-	acceptedPaths    map[string]bool
-	openGaps         []openGapClosure
+	rowsByPacket        map[string]queueRow
+	childrenByParent    map[string]bool
+	returnedPackets     map[string]bool
+	returnPathsByPacket map[string]string
+	acceptedPaths       map[string]bool
+	openGaps            []openGapClosure
 }
 
 type openGapClosure struct {
@@ -301,11 +303,12 @@ func loadOptionalWorkbenchJSON(paths rt.Paths, result *Result, name string) {
 
 func loadQueueState(paths rt.Paths, result *Result) queueState {
 	state := queueState{
-		rowsByPacket:     map[string]queueRow{},
-		childrenByParent: map[string]bool{},
-		returnedPackets:  map[string]bool{},
-		acceptedPaths:    map[string]bool{},
-		openGaps:         []openGapClosure{},
+		rowsByPacket:        map[string]queueRow{},
+		childrenByParent:    map[string]bool{},
+		returnedPackets:     map[string]bool{},
+		returnPathsByPacket: map[string]string{},
+		acceptedPaths:       map[string]bool{},
+		openGaps:            []openGapClosure{},
 	}
 	for path := range loadCoverageLedgerState(paths, result) {
 		state.acceptedPaths[path] = true
@@ -334,10 +337,11 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 					state.childrenByParent[parentPacketID] = true
 				}
 				state.rowsByPacket[packetID] = queueRow{
-					PacketID:       packetID,
-					State:          normalizedString(row["state"]),
-					AssignedPaths:  normalizedStringSlice(row["assigned_paths"]),
-					ParentPacketID: parentPacketID,
+					PacketID:          packetID,
+					State:             normalizedString(row["state"]),
+					AssignedPaths:     normalizedStringSlice(row["assigned_paths"]),
+					ParentPacketID:    parentPacketID,
+					ResultHandoffPath: normalizedString(row["result_handoff_path"]),
 				}
 			}
 		}
@@ -361,6 +365,9 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 		eventType := normalizedString(event["event_type"])
 		if eventType == "returned" || eventType == "return" {
 			state.returnedPackets[packetID] = true
+			if path := normalizedString(event["worker_result_path"]); path != "" {
+				state.returnPathsByPacket[packetID] = path
+			}
 		}
 	}
 	return state
@@ -1001,14 +1008,20 @@ func validateWorkerResults(paths rt.Paths, boundary Boundary, pkg Package, queue
 			result.Errors = append(result.Errors, fmt.Sprintf("worker result packet_id %s appears more than once", packetID))
 		}
 		resultIDs[packetID] = true
+		row := queue.rowsByPacket[packetID]
 		if len(packetIDs) > 0 && !packetIDs[packetID] {
 			result.Errors = append(result.Errors, fmt.Sprintf("worker result %s has no matching scan packet", entry.Name()))
 		}
-		if queue.rowsByPacket[packetID].PacketID == "" {
+		if row.PacketID == "" {
 			result.Errors = append(result.Errors, fmt.Sprintf("worker result %s has no matching scan-queue row", packetID))
+		} else {
+			validateQueueWorkerAssignedPaths(packetID, row, normalizedStringSlice(packet["assigned_paths"]), result)
+			validateQueueResultHandoffPath(packetID, row, entry.Name(), result)
 		}
 		if !queue.returnedPackets[packetID] {
 			result.Errors = append(result.Errors, fmt.Sprintf("worker result %s has no matching return event in handoff-ledger.json", packetID))
+		} else {
+			validateHandoffWorkerResultPath(packetID, queue.returnPathsByPacket[packetID], entry.Name(), result)
 		}
 		outcome := normalizedString(packet["acceptance"])
 		if outcome == "" {
@@ -1018,7 +1031,7 @@ func validateWorkerResults(paths rt.Paths, boundary Boundary, pkg Package, queue
 			outcome = "pass"
 		}
 		summary.Outcomes[outcome]++
-		validateScanPacket(packetID, packet, boundary, pkg, queue.rowsByPacket[packetID], queue, result)
+		validateScanPacket(packetID, packet, boundary, pkg, row, queue, result)
 		familyID := normalizedString(packet["family_id"])
 		if familyID == "" {
 			familyID = normalizedString(packet["lane"])
@@ -1125,6 +1138,71 @@ func validateScanPacket(packetID string, packet map[string]any, boundary Boundar
 	validatePacketAcceptance(packetID, packet, assignedSet, ledger, coverageByPath, result)
 	validateQueueRowCoverage(packetID, row, queue.acceptedPaths, result)
 	validateQueueRowClosure(packetID, row, queue, result)
+}
+
+func validateQueueWorkerAssignedPaths(packetID string, row queueRow, workerAssigned []string, result *Result) {
+	if row.PacketID == "" {
+		return
+	}
+	queueAssigned := uniqueStrings(row.AssignedPaths)
+	workerAssigned = uniqueStrings(workerAssigned)
+	if row.State == "accepted" && len(queueAssigned) == 0 {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s accepted state requires assigned_paths", packetID))
+	}
+	if !sameStringSet(queueAssigned, workerAssigned) {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s assigned_paths must match worker result assigned_paths", packetID))
+	}
+}
+
+func validateQueueResultHandoffPath(packetID string, row queueRow, resultFileName string, result *Result) {
+	if row.ResultHandoffPath == "" || !workerResultPathMatches(row.ResultHandoffPath, resultFileName) {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s result_handoff_path must match %s", packetID, canonicalWorkerResultPath(resultFileName)))
+	}
+}
+
+func validateHandoffWorkerResultPath(packetID string, path string, resultFileName string, result *Result) {
+	if path == "" {
+		return
+	}
+	if !workerResultPathMatches(path, resultFileName) {
+		result.Errors = append(result.Errors, fmt.Sprintf("handoff-ledger return for packet %s worker_result_path must match %s", packetID, canonicalWorkerResultPath(resultFileName)))
+	}
+}
+
+func workerResultPathMatches(path string, resultFileName string) bool {
+	normalized := normalizedString(path)
+	for _, expected := range workerResultPathEquivalents(resultFileName) {
+		if normalized == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func workerResultPathEquivalents(resultFileName string) []string {
+	canonical := canonicalWorkerResultPath(resultFileName)
+	return []string{
+		canonical,
+		"workbench/worker-results/" + resultFileName,
+	}
+}
+
+func canonicalWorkerResultPath(resultFileName string) string {
+	return ".specify/project-cognition/workbench/worker-results/" + resultFileName
+}
+
+func sameStringSet(left []string, right []string) bool {
+	leftSet := stringSet(left)
+	rightSet := stringSet(right)
+	if len(leftSet) != len(rightSet) {
+		return false
+	}
+	for value := range leftSet {
+		if !rightSet[value] {
+			return false
+		}
+	}
+	return true
 }
 
 func validateQueueRowCoverage(packetID string, row queueRow, accepted map[string]bool, result *Result) {
