@@ -43,11 +43,11 @@ def test_gemini_adapter_capability_snapshot():
     snapshot = GeminiMultiAgentAdapter().detect_capabilities()
 
     assert snapshot.integration_key == "gemini"
-    assert snapshot.native_subagents is False
+    assert snapshot.native_subagents is True
     assert snapshot.managed_team_supported is False
-    assert snapshot.native_worker_surface == "none"
-    assert snapshot.delegation_confidence == "low"
-    assert any("no native subagent" in note.lower() for note in snapshot.notes)
+    assert snapshot.native_worker_surface == "native-cli"
+    assert snapshot.delegation_confidence == "medium"
+    assert any("@generalist" in note.lower() for note in snapshot.notes)
     assert snapshot.runtime_probe_succeeded is True
 
 
@@ -104,5 +104,6 @@ def test_adapters_support_known_commands_and_reject_unknown_commands():
     assert copilot.supports_command("implement") is True
     assert copilot.supports_command("sp-implement") is True
     assert copilot.supports_command("plan") is True
+    assert copilot.supports_command("map-update") is True
     assert copilot.supports_command("/plan") is True
     assert copilot.supports_command("definitely-not-a-command") is False

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Protocol, runtime_checkable
 
 from .backends.detect import detect_available_backends
@@ -24,6 +25,7 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "checklist",
         "map-scan",
         "map-build",
+        "map-update",
         "taskstoissues",
     }
 )
@@ -83,9 +85,16 @@ def _infer_delegation_confidence(
         return default_confidence
 
     lowered = model_hint.lower()
-    if any(marker in lowered for marker in _LOW_CONFIDENCE_MODEL_MARKERS):
+    model_tokens = set(re.split(r"[^a-z0-9]+", lowered))
+
+    def _matches_model_marker(marker: str) -> bool:
+        if "-" in marker:
+            return marker in lowered
+        return marker in model_tokens
+
+    if any(_matches_model_marker(marker) for marker in _LOW_CONFIDENCE_MODEL_MARKERS):
         return "low"
-    if any(marker in lowered for marker in _HIGH_CONFIDENCE_MODEL_MARKERS):
+    if any(_matches_model_marker(marker) for marker in _HIGH_CONFIDENCE_MODEL_MARKERS):
         return "high" if default_confidence == "high" else "medium"
     return default_confidence
 

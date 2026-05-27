@@ -47,6 +47,7 @@ _ORDINARY_SP_COMMANDS = frozenset(
         "implement",
         "map-build",
         "map-scan",
+        "map-update",
         "plan",
         "quick",
         "research",

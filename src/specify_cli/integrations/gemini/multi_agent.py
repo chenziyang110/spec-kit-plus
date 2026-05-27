@@ -19,15 +19,15 @@ class GeminiMultiAgentAdapter:
     def detect_capabilities(self):
         return build_capability_snapshot(
             integration_key=self.integration_key,
-            native_subagents=False,
+            native_subagents=True,
             managed_team_supported=False,
             structured_results=True,
             durable_coordination=False,
-            native_worker_surface="none",
-            delegation_confidence="low",
+            native_worker_surface="native-cli",
+            delegation_confidence="medium",
             model_family="gemini",
             notes=[
-                "No native subagent surface is available in Gemini today; keep execution leader-led unless a future runtime probe proves otherwise.",
+                "Gemini CLI supports native subagent dispatch through @generalist or a named @agent when the active runtime exposes that surface.",
             ],
         )
 

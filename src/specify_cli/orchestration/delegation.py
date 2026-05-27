@@ -21,6 +21,7 @@ class DelegationSurfaceDescriptor:
     command_name: str
     intent: DelegationIntent
     native_subagent_surface: str
+    native_discovery_hint: str
     native_dispatch_hint: str
     native_join_hint: str
     managed_team_hint: str
@@ -32,7 +33,7 @@ class DelegationSurfaceDescriptor:
 
 def _command_intent(command_name: str) -> DelegationIntent:
     normalized = command_name.strip().lower()
-    return "evidence" if normalized == "debug" else "implementation"
+    return "evidence" if normalized in {"debug", "map-scan", "map-build", "map-update"} else "implementation"
 
 def describe_delegation_surface(
     *,
@@ -50,6 +51,10 @@ def describe_delegation_surface(
     )
     structured_results_expected = snapshot.structured_results or intent == "implementation"
 
+    integration_key = snapshot.integration_key.strip().lower()
+    native_discovery_hint = (
+        "Check current runtime/tool discovery for an integration-native subagent or task-dispatch surface first; no known native subagent surface is configured for this integration, so record the unavailable surface explicitly before using a fallback or blocked state."
+    )
     native_dispatch_hint = "No subagent dispatch path for this session."
     native_join_hint = (
         "Stay on the leader path and keep the current lane explicit."
@@ -58,15 +63,40 @@ def describe_delegation_surface(
     )
 
     if snapshot.native_worker_surface == "spawn_agent":
+        native_discovery_hint = (
+            "Before recording `subagent-blocked`, confirm the current runtime exposes `spawn_agent`, `wait_agent`, and `close_agent`; if they are not visible, use the active tool discovery mechanism for multi-agent or subagent tools first."
+        )
         native_dispatch_hint = "Dispatch bounded subagents through `spawn_agent`."
         native_join_hint = "Rejoin with `wait_agent`, integrate, then `close_agent`."
     elif snapshot.native_worker_surface == "native-cli":
-        native_dispatch_hint = (
-            "Dispatch subagents through the integration's native subagent support using the shared prompt contract."
-        )
-        native_join_hint = (
-            "Use the integration-native join point, then integrate results back on the leader path."
-        )
+        if integration_key == "gemini":
+            native_discovery_hint = (
+                "Before recording `subagent-blocked`, check the active Gemini CLI surface for `@agent-name` or `@generalist` subagent dispatch and record the exact missing surface if unavailable."
+            )
+            native_dispatch_hint = (
+                "Dispatch bounded lanes with `@generalist` or a named `@agent-name` using the shared prompt contract."
+            )
+            native_join_hint = (
+                "Request independent `@generalist` lanes together for parallel work when safe, then integrate results back on the leader path."
+            )
+        elif integration_key == "copilot":
+            native_discovery_hint = (
+                "Before recording `subagent-blocked`, check the active Copilot CLI surface for `task`, `read_agent`, and `list_agents`; record the exact missing surface if unavailable."
+            )
+            native_dispatch_hint = (
+                "Dispatch bounded lanes through Copilot CLI `task` with an appropriate agent type using the shared prompt contract."
+            )
+            native_join_hint = "Rejoin through `read_agent` or `list_agents`, then integrate results back on the leader path."
+        else:
+            native_discovery_hint = (
+                "Before recording `subagent-blocked`, check the active tool surface for the integration-native subagent or task-dispatch entrypoint and record the exact missing surface if unavailable."
+            )
+            native_dispatch_hint = (
+                "Dispatch subagents through the integration's native subagent support using the shared prompt contract."
+            )
+            native_join_hint = (
+                "Use the integration-native join point, then integrate results back on the leader path."
+            )
 
     if normalized_command == "debug":
         managed_team_hint = (
@@ -88,6 +118,7 @@ def describe_delegation_surface(
         command_name=command_name,
         intent=intent,
         native_subagent_surface=snapshot.native_worker_surface,
+        native_discovery_hint=native_discovery_hint,
         native_dispatch_hint=native_dispatch_hint,
         native_join_hint=native_join_hint,
         managed_team_hint=managed_team_hint,

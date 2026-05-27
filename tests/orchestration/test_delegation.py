@@ -26,6 +26,8 @@ def test_describe_delegation_surface_for_codex_implement_prefers_spawn_agent_con
     assert descriptor.intent == "implementation"
     assert descriptor.native_subagent_surface == "spawn_agent"
     assert "spawn_agent" in descriptor.native_dispatch_hint
+    assert "tool discovery" in descriptor.native_discovery_hint.lower()
+    assert "subagent-blocked" in descriptor.native_discovery_hint
     assert "wait_agent" in descriptor.native_join_hint
     assert "WorkerTaskResult" in descriptor.result_contract_hint
     assert ".specify/teams/state/results/<request-id>.json" in descriptor.result_handoff_hint
@@ -48,6 +50,8 @@ def test_describe_delegation_surface_for_claude_debug_uses_evidence_contract() -
     assert descriptor.intent == "evidence"
     assert descriptor.native_subagent_surface == "native-cli"
     assert "native subagent support" in descriptor.native_dispatch_hint.lower()
+    assert "active tool surface" in descriptor.native_discovery_hint.lower()
+    assert "subagent-blocked" in descriptor.native_discovery_hint
     assert "no managed-team or leader-inline fallback" in descriptor.managed_team_hint.lower()
     assert "execution_surface: none" in descriptor.managed_team_hint.lower()
     assert "evidence payload" in descriptor.result_contract_hint.lower()
@@ -70,5 +74,25 @@ def test_describe_delegation_surface_for_gemini_explains_no_native_subagent_surf
 
     assert descriptor.native_subagent_surface == "none"
     assert "no subagent dispatch path" in descriptor.native_dispatch_hint.lower()
+    assert "no known native subagent surface" in descriptor.native_discovery_hint.lower()
     assert "no managed team workflow" in descriptor.managed_team_hint.lower()
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in descriptor.result_handoff_hint
+
+
+def test_describe_delegation_surface_for_gemini_native_cli_names_agent_syntax() -> None:
+    descriptor = describe_delegation_surface(
+        command_name="map-scan",
+        snapshot=CapabilitySnapshot(
+            integration_key="gemini",
+            native_subagents=True,
+            managed_team_supported=False,
+            structured_results=True,
+            native_worker_surface="native-cli",
+            delegation_confidence="medium",
+        ),
+    )
+
+    assert descriptor.intent == "evidence"
+    assert "@generalist" in descriptor.native_dispatch_hint
+    assert "@agent" in descriptor.native_discovery_hint
+    assert "subagent-blocked" in descriptor.native_discovery_hint

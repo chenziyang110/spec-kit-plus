@@ -89,6 +89,23 @@ class IntegrationBase(ABC):
     question_tool_config: dict[str, Any] | None = None
     """Optional structured-question-tool metadata for the integration."""
 
+    MAP_SUBAGENT_DISCOVERY_COMMANDS = frozenset({"map-scan", "map-build", "map-update"})
+    RUNTIME_SUBAGENT_CONTRACT_COMMANDS = frozenset({"implement", "debug", "quick"})
+    SUBAGENT_DISCOVERY_EXCLUDED_COMMANDS = frozenset({"fast"})
+    SUBAGENT_DISCOVERY_TRIGGERS = (
+        "## mandatory subagent execution",
+        "choose_subagent_dispatch",
+        "execution_model: subagent-mandatory",
+        "execution model: `subagents-first`",
+        "dispatch_shape: one-subagent",
+        "dispatch `one-subagent`",
+        "parallel-subagents",
+        "subagent-assisted",
+        "native-subagents",
+        "spawn_agent",
+        "task tool",
+    )
+
     # -- Public API -------------------------------------------------------
 
     @classmethod
@@ -519,6 +536,8 @@ class IntegrationBase(ABC):
             "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `subagent-blocked`\n"
             "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`\n"
             "- Delegation surface contract: preserve the native dispatch, fallback, worker result contract, and handoff path below.\n"
+            f"- Native subagent capability discovery: {descriptor.native_discovery_hint}\n"
+            "- Do not record `subagent-blocked` until this capability discovery step is complete and the exact unavailable or unsafe surface is recorded.\n"
             f"- Native subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Join behavior: {descriptor.native_join_hint}\n"
             f"- Managed-team fallback: {managed_team_hint}\n"
@@ -634,13 +653,18 @@ class IntegrationBase(ABC):
         if callable(local_snapshot):
             return local_snapshot()
 
-        package_name = type(self).__module__.rsplit(".", 1)[0]
-        try:
-            module = importlib.import_module(f"{package_name}.multi_agent")
-        except ImportError:
-            module = None
+        class_module = type(self).__module__
+        package_name = class_module.rsplit(".", 1)[0]
+        module_names = []
+        for module_name in (f"{class_module}.multi_agent", f"{package_name}.multi_agent"):
+            if module_name not in module_names:
+                module_names.append(module_name)
 
-        if module is not None:
+        for module_name in module_names:
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError:
+                continue
             for _, value in inspect.getmembers(module, inspect.isclass):
                 if getattr(value, "integration_key", None) != self.key:
                     continue
@@ -662,6 +686,75 @@ class IntegrationBase(ABC):
             notes=[
                 "No integration-specific capability adapter was registered; using the conservative shared subagent dispatch contract.",
             ],
+        )
+
+    def _append_subagent_capability_discovery(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        command_name: str,
+        snapshot: CapabilitySnapshot,
+    ) -> str:
+        """Append subagent discovery guidance to generated workflows that dispatch lanes."""
+
+        if command_name in self.SUBAGENT_DISCOVERY_EXCLUDED_COMMANDS:
+            return content
+
+        if "Native subagent capability discovery" in content:
+            return content
+
+        lowered = content.lower()
+        if not any(trigger in lowered for trigger in self.SUBAGENT_DISCOVERY_TRIGGERS):
+            return content
+
+        section_name = (
+            "Map Subagent Capability Discovery"
+            if command_name in self.MAP_SUBAGENT_DISCOVERY_COMMANDS
+            else "Subagent Capability Discovery"
+        )
+        marker = f"## {agent_name} {section_name}"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name=command_name,
+            snapshot=snapshot,
+        )
+        schema_note = (
+            "- Keep map packet/result schemas from this workflow authoritative; do not substitute implementation `WorkerTaskResult` fields for map scan/build/update packet contracts.\n"
+            if command_name in self.MAP_SUBAGENT_DISCOVERY_COMMANDS
+            else "- Preserve this workflow's existing packet, handoff, artifact, and result schema; this section only governs capability discovery before dispatch or blocked-state recording.\n"
+        )
+        addendum = (
+            "\n"
+            f"## {agent_name} {section_name}\n\n"
+            "- Execution model: preserve the workflow's existing `subagent-mandatory`, `subagents-first`, `adaptive`, or `subagent-assisted` policy.\n"
+            "- Dispatch shape: preserve the workflow's existing dispatch shape; use `subagent-blocked` only after the discovery step below fails or is unsafe.\n"
+            "- Execution surface: prefer `native-subagents` when the current runtime supports it; use `none` only after recording the unavailable or unsafe surface.\n"
+            f"- Native subagent capability discovery: {descriptor.native_discovery_hint}\n"
+            "- Do not record `subagent-blocked` until this capability discovery step is complete and the exact unavailable or unsafe surface is recorded.\n"
+            f"- Native subagent dispatch: {descriptor.native_dispatch_hint}\n"
+            f"- Join behavior: {descriptor.native_join_hint}\n"
+            f"{schema_note}"
+        )
+        return content + addendum
+
+    def _append_map_subagent_capability_discovery(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        command_name: str,
+        snapshot: CapabilitySnapshot,
+    ) -> str:
+        """Compatibility wrapper for older integration-specific setup loops."""
+
+        return self._append_subagent_capability_discovery(
+            content=content,
+            agent_name=agent_name,
+            command_name=command_name,
+            snapshot=snapshot,
         )
 
     def _append_implement_leader_gate(
@@ -1356,7 +1449,7 @@ class MarkdownIntegration(IntegrationBase):
                     agent_name=agent_name.replace(" CLI", ""),
                     snapshot=runtime_snapshot,
                 )
-            if src_file.stem in {"implement", "debug", "quick"}:
+            if src_file.stem in self.RUNTIME_SUBAGENT_CONTRACT_COMMANDS:
                 processed = self._append_delegation_surface_contract(
                     content=processed,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -1370,6 +1463,12 @@ class MarkdownIntegration(IntegrationBase):
                     command_name=src_file.stem,
                     snapshot=runtime_snapshot,
                 )
+            processed = self._append_map_subagent_capability_discovery(
+                content=processed,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=src_file.stem,
+                snapshot=runtime_snapshot,
+            )
             processed = self._append_question_tool_preference(
                 content=processed,
                 agent_name=agent_name.replace(" CLI", ""),
@@ -1559,7 +1658,7 @@ class TomlIntegration(IntegrationBase):
                     agent_name=agent_name.replace(" CLI", ""),
                     snapshot=runtime_snapshot,
                 )
-            if src_file.stem in {"implement", "debug", "quick"}:
+            if src_file.stem in self.RUNTIME_SUBAGENT_CONTRACT_COMMANDS:
                 processed = self._append_delegation_surface_contract(
                     content=processed,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -1573,6 +1672,12 @@ class TomlIntegration(IntegrationBase):
                     command_name=src_file.stem,
                     snapshot=runtime_snapshot,
                 )
+            processed = self._append_map_subagent_capability_discovery(
+                content=processed,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=src_file.stem,
+                snapshot=runtime_snapshot,
+            )
             processed = self._append_question_tool_preference(
                 content=processed,
                 agent_name=agent_name.replace(" CLI", ""),
@@ -1870,7 +1975,7 @@ class SkillsIntegration(IntegrationBase):
                     agent_name=agent_name.replace(" CLI", ""),
                     snapshot=runtime_snapshot,
                 )
-            if command_name in {"implement", "debug", "quick"}:
+            if command_name in self.RUNTIME_SUBAGENT_CONTRACT_COMMANDS:
                 skill_content = self._append_delegation_surface_contract(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -1884,6 +1989,12 @@ class SkillsIntegration(IntegrationBase):
                     command_name=command_name,
                     snapshot=runtime_snapshot,
                 )
+            skill_content = self._append_map_subagent_capability_discovery(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=command_name,
+                snapshot=runtime_snapshot,
+            )
             skill_content = self._append_question_tool_preference(
                 content=skill_content,
                 agent_name=agent_name.replace(" CLI", ""),

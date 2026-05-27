@@ -11,6 +11,50 @@ from specify_cli.integrations.manifest import IntegrationManifest
 from .conftest import StubIntegration
 
 
+SUBAGENT_DISPATCH_TRIGGERS = (
+    "## mandatory subagent execution",
+    "choose_subagent_dispatch",
+    "execution_model: subagent-mandatory",
+    "execution model: `subagents-first`",
+    "dispatch_shape: one-subagent",
+    "dispatch `one-subagent`",
+    "parallel-subagents",
+    "subagent-assisted",
+    "native-subagents",
+    "spawn_agent",
+    "task tool",
+)
+
+
+def _generated_command_name(path):
+    name = path.name.lower()
+    if name == "skill.md":
+        return path.parent.name.removeprefix("sp-")
+    return (
+        name.removeprefix("sp.")
+        .removesuffix(".agent.md")
+        .removesuffix(".toml")
+        .removesuffix(".md")
+    )
+
+
+def _assert_subagent_using_surfaces_have_discovery(paths):
+    checked: set[str] = set()
+
+    for path in paths:
+        content = path.read_text(encoding="utf-8").lower()
+        command_name = _generated_command_name(path)
+        if command_name == "fast":
+            continue
+        if not any(trigger in content for trigger in SUBAGENT_DISPATCH_TRIGGERS):
+            continue
+        checked.add(command_name)
+        assert "native subagent capability discovery" in content, f"{path} lacks discovery guidance"
+        assert "do not record `subagent-blocked`" in content, f"{path} lacks blocked-before-discovery guard"
+
+    assert {"specify", "plan", "tasks", "implement", "debug", "quick", "map-scan", "map-build", "map-update"} <= checked
+
+
 class TestIntegrationOption:
     def test_defaults(self):
         opt = IntegrationOption(name="--flag")
@@ -62,6 +106,25 @@ class TestIntegrationBase:
             assert f.parent == tmp_path / ".stub" / "commands"
             assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
+
+    def test_map_workflows_include_shared_subagent_capability_discovery(self, tmp_path):
+        i = StubIntegration()
+        manifest = IntegrationManifest("stub", tmp_path)
+        i.setup(tmp_path, manifest)
+
+        for name in ("map-scan", "map-build", "map-update"):
+            content = (tmp_path / ".stub" / "commands" / f"sp.{name}.md").read_text(encoding="utf-8").lower()
+            assert "map subagent capability discovery" in content
+            assert "native subagent capability discovery" in content
+            assert "do not record `subagent-blocked`" in content
+            assert "exact unavailable or unsafe surface" in content
+
+    def test_all_generated_subagent_workflows_include_capability_discovery(self, tmp_path):
+        i = StubIntegration()
+        manifest = IntegrationManifest("stub", tmp_path)
+        i.setup(tmp_path, manifest)
+
+        _assert_subagent_using_surfaces_have_discovery((tmp_path / ".stub" / "commands").glob("sp.*.md"))
 
     def test_setup_copies_templates(self, tmp_path, monkeypatch):
         tpl = tmp_path / "_templates"

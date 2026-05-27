@@ -2,6 +2,7 @@
 
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
+from .test_base import _assert_subagent_using_surfaces_have_discovery
 
 
 class TestForgeIntegration:
@@ -31,6 +32,28 @@ class TestForgeIntegration:
         assert len(command_files) > 0
         for f in command_files:
             assert f.name.endswith(".md")
+
+    def test_map_workflows_include_shared_subagent_capability_discovery(self, tmp_path):
+        from specify_cli.integrations.forge import ForgeIntegration
+
+        forge = ForgeIntegration()
+        m = IntegrationManifest("forge", tmp_path)
+        forge.setup(tmp_path, m)
+
+        for name in ("map-scan", "map-build", "map-update"):
+            content = (tmp_path / ".forge" / "commands" / f"sp.{name}.md").read_text(encoding="utf-8").lower()
+            assert "map subagent capability discovery" in content
+            assert "native subagent capability discovery" in content
+            assert "do not record `subagent-blocked`" in content
+
+    def test_subagent_workflows_include_capability_discovery(self, tmp_path):
+        from specify_cli.integrations.forge import ForgeIntegration
+
+        forge = ForgeIntegration()
+        m = IntegrationManifest("forge", tmp_path)
+        forge.setup(tmp_path, m)
+
+        _assert_subagent_using_surfaces_have_discovery((tmp_path / ".forge" / "commands").glob("sp.*.md"))
 
     def test_setup_installs_update_scripts(self, tmp_path):
         from specify_cli.integrations.forge import ForgeIntegration

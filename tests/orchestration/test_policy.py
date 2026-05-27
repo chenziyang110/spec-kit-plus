@@ -207,7 +207,9 @@ def test_non_adaptive_ordinary_commands_remain_mandatory_subagent() -> None:
         "implement",
         "debug",
         "quick",
+        "map-scan",
         "map-build",
+        "map-update",
     ):
         decision = choose_subagent_dispatch(
             command_name=command_name,

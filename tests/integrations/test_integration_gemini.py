@@ -13,6 +13,7 @@ from specify_cli import _bootstrap_integration_context_file, app
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_hook_launcher_command
+from .test_base import _assert_subagent_using_surfaces_have_discovery
 
 
 def _load_gemini_hook_dispatch_module():
@@ -93,6 +94,27 @@ def test_gemini_toml_install_contract_tracks_commands_scripts_and_context(tmp_pa
 
     context_content = (tmp_path / "GEMINI.md").read_text(encoding="utf-8")
     assert "## Active Technologies" in context_content
+
+
+def test_gemini_generated_map_workflows_include_native_agent_discovery(tmp_path):
+    integration = get_integration("gemini")
+    manifest = IntegrationManifest("gemini", tmp_path)
+    integration.setup(tmp_path, manifest, script_type="sh")
+
+    for name in ("map-scan", "map-build", "map-update"):
+        content = (integration.commands_dest(tmp_path) / f"sp.{name}.toml").read_text(encoding="utf-8").lower()
+        assert "map subagent capability discovery" in content
+        assert "native subagent capability discovery" in content
+        assert "@generalist" in content
+        assert "do not record `subagent-blocked`" in content
+
+
+def test_gemini_generated_subagent_workflows_include_capability_discovery(tmp_path):
+    integration = get_integration("gemini")
+    manifest = IntegrationManifest("gemini", tmp_path)
+    integration.setup(tmp_path, manifest, script_type="sh")
+
+    _assert_subagent_using_surfaces_have_discovery(integration.commands_dest(tmp_path).glob("sp.*.toml"))
 
 
 def test_gemini_init_outputs_parseable_runtime_toml_commands(tmp_path):

@@ -6,6 +6,29 @@ import os
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 
+from .test_base import _assert_subagent_using_surfaces_have_discovery
+
+
+def test_copilot_generated_map_workflows_include_runtime_discovery_gate(tmp_path):
+    integration = get_integration("copilot")
+    manifest = IntegrationManifest("copilot", tmp_path)
+    integration.setup(tmp_path, manifest, script_type="sh")
+
+    for name in ("map-scan", "map-build", "map-update"):
+        content = (tmp_path / ".github" / "agents" / f"sp.{name}.agent.md").read_text(encoding="utf-8").lower()
+        assert "map subagent capability discovery" in content
+        assert "native subagent capability discovery" in content
+        assert "current runtime/tool discovery" in content
+        assert "do not record `subagent-blocked`" in content
+
+
+def test_copilot_generated_subagent_workflows_include_capability_discovery(tmp_path):
+    integration = get_integration("copilot")
+    manifest = IntegrationManifest("copilot", tmp_path)
+    integration.setup(tmp_path, manifest, script_type="sh")
+
+    _assert_subagent_using_surfaces_have_discovery((tmp_path / ".github" / "agents").glob("sp.*.agent.md"))
+
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 
 

@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from .test_base import _assert_subagent_using_surfaces_have_discovery
 from .test_integration_base_skills import (
     _assert_compact_managed_context,
     _extract_generated_cognition_policy,
@@ -827,6 +828,9 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "attrs_json" in scan_content
     assert "coverage.json does not create path_index rows by itself" in scan_content
     assert "spawn_agent" in scan_content
+    assert "native subagent capability discovery" in scan_content
+    assert "tool discovery" in scan_content
+    assert "do not record `subagent-blocked`" in scan_content
     assert "wait_agent" in scan_content
     assert "close_agent" in scan_content
     assert "provisional" in scan_content
@@ -840,6 +844,8 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "nodes.json `paths`" in build_content
     assert "raw graph json artifacts or slices as runtime truth" in build_content
     assert "spawn_agent" in build_content
+    assert "native subagent capability discovery" in build_content
+    assert "do not record `subagent-blocked`" in build_content
     assert "wait_agent" in build_content
     assert "close_agent" in build_content
     assert "project cognition" in build_content
@@ -849,6 +855,8 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "sp-map-update" in update_content
     assert "project-cognition" in update_content
     assert "spawn_agent" in update_content
+    assert "native subagent capability discovery" in update_content
+    assert "do not record `subagent-blocked`" in update_content
     assert "wait_agent" in update_content
     assert "diff impact closure" in update_content
     assert "affected claim refresh" in update_content
@@ -858,6 +866,22 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "user-supplied scope remains authoritative unless repository evidence disproves it" in update_content
     assert "do not turn a one-slice or metadata-only refresh into scan-style parallel exploration" in update_content
     assert "leader-inline-fallback for a one-lane update is preferred over forcing extra subagents" in update_content
+
+
+def test_codex_generated_subagent_workflow_skills_include_capability_discovery(tmp_path):
+    from specify_cli.integrations.codex import CodexIntegration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    target = tmp_path / "codex-subagent-discovery"
+    integration = CodexIntegration()
+    manifest = IntegrationManifest("codex", target)
+    integration.setup(target, manifest)
+
+    _assert_subagent_using_surfaces_have_discovery(
+        path
+        for path in (target / ".codex" / "skills").glob("sp-*/SKILL.md")
+        if path.parent.name != "sp-fast"
+    )
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):

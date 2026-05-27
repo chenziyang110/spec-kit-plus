@@ -2390,6 +2390,8 @@ def test_claude_generated_runtime_facing_skills_include_native_subagent_contract
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "subagent dispatch contract" in content
         assert "delegation surface contract" in content
+        assert "native subagent capability discovery" in content
+        assert "do not record `subagent-blocked`" in content
         assert "result contract" in content
         assert "result handoff path" in content
         assert "wait for every subagent's structured handoff" in content

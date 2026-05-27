@@ -77,6 +77,8 @@ class ForgeIntegration(MarkdownIntegration):
 
         script_type = opts.get("script_type", "sh")
         arg_placeholder = self.registrar_config.get("args", "{{parameters}}")
+        runtime_snapshot = self.runtime_capability_snapshot()
+        agent_name = self.config.get("name", self.key.capitalize()).replace(" CLI", "")
         created: list[Path] = []
 
         for src_file in templates:
@@ -97,6 +99,12 @@ class ForgeIntegration(MarkdownIntegration):
 
             # FORGE-SPECIFIC: Apply frontmatter transformations
             processed = self._apply_forge_transformations(processed, src_file.stem)
+            processed = self._append_map_subagent_capability_discovery(
+                content=processed,
+                agent_name=agent_name,
+                command_name=src_file.stem,
+                snapshot=runtime_snapshot,
+            )
 
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(

@@ -521,6 +521,8 @@ class MarkdownIntegrationTests:
             content = (i.commands_dest(tmp_path) / f"sp.{name}.md").read_text(encoding="utf-8").lower()
             assert "subagent dispatch contract" in content
             assert "subagent dispatch" in content
+            assert "native subagent capability discovery" in content
+            assert "do not record `subagent-blocked`" in content
             if name == "implement":
                 assert "durable fallback decision" in content
                 assert "dispatch fallback" not in content

@@ -373,6 +373,7 @@ def test_one_subagent_attempt_default_applies_to_ordinary_sp_commands():
         "implement",
         "map-build",
         "map-scan",
+        "map-update",
         "plan",
         "quick",
         "research",
