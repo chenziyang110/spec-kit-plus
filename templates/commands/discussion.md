@@ -93,6 +93,25 @@ Do not ask the user when the answer can be found through current repository file
 
 When evidence lookup fails, report what was checked and ask one focused question. Do not ask broad questions such as "where is this implemented?" until bounded search and project-cognition navigation have failed.
 
+## Adaptive Question Pack
+
+Use an adaptive question pack instead of a rigid one-question rhythm.
+
+Every turn may include one primary question. The primary question is the only required answer and must be the highest-impact unresolved decision for the current topic.
+
+You may add up to two optional follow-up questions when all of these are true:
+
+- the follow-ups are in the same topic as the primary question
+- the topic is local and low risk
+- answering them together would reduce obvious back-and-forth
+- none of the follow-ups would lock a major boundary, evidence conflict, handoff readiness, destructive or lifecycle consequence, cross-project target, or requirement-shaping product trade-off
+
+Use exactly one question, with no optional follow-ups, when the turn involves boundary ambiguity, evidence conflict, cross-project target selection, handoff readiness, destructive or lifecycle consequence, security or data-risk consequence, or a major product trade-off.
+
+Optional follow-ups are skippable. If the user answers only the primary question, continue normally and keep unanswered optional follow-ups as soft unknowns in `open-questions.md`.
+
+Multiple-choice questions must include a recommended option and a short reason. Put the recommended option first when practical; otherwise mark it clearly with `Recommended`.
+
 
 ## Discussion Flow
 
@@ -111,7 +130,7 @@ When evidence lookup fails, report what was checked and ask one focused question
    - For an external target, confirm `target_project_root` first. If target cognition is stale or missing, record target evidence status instead of treating current project cognition as proof.
 
 4. `question-loop`
-   - Ask exactly one high-impact question per turn unless the remaining topic is local and low risk.
+   - Use an Adaptive Question Pack: one required primary question, plus up to two optional same-topic follow-ups only when the topic is local and low risk.
    - Track hard and soft unknowns in `open-questions.md`.
 
 5. `technical-options`
@@ -225,7 +244,7 @@ Refresh structured files only at semantic checkpoints:
 
 Checkpoint triggers do not refresh all files. Refresh only the targets whose durable meaning changed:
 
-- discussion-state.md: short current summary, stage, confirmed decisions, open questions, boundary status, latest evidence route, and next question.
+- discussion-state.md: short current summary, stage, confirmed decisions, open questions, boundary status, latest evidence route, and current question pack.
 - requirements.md only when product requirements have changed enough to matter.
 - technical-options.md only when options are introduced, revised, selected, or rejected.
 - project-context.md only when source-grounding evidence or cognition coverage changes.

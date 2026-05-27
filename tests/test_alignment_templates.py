@@ -657,7 +657,10 @@ def test_discussion_shell_partial_summarizes_boundary_and_single_handoff_contrac
     content = _read("templates/command-partials/discussion/shell.md")
     lowered = content.lower()
 
-    assert "high-impact question" in lowered
+    assert "adaptive question pack" in lowered
+    assert "primary question" in lowered
+    assert "same-topic follow-ups" in lowered
+    assert "recommended option" in lowered
     assert "handoff-to-specify.md" in content
     assert "handoff-to-specify.json" in content
     assert "handoffs/<candidate_id>" not in content
@@ -679,6 +682,10 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "ui-interaction-discussion" in content
     assert "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred" in content
     assert "updated_at:" in content
+    assert "question_pack_mode: single-question | adaptive-pack | none" in content
+    assert "primary_question:" in content
+    assert "optional_followups:" in content
+    assert "recommendation_required_for_choices: true" in content
     assert "## Allowed Artifact Writes" in content
     assert "discussion-state.md" in content
     assert "handoff-to-specify.md" in content

@@ -17,7 +17,10 @@
 
 - current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | ui-interaction-discussion | handoff-assessment | handoff-draft | handoff-self-review | handoff-user-review | handoff-ready
 - current_topic: [Short topic label]
-- next_question: [One boundary or high-impact question, or none]
+- question_pack_mode: single-question | adaptive-pack | none
+- primary_question: [One required boundary, product, trade-off, evidence-conflict, or high-impact question, or none]
+- optional_followups: []
+- recommendation_required_for_choices: true
 - blocker_reason: none
 - readiness_note: [why the discussion is or is not ready for explicit handoff]
 - ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred

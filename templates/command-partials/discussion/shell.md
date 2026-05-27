@@ -17,7 +17,9 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Use project cognition as advisory navigation only when current-project facts matter; use `--intent discussion`, read returned `minimal_live_reads`, and prove technical claims from live repository files.
 - Classify each user turn before asking a question.
 - Run the Question Evidence Gate before asking the user; answer repository-discoverable facts from live evidence.
-- Ask one boundary, product, trade-off, evidence-conflict, or high-impact question at a time only when the answer cannot be proven from available evidence.
+- Use an Adaptive Question Pack: ask one required primary question, and optionally add up to two same-topic follow-ups only when the topic is local and low risk.
+- Fall back to exactly one question for boundary gaps, evidence conflicts, cross-project targets, handoff readiness, destructive or lifecycle consequences, security or data-risk consequences, and major product trade-offs.
+- Put a recommended option and short reason on multiple-choice questions.
 - Append compact ordinary-turn events to `discussion-log.md`.
 - Refresh `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only at semantic checkpoints.
 - If the user asks to transfer functionality into another project, lock `target_project_root` immediately before technicalizing.

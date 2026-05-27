@@ -236,6 +236,10 @@ class TestCodexAutoPromote:
         assert "ui_sketches_present" in generated_discussion
         assert "ordinary turns append" in generated_lower
         assert "semantic checkpoints" in generated_lower
+        assert "adaptive question pack" in generated_lower
+        assert "primary question" in generated_lower
+        assert "optional follow-up" in generated_lower
+        assert "recommended option" in generated_lower
         assert "draft handoff package can be produced" in generated_lower
         assert "complete handoff package can be produced" not in generated_lower
         assert "confirmed unified handoff pair" not in generated_lower
@@ -246,6 +250,10 @@ class TestCodexAutoPromote:
             "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred"
             in state_template
         )
+        assert "question_pack_mode: single-question | adaptive-pack | none" in state_template
+        assert "primary_question:" in state_template
+        assert "optional_followups:" in state_template
+        assert "recommendation_required_for_choices: true" in state_template
         assert "handoff-to-specify.md draft after explicit user request and boundary lock" in state_template
 
         source_contract = handoff_template["source_evidence_contract"]

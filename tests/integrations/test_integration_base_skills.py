@@ -148,7 +148,10 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "draft pair" in skill_lower
     assert "Context Boundary Gate" in skill_content
     assert "target project root" in skill_lower
-    assert "high-impact question" in skill_lower
+    assert "adaptive question pack" in skill_lower
+    assert "primary question" in skill_lower
+    assert "optional follow-up" in skill_lower
+    assert "recommended option" in skill_lower
     assert "one unified" in skill_lower or "single unified" in skill_lower
     assert "handoff-to-specify.md" in skill_content
     assert "handoff-to-specify.json" in skill_content

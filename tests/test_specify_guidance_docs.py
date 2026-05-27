@@ -230,6 +230,10 @@ def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> N
         assert "Context Boundary Gate" in content
         assert "target project root" in lowered
         assert "reference source" in lowered
+        assert "adaptive question pack" in lowered
+        assert "primary question" in lowered
+        assert "optional same-topic follow-ups" in lowered
+        assert "asks one high-impact question at a time" not in lowered
         assert "handoff-to-specify.md" in content
         assert "handoff-to-specify.json" in content
         assert "single unified handoff" in lowered or "one unified handoff" in lowered
