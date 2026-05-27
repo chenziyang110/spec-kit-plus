@@ -3,8 +3,10 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -96,6 +98,309 @@ func TestImportGenerationPublishesActiveIdentitySnapshot(t *testing.T) {
 	}
 	if len(snapshot.MergeRecords) != 1 || snapshot.MergeRecords[0].TargetIdentity != "N-app" {
 		t.Fatalf("MergeRecords = %#v, want one N-app target merge record", snapshot.MergeRecords)
+	}
+}
+
+func TestImportGenerationPublishesOnlyProvisionalRuntimeMetadata(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-import")); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-import" {
+		t.Fatalf("active_generation_id = %q, want GEN-import", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" {
+		t.Fatalf("graph_ready = %q, want false after import before sparse gates", metadata["graph_ready"])
+	}
+	if metadata["baseline_state"] == "fresh" {
+		t.Fatalf("baseline_state = %q, want non-ready state after import before sparse gates", metadata["baseline_state"])
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after import before sparse gates: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after import before sparse gates: %#v", metadata)
+	}
+}
+
+func TestImportGenerationClearsPriorReadyContractMetadata(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-next")); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-next" {
+		t.Fatalf("active_generation_id = %q, want GEN-next", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] == "fresh" {
+		t.Fatalf("metadata = %#v, want non-ready metadata for newly imported generation", metadata)
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after replacement import: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after replacement import: %#v", metadata)
+	}
+}
+
+func TestPublishRuntimeMetadataRefusesGenerationMismatch(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-validated")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-current")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-validated")
+	if err == nil {
+		t.Fatal("PublishRuntimeMetadata error = nil, want generation mismatch error")
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-current" {
+		t.Fatalf("active_generation_id = %q, want GEN-current", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" {
+		t.Fatalf("graph_ready = %q, want false after refused ready publish", metadata["graph_ready"])
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after refused ready publish: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after refused ready publish: %#v", metadata)
+	}
+}
+
+func TestPublishRuntimeMetadataCommitsWhenStatusCallbackFails(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	callbackErr := errors.New("status write failed")
+
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", func() error {
+		return callbackErr
+	})
+	if !errors.Is(err, callbackErr) {
+		t.Fatalf("PublishRuntimeMetadata error = %v, want callback error", err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" {
+		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "true" || metadata["baseline_state"] != "fresh" {
+		t.Fatalf("metadata = %#v, want committed ready metadata after failed status callback", metadata)
+	}
+	if metadata["query_contract_version"] != "1" {
+		t.Fatalf("query_contract_version = %q, want 1 after failed status callback", metadata["query_contract_version"])
+	}
+	if metadata["update_contract_version"] != "1" {
+		t.Fatalf("update_contract_version = %q, want 1 after failed status callback", metadata["update_contract_version"])
+	}
+}
+
+func TestPublishRuntimeMetadataDoesNotCallStatusCallbackWhenPostCommitGenerationChanges(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(ctx, `
+CREATE TRIGGER activate_generation_after_ready_metadata
+AFTER UPDATE OF value_json ON metadata
+WHEN NEW.key = 'graph_ready' AND NEW.value_json = 'true'
+BEGIN
+	INSERT INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json)
+	VALUES('GEN-current', 9999, 'full', 'active', '', '2026-05-26T00:00:00Z', '2026-05-26T00:00:00Z', '', '{}');
+	UPDATE generations SET state = 'superseded', superseded_at = '2026-05-26T00:00:00Z'
+	WHERE id = 'GEN-ready';
+END`); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", func() error {
+		called = true
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "active generation changed after ready metadata publication") {
+		t.Fatalf("PublishRuntimeMetadata error = %v, want post-commit generation mismatch", err)
+	}
+	if called {
+		t.Fatal("status callback was called after post-commit generation mismatch")
+	}
+
+	activeID, err := st.ActiveGenerationID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeID != "GEN-current" {
+		t.Fatalf("activeID = %q, want GEN-current after trigger activation", activeID)
+	}
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" || metadata["graph_ready"] != "true" {
+		t.Fatalf("metadata = %#v, want committed GEN-ready metadata without status callback", metadata)
+	}
+}
+
+func TestMarkRuntimeMetadataBlockedCommitsWhenStatusCallbackFails(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+		t.Fatal(err)
+	}
+	callbackErr := errors.New("blocked status write failed")
+
+	err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-ready", func() error {
+		return callbackErr
+	})
+	if !errors.Is(err, callbackErr) {
+		t.Fatalf("MarkRuntimeMetadataBlocked error = %v, want callback error", err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" {
+		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] != "blocked" {
+		t.Fatalf("metadata = %#v, want committed blocked metadata after failed status callback", metadata)
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after committed blocked metadata: %#v", metadata)
+	}
+	if _, ok := metadata["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after committed blocked metadata: %#v", metadata)
+	}
+}
+
+func TestMarkRuntimeMetadataBlockedRefusesGenerationMismatch(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-current")); err != nil {
+		t.Fatal(err)
+	}
+
+	err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-ready")
+	if err == nil {
+		t.Fatal("MarkRuntimeMetadataBlocked error = nil, want generation mismatch error")
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-current" {
+		t.Fatalf("active_generation_id = %q, want GEN-current", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" {
+		t.Fatalf("graph_ready = %q, want unchanged non-ready current generation metadata", metadata["graph_ready"])
+	}
+}
+
+func TestMarkRuntimeMetadataBlockedDoesNotCallStatusCallbackWhenPostCommitGenerationChanges(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(ctx, `
+CREATE TRIGGER activate_generation_after_blocked_metadata
+AFTER UPDATE OF value_json ON metadata
+WHEN NEW.key = 'graph_ready' AND NEW.value_json = 'false'
+BEGIN
+	INSERT INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json)
+	VALUES('GEN-current', 9999, 'full', 'active', '', '2026-05-26T00:00:00Z', '2026-05-26T00:00:00Z', '', '{}');
+	UPDATE generations SET state = 'superseded', superseded_at = '2026-05-26T00:00:00Z'
+	WHERE id = 'GEN-ready';
+END`); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+
+	err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-ready", func() error {
+		called = true
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "active generation changed after blocked metadata publication") {
+		t.Fatalf("MarkRuntimeMetadataBlocked error = %v, want post-commit generation mismatch", err)
+	}
+	if called {
+		t.Fatal("status callback was called after post-commit generation mismatch")
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-ready" {
+		t.Fatalf("active_generation_id = %q, want GEN-ready", metadata["active_generation_id"])
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] != "blocked" {
+		t.Fatalf("metadata = %#v, want committed blocked metadata without status callback", metadata)
+	}
+	if _, ok := metadata["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after committed blocked metadata: %#v", metadata)
 	}
 }
 

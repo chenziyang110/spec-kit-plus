@@ -494,11 +494,16 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 		Nodes:        []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
 		PathIndex:    []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
 	})
+	if err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
 	if closeErr := st.Close(); closeErr != nil {
 		t.Fatal(closeErr)
-	}
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 

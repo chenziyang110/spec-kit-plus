@@ -432,16 +432,14 @@ func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) 
 
 func writeImportMetadata(ctx context.Context, tx *sql.Tx, generationID, now string) error {
 	pairs := map[string]any{
-		"runtime_format":          rt.RuntimeFormat,
-		"runtime_schema":          rt.RuntimeSchema,
-		"schema_version":          SchemaVersion,
-		"active_generation_id":    generationID,
-		"graph_store_path":        ".specify/project-cognition/project-cognition.db",
-		"graph_ready":             true,
-		"baseline_state":          "fresh",
-		"query_contract_version":  1,
-		"update_contract_version": 1,
-		"published_at":            now,
+		"runtime_format":       rt.RuntimeFormat,
+		"runtime_schema":       rt.RuntimeSchema,
+		"schema_version":       SchemaVersion,
+		"active_generation_id": generationID,
+		"graph_store_path":     ".specify/project-cognition/project-cognition.db",
+		"graph_ready":          false,
+		"baseline_state":       "building",
+		"published_at":         now,
 	}
 	for key, value := range pairs {
 		encoded, err := json.Marshal(value)
@@ -451,6 +449,9 @@ func writeImportMetadata(ctx context.Context, tx *sql.Tx, generationID, now stri
 		if _, err := tx.ExecContext(ctx, `INSERT INTO metadata(key, value_json, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`, key, string(encoded), now); err != nil {
 			return fmt.Errorf("write metadata %s: %w", key, err)
 		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM metadata WHERE key IN (?, ?)`, "query_contract_version", "update_contract_version"); err != nil {
+		return fmt.Errorf("clear ready contract metadata: %w", err)
 	}
 	return nil
 }

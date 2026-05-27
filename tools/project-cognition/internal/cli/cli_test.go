@@ -13,6 +13,7 @@ import (
 	"time"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
 func TestVersionPrintsBinaryName(t *testing.T) {
@@ -119,6 +120,7 @@ func TestValidateScanCommandAcceptsDownstreamCompatibilityShapes(t *testing.T) {
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
 		"rows": []map[string]any{{"path": pagePath}},
 	})
+	writeAcceptedCLIScanQueue(t, runtimeDir, []string{pagePath})
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "worker-results", "lane-1.json"), map[string]any{
 		"packet_id":      "lane-1",
 		"family_id":      "desktop",
@@ -169,6 +171,520 @@ func TestImportScanAliasUsesBuildFromScan(t *testing.T) {
 				t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
 			}
 		})
+	}
+}
+
+func TestPublishRuntimeMetadataRefusesSparseInvalidGeneration(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+	var buildPayload map[string]any
+	if err := json.Unmarshal(buildStdout.Bytes(), &buildPayload); err != nil {
+		t.Fatal(err)
+	}
+	if buildPayload["status"] != "ok" {
+		t.Fatalf("build payload = %#v", buildPayload)
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = ?`, generationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "blocked"
+	status.Readiness = rt.BlockedReadiness
+	status.ActiveGenerationID = generationID
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceContains(payload["errors"], "critical_missing_path_index: src/app.go") {
+		t.Fatalf("errors = %#v, want critical_missing_path_index: src/app.go", payload["errors"])
+	}
+
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["graph_ready"] != "false" {
+		t.Fatalf("metadata graph_ready = %q, want false; metadata = %#v", meta["graph_ready"], meta)
+	}
+	if _, ok := meta["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version metadata present after blocked publish: %#v", meta)
+	}
+	persistedStatus, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persistedStatus.Readiness == rt.ReadyReadiness || persistedStatus.GraphReady {
+		t.Fatalf("status became ready: %#v", persistedStatus)
+	}
+}
+
+func TestPublishRuntimeMetadataDoesNotWriteBlockedStatusWhenBlockedMetadataFails(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = ?`, generationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `CREATE TRIGGER metadata_blocked_insert_failure BEFORE INSERT ON metadata BEGIN SELECT RAISE(FAIL, 'blocked metadata insert failed'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `CREATE TRIGGER metadata_blocked_update_failure BEFORE UPDATE ON metadata BEGIN SELECT RAISE(FAIL, 'blocked metadata update failed'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-sentinel"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceHasPrefix(payload["errors"], "write blocked DB metadata:") {
+		t.Fatalf("errors = %#v, want blocked metadata write failure", payload["errors"])
+	}
+
+	persistedStatus, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persistedStatus.ActiveGenerationID != "GEN-sentinel" || persistedStatus.Status != "ok" || !persistedStatus.GraphReady {
+		t.Fatalf("status.json was overwritten after blocked metadata failure: %#v", persistedStatus)
+	}
+}
+
+func TestPublishRuntimeMetadataReturnsNonzeroWhenNoActiveGeneration(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `UPDATE generations SET state = 'archived' WHERE state = 'active'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "error" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceContains(payload["errors"], "project-cognition.db has no active generation") {
+		t.Fatalf("errors = %#v, want no active generation error", payload["errors"])
+	}
+}
+
+func TestPublishRuntimeMetadataReturnsNonzeroForUnsupportedLegacyStatus(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.StatusPath, []byte(`{"freshness":"fresh"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["error_code"] != rt.ErrLegacyCode {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+}
+
+func TestPublishRuntimeMetadataChecksLegacyStatusBeforeSparseInvalidWrites(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generationID == "" {
+		t.Fatal("active generation id is empty")
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = ?`, generationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	legacyStatus := []byte(`{"freshness":"fresh"}`)
+	if err := os.WriteFile(paths.StatusPath, legacyStatus, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["error_code"] != rt.ErrLegacyCode {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if got, err := os.ReadFile(paths.StatusPath); err != nil {
+		t.Fatal(err)
+	} else if !bytes.Equal(got, legacyStatus) {
+		t.Fatalf("status.json was overwritten:\ngot:  %s\nwant: %s", got, legacyStatus)
+	}
+}
+
+func TestPublishRuntimeMetadataReturnsNonzeroWhenReadyMetadataWriteFails(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `CREATE TRIGGER metadata_ready_update_failure BEFORE UPDATE ON metadata BEGIN SELECT RAISE(FAIL, 'ready metadata update failed'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "error" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceHasPrefix(payload["errors"], "write metadata ") {
+		t.Fatalf("errors = %#v, want ready metadata write failure", payload["errors"])
+	}
+}
+
+func TestPublishRuntimeMetadataReturnsNonzeroWhenBlockedStatusWriteFails(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = ?`, generationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	blockedRuntimeDir := filepath.Join(root, "status-write-blocker")
+	if err := os.WriteFile(blockedRuntimeDir, []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths.RuntimeDir = blockedRuntimeDir
+	paths.StatusPath = filepath.Join(blockedRuntimeDir, "status.json")
+
+	var stdout, stderr bytes.Buffer
+	code := publishMetadataCommand([]string{"--format", "json"}, &stdout, &stderr, paths)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceHasPrefix(payload["errors"], "write blocked status:") {
+		t.Fatalf("errors = %#v, want blocked status write failure", payload["errors"])
+	}
+	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
+	}
+
+	paths.RuntimeDir = filepath.Join(root, ".specify", "project-cognition")
+	paths.StatusPath = filepath.Join(paths.RuntimeDir, "status.json")
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["graph_ready"] != "false" || meta["baseline_state"] != "blocked" {
+		t.Fatalf("metadata = %#v, want committed blocked metadata before blocked status write failure", meta)
+	}
+	if _, ok := meta["query_contract_version"]; ok {
+		t.Fatalf("query_contract_version present after blocked status write failure: %#v", meta)
+	}
+	if _, ok := meta["update_contract_version"]; ok {
+		t.Fatalf("update_contract_version present after blocked status write failure: %#v", meta)
+	}
+}
+
+func TestPublishRuntimeMetadataReturnsNonzeroWhenReadyStatusWriteFails(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `UPDATE metadata SET value_json = 'false' WHERE key = 'graph_ready'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM metadata WHERE key IN ('query_contract_version', 'update_contract_version')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	originalStatusPath := paths.StatusPath
+	if err := os.Remove(originalStatusPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(originalStatusPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := publishMetadataCommand([]string{"--format", "json"}, &stdout, &stderr, paths)
+	if code != 1 {
+		t.Fatalf("code = %d, want 1; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "error" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if !jsonStringSliceHasPrefix(payload["errors"], "write ready status:") {
+		t.Fatalf("errors = %#v, want ready status write failure", payload["errors"])
+	}
+	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
+	}
+
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["graph_ready"] != "true" || meta["baseline_state"] != "fresh" {
+		t.Fatalf("metadata = %#v, want committed ready metadata before status write failure", meta)
+	}
+	if meta["query_contract_version"] != "1" {
+		t.Fatalf("query_contract_version = %q, want 1 after failed ready status write", meta["query_contract_version"])
+	}
+	if meta["update_contract_version"] != "1" {
+		t.Fatalf("update_contract_version = %q, want 1 after failed ready status write", meta["update_contract_version"])
 	}
 }
 
@@ -747,7 +1263,24 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 		"open_gaps": []map[string]any{},
 	})
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "repository-universe.json"), map[string]any{
-		"rows": []map[string]any{{"path": "src/app.go"}},
+		"schema_version":     1,
+		"candidate_universe": []map[string]any{{"path": "src/app.go", "source": "test"}},
+		"included_paths":     []string{"src/app.go"},
+		"excluded_paths":     []string{},
+		"ambiguous_paths":    []string{},
+		"dispositions":       map[string]any{"src/app.go": "deep_read"},
+		"criticality":        map[string]any{"src/app.go": "critical"},
+		"classification_reasons": map[string]any{
+			"src/app.go": "test",
+		},
+		"decision_source": map[string]any{"src/app.go": "test"},
+	})
+	writeAcceptedCLIScanQueue(t, runtimeDir, []string{"src/app.go"})
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "handoff-ledger.json"), map[string]any{
+		"events": []map[string]any{
+			{"event_id": "dispatch-1", "packet_id": "lane-1", "event_type": "dispatched", "created_at": "2026-05-26T00:00:00Z"},
+			{"event_id": "return-1", "packet_id": "lane-1", "event_type": "returned", "worker_result_path": ".specify/project-cognition/workbench/worker-results/lane-1.json", "created_at": "2026-05-26T00:01:00Z"},
+		},
 	})
 	if err := os.WriteFile(filepath.Join(runtimeDir, "workbench", "scan-packets", "lane-1.md"), []byte("# Lane 1\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -782,6 +1315,18 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 		}
 	}
 	return root
+}
+
+func writeAcceptedCLIScanQueue(t *testing.T, runtimeDir string, assignedPaths []string) {
+	t.Helper()
+	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "scan-queue.json"), map[string]any{
+		"packets": []map[string]any{{
+			"packet_id":           "lane-1",
+			"state":               "accepted",
+			"assigned_paths":      assignedPaths,
+			"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+		}},
+	})
 }
 
 func writeTestJSON(t *testing.T, path string, payload any) {
@@ -831,6 +1376,19 @@ func jsonStringSliceContains(value any, want string) bool {
 	}
 	for _, value := range values {
 		if text, ok := value.(string); ok && text == want {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonStringSliceHasPrefix(value any, prefix string) bool {
+	values, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, value := range values {
+		if text, ok := value.(string); ok && strings.HasPrefix(text, prefix) {
 			return true
 		}
 	}

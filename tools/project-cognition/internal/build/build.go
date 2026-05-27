@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
@@ -32,6 +33,7 @@ type Payload struct {
 	Warnings               []string                          `json:"warnings"`
 	ScanArtifactCounts     map[string]int                    `json:"scan_artifact_counts"`
 	DBCounts               map[string]int                    `json:"db_counts"`
+	SparsePathIndexDetails map[string]any                    `json:"sparse_path_index_details"`
 	IdentityReconciliation map[string]ReconciliationCategory `json:"identity_reconciliation"`
 	Rejections             []store.RowDecision               `json:"rejections"`
 	MergeRecords           []store.MergeRecord               `json:"merge_records"`
@@ -95,12 +97,41 @@ func Run(paths rt.Paths) (Payload, error) {
 	snapshot, err := st.ActiveIdentitySnapshot(context.Background())
 	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("read DB identity snapshot: %v", err))
+		if blockErr := writePostImportBlockedState(paths, st, generationID); blockErr != nil {
+			if isBlockedStatusWriteError(blockErr) {
+				payload.RecoveryAction = rewriteStatusFromDBMetadata
+			}
+			payload.Errors = append(payload.Errors, blockErr.Error())
+			return payload, blockErr
+		}
 		return payload, err
 	}
 	payload.DBCounts = dbCounts(snapshot)
 	payload.IdentityReconciliation = summarizeReconciliation(pkg.Identities, snapshot)
 	if errors := reconciliationErrors(payload.IdentityReconciliation, snapshot); len(errors) > 0 {
 		payload.Errors = append(payload.Errors, errors...)
+		if err := writePostImportBlockedState(paths, st, generationID); err != nil {
+			if isBlockedStatusWriteError(err) {
+				payload.RecoveryAction = rewriteStatusFromDBMetadata
+			}
+			payload.Errors = append(payload.Errors, err.Error())
+			return payload, err
+		}
+		return payload, nil
+	}
+
+	sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), generationID)
+	payload.SparsePathIndexDetails = sparse.Details
+	payload.Warnings = append(payload.Warnings, sparse.Warnings...)
+	if len(sparse.Errors) > 0 {
+		payload.Errors = append(payload.Errors, sparse.Errors...)
+		if err := writePostImportBlockedState(paths, st, generationID); err != nil {
+			if isBlockedStatusWriteError(err) {
+				payload.RecoveryAction = rewriteStatusFromDBMetadata
+			}
+			payload.Errors = append(payload.Errors, err.Error())
+			return payload, err
+		}
 		return payload, nil
 	}
 
@@ -113,12 +144,22 @@ func Run(paths rt.Paths) (Payload, error) {
 	status.ActiveGenerationID = generationID
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
-	if err := rt.WriteStatus(paths, status); err != nil {
+	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), generationID, func() error {
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return fmt.Errorf("write status: %w", err)
+		}
+		return nil
+	}); err != nil {
 		payload.Status = "blocked"
 		payload.Readiness = rt.BlockedReadiness
-		payload.RecoveryAction = rewriteStatusFromDBMetadata
-		payload.Errors = append(payload.Errors, fmt.Sprintf("write status: %v", err))
+		if strings.Contains(err.Error(), "write status:") {
+			payload.RecoveryAction = rewriteStatusFromDBMetadata
+		}
+		payload.Errors = append(payload.Errors, fmt.Sprintf("publish ready runtime metadata: %v", err))
 		return payload, err
+	} else if readyGenerationID != generationID {
+		payload.Errors = append(payload.Errors, fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, generationID))
+		return payload, fmt.Errorf("ready DB metadata active generation mismatch")
 	}
 
 	agreement := runtimegate.Check(paths)
@@ -136,6 +177,43 @@ func Run(paths rt.Paths) (Payload, error) {
 	return payload, nil
 }
 
+type blockedStatusWriteError struct {
+	err error
+}
+
+func (e blockedStatusWriteError) Error() string {
+	return fmt.Sprintf("write blocked status: %v", e.err)
+}
+
+func (e blockedStatusWriteError) Unwrap() error {
+	return e.err
+}
+
+func isBlockedStatusWriteError(err error) bool {
+	var statusErr blockedStatusWriteError
+	return errors.As(err, &statusErr)
+}
+
+func writePostImportBlockedState(paths rt.Paths, st *store.Store, generationID string) error {
+	status := rt.DefaultStatus(paths)
+	status.Status = "blocked"
+	status.Readiness = rt.BlockedReadiness
+	status.ActiveGenerationID = generationID
+	if err := st.MarkRuntimeMetadataBlocked(context.Background(), generationID, func() error {
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return blockedStatusWriteError{err: err}
+		}
+		return nil
+	}); err != nil {
+		var statusErr blockedStatusWriteError
+		if errors.As(err, &statusErr) {
+			return err
+		}
+		return fmt.Errorf("write blocked DB metadata: %w", err)
+	}
+	return nil
+}
+
 func basePayload(paths rt.Paths) Payload {
 	return Payload{
 		Status:                 "blocked",
@@ -144,6 +222,7 @@ func basePayload(paths rt.Paths) Payload {
 		Warnings:               []string{},
 		ScanArtifactCounts:     emptyCounts(),
 		DBCounts:               emptyCounts(),
+		SparsePathIndexDetails: map[string]any{},
 		IdentityReconciliation: emptyReconciliation(),
 		Rejections:             []store.RowDecision{},
 		MergeRecords:           []store.MergeRecord{},

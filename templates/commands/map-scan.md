@@ -3,7 +3,7 @@ description: Use when a brownfield workflow needs a fresh graph-native cognition
 workflow_contract:
   when_to_use: A workflow needs reliable brownfield cognition and no graph-native baseline exists yet, or a full baseline rebuild is explicitly required.
   primary_objective: Enumerate all project-relevant in-repo evidence, build provisional nodes and candidate edges, and publish the scan artifacts required for graph reconstruction.
-  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, `.specify/project-cognition/coverage.json`, `.specify/project-cognition/workbench/coverage-ledger.*`, and `.specify/project-cognition/workbench/map-state.md`.'
+  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, `.specify/project-cognition/coverage.json`, `.specify/project-cognition/workbench/coverage-ledger.*`, `.specify/project-cognition/workbench/scan-queue.json`, `.specify/project-cognition/workbench/handoff-ledger.json`, and `.specify/project-cognition/workbench/map-state.md`.'
   default_handoff: /sp-map-build after the evidence baseline is complete and the scan outputs are ready for graph reconstruction.
 ---
 
@@ -80,6 +80,8 @@ The only canonical outputs for this command are:
 - `.specify/project-cognition/workbench/map-scan.md`
 - `.specify/project-cognition/workbench/coverage-ledger.md`
 - `.specify/project-cognition/workbench/coverage-ledger.json`
+- `.specify/project-cognition/workbench/scan-queue.json`
+- `.specify/project-cognition/workbench/handoff-ledger.json`
 - `.specify/project-cognition/workbench/scan-packets/<lane-id>.md`
 - `.specify/project-cognition/workbench/worker-results/<packet-id>.json`
 - `.specify/project-cognition/workbench/map-state.md`
@@ -144,6 +146,12 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 
 - `MAP_STATE_FILE=.specify/project-cognition/workbench/map-state.md`
 - Treat `.specify/project-cognition/workbench/map-state.md` as the refresh-workbench state surface for scan progress, accepted packets, and unresolved gaps.
+- `scan-queue.json` is the leader-owned scheduler queue. Every `scan-packets/<packet-id>.md` file must have exactly one queue row.
+- `handoff-ledger.json` records every dispatch and return event. Every `worker-results/<packet-id>.json` file must have a matching queue row and return event.
+- The leader loop is: leader receives worker result, leader reads durable scan state, leader validates handoff quality, leader updates queue, coverage, and handoff ledgers, leader plans next packets, and leader dispatches the next bounded wave.
+- Worker packet acceptance is separate from path coverage outcome. If a packet exceeds budget, the worker returns `acceptance=fail_gap`, marks affected paths as `coverage[].outcome="overflow"`, and includes split recommendations.
+- New worker results must write top-level `acceptance`. Top-level `outcome` is a legacy alias only and must not appear in generated worker prompt examples.
+- `accepted_nonblocking_gap_paths` contains only low-risk paths with owner, reason, evidence expectation, revisit condition, and `low_risk_open_gap` status.
 - Scan packets are executable read instructions, not final truth documents.
 - `MapScanPacket` is the required packet contract for each delegated scan lane.
 - Each packet must declare `mode: read_only` and a `result_handoff_path`.
@@ -174,7 +182,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - `paths_read: true`, summary-only read claims, and boolean read flags are invalid.
 - `read` and `deep_read` outcomes must reference existing `evidence_ids`, and at least one referenced evidence row must have `source_path` equal to the covered path.
 - Subagents must account for every assigned path with evidence, `sampled`, `inventory_only`, `excluded`, `blocked`, or `overflow`.
-- If assigned paths do not fit in context, the subagent must return `overflow` or `blocked`; the leader must split and redispatch or record an open gap.
+- If assigned paths do not fit in context, the subagent must return `acceptance=fail_gap`, mark path-level `coverage[].outcome="overflow"` or `coverage[].outcome="blocked"`, and include split or recovery recommendations; the leader records queue state `overflow` or `blocked`.
 - Leader acceptance has two gates: a coverage gate that requires every assigned path to have a declared outcome, and a quality gate that rejects summary-only or inconsistent evidence.
 - The leader may classify packet failure as `fail_gap`, `fail_quality`, `fail_contract`, or `fail_systemic`.
 - `fail_quality` must return a machine-checkable repack subset naming at least one of `paths[]`, `claim_ids[]`, `coverage_row_ids[]`, or `evidence_ids[]`; otherwise treat it as `fail_contract`.

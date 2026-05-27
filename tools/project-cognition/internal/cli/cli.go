@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
@@ -237,19 +238,71 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	}
 	st, err := store.OpenExisting(paths)
 	if err != nil {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
 	}
 	defer st.Close()
-	meta, activeGenerationID, err := st.PublishRuntimeMetadata(context.Background())
+	activeGenerationID, err := st.ActiveGenerationID(context.Background())
 	if err != nil {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	if activeGenerationID == "" {
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{"project-cognition.db has no active generation"}, "warnings": []string{}})
 	}
 	status, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {
-		return writeJSON(stdout, rt.UnsupportedLegacyPayload(paths))
+		return writeErrorJSON(stdout, rt.UnsupportedLegacyPayload(paths))
 	}
 	if err != nil {
 		status = rt.DefaultStatus(paths)
+	}
+	sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), activeGenerationID)
+	if len(sparse.Errors) > 0 {
+		status.Status = "blocked"
+		status.Readiness = rt.BlockedReadiness
+		status.ActiveGenerationID = activeGenerationID
+		if err := st.MarkRuntimeMetadataBlocked(context.Background(), activeGenerationID, func() error {
+			if err := rt.WriteStatus(paths, status); err != nil {
+				return fmt.Errorf("write blocked status: %w", err)
+			}
+			return nil
+		}); err != nil {
+			payload := map[string]any{
+				"status":                    "blocked",
+				"readiness":                 rt.BlockedReadiness,
+				"active_generation_id":      activeGenerationID,
+				"sparse_path_index_details": sparse.Details,
+				"warnings":                  sparse.Warnings,
+			}
+			if strings.HasPrefix(err.Error(), "write blocked status:") {
+				sparse.Errors = append(sparse.Errors, err.Error())
+				payload["recovery_action"] = "rewrite_status_from_db_metadata"
+				payload["errors"] = sparse.Errors
+				code := writeJSON(stdout, payload)
+				if code != 0 {
+					return code
+				}
+				return 1
+			}
+			sparse.Errors = append(sparse.Errors, fmt.Sprintf("write blocked DB metadata: %v", err))
+			payload["errors"] = sparse.Errors
+			code := writeJSON(stdout, payload)
+			if code != 0 {
+				return code
+			}
+			return 1
+		}
+		code := writeJSON(stdout, map[string]any{
+			"status":                    "blocked",
+			"readiness":                 rt.BlockedReadiness,
+			"active_generation_id":      activeGenerationID,
+			"sparse_path_index_details": sparse.Details,
+			"errors":                    sparse.Errors,
+			"warnings":                  sparse.Warnings,
+		})
+		if code != 0 {
+			return code
+		}
+		return 1
 	}
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -259,8 +312,26 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	status.ActiveGenerationID = activeGenerationID
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
-	if err := rt.WriteStatus(paths, status); err != nil {
-		return writeJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID, func() error {
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return fmt.Errorf("write ready status: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		payload := map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}}
+		if strings.HasPrefix(err.Error(), "write ready status:") {
+			payload["recovery_action"] = "rewrite_status_from_db_metadata"
+			code := writeJSON(stdout, payload)
+			if code != 0 {
+				return code
+			}
+			return 1
+		}
+		return writeErrorJSON(stdout, payload)
+	}
+	if readyGenerationID != activeGenerationID {
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{fmt.Sprintf("ready DB metadata active generation mismatch: got %s, want %s", readyGenerationID, activeGenerationID)}, "warnings": []string{}})
 	}
 	return writeJSON(stdout, map[string]any{
 		"status":               "ok",
@@ -625,4 +696,11 @@ func writeJSON(w io.Writer, payload any) int {
 		return 1
 	}
 	return 0
+}
+
+func writeErrorJSON(w io.Writer, payload any) int {
+	if code := writeJSON(w, payload); code != 0 {
+		return code
+	}
+	return 1
 }

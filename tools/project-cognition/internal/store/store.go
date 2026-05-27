@@ -304,15 +304,29 @@ func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON s
 	return nil
 }
 
-func (s *Store) PublishRuntimeMetadata(ctx context.Context) (map[string]string, string, error) {
-	generationID, err := s.ActiveGenerationID(ctx)
+func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string, afterCommit ...func() error) (map[string]string, string, error) {
+	expectedGenerationID = strings.TrimSpace(expectedGenerationID)
+	if expectedGenerationID == "" {
+		return nil, "", fmt.Errorf("expected generation id is required")
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("begin ready metadata transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	generationID, err := activeGenerationIDTx(ctx, tx)
 	if err != nil {
 		return nil, "", err
 	}
 	if generationID == "" {
 		return nil, "", fmt.Errorf("project-cognition.db has no active generation")
 	}
-	now := time.Now().UTC().Format(time.RFC3339)
+	if generationID != expectedGenerationID {
+		return nil, "", fmt.Errorf("active generation changed before ready metadata publication: got %s, want %s", generationID, expectedGenerationID)
+	}
+
 	pairs := map[string]any{
 		"runtime_format":          rt.RuntimeFormat,
 		"runtime_schema":          rt.RuntimeSchema,
@@ -330,8 +344,26 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context) (map[string]string, 
 		if err != nil {
 			return nil, "", fmt.Errorf("encode metadata %s: %w", key, err)
 		}
-		if _, err := s.db.ExecContext(ctx, `INSERT INTO metadata(key, value_json, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`, key, string(encoded), now); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO metadata(key, value_json, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`, key, string(encoded), now); err != nil {
 			return nil, "", fmt.Errorf("write metadata %s: %w", key, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, "", fmt.Errorf("commit ready metadata transaction: %w", err)
+	}
+	activeGenerationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	if activeGenerationID != generationID {
+		return nil, "", fmt.Errorf("active generation changed after ready metadata publication: got %s, want %s", activeGenerationID, generationID)
+	}
+	for _, fn := range afterCommit {
+		if fn == nil {
+			continue
+		}
+		if err := fn(); err != nil {
+			return nil, "", err
 		}
 	}
 	meta, err := s.Metadata(ctx)
@@ -339,6 +371,84 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context) (map[string]string, 
 		return nil, "", err
 	}
 	return meta, generationID, nil
+}
+
+func activeGenerationIDTx(ctx context.Context, tx *sql.Tx) (string, error) {
+	var id string
+	err := tx.QueryRowContext(ctx, `SELECT id FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read active generation: %w", err)
+	}
+	return id, nil
+}
+
+func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID string, afterCommit ...func() error) error {
+	generationID = strings.TrimSpace(generationID)
+	if generationID == "" {
+		return fmt.Errorf("expected generation id is required")
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin blocked metadata transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	activeGenerationID, err := activeGenerationIDTx(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if activeGenerationID == "" {
+		return fmt.Errorf("project-cognition.db has no active generation")
+	}
+	if activeGenerationID != generationID {
+		return fmt.Errorf("active generation changed before blocked metadata publication: got %s, want %s", activeGenerationID, generationID)
+	}
+
+	pairs := map[string]any{
+		"runtime_format":       rt.RuntimeFormat,
+		"runtime_schema":       rt.RuntimeSchema,
+		"schema_version":       SchemaVersion,
+		"active_generation_id": activeGenerationID,
+		"graph_store_path":     ".specify/project-cognition/project-cognition.db",
+		"graph_ready":          false,
+		"baseline_state":       "blocked",
+		"published_at":         now,
+	}
+	for key, value := range pairs {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("encode metadata %s: %w", key, err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO metadata(key, value_json, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`, key, string(encoded), now); err != nil {
+			return fmt.Errorf("write metadata %s: %w", key, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM metadata WHERE key IN (?, ?)`, "query_contract_version", "update_contract_version"); err != nil {
+		return fmt.Errorf("clear ready contract metadata: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit blocked metadata transaction: %w", err)
+	}
+	activeGenerationID, err = s.ActiveGenerationID(ctx)
+	if err != nil {
+		return err
+	}
+	if activeGenerationID != generationID {
+		return fmt.Errorf("active generation changed after blocked metadata publication: got %s, want %s", activeGenerationID, generationID)
+	}
+	for _, fn := range afterCommit {
+		if fn == nil {
+			continue
+		}
+		if err := fn(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) ActiveGenerationID(ctx context.Context) (string, error) {

@@ -70,7 +70,7 @@ A subagent prompt must include:
 - Source artifacts that are truth for the lane, including spec, plan, tasks,
   workflow state, project cognition entries, and memory rules when present.
 - Required RED/GREEN or diagnosis evidence.
-- For scan, build, PRD scan, and map-update evidence lanes, include explicit `assigned_paths` or changed paths. A subagent must not silently narrow assigned scope; if the set does not fit, it returns `overflow` or `blocked` with the smallest safe split suggestion.
+- For scan, build, PRD scan, and map-update evidence lanes, include explicit `assigned_paths` or changed paths. A subagent must not silently narrow assigned scope; if the set does not fit, the worker result returns top-level `acceptance=fail_gap`, marks affected paths with path-level `coverage[].outcome="overflow"` or `coverage[].outcome="blocked"`, and includes the smallest safe split or recovery suggestion. `overflow` and `blocked` are path or queue states, not top-level worker result acceptance values.
 - Required structured handoff format.
 
 The leader must not dispatch from raw task text alone. If the packet is missing,

@@ -84,6 +84,8 @@ Before writing query-backed truth, read:
 - `.specify/project-cognition/provisional/observations.json`
 - `.specify/project-cognition/coverage.json`
 - `.specify/project-cognition/workbench/coverage-ledger.json`
+- `.specify/project-cognition/workbench/scan-queue.json`
+- `.specify/project-cognition/workbench/handoff-ledger.json`
 - `.specify/project-cognition/workbench/scan-packets/`
 
 If those artifacts are missing, stop and route back to `/sp-map-scan`.
@@ -99,6 +101,9 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 - Excluded paths must not appear in graph-facing coverage rows, evidence rows, provisional graph rows, DB path indexes, route indexes, or `minimal_live_reads`.
 - If repository-universe, coverage, and packet handoffs cannot explain the same path universe, return a scan gap report and route back to `sp-map-scan`.
 - If scan packet acceptance reports `fail_contract` or `fail_systemic`, route back to `sp-map-scan` with a scan gap report because the repair is not only a local patch.
+- `path_index_to_included_ratio` must be computed from included paths minus true exclusions and `accepted_nonblocking_gap_paths`.
+- Critical and important included paths must remain in the sparse path-index denominator unless they are true repository-universe exclusions.
+- `build-from-scan` must not set `freshness=fresh`, must not set `readiness=query_ready`, and must not set `graph_ready=true` until sparse path-index gates pass.
 
 ## Path Index Source Contract
 
@@ -238,16 +243,17 @@ Before reporting completion:
 - confirm that `status.json` reflects a query-ready baseline
 - confirm that the runtime remains query-backed and does not advertise raw graph JSON or handbook-first outputs as runtime truth
 - report whether follow-on localized maintenance should continue through `map-update` for future touched-area drift
-- every `critical` row appears in at least one final handbook target
-- every `important` row appears in a final handbook target
+- every `critical` row is covered by active runtime path and route indexes
+- every `important` row is reachable through active runtime path and route indexes
 - every scan packet is consumed
 - every accepted packet result has paths read and confidence
-- every final handbook target is backed by at least one accepted packet evidence row
+- every graph claim is backed by at least one accepted packet evidence row
+- query bundle and route reachability are validated through runtime query surfaces
 - no final report claims success for a structural-only refresh
 - `map_state_file` records accepted packet results
 - owner, consumer, change propagation, and verification routes remain explicit
 - known unknowns or known-unknowns remain visible
 - the excluded bucket has a reason and revisit condition
-- every critical shared surface can be discovered from the relevant handbook
-- every key verification entry point can be located from the relevant handbook
+- every critical shared surface can be discovered through runtime query surfaces
+- every key verification entry point can be located through runtime query surfaces
 - required_reads contain only reference-only or hard-excluded exceptions when runtime compatibility outputs are mentioned

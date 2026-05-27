@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
@@ -79,11 +80,12 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		payload.Details[key] = value
 	}
 	payload.Errors = append(payload.Errors, reconciliationErrors...)
-	graphDetails, graphErrors := validateGraphStore(paths, status, agreement)
+	graphDetails, graphErrors, graphWarnings := validateGraphStore(paths, status, agreement)
 	for key, value := range graphDetails {
 		payload.Details[key] = value
 	}
 	payload.Errors = append(payload.Errors, graphErrors...)
+	payload.Warnings = append(payload.Warnings, graphWarnings...)
 	payload.Errors = append(payload.Errors, validateCoverageLedger(paths, "build")...)
 	if len(payload.Errors) > 0 {
 		payload.Status = "blocked"
@@ -243,28 +245,29 @@ func identityErrorNoun(category string) string {
 	}
 }
 
-func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.Agreement) (map[string]any, []string) {
+func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.Agreement) (map[string]any, []string, []string) {
 	details := map[string]any{}
 	errors := []string{}
+	warnings := []string{}
 	info, err := os.Stat(paths.DatabasePath)
 	if err != nil {
-		return details, []string{"missing .specify/project-cognition/project-cognition.db"}
+		return details, []string{"missing .specify/project-cognition/project-cognition.db"}, warnings
 	}
 	if info.Size() == 0 {
-		return details, []string{"project-cognition.db must not be empty"}
+		return details, []string{"project-cognition.db must not be empty"}, warnings
 	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
-		return details, []string{err.Error()}
+		return details, []string{err.Error()}, warnings
 	}
 	defer db.Close()
 	if _, err := db.Exec("SELECT 1"); err != nil {
-		return details, []string{fmt.Sprintf("project-cognition.db is not query ready: %v", err)}
+		return details, []string{fmt.Sprintf("project-cognition.db is not query ready: %v", err)}, warnings
 	}
 
 	tableNames, err := sqliteTableNames(db)
 	if err != nil {
-		return details, []string{err.Error()}
+		return details, []string{err.Error()}, warnings
 	}
 	missing := []string{}
 	for _, table := range store.RequiredTables() {
@@ -274,16 +277,16 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 	}
 	if len(missing) > 0 {
 		errors = append(errors, "project-cognition.db missing required query tables: "+strings.Join(missing, ", "))
-		return details, errors
+		return details, errors, warnings
 	}
 	missingColumns, err := missingRequiredColumns(db)
 	if err != nil {
 		errors = append(errors, err.Error())
-		return details, errors
+		return details, errors, warnings
 	}
 	if len(missingColumns) > 0 {
 		errors = append(errors, "project-cognition.db missing required query columns: "+strings.Join(missingColumns, ", "))
-		return details, errors
+		return details, errors, warnings
 	}
 
 	schemaVersion, err := metadataScalar(db, "schema_version")
@@ -327,6 +330,14 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		if pathCount == 0 {
 			errors = append(errors, "active_generation_has_no_path_index_rows")
 		}
+		if pathCount > 0 && sparsePathIndexGateAvailable(paths) {
+			sparse := buildgate.ValidateSparsePathIndex(paths, db, activeGenerationID)
+			for key, value := range sparse.Details {
+				details[key] = value
+			}
+			errors = append(errors, sparse.Errors...)
+			warnings = append(warnings, sparse.Warnings...)
+		}
 		if evidenceCount == 0 {
 			errors = append(errors, "active generation has no evidence rows")
 		}
@@ -367,7 +378,12 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 			errors = append(errors, err.Error())
 		}
 	}
-	return details, errors
+	return details, errors, warnings
+}
+
+func sparsePathIndexGateAvailable(paths rt.Paths) bool {
+	_, err := os.Stat(filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
+	return err == nil
 }
 
 func excludedBoundaryPaths(paths rt.Paths) map[string]bool {

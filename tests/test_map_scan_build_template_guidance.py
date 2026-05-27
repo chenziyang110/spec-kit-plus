@@ -44,6 +44,8 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert ".specify/project-cognition/workbench/map-scan.md" in content
     assert ".specify/project-cognition/workbench/coverage-ledger.md" in content
     assert ".specify/project-cognition/workbench/coverage-ledger.json" in content
+    assert ".specify/project-cognition/workbench/scan-queue.json" in content
+    assert ".specify/project-cognition/workbench/handoff-ledger.json" in content
     assert ".specify/project-cognition/workbench/scan-packets/<lane-id>.md" in content
     assert ".specify/project-cognition/workbench/worker-results/<packet-id>.json" in content
     assert ".specify/project-cognition/workbench/map-state.md" in content
@@ -96,6 +98,14 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "project-cognition validate-scan --format json" in content
     assert "validate-scan" in lowered
     assert "may report complete only after" in lowered
+    assert "leader receives worker result" in lowered
+    assert "leader reads durable scan state" in lowered
+    assert "leader updates queue, coverage, and handoff ledgers" in lowered
+    assert "acceptance=fail_gap" in lowered
+    assert 'coverage[].outcome="overflow"' in lowered
+    assert "top-level `outcome`" in lowered
+    assert "legacy alias" in lowered
+    assert "accepted_nonblocking_gap_paths" in content
 
     assert "current-runtime native subagents are the default" in lowered
     assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered
@@ -142,6 +152,17 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "must not become scan targets or graph paths" in scan_shell_lowered
 
 
+def test_passive_subagent_guidance_uses_path_level_gap_outcomes() -> None:
+    content = _read("templates/passive-skills/subagent-driven-development/SKILL.md")
+    lowered = content.lower()
+
+    assert "evidence lanes" in lowered
+    assert "acceptance=fail_gap" in lowered
+    assert 'coverage[].outcome="overflow"' in lowered
+    assert "return `overflow` or `blocked`" not in lowered
+    assert "returns `overflow` or `blocked`" not in lowered
+
+
 def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     content = _read("templates/commands/map-build.md")
     lowered = content.lower()
@@ -149,6 +170,8 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "sp-map-build" in content
     assert "sp-map-scan" in content
     assert "coverage-ledger.json" in content
+    assert ".specify/project-cognition/workbench/scan-queue.json" in content
+    assert ".specify/project-cognition/workbench/handoff-ledger.json" in content
     assert "scan-packets" in content
     assert "begins with validation, not writing" in lowered
     assert "must not guess and continue" in lowered
@@ -174,6 +197,12 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "project-cognition complete-refresh --format json" not in content
     assert "project-cognition validate-build --format json" in content
     assert "validate-build" in lowered
+    assert "path_index_to_included_ratio" in content
+    assert "accepted_nonblocking_gap_paths" in content
+    assert "must not set `freshness=fresh`" in lowered
+    assert "must not set `readiness=query_ready`" in lowered
+    assert "must not set `graph_ready=true`" in lowered
+    assert "Freshness=ready" not in content
     assert "manual sql" in lowered
     assert "hand-picked node subsets" in lowered
     assert "build-from-scan" in lowered
@@ -193,23 +222,25 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert ".cognitionignore" in build_shell
 
     required_phrases = [
-        "every `critical` row appears in at least one final handbook target",
-        "every `important` row appears in a final handbook target",
+        "every `critical` row is covered by active runtime path and route indexes",
+        "every `important` row is reachable through active runtime path and route indexes",
         "every scan packet is consumed",
         "every accepted packet result has paths read and confidence",
-        "every final handbook target is backed by at least one accepted packet evidence row",
+        "every graph claim is backed by at least one accepted packet evidence row",
+        "query bundle and route reachability are validated through runtime query surfaces",
         "no final report claims success for a structural-only refresh",
         "`map_state_file` records accepted packet results",
         "owner, consumer, change propagation, and verification",
         "known unknowns",
         "known-unknowns",
         "excluded bucket has a reason and revisit condition",
-        "every critical shared surface can be discovered from the relevant handbook",
-        "every key verification entry point can be located from the relevant handbook",
+        "every critical shared surface can be discovered through runtime query surfaces",
+        "every key verification entry point can be located through runtime query surfaces",
     ]
 
     for phrase in required_phrases:
         assert phrase in lowered
+    assert "final handbook target" not in lowered
     assert "workflow-operational reachability validation" in lowered
 
 
