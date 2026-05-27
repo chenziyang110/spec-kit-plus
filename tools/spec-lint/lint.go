@@ -37,6 +37,7 @@ type artifactSet struct {
 	references    string
 	workflowState string
 	requirements  string
+	handoff       string
 }
 
 // ---- runner ----

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -8,6 +9,14 @@ import (
 
 func allChecks() []check {
 	return []check{
+		{name: "required-artifacts", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkRequiredArtifacts},
+		{name: "workflow-state-readiness", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkWorkflowStateReadiness},
+		{name: "handoff-json-schema", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkHandoffJSONSchema},
+		{name: "planning-gate-ready", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkPlanningGateReady},
+		{name: "source-signal-disposition", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkSourceSignalDisposition},
+		{name: "must-preserve-coverage", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkMustPreserveCoverage},
+		{name: "review-state-approved", tiers: []string{"light", "standard", "deep"}, severity: statusWarn, run: checkReviewStateApproved},
+		{name: "quality-gate-summary", tiers: []string{"light", "standard", "deep"}, severity: statusWarn, run: checkQualityGateSummary},
 		{name: "scout-summary", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkScoutSummary},
 		{name: "capability-triage", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkCapabilityTriage},
 		{name: "execution-mode", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkExecutionMode},
@@ -17,6 +26,384 @@ func allChecks() []check {
 		{name: "config-effective-when", tiers: []string{"standard", "deep"}, severity: statusWarn, run: checkConfigEffectiveWhen},
 		{name: "test-strategy", tiers: []string{"standard", "deep"}, severity: statusWarn, run: checkTestStrategy},
 	}
+}
+
+// ---- artifact contract checks ----
+
+func checkRequiredArtifacts(a artifactSet) checkResult {
+	missing := []string{}
+	required := []struct {
+		name    string
+		content string
+	}{
+		{name: "spec.md", content: a.spec},
+		{name: "alignment.md", content: a.alignment},
+		{name: "context.md", content: a.context},
+		{name: "workflow-state.md", content: a.workflowState},
+		{name: "checklists/requirements.md", content: a.requirements},
+		{name: "brainstorming/handoff-to-specify.json", content: a.handoff},
+	}
+
+	for _, artifact := range required {
+		if strings.TrimSpace(artifact.content) == "" {
+			missing = append(missing, artifact.name)
+		}
+	}
+
+	if len(missing) > 0 {
+		return checkResult{
+			status:  statusFail,
+			message: fmt.Sprintf("missing or empty required artifacts: %s", strings.Join(missing, ", ")),
+		}
+	}
+	return checkResult{status: statusPass}
+}
+
+func checkWorkflowStateReadiness(a artifactSet) checkResult {
+	if strings.TrimSpace(a.workflowState) == "" {
+		return fileMissing("workflow-state.md")
+	}
+
+	state := parseMarkdownKeyValues(a.workflowState)
+	var failures []string
+
+	if normalizeWorkflowToken(state["active_command"]) != "sp-specify" {
+		failures = append(failures, "active_command must be sp-specify")
+	}
+	if !workflowStatusReady(state["status"]) {
+		failures = append(failures, "status must be completed or planning-ready")
+	}
+	reviewState := normalizeBareValue(state["last_user_reviewed_artifact_state"])
+	if reviewState != "requested" && reviewState != "approved" {
+		failures = append(failures, "last_user_reviewed_artifact_state must be requested or approved")
+	}
+	dispositionState := normalizeBareValue(state["source_signal_disposition_status"])
+	if dispositionState != "complete" && dispositionState != "not-applicable" {
+		failures = append(failures, "source_signal_disposition_status must be complete or not-applicable")
+	}
+	finalDecision := normalizeCommandToken(state["final_handoff_decision"])
+	nextCommand := normalizeCommandToken(state["next_command"])
+	if finalDecision != "/sp.plan" && nextCommand != "/sp.plan" {
+		failures = append(failures, "final_handoff_decision or next_command must be /sp.plan")
+	}
+
+	if len(failures) > 0 {
+		return checkResult{status: statusFail, message: strings.Join(failures, "; ")}
+	}
+	return checkResult{status: statusPass}
+}
+
+func checkHandoffJSONSchema(a artifactSet) checkResult {
+	handoff, result := parseHandoff(a)
+	if result.status != statusPass {
+		return result
+	}
+
+	required := []string{
+		"status",
+		"entry_source",
+		"source_files_read",
+		"source_signal_disposition",
+		"must_preserve",
+		"coverage_status",
+		"planning_gate_status",
+		"hard_unknown_count",
+		"open_conflict_count",
+		"quality_gate",
+	}
+	missing := []string{}
+	for _, key := range required {
+		if _, ok := handoff[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		return checkResult{status: statusFail, message: fmt.Sprintf("missing required handoff fields: %s", strings.Join(missing, ", "))}
+	}
+	var malformed []string
+	if !requiredStringField(handoff, "status") {
+		malformed = append(malformed, "status must be a non-empty string")
+	}
+	if !requiredStringField(handoff, "entry_source") {
+		malformed = append(malformed, "entry_source must be a non-empty string")
+	}
+	if _, ok := arrayValue(handoff["source_files_read"]); !ok {
+		malformed = append(malformed, "source_files_read must be an array")
+	}
+	if _, ok := arrayValue(handoff["source_signal_disposition"]); !ok {
+		malformed = append(malformed, "source_signal_disposition must be an array")
+	}
+	if _, ok := arrayValue(handoff["must_preserve"]); !ok {
+		malformed = append(malformed, "must_preserve must be an array")
+	}
+	if !requiredStringField(handoff, "coverage_status") {
+		malformed = append(malformed, "coverage_status must be a non-empty string")
+	}
+	if !requiredStringField(handoff, "planning_gate_status") {
+		malformed = append(malformed, "planning_gate_status must be a non-empty string")
+	}
+	if _, ok := numericValue(handoff["hard_unknown_count"]); !ok {
+		malformed = append(malformed, "hard_unknown_count must be numeric")
+	}
+	if _, ok := numericValue(handoff["open_conflict_count"]); !ok {
+		malformed = append(malformed, "open_conflict_count must be numeric")
+	}
+	if _, ok := objectValue(handoff["quality_gate"]); !ok {
+		malformed = append(malformed, "quality_gate must be an object")
+	}
+	if len(malformed) > 0 {
+		return checkResult{status: statusFail, message: strings.Join(malformed, "; ")}
+	}
+	return checkResult{status: statusPass}
+}
+
+func checkPlanningGateReady(a artifactSet) checkResult {
+	handoff, result := parseHandoff(a)
+	if result.status != statusPass {
+		return result
+	}
+
+	var failures []string
+	planningStatus := normalizeBareValue(valueString(handoff["planning_gate_status"]))
+	if planningStatus != "ready" {
+		failures = append(failures, fmt.Sprintf("planning_gate_status must be ready, got %q", planningStatus))
+	}
+	coverageStatus := normalizeBareValue(valueString(handoff["coverage_status"]))
+	if coverageStatus == "" || containsAny(coverageStatus, []string{"incomplete", "blocked", "missing"}) {
+		failures = append(failures, fmt.Sprintf("coverage_status is not planning-ready: %q", coverageStatus))
+	}
+	if count, ok := numericValue(handoff["hard_unknown_count"]); !ok {
+		failures = append(failures, "hard_unknown_count must be numeric")
+	} else if count > 0 {
+		failures = append(failures, fmt.Sprintf("hard_unknown_count must be 0, got %g", count))
+	}
+	if count, ok := numericValue(handoff["open_conflict_count"]); !ok {
+		failures = append(failures, "open_conflict_count must be numeric")
+	} else if count > 0 {
+		failures = append(failures, fmt.Sprintf("open_conflict_count must be 0, got %g", count))
+	}
+
+	if len(failures) > 0 {
+		return checkResult{status: statusFail, message: strings.Join(failures, "; ")}
+	}
+	return checkResult{status: statusPass}
+}
+
+func checkSourceSignalDisposition(a artifactSet) checkResult {
+	handoff, result := parseHandoff(a)
+	if result.status != statusPass {
+		return result
+	}
+
+	rows, ok := arrayValue(handoff["source_signal_disposition"])
+	if !ok {
+		return checkResult{status: statusFail, message: "source_signal_disposition must be an array"}
+	}
+	if len(rows) == 0 {
+		return checkResult{status: statusPass, message: "no source signal dispositions recorded"}
+	}
+
+	allowed := map[string]bool{
+		"preserved":             true,
+		"in_scope":              true,
+		"deferred":              true,
+		"dropped":               true,
+		"clarification_blocker": true,
+	}
+	for i, row := range rows {
+		obj, ok := objectValue(row)
+		if !ok {
+			return checkResult{status: statusFail, message: fmt.Sprintf("source_signal_disposition[%d] must be an object", i)}
+		}
+		disposition := firstStringValue(obj, "disposition", "status", "state")
+		disposition = normalizeBareValue(disposition)
+		if disposition == "" {
+			return checkResult{status: statusFail, message: fmt.Sprintf("source_signal_disposition[%d] has no disposition", i)}
+		}
+		if !allowed[disposition] {
+			return checkResult{status: statusFail, message: fmt.Sprintf("source_signal_disposition[%d] has unknown disposition %q", i, disposition)}
+		}
+		if disposition == "clarification_blocker" {
+			return checkResult{status: statusFail, message: fmt.Sprintf("source_signal_disposition[%d] is a clarification_blocker", i)}
+		}
+	}
+	return checkResult{status: statusPass, message: fmt.Sprintf("%d source signal disposition rows checked", len(rows))}
+}
+
+func checkMustPreserveCoverage(a artifactSet) checkResult {
+	handoff, result := parseHandoff(a)
+	if result.status != statusPass {
+		return result
+	}
+
+	rows, ok := arrayValue(handoff["must_preserve"])
+	if !ok {
+		return checkResult{status: statusFail, message: "must_preserve must be an array"}
+	}
+	if len(rows) == 0 {
+		return checkResult{status: statusPass, message: "no must_preserve rows recorded"}
+	}
+
+	for i, row := range rows {
+		obj, ok := objectValue(row)
+		if !ok {
+			return checkResult{status: statusFail, message: fmt.Sprintf("must_preserve[%d] must be an object", i)}
+		}
+		trace := firstStringValue(obj, "id", "summary", "signal", "description")
+		if strings.TrimSpace(trace) == "" {
+			return checkResult{status: statusFail, message: fmt.Sprintf("must_preserve[%d] has no stable id, summary, signal, or description", i)}
+		}
+		state := normalizeBareValue(firstStringValue(obj, "status", "disposition", "coverage_status", "state"))
+		if containsAny(state, []string{"unmapped", "unresolved", "missing", "incomplete"}) {
+			return checkResult{status: statusFail, message: fmt.Sprintf("must_preserve[%d] is not mapped: %q", i, state)}
+		}
+	}
+	return checkResult{status: statusPass, message: fmt.Sprintf("%d must_preserve rows checked", len(rows))}
+}
+
+func checkReviewStateApproved(a artifactSet) checkResult {
+	if strings.TrimSpace(a.workflowState) == "" {
+		return fileMissing("workflow-state.md")
+	}
+	state := parseMarkdownKeyValues(a.workflowState)
+	reviewState := normalizeBareValue(state["last_user_reviewed_artifact_state"])
+	if reviewState == "approved" {
+		return checkResult{status: statusPass}
+	}
+	if reviewState == "requested" {
+		return checkResult{status: statusWarn, message: "user review was requested but explicit approval is not recorded"}
+	}
+	return checkResult{status: statusFail, message: "last_user_reviewed_artifact_state must be requested or approved"}
+}
+
+func checkQualityGateSummary(a artifactSet) checkResult {
+	handoff, result := parseHandoff(a)
+	if result.status != statusPass {
+		return result
+	}
+	qualityGate, ok := objectValue(handoff["quality_gate"])
+	if !ok {
+		return checkResult{status: statusFail, message: "quality_gate must be an object"}
+	}
+	status := firstStringValue(qualityGate, "status", "state")
+	summary := firstStringValue(qualityGate, "summary", "decision", "result")
+	if strings.TrimSpace(status) == "" && strings.TrimSpace(summary) == "" {
+		return checkResult{status: statusWarn, message: "quality_gate has no readable status or summary"}
+	}
+	return checkResult{status: statusPass}
+}
+
+func parseHandoff(a artifactSet) (map[string]any, checkResult) {
+	if strings.TrimSpace(a.handoff) == "" {
+		return nil, fileMissing("brainstorming/handoff-to-specify.json")
+	}
+	var handoff map[string]any
+	if err := json.Unmarshal([]byte(a.handoff), &handoff); err != nil {
+		return nil, checkResult{status: statusFail, message: fmt.Sprintf("invalid brainstorming/handoff-to-specify.json: %v", err)}
+	}
+	return handoff, checkResult{status: statusPass}
+}
+
+func parseMarkdownKeyValues(content string) map[string]string {
+	values := map[string]string{}
+	re := regexp.MustCompile(`^\s*[-*]?\s*([A-Za-z0-9_-]+)\s*:\s*(.+?)\s*$`)
+	for _, line := range strings.Split(content, "\n") {
+		match := re.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		values[strings.ToLower(match[1])] = strings.TrimSpace(match[2])
+	}
+	return values
+}
+
+func workflowStatusReady(value string) bool {
+	normalized := normalizeBareValue(value)
+	return normalized == "completed" || normalized == "planning-ready" || normalized == "ready"
+}
+
+func normalizeCommandToken(value string) string {
+	normalized := normalizeBareValue(value)
+	normalized = strings.ReplaceAll(normalized, "`", "")
+	normalized = strings.TrimSpace(normalized)
+	if normalized == "/sp-plan" {
+		return "/sp.plan"
+	}
+	return normalized
+}
+
+func normalizeWorkflowToken(value string) string {
+	normalized := normalizeBareValue(value)
+	normalized = strings.TrimPrefix(normalized, "/")
+	return strings.ReplaceAll(normalized, ".", "-")
+}
+
+func normalizeBareValue(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	value = strings.Trim(value, "`\"'[]")
+	value = strings.TrimRight(value, ",;")
+	return value
+}
+
+func valueString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case fmt.Stringer:
+		return typed.String()
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
+
+func numericValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case int:
+		return float64(typed), true
+	case json.Number:
+		n, err := typed.Float64()
+		return n, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func arrayValue(value any) ([]any, bool) {
+	rows, ok := value.([]any)
+	return rows, ok
+}
+
+func objectValue(value any) (map[string]any, bool) {
+	obj, ok := value.(map[string]any)
+	return obj, ok
+}
+
+func firstStringValue(obj map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := obj[key]; ok {
+			str := valueString(value)
+			if strings.TrimSpace(str) != "" {
+				return str
+			}
+		}
+	}
+	return ""
+}
+
+func requiredStringField(obj map[string]any, key string) bool {
+	value, ok := obj[key].(string)
+	return ok && strings.TrimSpace(value) != ""
+}
+
+func containsAny(value string, needles []string) bool {
+	for _, needle := range needles {
+		if strings.Contains(value, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- check 1: scout-summary ----

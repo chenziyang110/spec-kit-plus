@@ -55,6 +55,7 @@ func loadArtifacts(dir string) artifactSet {
 		references:    read("references.md"),
 		workflowState: read("workflow-state.md"),
 		requirements:  read(filepath.Join("checklists", "requirements.md")),
+		handoff:       read(filepath.Join("brainstorming", "handoff-to-specify.json")),
 	}
 }
 

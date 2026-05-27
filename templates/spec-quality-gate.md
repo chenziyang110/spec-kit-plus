@@ -2,6 +2,60 @@
 
 **Purpose**: Define the mechanical and judgment-based checks that a spec artifact set must pass before being declared planning-ready. This gate is tiered — not every task requires every check.
 
+## Artifact Contract Gate
+
+Before applying the tiered quality checks, `spec-lint` validates the current
+`sp-specify -> sp-plan` artifact contract. This contract gate is mechanical and
+planning-readiness oriented: it proves the required handoff surfaces exist and
+do not record a planning blocker.
+
+Required artifacts:
+
+- `spec.md`
+- `alignment.md`
+- `context.md`
+- `workflow-state.md`
+- `checklists/requirements.md`
+- `brainstorming/handoff-to-specify.json`
+
+Required `workflow-state.md` readiness signals:
+
+- `active_command: sp-specify`
+- completed or planning-ready status
+- `last_user_reviewed_artifact_state: requested|approved`
+- `source_signal_disposition_status: complete|not-applicable`
+- `final_handoff_decision: /sp.plan` or a next command resolving to `/sp.plan`
+
+Required handoff JSON fields:
+
+- `status`
+- `entry_source`
+- `source_files_read`
+- `source_signal_disposition`
+- `must_preserve`
+- `coverage_status`
+- `planning_gate_status`
+- `hard_unknown_count`
+- `open_conflict_count`
+- `quality_gate`
+
+Blocking conditions:
+
+- required artifact missing or empty
+- invalid handoff JSON
+- `planning_gate_status` is not `ready`
+- `coverage_status` is incomplete, blocked, or missing
+- `hard_unknown_count` or `open_conflict_count` is greater than zero
+- source signal disposition rows have no recognized disposition, use an
+  unknown disposition, or contain `clarification_blocker`
+- must-preserve rows have no stable trace field or are explicitly unmapped,
+  unresolved, missing, or incomplete
+
+Warning-only conditions:
+
+- user review is recorded as `requested` but not yet `approved`
+- `quality_gate` exists without a readable status or summary
+
 ## Tier Selection
 
 Choose the tier based on task classification and boundary sensitivity:
@@ -137,7 +191,7 @@ In addition to the mechanical checks above, a human reviewer must confirm:
 
 ## Tooling
 
-- `spec-lint -dir <FEATURE_DIR> -tier <tier>` runs all machine-checkable items
+- `spec-lint -dir <FEATURE_DIR> -tier <tier>` runs the artifact contract gate plus all machine-checkable tiered quality items
 - Exit code 0 = all mechanical checks pass; exit code 1 = failures present
 - Items without the machine-check tag require human judgment
 - The tool has zero runtime dependencies (single Go binary)

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "status": "ready",
+  "entry_source": "sp-specify",
+  "source_handoff": "none",
+  "source_handoff_json": "none",
+  "source_files_read": [
+    "spec.md",
+    "alignment.md",
+    "context.md"
+  ],
+  "source_signal_disposition": [
+    {
+      "id": "SSD-001",
+      "signal": "core engine capability",
+      "disposition": "preserved",
+      "target": "spec.md#capability-map"
+    },
+    {
+      "id": "SSD-002",
+      "signal": "remote API feasibility",
+      "disposition": "deferred",
+      "target": "spec.md#capability-map"
+    }
+  ],
+  "must_preserve": [
+    {
+      "id": "MP-001",
+      "summary": "Preserve core engine launch behavior",
+      "status": "mapped",
+      "target": "spec.md#capability-map"
+    }
+  ],
+  "coverage_status": "complete",
+  "planning_gate_status": "ready",
+  "hard_unknown_count": 0,
+  "open_conflict_count": 0,
+  "quality_gate": {
+    "status": "passed",
+    "summary": "Artifact self-review complete and user review approved."
+  }
+}
