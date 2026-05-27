@@ -149,6 +149,13 @@ alone. The compatibility handoff JSON records `source_files_read` and
 `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` so a capability-like
 upstream signal cannot silently disappear before planning.
 
+Command-surface minimization must not delete capability. If upstream discussion
+or specification text includes a new/create/scaffold/authoring operation,
+downstream planning and task generation must preserve it through an explicit
+public command, TUI route, core API, private helper, or user-confirmed deferral.
+Manual copy instructions and template-only docs can support that operation, but
+they do not replace it unless the user chose that narrower entry point.
+
 Before planning, `specify` performs artifact self-review and asks for user review
 against the original wording so unconfirmed scope narrowing is reopened instead
 of passed downstream.

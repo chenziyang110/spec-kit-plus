@@ -118,6 +118,14 @@ The compatibility handoff JSON records `source_files_read` and
 `source_signal_disposition` so upstream capability-like signals are preserved,
 deferred, dropped, or reopened explicitly.
 
+Command-surface minimization must not delete capability. If the discussion or
+specification includes a new/create/scaffold/authoring operation, downstream
+planning and task generation must preserve it through an explicit public
+command, TUI route, core API, private helper, or user-confirmed deferral.
+Manual copy instructions and template-only docs can support that flow, but they
+do not replace the confirmed operation unless the user chose that narrower entry
+point.
+
 The planning package centers on `spec.md`, `alignment.md`, `context.md`,
 `workflow-state.md`, `checklists/requirements.md`, and a minimal compatibility
 `brainstorming/handoff-to-specify.json`. `alignment.md` carries the semantic

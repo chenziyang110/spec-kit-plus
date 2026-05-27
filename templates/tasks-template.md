@@ -21,7 +21,10 @@ description: "Task list template for feature implementation"
 - **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
 - **Must-preserve discussion obligations**: Copy relevant `MP-*` items from `plan.md`, `spec.md`, `alignment.md`, `context.md`, `references.md`, and `brainstorming/handoff-to-specify.json`. Each implementation-shaping item must appear in the Task Guardrail Index, a required reference, a validation checkpoint, a task packet field, or an explicit deferred note.
+- **Capability operations**: Copy every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
 - Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
+- Do not allow command-surface anti-goals to delete capability. Each anti-goal that limits commands, routes, APIs, lifecycle operations, or public surfaces must include a does-not-remove guard naming the preserved operation and selected entry point.
+- Detect semantic degradation before handoff: if a create/scaffold capability is represented only by a template-only task, manual copy docs, or an authoring guide with no executable entry point, stop task generation and route back to `sp-plan` or `sp-clarify`.
 - If a feature touches an established framework or boundary pattern, guardrail tasks MUST be added before implementation begins.
 
 ## Task Guardrail Index
@@ -30,7 +33,17 @@ description: "Task list template for feature implementation"
 - Keep the mapping compact and task-specific so packet compilation can resolve applicable hard rules without copying the full constitution into every task body
 - Include task-to-guardrail mapping entries such as ``T017 -> G-PRESERVE-BOUNDARY, G-VALIDATE-AUTH`` when subagent execution needs explicit execution constraints
 - Include `MP-*` IDs for any task that carries a discussion-derived goal, non-goal, decision, reference, trade-off, acceptance signal, or stop-and-reopen condition.
+- Include capability operation IDs or labels for any task that implements, validates, preserves, defers, or explicitly does not own a new/create/scaffold/authoring workflow.
 - For each `[P]` task or explicit parallel batch, include enough detail that the leader can compile a bounded subagent execution packet: objective, write set, required references, forbidden drift, validation command, and done condition
+
+## Capability Operation Coverage
+
+| Operation | Upstream Source | Selected Entry Point | Task IDs / Packet Fields | Validation | Degradation Check |
+| --- | --- | --- | --- | --- | --- |
+| [create/scaffold operation] | [spec/alignment/plan/handoff] | [TUI route | core API | public CLI | private helper | deferred] | [T###, packet field, or explicit deferral] | [command or manual check] | [not template-only / not manual-copy-only / user-confirmed deferral] |
+
+- Template directories, sample files, and authoring documentation are supporting assets. They do not satisfy a confirmed create/scaffold operation unless manual copy was explicitly selected and confirmed upstream.
+- A task packet anti-goal such as "do not add public commands" must carry a does-not-remove guard for the underlying operation, for example preserving scaffold through a TUI route or core API.
 
 ## Implementation Target Boundary
 
@@ -92,6 +105,9 @@ Before final handoff to `sp-implement`, confirm:
 - Locked planning decisions that affect implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails are preserved in this task package.
 - `Implementation Constitution` rules from `plan.md` are preserved through the implementation guardrails phase, `Task Guardrail Index`, task notes, or explicit escalation.
 - `Task Guardrail Index` entries map applicable guardrails to concrete implementation tasks.
+- Preserved capability operations map to implementation tasks, validation tasks, packet fields, or user-confirmed deferred notes.
+- No operation-shaped create/scaffold capability has degraded to template-only task output, manual copy docs, or an authoring guide without an executable entry point.
+- Anti-goals that restrict public surfaces include does-not-remove guards.
 - Each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
 - Task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
 - Reference fidelity behavior items map to task IDs, checkpoints, join points, or explicit deferred notes.
@@ -430,6 +446,8 @@ Below is a complete enriched task showing every required subagent contract field
 | write_scope | [src/middleware/auth.ts, tests/auth/middleware.test.ts] |
 | read_scope | [src/auth/types.ts, contracts/auth-api.md, contracts/error-response.md] |
 | forbidden | [src/db/, .env, src/config/] |
+| does_not_remove | [login capability through middleware contract, scaffold capability through TUI route] |
+| capability_operations | [implements auth middleware, does not own scaffold operation] |
 
 ### Expected Outputs
 - src/middleware/auth.ts （新建）

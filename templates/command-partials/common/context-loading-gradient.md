@@ -78,6 +78,16 @@ Preserve the distinction between the machine freshness field and public state
 guidance: `freshness` records map quality, while `recommended_next_action` is a
 map-maintenance recommendation.
 
+### Mutation Closeout Rule
+
+Entry stale may continue for live-evidence navigation, but it is not a
+completion waiver. If the active workflow changes source/runtime truth-owning
+surfaces, shared surfaces, command/route/contract boundaries, verification entry
+points, runtime assumptions, or other map-level coverage facts, closeout must
+record a refresh or dirty outcome: either an actual `{{invoke:map-update}}`
+refresh using the changed paths, or `project-cognition mark-dirty` when the
+required refresh cannot be completed now.
+
 ### Primary Read Restriction
 
 Do not treat handbook-first or layered project-map files as evidence. If

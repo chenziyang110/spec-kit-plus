@@ -177,6 +177,12 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert advisory_index != -1
     assert "carry forward" in content
     assert "next workflow artifact or execution state" in content
+    assert "mutation closeout" in content
+    assert "actual `{{invoke:map-update}}` refresh or `project-cognition mark-dirty` outcome" in content
+    assert "project_cognition_refresh` recommending" not in content
+    assert "project_cognition_refresh recommending" not in content
+    assert "recommends `{{invoke:map-update}}` as follow-up map maintenance" not in content
+    assert "recommended `{{invoke:map-update}}` refresh when applicable" not in content
 
     if command_name == "implement":
         orchestration_index = content.find("## orchestration model")

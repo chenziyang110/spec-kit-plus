@@ -98,6 +98,18 @@ def test_tasks_command_requires_persisted_task_generation_handoffs():
     assert "do not synthesize `tasks.md` from chat-only delegated lane results" in lowered
 
 
+def test_tasks_command_requires_writable_delegated_task_generation_lanes():
+    content = _read("templates/commands/tasks.md")
+    lowered = content.lower()
+
+    assert "artifact-writing delegated lanes must use writable" in lowered
+    assert "execution-capable native subagents" in lowered
+    assert "read-only explorer, reviewer, or diagnostic lane" in lowered
+    assert "task-generation/handoffs/<lane-id>.json" in content
+    assert "must include the exact expected handoff path" in lowered
+    assert "re-dispatch with a writable lane" in lowered
+
+
 def test_tasks_command_consumes_upstream_planning_evidence():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()

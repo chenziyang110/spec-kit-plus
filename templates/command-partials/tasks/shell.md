@@ -19,6 +19,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 - Mark reference project paths as reference-only or transfer evidence instead of implementation paths.
 - Carry locked planning decisions and implementation constitution rules forward into execution slices.
 - Map every open `CA-###` consequence obligation to tasks, packet fields, validation commands, join points, or explicit stop-and-reopen conditions.
+- Map every preserved operation-shaped capability such as new/create/scaffold/authoring/template creation to implementation tasks, validation tasks, packet fields, or explicit user-confirmed deferrals. Do not degrade a confirmed operation to manual copy docs or static template-only support.
 - Generate dependency ordering, parallel-safe batches, join points, and guardrail indexes.
 - Validate the resulting task graph before handing off to analysis or implementation.
 
@@ -55,6 +56,8 @@ Every task written into `tasks.md` MUST carry the enriched fields below so that 
 
 - `expected_outputs`: Concrete file list with annotations: `（新建）` or `（修改）`.
 - `anti_goals`: Behaviors explicitly forbidden for this task. Examples: "do not introduce new dependencies", "do not modify the public API surface", "do not touch the database schema".
+- `does_not_remove`: Capability operations, acceptance signals, and preserved entry points this task's anti-goals must not delete.
+- `capability_operations`: Upstream operation-shaped capabilities this task implements, validates, preserves, defers, or explicitly does not own.
 
 **Acceptance & Verification**
 

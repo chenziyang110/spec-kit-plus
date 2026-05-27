@@ -51,6 +51,24 @@ def test_docs_teach_user_confirmed_product_scope_not_default_mvp() -> None:
         _assert_doc_teaches_user_confirmed_product_scope(rel_path)
 
 
+def test_docs_teach_command_surface_minimization_preserves_scaffold_operations() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "docs/quickstart.md",
+        "docs/installation.md",
+    ):
+        lowered = _read(rel_path).lower()
+
+        assert "command-surface minimization must not delete capability" in lowered
+        assert "new/create/scaffold/authoring" in lowered
+        assert "manual copy" in lowered
+        assert "template-only" in lowered
+        assert "tui route" in lowered
+        assert "core api" in lowered
+
+
 def test_quickstart_declares_integration_specific_invocation_syntax():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

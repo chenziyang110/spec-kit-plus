@@ -19,6 +19,8 @@ from .packet_validator import validate_worker_task_packet
 
 
 SECTION_RE = re.compile(r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)")
+TASK_DETAIL_RE = re.compile(r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)")
+FENCED_CODE_BLOCK_RE = re.compile(r"(?ms)^```.*?^```")
 BULLET_RE = re.compile(r"(?m)^\s*-\s+`?(?P<value>.+?)`?\s*$")
 TASK_RE = re.compile(r"(?m)^\s*-\s\[[ xX]\]\s(?P<task_id>T\d+)(?P<body>.+)$")
 PATH_RE = re.compile(r"[\w./-]+/[\w./-]+")
@@ -74,6 +76,18 @@ def _task_body(tasks_text: str, task_id: str) -> str:
         if match.group("task_id") == task_id:
             return match.group("body").strip()
     raise ValueError(f"Task {task_id} not found in tasks.md")
+
+
+def _without_fenced_code_blocks(text: str) -> str:
+    return FENCED_CODE_BLOCK_RE.sub("", text)
+
+
+def _task_detail_body(tasks_text: str, task_id: str) -> str:
+    searchable_text = _without_fenced_code_blocks(tasks_text)
+    for match in TASK_DETAIL_RE.finditer(searchable_text):
+        if match.group("task_id") == task_id:
+            return match.group("body").strip()
+    return ""
 
 
 def _unique(values: list[str]) -> list[str]:
@@ -137,6 +151,34 @@ def _split_csv_field(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _split_list_field(value: str) -> list[str]:
+    normalized = value.strip()
+    if normalized.startswith("[") and normalized.endswith("]"):
+        normalized = normalized[1:-1]
+    return [
+        item.strip().strip("`\"'")
+        for item in normalized.split(",")
+        if item.strip().strip("`\"'")
+    ]
+
+
+def _task_detail_table_field_values(task_detail: str, section_title: str, field_name: str) -> list[str]:
+    section = _section_body(task_detail, section_title)
+    values: list[str] = []
+    expected_field = _normalized_header_name(field_name)
+    for raw_line in section.splitlines():
+        if not raw_line.strip().startswith("|"):
+            continue
+        parts = [part.strip() for part in raw_line.strip().strip("|").split("|")]
+        if len(parts) < 2 or _is_table_separator(parts):
+            continue
+        if parts[0].strip().lower() == "field":
+            continue
+        if _normalized_header_name(parts[0]) == expected_field:
+            values.extend(_split_list_field(parts[1]))
+    return _unique(values)
+
+
 def _line_mentions_task(line: str, task_id: str) -> bool:
     return any(part.strip() == task_id for part in re.split(r"[,;\s]+", line) if part.strip())
 
@@ -189,11 +231,55 @@ def _consequence_obligations_for_task(
     return obligations
 
 
+def _does_not_remove_for_task(tasks_text: str, task_id: str) -> list[str]:
+    values: list[str] = []
+    guardrail_body = _section_body(tasks_text, "Task Guardrail Index")
+    for line in guardrail_body.splitlines():
+        if task_id not in line:
+            continue
+        match = re.search(r"does-not-remove guard:\s*(?P<value>.+)", line, re.IGNORECASE)
+        if match:
+            values.append(match.group("value").strip(" ."))
+    return _unique(values)
+
+
+def _capability_operations_for_task(tasks_text: str, task_id: str) -> list[str]:
+    section = _section_body(tasks_text, "Capability Operation Coverage")
+    operations: list[str] = []
+    headers: list[str] | None = None
+    for raw_line in section.splitlines():
+        if raw_line.strip().startswith("|"):
+            parts = [part.strip() for part in raw_line.strip().strip("|").split("|")]
+            if _is_table_separator(parts):
+                continue
+            if any(part.strip().lower() == "operation" for part in parts):
+                headers = [_normalized_header_name(part) for part in parts]
+                continue
+        if not _line_mentions_task(raw_line, task_id):
+            continue
+        fields = _parse_pipe_fields(raw_line, headers)
+        operation = fields.get("operation", "").strip()
+        entry_point = fields.get("selected_entry_point", "").strip()
+        if operation and entry_point:
+            operations.append(f"{operation} -> {entry_point}")
+        elif operation:
+            operations.append(operation)
+    return _unique(operations)
+
+
 def _section_or_subsection_values(text: str, *titles: str) -> list[str]:
     values: list[str] = []
     for title in titles:
         values.extend(_bullet_values(_section_body(text, title)))
     return _unique(values)
+
+
+def _task_contract_bullet_values(task_detail: str, *titles: str) -> list[str]:
+    return [
+        value
+        for value in _section_or_subsection_values(task_detail, *titles)
+        if not re.match(r"\[[ xX]\]\s*T\d+\b", value)
+    ]
 
 
 def _must_preserve_obligations_from_text(text: str, *, source: str) -> list[MustPreserveObligation]:
@@ -333,6 +419,7 @@ def compile_worker_task_packet(
     tasks_text = _read(feature_dir / "tasks.md")
 
     resolved_task_body = task_body if task_body is not None else _task_body(tasks_text, task_id)
+    task_detail = _task_detail_body(tasks_text, task_id)
     objective = resolved_task_body
 
     required_references = [
@@ -342,7 +429,10 @@ def compile_worker_task_packet(
         )
         for value in _bullet_values(_section_body(plan_text, "Required Implementation References"))
     ]
-    forbidden_drift = _bullet_values(_section_body(plan_text, "Forbidden Implementation Drift"))
+    forbidden_drift = _unique(
+        _bullet_values(_section_body(plan_text, "Forbidden Implementation Drift"))
+        + _task_detail_table_field_values(task_detail, "Scope Boundaries", "forbidden")
+    )
     platform_guardrails = _section_or_subsection_values(
         plan_text,
         "Platform Guardrails",
@@ -382,6 +472,13 @@ def compile_worker_task_packet(
         required_references=required_references,
     )
     read_scope = _unique([item.path for item in context_bundle] + [ref.path for ref in required_references])
+    scope_write_scope = _unique(
+        _paths_from_task_body(resolved_task_body)
+        + _task_detail_table_field_values(task_detail, "Scope Boundaries", "write_scope")
+    )
+    scope_read_scope = _unique(
+        read_scope + _task_detail_table_field_values(task_detail, "Scope Boundaries", "read_scope")
+    )
     applicable_mp_ids = _applicable_mp_ids_from_tasks(tasks_text, task_id, resolved_task_body) | _global_must_preserve_ids(
         plan_text
     )
@@ -411,8 +508,8 @@ def compile_worker_task_packet(
             success_signals=done_criteria if (done_criteria := [objective]) else [objective],
         ),
         scope=PacketScope(
-            write_scope=_paths_from_task_body(resolved_task_body),
-            read_scope=read_scope,
+            write_scope=scope_write_scope,
+            read_scope=scope_read_scope,
         ),
         context_bundle=context_bundle,
         required_references=required_references,
@@ -422,6 +519,15 @@ def compile_worker_task_packet(
         done_criteria=done_criteria,
         handoff_requirements=handoff_requirements,
         platform_guardrails=platform_guardrails,
+        anti_goals=_task_contract_bullet_values(task_detail, "Anti-Goals"),
+        does_not_remove=_unique(
+            _does_not_remove_for_task(tasks_text, task_id)
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "does_not_remove")
+        ),
+        capability_operations=_unique(
+            _capability_operations_for_task(tasks_text, task_id)
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "capability_operations")
+        ),
         must_preserve_obligations=must_preserve_obligations,
         consequence_obligations=_consequence_obligations_for_task(tasks_text, task_id),
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),

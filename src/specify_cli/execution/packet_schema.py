@@ -108,6 +108,8 @@ class WorkerTaskPacket:
     agent_role: str = ""
     context_nav: list[dict[str, str]] = field(default_factory=list)
     anti_goals: list[str] = field(default_factory=list)
+    does_not_remove: list[str] = field(default_factory=list)
+    capability_operations: list[str] = field(default_factory=list)
     verify_commands: list[str] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
     consumer_surfaces: list[str] = field(default_factory=list)

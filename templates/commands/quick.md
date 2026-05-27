@@ -169,7 +169,7 @@ The following flags are available and composable:
 - If a matching active workspace already exists, resume it instead of creating a second parallel quick-task directory for the same goal.
 - The minimum artifact set is:
   - `STATUS.md`: the source of truth for the current quick-task state.
-  - `SUMMARY.md`: the final outcome, `changed_code_paths`, `changed_behavior_surfaces`, verification evidence, residual risk, and `project_cognition_refresh` recommendation.
+  - `SUMMARY.md`: the final outcome, `changed_code_paths`, `changed_behavior_surfaces`, verification evidence, residual risk, and `project_cognition_refresh` outcome.
   - Optional lightweight support artifacts only when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`.
 - `STATUS.md` is the lifecycle source of truth for the quick task. `.planning/quick/index.json` is a derived projection for management and recovery commands.
 - The quick-task directory format is `<id>-<slug>`. Do not use slug-only workspace names for the enhanced quick flow.
@@ -367,7 +367,7 @@ resume_decision: [resume here | blocked waiting | resolved]
   - the change itself is implemented in code, docs, config, or templates as needed
   - at least one smallest meaningful executable verification step has run
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
-- The final `SUMMARY.md` must include `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` recommending `{{invoke:map-update}}` with those changed paths whenever project cognition might be affected.
+- The final `SUMMARY.md` must include `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` with the actual `{{invoke:map-update}}` refresh or `project-cognition mark-dirty` outcome whenever project cognition might be affected.
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
 - If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before marking the quick task `resolved`. Do not rebuild for ordinary uncertain closure; `sp-map-update` records partial/low-confidence facts, known unknowns, and `minimal_live_reads`. After a successful existing-baseline map-update, use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only for incremental freshness finalization. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid; `sp-map-build` owns `build-from-scan` and `{{specify-subcmd:project-cognition validate-build --format json}}`, so do not run `complete-refresh` as a rebuild finalizer.
@@ -400,7 +400,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 - Keep `STATUS.md` accurate enough that another session can resume without chat memory.
 - Produce scoped implementation changes, verification evidence, and a truthful resolved/blocked state for the quick task.
-- `SUMMARY.md` reports changed code paths, changed behavior surfaces, verification evidence, residual risk, and the recommended `{{invoke:map-update}}` refresh when project cognition might be affected.
+- `SUMMARY.md` reports changed code paths, changed behavior surfaces, verification evidence, residual risk, and the `project_cognition_refresh` outcome when project cognition might be affected.
 - Preserve escalation history so it is clear why the task stayed quick or needed to grow.
 
 ## Passive Project Learning Layer

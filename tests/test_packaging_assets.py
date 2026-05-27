@@ -66,6 +66,20 @@ def test_wheel_force_include_bundles_workflow_state_template() -> None:
     ) in pyproject
 
 
+def test_wheel_force_include_bundles_structured_workflow_contract_templates() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    for template in (
+        "plan-contract-template.json",
+        "task-index-template.json",
+        "task-packet-template.json",
+    ):
+        assert (
+            f'"templates/{template}" = '
+            f'"specify_cli/core_pack/templates/{template}"'
+        ) in pyproject
+
+
 def test_lossless_specify_state_templates_are_force_included() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     for template in (

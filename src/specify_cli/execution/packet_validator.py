@@ -9,6 +9,10 @@ from .packet_schema import WorkerTaskPacket
 
 
 MP_ID_RE = re.compile(r"^MP-\d{3}$")
+SURFACE_LIMIT_ANTI_GOAL_RE = re.compile(
+    r"\b(do not|don't|must not)\b.*\b(add|introduce|modify|change|expand)\b.*\b(public\s+)?(command|commands|api|apis|route|routes|surface|surfaces|lifecycle)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
@@ -41,6 +45,12 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         raise PacketValidationError("DP1", "handoff_requirements must be present in the packet")
     if not packet.platform_guardrails:
         raise PacketValidationError("DP2", "platform_guardrails must be compiled into the packet")
+    if any(SURFACE_LIMIT_ANTI_GOAL_RE.search(goal) for goal in packet.anti_goals):
+        if not packet.does_not_remove:
+            raise PacketValidationError(
+                "DP1",
+                "surface-limiting anti-goals require a does-not-remove guard",
+            )
     for obligation in packet.must_preserve_obligations:
         if not MP_ID_RE.match(obligation.id):
             raise PacketValidationError("DP1", "must-preserve obligation id must use MP-### format")

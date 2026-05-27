@@ -1373,6 +1373,29 @@ def test_plan_template_records_planning_evidence_paths() -> None:
     assert "planning/handoffs/<lane-id>.json" in content
 
 
+def test_plan_template_requires_writable_delegated_planning_lanes() -> None:
+    content = _read("templates/commands/plan.md")
+    lowered = content.lower()
+
+    assert "artifact-writing delegated planning lanes must be dispatched" in lowered
+    assert "writable, execution-capable native subagent" in lowered
+    assert "do not dispatch a read-only explorer, reviewer, or diagnostic lane" in lowered
+    assert "allowed write scope must include the exact expected handoff path" in lowered
+    assert "planning/handoffs/<lane-id>.json" in content
+    assert "re-dispatch with a writable lane" in lowered
+
+
+def test_adaptive_execution_partial_requires_writable_artifact_handoff_lanes() -> None:
+    content = _read("templates/command-partials/common/adaptive-execution.md")
+    lowered = content.lower()
+
+    assert "artifact-writing delegated lanes must use writable" in lowered
+    assert "execution-capable native subagents" in lowered
+    assert "read-only explorer, reviewer, or diagnostic lane" in lowered
+    assert "must include the exact expected handoff path" in lowered
+    assert "re-dispatch with a writable lane" in lowered
+
+
 def test_research_template_exists_and_captures_research_quality_contract():
     content = _read("templates/research-template.md")
 
@@ -2168,6 +2191,52 @@ def test_tasks_templates_preserve_user_confirmed_delivery_scope_not_mvp():
     assert "mvp!" not in template_content.lower()
 
 
+def test_workflow_templates_preserve_create_scaffold_capabilities_when_surface_is_minimized() -> None:
+    specify = _read("templates/commands/specify.md")
+    spec_template = _read("templates/spec-template.md")
+    plan = _read("templates/commands/plan.md")
+    plan_template = _read("templates/plan-template.md")
+    plan_contract_template = _read("templates/plan-contract-template.json")
+    tasks = _read("templates/commands/tasks.md")
+    tasks_template = _read("templates/tasks-template.md")
+    task_packet_template = _read("templates/task-packet-template.json")
+
+    specify_lower = specify.lower()
+    for action_signal in ("create", "scaffold", "authoring"):
+        assert action_signal in specify_lower
+
+    assert "manual copy" in specify_lower
+    assert "static template" in specify_lower
+    assert "capability operation" in specify_lower
+    assert "capability preservation ledger" in spec_template.lower()
+
+    plan_combined = f"{plan}\n{plan_template}"
+    plan_lower = plan_combined.lower()
+    assert "command-surface minimization" in plan_lower
+    assert "entry-point remapping" in plan_lower
+    assert "must not delete capability" in plan_lower
+    assert "tui route" in plan_lower
+    assert "core api" in plan_lower
+    assert "scaffold operation" in plan_lower
+
+    tasks_combined = f"{tasks}\n{tasks_template}"
+    tasks_lower = tasks_combined.lower()
+    assert "does-not-remove guard" in tasks_lower
+    assert "anti_goal" in tasks_lower or "anti-goal" in tasks_lower
+    assert "semantic degradation" in tasks_lower
+    assert "manual copy docs" in tasks_lower
+    assert "template-only task" in tasks_lower
+    assert "create/scaffold" in tasks_lower
+
+    packet = json.loads(task_packet_template)
+    assert "does_not_remove" in packet
+    assert "capability_operations" in packet
+
+    plan_contract = json.loads(plan_contract_template)
+    assert "capability_operations" in plan_contract
+    assert "capability_preservation" in plan_contract
+
+
 def test_generated_workflow_templates_do_not_default_to_product_minimization() -> None:
     checked_paths = [
         "templates/commands/discussion.md",
@@ -2365,6 +2434,47 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert parallel_subagents != -1
     assert subagent_blocked != -1
     assert no_safe_batch < one_subagent < parallel_subagents
+
+
+def test_mutation_workflows_require_cognition_refresh_or_dirty_outcome_before_closeout() -> None:
+    for path in (
+        "templates/commands/fast.md",
+        "templates/commands/quick.md",
+        "templates/commands/implement.md",
+        "templates/commands/debug.md",
+    ):
+        content = _read(path).lower()
+
+        assert "project_cognition_refresh" in content
+        assert "actual `{{invoke:map-update}}` refresh or `project-cognition mark-dirty` outcome" in content
+        assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
+        assert "manual override/fallback" in content
+
+        for weak_phrase in (
+            "project_cognition_refresh` recommending",
+            "project_cognition_refresh recommending",
+            "recommended `{{invoke:map-update}}` refresh when applicable",
+            "recommended `{{invoke:map-update}}` refresh when project cognition might be affected",
+            "and recommend `{{invoke:map-update}}` with the changed paths",
+        ):
+            assert weak_phrase not in content
+
+
+def test_runtime_cognition_partials_preserve_mutation_closeout_rule() -> None:
+    context = _read("templates/command-partials/common/context-loading-gradient.md").lower()
+    consequence_gate = _read(
+        "templates/command-partials/common/senior-consequence-analysis-gate.md"
+    ).lower()
+    passive_gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
+
+    for content in (context, consequence_gate, passive_gate):
+        assert "mutation closeout" in content
+        assert "entry stale" in content
+        assert "refresh or dirty outcome" in content
+
+    assert "entry stale may continue" in context
+    assert "does not allow source/runtime mutation workflows to defer" in consequence_gate
+    assert "mutation workflows are not artifact-only map handoffs" in passive_gate
 
 
 def test_map_update_template_does_not_rebuild_after_successful_incremental_update():

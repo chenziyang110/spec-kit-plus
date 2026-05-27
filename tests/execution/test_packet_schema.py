@@ -156,6 +156,8 @@ def test_worker_task_packet_round_trips_through_json() -> None:
         done_criteria=["login/logout behavior implemented"],
         handoff_requirements=["return changed files"],
         platform_guardrails=["supported_platforms: windows, linux"],
+        does_not_remove=["scaffold capability via TUI route"],
+        capability_operations=["implements check command", "does not own scaffold operation"],
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
         consequence_obligations=[
             ConsequenceObligation(
@@ -180,6 +182,8 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.context_bundle[1].path == ".specify/project-cognition/project-cognition.db"
     assert restored.required_references[0].path == "src/contracts/auth.py"
     assert restored.platform_guardrails == ["supported_platforms: windows, linux"]
+    assert restored.does_not_remove == ["scaffold capability via TUI route"]
+    assert restored.capability_operations == ["implements check command", "does not own scaffold operation"]
     assert restored.consequence_obligations[0].obligation_id == "CA-001"
     assert restored.consequence_obligations[0].claim == "Running workers drain before close completes"
 

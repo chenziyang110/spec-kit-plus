@@ -189,6 +189,19 @@ def test_validate_worker_task_packet_rejects_incomplete_consequence_obligation(
     assert "consequence obligation" in exc.value.message
 
 
+def test_validate_worker_task_packet_requires_does_not_remove_guard_for_surface_antigoal(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.anti_goals = ["Do not add public commands beyond check and publish"]
+    sample_packet.does_not_remove = []
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "does-not-remove" in exc.value.message
+
+
 def test_compile_worker_task_packet_collects_must_preserve_obligations(
     tmp_path: Path,
 ) -> None:

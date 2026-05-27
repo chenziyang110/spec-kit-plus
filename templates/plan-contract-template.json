@@ -7,6 +7,12 @@
   "must_preserve": [],
   "allowed_optimization_scope": [],
   "acceptance_obligations": [],
+  "capability_operations": [],
+  "capability_preservation": {
+    "required": false,
+    "operations": [],
+    "surface_minimization_policy": "Command-surface minimization must not delete capability; remap preserved operations to an explicit entry point or record a user-confirmed deferral."
+  },
   "mp_obligations": [],
   "open_conflicts": [],
   "hard_unknown_count": 0,

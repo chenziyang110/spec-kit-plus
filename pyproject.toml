@@ -49,6 +49,7 @@ packages = ["src/specify_cli"]
 "templates/debug.md" = "specify_cli/core_pack/templates/debug.md"
 "templates/discussion-state-template.md" = "specify_cli/core_pack/templates/discussion-state-template.md"
 "templates/implement-execution-state-template.json" = "specify_cli/core_pack/templates/implement-execution-state-template.json"
+"templates/plan-contract-template.json" = "specify_cli/core_pack/templates/plan-contract-template.json"
 "templates/plan-template.md" = "specify_cli/core_pack/templates/plan-template.md"
 "templates/project-handbook-template.md" = "specify_cli/core_pack/templates/project-handbook-template.md"
 "templates/project-learning-detail-template.md" = "specify_cli/core_pack/templates/project-learning-detail-template.md"
@@ -60,6 +61,8 @@ packages = ["src/specify_cli"]
 "templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"
 "templates/spec-template.md" = "specify_cli/core_pack/templates/spec-template.md"
 "templates/tasks-template.md" = "specify_cli/core_pack/templates/tasks-template.md"
+"templates/task-index-template.json" = "specify_cli/core_pack/templates/task-index-template.json"
+"templates/task-packet-template.json" = "specify_cli/core_pack/templates/task-packet-template.json"
 "templates/workflow-state-template.md" = "specify_cli/core_pack/templates/workflow-state-template.md"
 "templates/vscode-settings.json" = "specify_cli/core_pack/templates/vscode-settings.json"
 # Command templates

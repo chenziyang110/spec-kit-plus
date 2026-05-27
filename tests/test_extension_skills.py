@@ -425,6 +425,9 @@ class TestBuiltInSkillGeneration:
         assert "planning/checkpoints.ndjson" in plan_body
         assert "consume `planning/evidence-index.json` before final synthesis" in plan_body.lower()
         assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_body.lower()
+        assert "artifact-writing delegated planning lanes must be dispatched" in plan_body.lower()
+        assert "writable, execution-capable native subagent" in plan_body.lower()
+        assert "do not dispatch a read-only explorer, reviewer, or diagnostic lane" in plan_body.lower()
         assert "execution_model: adaptive" in plan_body
         assert "execution_mode: light | standard | heavy" in plan_body
         assert "planning evidence paths when delegated lanes were used" in plan_body

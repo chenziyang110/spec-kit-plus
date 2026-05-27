@@ -139,6 +139,14 @@ judgment in an established Spec Kit Plus repository:
   path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
+- Mutation closeout requires a refresh or dirty outcome. Entry stale may continue
+  with live repository evidence, but mutation workflows are not artifact-only map handoffs:
+  if they change source/runtime truth-owning surfaces, shared surfaces,
+  command/route/contract boundaries, verification entry points, runtime
+  assumptions, or other map-level coverage facts, they must finish with either
+  an actual `{{invoke:map-update}}` refresh using the changed paths, or
+  `project-cognition mark-dirty` when the required refresh cannot be completed
+  now.
 - Treat map maintenance as a user-invoked workflow handoff unless the user
   explicitly asked to refresh cognition runtime state. Do not silently switch into `sp-map-update`,
   `sp-map-scan`, or `sp-map-build` yourself from another workflow; continue with

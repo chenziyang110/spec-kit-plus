@@ -109,6 +109,147 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     assert packet.consequence_obligations[0].recovery_validation_refs == ["pytest tests/unit/test_auth_service.py -q"]
 
 
+def test_compile_worker_task_packet_carries_capability_operation_guards(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n',
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `src/cli/new.ts`",
+                "",
+                "## Forbidden Implementation Drift",
+                "",
+                "- Do not add public commands beyond jx-skills/check/publish",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- npm test -- tests/cli/new.test.ts",
+                "",
+                "## Capability Operation Coverage",
+                "",
+                "| Operation | Upstream Source | Selected Entry Point | Task IDs / Packet Fields | Validation | Degradation Check |",
+                "| --- | --- | --- | --- | --- | --- |",
+                "| create/scaffold skill | spec.md#capability-preservation-ledger | TUI route | T017, does_not_remove, capability_operations | npm test -- tests/cli/new.test.ts | not template-only / not manual-copy-only |",
+                "",
+                "## Task Guardrail Index",
+                "",
+                "- T017 -> does-not-remove guard: preserve create/scaffold skill via TUI route",
+                "",
+                "- [ ] T017 [US1] Implement authoring route in src/cli/new.ts",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T017",
+    )
+
+    assert packet.does_not_remove == ["preserve create/scaffold skill via TUI route"]
+    assert packet.capability_operations == ["create/scaffold skill -> TUI route"]
+
+
+def test_compile_worker_task_packet_reads_enriched_task_contract_fields(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n',
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `src/cli/router.ts`",
+                "",
+                "## Forbidden Implementation Drift",
+                "",
+                "- Do not add public commands beyond check and publish",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- npm test -- tests/cli/router.test.ts",
+                "",
+                "## T018: Wire authoring route",
+                "",
+                "### Scope Boundaries",
+                "| Field | Value |",
+                "|-------|-------|",
+                "| write_scope | [src/cli/router.ts] |",
+                "| read_scope | [src/cli/new.ts] |",
+                "| forbidden | [.env] |",
+                "| does_not_remove | [scaffold capability via TUI route] |",
+                "| capability_operations | [create/scaffold skill -> TUI route] |",
+                "",
+                "### Anti-Goals",
+                "- Do not add public commands beyond check and publish",
+                "",
+                "- [ ] T018 [US1] Wire authoring route",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T018",
+    )
+
+    assert packet.anti_goals == ["Do not add public commands beyond check and publish"]
+    assert packet.scope.write_scope == ["src/cli/router.ts"]
+    assert "src/cli/new.ts" in packet.scope.read_scope
+    assert ".env" in packet.forbidden_drift
+    assert ".env" in packet.intent.constraints
+    assert packet.does_not_remove == ["scaffold capability via TUI route"]
+    assert packet.capability_operations == ["create/scaffold skill -> TUI route"]
+
+
 def test_compile_worker_task_packet_accepts_materialized_task_input(
     tmp_path: Path,
 ) -> None:

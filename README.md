@@ -191,6 +191,8 @@ Use `discussion` before `specify` when the idea is exploratory, has product trad
 
 Generated workflows preserve the user's confirmed product scope. Scope reduction requires user confirmation: agents should not steer a requirement toward an MVP, pilot, prototype, first-story release, or smaller validation build unless the user asked for that shape, the request already defines that boundary, or a named constraint makes reduced scope a decision the user confirms.
 
+Command-surface minimization must not delete capability. If upstream discussion or specification text includes a new/create/scaffold/authoring operation, later workflows must preserve it through an explicit public command, TUI route, core API, private helper, or user-confirmed deferral. Static templates, manual copy steps, and template-only docs are supporting assets, not a substitute for the confirmed operation unless the user explicitly chose that narrower entry point.
+
 For cross-project work, current project cognition cannot prove another project's files. Lock the target project root and record whether target evidence comes from target cognition, minimal live reads, user confirmation, external source, or explicit assumptions.
 
 For an existing repository that needs product documentation rather than a new
@@ -237,6 +239,10 @@ handoff summary. Capability-like upstream signals must appear in
 `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts`; ambiguous product terms such as "real",
 "capability", "usable", fetch, probe, model, endpoint, `能力`, `真实`, and
 `可用` must be decomposed before scope is narrowed.
+Operation-shaped terms such as `new`, create, scaffold, authoring, CLI path,
+and TUI path receive the same treatment: command-surface minimization must not
+delete capability, and a manual copy or template-only interpretation requires
+explicit user confirmation.
 
 The normal next step remains exactly one of `/sp.plan`, `/sp.clarify`, or
 `/sp.deep-research`. `/sp.plan` is valid only after the written artifacts pass

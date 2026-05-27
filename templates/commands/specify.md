@@ -106,7 +106,7 @@ When `sp-specify` starts from `sp-discussion`, do not trust only the handoff sum
   - `open-questions.md`
 - Also inspect `technical-options.md` and `project-context.md` when present or named by the handoff.
 - Record every inspected source in `source_files_read`.
-- Extract every upstream capability-like signal from the handoff and source files. Capability-like signals include words and phrases around capability, real, usable, works, end-to-end, fetch, probe, health, model, endpoint, integration, auth, `能力`, `真实`, and `可用`.
+- Extract every upstream capability-like signal from the handoff and source files. Capability-like signals include words and phrases around capability, real, usable, works, end-to-end, fetch, probe, health, model, endpoint, integration, auth, `new` command, `<tool> new`, create, scaffold, authoring, template creation, authoring workflow, CLI path, TUI path, `能力`, `真实`, and `可用`.
 - For each signal, write exactly one `source_signal_disposition` row:
   - `preserved`
   - `in_scope`
@@ -114,6 +114,8 @@ When `sp-specify` starts from `sp-discussion`, do not trust only the handoff sum
   - `dropped`
   - `clarification_blocker`
 - Planning readiness is blocked when a capability-like upstream signal has no disposition, when a narrowed interpretation is not user-confirmed, or when an upstream signal is put out of scope without confirmation and a reopen trigger.
+- Treat create/scaffold/`new` command/authoring workflow wording as an operation-shaped capability signal, not as documentation garnish. If the user also asked for a small command surface, preserve the capability operation by mapping it to an explicit entry point such as a TUI route, core API, public CLI command, or user-confirmed deferral. Do not silently replace a confirmed create/scaffold operation with manual copy docs, a static template directory, or a template-only note.
+- Maintain a capability preservation ledger for any operation-shaped signal whose entry point changes during normalization: upstream expression, selected entry point, artifacts that implement it, acceptance proof, and user confirmation for any narrowing.
 - Preserve the disposition ledger in both `alignment.md` and the minimal compatibility `brainstorming/handoff-to-specify.json`.
 - If Markdown and JSON mismatch on user-confirmed scope, quality gate, or must-preserve identity, record the mismatch and route back to refresh the handoff instead of silently repairing it.
 

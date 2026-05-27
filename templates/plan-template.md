@@ -37,6 +37,25 @@
 | --- | --- | --- | --- | --- |
 | MP-### | [goal | scope | non_goal | scenario | decision | reference | tradeoff] | [what the plan must preserve] | [section anchor] | [condition, conflict decision, or none] |
 
+## Capability Preservation Plan
+
+<!--
+  Use this when the spec or discussion handoff names an operation such as
+  new, create, scaffold, authoring, template creation, CLI path, or TUI path.
+
+  Command-surface minimization may remap where the user invokes the capability,
+  but it must not delete capability. If the public command surface stays small,
+  preserve the operation through an explicit TUI route, core API, public CLI
+  command, private helper, or user-confirmed deferral.
+-->
+
+| Capability Operation | Upstream Source | Selected Entry Point | Owning Surface | Required Implementation | Acceptance Proof | Reopen Or Conflict Condition |
+| --- | --- | --- | --- | --- | --- | --- |
+| [create/scaffold operation] | [spec/alignment/handoff source] | [TUI route | core API | public CLI | private helper | deferred] | [module, route, command, or contract] | [buildable behavior, not just templates/docs] | [test, quickstart, contract, or manual check] | [condition, conflict decision, or none] |
+
+- A static template directory, manual copy docs, or authoring guide may support this plan, but it does not satisfy a confirmed scaffold operation unless manual copy was explicitly selected as the user-facing entry point.
+- If this plan removes, narrows, or defers an upstream create/scaffold operation, record user confirmation here before task generation proceeds.
+
 ## Implementation Target Boundary
 
 - **Current project root**: [copy from `brainstorming/handoff-to-specify.json` `context_boundary.current_project_root`]

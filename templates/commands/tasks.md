@@ -157,6 +157,17 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
 - Preserve `CA-###` IDs verbatim in `tasks.md`, handoff-to-tasks metadata, task-index metadata, and worker packet shaping instructions so `sp-analyze` and `sp-implement` cannot drop them.
 - If a consequence obligation is unmapped, do not emit a normal `/sp.analyze` handoff. Repair the task package or route back to `{{invoke:plan}}`, `{{invoke:clarify}}`, or `{{invoke:deep-research}}` with the unmapped obligation named.
 
+## Capability Operation Coverage
+
+Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`.
+
+- Operation-shaped capabilities include new/create/scaffold/authoring/template-creation, CLI path, TUI path, lifecycle action, API entry point, and any user workflow verb that changes implementation or validation shape.
+- For each capability operation, create at least one implementation task, test/quickstart task, join point, packet field, or explicit deferred note with user confirmation.
+- Treat template-only task output as insufficient for a confirmed create/scaffold capability unless the plan explicitly selected manual copy as the entry point.
+- Detect semantic degradation: if an upstream create/scaffold operation becomes manual copy docs, static template-only support, or an authoring guide with no executable entry point, stop and route back to `{{invoke:plan}}` or `{{invoke:clarify}}`.
+- Anti-goals must include a does-not-remove guard when they restrict command, route, API, lifecycle, or public surface growth. Example: "Do not add public commands beyond X; does-not-remove guard: preserve scaffold capability via TUI route or core API."
+- Do not generate an anti-goal that forbids a public command and also leaves the underlying operation without another selected entry point.
+
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, split work only into the supported task-generation lanes: `story and phase decomposition`, `dependency graph analysis`, and `write-set and parallel-safety analysis`.
     - [AGENT] Before dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
@@ -171,11 +182,14 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
       - If the workload is standard, native subagents are unavailable, and no high-risk trigger is present, continue leader-inline with `capability_degraded: true`.
       - If the workload is heavy or safety-critical and native subagents are unavailable, or if heavy task generation cannot be packetized safely, record `workflow_status: blocked`, `dispatch_shape: subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`; stop before synthesizing `tasks.md`.
     - Managed-team fallback is not part of adaptive plan/tasks dispatch.
+    - Artifact-writing delegated task-generation lanes must be dispatched as writable, execution-capable native subagent lanes. If the runtime exposes role, sandbox, or permission choices, select a role/sandbox that can write the declared handoff file; a read-only lane is not valid for `task-generation/handoffs/<lane-id>.json`.
+    - Do not dispatch a read-only explorer, reviewer, or diagnostic lane to satisfy a delegated task-generation lane that must write a handoff. Such lanes may inform the leader only as supplemental evidence, and they do not satisfy `one-subagent` or `parallel-subagents` task-generation handoff requirements.
+    - The delegated lane contract's allowed write scope must include the exact expected handoff path, `task-generation/handoffs/<lane-id>.json`, and must forbid writes outside that path unless the lane is explicitly assigned a task-generation artifact.
     - Before dispatching any delegated task-generation lane, persist a `task_generation_checkpoint` record to `task-generation/checkpoints.ndjson` with the lane id, dispatch shape, authoritative inputs, expected handoff path, and current workflow-state summary.
    - Each delegated lane must persist the lane's structured handoff to `task-generation/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or synthesizes `tasks.md`.
    - Update `task-generation/evidence-index.json` after each accepted delegated lane handoff with lane id, handoff path, source artifacts inspected, decisions or constraints contributed, affected task IDs or batch IDs, blocker status, and integration status.
     - Consume `task-generation/evidence-index.json` before final task synthesis when delegated lanes were used: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target task ID, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or escalation that consumed it.
-    - Do not synthesize `tasks.md` from chat-only delegated lane results. If a delegated lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a valid handoff path.
+    - Do not synthesize `tasks.md` from chat-only delegated lane results. If a delegated lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a writable lane and a valid handoff path.
     - When resuming after compaction and delegated lanes were used, re-read `workflow-state.md`, `task-generation/checkpoints.ndjson`, `task-generation/evidence-index.json`, and all accepted `task-generation/handoffs/<lane-id>.json` files before continuing task synthesis.
     - Required join points:
       - before writing `tasks.md`

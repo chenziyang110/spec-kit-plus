@@ -13,6 +13,8 @@
   "allowed_optimization_scope": [],
   "required_validation": [],
   "stop_and_reopen_conditions": [],
+  "does_not_remove": [],
+  "capability_operations": [],
   "consequence_gate": {
     "triggered": false,
     "trigger_reason": null,

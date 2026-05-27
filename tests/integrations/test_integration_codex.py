@@ -718,6 +718,9 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "delegated_planning_lanes: none" in plan_content
     assert "Consume `planning/evidence-index.json` before final synthesis" in plan_content
     assert "Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_content
+    assert "artifact-writing delegated lanes must use writable" in plan_content.lower()
+    assert "execution-capable native subagents" in plan_content.lower()
+    assert "read-only explorer, reviewer, or diagnostic lane" in plan_content.lower()
     assert "heuristics" not in plan_content.lower()
 
     clarify_content = (skills_dir / "sp-clarify" / "SKILL.md").read_text(encoding="utf-8")
@@ -740,6 +743,9 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "Consume `task-generation/evidence-index.json` before final task synthesis" in tasks_content
     assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_content
     assert "Do not synthesize `tasks.md` from chat-only delegated lane results" in tasks_content
+    assert "artifact-writing delegated lanes must use writable" in tasks_content.lower()
+    assert "execution-capable native subagents" in tasks_content.lower()
+    assert "read-only explorer, reviewer, or diagnostic lane" in tasks_content.lower()
 
     implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
     assert "Extract `Implementation Constitution` from `plan.md`" in implement_content

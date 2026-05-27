@@ -100,6 +100,16 @@
 - [Sequencing dependency, coupling note, or shared precondition]
 - [Cross-capability constraint or integration note]
 
+### Capability Preservation Ledger
+
+Use this ledger when an upstream signal names an operation such as new, create, scaffold, authoring, template creation, CLI path, or TUI path.
+
+| Upstream Signal | Source | Selected Entry Point | Implementation Obligation | Acceptance Proof | Narrowing Confirmation |
+| --- | --- | --- | --- | --- | --- |
+| [signal] | [source path / user message] | [public CLI command | TUI route | core API | deferred] | [what must be buildable, not just documented] | [test, quickstart, check, or manual proof] | [confirmation source or not narrowed] |
+
+Do not replace a confirmed capability operation with manual copy steps, static template-only support, or documentation-only guidance unless the user explicitly confirms that narrowing and the reopen trigger is recorded.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
