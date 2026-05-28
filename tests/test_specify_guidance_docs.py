@@ -265,7 +265,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
         assert "/sp-" not in section
 
     assert "`map-update` for localized stale cognition runtime refresh" in support_guidance
-    assert "changed-path maintenance" in support_guidance
+    assert "external/manual changed-path map maintenance" in support_guidance
     assert "recorded refresh and ready refresh" in readme.lower()
     assert "support drift is not runtime-truth staleness" in readme.lower()
     assert "`partial_refresh`" in readme
@@ -277,6 +277,13 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     )
     assert "use `map-update` for changed-path" not in readme.lower()
     assert "changed-path and localized stale cognition runtime refresh" not in readme.lower()
+    quickstart_lower = _read("docs/quickstart.md").lower()
+    assert "ordinary changed-path maintenance" not in quickstart_lower
+    assert "recommend `map-update` for changed-path map maintenance" not in quickstart_lower
+    assert "changed-path and localized stale cognition maintenance follow-up" not in quickstart_lower
+    assert "recommend project cognition map maintenance as a follow-up" not in quickstart_lower
+    assert "source-changing `sp-*` workflows run inline project cognition update for their own closeout" in quickstart_lower
+    assert "source-changing `sp-*` workflow that alters navigation meaning should run inline project cognition update" in quickstart_lower
     assert "`map-scan` followed by `map-build` only when the baseline is first/missing/unusable, schema failure" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance

@@ -263,24 +263,27 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "which surfaces were left unverified" in content
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
-    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "if the change is implemented but verification or coverage is incomplete, do not claim the task is complete" in content
 
 
 def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
-    assert "ordinary uncertain closure" in content
-    assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
-    assert "use map-update for ordinary existing-baseline gaps" in content
-    assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
-    assert "complete-refresh" in content
-    assert "project-cognition validate-build --format json" in content
-    assert "incremental freshness finalization" in content
-    assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "if a refresh cannot be completed now" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+    assert "project-cognition delta append" in content
+    assert "project-cognition update --delta-session" in content
+    assert "project-cognition update --changed-path" in content
+    assert "project_cognition_refresh" in content
+    assert "changed_code_paths" in content
+    assert "changed_behavior_surfaces" in content
+    assert "verification_evidence" in content
+    assert "dirty only when inline update cannot complete" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" not in content
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
+    assert "it is not routine cleanup for changes this workflow just made" in content
+    assert "escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for first/missing/unusable baseline" in content
+    assert "schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in content
     assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
-    assert "manual override/fallback" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:

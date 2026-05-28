@@ -90,7 +90,7 @@ judgment in an established Spec Kit Plus repository:
 - For blocked, stale, or incomplete references, do not treat legacy
   `.specify/project-map/**` outputs as current truth. Fall back to minimal live
   reads and recommend `{{invoke:map-update}}` for localized stale coverage, weak
-  reference coverage, ordinary changed-path maintenance, or ordinary
+  reference coverage, external/manual changed-path map maintenance, or ordinary
   existing-baseline gaps after a usable reference baseline.
 - For missing or unusable reference baselines, recommend
   `{{invoke:map-scan}} -> {{invoke:map-build}}`. Recommend scan/build for a

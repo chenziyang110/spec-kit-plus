@@ -808,7 +808,7 @@ def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> No
     assert "map-update" in normalized
     assert "localized stale coverage" in normalized
     assert "weak reference coverage" in normalized
-    assert "ordinary changed-path maintenance" in normalized
+    assert "external/manual changed-path map maintenance" in normalized
     assert "ordinary existing-baseline gaps after a usable reference baseline" in normalized
     assert "for missing or unusable reference baselines" in normalized
     assert "map-scan -> map-build" in normalized
@@ -820,6 +820,8 @@ def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> No
         "baseline_identity_invalid",
     ):
         assert condition in normalized
+
+    assert "ordinary changed-path maintenance" not in normalized
 
     for phrase in STALE_MAP_MAINTENANCE_POLICY_PHRASES:
         assert phrase not in normalized
@@ -1082,12 +1084,12 @@ def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
         ),
         "constitution template": _extract_matching_lines(
             _read("templates/constitution-template.md"),
-            "recommend `map-update`",
+            "ordinary existing-baseline gaps",
             context=4,
         ),
         "constitution product profile": _extract_matching_lines(
             _read("templates/constitution/profiles/product.yml"),
-            "recommend `map-update`",
+            "ordinary existing-baseline gaps",
             context=4,
         ),
         "base integration": "\n".join(
@@ -2426,12 +2428,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in lowered
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
-    assert "if you cannot complete that refresh in the current pass" in lowered
+    assert "dirty only when inline update cannot complete" in lowered
     assert ".specify/project-map/index/status.json" not in lowered
-    assert "project-cognition validate-build --format json" in lowered
-    assert "incremental freshness finalization" in lowered
-    assert "do not run `complete-refresh` as a rebuild finalizer" in lowered
-    assert "manual override/fallback" in lowered
+    assert "include `--commit-range" in lowered
+    assert "only with `--delta-session`" in lowered
+    assert "inline update is unavailable" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
@@ -2525,12 +2526,13 @@ def test_runtime_cognition_partials_preserve_mutation_closeout_rule() -> None:
 
     for content in (context, consequence_gate, passive_gate):
         assert "mutation closeout" in content
-        assert "entry stale" in content
-        assert "refresh or dirty outcome" in content
+        assert "entry-time stale" in content or "entry stale" in content
+        assert "inline project cognition update" in content
+        assert "dirty only when inline update cannot complete" in content or "mark-dirty" in content
 
-    assert "entry stale may continue" in context
-    assert "does not allow source/runtime mutation workflows to defer" in consequence_gate
-    assert "mutation workflows are not artifact-only map handoffs" in passive_gate
+    assert "does not waive closeout ownership" in context
+    assert "does not allow source/runtime mutation workflows to defer closeout" in consequence_gate
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in passive_gate
 
 
 def test_map_update_template_does_not_rebuild_after_successful_incremental_update():
@@ -2594,7 +2596,7 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "if cognition freshness is `stale`, treat map output as advisory" in shared_gate
     assert "continue with live repository evidence" in shared_gate
-    assert "follow-up map maintenance" in shared_gate
+    assert "external/manual maintenance" in shared_gate
     for gate in (lowered_gate, lowered_planning_gate):
         assert "changed paths missing from `path_index`" in gate
         assert "recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps" in gate
@@ -2913,7 +2915,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         assert "cognition follow-up" in lowered
         assert "artifact-only" in lowered
         assert "actual source/runtime changes" in lowered
-        assert "project-cognition mark-dirty" not in lowered
+        assert "use `project-cognition mark-dirty` only when inline update cannot complete" in lowered
         assert "project-cognition complete-refresh" not in lowered
 
     for path in [
@@ -2924,8 +2926,8 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         lowered = _read(path).lower()
         assert "project cognition runtime" in lowered
         assert "map-update" in lowered
-        assert "complete-refresh" in lowered
-        assert "manual override/fallback" in lowered
+        assert "project-cognition update --delta-session" in lowered
+        assert "dirty only when inline update cannot complete" in lowered
         assert "git-baseline freshness" not in lowered
 
 
@@ -2938,7 +2940,8 @@ def test_planning_only_workflows_do_not_dirty_project_cognition_after_artifact_w
     ]:
         lowered = _read(path).lower()
 
-        assert "project-cognition mark-dirty" not in lowered
+        assert "do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date" in lowered
+        assert "use `project-cognition mark-dirty` only when inline update cannot complete" in lowered
         assert "project-cognition complete-refresh" not in lowered
         assert "project-cognition validate-build --format json" not in lowered
         assert "artifact-only" in lowered

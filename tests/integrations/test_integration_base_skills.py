@@ -308,7 +308,7 @@ class SkillsIntegrationTests:
         assert "map-update" in content
         assert "localized stale coverage" in content
         assert "weak reference coverage" in content
-        assert "ordinary changed-path maintenance" in content
+        assert "external/manual changed-path map maintenance" in content
         assert "ordinary existing-baseline gaps after a usable reference baseline" in content
         assert "for missing or unusable reference baselines" in content
         assert "map-scan" in content
@@ -321,6 +321,8 @@ class SkillsIntegrationTests:
             "baseline_identity_invalid",
         ):
             assert condition in content
+
+        assert "ordinary changed-path maintenance" not in content
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in content
 

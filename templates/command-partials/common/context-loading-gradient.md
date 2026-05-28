@@ -98,7 +98,7 @@ Do not treat handbook-first or layered project-map files as evidence. If
 query-returned coverage is insufficient, inspect live repository surfaces
 directly and recommend `sp-map-update` for ordinary existing-baseline gaps,
 localized stale cognition refresh, weak localized coverage after a usable
-baseline, or ordinary changed-path maintenance. Use `sp-map-scan -> sp-map-build`
+baseline, or external/manual changed-path map maintenance. Use `sp-map-scan -> sp-map-build`
 only for first/missing/unusable baseline, schema failure, zero active-generation
 `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 
