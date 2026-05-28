@@ -105,6 +105,31 @@ The runtime may derive lightweight aliases from project data, but it must keep
 provenance clear. A derived alias is still attached to an existing graph node;
 it is not a new project concept.
 
+### 1A. Alias Material Source
+
+The first implementation must not depend on an unpopulated alias table. Today
+the runtime schema contains `alias_index`, but the build/import path primarily
+imports nodes, edges, observations, and path index rows. Therefore the MVP
+lexicon must derive candidate aliases at query time from already imported graph
+data:
+
+- node titles
+- node ids
+- node types
+- node attrs, including any `aliases`, `domain`, `owner`, route, or workflow
+  fields already present in scan artifacts
+- path index rows and path segments
+- evidence source paths
+- observation summaries when evidence-backed
+
+If an implementation chooses to persist aliases in `alias_index` or
+`symbol_index` for performance or richer matching, that is not a lexicon-only
+change. It must update scan artifact contracts, `map-build`, import code, and
+validation tests in the same pass so the persisted index has a reliable data
+source. Tests that require aliases in the first pass should seed node attrs,
+paths, or evidence-backed observations unless the implementation also ships
+alias-index population.
+
 ### 2. User Query Ranks Existing Concepts
 
 The user's request is a selector over the graph-backed candidate universe.
@@ -194,6 +219,38 @@ Required agent decisions:
 - `paths`: selected or hinted graph-backed paths when the candidate evidence
   justifies them
 
+The compatibility fields remain string arrays, but they are not enough to
+preserve reviewable decisions. The query plan must also support
+`concept_decisions`:
+
+```json
+{
+  "selected_concepts": ["concept:GEN-0001:N-gui"],
+  "rejected_concepts": ["concept:GEN-0001:N-login"],
+  "concept_decisions": [
+    {
+      "concept_id": "concept:GEN-0001:N-gui",
+      "decision": "selected",
+      "selection_reason": "The user described whole-program GUI smoothness and this node owns the GUI surface.",
+      "confidence": "high"
+    },
+    {
+      "concept_id": "concept:GEN-0001:N-login",
+      "decision": "rejected",
+      "selection_reason": "Login is a GUI flow but the request is not authentication-specific.",
+      "confidence": "medium"
+    }
+  ]
+}
+```
+
+`selection_reason` remains as a global summary for backward compatibility.
+`concept_decisions` is the durable per-concept explanation. When both are
+present, `query` should prefer `concept_decisions` for per-concept rationale and
+use the global `selection_reason` only as a summary. Older agents may still send
+only `selected_concepts`, `rejected_concepts`, and `selection_reason`; `query`
+must accept that shape but should report weaker traceability.
+
 The agent must not treat `lexicon` as the final answer. The query is complete
 only after readiness has been interpreted, `query --query-plan` has returned a
 task-local bundle, and live evidence has proven any technical claims.
@@ -219,6 +276,45 @@ The bundle should include:
 When a query plan names selected concepts, query should resolve those concepts
 through graph ids or stable candidate ids, not only through path hints.
 
+### 6A. Generation And Candidate Provenance
+
+`lexicon` and `query` must preserve the graph generation that made the
+candidate set meaningful.
+
+The lexicon payload should include:
+
+- `active_generation_id`
+- `lexicon_generation_id`
+- `candidate_universe_version`
+- `candidate_universe.counts`
+- `candidate_universe.truncated`
+- `candidate_universe.selection_window`
+
+Candidate ids must be stable inside one active generation. The first
+implementation should use graph node ids as the compatibility concept ids when
+the candidate maps one-to-one to a node:
+
+```text
+concept:<active_generation_id>:<node_id>
+```
+
+When a candidate represents a specific alias, path segment, or evidence-backed
+derived match for the same node, the candidate id may append a source-qualified
+suffix:
+
+```text
+concept:<active_generation_id>:<node_id>:alias:<normalized-alias-hash>
+concept:<active_generation_id>:<node_id>:path:<normalized-path-hash>
+```
+
+The query plan may carry both `selected_concepts` and
+`lexicon_generation_id`. If the graph active generation changes between
+`lexicon` and `query`, `query` must not silently reinterpret closed-world
+selections against a different graph. It should return an ambiguity or coverage
+gap state with a clear reason, such as `lexicon_generation_mismatch`, and ask
+the agent to rerun `lexicon` unless the selected ids are still valid and the
+runtime can prove compatibility.
+
 ### 7. Shared Template Contract
 
 Because most `sp-*` workflows use project cognition, the mental model must live
@@ -241,6 +337,21 @@ Individual workflow templates should only declare their intent profile and any
 workflow-specific consumption rules. They should not duplicate the full
 lexicon/query contract.
 
+### 8. Integration Renderers Are First-Class Surfaces
+
+Generated output is not produced only from `templates/**`. Integration renderers
+and appenders can inject project cognition guidance after template processing.
+Those generated addenda must use the same graph-backed concept-selection
+contract as the shared partials.
+
+In particular, generation code must not keep appending wording such as
+"translate raw user intent into a query plan using returned map terms" when the
+shared templates have moved to graph-backed project concept candidates. The
+implementation plan must audit generated Markdown, TOML, skills-based, Codex,
+and integration-specific command surfaces, including appenders in
+`src/specify_cli/integrations/base.py` and agent-specific templates under
+`src/specify_cli/integrations/**`.
+
 ## Required Surface Changes
 
 Implementation should update these surfaces together:
@@ -249,6 +360,10 @@ Implementation should update these surfaces together:
 - `tools/project-cognition/internal/query/query.go`
 - `tools/project-cognition/internal/store/**` if graph lookup helpers are
   needed
+- `tools/project-cognition/internal/store/import.go`
+- `tools/project-cognition/internal/store/schema.go`
+- `tools/project-cognition/internal/build/build.go`
+- `tools/project-cognition/internal/scanartifacts/**`
 - `tools/project-cognition/internal/cli/cli.go` if new JSON fields or options
   are exposed
 - `templates/command-partials/common/context-loading-gradient.md`
@@ -259,6 +374,9 @@ Implementation should update these surfaces together:
   `templates/commands/{specify,clarify,deep-research,plan,tasks,analyze,fast,quick,implement,debug,discussion,checklist,prd-scan,map-build}.md`
 - `README.md`
 - `PROJECT-HANDBOOK.md`
+- `src/specify_cli/integrations/base.py`
+- integration-specific appenders and templates under
+  `src/specify_cli/integrations/**`
 - generated integration tests for Markdown, TOML, skills-based, and Codex
   surfaces
 - project cognition runtime tests
@@ -278,6 +396,8 @@ Expected top-level fields:
 - `recommended_next_action`
 - `intent`
 - `query`
+- `active_generation_id`
+- `lexicon_generation_id`
 - `terms`
 - `available_terms`
 - `concept_candidates`
@@ -313,6 +433,32 @@ Each `concept_candidates` item should include:
 Fields may be omitted when unavailable, but the runtime should prefer empty
 lists or explicit missing coverage over misleading placeholder values.
 
+`query_plan` should accept these fields:
+
+- `raw_query`
+- `expanded_queries`
+- `paths`
+- `path_hints`
+- `selected_concepts`
+- `rejected_concepts`
+- `concept_decisions`
+- `selection_reason`
+- `lexicon_generation_id`
+- `reason` as the compatibility alias for `selection_reason`
+
+Each `concept_decisions` item should include:
+
+- `concept_id`
+- `decision`: `selected`, `rejected`, or `deferred`
+- `selection_reason`
+- `confidence`
+- optional `paths`
+- optional `risk`
+
+`selected_concepts` and `rejected_concepts` stay as string-array compatibility
+fields. Implementations should not upgrade them to object arrays unless they
+also preserve the old string-array input shape.
+
 ## Testing Strategy
 
 Runtime tests should cover:
@@ -327,7 +473,11 @@ Runtime tests should cover:
   than silently selected
 - no relevant graph candidates produces `unmapped_intent` or missing coverage
 - query resolves selected concept ids to affected nodes and minimal live reads
+- query preserves and consumes per-concept decisions
+- query detects `lexicon_generation_id` mismatch when active generation changes
 - missing or blocked runtime state preserves existing readiness behavior
+- alias tests either seed query-time-derived alias sources or verify
+  alias-index population through build/import in the same pass
 
 Template and integration tests should cover:
 
@@ -336,6 +486,8 @@ Template and integration tests should cover:
 - workflow-local wording does not imply raw query-token candidates are enough
 - passive skills teach `--intent` as a profile
 - Codex skill generation receives the same shared contract
+- integration renderers and appenders no longer inject the old "returned map
+  terms" mental model after template processing
 
 ## Rollout
 
@@ -343,22 +495,28 @@ Template and integration tests should cover:
 2. Replace token-only lexicon candidate construction with graph-backed
    candidate ranking.
 3. Add intent profiles for ranking and bundle shaping.
-4. Teach query to resolve selected concept ids, not just path hints.
-5. Update shared project cognition partials and passive skills.
-6. Update direct workflow wording only where it bypasses the shared partial.
-7. Update README, handbook, and generated integration tests.
-8. Run Go runtime tests and Python template/integration tests.
+4. Add `active_generation_id`, `lexicon_generation_id`,
+   `candidate_universe_version`, and stable candidate id provenance.
+5. Add `concept_decisions` while preserving string-array compatibility for
+   `selected_concepts` and `rejected_concepts`.
+6. Teach query to resolve selected concept ids, not just path hints, and to
+   reject or flag generation mismatches.
+7. Decide whether alias matching is query-time-derived only for the first pass
+   or persisted through `alias_index`; if persisted, update build/import and
+   scan artifact contracts in the same pass.
+8. Update shared project cognition partials and passive skills.
+9. Update integration renderers and generated addenda.
+10. Update direct workflow wording only where it bypasses the shared partial.
+11. Update README, handbook, and generated integration tests.
+12. Run Go runtime tests and Python template/integration tests.
 
 ## Open Decisions
 
 - Whether `lexicon` should return the full candidate universe for small
   projects or only ranked candidates plus universe counts.
-- Whether selected concepts should use stable graph node ids, synthetic
-  candidate ids, or both.
-- Whether graph-backed alias extraction belongs in `map-build` so query-time
-  lexicon stays fast, or whether query-time derivation is acceptable for the
-  first implementation.
 - Whether Chinese and other non-ASCII user queries need a dedicated tokenizer
   in the first pass or can rely on alias matching plus substring scoring.
 - Whether `query` should reject selected concept ids that were not present in
   the preceding `lexicon` payload, or accept any valid graph id for resumability.
+- Whether persisted `alias_index` population should ship in the first runtime
+  pass or follow after query-time derivation proves the matching behavior.
