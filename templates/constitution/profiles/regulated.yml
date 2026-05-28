@@ -86,6 +86,14 @@ engineering_standards: |
     source inspection, planning, debugging, implementation, task decomposition,
     or subagent dispatch. The query result MUST guide routing, minimal live
     reads, trust boundaries, control impact, and verification strategy.
+    Entry-time stale or weak cognition is advisory unless the user requested map
+    maintenance. Workflow-owned mutation closeout is not external map maintenance:
+    workflows that change project-related source, runtime, templates, config,
+    tests, generated assets, state contracts, control surfaces, or
+    behavior-bearing docs MUST run inline project cognition update from their
+    changed paths and affected surfaces. sp-map-update is for manual/external
+    maintenance after user edits, interrupted workflow repair, explicit map
+    maintenance, and follow-up repair.
   - **Follow Project Style and Structure**: Before implementing, inspect and follow
     the current project's established style, file organization, naming
     conventions, helper APIs, framework patterns, and architecture boundaries.

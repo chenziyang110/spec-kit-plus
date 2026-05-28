@@ -132,11 +132,16 @@ engineering_standards: |
     Legacy handbook or project-map exports are compatibility surfaces only.
     Map points, code proves: technical claims and completion claims MUST be
     backed by live project evidence, not by project cognition output alone.
-    Recommend `map-update` for localized stale cognition, ordinary changed-path
-    map maintenance, ordinary existing-baseline gaps, and weak localized coverage
-    after a usable baseline. Recommend `map-scan` followed by `map-build` only for
-    first/missing/unusable baseline, schema failure, zero active-generation
-    `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+    Entry-time stale or weak cognition is advisory unless the user requested map
+    maintenance. Workflow-owned mutation closeout is not external map maintenance:
+    workflows that change project-related source, runtime, templates, config, tests,
+    generated assets, state contracts, or behavior-bearing docs MUST run inline project cognition update from their changed paths and affected surfaces.
+    sp-map-update is for manual/external maintenance after user edits, interrupted
+    workflow repair, explicit map maintenance, and follow-up repair. Recommend
+    `map-update` for ordinary existing-baseline gaps. Recommend `map-scan` followed
+    by `map-build` only for first/missing/unusable baseline, schema failure, zero
+    active-generation `path_index` rows, `explicit_rebuild_requested`, or
+    `baseline_identity_invalid`.
   - **Follow Project Style and Structure**: Before implementing, inspect and follow
     the current project's established style, file organization, naming
     conventions, helper APIs, framework patterns, and architecture boundaries.

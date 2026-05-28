@@ -137,8 +137,14 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "query_plan" in content
     assert "advisory navigation" in lowered
     assert "live repository evidence" in lowered or "live evidence" in lowered
-    assert "normal code changes should use `sp-map-update` for bounded incremental refresh from changed paths" in lowered
-    assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in lowered
+    assert "workflow-owned mutation closeout is not external map maintenance" in lowered
+    assert "run inline project cognition update" in lowered or "runs inline project cognition update" in lowered
+    assert (
+        "sp-map-update remains the external/manual" in lowered
+        or "`sp-map-update` remains the external/manual" in lowered
+        or "sp-map-update is for manual/external maintenance" in lowered
+    )
+    assert "uncertain closure is recorded by inline update or `map-update` as partial/low-confidence facts" in lowered
     assert "workflow-appropriate slices" not in lowered
 
 

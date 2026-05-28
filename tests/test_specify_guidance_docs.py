@@ -221,6 +221,16 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "CAND-002" not in content
 
 
+def test_readme_documents_inline_project_cognition_closeout() -> None:
+    readme = _read("README.md").lower()
+
+    assert "workflow-owned mutation closeout is inline" in readme
+    assert (
+        "sp-map-update remains the external/manual maintenance workflow" in readme
+        or "`sp-map-update` remains the external/manual maintenance workflow" in readme
+    )
+
+
 def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> None:
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
@@ -260,7 +270,13 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "support drift is not runtime-truth staleness" in readme.lower()
     assert "`partial_refresh`" in readme
     assert "`support_drift`" in readme
-    assert "uncertain closure is recorded by `map-update` as partial/low-confidence facts" in readme.lower()
+    assert "workflow-owned mutation closeout is inline" in readme.lower()
+    assert (
+        "sp-map-update remains the external/manual maintenance workflow" in readme.lower()
+        or "`sp-map-update` remains the external/manual maintenance workflow" in readme.lower()
+    )
+    assert "use `map-update` for changed-path" not in readme.lower()
+    assert "changed-path and localized stale cognition runtime refresh" not in readme.lower()
     assert "`map-scan` followed by `map-build` only when the baseline is first/missing/unusable, schema failure" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance
