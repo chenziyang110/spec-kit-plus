@@ -170,7 +170,7 @@ with:
 Run:
 
 ```powershell
-pytest tests/test_alignment_templates.py::test_mutation_workflows_require_inline_cognition_update_before_dirty_fallback tests/test_alignment_templates.py::test_inline_cognition_closeout_shared_surfaces_are_consistent tests/test_fast_template_guidance.py::test_fast_template_exists_and_defines_scope_gate tests/test_debug_template_guidance.py::test_debug_template_enforces_resolution_closeout -q
+pytest tests/test_alignment_templates.py::test_mutation_workflows_require_inline_cognition_update_before_dirty_fallback tests/test_alignment_templates.py::test_inline_cognition_closeout_shared_surfaces_are_consistent tests/test_fast_template_guidance.py::test_fast_template_exists_and_defines_scope_gate tests/test_debug_template_guidance.py::test_debug_template_documents_map_backed_intake_contract -q
 ```
 
 Expected: FAIL because templates still use `{{invoke:map-update}}` closeout wording and shared surfaces still preserve user-handoff language.
@@ -496,7 +496,7 @@ If this workflow makes actual source/runtime/template/config/test/generated-asse
 Run:
 
 ```powershell
-pytest tests/test_alignment_templates.py::test_mutation_workflows_require_inline_cognition_update_before_dirty_fallback tests/test_fast_template_guidance.py::test_fast_template_exists_and_defines_scope_gate tests/test_debug_template_guidance.py::test_debug_template_enforces_resolution_closeout -q
+pytest tests/test_alignment_templates.py::test_mutation_workflows_require_inline_cognition_update_before_dirty_fallback tests/test_fast_template_guidance.py::test_fast_template_exists_and_defines_scope_gate tests/test_debug_template_guidance.py::test_debug_template_documents_map_backed_intake_contract -q
 ```
 
 Expected: PASS.
