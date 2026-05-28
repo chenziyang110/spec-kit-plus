@@ -108,8 +108,8 @@ judgment in an established Spec Kit Plus repository:
 ## Freshness State Guidance
 
 - If the project cognition runtime is missing, continue with live repository
-  evidence and recommend the canonical `sp-map-scan -> sp-map-build` workflow as
-  follow-up map maintenance. When giving the user an explicit command to type, write
+  evidence and recommend the canonical `sp-map-scan -> sp-map-build` workflow only as
+  external baseline maintenance. When giving the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
 - If the project cognition runtime is stale for a localized touched area, continue
   with live repository evidence and recommend `sp-map-update` first when map

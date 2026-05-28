@@ -140,3 +140,59 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
             assert "minimal_live_reads" in content
             assert "build-handbook.md" not in content
             assert "build-workflow-contract" not in content
+
+
+def test_cursor_closeout_advisory_uses_exact_heading_marker(tmp_path):
+    from specify_cli.integrations.cursor_agent import CursorAgentIntegration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    integration = CursorAgentIntegration()
+    manifest = IntegrationManifest("cursor-agent", tmp_path)
+    skill_path = tmp_path / ".cursor" / "skills" / "sp-implement" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "\n".join(
+            (
+                "# Skill",
+                "## Cursor Project Cognition Closeout Advisory Notes",
+                "Existing related-but-different closeout note.",
+                "## Orchestration Model",
+                "Leader text.",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    first = integration._append_runtime_handbook_compatibility_to_file(
+        project_root=tmp_path,
+        manifest=manifest,
+        path=skill_path,
+        command_name="implement",
+    )
+    assert first == skill_path
+    content = skill_path.read_text(encoding="utf-8")
+    assert content.count("## Cursor Project Cognition Closeout Advisory Notes") == 1
+    assert (
+        sum(
+            line.strip() == "## Cursor Project Cognition Closeout Advisory"
+            for line in content.splitlines()
+        )
+        == 1
+    )
+    assert "Entry advisory is not closeout ownership" in content
+
+    second = integration._append_runtime_handbook_compatibility_to_file(
+        project_root=tmp_path,
+        manifest=manifest,
+        path=skill_path,
+        command_name="implement",
+    )
+    assert second is None
+    updated_lines = skill_path.read_text(encoding="utf-8").splitlines()
+    assert (
+        sum(
+            line.strip() == "## Cursor Project Cognition Closeout Advisory"
+            for line in updated_lines
+        )
+        == 1
+    )

@@ -505,7 +505,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content.lower()
     assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content.lower()
     assert "project cognition can support route selection but cannot be the sole evidence for completion" in content.lower()
-    assert "including unresolved `open_gaps`" in content.lower()
+    assert "unresolved `open_gaps`" in content.lower()
     assert "shared implement template is the primary source of truth" in content
     assert "join point" in content.lower()
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
@@ -937,7 +937,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "alternative cause candidates" in content
     assert "transition memo" in content
     assert "if cognition freshness is `missing`, continue with live repository evidence" in content
-    assert "recommend `$sp-map-scan`, then `$sp-map-build` as follow-up map maintenance" in content
+    assert "recommend `$sp-map-scan`, then `$sp-map-build` only as external baseline maintenance" in content
     assert "if cognition freshness is `stale`, treat map output as advisory" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
@@ -1089,7 +1089,7 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content
     assert "project cognition can support route selection but cannot be the sole evidence for completion" in content
     assert "map-update" in content
-    assert "do not call `project-cognition mark-dirty`" in content
+    assert "dirty only when inline update cannot complete" in content
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
     assert "leader-direct" in content or "the leader performs the change directly" in content

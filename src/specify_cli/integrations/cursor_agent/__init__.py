@@ -25,6 +25,7 @@ class CursorAgentIntegration(SkillsIntegration):
         "extension": "/SKILL.md",
     }
     context_file = ".cursor/rules/specify-rules.mdc"
+    CLOSEOUT_ADVISORY_HEADING = "## Cursor Project Cognition Closeout Advisory"
 
     @classmethod
     def options(cls) -> list[IntegrationOption]:
@@ -44,7 +45,32 @@ class CursorAgentIntegration(SkillsIntegration):
         command_name: str,
     ) -> str:
         _ = command_name
-        return content
+        if CursorAgentIntegration._has_exact_heading(
+            content,
+            CursorAgentIntegration.CLOSEOUT_ADVISORY_HEADING,
+        ):
+            return content
+        addendum = CursorAgentIntegration._cursor_project_cognition_advisory_addendum()
+        if "## Orchestration Model" in content:
+            return content.replace("## Orchestration Model", addendum + "\n## Orchestration Model", 1)
+        if "## Cursor Leader Gate" in content:
+            return content.replace("## Cursor Leader Gate", addendum + "\n## Cursor Leader Gate", 1)
+        return content + addendum
+
+    @staticmethod
+    def _cursor_project_cognition_advisory_addendum() -> str:
+        return (
+            "\n"
+            f"{CursorAgentIntegration.CLOSEOUT_ADVISORY_HEADING}\n\n"
+            "**Advisory First Pass**: Before repository analysis or implementation, query project cognition when available and use it to choose likely live reads.\n"
+            "- Use `.specify/project-cognition/` as the graph-native project cognition source when present.\n"
+            "- If the runtime is missing, stale, blocked, or too incomplete for the requested work, continue with live repository inspection instead of stopping for map maintenance.\n"
+            "- Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.\n"
+            "- Entry advisory is not closeout ownership: stale or weak cognition at entry may remain advisory, but workflow-owned mutation closeout must run inline project cognition update for changes this workflow made.\n"
+            "- Inline project cognition update uses `project-cognition delta append` plus `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --changed-path \"<path>\" --scope \"<affected-scope>\" --reason workflow-finalize --format json` when no delta session exists.\n"
+            "- `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made.\n"
+            "- Do not treat map output as evidence by itself; verify technical claims from live code, tests, scripts, configuration, or authoritative docs.\n"
+        )
 
     def _cursor_capability_snapshot(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(
@@ -120,18 +146,10 @@ class CursorAgentIntegration(SkillsIntegration):
             return None
 
         content = path.read_text(encoding="utf-8")
-        if "## Cursor Project Cognition Advisory" in content:
+        if self._has_exact_heading(content, self.CLOSEOUT_ADVISORY_HEADING):
             return None
 
-        addendum = (
-            "\n"
-            "## Cursor Project Cognition Advisory\n\n"
-            "**Advisory First Pass**: Before repository analysis or implementation, query project cognition when available and use it to choose likely live reads.\n"
-            "- Use `.specify/project-cognition/` as the graph-native project cognition source when present.\n"
-            "- If the runtime is missing, stale, blocked, or too incomplete for the requested work, continue with live repository inspection instead of stopping for map maintenance.\n"
-            "- Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.\n"
-            "- Do not treat map output as evidence by itself; verify technical claims from live code, tests, scripts, configuration, or authoritative docs.\n"
-        )
+        addendum = self._cursor_project_cognition_advisory_addendum()
 
         if "## Orchestration Model" in content:
             updated = content.replace("## Orchestration Model", addendum + "\n## Orchestration Model", 1)
@@ -142,6 +160,10 @@ class CursorAgentIntegration(SkillsIntegration):
 
         self.write_file_and_record(updated, path, project_root, manifest)
         return path
+
+    @staticmethod
+    def _has_exact_heading(content: str, heading: str) -> bool:
+        return any(line.strip() == heading for line in content.splitlines())
 
     def _append_runtime_handbook_compatibility_to_file(
         self,
