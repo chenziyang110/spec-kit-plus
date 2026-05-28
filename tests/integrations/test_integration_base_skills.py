@@ -181,7 +181,14 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "carry forward" in content
     assert "next workflow artifact or execution state" in content
     assert "mutation closeout" in content
-    assert "actual `{{invoke:map-update}}` refresh or `project-cognition mark-dirty` outcome" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+    assert "inline project cognition update" in content
+    assert "project-cognition delta append" in content
+    assert "project-cognition update --delta-session" in content
+    assert "project-cognition update --changed-path" in content
+    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
+    assert "actual `{{invoke:map-update}}` refresh" not in content
     assert "project_cognition_refresh` recommending" not in content
     assert "project_cognition_refresh recommending" not in content
     assert "recommends `{{invoke:map-update}}` as follow-up map maintenance" not in content
@@ -224,6 +231,27 @@ def test_collected_skills_integrations_preserve_shared_contracts(tmp_path):
         discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists(), integration_key
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+
+def test_generated_planning_skills_require_inline_cognition_update_for_source_changes(tmp_path):
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        for skill_name in ("sp-specify", "sp-plan", "sp-tasks"):
+            content = (
+                integration.skills_dest(project) / skill_name / "SKILL.md"
+            ).read_text(encoding="utf-8").lower()
+            assert "artifact-only" in content
+            assert "do not call `project-cognition mark-dirty`" in content
+            assert (
+                "if this planning workflow makes actual source/runtime/template/config/test/generated-asset changes"
+                in content
+            )
+            assert "run inline project cognition update" in content
+            assert "sp-map-update is for manual/external maintenance" in content
 
 
 class SkillsIntegrationTests:

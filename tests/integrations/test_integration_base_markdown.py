@@ -155,7 +155,14 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "carry forward" in content
     assert "next workflow artifact or execution state" in content
     assert "mutation closeout" in content
-    assert "actual `{{invoke:map-update}}` refresh or `project-cognition mark-dirty` outcome" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+    assert "inline project cognition update" in content
+    assert "project-cognition delta append" in content
+    assert "project-cognition update --delta-session" in content
+    assert "project-cognition update --changed-path" in content
+    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
+    assert "actual `{{invoke:map-update}}` refresh" not in content
     assert "project_cognition_refresh` recommending" not in content
     assert "project_cognition_refresh recommending" not in content
     assert "recommends `{{invoke:map-update}}` as follow-up map maintenance" not in content

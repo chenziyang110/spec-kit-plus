@@ -124,6 +124,10 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
             "only for first/missing/unusable baseline, schema failure, zero active-generation "
             "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
         ) in content
+        assert "entry advisory is not closeout ownership" in content
+        assert "workflow-owned mutation closeout" in content
+        assert "inline project cognition update" in content
+        assert "sp-map-update is for manual/external maintenance" in content
         assert "crucial first step" in content
         if "sp-debug" in rel:
             assert "query --intent debug" in content

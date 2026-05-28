@@ -500,6 +500,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
     assert "selects the next executable phase and ready batch" in content
     assert "map-update" in content.lower()
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content.lower()
+    assert "project-cognition update --delta-session" in content.lower()
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content.lower()
     assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content.lower()
     assert "project cognition can support route selection but cannot be the sole evidence for completion" in content.lower()
     assert "including unresolved `open_gaps`" in content.lower()
@@ -950,6 +953,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "do not treat an idle subagent as done work" in content
     assert "candidate queue" in content
     assert "root-cause mode" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+    assert "project-cognition update --delta-session" in content
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
 
 
 def test_codex_generated_specify_skill_mentions_source_sweep_and_reopen(tmp_path):
@@ -1158,6 +1164,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content
     assert "project cognition can support route selection but cannot be the sole evidence for completion" in content
     assert "map-update" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+    assert "project-cognition update --delta-session" in content
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "resume" in content
     assert "resolved/" in content
     assert "status.md template" in content

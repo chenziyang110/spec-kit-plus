@@ -82,7 +82,10 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "map-scan" in content
     assert "map-build" in content
     assert "Maintain `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` as the primary runtime atlas" not in content
-    assert "Recommend `map-update`" in content
+    lowered = content.lower()
+    assert "workflow-owned mutation closeout" in lowered
+    assert "run inline project cognition update" in lowered
+    assert "sp-map-update is for manual/external maintenance" in lowered
     assert (
         "Recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, "
         "schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, "
