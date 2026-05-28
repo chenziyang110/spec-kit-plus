@@ -13,3 +13,4 @@
 - If the project cognition runtime is stale or insufficient for the touched
   query scope, recommend `{{invoke:map-update}}`; rebuild only when no usable
   baseline remains.
+- This navigation check is entry-only. Entry-time stale or weak cognition is advisory unless the user requested map maintenance. Workflow-owned mutation closeout is separate: if the current workflow changes project-related files or behavior, run inline project cognition update before successful completion. `sp-map-update` is for manual/external maintenance and follow-up repair; it is external map maintenance, not routine closeout for this workflow's own changes. In shared routing summaries, sp-map-update is for manual/external maintenance.

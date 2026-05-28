@@ -66,8 +66,8 @@ and minimal live reads after the minimum gate, not whether it may skip cognition
 Treat runtime freshness as map-quality diagnostics:
 
 - `fresh` -> use the returned task-local bundle as an advisory first pass navigation aid
-- `missing` -> if cognition freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` as follow-up map maintenance
-- `stale` -> if cognition freshness is `stale`, treat map output as advisory and continue with live repository evidence; recommend `{{invoke:map-update}}` as follow-up map maintenance
+- `missing` -> if cognition freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as external baseline maintenance
+- `stale` -> if cognition freshness is `stale`, treat map output as advisory and continue with live repository evidence; recommend `{{invoke:map-update}}` only as external/manual maintenance when the user asks for map maintenance or before a separate map repair pass
 - `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps.
   Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
 - `support_drift` -> warn and continue with live repository evidence; recommend resolving or intentionally ignoring support-surface drift
@@ -80,13 +80,17 @@ map-maintenance recommendation.
 
 ### Mutation Closeout Rule
 
-Entry stale may continue for live-evidence navigation, but it is not a
-completion waiver. If the active workflow changes source/runtime truth-owning
-surfaces, shared surfaces, command/route/contract boundaries, verification entry
-points, runtime assumptions, or other map-level coverage facts, closeout must
-record a refresh or dirty outcome: either an actual `{{invoke:map-update}}`
-refresh using the changed paths, or `project-cognition mark-dirty` when the
-required refresh cannot be completed now.
+Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership: once the workflow itself changes project-related files or behavior, it must run inline project cognition update for its own changes.
+
+Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, closeout must run inline project cognition update from the workflow-owned ledger:
+
+1. Append closeout evidence to the current delta session when one exists using `project-cognition delta append --session "$DELTA_SESSION_ID" --event-type workflow_closeout --changed-path "<path>" --behavior-surface "<surface>" --verification "<evidence>" --format json`.
+2. Finalize with `project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`; include `--commit-range "<base>..<head>"` only with `--delta-session` when a safe task commit boundary exists.
+3. If no delta session exists, use `project-cognition update --changed-path "<path>" --scope "<affected-scope>" --reason workflow-finalize --format json`.
+
+A persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`. Use `project-cognition mark-dirty --reason "<reason>" --format json` only when inline update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
+
+`sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is external map maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
 
 ### Primary Read Restriction
 

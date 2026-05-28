@@ -139,19 +139,11 @@ judgment in an established Spec Kit Plus repository:
   path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
-- Mutation closeout requires a refresh or dirty outcome. Entry stale may continue
-  with live repository evidence, but mutation workflows are not artifact-only map handoffs:
-  if they change source/runtime truth-owning surfaces, shared surfaces,
-  command/route/contract boundaries, verification entry points, runtime
-  assumptions, or other map-level coverage facts, they must finish with either
-  an actual `{{invoke:map-update}}` refresh using the changed paths, or
-  `project-cognition mark-dirty` when the required refresh cannot be completed
-  now.
-- Treat map maintenance as a user-invoked workflow handoff unless the user
-  explicitly asked to refresh cognition runtime state. Do not silently switch into `sp-map-update`,
-  `sp-map-scan`, or `sp-map-build` yourself from another workflow; continue with
-  live evidence and tell the user which map workflow would refresh the advisory
-  navigation layer.
+- Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
+- Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, closeout must run inline project cognition update from the workflow-owned ledger.
+- Inline update uses the current lower-level runtime path: append closeout evidence with `project-cognition delta append` when a delta session exists, then run `project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`; without a delta session, run `project-cognition update --changed-path "<path>" --scope "<affected-scope>" --reason workflow-finalize --format json`.
+- A persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`. Use `project-cognition mark-dirty --reason "<reason>" --format json` only when inline update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
+- `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is external map maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   project cognition runtime should be the source of truth.
 
