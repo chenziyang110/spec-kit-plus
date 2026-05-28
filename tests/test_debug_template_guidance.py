@@ -151,7 +151,13 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "changed_behavior_surfaces" in content
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+    assert "project-cognition delta append" in content
+    assert "project-cognition update --delta-session" in content
+    assert "project-cognition update --changed-path" in content
+    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
+    assert "dirty only when inline update" in content
     assert "ordinary uncertain closure" in content
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
     assert "use map-update for ordinary existing-baseline gaps" in content

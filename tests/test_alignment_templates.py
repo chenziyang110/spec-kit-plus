@@ -2418,7 +2418,12 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "exactly one safe validated packet is ready" in lowered
     assert "two or more safe validated packets with isolated write sets" in lowered
     assert "`subagent-blocked`" in lowered
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in lowered
+    assert "project-cognition delta append" in lowered
+    assert "project-cognition update --delta-session" in lowered
+    assert "project-cognition update --changed-path" in lowered
+    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in lowered
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in lowered
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
@@ -2443,7 +2448,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert no_safe_batch < one_subagent < parallel_subagents
 
 
-def test_mutation_workflows_require_cognition_refresh_or_dirty_outcome_before_closeout() -> None:
+def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallback() -> None:
     for path in (
         "templates/commands/fast.md",
         "templates/commands/quick.md",
@@ -2453,18 +2458,62 @@ def test_mutation_workflows_require_cognition_refresh_or_dirty_outcome_before_cl
         content = _read(path).lower()
 
         assert "project_cognition_refresh" in content
-        assert "actual `{{invoke:map-update}}` refresh or `project-cognition mark-dirty` outcome" in content
-        assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
-        assert "manual override/fallback" in content
+        assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+        assert "project-cognition delta append" in content
+        assert "project-cognition update --delta-session" in content
+        assert "project-cognition update --changed-path" in content
+        assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+        assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
+        assert "project-cognition mark-dirty" in content
+        assert "dirty only when inline update" in content
 
-        for weak_phrase in (
+        for stale_closeout_phrase in (
+            "actual `{{invoke:map-update}}` refresh",
+            "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths",
+            "if the fast-path change unexpectedly touched",
+            "tell the user to run `{{invoke:map-update}}` with the changed paths before the next brownfield workflow proceeds",
             "project_cognition_refresh` recommending",
             "project_cognition_refresh recommending",
             "recommended `{{invoke:map-update}}` refresh when applicable",
             "recommended `{{invoke:map-update}}` refresh when project cognition might be affected",
             "and recommend `{{invoke:map-update}}` with the changed paths",
         ):
-            assert weak_phrase not in content
+            assert stale_closeout_phrase not in content
+
+
+def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
+    required_paths = (
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/command-partials/common/senior-consequence-analysis-gate.md",
+        "templates/command-partials/common/navigation-check.md",
+        "templates/command-partials/fast/shell.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+        "templates/commands/constitution.md",
+        "templates/project-handbook-template.md",
+        "templates/constitution-template.md",
+    )
+
+    for path in required_paths:
+        content = _read(path).lower()
+        assert "workflow-owned mutation closeout" in content, path
+        assert "external map maintenance" in content, path
+        assert "inline project cognition update" in content, path
+        assert "sp-map-update is for manual/external maintenance" in content, path
+
+    for path in (
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    ):
+        content = _read(path).lower()
+        assert "entry-time stale or weak cognition is still an advisory navigation concern" in content
+        assert "does not waive closeout ownership" in content
+
+    passive_gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
+    assert "do not silently switch into `sp-map-update`" not in passive_gate
+    assert "user-invoked workflow handoff" not in passive_gate
 
 
 def test_runtime_cognition_partials_preserve_mutation_closeout_rule() -> None:

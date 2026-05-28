@@ -62,9 +62,17 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "changed_behavior_surfaces" in content
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
-    assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" in content
+    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
+    assert "project-cognition delta append" in content
+    assert "project-cognition update --delta-session" in content
+    assert "project-cognition update --changed-path" in content
+    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+    assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
+    assert "dirty only when inline update" in content
     assert "ordinary uncertain closure" in content
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
+    assert "actual `{{invoke:map-update}}` refresh" not in content
+    assert "if the fast-path change unexpectedly touched" not in content
     assert "use map-update for ordinary existing-baseline gaps" in content
     assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
     assert "complete-refresh" in content
