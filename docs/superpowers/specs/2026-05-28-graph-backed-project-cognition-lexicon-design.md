@@ -398,6 +398,7 @@ Expected top-level fields:
 - `query`
 - `active_generation_id`
 - `lexicon_generation_id`
+- `candidate_universe_version`
 - `terms`
 - `available_terms`
 - `concept_candidates`
