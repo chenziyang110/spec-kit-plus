@@ -310,8 +310,10 @@ The first implementation should update shared surfaces:
   changes
 - `tests/integrations/test_cli.py` and `src/specify_cli/__init__.py` only if CLI help,
   command descriptions, skill descriptions, or user-facing entrypoint text changes
-- `README.md` and `PROJECT-HANDBOOK.md` when user-facing workflow descriptions need
-  to mention the upgrade
+- `README.md`, `PROJECT-HANDBOOK.md`, `docs/quickstart.md`,
+  `docs/installation.md`, and `templates/project-handbook-template.md` when
+  user-facing or generated-project workflow descriptions need to mention the
+  upgrade
 
 Because this is a shared workflow behavior, implementation should avoid
 Codex-specific wording unless a Codex integration surface needs separate generated
