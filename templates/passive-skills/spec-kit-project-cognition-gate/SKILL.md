@@ -113,9 +113,7 @@ judgment in an established Spec Kit Plus repository:
   evidence and recommend the canonical `sp-map-scan -> sp-map-build` workflow only as
   external baseline maintenance. When giving the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live
-  requirements. Do not recommend map-scan -> map-build solely because the graph
-  has no paths.
+- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements. Do not recommend map-scan -> map-build solely because the graph has no paths.
 - If the project cognition runtime is stale for a localized touched area, continue
   with live repository evidence and recommend `sp-map-update` first when map
   maintenance is useful. When giving the user an explicit

@@ -112,6 +112,76 @@ def _assert_no_stale_map_policy_phrases(content: str, label: str) -> None:
         assert phrase not in normalized, f"{label} contains stale phrase: {phrase}"
 
 
+TASK7_GREENFIELD_POLICY_PHRASE = (
+    "do not recommend map-scan -> map-build solely because the graph has no paths"
+)
+
+TASK7_BROWNFIELD_REBUILD_PHRASE = (
+    "brownfield first/missing/unusable baseline, schema failure, zero active-generation "
+    "path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid"
+)
+
+TASK7_GREENFIELD_POLICY_SURFACES = {
+    "base integration": "src/specify_cli/integrations/base.py",
+    "cursor-agent integration": "src/specify_cli/integrations/cursor_agent/__init__.py",
+    "context loading gradient": "templates/command-partials/common/context-loading-gradient.md",
+    "planning context loading gradient": "templates/command-partials/common/planning-context-loading-gradient.md",
+    "navigation check": "templates/command-partials/common/navigation-check.md",
+    "senior consequence gate": "templates/command-partials/common/senior-consequence-analysis-gate.md",
+    "project cognition gate": "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    "workflow routing": "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+}
+
+TASK7_MAP_POLICY_LABELS = {
+    "base integration",
+    "cursor-agent integration",
+    "context loading gradient",
+    "planning context loading gradient",
+    "navigation check",
+    "senior consequence gate",
+    "project cognition gate",
+    "workflow routing",
+}
+
+LEGACY_MAP_POLICY_ALLOWLIST = {
+    "README",
+    "quickstart",
+    "project handbook",
+    "project handbook template",
+    "constitution template",
+    "constitution product profile",
+    "constitution shell",
+    "constitution command",
+}
+
+
+def _assert_task7_greenfield_policy_surface(content: str, label: str) -> None:
+    lowered = content.lower()
+    normalized = _normalize_policy_text(content)
+
+    assert "baseline_kind=greenfield_empty" in normalized, label
+    assert TASK7_GREENFIELD_POLICY_PHRASE in lowered, label
+    assert "brownfield first/missing/unusable baseline" in normalized, label
+    assert "outside greenfield_empty" in normalized, label
+    assert TASK7_BROWNFIELD_REBUILD_PHRASE in normalized, label
+
+    for stale_branch in (
+        "`greenfield_empty` ->",
+        "if readiness is `greenfield_empty`",
+        "`greenfield_empty` continues",
+        "if cognition freshness is `greenfield_empty`",
+        "freshness is `greenfield_empty`",
+    ):
+        assert stale_branch not in lowered, f"{label} treats baseline_kind as readiness/freshness"
+
+
+def _assert_task7_brownfield_rebuild_policy(content: str, label: str) -> None:
+    normalized = _normalize_policy_text(content)
+    assert "brownfield first/missing/unusable baseline" in normalized, label
+    assert "outside greenfield_empty" in normalized, label
+    assert TASK7_BROWNFIELD_REBUILD_PHRASE in normalized, label
+
+
 def _extract_matching_lines(content: str, *needles: str, context: int = 0) -> str:
     lines = content.splitlines()
     selected: set[int] = set()
@@ -836,6 +906,12 @@ def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> No
     assert "as " + "appropriate" not in reference_block
 
 
+def test_task7_greenfield_guidance_surfaces_lock_policy() -> None:
+    for label, path in TASK7_GREENFIELD_POLICY_SURFACES.items():
+        content = _read_project_file(path) if path.startswith("src/") else _read(path)
+        _assert_task7_greenfield_policy_surface(content, label)
+
+
 def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
@@ -1120,12 +1196,17 @@ def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
         "senior consequence gate": _read("templates/command-partials/common/senior-consequence-analysis-gate.md"),
         "context loading gradient": _read("templates/command-partials/common/context-loading-gradient.md"),
         "planning context loading gradient": _read("templates/command-partials/common/planning-context-loading-gradient.md"),
+        "navigation check": _read("templates/command-partials/common/navigation-check.md"),
         "constitution command": _read("templates/commands/constitution.md"),
     }
 
     for label, content in strict_surfaces.items():
         try:
             _assert_map_update_first_policy(content)
+            if label in TASK7_MAP_POLICY_LABELS:
+                _assert_task7_brownfield_rebuild_policy(content, label)
+            else:
+                assert label in LEGACY_MAP_POLICY_ALLOWLIST, label
             _assert_no_stale_map_policy_phrases(content, label)
         except AssertionError as exc:
             raise AssertionError(f"{label} does not preserve map-update-first policy") from exc
@@ -1134,11 +1215,14 @@ def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
         normalized = _normalize_policy_text(content)
         assert "map-update" in normalized, label
         assert "ordinary existing-baseline" in normalized or "needs_update" in normalized, label
-        assert (
-            "brownfield first/missing/unusable baseline, schema failure, zero active-generation path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
-            or "brownfield first/missing/unusable baseline, schema failure, zero active-generation path_index rows outside a greenfield_empty baseline, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
-            or "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
-        ), label
+        if label in TASK7_MAP_POLICY_LABELS:
+            _assert_task7_brownfield_rebuild_policy(content, label)
+        else:
+            assert label in LEGACY_MAP_POLICY_ALLOWLIST, label
+            assert (
+                "brownfield first/missing/unusable baseline, schema failure, zero active-generation path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+                or "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+            ), label
         _assert_no_stale_map_policy_phrases(content, label)
 
 

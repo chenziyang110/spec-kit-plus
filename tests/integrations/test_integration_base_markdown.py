@@ -6,9 +6,7 @@ logic from ``MarkdownIntegrationTests``.
 """
 
 import os
-import re
 
-import pytest
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import MarkdownIntegration

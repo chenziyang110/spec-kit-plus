@@ -104,9 +104,7 @@ standalone branch-creation command.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
   coverage is stale or too weak for a localized touched area and the user wants
   map maintenance first, including ordinary existing-baseline gaps.
-- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live
-  requirements. Do not recommend map-scan -> map-build solely because the graph
-  has no paths.
+- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements. Do not recommend map-scan -> map-build solely because the graph has no paths.
 - Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build
   only for brownfield first/missing/unusable baseline, schema failure, zero active-generation
   path_index rows outside `greenfield_empty`, `explicit_rebuild_requested`, or
