@@ -14,15 +14,28 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
+const CandidateUniverseVersion = 1
+
+type ConceptDecision struct {
+	ConceptID       string   `json:"concept_id"`
+	Decision        string   `json:"decision"`
+	SelectionReason string   `json:"selection_reason,omitempty"`
+	Confidence      string   `json:"confidence,omitempty"`
+	Paths           []string `json:"paths,omitempty"`
+	Risk            string   `json:"risk,omitempty"`
+}
+
 type Plan struct {
-	RawQuery         string   `json:"raw_query,omitempty"`
-	ExpandedQueries  []string `json:"expanded_queries,omitempty"`
-	Paths            []string `json:"paths,omitempty"`
-	PathHints        []string `json:"path_hints,omitempty"`
-	SelectedConcepts []string `json:"selected_concepts,omitempty"`
-	RejectedConcepts []string `json:"rejected_concepts,omitempty"`
-	SelectionReason  string   `json:"selection_reason,omitempty"`
-	Reason           string   `json:"reason,omitempty"`
+	RawQuery            string            `json:"raw_query,omitempty"`
+	ExpandedQueries     []string          `json:"expanded_queries,omitempty"`
+	Paths               []string          `json:"paths,omitempty"`
+	PathHints           []string          `json:"path_hints,omitempty"`
+	SelectedConcepts    []string          `json:"selected_concepts,omitempty"`
+	RejectedConcepts    []string          `json:"rejected_concepts,omitempty"`
+	ConceptDecisions    []ConceptDecision `json:"concept_decisions,omitempty"`
+	LexiconGenerationID string            `json:"lexicon_generation_id,omitempty"`
+	SelectionReason     string            `json:"selection_reason,omitempty"`
+	Reason              string            `json:"reason,omitempty"`
 }
 
 type QueryInput struct {
@@ -89,6 +102,9 @@ func NormalizePlan(plan Plan) Plan {
 	}
 	plan.Paths = normalizePaths(plan.Paths)
 	plan.PathHints = normalizePaths(plan.PathHints)
+	plan.SelectedConcepts = normalizeStrings(plan.SelectedConcepts)
+	plan.RejectedConcepts = normalizeStrings(plan.RejectedConcepts)
+	plan.ConceptDecisions = normalizeConceptDecisions(plan.ConceptDecisions, plan.SelectedConcepts, plan.RejectedConcepts, plan.SelectionReason)
 	return plan
 }
 
@@ -186,6 +202,61 @@ func normalizePaths(paths []string) []string {
 		}
 		seen[path] = true
 		out = append(out, path)
+	}
+	return out
+}
+
+func normalizeStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func normalizeConceptDecisions(decisions []ConceptDecision, selectedConcepts, rejectedConcepts []string, selectionReason string) []ConceptDecision {
+	if len(decisions) == 0 {
+		decisions = make([]ConceptDecision, 0, len(selectedConcepts)+len(rejectedConcepts))
+		for _, conceptID := range selectedConcepts {
+			decisions = append(decisions, ConceptDecision{
+				ConceptID:       conceptID,
+				Decision:        "selected",
+				SelectionReason: selectionReason,
+			})
+		}
+		for _, conceptID := range rejectedConcepts {
+			decisions = append(decisions, ConceptDecision{
+				ConceptID:       conceptID,
+				Decision:        "rejected",
+				SelectionReason: selectionReason,
+			})
+		}
+	}
+
+	seen := map[string]bool{}
+	out := make([]ConceptDecision, 0, len(decisions))
+	for _, decision := range decisions {
+		decision.ConceptID = strings.TrimSpace(decision.ConceptID)
+		decision.Decision = strings.TrimSpace(decision.Decision)
+		decision.SelectionReason = strings.TrimSpace(decision.SelectionReason)
+		decision.Confidence = strings.TrimSpace(decision.Confidence)
+		decision.Risk = strings.TrimSpace(decision.Risk)
+		decision.Paths = normalizePaths(decision.Paths)
+		if decision.ConceptID == "" || decision.Decision == "" {
+			continue
+		}
+		key := decision.ConceptID + "\x00" + decision.Decision
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, decision)
 	}
 	return out
 }

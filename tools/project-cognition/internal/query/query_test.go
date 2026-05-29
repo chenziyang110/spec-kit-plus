@@ -25,6 +25,64 @@ func TestParsePlanNormalizesLegacyAliases(t *testing.T) {
 	}
 }
 
+func TestParsePlanAcceptsConceptDecisionsAndGeneration(t *testing.T) {
+	plan, err := ParsePlan(`{
+		"raw_query": "GUI feels laggy",
+		"lexicon_generation_id": "GEN-ui",
+		"selected_concepts": ["concept:GEN-ui:N-gui"],
+		"rejected_concepts": ["concept:GEN-ui:N-login"],
+		"concept_decisions": [
+			{
+				"concept_id": "concept:GEN-ui:N-gui",
+				"decision": "selected",
+				"selection_reason": "GUI owns the whole surface described by the user.",
+				"confidence": "high",
+				"paths": ["src/gui/window.tsx"]
+			},
+			{
+				"concept_id": "concept:GEN-ui:N-login",
+				"decision": "rejected",
+				"selection_reason": "Login is a GUI flow but the request is not authentication-specific.",
+				"confidence": "medium",
+				"risk": "over-narrowing"
+			}
+		]
+	}`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.LexiconGenerationID != "GEN-ui" {
+		t.Fatalf("LexiconGenerationID = %q, want GEN-ui", plan.LexiconGenerationID)
+	}
+	if len(plan.ConceptDecisions) != 2 {
+		t.Fatalf("ConceptDecisions = %#v, want two decisions", plan.ConceptDecisions)
+	}
+	if got := plan.ConceptDecisions[0].Paths; len(got) != 1 || got[0] != "src/gui/window.tsx" {
+		t.Fatalf("decision paths = %#v, want src/gui/window.tsx", got)
+	}
+}
+
+func TestNormalizePlanBackfillsLegacyConceptDecisions(t *testing.T) {
+	plan := NormalizePlan(Plan{
+		SelectedConcepts: []string{"concept:GEN-ui:N-gui", "concept:GEN-ui:N-gui"},
+		RejectedConcepts: []string{"concept:GEN-ui:N-login"},
+		SelectionReason:  "GUI is relevant; login is too narrow.",
+	})
+
+	if got := plan.SelectedConcepts; len(got) != 1 || got[0] != "concept:GEN-ui:N-gui" {
+		t.Fatalf("SelectedConcepts = %#v", got)
+	}
+	if len(plan.ConceptDecisions) != 2 {
+		t.Fatalf("ConceptDecisions = %#v, want selected and rejected compatibility decisions", plan.ConceptDecisions)
+	}
+	if plan.ConceptDecisions[0].Decision != "selected" {
+		t.Fatalf("first decision = %#v, want selected", plan.ConceptDecisions[0])
+	}
+	if plan.ConceptDecisions[1].Decision != "rejected" {
+		t.Fatalf("second decision = %#v, want rejected", plan.ConceptDecisions[1])
+	}
+}
+
 func TestParsePlanSupportsAtFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "plan.json")
