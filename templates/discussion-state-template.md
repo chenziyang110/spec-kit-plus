@@ -25,6 +25,19 @@
 - readiness_note: [why the discussion is or is not ready for explicit handoff]
 - ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred
 
+## Advisor Contract
+
+- truth_pass_status: not-needed | needed | in-progress | complete | blocked
+- verified_project_facts: []
+- open_assumptions: []
+- evidence_checked: []
+- advice_confidence: high | medium | low | blocked | none
+- discussion_compass_status: current | stale | missing
+- current_decision_frame: [one-sentence decision-level framing or none]
+- confirmed_decisions: []
+- changed_recommendations: []
+- next_discussion_paths: []
+
 ## Lightweight Recovery
 
 - latest_event_checkpoint: [discussion-log.md event timestamp or none]
@@ -53,6 +66,7 @@
 - latest_minimal_live_reads: []
 - latest_live_evidence: []
 - cognition_authority_rule: project cognition navigates; live repository evidence proves
+- truth_pass_authority_rule: verify current-project facts with live evidence before technical advice
 - unresolved_evidence_conflicts: []
 
 ## Session Selection
