@@ -186,7 +186,8 @@ func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["active_generation_id"] == "" {
+	generationID, ok := payload["active_generation_id"].(string)
+	if !ok || generationID == "" {
 		t.Fatalf("active_generation_id missing from payload = %#v", payload)
 	}
 	if payload["candidate_universe_version"] != float64(1) {
