@@ -2461,7 +2461,28 @@ def _run_project_cognition_init_empty(project_path: Path, binary: Path) -> tuple
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
         return False, detail or f"project-cognition init-empty exited {result.returncode}"
-    return True, "greenfield baseline"
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        return True, "available; bootstrap status unknown"
+    if not isinstance(payload, dict):
+        return True, "available; bootstrap status unknown"
+
+    status = payload.get("status")
+    if status == "ok" and payload.get("baseline_kind") == "greenfield_empty":
+        return True, "greenfield baseline"
+    if status == "ok" and payload.get("already_initialized") is True:
+        return True, "already initialized"
+    if status == "declined":
+        warnings = payload.get("warnings")
+        if isinstance(warnings, list):
+            detail = "; ".join(str(warning) for warning in warnings if warning)
+            if detail:
+                return False, detail
+        detail = str(payload.get("detail") or payload.get("message") or "").strip()
+        return False, detail or "project-cognition init-empty declined"
+    detail = str(payload.get("detail") or payload.get("message") or "").strip()
+    return True, detail or "available; bootstrap status unknown"
 
 
 def _materialize_constitution_template(template_text: str, project_path: Path) -> str:

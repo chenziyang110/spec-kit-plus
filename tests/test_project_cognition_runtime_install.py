@@ -219,6 +219,43 @@ def test_project_cognition_required_commands_include_init_empty():
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
 
 
+def test_project_cognition_init_empty_declined_zero_exit_is_not_greenfield(
+    monkeypatch, tmp_path: Path
+):
+    class FakeResult:
+        returncode = 0
+        stdout = (
+            '{"status":"declined","warnings":["project contains non-scaffold files"],'
+            '"readiness":"uninitialized"}'
+        )
+        stderr = ""
+
+    monkeypatch.setattr(specify_cli.subprocess, "run", lambda *args, **kwargs: FakeResult())
+
+    init_ok, init_detail = specify_cli._run_project_cognition_init_empty(
+        tmp_path, tmp_path / "project-cognition"
+    )
+
+    assert init_ok is False
+    assert init_detail == "project contains non-scaffold files"
+
+
+def test_project_cognition_init_empty_already_initialized_zero_exit(monkeypatch, tmp_path: Path):
+    class FakeResult:
+        returncode = 0
+        stdout = '{"status":"ok","already_initialized":true}'
+        stderr = ""
+
+    monkeypatch.setattr(specify_cli.subprocess, "run", lambda *args, **kwargs: FakeResult())
+
+    init_ok, init_detail = specify_cli._run_project_cognition_init_empty(
+        tmp_path, tmp_path / "project-cognition"
+    )
+
+    assert init_ok is True
+    assert init_detail == "already initialized"
+
+
 def test_init_prefetches_project_cognition_runtime(monkeypatch, tmp_path: Path):
     binary = tmp_path / "cache" / "project-cognition"
     calls: list[str] = []
