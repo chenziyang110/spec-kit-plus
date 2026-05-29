@@ -155,6 +155,9 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 			var nodeIDs []string
 			var conceptIDsByNodeID map[string][]string
 			nodeIDs, conceptIDsByNodeID, missingCoverage = selectedNodeIDs(plan.SelectedConcepts, activeGenerationID)
+			if len(missingCoverage) > 0 {
+				selectedConceptsMissingNodes = true
+			}
 			nodes, err = st.NodesForIDs(context.Background(), nodeIDs)
 			if err != nil {
 				return QueryPayload{}, err
@@ -280,7 +283,8 @@ func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]st
 	nodeIDs := []string{}
 	conceptIDsByNodeID := map[string][]string{}
 	missingCoverage := []string{}
-	seen := map[string]bool{}
+	seenNodeIDs := map[string]bool{}
+	seenConceptIDsByNodeID := map[string]map[string]bool{}
 	for _, conceptID := range selectedConcepts {
 		conceptID = strings.TrimSpace(conceptID)
 		if conceptID == "" {
@@ -295,12 +299,21 @@ func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]st
 			}
 			nodeID = ref.NodeID
 		}
-		if nodeID == "" || seen[nodeID] {
+		if nodeID == "" {
 			continue
 		}
-		seen[nodeID] = true
+		if seenConceptIDsByNodeID[nodeID] == nil {
+			seenConceptIDsByNodeID[nodeID] = map[string]bool{}
+		}
+		if !seenConceptIDsByNodeID[nodeID][conceptID] {
+			seenConceptIDsByNodeID[nodeID][conceptID] = true
+			conceptIDsByNodeID[nodeID] = append(conceptIDsByNodeID[nodeID], conceptID)
+		}
+		if seenNodeIDs[nodeID] {
+			continue
+		}
+		seenNodeIDs[nodeID] = true
 		nodeIDs = append(nodeIDs, nodeID)
-		conceptIDsByNodeID[nodeID] = append(conceptIDsByNodeID[nodeID], conceptID)
 	}
 	return nodeIDs, conceptIDsByNodeID, missingCoverage
 }

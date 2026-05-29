@@ -758,6 +758,126 @@ func TestRunReportsPartiallyUnknownSelectedConcepts(t *testing.T) {
 	}
 }
 
+func TestRunReportsEveryUnknownSelectedConceptAlias(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+	})
+
+	selectedConcepts := []string{
+		"concept:GEN-ui:N-missing",
+		"concept:GEN-ui:N-missing:alias:gui",
+		"concept:GEN-ui:N-missing:path:src-gui",
+	}
+	payload, err := Run(paths, QueryInput{
+		Intent: "implement",
+		Query:  "GUI feels laggy",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-ui",
+			SelectedConcepts:    selectedConcepts,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Readiness != "review" {
+		t.Fatalf("Readiness = %q, want review", payload.Readiness)
+	}
+	for _, conceptID := range selectedConcepts {
+		want := "unknown_selected_concept:" + conceptID
+		if !hasString(payload.MissingCoverage, want) {
+			t.Fatalf("MissingCoverage = %#v, want %s", payload.MissingCoverage, want)
+		}
+	}
+}
+
+func TestRunAcceptsSuffixAndRawSelectedConceptIDs(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-gui",
+			SourceKind:  "source",
+			SourcePath:  "src/gui/window.tsx",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-gui",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-gui",
+			Type:        "capability",
+			Title:       "GUI Shell",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-gui"},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-gui",
+			Path:       "src/gui/window.tsx",
+			NodeID:     "N-gui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-gui",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "GUI feels laggy",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-ui",
+			SelectedConcepts: []string{
+				"concept:GEN-ui:N-gui:alias:gui-shell",
+				"N-gui",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.AffectedNodes) == 0 {
+		t.Fatalf("AffectedNodes = %#v, want selected GUI node", payload.AffectedNodes)
+	}
+	if !hasString(payload.MinimalLiveReads, "src/gui/window.tsx") {
+		t.Fatalf("MinimalLiveReads = %#v, want src/gui/window.tsx", payload.MinimalLiveReads)
+	}
+}
+
+func TestRunReportsSelectedConceptGenerationMismatch(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-gui",
+			Type:       "capability",
+			Title:      "GUI Shell",
+			Confidence: "verified",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "GUI feels laggy",
+		Plan: Plan{
+			SelectedConcepts: []string{"concept:GEN-old:N-gui"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasString(payload.MissingCoverage, "selected_concept_generation_mismatch:concept:GEN-old:N-gui") {
+		t.Fatalf("MissingCoverage = %#v, want selected concept generation mismatch", payload.MissingCoverage)
+	}
+	if payload.Readiness != "review" {
+		t.Fatalf("Readiness = %q, want review", payload.Readiness)
+	}
+}
+
 func TestRunReportsLexiconGenerationMismatch(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
