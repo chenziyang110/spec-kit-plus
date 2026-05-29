@@ -159,6 +159,38 @@ func TestInitEmptyPathsRemapsFilesystemRootCapture(t *testing.T) {
 	}
 }
 
+func TestInitEmptyPathsRemapsHomeCapture(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("user home unavailable: %v", err)
+	}
+	home, err = filepath.Abs(home)
+	if err != nil {
+		t.Skipf("user home absolute path unavailable: %v", err)
+	}
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	got := initEmptyPaths(rt.Paths{
+		Root:         home,
+		RuntimeDir:   filepath.Join(home, rt.SpecifyDir, rt.CognitionDir),
+		StatusPath:   filepath.Join(home, rt.SpecifyDir, rt.CognitionDir, rt.StatusFileName),
+		DatabasePath: filepath.Join(home, rt.SpecifyDir, rt.CognitionDir, rt.DBFileName),
+	})
+
+	if got.Root != root {
+		t.Fatalf("Root = %q, want %q", got.Root, root)
+	}
+	wantRuntimeDir := filepath.Join(root, rt.SpecifyDir, rt.CognitionDir)
+	if got.RuntimeDir != wantRuntimeDir {
+		t.Fatalf("RuntimeDir = %q, want %q", got.RuntimeDir, wantRuntimeDir)
+	}
+}
+
 func TestInitEmptyCommandDeclinesNonScaffoldProject(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {

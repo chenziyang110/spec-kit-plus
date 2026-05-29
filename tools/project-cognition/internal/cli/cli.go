@@ -210,15 +210,15 @@ func initEmptyPaths(paths rt.Paths) rt.Paths {
 	if err != nil {
 		return paths
 	}
+	homeCaptured := false
 	home, err := os.UserHomeDir()
-	if err != nil {
-		return paths
+	if err == nil {
+		if home, err = filepath.Abs(home); err == nil {
+			homeCaptured = samePath(paths.Root, home)
+		}
 	}
-	home, err = filepath.Abs(home)
-	if err != nil {
-		return paths
-	}
-	if samePath(cwd, paths.Root) || (!samePath(paths.Root, home) && !isFilesystemRoot(paths.Root)) {
+	rootCaptured := isFilesystemRoot(paths.Root)
+	if samePath(cwd, paths.Root) || (!homeCaptured && !rootCaptured) {
 		return paths
 	}
 	runtimeDir := filepath.Join(cwd, rt.SpecifyDir, rt.CognitionDir)

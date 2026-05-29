@@ -198,6 +198,13 @@ func TestGreenfieldEmptyEligibleAcceptsOnlyScaffoldFiles(t *testing.T) {
 	}
 }
 
+func TestGreenfieldEmptyEligibleRejectsMissingRoot(t *testing.T) {
+	missingRoot := filepath.Join(t.TempDir(), "missing")
+	if GreenfieldEmptyEligible(missingRoot) {
+		t.Fatalf("missing root should be ineligible")
+	}
+}
+
 func TestImportGenerationRefreshesBaselineKindAfterGreenfieldReady(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
