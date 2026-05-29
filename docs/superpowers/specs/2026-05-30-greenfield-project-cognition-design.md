@@ -145,6 +145,14 @@ The field may be omitted for older baselines. When omitted, the runtime should
 treat a query-ready baseline with normal graph rows as `brownfield_full` for
 compatibility. New writes should include the field.
 
+Normal scan/build publication must write `brownfield_full` explicitly. This
+includes the `build-from-scan` writer in `tools/project-cognition/internal/build/**`,
+which currently publishes ready status/metadata and imports generation kind
+`full`. The implementation should either keep the generation kind as the
+existing compact value and add `baseline_kind=brownfield_full` in metadata and
+status, or rename the generation kind only if all validators and tests are
+updated in the same pass.
+
 `greenfield_empty` means:
 
 - the runtime is structurally query-ready
@@ -454,6 +462,7 @@ existing update path already has enough evidence to classify the baseline.
 Runtime changes:
 
 - `tools/project-cognition/internal/cli/cli.go`
+- `tools/project-cognition/internal/build/**`
 - `tools/project-cognition/internal/runtime/status.go`
 - `tools/project-cognition/internal/runtimegate/agreement.go`
 - `tools/project-cognition/internal/store/**`
@@ -470,6 +479,7 @@ Python init changes:
 
 Template and documentation changes:
 
+- `src/specify_cli/integrations/base.py`
 - `templates/command-partials/common/context-loading-gradient.md`
 - `templates/command-partials/common/planning-context-loading-gradient.md`
 - `templates/command-partials/common/navigation-check.md`
@@ -479,8 +489,21 @@ Template and documentation changes:
 - workflow templates that directly mention map-scan/build routing
 - `README.md`
 - `PROJECT-HANDBOOK.md`
+- `docs/quickstart.md`
+- `docs/installation.md`
 - `templates/project-handbook-template.md` if generated project guidance is
   affected
+
+`src/specify_cli/integrations/base.py` is a first-class generated-output
+surface because it appends project cognition advisory gate text after template
+processing. Updating only shared Markdown templates would leave generated
+commands or skills able to reintroduce the old first/missing-baseline
+scan/build wording.
+
+`docs/quickstart.md` and `docs/installation.md` are user-facing setup surfaces.
+They should either describe the init-time greenfield baseline or explicitly
+stand down if the implementation proves their existing project-cognition setup
+guidance remains accurate without edits.
 
 Tests:
 
@@ -510,6 +533,11 @@ Add Go tests for:
 - `query` returns query-ready empty graph results and minimal live-read guidance
 - `init-empty` does not overwrite an existing baseline
 - `init-empty` declines or blocks safely when a non-empty project is detected
+- `build-from-scan` writes `baseline_kind=brownfield_full` in status and DB
+  metadata for normal scan/build baselines
+- brownfield generation kind and `baseline_kind` agreement are either preserved
+  as `kind=full` plus `baseline_kind=brownfield_full` or migrated together with
+  validators and tests
 
 Add Python tests for:
 
@@ -524,8 +552,13 @@ Add template/docs tests for:
 - greenfield-empty guidance does not route to scan/build
 - brownfield missing-baseline guidance still routes to scan/build when a full
   first baseline is needed
+- generated integration addenda from `src/specify_cli/integrations/base.py`
+  include the `greenfield_empty` branch and do not reintroduce unconditional
+  scan/build guidance
 - passive skills and shared partials use the same routing language
 - generated integrations inherit the updated guidance
+- quickstart and installation docs either mention the greenfield bootstrap or
+  are explicitly covered by a no-change assertion
 
 ## Acceptance Criteria
 
