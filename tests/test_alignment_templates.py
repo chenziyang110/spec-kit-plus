@@ -700,7 +700,10 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "do not refresh all files" in lowered
     assert "requirements.md only when product requirements have changed enough to matter" in combined
     assert "technical-options.md only when options are introduced, revised, selected, or rejected" in combined
-    assert "project-context.md only when source-grounding evidence or cognition coverage changes" in combined
+    assert (
+        "project-context.md only when source-grounding evidence, truth-pass evidence, assumptions, "
+        "advice confidence, or cognition coverage changes"
+    ) in combined
     assert "open-questions.md only when blocking or soft unknowns materially change" in combined
 
 
