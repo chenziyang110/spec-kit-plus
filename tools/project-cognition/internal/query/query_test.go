@@ -494,6 +494,31 @@ func TestLexiconReportsEmptyQueryTerms(t *testing.T) {
 	}
 }
 
+func TestLexiconGreenfieldEmptyKeepsEmptyTermsUnmapped(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedGreenfieldEmptyRuntime(t, paths)
+
+	payload, err := Lexicon(paths, "plan", "!!!", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.BaselineKind != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("BaselineKind = %q, want %q", payload.BaselineKind, rt.BaselineKindGreenfieldEmpty)
+	}
+	if !payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = false, payload = %#v", payload)
+	}
+	if !hasString(payload.MissingCoverage, "empty_query_terms") {
+		t.Fatalf("MissingCoverage = %#v, want empty_query_terms", payload.MissingCoverage)
+	}
+	if !hasString(payload.MissingCoverage, "greenfield_empty_no_project_code") {
+		t.Fatalf("MissingCoverage = %#v, want greenfield_empty_no_project_code", payload.MissingCoverage)
+	}
+	if len(payload.ConceptCandidates) != 0 {
+		t.Fatalf("ConceptCandidates = %#v, want empty", payload.ConceptCandidates)
+	}
+}
+
 func TestLexiconReportsUnmappedIntentWhenNoGraphCandidateMatches(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
@@ -633,6 +658,48 @@ func TestRunMissingBaselineReturnsNeedsRebuildWithoutCreatingDatabase(t *testing
 	}
 	if _, statErr := os.Stat(paths.DatabasePath); !os.IsNotExist(statErr) {
 		t.Fatalf("database stat err = %v, want missing DB", statErr)
+	}
+}
+
+func TestRunGreenfieldEmptyPreservesPlanPathsInMinimalLiveReads(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedGreenfieldEmptyRuntime(t, paths)
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "plan",
+		Plan: Plan{
+			RawQuery: "build login",
+			Paths:    []string{"./docs/login.md", ".specify/memory/constitution.md", "docs/login.md"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.BaselineKind != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("BaselineKind = %q, want %q", payload.BaselineKind, rt.BaselineKindGreenfieldEmpty)
+	}
+	for _, want := range []string{
+		".specify/memory/constitution.md",
+		".specify/memory/project-rules.md",
+		"AGENTS.md",
+		"docs/login.md",
+	} {
+		if !hasString(payload.MinimalLiveReads, want) {
+			t.Fatalf("MinimalLiveReads = %#v, want %s", payload.MinimalLiveReads, want)
+		}
+	}
+	if countString(payload.MinimalLiveReads, ".specify/memory/constitution.md") != 1 {
+		t.Fatalf("MinimalLiveReads = %#v, want deduplicated constitution read", payload.MinimalLiveReads)
+	}
+	routePackReads, ok := payload.RoutePack["minimal_live_reads"].([]string)
+	if !ok {
+		t.Fatalf("route_pack.minimal_live_reads = %#v, want []string", payload.RoutePack["minimal_live_reads"])
+	}
+	if !equalStrings(routePackReads, payload.MinimalLiveReads) {
+		t.Fatalf("route_pack.minimal_live_reads = %#v, want %#v", routePackReads, payload.MinimalLiveReads)
+	}
+	if !hasString(payload.MissingCoverage, "greenfield_empty_no_project_code") {
+		t.Fatalf("MissingCoverage = %#v, want greenfield_empty_no_project_code", payload.MissingCoverage)
 	}
 }
 
@@ -1014,6 +1081,15 @@ func TestRunReportsLexiconGenerationMismatch(t *testing.T) {
 	if !hasString(payload.MissingCoverage, "lexicon_generation_mismatch") {
 		t.Fatalf("MissingCoverage = %#v, want lexicon_generation_mismatch", payload.MissingCoverage)
 	}
+	if payload.BaselineKind != rt.BaselineKindBrownfieldFull {
+		t.Fatalf("BaselineKind = %q, want %q", payload.BaselineKind, rt.BaselineKindBrownfieldFull)
+	}
+	if payload.BaselineHealth["baseline_kind"] != rt.BaselineKindBrownfieldFull {
+		t.Fatalf("BaselineHealth = %#v, want baseline_kind", payload.BaselineHealth)
+	}
+	if payload.QueryCoverage["baseline_kind"] != rt.BaselineKindBrownfieldFull {
+		t.Fatalf("QueryCoverage = %#v, want baseline_kind", payload.QueryCoverage)
+	}
 }
 
 func TestRunReportsUnknownSelectedConcept(t *testing.T) {
@@ -1119,6 +1195,35 @@ func seedReadyGraph(t *testing.T, paths rt.Paths, input store.ImportInput) {
 	status.ActiveGenerationID = generationID
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
+	status.BaselineKind = rt.BaselineKindBrownfieldFull
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedGreenfieldEmptyRuntime(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if closeErr := st.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
 	}
@@ -1131,6 +1236,28 @@ func hasString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func countString(values []string, want string) int {
+	count := 0
+	for _, value := range values {
+		if value == want {
+			count++
+		}
+	}
+	return count
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func mapStringSliceContains(value any, want string) bool {

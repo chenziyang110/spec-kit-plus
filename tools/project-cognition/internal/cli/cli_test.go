@@ -476,14 +476,13 @@ func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
 }
 
 func TestLexiconCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
-	root := initEmptyCLIRuntime(t)
+	initEmptyCLIRuntime(t)
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"lexicon", "--intent", "plan", "--query", "build login", "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
-	_ = root
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatal(err)
@@ -560,6 +559,7 @@ func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	initEmptyCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
 		"raw_query": "build login",
+		"paths":     []string{"docs/login.md"},
 	})
 
 	var stdout, stderr bytes.Buffer
@@ -578,6 +578,9 @@ func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 		t.Fatalf("payload = %#v", payload)
 	}
 	if !jsonStringSliceContains(payload["minimal_live_reads"], ".specify/memory/constitution.md") {
+		t.Fatalf("minimal_live_reads = %#v", payload["minimal_live_reads"])
+	}
+	if !jsonStringSliceContains(payload["minimal_live_reads"], "docs/login.md") {
 		t.Fatalf("minimal_live_reads = %#v", payload["minimal_live_reads"])
 	}
 	if !jsonStringSliceContains(payload["missing_coverage"], "greenfield_empty_no_project_code") {

@@ -70,8 +70,11 @@ func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, er
 	}
 
 	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty {
-		payload.UnmappedIntent = len(terms) > 0
+		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"greenfield_empty_no_project_code"}
+		if len(terms) == 0 {
+			payload.MissingCoverage = append(payload.MissingCoverage, "empty_query_terms")
+		}
 		payload.CandidateUniverse = map[string]any{
 			"counts":           map[string]any{"nodes": 0, "candidates": 0},
 			"truncated":        false,

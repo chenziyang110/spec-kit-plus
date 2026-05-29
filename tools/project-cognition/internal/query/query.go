@@ -134,11 +134,11 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		plan.Paths = normalizePaths(input.Paths)
 	}
 	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty {
-		reads := []string{
+		reads := normalizePaths(append([]string{
 			".specify/memory/constitution.md",
 			".specify/memory/project-rules.md",
 			"AGENTS.md",
-		}
+		}, plan.Paths...))
 		return QueryPayload{
 			BaselineHealth: map[string]any{
 				"freshness":     status.Freshness,
@@ -449,12 +449,14 @@ func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, ac
 			"freshness":             status.Freshness,
 			"readiness":             status.Readiness,
 			"dirty":                 status.Dirty,
+			"baseline_kind":         status.BaselineKind,
 			"active_generation_id":  activeGenerationID,
 			"lexicon_generation_id": plan.LexiconGenerationID,
 		},
 		QueryCoverage: map[string]any{
 			"paths":                 plan.Paths,
 			"nodes":                 0,
+			"baseline_kind":         status.BaselineKind,
 			"active_generation_id":  activeGenerationID,
 			"lexicon_generation_id": plan.LexiconGenerationID,
 		},
@@ -462,6 +464,7 @@ func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, ac
 		PathAdoption:          map[string]any{"paths": plan.Paths},
 		Readiness:             "ambiguous",
 		RecommendedNextAction: "rerun_project_cognition_lexicon",
+		BaselineKind:          status.BaselineKind,
 		Intent:                input.Intent,
 		Query:                 input.Query,
 		QueryPlan:             plan,
