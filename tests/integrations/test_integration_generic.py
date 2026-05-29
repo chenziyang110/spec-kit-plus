@@ -48,6 +48,8 @@ class TestGenericIntegration:
             ".specify/memory/learnings/INDEX.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
+            ".specify/project-cognition/project-cognition.db",
+            ".specify/project-cognition/status.json",
         ]
 
         if script_variant == "sh":

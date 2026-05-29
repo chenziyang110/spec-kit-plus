@@ -310,7 +310,7 @@ def test_init_runs_project_cognition_init_empty(monkeypatch, tmp_path: Path):
                     "#!/usr/bin/env python3",
                     "import json, pathlib, sys",
                     "if not (pathlib.Path.cwd() / '.specify' / 'config.json').is_file(): sys.exit(7)",
-                    "pathlib.Path(sys.argv[0]).with_name('calls.txt').write_text(' '.join(sys.argv[1:]), encoding='utf-8')",
+                    f"pathlib.Path({str(calls_file)!r}).write_text(' '.join(sys.argv[1:]), encoding='utf-8')",
                     "print(json.dumps({'status':'ok','readiness':'query_ready','baseline_kind':'greenfield_empty'}))",
                 ]
             )

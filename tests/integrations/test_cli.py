@@ -3,7 +3,6 @@
 import json
 import os
 import subprocess
-from pathlib import Path
 
 import yaml
 from typer.testing import CliRunner
@@ -64,7 +63,13 @@ class TestInitIntegrationFlag:
         assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (project / ".specify" / "project-cognition").is_dir()
-        assert not (project / ".specify" / "project-cognition" / "status.json").exists()
+        status = json.loads(
+            (project / ".specify" / "project-cognition" / "status.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert status["baseline_kind"] == "greenfield_empty"
+        assert (project / ".specify" / "project-cognition" / "project-cognition.db").exists()
         assert not (project / ".specify" / "templates" / "project-map").exists()
         assert not (project / ".specify" / "project-map").exists()
         assert "sp-teams" in result.output
@@ -390,7 +395,7 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
     assert "managed native hook commands still invoke integration dispatch scripts through a direct python command" in output
 
 
-def test_init_creates_project_cognition_runtime_directory_without_python_status_seed(tmp_path):
+def test_init_creates_project_cognition_greenfield_empty_runtime(tmp_path):
     project = tmp_path / "project-cognition-runtime-dir"
     project.mkdir()
     runner = CliRunner()
@@ -417,7 +422,13 @@ def test_init_creates_project_cognition_runtime_directory_without_python_status_
 
     assert init_result.exit_code == 0, init_result.output
     assert (project / ".specify" / "project-cognition").is_dir()
-    assert not (project / ".specify" / "project-cognition" / "status.json").exists()
+    status = json.loads(
+        (project / ".specify" / "project-cognition" / "status.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert status["baseline_kind"] == "greenfield_empty"
+    assert (project / ".specify" / "project-cognition" / "project-cognition.db").exists()
     assert not (project / ".specify" / "project-map" / "status.json").exists()
     assert not (project / ".specify" / "project-map" / "index" / "status.json").exists()
 

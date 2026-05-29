@@ -181,7 +181,13 @@ class TestCodexAutoPromote:
         assert (target / ".specify" / "teams" / "runtime.json").exists()
         assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (target / ".specify" / "project-cognition").is_dir()
-        assert not (target / ".specify" / "project-cognition" / "status.json").exists()
+        status = json.loads(
+            (target / ".specify" / "project-cognition" / "status.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert status["baseline_kind"] == "greenfield_empty"
+        assert (target / ".specify" / "project-cognition" / "project-cognition.db").exists()
         assert not (target / ".specify" / "templates" / "project-map").exists()
         assert not (target / ".specify" / "project-map").exists()
         cognition_helper = target / ".specify" / "scripts" / "bash" / "project-cognition-freshness.sh"
@@ -945,7 +951,10 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "alternative cause candidates" in content
     assert "transition memo" in content
     assert "if cognition freshness is `missing`, continue with live repository evidence" in content
-    assert "recommend `$sp-map-scan`, then `$sp-map-build` only as external baseline maintenance" in content
+    assert (
+        "use `$sp-map-scan -> $sp-map-build` only for brownfield first/missing/unusable baseline, "
+        "schema failure, zero active-generation `path_index` rows outside baseline-kind exceptions described below"
+    ) in content
     assert "if cognition freshness is `stale`, treat map output as advisory" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
