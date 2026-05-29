@@ -175,6 +175,63 @@ func TestLexiconBlocksSplitBrainBaseline(t *testing.T) {
 	}
 }
 
+func TestLexiconReportsMissingDatabaseAsUnmappedIntent(t *testing.T) {
+	paths := queryTestPaths(t)
+
+	payload, err := Lexicon(paths, "implement", "GUI lag", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = false, payload = %#v", payload)
+	}
+	if !hasString(payload.MissingCoverage, "project_cognition_database_missing") {
+		t.Fatalf("MissingCoverage = %#v, want project_cognition_database_missing", payload.MissingCoverage)
+	}
+	if len(payload.ConceptCandidates) != 0 {
+		t.Fatalf("ConceptCandidates = %#v, want empty", payload.ConceptCandidates)
+	}
+	if payload.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.NeedsRebuildReadiness)
+	}
+}
+
+func TestLexiconReportsEmptyGraphCandidateUniverse(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-empty",
+		Kind:         "full",
+		SourceCommit: "abc123",
+	})
+
+	payload, err := Lexicon(paths, "implement", "GUI lag", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = false, payload = %#v", payload)
+	}
+	if !hasString(payload.MissingCoverage, "empty_graph_candidate_universe") {
+		t.Fatalf("MissingCoverage = %#v, want empty_graph_candidate_universe", payload.MissingCoverage)
+	}
+	if payload.ActiveGenerationID != "GEN-empty" || payload.LexiconGenerationID != "GEN-empty" {
+		t.Fatalf("generation fields = active %q lexicon %q, want GEN-empty", payload.ActiveGenerationID, payload.LexiconGenerationID)
+	}
+	if len(payload.ConceptCandidates) != 0 {
+		t.Fatalf("ConceptCandidates = %#v, want empty", payload.ConceptCandidates)
+	}
+}
+
+func TestTermsFromKeepsUnicodeLetters(t *testing.T) {
+	terms := termsFrom("GUI 卡顿 刷新率低", 10)
+
+	for _, want := range []string{"gui", "卡顿", "刷新率低"} {
+		if !hasString(terms, want) {
+			t.Fatalf("termsFrom() = %#v, want %q", terms, want)
+		}
+	}
+}
+
 func TestLexiconReturnsGraphCandidatesWithoutInventedTermConcepts(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
@@ -261,6 +318,85 @@ func TestLexiconReturnsGraphCandidatesWithoutInventedTermConcepts(t *testing.T) 
 	}
 	if payload.UnmappedIntent {
 		t.Fatalf("UnmappedIntent = true with GUI graph candidate: %#v", payload)
+	}
+}
+
+func TestLexiconPayloadIncludesPlanningContractAndCandidateFields(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-gui",
+			SourceKind:  "source",
+			SourcePath:  "src/gui/window.tsx",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-gui",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-gui",
+			Type:        "capability",
+			Title:       "GUI Shell",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-gui"},
+			Attrs: map[string]any{
+				"aliases":            []any{"GUI", "desktop UI", "smoothness"},
+				"domain":             "desktop",
+				"owner":              "frontend",
+				"route_hints":        []any{"src/gui"},
+				"verification_hints": []any{"npm test -- gui"},
+			},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-gui",
+			Path:       "src/gui/window.tsx",
+			NodeID:     "N-gui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-gui",
+		}},
+	})
+
+	payload, err := Lexicon(paths, "debug", "GUI lag", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptedFields := payload.QueryPlanningContract["accepted_fields"]
+	for _, want := range []string{"concept_decisions", "lexicon_generation_id"} {
+		if !mapStringSliceContains(acceptedFields, want) {
+			t.Fatalf("accepted_fields = %#v, want %q", acceptedFields, want)
+		}
+	}
+	if len(payload.ConceptCandidates) == 0 {
+		t.Fatal("ConceptCandidates is empty")
+	}
+	first := payload.ConceptCandidates[0]
+	requiredKeys := []string{
+		"concept_id",
+		"node_id",
+		"label",
+		"title",
+		"target_type",
+		"node_type",
+		"aliases",
+		"matched_terms",
+		"colloquial_matches",
+		"paths",
+		"evidence_ids",
+		"confidence",
+		"score",
+		"rank",
+		"domain",
+		"owner",
+		"route_hints",
+		"verification_hints",
+		"disambiguation_hint",
+		"selection_guidance",
+	}
+	if !candidateHasKeys(first, requiredKeys...) {
+		t.Fatalf("first candidate missing required keys: %#v", first)
 	}
 }
 
@@ -588,4 +724,27 @@ func hasString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func mapStringSliceContains(value any, want string) bool {
+	switch typed := value.(type) {
+	case []string:
+		return hasString(typed, want)
+	case []any:
+		for _, item := range typed {
+			if item == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func candidateHasKeys(candidate map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if _, ok := candidate[key]; !ok {
+			return false
+		}
+	}
+	return true
 }
