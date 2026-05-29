@@ -373,6 +373,11 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	if activeGenerationID == "" {
 		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{"project-cognition.db has no active generation"}, "warnings": []string{}})
 	}
+	activeGenerationKind, err := st.ActiveGenerationKind(context.Background())
+	if err != nil {
+		return writeErrorJSON(stdout, map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	baselineKind := normalizeBaselineKind(activeGenerationKind)
 	status, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {
 		return writeErrorJSON(stdout, rt.UnsupportedLegacyPayload(paths))
@@ -385,6 +390,7 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 		status.Status = "blocked"
 		status.Readiness = rt.BlockedReadiness
 		status.ActiveGenerationID = activeGenerationID
+		status.BaselineKind = baselineKind
 		if err := st.MarkRuntimeMetadataBlocked(context.Background(), activeGenerationID, func() error {
 			if err := rt.WriteStatus(paths, status); err != nil {
 				return fmt.Errorf("write blocked status: %w", err)
@@ -435,10 +441,10 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	status.RecommendedNextAction = "use_project_cognition"
 	status.GraphReady = true
 	status.ActiveGenerationID = activeGenerationID
-	status.BaselineKind = rt.BaselineKindBrownfieldFull
+	status.BaselineKind = baselineKind
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
-	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID, rt.BaselineKindBrownfieldFull, func() error {
+	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID, baselineKind, func() error {
 		if err := rt.WriteStatus(paths, status); err != nil {
 			return fmt.Errorf("write ready status: %w", err)
 		}
@@ -468,6 +474,15 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 		"errors":               []string{},
 		"warnings":             []string{},
 	})
+}
+
+func normalizeBaselineKind(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "", "full":
+		return rt.BaselineKindBrownfieldFull
+	default:
+		return strings.TrimSpace(kind)
+	}
 }
 
 func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

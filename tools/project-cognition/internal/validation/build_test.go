@@ -98,6 +98,46 @@ func TestValidateBuildAcceptsGreenfieldEmptyBaseline(t *testing.T) {
 	}
 }
 
+func TestValidateBuildBlocksGreenfieldMetadataKindMismatch(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `UPDATE metadata SET value_json = '"brownfield_full"' WHERE key = 'baseline_kind'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if !hasValidationError(payload.Errors, `baseline_kind mismatch: status.json has "greenfield_empty", DB metadata has "brownfield_full"`) {
+		t.Fatalf("errors = %#v", payload.Errors)
+	}
+}
+
 func TestValidateBuildBlocksMetadataOnlyDatabase(t *testing.T) {
 	paths := validationTestPaths(t)
 	writeBuildAcceptanceInputs(t, paths)

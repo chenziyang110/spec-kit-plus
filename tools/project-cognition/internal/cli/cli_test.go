@@ -13,6 +13,7 @@ import (
 	"time"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
@@ -99,6 +100,57 @@ func TestInitEmptyCommandCreatesGreenfieldRuntime(t *testing.T) {
 	}
 	if status.BaselineKind != rt.BaselineKindGreenfieldEmpty {
 		t.Fatalf("status baseline kind = %q", status.BaselineKind)
+	}
+}
+
+func TestPublishRuntimeMetadataPreservesGreenfieldBaseline(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var initStdout, initStderr bytes.Buffer
+	initCode := Run([]string{"init-empty", "--format", "json"}, &initStdout, &initStderr, "test")
+	if initCode != 0 {
+		t.Fatalf("init code = %d stderr=%s stdout=%s", initCode, initStderr.String(), initStdout.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"publish-runtime-metadata", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "ok" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	metadata, ok := payload["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata = %#v", payload["metadata"])
+	}
+	if metadata["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("metadata baseline_kind = %#v, payload = %#v", metadata["baseline_kind"], payload)
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.BaselineKind != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("status baseline kind = %q", status.BaselineKind)
+	}
+	agreement := runtimegate.Check(paths)
+	if agreement.Status != "ok" {
+		t.Fatalf("agreement = %#v", agreement)
 	}
 }
 
