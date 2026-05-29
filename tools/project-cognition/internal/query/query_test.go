@@ -174,6 +174,147 @@ func TestLexiconBlocksSplitBrainBaseline(t *testing.T) {
 	}
 }
 
+func TestLexiconReturnsGraphCandidatesWithoutInventedTermConcepts(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-gui",
+			SourceKind:  "source",
+			SourcePath:  "src/gui/window.tsx",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-gui",
+		}, {
+			ID:          "E-login",
+			SourceKind:  "source",
+			SourcePath:  "src/auth/login.tsx",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-login",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-gui",
+			Type:        "capability",
+			Title:       "GUI Shell",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-gui"},
+			Attrs: map[string]any{
+				"aliases":            []any{"GUI", "desktop UI", "smoothness"},
+				"domain":             "desktop",
+				"owner":              "frontend",
+				"verification_hints": []any{"npm test -- gui"},
+			},
+		}, {
+			ID:          "N-login",
+			Type:        "capability",
+			Title:       "Login Flow",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-login"},
+			Attrs:       map[string]any{"aliases": []any{"login", "auth"}},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-gui",
+			Path:       "src/gui/window.tsx",
+			NodeID:     "N-gui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-gui",
+		}, {
+			ID:         "P-login",
+			Path:       "src/auth/login.tsx",
+			NodeID:     "N-login",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-login",
+		}},
+	})
+
+	payload, err := Lexicon(paths, "debug", "The GUI feels laggy and not smooth", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ActiveGenerationID != "GEN-ui" || payload.LexiconGenerationID != "GEN-ui" {
+		t.Fatalf("generation fields = %#v", payload)
+	}
+	if payload.CandidateUniverseVersion != CandidateUniverseVersion {
+		t.Fatalf("CandidateUniverseVersion = %d", payload.CandidateUniverseVersion)
+	}
+	if len(payload.ConceptCandidates) == 0 {
+		t.Fatal("ConceptCandidates is empty")
+	}
+	first := payload.ConceptCandidates[0]
+	if first["concept_id"] != "concept:GEN-ui:N-gui" {
+		t.Fatalf("first candidate = %#v, want GUI concept", first)
+	}
+	for _, candidate := range payload.ConceptCandidates {
+		conceptID, ok := candidate["concept_id"].(string)
+		if !ok {
+			t.Fatalf("candidate concept_id is not string: %#v", candidate)
+		}
+		if strings.HasPrefix(conceptID, "term:") {
+			t.Fatalf("lexicon invented term candidate: %#v", candidate)
+		}
+	}
+	if payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = true with GUI graph candidate: %#v", payload)
+	}
+}
+
+func TestLexiconReportsUnmappedIntentWhenNoGraphCandidateMatches(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-gui",
+			SourceKind:  "source",
+			SourcePath:  "src/gui/window.tsx",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-gui",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-gui",
+			Type:        "capability",
+			Title:       "GUI Shell",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-gui"},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-gui",
+			Path:       "src/gui/window.tsx",
+			NodeID:     "N-gui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-gui",
+		}},
+	})
+
+	payload, err := Lexicon(paths, "implement", "payment settlement ledger rounding", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = false, payload = %#v", payload)
+	}
+	if !hasString(payload.MissingCoverage, "no_graph_candidate_matched_query") {
+		t.Fatalf("MissingCoverage = %#v, want no_graph_candidate_matched_query", payload.MissingCoverage)
+	}
+	for _, candidate := range payload.ConceptCandidates {
+		conceptID, ok := candidate["concept_id"].(string)
+		if !ok {
+			t.Fatalf("candidate concept_id is not string: %#v", candidate)
+		}
+		if strings.HasPrefix(conceptID, "term:") {
+			t.Fatalf("lexicon invented term candidate: %#v", candidate)
+		}
+	}
+}
+
 func TestRunBlocksStatusOnlyBaselineWithoutCreatingDatabase(t *testing.T) {
 	paths := queryTestPaths(t)
 	status := rt.DefaultStatus(paths)
@@ -307,4 +448,49 @@ func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func seedReadyGraph(t *testing.T, paths rt.Paths, input store.ImportInput) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(context.Background(), input); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func hasString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
