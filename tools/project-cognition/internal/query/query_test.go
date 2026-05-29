@@ -83,6 +83,54 @@ func TestNormalizePlanBackfillsLegacyConceptDecisions(t *testing.T) {
 	}
 }
 
+func TestNormalizePlanBackfillsMissingLegacyDecisionsForMixedInput(t *testing.T) {
+	plan := NormalizePlan(Plan{
+		ConceptDecisions: []ConceptDecision{
+			{
+				ConceptID:       "concept:GEN-ui:N-gui",
+				Decision:        "selected",
+				SelectionReason: "GUI owns the explicit user interaction surface.",
+			},
+		},
+		SelectedConcepts: []string{"concept:GEN-ui:N-gui", "concept:GEN-ui:N-rendering"},
+		RejectedConcepts: []string{"concept:GEN-ui:N-login"},
+		SelectionReason:  "GUI and rendering match the request; login is out of scope.",
+	})
+
+	want := []ConceptDecision{
+		{
+			ConceptID:       "concept:GEN-ui:N-gui",
+			Decision:        "selected",
+			SelectionReason: "GUI owns the explicit user interaction surface.",
+		},
+		{
+			ConceptID:       "concept:GEN-ui:N-rendering",
+			Decision:        "selected",
+			SelectionReason: "GUI and rendering match the request; login is out of scope.",
+		},
+		{
+			ConceptID:       "concept:GEN-ui:N-login",
+			Decision:        "rejected",
+			SelectionReason: "GUI and rendering match the request; login is out of scope.",
+		},
+	}
+
+	if len(plan.ConceptDecisions) != len(want) {
+		t.Fatalf("ConceptDecisions = %#v, want %#v", plan.ConceptDecisions, want)
+	}
+	seen := map[string]bool{}
+	for i, decision := range plan.ConceptDecisions {
+		if decision.ConceptID != want[i].ConceptID || decision.Decision != want[i].Decision || decision.SelectionReason != want[i].SelectionReason {
+			t.Fatalf("ConceptDecisions[%d] = %#v, want %#v", i, decision, want[i])
+		}
+		key := decision.ConceptID + "\x00" + decision.Decision
+		if seen[key] {
+			t.Fatalf("duplicate concept decision for %q/%q", decision.ConceptID, decision.Decision)
+		}
+		seen[key] = true
+	}
+}
+
 func TestParsePlanSupportsAtFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "plan.json")

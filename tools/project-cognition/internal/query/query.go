@@ -221,26 +221,8 @@ func normalizeStrings(values []string) []string {
 }
 
 func normalizeConceptDecisions(decisions []ConceptDecision, selectedConcepts, rejectedConcepts []string, selectionReason string) []ConceptDecision {
-	if len(decisions) == 0 {
-		decisions = make([]ConceptDecision, 0, len(selectedConcepts)+len(rejectedConcepts))
-		for _, conceptID := range selectedConcepts {
-			decisions = append(decisions, ConceptDecision{
-				ConceptID:       conceptID,
-				Decision:        "selected",
-				SelectionReason: selectionReason,
-			})
-		}
-		for _, conceptID := range rejectedConcepts {
-			decisions = append(decisions, ConceptDecision{
-				ConceptID:       conceptID,
-				Decision:        "rejected",
-				SelectionReason: selectionReason,
-			})
-		}
-	}
-
 	seen := map[string]bool{}
-	out := make([]ConceptDecision, 0, len(decisions))
+	out := make([]ConceptDecision, 0, len(decisions)+len(selectedConcepts)+len(rejectedConcepts))
 	for _, decision := range decisions {
 		decision.ConceptID = strings.TrimSpace(decision.ConceptID)
 		decision.Decision = strings.TrimSpace(decision.Decision)
@@ -258,5 +240,29 @@ func normalizeConceptDecisions(decisions []ConceptDecision, selectedConcepts, re
 		seen[key] = true
 		out = append(out, decision)
 	}
+	for _, conceptID := range selectedConcepts {
+		out = appendMissingConceptDecision(out, seen, conceptID, "selected", selectionReason)
+	}
+	for _, conceptID := range rejectedConcepts {
+		out = appendMissingConceptDecision(out, seen, conceptID, "rejected", selectionReason)
+	}
 	return out
+}
+
+func appendMissingConceptDecision(out []ConceptDecision, seen map[string]bool, conceptID, decision, selectionReason string) []ConceptDecision {
+	conceptID = strings.TrimSpace(conceptID)
+	decision = strings.TrimSpace(decision)
+	if conceptID == "" || decision == "" {
+		return out
+	}
+	key := conceptID + "\x00" + decision
+	if seen[key] {
+		return out
+	}
+	seen[key] = true
+	return append(out, ConceptDecision{
+		ConceptID:       conceptID,
+		Decision:        decision,
+		SelectionReason: strings.TrimSpace(selectionReason),
+	})
 }
