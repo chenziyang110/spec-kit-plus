@@ -13,7 +13,17 @@ scripts, configuration, or authoritative docs.
 
 Use the launcher-backed project cognition query planning flow required by this
 command's workflow contract to retrieve the task-local project cognition bundle:
-When project cognition is available, run `project-cognition lexicon` to retrieve graph-backed project concept candidates. Inspect `concept_candidates`, select task-relevant existing project concepts in `selected_concepts`, record non-selected or unsafe candidates in `rejected_concepts`, and write per-concept rationale in `concept_decisions`. Carry `lexicon_generation_id` into the `query_plan` so `project-cognition query` can detect generation drift. The `query_plan` should include `selected_concepts`, `rejected_concepts`, `concept_decisions`, `expanded_queries`, and justified `paths`, then be sent to `project-cognition query --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
+When project cognition is available, run `project-cognition lexicon` to retrieve
+graph-backed project concept candidates. Inspect `concept_candidates`, select
+task-relevant existing project concepts in `selected_concepts`, record
+non-selected or unsafe candidates in `rejected_concepts`, and write per-concept
+rationale in `concept_decisions`.
+
+Carry `lexicon_generation_id` into the `query_plan` so `project-cognition query`
+can detect generation drift. The `query_plan` should include
+`selected_concepts`, `rejected_concepts`, `concept_decisions`,
+`expanded_queries`, and justified `paths`, then be sent to
+`project-cognition query --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
 ### Concept Selection
 
