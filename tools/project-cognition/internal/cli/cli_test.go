@@ -134,6 +134,99 @@ func TestInitEmptyCommandDoesNotOverwriteExistingRuntime(t *testing.T) {
 	}
 }
 
+func TestInitEmptyPathsRemapsFilesystemRootCapture(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	filesystemRoot := filepath.VolumeName(root) + string(os.PathSeparator)
+	got := initEmptyPaths(rt.Paths{
+		Root:         filesystemRoot,
+		RuntimeDir:   filepath.Join(filesystemRoot, rt.SpecifyDir, rt.CognitionDir),
+		StatusPath:   filepath.Join(filesystemRoot, rt.SpecifyDir, rt.CognitionDir, rt.StatusFileName),
+		DatabasePath: filepath.Join(filesystemRoot, rt.SpecifyDir, rt.CognitionDir, rt.DBFileName),
+	})
+
+	if got.Root != root {
+		t.Fatalf("Root = %q, want %q", got.Root, root)
+	}
+	wantRuntimeDir := filepath.Join(root, rt.SpecifyDir, rt.CognitionDir)
+	if got.RuntimeDir != wantRuntimeDir {
+		t.Fatalf("RuntimeDir = %q, want %q", got.RuntimeDir, wantRuntimeDir)
+	}
+}
+
+func TestInitEmptyCommandDeclinesNonScaffoldProject(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"init-empty", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "declined" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if _, err := os.Stat(filepath.Join(root, rt.SpecifyDir, rt.CognitionDir, rt.StatusFileName)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("status.json exists or stat failed unexpectedly: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, rt.SpecifyDir, rt.CognitionDir, rt.DBFileName)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("project-cognition.db exists or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestInitEmptyCommandBlocksPartialExistingRuntime(t *testing.T) {
+	root := t.TempDir()
+	paths := cliRuntimePaths(root)
+	status := rt.DefaultStatus(paths)
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"init-empty", "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" || payload["already_initialized"] != false {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if _, err := os.Stat(paths.DatabasePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("project-cognition.db exists or stat failed unexpectedly: %v", err)
+	}
+	after, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.BaselineKind == rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("partial runtime was converted to greenfield baseline: %#v", after)
+	}
+}
+
 func TestBuildFromScanCommandCreatesRuntime(t *testing.T) {
 	payload := runBuildFromScanCLI(t, "build-from-scan")
 
@@ -1425,6 +1518,16 @@ func setupReadyMinimalCLIRuntime(t *testing.T) string {
 		t.Fatalf("publish code = %d stderr=%s stdout=%s", publishCode, publishStderr.String(), publishStdout.String())
 	}
 	return root
+}
+
+func cliRuntimePaths(root string) rt.Paths {
+	runtimeDir := filepath.Join(root, rt.SpecifyDir, rt.CognitionDir)
+	return rt.Paths{
+		Root:         root,
+		RuntimeDir:   runtimeDir,
+		StatusPath:   filepath.Join(runtimeDir, rt.StatusFileName),
+		DatabasePath: filepath.Join(runtimeDir, rt.DBFileName),
+	}
 }
 
 func marshalQueryPlan(t *testing.T, payload map[string]any) string {

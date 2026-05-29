@@ -160,6 +160,44 @@ func TestInitializeGreenfieldEmptyCreatesReadyEmptyGeneration(t *testing.T) {
 	}
 }
 
+func TestGreenfieldEmptyEligibleAcceptsOnlyScaffoldFiles(t *testing.T) {
+	scaffoldRoot := t.TempDir()
+	for _, path := range []string{
+		"AGENTS.md",
+		"README.md",
+		".gitignore",
+		".cognitionignore",
+		filepath.Join(".git", "HEAD"),
+		filepath.Join(".specify", "memory", "project-rules.md"),
+		filepath.Join(".codex", "skills", "sp-plan", "SKILL.md"),
+	} {
+		fullPath := filepath.Join(scaffoldRoot, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(fullPath, []byte("scaffold\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !GreenfieldEmptyEligible(scaffoldRoot) {
+		t.Fatalf("scaffold-only root should be eligible")
+	}
+
+	nonScaffoldRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(nonScaffoldRoot, "README.md"), []byte("scaffold\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(nonScaffoldRoot, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nonScaffoldRoot, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if GreenfieldEmptyEligible(nonScaffoldRoot) {
+		t.Fatalf("root with non-scaffold file should be ineligible")
+	}
+}
+
 func TestImportGenerationRefreshesBaselineKindAfterGreenfieldReady(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)

@@ -212,15 +212,16 @@ func (s *Store) DB() *sql.DB {
 }
 
 func GreenfieldEmptyEligible(root string) bool {
-	nonScaffold := 0
-	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil || nonScaffold > 0 {
-			return nil
+	eligible := true
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			eligible = false
+			return filepath.SkipAll
 		}
 		rel, relErr := filepath.Rel(root, path)
 		if relErr != nil {
-			nonScaffold++
-			return nil
+			eligible = false
+			return filepath.SkipAll
 		}
 		rel = filepath.ToSlash(rel)
 		if rel == "." {
@@ -233,11 +234,12 @@ func GreenfieldEmptyEligible(root string) bool {
 			return nil
 		}
 		if !greenfieldScaffoldFile(rel) {
-			nonScaffold++
+			eligible = false
+			return filepath.SkipAll
 		}
 		return nil
 	})
-	return nonScaffold == 0
+	return err == nil && eligible
 }
 
 func greenfieldSkipDir(rel string) bool {

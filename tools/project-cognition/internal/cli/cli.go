@@ -218,7 +218,7 @@ func initEmptyPaths(paths rt.Paths) rt.Paths {
 	if err != nil {
 		return paths
 	}
-	if !samePath(paths.Root, home) || samePath(cwd, home) {
+	if samePath(cwd, paths.Root) || (!samePath(paths.Root, home) && !isFilesystemRoot(paths.Root)) {
 		return paths
 	}
 	runtimeDir := filepath.Join(cwd, rt.SpecifyDir, rt.CognitionDir)
@@ -228,6 +228,15 @@ func initEmptyPaths(paths rt.Paths) rt.Paths {
 		StatusPath:   filepath.Join(runtimeDir, rt.StatusFileName),
 		DatabasePath: filepath.Join(runtimeDir, rt.DBFileName),
 	}
+}
+
+func isFilesystemRoot(path string) bool {
+	cleaned := filepath.Clean(path)
+	volume := filepath.VolumeName(cleaned)
+	if volume != "" {
+		return samePath(cleaned, volume+string(os.PathSeparator))
+	}
+	return cleaned == string(os.PathSeparator)
 }
 
 func samePath(left string, right string) bool {
