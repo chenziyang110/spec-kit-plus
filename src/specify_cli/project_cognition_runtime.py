@@ -13,7 +13,7 @@ from specify_cli.launcher import write_project_cognition_launcher_config
 
 REPO = "chenziyang110/spec-kit-plus"
 DEFAULT_VERSION = "latest"
-REQUIRED_COMMANDS = ("build-from-scan",)
+REQUIRED_COMMANDS = ("build-from-scan", "init-empty")
 
 
 def get_platform() -> tuple[str, str]:

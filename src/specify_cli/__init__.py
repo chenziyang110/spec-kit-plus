@@ -2443,6 +2443,27 @@ def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = 
             for f in failures:
                 console.print(f"  - {f}")
 
+
+def _run_project_cognition_init_empty(project_path: Path, binary: Path) -> tuple[bool, str]:
+    try:
+        result = subprocess.run(
+            [str(binary), "init-empty", "--format", "json"],
+            cwd=project_path,
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        return False, detail or f"project-cognition init-empty exited {result.returncode}"
+    return True, "greenfield baseline"
+
+
 def _materialize_constitution_template(template_text: str, project_path: Path) -> str:
     """Replace basic constitution template tokens with init-time defaults."""
     replacements = {
@@ -3049,7 +3070,14 @@ def init(
 
                 project_cognition_binary = _ensure_project_cognition()
                 _write_project_cognition_launcher(project_path, project_cognition_binary)
-                tracker.complete("project-cognition", "available")
+                init_ok, init_detail = _run_project_cognition_init_empty(
+                    project_path, project_cognition_binary
+                )
+                if init_ok:
+                    tracker.complete("project-cognition", init_detail)
+                else:
+                    project_cognition_warning = init_detail
+                    tracker.complete("project-cognition", "available; empty baseline skipped")
             except Exception as exc:
                 project_cognition_warning = str(exc)
                 tracker.skip("project-cognition", "download skipped")

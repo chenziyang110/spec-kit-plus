@@ -1,4 +1,6 @@
+import os
 from pathlib import Path
+
 from typer.testing import CliRunner
 
 import specify_cli
@@ -212,6 +214,11 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
     assert rendered == f"{binary} status --format json"
 
 
+def test_project_cognition_required_commands_include_init_empty():
+    assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
+
+
 def test_init_prefetches_project_cognition_runtime(monkeypatch, tmp_path: Path):
     binary = tmp_path / "cache" / "project-cognition"
     calls: list[str] = []
@@ -239,3 +246,53 @@ def test_init_prefetches_project_cognition_runtime(monkeypatch, tmp_path: Path):
     implement_skill = tmp_path / "project" / ".claude" / "skills" / "sp-implement" / "SKILL.md"
     content = implement_skill.read_text(encoding="utf-8")
     assert f"{binary} lexicon --intent implement" in content
+
+
+def test_init_runs_project_cognition_init_empty(monkeypatch, tmp_path: Path):
+    binary = tmp_path / "cache" / "project-cognition"
+    calls_file = tmp_path / "calls.txt"
+    binary.parent.mkdir(parents=True)
+    if os.name == "nt":
+        binary = binary.with_suffix(".cmd")
+        binary.write_text(
+            "\n".join(
+                [
+                    "@echo off",
+                    f'echo %*>"{calls_file}"',
+                    "echo {\"status\":\"ok\",\"readiness\":\"query_ready\",\"baseline_kind\":\"greenfield_empty\"}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    else:
+        binary.write_text(
+            "\n".join(
+                [
+                    "#!/usr/bin/env python3",
+                    "import json, pathlib, sys",
+                    "pathlib.Path(sys.argv[0]).with_name('calls.txt').write_text(' '.join(sys.argv[1:]), encoding='utf-8')",
+                    "print(json.dumps({'status':'ok','readiness':'query_ready','baseline_kind':'greenfield_empty'}))",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        binary.chmod(0o755)
+
+    def fake_ensure_binary():
+        return binary
+
+    monkeypatch.setattr(specify_lint, "ensure_binary", lambda: tmp_path / "spec-lint")
+    monkeypatch.setattr("specify_cli.project_cognition_runtime.ensure_binary", fake_ensure_binary)
+    monkeypatch.setattr(specify_cli, "check_tool", lambda tool, tracker=None: True)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        specify_cli.app,
+        ["init", str(tmp_path / "project"), "--ai", "claude", "--no-git"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls_file.read_text(encoding="utf-8").strip() == "init-empty --format json"
