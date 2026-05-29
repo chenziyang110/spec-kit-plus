@@ -69,7 +69,7 @@ standalone branch-creation command.
   delegation, or validation commands continue.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
-- Use `sp-discussion` before `sp-specify` when the request is a rough idea, not-yet-ready requirement, unsettled product direction, or depends on unclear project boundaries.
+- Use `sp-discussion` before `sp-specify` when the request is a rough idea, not-yet-ready requirement, unsettled product direction, or depends on unclear project boundaries. `sp-discussion` is the senior product-engineering advisor route: it performs a Truth Pass before project-specific technical advice, gives boss-friendly judgment with evidence and risk, maintains a Discussion Compass for long conversations, and applies the Anti-Toothpaste Protocol so the user does not have to pull out every implication one turn at a time.
 - `sp-discussion` must run the Context Boundary Gate before project-specific technical options, affected-file claims, or handoff generation.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
