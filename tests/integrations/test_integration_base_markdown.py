@@ -257,7 +257,12 @@ class MarkdownIntegrationTests:
         )
 
         assert "project-cognition query" in generated
+        assert "graph-backed project concept candidates" in generated
+        assert "concept_decisions" in generated
+        assert "lexicon_generation_id" in generated
         assert "minimal_live_reads" in generated
+        assert "returned map terms" not in generated
+        assert "using returned map terms" not in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in cognition_policy
 
@@ -439,15 +444,23 @@ class MarkdownIntegrationTests:
                 assert "project cognition" in content
                 assert "project-cognition lexicon --intent debug" in content
                 assert "project-cognition query --intent debug" in content
+                assert "graph-backed project concept candidates" in content
+                assert "concept_decisions" in content
+                assert "lexicon_generation_id" in content
                 assert "--query-plan" in content
                 assert "minimal_live_reads" in content
+                assert "returned map terms" not in content
                 assert "debug-handbook.md" not in content
             else:
                 assert "project cognition" in content
                 assert "project-cognition lexicon" in content
                 assert "project-cognition query" in content
+                assert "graph-backed project concept candidates" in content
+                assert "concept_decisions" in content
+                assert "lexicon_generation_id" in content
                 assert "--query-plan" in content
                 assert "minimal_live_reads" in content
+                assert "returned map terms" not in content
                 assert "build-handbook.md" not in content
                 assert "fixed chapter ids required for this workflow" not in content
             assert "map-scan" in content

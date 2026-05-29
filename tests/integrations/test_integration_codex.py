@@ -151,7 +151,11 @@ class TestCodexIntegration:
         )
 
         assert "project-cognition query" in generated
+        assert "graph-backed project concept candidates" in generated
+        assert "concept_decisions" in generated
+        assert "lexicon_generation_id" in generated
         assert "minimal_live_reads" in generated
+        assert "returned map terms" not in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in cognition_policy
 
@@ -841,7 +845,11 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert ".specify/project-cognition/project-cognition.db" in build_content
     assert "lexicon --intent implement" in build_content
     assert "query --intent implement" in build_content
+    assert "graph-backed project concept candidates" in build_content
+    assert "concept_decisions" in build_content
+    assert "lexicon_generation_id" in build_content
     assert "--query-plan" in build_content
+    assert "returned map terms" not in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
     assert "path index source contract" in build_content
     assert "nodes.json `paths`" in build_content
@@ -1077,8 +1085,12 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "lexicon --intent implement" in content
     assert "query --intent implement" in content
+    assert "graph-backed project concept candidates" in content
+    assert "concept_decisions" in content
+    assert "lexicon_generation_id" in content
     assert "--query-plan" in content
     assert "minimal_live_reads" in content
+    assert "returned map terms" not in content
     assert "build-handbook.md" not in content
     assert "shared surfaces" in content
     assert "cognition gate" in content
@@ -1119,8 +1131,12 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "lexicon --intent implement" in content
     assert "query --intent implement" in content
+    assert "graph-backed project concept candidates" in content
+    assert "concept_decisions" in content
+    assert "lexicon_generation_id" in content
     assert "--query-plan" in content
     assert "minimal_live_reads" in content
+    assert "returned map terms" not in content
     assert "build-handbook.md" not in content
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content

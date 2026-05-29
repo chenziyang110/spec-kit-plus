@@ -361,8 +361,12 @@ class TestBuiltInSkillGeneration:
         assert "planning-relevant gray areas" in specify_body.lower()
         assert "project-cognition lexicon --intent plan" in specify_body
         assert "project-cognition query --intent plan" in specify_body
+        assert "graph-backed project concept candidates" in specify_body.lower()
+        assert "concept_decisions" in specify_body
+        assert "lexicon_generation_id" in specify_body
         assert "--query-plan" in specify_body
         assert "minimal_live_reads" in specify_body
+        assert "returned map terms" not in specify_body.lower()
         assert "BUILD-HANDBOOK.md" not in specify_body
         assert "BUILD-WORKFLOW-CONTRACT" not in specify_body
         assert "PRODUCT-AND-CAPABILITY-MAP" not in specify_body
@@ -574,9 +578,13 @@ class TestBuiltInSkillGeneration:
         assert "specify learning capture --command checklist" in checklist_lower
         assert "project-cognition lexicon --intent plan" in checklist_lower
         assert "project-cognition query --intent plan" in checklist_lower
+        assert "graph-backed project concept candidates" in checklist_lower
+        assert "concept_decisions" in checklist_lower
+        assert "lexicon_generation_id" in checklist_lower
         assert "--query-plan" in checklist_lower
         assert "task-local bundle" in checklist_lower
         assert "minimal_live_reads" in checklist_lower
+        assert "returned map terms" not in checklist_lower
         assert ".specify/project-cognition/slices/change.json" not in checklist_lower
         assert "build-handbook.md" not in checklist_lower
         assert "touched area's owning surfaces" in checklist_lower

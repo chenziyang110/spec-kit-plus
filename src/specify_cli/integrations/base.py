@@ -453,7 +453,7 @@ class IntegrationBase(ABC):
             "- Before drafting or asking clarification questions, identify the scope boundary, key constraints, affected surface area, known unknowns, and safest next step.\n"
             "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
-            "- Run project cognition planning navigation with `project-cognition lexicon --intent plan`, then generate a `query_plan`, then run `project-cognition query --intent plan --query-plan`; carry returned `minimal_live_reads` into the coverage-model check.\n"
+            "- Run project cognition planning navigation with `project-cognition lexicon --intent plan`, select from graph-backed project concept candidates, carry `lexicon_generation_id`, write `concept_decisions`, then run `project-cognition query --intent plan --query-plan`; carry returned `minimal_live_reads` into the coverage-model check.\n"
             "- The coverage-model check should identify truth-owning surfaces, change-propagation hotspots, verification entry points, and known unknowns relevant to the request, including module ownership, reusable components/services/hooks, integration points, and neighboring workflow constraints.\n"
             "- Read `.specify/templates/workflow-state-template.md`. Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known with `phase_mode: planning-only`. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- If the topical coverage for the touched area is missing, stale, or too broad: Run a codebase scout before clarification. Build a concise internal scout summary for the request area covering truth-owning surfaces and shared coordination surfaces, change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review, verification entry points and regression-sensitive checks, and known unknowns, stale evidence boundaries, or observability gaps.\n"
@@ -482,9 +482,10 @@ class IntegrationBase(ABC):
             f"{marker}\n\n"
             "- This workflow is artifact-only unless the user explicitly requested source/runtime/template/config/test/generated-asset changes; do not call `project-cognition mark-dirty`, `project-cognition complete-refresh`, or `project-cognition validate-build --format json` just because `sp-specify`, `sp-plan`, or `sp-tasks` wrote planning artifacts.\n"
             "- If this planning workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, it stops being artifact-only for closeout: run inline project cognition update from the workflow-owned changed paths and affected surfaces.\n"
+            "- Git-baseline freshness only changes after source/runtime/template/config/test/generated-asset changes are recorded; planning-only artifact edits do not require `project-cognition complete-refresh`, and manual override/fallback belongs only to an explicit map-maintenance recovery path.\n"
             "- Inline project cognition update uses `project-cognition delta append` followed by `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --changed-path \"<path>\" --scope \"<affected-scope>\" --reason workflow-finalize --format json` when no delta session exists.\n"
             "- A persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`; use `project-cognition mark-dirty --reason \"<reason>\" --format json` only when inline update cannot complete.\n"
-            "- `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made. Use `/sp-map-scan` followed by `/sp-map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
+            "- `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made; run `/sp-map-scan` followed by `/sp-map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
         )
         return content + addendum
 
@@ -502,7 +503,7 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- Run `project-cognition lexicon --intent plan`, generate a `query_plan`, then run `project-cognition query --intent plan --query-plan` before shaping the checklist.\n"
+            "- Run `project-cognition lexicon --intent plan`, select from graph-backed project concept candidates, include `concept_decisions` and `lexicon_generation_id` in the `query_plan`, then run `project-cognition query --intent plan --query-plan` before shaping the checklist.\n"
             "- Use the returned task-local bundle and `minimal_live_reads` to decide whether the touched area's owning surfaces are covered; if coverage is missing, stale, or too broad, follow the returned `recommended_next_action`.\n"
             "- `needs_update`: for checklist intake, treat this as advisory routing. Use `{{invoke:map-update}}` or `/sp-map-update` only when the user requested map maintenance or checklist quality depends on a separate map-maintenance pass; otherwise continue with returned `minimal_live_reads` and live evidence.\n"
         )
@@ -613,7 +614,8 @@ class IntegrationBase(ABC):
         return (
             "**Crucial First Step**: You MUST use agent-assisted project cognition query planning first: "
             f"retrieve the map lexicon with `{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}`, "
-            "translate the raw user intent into a query_plan using returned map terms, then run "
+            "retrieve graph-backed project concept candidates with the lexicon command, select relevant existing concepts, record rejected concepts, write "
+            "`concept_decisions`, carry `lexicon_generation_id`, then run "
             f"`{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan \"<query_plan_json>\" --format json}}}}` "
             f"{command_step}. Use the returned readiness, task-local bundle, and `minimal_live_reads`."
         )
