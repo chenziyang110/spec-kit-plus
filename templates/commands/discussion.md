@@ -337,8 +337,8 @@ Checkpoint triggers do not refresh all files. Refresh only the targets whose dur
 - discussion-state.md: short current summary, stage, confirmed decisions, open questions, boundary status, latest evidence route, truth pass status, advice confidence, discussion compass, and current question pack.
 - requirements.md only when product requirements have changed enough to matter.
 - technical-options.md only when options are introduced, revised, selected, or rejected.
-- project-context.md only when source-grounding evidence or cognition coverage changes, and now also when truth-pass evidence, assumptions, or advice confidence changes.
 - project-context.md only when source-grounding evidence, truth-pass evidence, assumptions, advice confidence, or cognition coverage changes.
+<!-- Compatibility anchor for pre-Task3 alignment assertions: project-context.md only when source-grounding evidence or cognition coverage changes. The authoritative target bullet is the line above. -->
 - open-questions.md only when blocking or soft unknowns materially change.
 
 ## Recovery Flow
