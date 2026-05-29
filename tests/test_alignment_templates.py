@@ -883,7 +883,7 @@ def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -
     assert "senior product-engineering advisor" in lowered
     assert "truth pass" in lowered
     assert "discussion compass" in lowered
-    assert "anti-toothpaste" in lowered
+    assert "proactive implication mapping" in lowered
 
 
 def test_project_cognition_gate_has_staged_discussion_gate() -> None:
