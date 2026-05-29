@@ -14,12 +14,7 @@ scripts, configuration, or authoritative docs.
 
 Use the launcher-backed project cognition query planning flow required by this
 command's workflow contract to retrieve the task-local project cognition bundle:
-run `project-cognition lexicon`, inspect the returned `concept_candidates`,
-select the task-relevant `selected_concepts`, record non-selected or unsafe
-`rejected_concepts`, and write a `selection_reason` for both inclusion and
-exclusion choices. Then construct a `query_plan` containing
-`selected_concepts`, `rejected_concepts`, `expanded_queries`, and `paths`, and
-run `project-cognition query --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
+When project cognition is available, run `project-cognition lexicon` to retrieve graph-backed project concept candidates. Inspect `concept_candidates`, select task-relevant existing project concepts in `selected_concepts`, record non-selected or unsafe candidates in `rejected_concepts`, and write per-concept rationale in `concept_decisions`. Carry `lexicon_generation_id` into the `query_plan` so `project-cognition query` can detect generation drift. The `query_plan` should include `selected_concepts`, `rejected_concepts`, `concept_decisions`, `expanded_queries`, and justified `paths`, then be sent to `project-cognition query --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
 ### Concept Selection
 
@@ -28,8 +23,8 @@ project concept candidates with ownership, route, alias, `matched_terms`,
 `colloquial_matches`, domain, disambiguation, and confidence signals.
 Select concepts that match the user's intent and the workflow objective, reject
 concepts that are unrelated or unsafe to assume, and preserve the
-`selection_reason` so downstream artifacts can understand why the query was
-bounded that way.
+`selection_reason` and `concept_decisions` so downstream artifacts can
+understand why the query was bounded that way.
 
 When candidate concepts conflict, are too broad, or remain unknown, follow the
 returned readiness state instead of guessing. Do not bypass `route_pack` or
@@ -49,9 +44,10 @@ only when readiness drives routing, minimal_live_reads constrains inspection,
 and relevant facts are carried into the next workflow artifact or execution state.
 
 Extract and carry forward the selected concepts, rejected concepts,
-`selection_reason`, matched capability or symptom, affected nodes and subgraph,
-`route_pack`, `minimal_live_reads`, missing coverage, evidence traces,
-verification routes, ambiguity, conflicts, and weak coverage.
+`selection_reason`, `concept_decisions`, `lexicon_generation_id`, matched
+capability or symptom, affected nodes and subgraph, `route_pack`,
+`minimal_live_reads`, missing coverage, evidence traces, verification routes,
+ambiguity, conflicts, and weak coverage.
 
 ### Command Tier Depth
 

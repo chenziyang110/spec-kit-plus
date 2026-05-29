@@ -25,9 +25,12 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
 
     assert "launcher-backed project cognition query planning flow" in lowered
     assert "project-cognition lexicon" in lowered
+    assert "graph-backed project concept candidates" in lowered
     assert "concept_candidates" in content
     assert "selected_concepts" in content
     assert "rejected_concepts" in content
+    assert "concept_decisions" in content
+    assert "lexicon_generation_id" in content
     assert "selection_reason" in content
     assert "query_plan" in content
     assert "expanded_queries" in content
@@ -50,6 +53,7 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "carry forward the selected concepts" in lowered
     assert "rejected concepts" in lowered
     assert "next workflow artifact or execution state" in lowered
+    assert "returned map terms" not in lowered
 
 
 def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> None:

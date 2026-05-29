@@ -79,7 +79,7 @@ Fast path does not load the full passive learning layer.
 
      ```text
      {{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}
-     # Agent: generate <query_plan_json> from raw user intent plus returned map terms.
+     # Agent: select from returned graph-backed project concept candidates; include selected_concepts, rejected_concepts, concept_decisions, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>.
      {{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}
      ```
 

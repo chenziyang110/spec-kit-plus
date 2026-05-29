@@ -203,7 +203,7 @@ Before `context-grounding`, `technical-options`, affected-surface analysis, or s
 
 1. Read `.specify/project-cognition/status.json` for advisory freshness and runtime metadata when present.
 2. Run `{{specify-subcmd:project-cognition lexicon --intent discussion --query="$ARGUMENTS" --format json}}`.
-3. Translate the returned map terms into a bounded `query_plan` with `selected_concepts`, `rejected_concepts`, `expanded_queries`, `paths`, and `selection_reason`.
+3. Select from the returned graph-backed project concept candidates and create a bounded `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `lexicon_generation_id`, `expanded_queries`, justified `paths`, and `selection_reason`.
 4. Run `{{specify-subcmd:project-cognition query --intent discussion --query-plan "<query_plan_json>" --format json}}`.
 5. Use the returned readiness, route_pack, subgraph, missing coverage, and `minimal_live_reads` only as advisory navigation.
 6. Read the returned `minimal_live_reads` before making project-specific technical claims.

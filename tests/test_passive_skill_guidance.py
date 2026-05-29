@@ -173,9 +173,13 @@ def test_project_cognition_gate_references_routing_and_learning_roles() -> None:
     assert "shared memory capture layer" in content
     assert "launcher-backed project cognition query planning flow" in content
     assert "project-cognition lexicon" in content
+    assert "graph-backed project concept candidates" in content
     assert "query_plan" in content
+    assert "concept_decisions" in content
+    assert "lexicon_generation_id" in content
     assert "task-local project" in content
     assert "raw graph json artifacts as obsolete runtime surfaces" in content
+    assert "returned map terms" not in content
     assert "advisory navigation surface" in content
     assert "legacy project-map exports are not evidence for current project behavior" in content
     assert "read `debug-handbook.md`" not in content

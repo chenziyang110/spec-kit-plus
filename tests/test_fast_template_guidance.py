@@ -35,6 +35,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "project-cognition query --intent implement" in content
     assert "--query-plan" in content
     assert "query_plan" in content
+    assert "concept_decisions" in content
+    assert "lexicon_generation_id" in content
     assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "debug-handbook.md" not in content

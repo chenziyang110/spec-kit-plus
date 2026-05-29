@@ -44,6 +44,11 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
         assert f"project-cognition query --intent {intent}" in content
         assert "--query-plan" in content
         assert "query_plan" in content
+        assert "returned graph-backed project concept candidates" in content
+        assert "concept_decisions" in content
+        assert "lexicon_generation_id" in content
+        assert "returned map terms" not in content
+        assert "raw user intent plus returned map terms" not in content
         for state in readiness_states:
             assert f"`{state}`" in content, f"{name} missing readiness state {state}"
         assert ".specify/project-cognition/graph/nodes.json" not in content

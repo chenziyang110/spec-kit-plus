@@ -118,7 +118,9 @@ standalone branch-creation command.
 - Use the direct `project-cognition` query planning flow required by the
   selected workflow contract to retrieve the task-local project cognition
   bundle. The agent must translate the raw user request into a `query_plan`
-  using returned map terms before running `project-cognition query --query-plan`.
+  using returned graph-backed project concept candidates, `concept_decisions`,
+  and `lexicon_generation_id` before running
+  `project-cognition query --query-plan`.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
 ## Consequence-Aware Routing

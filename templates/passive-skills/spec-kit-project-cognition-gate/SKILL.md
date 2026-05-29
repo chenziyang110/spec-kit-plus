@@ -23,11 +23,12 @@ judgment in an established Spec Kit Plus repository:
 
 - Use the direct `project-cognition` query planning flow required by the active
   workflow contract to retrieve the task-local project cognition bundle. Run
-  `project-cognition lexicon` first, inspect the returned `concept_candidates`,
-  choose task-relevant `selected_concepts`, record non-selected or unsafe
-  `rejected_concepts`, and include a `selection_reason`. Translate that bounded
-  selection into a `query_plan` containing `selected_concepts`,
-  `rejected_concepts`, `expanded_queries`, and `paths`, then run
+  `project-cognition lexicon` first to get graph-backed project concept candidates
+  from the active project cognition graph. The user request ranks and filters
+  existing project concepts; it does not create project concepts. Choose
+  task-relevant `selected_concepts`, record considered but unsafe or irrelevant
+  `rejected_concepts`, write per-concept `concept_decisions`, carry
+  `lexicon_generation_id` in the `query_plan`, and then run
   `project-cognition query --query-plan`.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - Treat `concept_candidates` as structured project concept candidates, not a
@@ -62,9 +63,10 @@ judgment in an established Spec Kit Plus repository:
   constrains inspection, live evidence proves technical claims, and relevant
   facts are carried into the next workflow artifact or execution state.
 - Extract and carry forward `selected_concepts`, `rejected_concepts`,
-  `selection_reason`, the matched capability or symptom, affected nodes and
-  subgraph, `route_pack`, `minimal_live_reads`, missing coverage, evidence
-  traces, verification routes, ambiguity, conflicts, and weak coverage.
+  `selection_reason`, `concept_decisions`, `lexicon_generation_id`, the matched
+  capability or symptom, affected nodes and subgraph, `route_pack`,
+  `minimal_live_reads`, missing coverage, evidence traces, verification routes,
+  ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior and `templates/project-map/**` is historical compatibility/export only.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
