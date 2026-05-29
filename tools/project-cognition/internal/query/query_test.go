@@ -264,17 +264,17 @@ func TestLexiconReturnsGraphCandidatesWithoutInventedTermConcepts(t *testing.T) 
 	}
 }
 
-func TestLexiconRanksRelevantCandidateBeyondInitialWindow(t *testing.T) {
+func TestLexiconRanksRelevantCandidateBeyondStoreDefaultWindow(t *testing.T) {
 	paths := queryTestPaths(t)
-	evidence := make([]store.EvidenceImport, 0, 60)
-	nodes := make([]store.NodeImport, 0, 60)
-	pathIndex := make([]store.PathIndexImport, 0, 60)
-	for i := 1; i <= 60; i++ {
-		nodeID := fmt.Sprintf("N-filler-%02d", i)
-		title := fmt.Sprintf("Filler Concept %02d", i)
-		sourcePath := fmt.Sprintf("src/filler/%02d.go", i)
+	evidence := make([]store.EvidenceImport, 0, 225)
+	nodes := make([]store.NodeImport, 0, 225)
+	pathIndex := make([]store.PathIndexImport, 0, 225)
+	for i := 1; i <= 225; i++ {
+		nodeID := fmt.Sprintf("N-filler-%03d", i)
+		title := fmt.Sprintf("Filler Concept %03d", i)
+		sourcePath := fmt.Sprintf("src/filler/%03d.go", i)
 		aliases := []any{"unrelated"}
-		if i == 60 {
+		if i == 225 {
 			nodeID = "N-render-latency"
 			title = "Render Latency"
 			sourcePath = "src/render/latency.go"

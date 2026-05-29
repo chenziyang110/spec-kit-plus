@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -164,6 +165,64 @@ func TestActiveConceptCandidateRowsDeriveGraphMaterial(t *testing.T) {
 	assertStringSliceContains(t, row.ObservationSummaries, "GUI Shell owns frame rendering and input dispatch.")
 	if !strings.Contains(row.AttrsJSON, "desktop UI") {
 		t.Fatalf("AttrsJSON = %s, want attrs with alias material", row.AttrsJSON)
+	}
+}
+
+func TestAllActiveConceptCandidateRowsReturnsUncappedUniverse(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	const totalNodes = 205
+	input := validImportInput("GEN-wide")
+	input.Evidence = make([]EvidenceImport, 0, totalNodes)
+	input.Nodes = make([]NodeImport, 0, totalNodes)
+	input.PathIndex = make([]PathIndexImport, 0, totalNodes)
+	for i := 1; i <= totalNodes; i++ {
+		nodeID := fmt.Sprintf("N-node-%03d", i)
+		evidenceID := fmt.Sprintf("E-node-%03d", i)
+		path := fmt.Sprintf("src/node/%03d.go", i)
+		input.Evidence = append(input.Evidence, EvidenceImport{
+			ID:          evidenceID,
+			SourceKind:  "source",
+			SourcePath:  path,
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: fmt.Sprintf("hash-node-%03d", i),
+		})
+		input.Nodes = append(input.Nodes, NodeImport{
+			ID:          nodeID,
+			Type:        "capability",
+			Title:       fmt.Sprintf("Node %03d", i),
+			Confidence:  "verified",
+			EvidenceIDs: []string{evidenceID},
+		})
+		input.PathIndex = append(input.PathIndex, PathIndexImport{
+			ID:         fmt.Sprintf("P-node-%03d", i),
+			Path:       path,
+			NodeID:     nodeID,
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: evidenceID,
+		})
+	}
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+
+	limitedRows, err := st.ActiveConceptCandidateRows(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(limitedRows) != 200 {
+		t.Fatalf("ActiveConceptCandidateRows(ctx, 0) returned %d rows, want 200", len(limitedRows))
+	}
+	allRows, err := st.AllActiveConceptCandidateRows(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(allRows) != totalNodes {
+		t.Fatalf("AllActiveConceptCandidateRows returned %d rows, want %d", len(allRows), totalNodes)
 	}
 }
 

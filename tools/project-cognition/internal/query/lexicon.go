@@ -89,7 +89,7 @@ func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, er
 	}
 	defer st.Close()
 
-	rows, err := st.ActiveConceptCandidateRows(context.Background(), 0)
+	rows, err := st.AllActiveConceptCandidateRows(context.Background())
 	if err != nil {
 		return LexiconPayload{}, err
 	}
@@ -99,13 +99,14 @@ func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, er
 	}
 
 	candidates, positiveMatches := rankConceptCandidates(rows, terms, limit)
+	outputTruncated := limit > 0 && len(rows) > limit
 	payload.ConceptCandidates = candidates
 	payload.CandidateUniverse = map[string]any{
 		"counts": map[string]any{
 			"nodes":      len(rows),
 			"candidates": len(candidates),
 		},
-		"truncated":        len(rows) >= 200,
+		"truncated":        outputTruncated,
 		"selection_window": limit,
 	}
 	payload.MatchingProfile["positive_matches"] = positiveMatches
@@ -117,9 +118,6 @@ func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, er
 	case positiveMatches == 0:
 		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"no_graph_candidate_matched_query"}
-		if len(rows) >= 200 {
-			payload.MissingCoverage = append(payload.MissingCoverage, "candidate_universe_limit_reached")
-		}
 	}
 
 	return payload, nil

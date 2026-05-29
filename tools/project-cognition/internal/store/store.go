@@ -511,6 +511,14 @@ func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string
 }
 
 func (s *Store) ActiveConceptCandidateRows(ctx context.Context, limit int) ([]ConceptCandidateRow, error) {
+	return s.activeConceptCandidateRows(ctx, limit, true)
+}
+
+func (s *Store) AllActiveConceptCandidateRows(ctx context.Context) ([]ConceptCandidateRow, error) {
+	return s.activeConceptCandidateRows(ctx, 0, false)
+}
+
+func (s *Store) activeConceptCandidateRows(ctx context.Context, limit int, limited bool) ([]ConceptCandidateRow, error) {
 	generationID, err := s.ActiveGenerationID(ctx)
 	if err != nil {
 		return nil, err
@@ -518,11 +526,18 @@ func (s *Store) ActiveConceptCandidateRows(ctx context.Context, limit int) ([]Co
 	if generationID == "" {
 		return []ConceptCandidateRow{}, nil
 	}
-	if limit <= 0 {
-		limit = 200
+
+	query := `SELECT id, type, title, confidence, attrs_json FROM nodes WHERE generation_id = ? ORDER BY id`
+	args := []any{generationID}
+	if limited {
+		if limit <= 0 {
+			limit = 200
+		}
+		query += ` LIMIT ?`
+		args = append(args, limit)
 	}
 
-	rows, err := s.db.QueryContext(ctx, `SELECT id, type, title, confidence, attrs_json FROM nodes WHERE generation_id = ? ORDER BY id LIMIT ?`, generationID, limit)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query active concept candidate nodes: %w", err)
 	}
