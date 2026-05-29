@@ -59,6 +59,7 @@ type QueryPayload struct {
 	PathAdoption          map[string]any   `json:"path_adoption"`
 	Readiness             string           `json:"readiness"`
 	RecommendedNextAction string           `json:"recommended_next_action"`
+	BaselineKind          string           `json:"baseline_kind,omitempty"`
 	Intent                string           `json:"intent"`
 	Query                 string           `json:"query"`
 	QueryPlan             Plan             `json:"query_plan"`
@@ -131,6 +132,50 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	}
 	if len(plan.Paths) == 0 {
 		plan.Paths = normalizePaths(input.Paths)
+	}
+	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty {
+		reads := []string{
+			".specify/memory/constitution.md",
+			".specify/memory/project-rules.md",
+			"AGENTS.md",
+		}
+		return QueryPayload{
+			BaselineHealth: map[string]any{
+				"freshness":     status.Freshness,
+				"readiness":     status.Readiness,
+				"dirty":         status.Dirty,
+				"baseline_kind": status.BaselineKind,
+			},
+			QueryCoverage:         map[string]any{"paths": plan.Paths, "nodes": 0, "baseline_kind": status.BaselineKind},
+			WorkflowRequirement:   "use_greenfield_workflow_artifacts_then_live_requirements",
+			PathAdoption:          map[string]any{"paths": plan.Paths},
+			Readiness:             status.Readiness,
+			RecommendedNextAction: status.RecommendedNextAction,
+			BaselineKind:          status.BaselineKind,
+			Intent:                input.Intent,
+			Query:                 input.Query,
+			QueryPlan:             plan,
+			SelectedConcepts:      plan.SelectedConcepts,
+			RejectedConcepts:      plan.RejectedConcepts,
+			SelectionReason:       plan.SelectionReason,
+			CapabilityCandidates:  []map[string]any{},
+			SymptomCandidates:     []map[string]any{},
+			AffectedNodes:         []map[string]any{},
+			MinimalLiveReads:      reads,
+			MissingCoverage:       []string{"greenfield_empty_no_project_code"},
+			RoutePack: map[string]any{
+				"items":              []map[string]any{},
+				"routes":             plan.Paths,
+				"minimal_live_reads": reads,
+				"why_these_reads":    "Greenfield empty baseline has no project source graph yet; use workflow artifacts and live requirements.",
+			},
+			Subgraph: map[string]any{
+				"nodes":     []map[string]any{},
+				"edges":     []map[string]any{},
+				"claims":    []map[string]any{},
+				"conflicts": []map[string]any{},
+			},
+		}, nil
 	}
 	nodes := []map[string]any{}
 	missingCoverage := []string{}
@@ -209,18 +254,21 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	}
 	return QueryPayload{
 		BaselineHealth: map[string]any{
-			"freshness": status.Freshness,
-			"readiness": status.Readiness,
-			"dirty":     status.Dirty,
+			"freshness":     status.Freshness,
+			"readiness":     status.Readiness,
+			"dirty":         status.Dirty,
+			"baseline_kind": status.BaselineKind,
 		},
 		QueryCoverage: map[string]any{
-			"paths": plan.Paths,
-			"nodes": len(nodes),
+			"paths":         plan.Paths,
+			"nodes":         len(nodes),
+			"baseline_kind": status.BaselineKind,
 		},
 		WorkflowRequirement:   "use_project_cognition_then_minimal_live_reads",
 		PathAdoption:          map[string]any{"paths": plan.Paths},
 		Readiness:             readiness,
 		RecommendedNextAction: recommendedNextAction,
+		BaselineKind:          status.BaselineKind,
 		Intent:                input.Intent,
 		Query:                 input.Query,
 		QueryPlan:             plan,

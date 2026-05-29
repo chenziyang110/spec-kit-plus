@@ -17,6 +17,7 @@ import (
 type LexiconPayload struct {
 	Readiness                string           `json:"readiness"`
 	RecommendedNextAction    string           `json:"recommended_next_action"`
+	BaselineKind             string           `json:"baseline_kind,omitempty"`
 	Intent                   string           `json:"intent"`
 	Query                    string           `json:"query"`
 	ActiveGenerationID       string           `json:"active_generation_id,omitempty"`
@@ -47,6 +48,7 @@ func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, er
 	payload := LexiconPayload{
 		Readiness:                status.Readiness,
 		RecommendedNextAction:    status.RecommendedNextAction,
+		BaselineKind:             status.BaselineKind,
 		Intent:                   intent,
 		Query:                    text,
 		ActiveGenerationID:       status.ActiveGenerationID,
@@ -65,6 +67,17 @@ func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, er
 			"terms": terms,
 		},
 		MissingCoverage: []string{},
+	}
+
+	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty {
+		payload.UnmappedIntent = len(terms) > 0
+		payload.MissingCoverage = []string{"greenfield_empty_no_project_code"}
+		payload.CandidateUniverse = map[string]any{
+			"counts":           map[string]any{"nodes": 0, "candidates": 0},
+			"truncated":        false,
+			"selection_window": limit,
+		}
+		return payload, nil
 	}
 
 	if len(terms) == 0 {

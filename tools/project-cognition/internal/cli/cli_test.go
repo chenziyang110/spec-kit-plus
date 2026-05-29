@@ -475,6 +475,37 @@ func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
 	}
 }
 
+func TestLexiconCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
+	root := initEmptyCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"lexicon", "--intent", "plan", "--query", "build login", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	_ = root
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["readiness"] != rt.ReadyReadiness {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["recommended_next_action"] != "use_project_cognition" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if !jsonStringSliceContains(payload["missing_coverage"], "greenfield_empty_no_project_code") {
+		t.Fatalf("missing_coverage = %#v", payload["missing_coverage"])
+	}
+	candidates, ok := payload["concept_candidates"].([]any)
+	if !ok || len(candidates) != 0 {
+		t.Fatalf("concept_candidates = %#v, want empty", payload["concept_candidates"])
+	}
+}
+
 func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	paths, err := rt.ResolvePaths(root)
@@ -522,6 +553,35 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 	if decisions, ok := queryPlanPayload["concept_decisions"].([]any); !ok || len(decisions) == 0 {
 		t.Fatalf("query_plan.concept_decisions = %#v, want non-empty decisions", queryPlanPayload["concept_decisions"])
+	}
+}
+
+func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
+	initEmptyCLIRuntime(t)
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"raw_query": "build login",
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "plan", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["readiness"] != rt.ReadyReadiness {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if !jsonStringSliceContains(payload["minimal_live_reads"], ".specify/memory/constitution.md") {
+		t.Fatalf("minimal_live_reads = %#v", payload["minimal_live_reads"])
+	}
+	if !jsonStringSliceContains(payload["missing_coverage"], "greenfield_empty_no_project_code") {
+		t.Fatalf("missing_coverage = %#v", payload["missing_coverage"])
 	}
 }
 
@@ -1600,6 +1660,23 @@ func setupReadyMinimalCLIRuntime(t *testing.T) string {
 	publishCode := Run([]string{"publish-runtime-metadata", "--format", "json"}, &publishStdout, &publishStderr, "test")
 	if publishCode != 0 {
 		t.Fatalf("publish code = %d stderr=%s stdout=%s", publishCode, publishStderr.String(), publishStdout.String())
+	}
+	return root
+}
+
+func initEmptyCLIRuntime(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"init-empty", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("init-empty code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
 	return root
 }
