@@ -28,6 +28,9 @@ type Agreement struct {
 	GraphStorePath        string   `json:"graph_store_path"`
 	StatusGenerationID    string   `json:"status_generation_id,omitempty"`
 	DBActiveGenerationID  string   `json:"db_active_generation_id,omitempty"`
+	StatusBaselineKind    string   `json:"status_baseline_kind,omitempty"`
+	DBBaselineKind        string   `json:"db_baseline_kind,omitempty"`
+	DBGenerationKind      string   `json:"db_generation_kind,omitempty"`
 	RecommendedNextAction string   `json:"recommended_next_action"`
 }
 
@@ -49,6 +52,7 @@ func Check(paths rt.Paths) Agreement {
 	agreement.Readiness = status.Readiness
 	agreement.GraphStorePath = normalizeGraphStorePath(status.GraphStorePath)
 	agreement.StatusGenerationID = status.ActiveGenerationID
+	agreement.StatusBaselineKind = status.BaselineKind
 
 	st, err := store.OpenExisting(paths)
 	if err != nil {
@@ -85,6 +89,15 @@ func Check(paths rt.Paths) Agreement {
 		return agreement
 	}
 	if err := verifyDBMetadata(context.Background(), st, activeGenerationID, agreement.GraphStorePath); err != nil {
+		agreement.Readiness = rt.BlockedReadiness
+		agreement.RecoveryAction = rewriteStatusAction
+		agreement.Errors = append(agreement.Errors, err.Error())
+		return agreement
+	}
+	dbBaselineKind, dbGenerationKind, err := baselineKindAgreement(context.Background(), st, status)
+	agreement.DBBaselineKind = dbBaselineKind
+	agreement.DBGenerationKind = dbGenerationKind
+	if err != nil {
 		agreement.Readiness = rt.BlockedReadiness
 		agreement.RecoveryAction = rewriteStatusAction
 		agreement.Errors = append(agreement.Errors, err.Error())
@@ -151,6 +164,9 @@ func BlockedPayload(paths rt.Paths, agreement Agreement) map[string]any {
 		"graph_store_path":        agreement.GraphStorePath,
 		"status_generation_id":    agreement.StatusGenerationID,
 		"db_active_generation_id": agreement.DBActiveGenerationID,
+		"status_baseline_kind":    agreement.StatusBaselineKind,
+		"db_baseline_kind":        agreement.DBBaselineKind,
+		"db_generation_kind":      agreement.DBGenerationKind,
 	}
 }
 
@@ -208,6 +224,7 @@ func verifyDBMetadata(ctx context.Context, st *store.Store, activeGenerationID s
 		"graph_store_path":        graphStorePath,
 		"graph_ready":             "true",
 		"baseline_state":          "fresh",
+		"baseline_kind":           rt.BaselineKindBrownfieldFull,
 		"query_contract_version":  "1",
 		"update_contract_version": "1",
 	}
@@ -220,6 +237,12 @@ func verifyDBMetadata(ctx context.Context, st *store.Store, activeGenerationID s
 			got = normalizeGraphStorePath(got)
 			want = normalizeGraphStorePath(want)
 		}
+		if key == "baseline_kind" {
+			if got != rt.BaselineKindBrownfieldFull && got != rt.BaselineKindGreenfieldEmpty {
+				return fmt.Errorf("project-cognition.db metadata baseline_kind has %q, expected %q or %q", got, rt.BaselineKindBrownfieldFull, rt.BaselineKindGreenfieldEmpty)
+			}
+			continue
+		}
 		if got != want {
 			return fmt.Errorf("project-cognition.db metadata %s has %q, expected %q", key, got, want)
 		}
@@ -228,4 +251,23 @@ func verifyDBMetadata(ctx context.Context, st *store.Store, activeGenerationID s
 		return fmt.Errorf("graph_store_path mismatch: status.json has %q, DB metadata has %q", statusGraphStorePath, meta["graph_store_path"])
 	}
 	return nil
+}
+
+func baselineKindAgreement(ctx context.Context, st *store.Store, status rt.Status) (dbKind string, generationKind string, err error) {
+	meta, err := st.Metadata(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("read DB metadata: %w", err)
+	}
+	dbKind = strings.TrimSpace(meta["baseline_kind"])
+	generationKind, err = st.ActiveGenerationKind(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	if strings.TrimSpace(status.BaselineKind) != "" && dbKind != status.BaselineKind {
+		return dbKind, generationKind, fmt.Errorf("baseline_kind mismatch: status.json has %q, DB metadata has %q", status.BaselineKind, dbKind)
+	}
+	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty && generationKind != rt.BaselineKindGreenfieldEmpty {
+		return dbKind, generationKind, fmt.Errorf("greenfield_empty status requires active generation kind %q, got %q", rt.BaselineKindGreenfieldEmpty, generationKind)
+	}
+	return dbKind, generationKind, nil
 }

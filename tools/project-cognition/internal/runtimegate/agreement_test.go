@@ -229,6 +229,43 @@ func TestCheckAgreementBlocksMissingRequiredMetadata(t *testing.T) {
 	}
 }
 
+func TestRuntimeGateBlocksGreenfieldKindMismatch(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `UPDATE metadata SET value_json = '"brownfield_full"' WHERE key = 'baseline_kind'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	agreement := Check(paths)
+
+	if agreement.Status != "blocked" {
+		t.Fatalf("agreement = %#v", agreement)
+	}
+	if !containsString(agreement.Errors, `baseline_kind mismatch: status.json has "greenfield_empty", DB metadata has "brownfield_full"`) {
+		t.Fatalf("errors = %#v", agreement.Errors)
+	}
+}
+
 func TestBlockIfExistingSkipsMissingBaselineAndBlocksSplitBrain(t *testing.T) {
 	missingPaths := testPaths(t)
 	if err := BlockIfExisting(missingPaths); err != nil {
@@ -309,6 +346,15 @@ func importAndPublishReady(t *testing.T, st *store.Store, generationID string) {
 	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID, rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func testPaths(t *testing.T) rt.Paths {

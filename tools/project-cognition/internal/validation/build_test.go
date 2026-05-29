@@ -30,6 +30,11 @@ func validationTestPaths(t *testing.T) rt.Paths {
 	return paths
 }
 
+func testPaths(t *testing.T) rt.Paths {
+	t.Helper()
+	return validationTestPaths(t)
+}
+
 func writeBuildAcceptanceInputs(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	workbench := filepath.Join(paths.RuntimeDir, "workbench")
@@ -53,6 +58,43 @@ func writeBuildAcceptanceInputs(t *testing.T, paths rt.Paths) {
 	status.RecommendedNextAction = "use_project_cognition"
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestValidateBuildAcceptsGreenfieldEmptyBaseline(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "ok" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload.Details["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("details baseline_kind = %#v", payload.Details["baseline_kind"])
 	}
 }
 
@@ -657,6 +699,7 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('graph_store_path', '".specify/project-cognition/project-cognition.db"', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('graph_ready', 'true', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('baseline_state', '"fresh"', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
+		`INSERT INTO metadata(key, value_json, updated_at) VALUES('baseline_kind', '"brownfield_full"', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('query_contract_version', '1', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('update_contract_version', '1', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 	}
@@ -664,6 +707,7 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 		{now, now},
 		{now},
 		{now, now},
+		{now},
 		{now},
 		{now},
 		{now},

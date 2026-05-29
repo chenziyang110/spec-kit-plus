@@ -34,15 +34,16 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		CheckedPaths: required,
 		Details:      map[string]any{},
 	}
+	requiredErrors := []string{}
 	for _, rel := range required {
 		full := filepath.Join(paths.Root, filepath.FromSlash(rel))
 		if _, err := os.Stat(full); err != nil {
-			payload.Errors = append(payload.Errors, "missing "+rel)
+			requiredErrors = append(requiredErrors, "missing "+rel)
 			continue
 		}
 		if filepath.Ext(full) == ".json" {
 			if err := validateJSONFile(full); err != nil {
-				payload.Errors = append(payload.Errors, rel+": "+err.Error())
+				requiredErrors = append(requiredErrors, rel+": "+err.Error())
 			}
 		}
 	}
@@ -56,6 +57,7 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		payload.Details["runtime_schema"] = status.RuntimeSchema
 		payload.Details["freshness"] = status.Freshness
 	}
+	greenfieldEmpty := false
 	agreement := runtimegate.Check(paths)
 	if agreement.Status == "blocked" {
 		payload.Errors = append(payload.Errors, agreement.Errors...)
@@ -74,7 +76,12 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		} else {
 			payload.Details["metadata"] = meta
 		}
+		activeGenerationID, err := activeGenerationID(st.DB())
+		if err == nil {
+			greenfieldEmpty = isGreenfieldEmptyBaseline(status, st.DB(), activeGenerationID)
+		}
 	}
+	payload.Errors = append(payload.Errors, filterRequiredBuildErrors(requiredErrors, greenfieldEmpty)...)
 	reconciliationDetails, reconciliationErrors := validateIdentityReconciliation(paths)
 	for key, value := range reconciliationDetails {
 		payload.Details[key] = value
@@ -86,12 +93,29 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 	}
 	payload.Errors = append(payload.Errors, graphErrors...)
 	payload.Warnings = append(payload.Warnings, graphWarnings...)
-	payload.Errors = append(payload.Errors, validateCoverageLedger(paths, "build")...)
+	if !greenfieldEmpty {
+		payload.Errors = append(payload.Errors, validateCoverageLedger(paths, "build")...)
+	}
 	if len(payload.Errors) > 0 {
 		payload.Status = "blocked"
 		payload.Readiness = "blocked"
 	}
 	return payload
+}
+
+func filterRequiredBuildErrors(errors []string, greenfieldEmpty bool) []string {
+	if !greenfieldEmpty {
+		return errors
+	}
+	filtered := []string{}
+	for _, err := range errors {
+		if err == "missing .specify/project-cognition/workbench/capability-ledger.json" ||
+			err == "missing .specify/project-cognition/workbench/control-ledger.json" {
+			continue
+		}
+		filtered = append(filtered, err)
+	}
+	return filtered
 }
 
 func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
@@ -324,10 +348,12 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		details["node_count"] = nodeCount
 		details["path_index_count"] = pathCount
 		details["evidence_count"] = evidenceCount
-		if nodeCount == 0 {
+		greenfieldEmpty := isGreenfieldEmptyBaseline(status, db, activeGenerationID)
+		details["baseline_kind"] = status.BaselineKind
+		if nodeCount == 0 && !greenfieldEmpty {
 			errors = append(errors, "active generation has no nodes")
 		}
-		if pathCount == 0 {
+		if pathCount == 0 && !greenfieldEmpty {
 			errors = append(errors, "active_generation_has_no_path_index_rows")
 		}
 		if pathCount > 0 && sparsePathIndexGateAvailable(paths) {
@@ -338,7 +364,7 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 			errors = append(errors, sparse.Errors...)
 			warnings = append(warnings, sparse.Warnings...)
 		}
-		if evidenceCount == 0 {
+		if evidenceCount == 0 && !greenfieldEmpty {
 			errors = append(errors, "active generation has no evidence rows")
 		}
 		if len(errors) == 0 {
@@ -379,6 +405,19 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		}
 	}
 	return details, errors, warnings
+}
+
+func isGreenfieldEmptyBaseline(status rt.Status, db *sql.DB, activeGenerationID string) bool {
+	if status.BaselineKind != rt.BaselineKindGreenfieldEmpty {
+		return false
+	}
+	metaKind, err := metadataScalar(db, "baseline_kind")
+	if err != nil || metaKind != rt.BaselineKindGreenfieldEmpty {
+		return false
+	}
+	var generationKind string
+	err = db.QueryRow("SELECT kind FROM generations WHERE id = ?", activeGenerationID).Scan(&generationKind)
+	return err == nil && generationKind == rt.BaselineKindGreenfieldEmpty
 }
 
 func sparsePathIndexGateAvailable(paths rt.Paths) bool {

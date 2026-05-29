@@ -22,6 +22,11 @@ func ValidateSparsePathIndex(paths rt.Paths, db *sql.DB, generationID string) Sp
 		Warnings: []string{},
 		Details:  map[string]any{},
 	}
+	if generationID != "" && generationKindIsGreenfield(context.Background(), db, generationID) {
+		result.Details["baseline_kind"] = rt.BaselineKindGreenfieldEmpty
+		result.Details["path_index_to_included_ratio"] = "1.00"
+		return result
+	}
 	requirements, requirementErrors := scanartifacts.LoadPathIndexRequirements(paths)
 	if len(requirementErrors) > 0 {
 		result.Errors = append(result.Errors, requirementErrors...)
@@ -70,6 +75,12 @@ func ValidateSparsePathIndex(paths rt.Paths, db *sql.DB, generationID string) Sp
 	sort.Strings(result.Errors)
 	sort.Strings(result.Warnings)
 	return result
+}
+
+func generationKindIsGreenfield(ctx context.Context, db *sql.DB, generationID string) bool {
+	var kind string
+	err := db.QueryRowContext(ctx, `SELECT kind FROM generations WHERE id = ?`, generationID).Scan(&kind)
+	return err == nil && kind == rt.BaselineKindGreenfieldEmpty
 }
 
 func activePathIndexPaths(ctx context.Context, db *sql.DB, generationID string) ([]string, error) {
