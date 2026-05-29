@@ -74,6 +74,29 @@ func TestWriteStatusUsesGoRuntimeMarker(t *testing.T) {
 	}
 }
 
+func TestStatusRoundTripPreservesBaselineKind(t *testing.T) {
+	paths := testPaths(t)
+	status := DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = ReadyFreshness
+	status.Readiness = ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-greenfield-test"
+	status.BaselineKind = BaselineKindGreenfieldEmpty
+
+	if err := WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.BaselineKind != BaselineKindGreenfieldEmpty {
+		t.Fatalf("BaselineKind = %q, want %q", loaded.BaselineKind, BaselineKindGreenfieldEmpty)
+	}
+}
+
 func TestWriteStatusDoesNotUseFixedTempPath(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
@@ -109,4 +132,17 @@ func TestWriteStatusDoesNotUseFixedTempPath(t *testing.T) {
 	if len(matches) != 0 {
 		t.Fatalf("unexpected stale unique temp files: %v", matches)
 	}
+}
+
+func testPaths(t *testing.T) Paths {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return paths
 }

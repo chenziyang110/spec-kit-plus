@@ -10,16 +10,18 @@ import (
 )
 
 const (
-	RuntimeFormat         = "project-cognition-go"
-	RuntimeSchema         = 1
-	ErrLegacyCode         = "unsupported_legacy_runtime"
-	MissingFreshness      = "missing"
-	ReadyFreshness        = "fresh"
-	StaleFreshness        = "stale"
-	ReadyReadiness        = "query_ready"
-	BlockedReadiness      = "blocked"
-	NeedsRebuildReadiness = "needs_rebuild"
-	UnsupportedReadiness  = "unsupported_runtime"
+	RuntimeFormat               = "project-cognition-go"
+	RuntimeSchema               = 1
+	ErrLegacyCode               = "unsupported_legacy_runtime"
+	MissingFreshness            = "missing"
+	ReadyFreshness              = "fresh"
+	StaleFreshness              = "stale"
+	ReadyReadiness              = "query_ready"
+	BlockedReadiness            = "blocked"
+	NeedsRebuildReadiness       = "needs_rebuild"
+	UnsupportedReadiness        = "unsupported_runtime"
+	BaselineKindBrownfieldFull  = "brownfield_full"
+	BaselineKindGreenfieldEmpty = "greenfield_empty"
 )
 
 var ErrUnsupportedLegacy = errors.New("unsupported legacy project cognition runtime")
@@ -35,6 +37,7 @@ type Status struct {
 	GraphStorePath               string   `json:"graph_store_path"`
 	GraphReady                   bool     `json:"graph_ready"`
 	ActiveGenerationID           string   `json:"active_generation_id,omitempty"`
+	BaselineKind                 string   `json:"baseline_kind,omitempty"`
 	QueryContractVersion         int      `json:"query_contract_version,omitempty"`
 	UpdateContractVersion        int      `json:"update_contract_version,omitempty"`
 	Dirty                        bool     `json:"dirty"`
