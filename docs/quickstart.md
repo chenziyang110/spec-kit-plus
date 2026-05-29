@@ -36,6 +36,12 @@ instructions inside generated workflows should follow the project launcher when
 it exists instead of blindly trusting whichever `specify` happens to be first on
 PATH. Direct `project-cognition` helpers are separate from the `specify`
 launcher and require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH.
+After `specify init` pins the `project-cognition` binary, fresh generated
+projects run `project-cognition init-empty`. When there is no business code yet,
+that bootstrap creates `.specify/project-cognition/status.json` and
+`.specify/project-cognition/project-cognition.db` with
+`baseline_kind=greenfield_empty`; greenfield flows do not require map-scan ->
+map-build solely because the graph has no paths.
 
 ### Invocation Syntax
 
@@ -265,6 +271,7 @@ Generated project navigation now follows the project cognition runtime:
 - Generated projects use `.specify/project-cognition/status.json` plus the task-local `project-cognition query` bundle as the advisory project cognition index.
 - Read the cognition status and the returned task-local bundle before broader repository analysis when available, then prove claims from live repository evidence.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as advisory navigation inputs. Legacy project-map artifacts may still exist in old projects, but there is no Python runtime alias and new workflows should not read or require `.specify/project-map/**`.
+- Fresh `specify init` projects run `project-cognition init-empty` after pinning the binary. When there is no business code yet, this creates `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` with `baseline_kind=greenfield_empty`; greenfield flows do not require map-scan -> map-build solely because the graph has no paths.
 - Use `map-update` only for external/manual localized stale cognition refresh, user-edited changed-path map maintenance, interrupted workflow repair, explicit map maintenance, follow-up repair, and ordinary existing-baseline gaps; recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is map-maintenance complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
 - Any source-changing `sp-*` workflow that alters navigation meaning should run inline project cognition update from changed paths, affected surfaces, and verification evidence during closeout; recommend `map-update` only for external/manual map-maintenance cases.

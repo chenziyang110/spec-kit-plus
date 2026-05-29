@@ -591,3 +591,26 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
         + "`map-update`"
     )
     assert stale_reference_refresh not in readme
+
+
+def test_docs_describe_greenfield_project_cognition_bootstrap() -> None:
+    docs = {
+        "README.md": read_template("README.md"),
+        "PROJECT-HANDBOOK.md": read_template("PROJECT-HANDBOOK.md"),
+        "docs/quickstart.md": read_template("docs/quickstart.md"),
+        "docs/installation.md": read_template("docs/installation.md"),
+    }
+
+    for path, content in docs.items():
+        lowered = content.lower()
+        normalized = " ".join(content.replace("`", "").split()).lower()
+
+        assert "project-cognition init-empty" in lowered, path
+        assert ".specify/project-cognition/status.json" in lowered, path
+        assert ".specify/project-cognition/project-cognition.db" in lowered, path
+        assert "baseline_kind=greenfield_empty" in normalized, path
+        assert "no business code yet" in normalized, path
+        assert "do not require map-scan -> map-build solely because the graph has no paths" in normalized, path
+        assert "brownfield" in lowered, path
+        assert "map-scan -> map-build" in normalized, path
+        assert "first missing unusable baseline" in normalized or "first/missing/unusable baseline" in normalized, path
