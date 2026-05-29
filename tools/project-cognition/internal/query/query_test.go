@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -260,6 +261,100 @@ func TestLexiconReturnsGraphCandidatesWithoutInventedTermConcepts(t *testing.T) 
 	}
 	if payload.UnmappedIntent {
 		t.Fatalf("UnmappedIntent = true with GUI graph candidate: %#v", payload)
+	}
+}
+
+func TestLexiconRanksRelevantCandidateBeyondInitialWindow(t *testing.T) {
+	paths := queryTestPaths(t)
+	evidence := make([]store.EvidenceImport, 0, 60)
+	nodes := make([]store.NodeImport, 0, 60)
+	pathIndex := make([]store.PathIndexImport, 0, 60)
+	for i := 1; i <= 60; i++ {
+		nodeID := fmt.Sprintf("N-filler-%02d", i)
+		title := fmt.Sprintf("Filler Concept %02d", i)
+		sourcePath := fmt.Sprintf("src/filler/%02d.go", i)
+		aliases := []any{"unrelated"}
+		if i == 60 {
+			nodeID = "N-render-latency"
+			title = "Render Latency"
+			sourcePath = "src/render/latency.go"
+			aliases = []any{"render latency"}
+		}
+		suffix := strings.TrimPrefix(nodeID, "N-")
+		evidenceID := "E-" + suffix
+		pathID := "P-" + suffix
+		evidence = append(evidence, store.EvidenceImport{
+			ID:          evidenceID,
+			SourceKind:  "source",
+			SourcePath:  sourcePath,
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-" + suffix,
+		})
+		nodes = append(nodes, store.NodeImport{
+			ID:          nodeID,
+			Type:        "capability",
+			Title:       title,
+			Confidence:  "verified",
+			EvidenceIDs: []string{evidenceID},
+			Attrs:       map[string]any{"aliases": aliases},
+		})
+		pathIndex = append(pathIndex, store.PathIndexImport{
+			ID:         pathID,
+			Path:       sourcePath,
+			NodeID:     nodeID,
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: evidenceID,
+		})
+	}
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-latency",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence:     evidence,
+		Nodes:        nodes,
+		PathIndex:    pathIndex,
+	})
+
+	payload, err := Lexicon(paths, "debug", "render latency", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.ConceptCandidates) == 0 {
+		t.Fatal("ConceptCandidates is empty")
+	}
+	first := payload.ConceptCandidates[0]
+	if first["concept_id"] != "concept:GEN-latency:N-render-latency" {
+		t.Fatalf("first candidate = %#v, want late render latency concept", first)
+	}
+	if payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = true with late render latency candidate: %#v", payload)
+	}
+}
+
+func TestLexiconReportsEmptyQueryTerms(t *testing.T) {
+	paths := queryTestPaths(t)
+
+	payload, err := Lexicon(paths, "implement", "!!!", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = false, payload = %#v", payload)
+	}
+	if !hasString(payload.MissingCoverage, "empty_query_terms") {
+		t.Fatalf("MissingCoverage = %#v, want empty_query_terms", payload.MissingCoverage)
+	}
+	if len(payload.ConceptCandidates) != 0 {
+		t.Fatalf("ConceptCandidates = %#v, want empty", payload.ConceptCandidates)
+	}
+	counts, ok := payload.CandidateUniverse["counts"].(map[string]any)
+	if !ok {
+		t.Fatalf("CandidateUniverse counts = %#v, want map", payload.CandidateUniverse["counts"])
+	}
+	if counts["nodes"] != 0 || counts["candidates"] != 0 {
+		t.Fatalf("CandidateUniverse counts = %#v, want zero nodes and candidates", counts)
 	}
 }
 
