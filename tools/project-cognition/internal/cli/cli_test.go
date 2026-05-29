@@ -174,6 +174,131 @@ func TestImportScanAliasUsesBuildFromScan(t *testing.T) {
 	}
 }
 
+func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"lexicon", "--intent", "implement", "--query", "App GUI", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["active_generation_id"] == "" {
+		t.Fatalf("active_generation_id missing from payload = %#v", payload)
+	}
+	if payload["candidate_universe_version"] != float64(1) {
+		t.Fatalf("candidate_universe_version = %#v, want 1; payload = %#v", payload["candidate_universe_version"], payload)
+	}
+	if _, ok := payload["candidate_universe"].(map[string]any); !ok {
+		t.Fatalf("candidate_universe missing from payload = %#v", payload)
+	}
+	contract, ok := payload["query_planning_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("query_planning_contract missing from payload = %#v", payload)
+	}
+	if !jsonStringSliceContains(contract["accepted_fields"], "concept_decisions") {
+		t.Fatalf("accepted_fields = %#v, want concept_decisions", contract["accepted_fields"])
+	}
+	if !jsonStringSliceContains(contract["accepted_fields"], "lexicon_generation_id") {
+		t.Fatalf("accepted_fields = %#v, want lexicon_generation_id", contract["accepted_fields"])
+	}
+	candidates, ok := payload["concept_candidates"].([]any)
+	if !ok || len(candidates) == 0 {
+		t.Fatalf("concept_candidates = %#v, want at least one candidate", payload["concept_candidates"])
+	}
+	first, ok := candidates[0].(map[string]any)
+	if !ok {
+		t.Fatalf("first concept candidate = %#v, want object", candidates[0])
+	}
+	conceptID, ok := first["concept_id"].(string)
+	if !ok || !strings.HasPrefix(conceptID, "concept:") || strings.HasPrefix(conceptID, "term:") {
+		t.Fatalf("first concept_id = %#v, want concept-backed id", first["concept_id"])
+	}
+}
+
+func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"lexicon_generation_id": status.ActiveGenerationID,
+		"selected_concepts":     []string{conceptID},
+		"concept_decisions": []map[string]any{{
+			"concept_id":       conceptID,
+			"decision":         "selected",
+			"selection_reason": "App owns the requested implementation surface.",
+			"confidence":       "high",
+			"paths":            []string{"src/app.go"},
+		}},
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "implement", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["readiness"] != "query_ready" {
+		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
+	}
+	if !jsonStringSliceContains(payload["minimal_live_reads"], "src/app.go") {
+		t.Fatalf("minimal_live_reads = %#v, want src/app.go", payload["minimal_live_reads"])
+	}
+	if !jsonStringSliceContains(payload["selected_concepts"], conceptID) {
+		t.Fatalf("selected_concepts = %#v, want %s", payload["selected_concepts"], conceptID)
+	}
+	queryPlanPayload, ok := payload["query_plan"].(map[string]any)
+	if !ok {
+		t.Fatalf("query_plan missing from payload = %#v", payload)
+	}
+	if decisions, ok := queryPlanPayload["concept_decisions"].([]any); !ok || len(decisions) == 0 {
+		t.Fatalf("query_plan.concept_decisions = %#v, want non-empty decisions", queryPlanPayload["concept_decisions"])
+	}
+}
+
+func TestQueryCommandAcceptsSuffixConceptIDPlan(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conceptID := "concept:" + status.ActiveGenerationID + ":N-app:alias:app"
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"lexicon_generation_id": status.ActiveGenerationID,
+		"selected_concepts":     []string{conceptID},
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "implement", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !jsonStringSliceContains(payload["minimal_live_reads"], "src/app.go") {
+		t.Fatalf("minimal_live_reads = %#v, want src/app.go", payload["minimal_live_reads"])
+	}
+}
+
 func TestPublishRuntimeMetadataRefusesSparseInvalidGeneration(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	old, _ := os.Getwd()
@@ -1198,6 +1323,38 @@ func runBuildFromScanCLI(t *testing.T, command string) map[string]any {
 		t.Fatal(err)
 	}
 	return payload
+}
+
+func setupReadyMinimalCLIRuntime(t *testing.T) string {
+	t.Helper()
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	var publishStdout, publishStderr bytes.Buffer
+	publishCode := Run([]string{"publish-runtime-metadata", "--format", "json"}, &publishStdout, &publishStderr, "test")
+	if publishCode != 0 {
+		t.Fatalf("publish code = %d stderr=%s stdout=%s", publishCode, publishStderr.String(), publishStdout.String())
+	}
+	return root
+}
+
+func marshalQueryPlan(t *testing.T, payload map[string]any) string {
+	t.Helper()
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
 
 func writeMinimalCLIScanPackage(t *testing.T) string {
