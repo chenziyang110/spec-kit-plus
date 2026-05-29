@@ -200,7 +200,7 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 	if _, err := tx.ExecContext(ctx, `UPDATE generations SET state = 'active', published_at = ? WHERE id = ?`, now, input.GenerationID); err != nil {
 		return "", fmt.Errorf("publish generation %s: %w", input.GenerationID, err)
 	}
-	if err := writeImportMetadata(ctx, tx, input.GenerationID, now); err != nil {
+	if err := writeImportMetadata(ctx, tx, input.GenerationID, input.Kind, now); err != nil {
 		return "", err
 	}
 	if err := tx.Commit(); err != nil {
@@ -430,7 +430,7 @@ func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) 
 	return nil
 }
 
-func writeImportMetadata(ctx context.Context, tx *sql.Tx, generationID, now string) error {
+func writeImportMetadata(ctx context.Context, tx *sql.Tx, generationID, generationKind, now string) error {
 	pairs := map[string]any{
 		"runtime_format":       rt.RuntimeFormat,
 		"runtime_schema":       rt.RuntimeSchema,
@@ -439,6 +439,7 @@ func writeImportMetadata(ctx context.Context, tx *sql.Tx, generationID, now stri
 		"graph_store_path":     ".specify/project-cognition/project-cognition.db",
 		"graph_ready":          false,
 		"baseline_state":       "building",
+		"baseline_kind":        normalizeBaselineKind(generationKind),
 		"published_at":         now,
 	}
 	for key, value := range pairs {

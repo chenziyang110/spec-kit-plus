@@ -318,9 +318,7 @@ func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON s
 }
 
 func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string, baselineKind string, afterCommit ...func() error) (map[string]string, string, error) {
-	if strings.TrimSpace(baselineKind) == "" {
-		baselineKind = rt.BaselineKindBrownfieldFull
-	}
+	baselineKind = normalizeBaselineKind(baselineKind)
 	expectedGenerationID = strings.TrimSpace(expectedGenerationID)
 	if expectedGenerationID == "" {
 		return nil, "", fmt.Errorf("expected generation id is required")
@@ -455,6 +453,10 @@ func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID str
 	if activeGenerationID != generationID {
 		return fmt.Errorf("active generation changed before blocked metadata publication: got %s, want %s", activeGenerationID, generationID)
 	}
+	baselineKind, err := activeGenerationKindTx(ctx, tx)
+	if err != nil {
+		return err
+	}
 
 	pairs := map[string]any{
 		"runtime_format":       rt.RuntimeFormat,
@@ -464,6 +466,7 @@ func (s *Store) MarkRuntimeMetadataBlocked(ctx context.Context, generationID str
 		"graph_store_path":     ".specify/project-cognition/project-cognition.db",
 		"graph_ready":          false,
 		"baseline_state":       "blocked",
+		"baseline_kind":        normalizeBaselineKind(baselineKind),
 		"published_at":         now,
 	}
 	for key, value := range pairs {
@@ -529,6 +532,27 @@ func (s *Store) ActiveGenerationKind(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("scan active generation kind: %w", err)
 	}
 	return kind, rows.Err()
+}
+
+func activeGenerationKindTx(ctx context.Context, tx *sql.Tx) (string, error) {
+	var kind string
+	err := tx.QueryRowContext(ctx, `SELECT kind FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`).Scan(&kind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read active generation kind: %w", err)
+	}
+	return kind, nil
+}
+
+func normalizeBaselineKind(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "", "full":
+		return rt.BaselineKindBrownfieldFull
+	default:
+		return strings.TrimSpace(kind)
+	}
 }
 
 func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string]any, error) {

@@ -149,8 +149,71 @@ func TestInitializeGreenfieldEmptyCreatesReadyEmptyGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Nodes) != 0 || len(snapshot.Evidence) != 0 || len(snapshot.CoveragePaths) != 0 {
+	if len(snapshot.Evidence) != 0 ||
+		len(snapshot.Nodes) != 0 ||
+		len(snapshot.Edges) != 0 ||
+		len(snapshot.Observations) != 0 ||
+		len(snapshot.CoveragePaths) != 0 ||
+		len(snapshot.Rejections) != 0 ||
+		len(snapshot.MergeRecords) != 0 {
 		t.Fatalf("greenfield snapshot = %#v, want empty graph rows", snapshot)
+	}
+}
+
+func TestImportGenerationRefreshesBaselineKindAfterGreenfieldReady(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.InitializeGreenfieldEmpty(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-brownfield")); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-brownfield" {
+		t.Fatalf("active_generation_id = %q, want GEN-brownfield", metadata["active_generation_id"])
+	}
+	if metadata["baseline_kind"] != rt.BaselineKindBrownfieldFull {
+		t.Fatalf("metadata baseline_kind = %q, want %q", metadata["baseline_kind"], rt.BaselineKindBrownfieldFull)
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] != "building" {
+		t.Fatalf("metadata = %#v, want building brownfield metadata", metadata)
+	}
+}
+
+func TestMarkRuntimeMetadataBlockedRefreshesBaselineKindAfterGreenfieldReady(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.InitializeGreenfieldEmpty(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-brownfield")); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkRuntimeMetadataBlocked(ctx, "GEN-brownfield"); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err := st.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata["active_generation_id"] != "GEN-brownfield" {
+		t.Fatalf("active_generation_id = %q, want GEN-brownfield", metadata["active_generation_id"])
+	}
+	if metadata["baseline_kind"] != rt.BaselineKindBrownfieldFull {
+		t.Fatalf("metadata baseline_kind = %q, want %q", metadata["baseline_kind"], rt.BaselineKindBrownfieldFull)
+	}
+	if metadata["graph_ready"] != "false" || metadata["baseline_state"] != "blocked" {
+		t.Fatalf("metadata = %#v, want blocked brownfield metadata", metadata)
 	}
 }
 
