@@ -54,5 +54,5 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Do not edit source code or tests.
 - Do not create feature branches or feature directories.
 - Do not automatically invoke or route into `sp-specify`.
-- Do not make project-specific technical claims before the Context Boundary Gate, staged cognition gate, and Truth Pass pass.
+- Do not make project-specific technical claims before the Context Boundary Gate, staged cognition gate, and Truth Pass are complete.
 - Do not use current project cognition to prove another project's implementation facts.
