@@ -101,6 +101,95 @@ func TestImportGenerationPublishesActiveIdentitySnapshot(t *testing.T) {
 	}
 }
 
+func TestActiveConceptCandidateRowsDeriveGraphMaterial(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	input := validImportInput("GEN-ui")
+	input.Evidence = []EvidenceImport{{
+		ID:          "E-gui",
+		SourceKind:  "source",
+		SourcePath:  "src/gui/window.tsx",
+		CommitSHA:   "abc123",
+		Extractor:   "test",
+		ContentHash: "hash-gui",
+	}}
+	input.Nodes = []NodeImport{{
+		ID:          "N-gui",
+		Type:        "capability",
+		Title:       "GUI Shell",
+		Confidence:  "verified",
+		EvidenceIDs: []string{"E-gui"},
+		Attrs: map[string]any{
+			"aliases":            []any{"GUI", "desktop UI"},
+			"domain":             "desktop",
+			"owner":              "frontend",
+			"route_hints":        []any{"src/gui"},
+			"verification_hints": []any{"npm test -- gui"},
+		},
+	}}
+	input.Observations = []ObservationImport{{
+		ID:              "OBS-gui",
+		ObservationType: "summary",
+		Summary:         "GUI Shell owns frame rendering and input dispatch.",
+		EvidenceIDs:     []string{"E-gui"},
+	}}
+	input.PathIndex = []PathIndexImport{{
+		ID:         "P-gui",
+		Path:       "src/gui/window.tsx",
+		NodeID:     "N-gui",
+		Relation:   "owns",
+		Confidence: "verified",
+		EvidenceID: "E-gui",
+	}}
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := st.ActiveConceptCandidateRows(ctx, 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %#v, want one candidate row", rows)
+	}
+	row := rows[0]
+	if row.GenerationID != "GEN-ui" || row.NodeID != "N-gui" || row.Title != "GUI Shell" {
+		t.Fatalf("row identity = %#v", row)
+	}
+	assertStringSliceContains(t, row.Paths, "src/gui/window.tsx")
+	assertStringSliceContains(t, row.EvidenceIDs, "E-gui")
+	assertStringSliceContains(t, row.EvidencePaths, "src/gui/window.tsx")
+	assertStringSliceContains(t, row.ObservationSummaries, "GUI Shell owns frame rendering and input dispatch.")
+	if !strings.Contains(row.AttrsJSON, "desktop UI") {
+		t.Fatalf("AttrsJSON = %s, want attrs with alias material", row.AttrsJSON)
+	}
+}
+
+func TestNodesForIDsUsesOnlyActiveGeneration(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-old")); err != nil {
+		t.Fatal(err)
+	}
+	next := validImportInput("GEN-new")
+	next.Nodes[0].Title = "Current App"
+	if _, err := st.ImportGeneration(ctx, next); err != nil {
+		t.Fatal(err)
+	}
+
+	nodes, err := st.NodesForIDs(ctx, []string{"N-app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 || nodes[0]["title"] != "Current App" {
+		t.Fatalf("nodes = %#v, want current active generation node", nodes)
+	}
+}
+
 func TestImportGenerationPublishesOnlyProvisionalRuntimeMetadata(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
@@ -761,4 +850,14 @@ func assertSnapshotIdentity(t *testing.T, identities map[string]bool, identity s
 	if !identities[identity] {
 		t.Fatalf("identity %q missing from %#v", identity, identities)
 	}
+}
+
+func assertStringSliceContains(t *testing.T, values []string, want string) {
+	t.Helper()
+	for _, value := range values {
+		if value == want {
+			return
+		}
+	}
+	t.Fatalf("%#v does not contain %q", values, want)
 }

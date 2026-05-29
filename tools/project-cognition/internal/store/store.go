@@ -20,6 +20,19 @@ type Store struct {
 	db *sql.DB
 }
 
+type ConceptCandidateRow struct {
+	GenerationID         string
+	NodeID               string
+	NodeType             string
+	Title                string
+	Confidence           string
+	AttrsJSON            string
+	Paths                []string
+	EvidenceIDs          []string
+	EvidencePaths        []string
+	ObservationSummaries []string
+}
+
 func Open(paths rt.Paths) (*Store, error) {
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create runtime dir: %w", err)
@@ -495,6 +508,166 @@ func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string
 		out = append(out, nodes...)
 	}
 	return out, nil
+}
+
+func (s *Store) ActiveConceptCandidateRows(ctx context.Context, limit int) ([]ConceptCandidateRow, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if generationID == "" {
+		return []ConceptCandidateRow{}, nil
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+
+	rows, err := s.db.QueryContext(ctx, `SELECT id, type, title, confidence, attrs_json FROM nodes WHERE generation_id = ? ORDER BY id LIMIT ?`, generationID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query active concept candidate nodes: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]ConceptCandidateRow, 0)
+	for rows.Next() {
+		row := ConceptCandidateRow{GenerationID: generationID}
+		if err := rows.Scan(&row.NodeID, &row.NodeType, &row.Title, &row.Confidence, &row.AttrsJSON); err != nil {
+			return nil, fmt.Errorf("scan active concept candidate node: %w", err)
+		}
+		row.Paths, err = s.nodeStringValues(ctx, `SELECT path FROM path_index WHERE generation_id = ? AND node_id = ? ORDER BY path`, generationID, row.NodeID)
+		if err != nil {
+			return nil, fmt.Errorf("query active concept candidate paths for %s: %w", row.NodeID, err)
+		}
+		row.EvidenceIDs, err = s.nodeStringValues(ctx, `
+WITH candidate_evidence AS (
+	SELECT ne.evidence_id
+	FROM node_evidence ne
+	JOIN nodes n ON n.id = ne.node_id AND n.generation_id = ?
+	WHERE ne.node_id = ?
+	UNION
+	SELECT p.evidence_id
+	FROM path_index p
+	WHERE p.generation_id = ? AND p.node_id = ?
+)
+SELECT e.id
+FROM candidate_evidence ce
+JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = ?
+ORDER BY e.id`, generationID, row.NodeID, generationID, row.NodeID, generationID)
+		if err != nil {
+			return nil, fmt.Errorf("query active concept candidate evidence for %s: %w", row.NodeID, err)
+		}
+		row.EvidencePaths, err = s.nodeStringValues(ctx, `
+WITH candidate_evidence AS (
+	SELECT ne.evidence_id
+	FROM node_evidence ne
+	JOIN nodes n ON n.id = ne.node_id AND n.generation_id = ?
+	WHERE ne.node_id = ?
+	UNION
+	SELECT p.evidence_id
+	FROM path_index p
+	WHERE p.generation_id = ? AND p.node_id = ?
+)
+SELECT e.source_path
+FROM candidate_evidence ce
+JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = ?
+ORDER BY e.source_path`, generationID, row.NodeID, generationID, row.NodeID, generationID)
+		if err != nil {
+			return nil, fmt.Errorf("query active concept candidate evidence paths for %s: %w", row.NodeID, err)
+		}
+		row.ObservationSummaries, err = s.nodeStringValues(ctx, `
+WITH candidate_evidence AS (
+	SELECT ne.evidence_id
+	FROM node_evidence ne
+	JOIN nodes n ON n.id = ne.node_id AND n.generation_id = ?
+	WHERE ne.node_id = ?
+	UNION
+	SELECT p.evidence_id
+	FROM path_index p
+	WHERE p.generation_id = ? AND p.node_id = ?
+)
+SELECT o.summary
+FROM candidate_evidence ce
+JOIN observation_evidence oe ON oe.evidence_id = ce.evidence_id
+JOIN observations o ON o.id = oe.observation_id AND o.generation_id = ?
+ORDER BY o.summary`, generationID, row.NodeID, generationID, row.NodeID, generationID)
+		if err != nil {
+			return nil, fmt.Errorf("query active concept candidate observations for %s: %w", row.NodeID, err)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *Store) NodesForIDs(ctx context.Context, nodeIDs []string) ([]map[string]any, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if generationID == "" {
+		return []map[string]any{}, nil
+	}
+	nodeIDs = normalizeStoreStrings(nodeIDs)
+	if len(nodeIDs) == 0 {
+		return []map[string]any{}, nil
+	}
+
+	out := make([]map[string]any, 0, len(nodeIDs))
+	for _, nodeID := range nodeIDs {
+		rows, err := s.db.QueryContext(ctx, `
+SELECT n.id, n.type, n.title, MIN(p.path)
+FROM nodes n
+LEFT JOIN path_index p ON p.generation_id = n.generation_id AND p.node_id = n.id
+WHERE n.generation_id = ? AND n.id = ?
+GROUP BY n.id, n.type, n.title
+ORDER BY n.id`, generationID, nodeID)
+		if err != nil {
+			return nil, fmt.Errorf("query node for id %s: %w", nodeID, err)
+		}
+		nodes, err := scanNodeRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, nodes...)
+	}
+	return out, nil
+}
+
+func (s *Store) nodeStringValues(ctx context.Context, query string, args ...any) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	values := []string{}
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return normalizeStoreStrings(values), nil
+}
+
+func normalizeStoreStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func scanNodeRows(rows *sql.Rows) ([]map[string]any, error) {
