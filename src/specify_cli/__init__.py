@@ -3075,7 +3075,8 @@ def init(
 
     # Track git error message outside Live context so it persists
     git_error_message = None
-    project_cognition_warning = None
+    project_cognition_install_warning = None
+    project_cognition_baseline_warning = None
     with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
         tracker.attach_refresh(lambda: live.update(tracker.render()))
         try:
@@ -3097,10 +3098,10 @@ def init(
                 if init_ok:
                     tracker.complete("project-cognition", init_detail)
                 else:
-                    project_cognition_warning = init_detail
+                    project_cognition_baseline_warning = init_detail
                     tracker.complete("project-cognition", "available; empty baseline skipped")
             except Exception as exc:
-                project_cognition_warning = str(exc)
+                project_cognition_install_warning = str(exc)
                 tracker.skip("project-cognition", "download skipped")
 
             tracker.start("integration")
@@ -3257,19 +3258,29 @@ def init(
     except Exception:
         pass  # spec-lint download is best-effort during init
 
-    if project_cognition_warning:
+    if project_cognition_install_warning:
         console.print()
         console.print(_open_block(
             "Project Cognition Runtime",
             [
                 "[yellow]Warning:[/yellow] project-cognition could not be auto-installed during init.",
-                project_cognition_warning,
+                project_cognition_install_warning,
                 "",
                 "[dim]Install the prebuilt release binary manually:[/dim]",
                 "[cyan]curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash[/cyan]",
                 "[cyan]irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex[/cyan]",
                 "",
                 "[dim]Or set PROJECT_COGNITION_BIN to an existing binary path.[/dim]",
+            ],
+            accent="yellow",
+        ))
+    if project_cognition_baseline_warning:
+        console.print()
+        console.print(_open_block(
+            "Project Cognition Baseline",
+            [
+                "[yellow]Warning:[/yellow] project-cognition runtime is available, but the greenfield empty baseline was not created.",
+                project_cognition_baseline_warning,
             ],
             accent="yellow",
         ))

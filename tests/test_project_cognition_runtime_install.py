@@ -336,3 +336,52 @@ def test_init_runs_project_cognition_init_empty(monkeypatch, tmp_path: Path):
     assert result.exit_code == 0, result.output
     assert load_project_cognition_launcher(tmp_path / "project").argv == (str(binary),)
     assert calls_file.read_text(encoding="utf-8").strip() == "init-empty --format json"
+
+
+def test_init_declined_project_cognition_empty_baseline_warning(monkeypatch, tmp_path: Path):
+    binary = tmp_path / "cache" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    if os.name == "nt":
+        binary = binary.with_suffix(".cmd")
+        binary.write_text(
+            "\n".join(
+                [
+                    "@echo off",
+                    'echo {"status":"declined","warnings":["project contains non-scaffold files"]}',
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    else:
+        binary.write_text(
+            "\n".join(
+                [
+                    "#!/usr/bin/env python3",
+                    "import json",
+                    "print(json.dumps({'status':'declined','warnings':['project contains non-scaffold files']}))",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        binary.chmod(0o755)
+
+    monkeypatch.setattr(specify_lint, "ensure_binary", lambda: tmp_path / "spec-lint")
+    monkeypatch.setattr("specify_cli.project_cognition_runtime.ensure_binary", lambda: binary)
+    monkeypatch.setattr(specify_cli, "check_tool", lambda tool, tracker=None: True)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        specify_cli.app,
+        ["init", str(tmp_path / "project"), "--ai", "claude", "--no-git"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "available; empty baseline skipped" in result.output
+    assert "project contains non-scaffold files" in result.output
+    assert "could not be auto-installed" not in result.output
+    assert "Install the prebuilt release binary manually" not in result.output
+    assert "install.sh | bash" not in result.output
+    assert "install.ps1 | iex" not in result.output
