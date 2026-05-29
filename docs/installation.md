@@ -94,14 +94,14 @@ macOS. `specify init` best-effort downloads the matching release asset into
 `~/.specify/bin/` and pins that executable in the generated project's
 `.specify/config.json`. If automatic download is unavailable, use the
 installers below or set `PROJECT_COGNITION_BIN` to a custom binary path.
-After the binary is pinned, fresh `specify init` projects run
+After the binary is pinned, empty projects initialized by `specify init` run
 `project-cognition init-empty`. When there is no business code yet, that
 bootstrap creates `.specify/project-cognition/status.json` and
 `.specify/project-cognition/project-cognition.db` with
-`baseline_kind=greenfield_empty`; greenfield flows do not require map-scan ->
-map-build solely because the graph has no paths. Projects with existing code
-still use map-scan -> map-build for the first brownfield cognition baseline
-when a full baseline is needed for a first/missing/unusable baseline.
+baseline kind `baseline_kind=greenfield_empty`; greenfield flows do not require
+map-scan -> map-build solely because the graph has no paths. Projects with
+existing code still use map-scan -> map-build when a full first brownfield
+cognition baseline is needed for a first/missing/unusable baseline.
 
 ```bash
 # Linux / macOS
