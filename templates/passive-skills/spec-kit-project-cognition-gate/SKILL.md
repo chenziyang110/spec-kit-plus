@@ -94,11 +94,11 @@ judgment in an established Spec Kit Plus repository:
   reads and recommend `{{invoke:map-update}}` for localized stale coverage, weak
   reference coverage, external/manual changed-path map maintenance, or ordinary
   existing-baseline gaps after a usable reference baseline.
-- For missing or unusable reference baselines, recommend
+- For brownfield missing or unusable reference baselines, recommend
   `{{invoke:map-scan}} -> {{invoke:map-build}}`. Recommend scan/build for a
-  reference project only for first/missing/unusable baseline, schema failure,
-  zero active-generation `path_index` rows, `explicit_rebuild_requested`, or
-  `baseline_identity_invalid`.
+  reference project only for brownfield first/missing/unusable baseline, schema
+  failure, zero active-generation `path_index` rows outside `greenfield_empty`,
+  `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 
 ## Command Surface Discipline
 
@@ -109,10 +109,13 @@ judgment in an established Spec Kit Plus repository:
 
 ## Freshness State Guidance
 
-- If the project cognition runtime is missing, continue with live repository
+- If the project cognition runtime is missing for a brownfield project, continue with live repository
   evidence and recommend the canonical `sp-map-scan -> sp-map-build` workflow only as
   external baseline maintenance. When giving the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
+- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live
+  requirements. Do not recommend map-scan -> map-build solely because the graph
+  has no paths.
 - If the project cognition runtime is stale for a localized touched area, continue
   with live repository evidence and recommend `sp-map-update` first when map
   maintenance is useful. When giving the user an explicit
@@ -137,8 +140,8 @@ judgment in an established Spec Kit Plus repository:
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.
 - Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build`
-  only for first/missing/unusable baseline, schema failure, zero active-generation
-  path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+  only for brownfield first/missing/unusable baseline, schema failure, zero active-generation
+  path_index rows outside `greenfield_empty`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
 - Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.

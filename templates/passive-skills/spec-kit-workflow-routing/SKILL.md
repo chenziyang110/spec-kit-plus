@@ -104,9 +104,13 @@ standalone branch-creation command.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
   coverage is stale or too weak for a localized touched area and the user wants
   map maintenance first, including ordinary existing-baseline gaps.
+- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live
+  requirements. Do not recommend map-scan -> map-build solely because the graph
+  has no paths.
 - Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build
-  only for first/missing/unusable baseline, schema failure, zero active-generation
-  path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+  only for brownfield first/missing/unusable baseline, schema failure, zero active-generation
+  path_index rows outside `greenfield_empty`, `explicit_rebuild_requested`, or
+  `baseline_identity_invalid`.
 - `sp-map-update` is for manual/external maintenance as the external/manual maintenance entrypoint for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. A source-changing `sp-*` workflow does not hand off its own verified changes to `sp-map-update`; it runs inline project cognition update during closeout from its workflow-owned changed paths, affected surfaces, and verification evidence. In shared routing summaries, sp-map-update is for manual/external maintenance.
 - Workflow-owned mutation closeout is not external map maintenance. Dirty state is fallback-only after inline update cannot complete.
 - Use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state.

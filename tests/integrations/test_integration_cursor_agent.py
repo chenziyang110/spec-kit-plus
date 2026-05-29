@@ -119,10 +119,12 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
             assert "`explicit_rebuild_requested`" in content
             assert "`baseline_identity_invalid`" in content
             continue
+        assert "greenfield_empty" in content
+        assert "do not recommend map-scan -> map-build solely because the graph has no paths" in content
         assert (
             "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
-            "only for first/missing/unusable baseline, schema failure, zero active-generation "
-            "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+            "only for brownfield first/missing/unusable baseline, schema failure, zero active-generation "
+            "path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid"
         ) in content
         assert "entry advisory is not closeout ownership" in content
         assert "workflow-owned mutation closeout" in content

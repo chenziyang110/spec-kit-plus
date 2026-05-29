@@ -465,10 +465,14 @@ class MarkdownIntegrationTests:
                 assert "fixed chapter ids required for this workflow" not in content
             assert "map-scan" in content
             assert "map-build" in content
+            assert "greenfield_empty" in content
+            assert "do not recommend map-scan -> map-build solely because the graph has no paths" in content
             assert (
-                "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
-                "only for first/missing/unusable baseline, schema failure, zero active-generation "
-                "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+                "use map-update for ordinary existing-baseline gaps. if baseline_kind=greenfield_empty, "
+                "do not recommend map-scan -> map-build solely because the graph has no paths; continue "
+                "with workflow artifacts and live requirements. use map-scan -> map-build only for "
+                "brownfield first/missing/unusable baseline, schema failure, zero active-generation "
+                "path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid"
             ) in content
             for stale_phrase in (
                 "path-index-" + "incomplete",

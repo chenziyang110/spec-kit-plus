@@ -72,8 +72,8 @@ def _assert_contains_any(text: str, *needles: str) -> None:
 
 MAP_UPDATE_FIRST_POLICY = (
     "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
-    "only for first/missing/unusable baseline, schema failure, zero active-generation "
-    "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+    "only for brownfield first/missing/unusable baseline, schema failure, zero active-generation "
+    "path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid"
 )
 
 STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
@@ -145,7 +145,8 @@ def _assert_map_update_first_policy(content: str) -> None:
         or "use /sp-map-scan followed by /sp-map-build only" in normalized
     )
     assert (
-        "first/missing/unusable baseline" in normalized
+        "brownfield first/missing/unusable baseline" in normalized
+        or "first/missing/unusable baseline" in normalized
         or "first baseline" in normalized
     )
     for condition in (
@@ -810,9 +811,11 @@ def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> No
     assert "weak reference coverage" in normalized
     assert "external/manual changed-path map maintenance" in normalized
     assert "ordinary existing-baseline gaps after a usable reference baseline" in normalized
-    assert "for missing or unusable reference baselines" in normalized
+    assert "baseline_kind=greenfield_empty" in normalized
+    assert "do not recommend map-scan -> map-build solely because the graph has no paths" in normalized
+    assert "for brownfield missing or unusable reference baselines" in normalized
     assert "map-scan -> map-build" in normalized
-    assert "reference project only for first/missing/unusable baseline" in normalized
+    assert "reference project only for brownfield first/missing/unusable baseline" in normalized
     for condition in (
         "schema failure",
         "zero active-generation path_index rows",
@@ -1050,13 +1053,14 @@ def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
             _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"),
             "use `map-update`",
             "for blocked, stale",
-            "for missing or unusable reference baselines",
+            "for brownfield missing or unusable reference baselines",
             context=4,
         ),
         "workflow routing": _extract_matching_lines(
             _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md"),
             "use `sp-map-update`",
             "use `sp-map-scan`",
+            "only for brownfield",
             context=6,
         ),
         "README": _extract_matching_lines(
@@ -1131,7 +1135,8 @@ def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
         assert "map-update" in normalized, label
         assert "ordinary existing-baseline" in normalized or "needs_update" in normalized, label
         assert (
-            "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+            "brownfield first/missing/unusable baseline, schema failure, zero active-generation path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+            or "brownfield first/missing/unusable baseline, schema failure, zero active-generation path_index rows outside a greenfield_empty baseline, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
             or "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
         ), label
         _assert_no_stale_map_policy_phrases(content, label)
@@ -2613,7 +2618,7 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     for gate in (lowered_gate, lowered_planning_gate):
         assert "changed paths missing from `path_index`" in gate
         assert "recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps" in gate
-        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
+        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows outside `greenfield_empty`, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
         stale_scan_build_phrase = "recommend `sp-map-scan -> sp-map-build` only if the user wants " + "map " + "repair"
         assert stale_scan_build_phrase not in gate
     assert "cannot create absent path coverage" not in shared_gate
