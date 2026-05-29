@@ -480,6 +480,7 @@ Python init changes:
 Template and documentation changes:
 
 - `src/specify_cli/integrations/base.py`
+- `src/specify_cli/integrations/cursor_agent/__init__.py`
 - `templates/command-partials/common/context-loading-gradient.md`
 - `templates/command-partials/common/planning-context-loading-gradient.md`
 - `templates/command-partials/common/navigation-check.md`
@@ -499,6 +500,12 @@ surface because it appends project cognition advisory gate text after template
 processing. Updating only shared Markdown templates would leave generated
 commands or skills able to reintroduce the old first/missing-baseline
 scan/build wording.
+
+`src/specify_cli/integrations/cursor_agent/__init__.py` has its own
+Cursor-specific project cognition addendum outside `base.py`. It must be
+updated or explicitly routed through the shared wording so Cursor-generated
+skills do not preserve unconditional first/missing-baseline scan/build
+guidance.
 
 `docs/quickstart.md` and `docs/installation.md` are user-facing setup surfaces.
 They should either describe the init-time greenfield baseline or explicitly
@@ -555,6 +562,9 @@ Add template/docs tests for:
 - generated integration addenda from `src/specify_cli/integrations/base.py`
   include the `greenfield_empty` branch and do not reintroduce unconditional
   scan/build guidance
+- Cursor's integration-specific addendum and
+  `tests/integrations/test_integration_cursor_agent.py` assert the same
+  `greenfield_empty` routing branch as the shared integration addenda
 - passive skills and shared partials use the same routing language
 - generated integrations inherit the updated guidance
 - quickstart and installation docs either mention the greenfield bootstrap or
