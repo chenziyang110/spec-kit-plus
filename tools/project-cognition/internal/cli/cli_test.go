@@ -56,6 +56,84 @@ func TestStatusReturnsUnsupportedLegacyJSON(t *testing.T) {
 	}
 }
 
+func TestInitEmptyCommandCreatesGreenfieldRuntime(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"init-empty", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "ok" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("baseline_kind = %#v, payload = %#v", payload["baseline_kind"], payload)
+	}
+	if payload["readiness"] != rt.ReadyReadiness {
+		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
+	}
+
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(paths.StatusPath); err != nil {
+		t.Fatalf("status.json missing: %v", err)
+	}
+	if _, err := os.Stat(paths.DatabasePath); err != nil {
+		t.Fatalf("project-cognition.db missing: %v", err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.BaselineKind != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("status baseline kind = %q", status.BaselineKind)
+	}
+}
+
+func TestInitEmptyCommandDoesNotOverwriteExistingRuntime(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"init-empty", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["already_initialized"] != true {
+		t.Fatalf("already_initialized = %#v, payload = %#v", payload["already_initialized"], payload)
+	}
+	after, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.ActiveGenerationID != before.ActiveGenerationID {
+		t.Fatalf("active generation changed: before=%s after=%s", before.ActiveGenerationID, after.ActiveGenerationID)
+	}
+}
+
 func TestBuildFromScanCommandCreatesRuntime(t *testing.T) {
 	payload := runBuildFromScanCLI(t, "build-from-scan")
 

@@ -211,6 +211,74 @@ func (s *Store) DB() *sql.DB {
 	return s.db
 }
 
+func GreenfieldEmptyEligible(root string) bool {
+	nonScaffold := 0
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || nonScaffold > 0 {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			nonScaffold++
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if rel == "." {
+			return nil
+		}
+		if d.IsDir() && greenfieldSkipDir(rel) {
+			return filepath.SkipDir
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !greenfieldScaffoldFile(rel) {
+			nonScaffold++
+		}
+		return nil
+	})
+	return nonScaffold == 0
+}
+
+func greenfieldSkipDir(rel string) bool {
+	return rel == ".git" ||
+		rel == ".specify" ||
+		rel == ".claude" ||
+		rel == ".cursor" ||
+		rel == ".gemini" ||
+		rel == ".github" ||
+		rel == ".qwen" ||
+		rel == ".opencode" ||
+		rel == ".codex" ||
+		rel == ".windsurf" ||
+		rel == ".kilocode" ||
+		rel == ".junie" ||
+		rel == ".augment" ||
+		rel == ".roo" ||
+		rel == ".codebuddy" ||
+		rel == ".qoder" ||
+		rel == ".kiro" ||
+		rel == ".agents" ||
+		rel == ".shai" ||
+		rel == ".tabnine" ||
+		rel == ".kimi" ||
+		rel == ".pi" ||
+		rel == ".iflow" ||
+		rel == ".forge" ||
+		rel == ".bob" ||
+		rel == ".trae" ||
+		rel == ".vibe"
+}
+
+func greenfieldScaffoldFile(rel string) bool {
+	switch rel {
+	case "AGENTS.md", "README.md", ".gitignore", ".cognitionignore":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schemaSQL); err != nil {
 		return fmt.Errorf("initialize schema: %w", err)

@@ -20,6 +20,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
@@ -57,6 +58,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 	switch args[0] {
 	case "status", "check", "doctor":
 		return statusCommand(args[1:], stdout, stderr, paths)
+	case "init-empty":
+		return initEmptyCommand(args[1:], stdout, stderr, paths)
 	case "mark-dirty":
 		return markDirtyCommand(args[1:], stdout, stderr, paths)
 	case "clear-dirty":
@@ -98,7 +101,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -121,6 +124,119 @@ func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 		return 0
 	}
 	return writeJSON(stdout, status)
+}
+
+func initEmptyCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("init-empty", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	paths = initEmptyPaths(paths)
+	agreement, exists := runtimegate.CheckExisting(paths)
+	if exists {
+		if agreement.Status == "ok" {
+			return writeJSON(stdout, map[string]any{
+				"status":                  "ok",
+				"readiness":               agreement.Readiness,
+				"baseline_kind":           "",
+				"active_generation_id":    agreement.StatusGenerationID,
+				"status_path":             agreement.StatusPath,
+				"graph_store_path":        agreement.GraphStorePath,
+				"already_initialized":     true,
+				"errors":                  []string{},
+				"warnings":                []string{},
+				"recommended_next_action": agreement.RecommendedNextAction,
+			})
+		}
+		payload := runtimegate.BlockedPayload(paths, agreement)
+		payload["already_initialized"] = false
+		return writeErrorJSON(stdout, payload)
+	}
+	if !store.GreenfieldEmptyEligible(paths.Root) {
+		return writeJSON(stdout, map[string]any{
+			"status":              "declined",
+			"readiness":           rt.NeedsRebuildReadiness,
+			"baseline_kind":       "",
+			"already_initialized": false,
+			"status_path":         rt.RelativeRuntimePath(paths, paths.StatusPath),
+			"graph_store_path":    ".specify/project-cognition/project-cognition.db",
+			"errors":              []string{},
+			"warnings":            []string{"project has non-scaffold files; greenfield empty baseline was not created"},
+		})
+	}
+	st, err := store.Open(paths)
+	if err != nil {
+		return writeErrorJSON(stdout, map[string]any{"status": "blocked", "readiness": rt.BlockedReadiness, "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	defer st.Close()
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if err != nil {
+		return writeErrorJSON(stdout, map[string]any{"status": "blocked", "readiness": rt.BlockedReadiness, "errors": []string{err.Error()}, "warnings": []string{}})
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
+	if err := rt.WriteStatus(paths, status); err != nil {
+		return writeErrorJSON(stdout, map[string]any{"status": "blocked", "readiness": rt.BlockedReadiness, "errors": []string{err.Error()}, "warnings": []string{}, "recovery_action": "rewrite_status_from_db_metadata"})
+	}
+	return writeJSON(stdout, map[string]any{
+		"status":               "ok",
+		"readiness":            rt.ReadyReadiness,
+		"baseline_kind":        rt.BaselineKindGreenfieldEmpty,
+		"active_generation_id": generationID,
+		"status_path":          rt.RelativeRuntimePath(paths, paths.StatusPath),
+		"graph_store_path":     ".specify/project-cognition/project-cognition.db",
+		"already_initialized":  false,
+		"errors":               []string{},
+		"warnings":             []string{},
+	})
+}
+
+func initEmptyPaths(paths rt.Paths) rt.Paths {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return paths
+	}
+	cwd, err = filepath.Abs(cwd)
+	if err != nil {
+		return paths
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return paths
+	}
+	home, err = filepath.Abs(home)
+	if err != nil {
+		return paths
+	}
+	if !samePath(paths.Root, home) || samePath(cwd, home) {
+		return paths
+	}
+	runtimeDir := filepath.Join(cwd, rt.SpecifyDir, rt.CognitionDir)
+	return rt.Paths{
+		Root:         cwd,
+		RuntimeDir:   runtimeDir,
+		StatusPath:   filepath.Join(runtimeDir, rt.StatusFileName),
+		DatabasePath: filepath.Join(runtimeDir, rt.DBFileName),
+	}
+}
+
+func samePath(left string, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	if os.PathSeparator == '\\' {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 func markDirtyCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
