@@ -204,6 +204,16 @@ def _extract_section(content: str, heading: str) -> str:
     return match.group(0)
 
 
+def _extract_markdown_heading_section(content: str, heading: str) -> str:
+    level = len(heading) - len(heading.lstrip("#"))
+    pattern = re.compile(
+        rf"(?ms)^{re.escape(heading)}\s*$.*?(?=^#{{1,{level}}}\s+|\Z)",
+    )
+    match = pattern.search(content)
+    assert match is not None, heading
+    return match.group(0)
+
+
 def _assert_map_update_first_policy(content: str) -> None:
     normalized = _normalize_policy_text(content)
     assert "map-update" in normalized
@@ -910,6 +920,20 @@ def test_task7_greenfield_guidance_surfaces_lock_policy() -> None:
     for label, path in TASK7_GREENFIELD_POLICY_SURFACES.items():
         content = _read_project_file(path) if path.startswith("src/") else _read(path)
         _assert_task7_greenfield_policy_surface(content, label)
+
+
+def test_greenfield_empty_guidance_is_not_in_freshness_sections() -> None:
+    for path in (
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+    ):
+        content = _read(path)
+        freshness = _extract_markdown_heading_section(content, "### Freshness")
+        greenfield = _extract_markdown_heading_section(content, "### Greenfield Empty Baseline")
+
+        assert "greenfield_empty" not in freshness.lower(), path
+        assert "baseline_kind=greenfield_empty" in _normalize_policy_text(greenfield), path
+        assert TASK7_GREENFIELD_POLICY_PHRASE in greenfield.lower(), path
 
 
 def test_specify_template_uses_alignment_first_contract():
@@ -2702,7 +2726,7 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     for gate in (lowered_gate, lowered_planning_gate):
         assert "changed paths missing from `path_index`" in gate
         assert "recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps" in gate
-        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows outside `greenfield_empty`, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
+        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows outside a greenfield-empty baseline, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
         stale_scan_build_phrase = "recommend `sp-map-scan -> sp-map-build` only if the user wants " + "map " + "repair"
         assert stale_scan_build_phrase not in gate
     assert "cannot create absent path coverage" not in shared_gate
