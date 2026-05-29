@@ -17,8 +17,9 @@ import (
 const CandidateUniverseVersion = 1
 
 type conceptRef struct {
-	GenerationID string
-	NodeID       string
+	GenerationID   string
+	NodeID         string
+	FallbackNodeID string
 }
 
 type ConceptDecision struct {
@@ -153,24 +154,25 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		}
 		if len(plan.SelectedConcepts) > 0 {
 			var nodeIDs []string
-			var conceptIDsByNodeID map[string][]string
-			nodeIDs, conceptIDsByNodeID, missingCoverage = selectedNodeIDs(plan.SelectedConcepts, activeGenerationID)
+			var selectedRefs []selectedConceptRef
+			selectedRefs, missingCoverage = selectedConceptRefs(plan.SelectedConcepts, activeGenerationID)
 			if len(missingCoverage) > 0 {
 				selectedConceptsMissingNodes = true
 			}
-			nodes, err = st.NodesForIDs(context.Background(), nodeIDs)
+			nodeCandidates := selectedNodeIDCandidates(selectedRefs)
+			nodes, err = st.NodesForIDs(context.Background(), nodeCandidates)
 			if err != nil {
 				return QueryPayload{}, err
 			}
 			resolvedNodeIDs := nodeIDsFromNodes(nodes)
-			for _, nodeID := range nodeIDs {
-				if resolvedNodeIDs[nodeID] {
-					continue
-				}
+			nodeIDs, missingConcepts := resolveSelectedNodeIDs(selectedRefs, resolvedNodeIDs)
+			for _, conceptID := range missingConcepts {
 				selectedConceptsMissingNodes = true
-				for _, conceptID := range conceptIDsByNodeID[nodeID] {
-					missingCoverage = appendMissingCoverage(missingCoverage, "unknown_selected_concept:"+conceptID)
-				}
+				missingCoverage = appendMissingCoverage(missingCoverage, "unknown_selected_concept:"+conceptID)
+			}
+			nodes, err = st.NodesForIDs(context.Background(), nodeIDs)
+			if err != nil {
+				return QueryPayload{}, err
 			}
 			if len(plan.Paths) == 0 && len(nodes) > 0 {
 				plan.Paths = pathsFromNodes(nodes)
@@ -272,42 +274,83 @@ func parseConceptID(value string) (conceptRef, bool) {
 	if !strings.HasPrefix(value, "concept:") {
 		return conceptRef{}, false
 	}
-	parts := strings.Split(value, ":")
-	if len(parts) < 3 || parts[1] == "" || parts[2] == "" {
+	generationID, nodeID, ok := strings.Cut(strings.TrimPrefix(value, "concept:"), ":")
+	if !ok || generationID == "" || nodeID == "" {
 		return conceptRef{}, false
 	}
-	return conceptRef{GenerationID: parts[1], NodeID: parts[2]}, true
+	ref := conceptRef{GenerationID: generationID, NodeID: nodeID}
+	if fallbackNodeID, _, ok := strings.Cut(nodeID, ":"); ok {
+		ref.FallbackNodeID = fallbackNodeID
+	}
+	return ref, true
 }
 
-func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]string, map[string][]string, []string) {
-	nodeIDs := []string{}
-	conceptIDsByNodeID := map[string][]string{}
+type selectedConceptRef struct {
+	ConceptID      string
+	NodeID         string
+	FallbackNodeID string
+}
+
+func selectedConceptRefs(selectedConcepts []string, activeGenerationID string) ([]selectedConceptRef, []string) {
+	refs := []selectedConceptRef{}
 	missingCoverage := []string{}
-	seenNodeIDs := map[string]bool{}
-	seenConceptIDsByNodeID := map[string]map[string]bool{}
+	seenConceptIDs := map[string]bool{}
 	for _, conceptID := range selectedConcepts {
 		conceptID = strings.TrimSpace(conceptID)
-		if conceptID == "" {
+		if conceptID == "" || seenConceptIDs[conceptID] {
 			continue
 		}
+		seenConceptIDs[conceptID] = true
 		ref, ok := parseConceptID(conceptID)
 		nodeID := conceptID
+		fallbackNodeID := ""
 		if ok {
 			if activeGenerationID != "" && ref.GenerationID != activeGenerationID {
 				missingCoverage = append(missingCoverage, "selected_concept_generation_mismatch:"+conceptID)
 				continue
 			}
 			nodeID = ref.NodeID
+			fallbackNodeID = ref.FallbackNodeID
 		}
 		if nodeID == "" {
 			continue
 		}
-		if seenConceptIDsByNodeID[nodeID] == nil {
-			seenConceptIDsByNodeID[nodeID] = map[string]bool{}
+		refs = append(refs, selectedConceptRef{
+			ConceptID:      conceptID,
+			NodeID:         nodeID,
+			FallbackNodeID: fallbackNodeID,
+		})
+	}
+	return refs, missingCoverage
+}
+
+func selectedNodeIDCandidates(refs []selectedConceptRef) []string {
+	nodeIDs := []string{}
+	seenNodeIDs := map[string]bool{}
+	for _, ref := range refs {
+		for _, nodeID := range []string{ref.NodeID, ref.FallbackNodeID} {
+			if nodeID == "" || seenNodeIDs[nodeID] {
+				continue
+			}
+			seenNodeIDs[nodeID] = true
+			nodeIDs = append(nodeIDs, nodeID)
 		}
-		if !seenConceptIDsByNodeID[nodeID][conceptID] {
-			seenConceptIDsByNodeID[nodeID][conceptID] = true
-			conceptIDsByNodeID[nodeID] = append(conceptIDsByNodeID[nodeID], conceptID)
+	}
+	return nodeIDs
+}
+
+func resolveSelectedNodeIDs(refs []selectedConceptRef, resolvedNodeIDs map[string]bool) ([]string, []string) {
+	nodeIDs := []string{}
+	missingConcepts := []string{}
+	seenNodeIDs := map[string]bool{}
+	for _, ref := range refs {
+		nodeID := ref.NodeID
+		if !resolvedNodeIDs[nodeID] && ref.FallbackNodeID != "" && resolvedNodeIDs[ref.FallbackNodeID] {
+			nodeID = ref.FallbackNodeID
+		}
+		if !resolvedNodeIDs[nodeID] {
+			missingConcepts = append(missingConcepts, ref.ConceptID)
+			continue
 		}
 		if seenNodeIDs[nodeID] {
 			continue
@@ -315,7 +358,7 @@ func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]st
 		seenNodeIDs[nodeID] = true
 		nodeIDs = append(nodeIDs, nodeID)
 	}
-	return nodeIDs, conceptIDsByNodeID, missingCoverage
+	return nodeIDs, missingConcepts
 }
 
 func pathsFromNodes(nodes []map[string]any) []string {

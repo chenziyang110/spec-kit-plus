@@ -758,6 +758,91 @@ func TestRunReportsPartiallyUnknownSelectedConcepts(t *testing.T) {
 	}
 }
 
+func TestRunResolvesStableConceptIDWithColonDelimitedNodeID(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{
+			{
+				ID:          "E-app",
+				SourceKind:  "source",
+				SourcePath:  "src/app/main.go",
+				CommitSHA:   "abc123",
+				Extractor:   "test",
+				ContentHash: "hash-app",
+			},
+			{
+				ID:          "E-prefix",
+				SourceKind:  "source",
+				SourcePath:  "src/prefix/wrong.go",
+				CommitSHA:   "abc123",
+				Extractor:   "test",
+				ContentHash: "hash-prefix",
+			},
+		},
+		Nodes: []store.NodeImport{
+			{
+				ID:          "capability:app",
+				Type:        "capability",
+				Title:       "Application Capability",
+				Confidence:  "verified",
+				EvidenceIDs: []string{"E-app"},
+			},
+			{
+				ID:          "capability",
+				Type:        "capability",
+				Title:       "Wrong Prefix Capability",
+				Confidence:  "verified",
+				EvidenceIDs: []string{"E-prefix"},
+			},
+		},
+		PathIndex: []store.PathIndexImport{
+			{
+				ID:         "P-app",
+				Path:       "src/app/main.go",
+				NodeID:     "capability:app",
+				Relation:   "owns",
+				Confidence: "verified",
+				EvidenceID: "E-app",
+			},
+			{
+				ID:         "P-prefix",
+				Path:       "src/prefix/wrong.go",
+				NodeID:     "capability",
+				Relation:   "owns",
+				Confidence: "verified",
+				EvidenceID: "E-prefix",
+			},
+		},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "implement",
+		Query:  "app capability",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-ui",
+			SelectedConcepts:    []string{"concept:GEN-ui:capability:app"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.AffectedNodes) != 1 {
+		t.Fatalf("AffectedNodes = %#v, want only colon-delimited app node", payload.AffectedNodes)
+	}
+	if got := payload.AffectedNodes[0]["id"]; got != "capability:app" {
+		t.Fatalf("AffectedNodes[0].id = %q, want capability:app", got)
+	}
+	if !hasString(payload.MinimalLiveReads, "src/app/main.go") {
+		t.Fatalf("MinimalLiveReads = %#v, want src/app/main.go", payload.MinimalLiveReads)
+	}
+	if hasString(payload.MinimalLiveReads, "src/prefix/wrong.go") {
+		t.Fatalf("MinimalLiveReads = %#v, resolved prefix node instead of colon-delimited node", payload.MinimalLiveReads)
+	}
+}
+
 func TestRunReportsEveryUnknownSelectedConceptAlias(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
