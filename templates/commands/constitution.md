@@ -2,22 +2,109 @@
 description: Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.
 workflow_contract:
   when_to_use: The project's governing principles need to be created or updated before downstream workflow work should continue.
-  primary_objective: Update `.specify/memory/constitution.md` and propagate any principle changes into dependent templates and guidance.
-  primary_outputs: A synchronized constitution plus any required template, shared-memory, or docs updates triggered by the principle change.
-  default_handoff: /sp-specify for new work, or reopen the highest affected downstream stage (/sp-plan, /sp-tasks, or /sp-analyze) when a midstream amendment invalidates active artifacts.
+  primary_objective: Update `.specify/memory/constitution.md` after understanding the current project context.
+  primary_outputs: A finalized constitution plus a report of any dependent templates, shared-memory, docs, or workflow artifacts that may need separate follow-up.
+  default_handoff: /sp-specify for new work, or recommend the highest affected downstream stage (/sp-plan, /sp-tasks, or /sp-analyze) when a midstream amendment invalidates active artifacts.
 handoffs:
   - label: Build Specification
     agent: sp.specify
     prompt: Implement the feature specification based on the updated constitution. I want to build...
 ---
 
-{{spec-kit-include: ../command-partials/constitution/shell.md}}
+## User Input
+
+```text
+$ARGUMENTS
+```
+
+You **MUST** consider the user input before proceeding (if not empty).
+
+## Objective
+
+Create or update the project constitution as the authoritative rule layer for
+downstream specification, planning, and execution work.
+
+## Constitution-Only Write Boundary
+
+This workflow writes only `.specify/memory/constitution.md`.
+
+Use templates, command files, docs, project rules, learning files,
+workflow-state files, project cognition artifacts, generated assets, and active
+feature artifacts as read-only context. Do not modify them, synchronize them,
+or run mutation commands for them unless the user explicitly expands the write
+scope in the same request.
+
+If the amended constitution appears to require downstream changes, report those
+changes as pending follow-up in the Sync Impact Report. The report is the
+handoff mechanism; this command does not apply the follow-up work.
+
+## Context
+
+- Primary inputs: the current constitution, the user's requested principle
+  changes, the stable shared memory layer (`project-rules.md`,
+  `learnings/INDEX.md`, and relevant learning detail docs), and the smallest
+  repository context needed to derive missing values.
+- Constitution amendments may invalidate downstream planning artifacts, active
+  workflow state, or lower-order project memory. Treat those as re-entry
+  signals to report, not as permission to edit additional files.
+- Versioning and governance metadata are part of the contract, not optional
+  decoration.
+
+## Process
+
+- Run `{{specify-subcmd:learning start --command constitution --format json}}`
+  when available so passive learning files exist and relevant shared memory is
+  visible before broader context collection.
+- Load the current constitution, then read `.specify/memory/project-rules.md`
+  and `.specify/memory/learnings/INDEX.md` in that order before broader
+  repository context. Open only relevant learning detail docs linked from the
+  index.
+- If the repository already has code and repo-derived evidence is needed, read
+  `.specify/project-cognition/status.json` plus the smallest relevant
+  query-backed cognition artifact first to assess map freshness as advisory
+  navigation before trusting any compatibility/export artifact.
+- If cognition is stale or weak for an ordinary existing-baseline touched area,
+  continue from live repository evidence and recommend `/sp-map-update` only as
+  external/manual map maintenance when the user asks for map maintenance or
+  before a separate map-maintenance pass. Use `/sp-map-scan` followed by
+  `/sp-map-build` only for first/missing/unusable baseline, schema failure,
+  zero active-generation `path_index` rows, `explicit_rebuild_requested`, or
+  `baseline_identity_invalid`.
+- Load the current constitution and identify unresolved placeholders or
+  requested changes.
+- Derive the right version bump and updated governance metadata.
+- Rewrite only `.specify/memory/constitution.md`.
+- If a principle change appears to invalidate active `spec.md`, `plan.md`,
+  `tasks.md`, or `workflow-state.md`, report the highest affected downstream
+  stage instead of editing those artifacts.
+
+## Output Contract
+
+- Write a finalized constitution with a Sync Impact Report.
+- Record dependent templates, guidance, lower-order project memory, workflow
+  state, and cognition artifacts as pending follow-up items when they need
+  alignment.
+- Surface the exact downstream re-entry path (`/sp-specify`, `/sp-plan`,
+  `/sp-tasks`, or `/sp-analyze`) when an amendment invalidates active work.
+- Surface any follow-up items if a value must remain intentionally deferred.
+
+## Guardrails
+
+- Do not leave unexplained placeholders behind.
+- Respect the semantic-versioning rules for constitution changes.
+- Do not partially update downstream guidance. Report pending follow-up instead.
+- Do not always hand off directly to `/sp-specify`; use the highest affected
+  downstream stage when the amendment is midstream.
+- Do not leave project rules or learnings that conflict with the amended
+  constitution unreported in the Sync Impact Report.
 
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
 
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch
+subagents, wait for structured handoffs, integrate results, verify, and keep
+all writes within the constitution-only scope defined below.
 
 Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
 
@@ -32,7 +119,14 @@ You are updating the project constitution at `.specify/memory/constitution.md`.
 This file may already contain a fully initialized default constitution, or it
 may still contain legacy placeholder tokens in square brackets (for example
 `[PROJECT_NAME]`). Your job is to refine the document into a concrete project
-constitution and propagate any amendments across dependent artifacts.
+constitution based on the user's request and the current project context.
+
+**Write scope**: This command writes only `.specify/memory/constitution.md`.
+Do not modify templates, command files, docs, project rules, learning files,
+workflow-state files, project cognition artifacts, or active feature artifacts
+unless the user explicitly asks for those additional edits in the same request.
+When the amended constitution appears to require changes elsewhere, record them
+as pending follow-up items in the Sync Impact Report instead of applying them.
 
 **Note**: If `.specify/memory/constitution.md` does not exist yet, it should
 have been initialized from `.specify/templates/constitution-template.md`
@@ -52,28 +146,33 @@ missing, copy the template first.
   especially repeated workflow gaps, stable user defaults, or lower-order
   rules that may need promotion or retirement.
 - Learning Reflex: before final closeout, ask whether a future senior engineer
-  would benefit from seeing this lesson before related work. If yes, update
-  `.specify/memory/learnings/INDEX.md` and the linked detail markdown document
-  without asking for routine permission.
+  would benefit from seeing this lesson before related work. If yes, record the
+  learning need as a pending follow-up in the Sync Impact Report; do not update
+  learning files from this command unless the user explicitly requested it.
 - When constitution work exposes repeated decision debt, rule conflict, route
-  changes, hidden dependencies, or promotion friction, make sure durable state
-  captures that reusable learning pressure instead of treating it as chat-only
-  discussion.
-- Prefer `{{specify-subcmd:learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When the durable state does not capture the reusable lesson cleanly, update
-  `.specify/memory/learnings/INDEX.md` and a linked detail document with the
-  command, type, summary, and evidence.
+  changes, hidden dependencies, or promotion friction, capture the reusable
+  learning pressure in the Sync Impact Report instead of treating it as
+  chat-only discussion.
+- If `workflow-state.md` already preserves route reasons, false starts,
+  hidden dependencies, or reusable constraints that would normally justify
+  `{{specify-subcmd:learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json}}`,
+  report that as a learning follow-up instead of running the mutating command.
+- Do not run learning capture commands that mutate learning files unless the
+  user explicitly requested learning updates in the same request.
 - Treat project rules or learnings that conflict with the amended constitution
-  as mandatory follow-up work: either realign them in this run or flag them
-  explicitly in the Sync Impact Report.
+  as pending follow-up work and flag them explicitly in the Sync Impact Report.
 
 ## Repository Context and Navigation Freshness
 
 - If repo-derived evidence is needed, read `.specify/project-cognition/status.json` plus the smallest relevant query bundle or graph artifact first to assess map freshness as advisory navigation before trusting any compatibility/export artifact.
 - If the navigation system is stale or weak for an existing usable baseline, continue with live repository evidence and recommend `/sp-map-update` only as external/manual map maintenance when the user asks for map maintenance or before a separate map-maintenance pass rather than fabricating repository context. That route is external map maintenance, not constitution closeout ownership. Use `/sp-map-scan` followed by `/sp-map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
-- Workflow-owned mutation closeout is not an external map-maintenance handoff. If the constitution amendment changes project-related source, runtime, templates, generated assets, config, tests, state contracts, shared surfaces, governance rules that drive agent behavior, or project-cognition coverage facts, run inline project cognition update from the amendment's changed paths and affected surfaces before reporting completion.
-- Inline update path: append closeout evidence with `project-cognition delta append` when a delta session exists, then run `project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`; without a delta session, run `project-cognition update --changed-path "<path>" --scope "<affected-scope>" --reason workflow-finalize --format json`.
-- A persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`. Use `project-cognition mark-dirty --reason "<reason>" --format json` only when inline update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete. sp-map-update is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
+- A constitution-only amendment does not own project cognition mutation closeout.
+  Do not run `project-cognition update`, `project-cognition mark-dirty`, or
+  related mutation commands from this workflow unless the user explicitly asked
+  for project cognition maintenance. If the amendment may affect cognition
+  coverage or compatibility/export output, report that follow-up instead.
+- sp-map-update is for manual/external maintenance and follow-up repair, not
+  routine cleanup for constitution-only changes.
 - If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related project cognition compatibility/export surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related project cognition compatibility/export surface for refresh.
 
 ## Downstream Re-entry Contract
@@ -81,9 +180,9 @@ missing, copy the template first.
 - Inspect active downstream artifacts and phase locks before finalizing the
   amendment. At minimum, review any active `spec.md`, `plan.md`, `tasks.md`,
   or `workflow-state.md` package that relies on the current constitution.
-- If a principle change invalidates active `spec.md`, `plan.md`, `tasks.md`,
-  or `workflow-state.md`, reopen the highest affected downstream stage and
-  record the exact re-entry path in the Sync Impact Report.
+- If a principle change appears to invalidate active `spec.md`, `plan.md`,
+  `tasks.md`, or `workflow-state.md`, record the highest affected downstream
+  stage and exact re-entry path in the Sync Impact Report.
 - Do not always hand off directly to `/sp-specify`. Midstream amendments may
   require `/sp-plan`, `/sp-tasks`, or `/sp-analyze` when higher-order feature
   artifacts already exist.
@@ -91,25 +190,24 @@ missing, copy the template first.
 ## Workflow Phase Lock (When an Active Feature Is Affected)
 
 - If the amendment changes an active feature package, treat the affected
-  `FEATURE_DIR/workflow-state.md` as the stage-state source of truth for the
+  `FEATURE_DIR/workflow-state.md` as read-only context for determining the
   downstream re-entry path.
 - Read `templates/workflow-state-template.md`.
-- When an active feature package is affected, update or create
-  `FEATURE_DIR/workflow-state.md` so it records:
+- When an active feature package is affected, do not update or create
+  `FEATURE_DIR/workflow-state.md`. Instead, report the recommended state values:
   - `active_command: sp-constitution`
   - `phase_mode: planning-only`
   - a `next_action` that points to the highest affected downstream stage after
     the constitution amendment lands
   - a `next_command` of `/sp-specify`, `/sp-plan`, `/sp-tasks`, or
     `/sp-analyze` as required by the affected artifacts
-- When an active feature package is affected, keep `workflow-state.md` current
-  so the constitution handoff state is resume-safe.
 - Before final handoff from a constitution amendment that affects an active
-  feature package, verify the constitution artifact set, including amended
-  `.specify/memory/constitution.md` and downstream `workflow-state.md`.
+  feature package, verify the amended `.specify/memory/constitution.md` and
+  list any downstream `workflow-state.md` follow-up needed for resume safety.
 - Before any compaction-risk transition during a constitution amendment that
-  affects an active feature package, update durable state before handoff so the
-  downstream re-entry path survives session recovery.
+  affects an active feature package, keep the downstream re-entry path in the
+  Sync Impact Report so it survives session recovery without mutating feature
+  artifacts.
 
 Follow this execution flow:
 
@@ -148,13 +246,12 @@ Follow this execution flow:
    - Ensure Governance lists amendment procedure, versioning policy, and
      compliance review expectations.
 
-4. Consistency propagation checklist (convert prior checklist into active
-   validations):
+4. Consistency review checklist (read/report only):
    - Read `.specify/templates/plan-template.md` and ensure any
      "Constitution Check" or rules align with updated principles.
    - Read `.specify/templates/spec-template.md` for scope and requirements
-     alignment. Update it if the constitution adds or removes mandatory
-     sections or constraints.
+     alignment. Report it if the constitution adds or removes mandatory
+     sections or constraints that the template does not reflect.
    - Read `.specify/templates/tasks-template.md` and ensure task
      categorization reflects new or removed principle-driven task types
      (for example observability, versioning, or testing discipline).
@@ -162,15 +259,16 @@ Follow this execution flow:
      this one) to verify no outdated references remain when generic guidance is
      required.
    - Read `.specify/memory/project-rules.md`,
-     `.specify/memory/learnings/INDEX.md`, and relevant learning detail docs and resolve or explicitly report
-     any lower-order guidance that now conflicts with the amended constitution.
+     `.specify/memory/learnings/INDEX.md`, and relevant learning detail docs
+     and explicitly report any lower-order guidance that now conflicts with the
+     amended constitution.
 - If the amendment changes navigation, structure, ownership, workflow,
   testing, integration, or operations expectations, mark the runtime
   handbooks for refresh and include `.specify/project-cognition/status.json`
   in the propagation review.
    - Read any runtime guidance docs (for example `README.md`,
-     `docs/quickstart.md`, or agent-specific guidance files if present). Update
-     references to principles that changed.
+     `docs/quickstart.md`, or agent-specific guidance files if present). Report
+     references to principles that changed instead of updating those files.
 
 5. Produce a Sync Impact Report (prepend as an HTML comment at the top of the
    constitution file after update):
@@ -178,8 +276,8 @@ Follow this execution flow:
    - List of modified principles (old title -> new title if renamed)
    - Added sections
    - Removed sections
-   - Templates or shared memory requiring updates (`updated` / `pending`) with
-     file paths
+   - Templates, docs, shared memory, workflow-state, or project cognition
+     surfaces requiring separate follow-up (`pending`) with file paths
    - Downstream re-entry path: `/sp-specify`, `/sp-plan`, `/sp-tasks`, or
      `/sp-analyze`, with the highest affected downstream stage called out
      explicitly
@@ -194,6 +292,9 @@ Follow this execution flow:
 
 7. Write the completed constitution back to
    `.specify/memory/constitution.md` (overwrite).
+
+   This is the only file this command may write unless the user explicitly
+   expanded the write scope in the same request.
 
 8. Output a final summary to the user with:
    - New version and bump rationale

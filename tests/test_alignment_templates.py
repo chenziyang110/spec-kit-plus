@@ -1222,13 +1222,17 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "active_command: sp-constitution" in lowered
     assert "phase_mode: planning-only" in lowered
     assert "{{specify-subcmd:hook" not in lowered
-    assert "keep `workflow-state.md` current" in lowered
-    assert "verify the constitution artifact set" in lowered
-    assert "update durable state before handoff" in lowered
+    assert "this workflow writes only `.specify/memory/constitution.md`" in lowered
+    assert "do not modify templates, command files, docs, project rules, learning files" in lowered
+    assert "`feature_dir/workflow-state.md` as read-only context" in lowered
+    assert "do not update or create" in lowered
+    assert "pending follow-up" in lowered
     assert "highest affected downstream stage" in lowered
     assert "do not always hand off directly to `/sp-specify`" in lowered
-    assert "active `spec.md`, `plan.md`, `tasks.md`, or `workflow-state.md`" in content
+    assert "any active `spec.md`, `plan.md`, `tasks.md`" in content
+    assert "`workflow-state.md` package" in content
     assert "project rules or learnings that conflict with the amended constitution" in lowered
+    assert "as pending follow-up work" in lowered
     assert "project cognition runtime truth" in lowered
     assert "mark the related project cognition compatibility/export surface for refresh" in lowered
     assert "ordinary existing-baseline" in lowered
@@ -2491,7 +2495,6 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         "templates/command-partials/fast/shell.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
         "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
-        "templates/commands/constitution.md",
         "templates/project-handbook-template.md",
         "templates/constitution-template.md",
     )
@@ -2515,6 +2518,16 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
     passive_gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
     assert "do not silently switch into `sp-map-update`" not in passive_gate
     assert "user-invoked workflow handoff" not in passive_gate
+
+
+def test_constitution_workflow_reports_cognition_followup_without_mutating_it() -> None:
+    content = _read("templates/commands/constitution.md").lower()
+
+    assert "this workflow writes only `.specify/memory/constitution.md`" in content
+    assert "does not own project cognition mutation closeout" in content
+    assert "do not run `project-cognition update`, `project-cognition mark-dirty`" in content
+    assert "report that follow-up instead" in content
+    assert "routine cleanup for constitution-only changes" in content
 
 
 def test_runtime_cognition_partials_preserve_mutation_closeout_rule() -> None:
