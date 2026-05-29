@@ -133,7 +133,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	}
 	nodes := []map[string]any{}
 	missingCoverage := []string{}
-	selectedConceptsResolvedNoNodes := false
+	selectedConceptsMissingNodes := false
 	st, err := store.OpenExisting(paths)
 	if errors.Is(err, os.ErrNotExist) {
 		st = nil
@@ -153,17 +153,20 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		}
 		if len(plan.SelectedConcepts) > 0 {
 			var nodeIDs []string
-			nodeIDs, missingCoverage = selectedNodeIDs(plan.SelectedConcepts, activeGenerationID)
+			var conceptIDsByNodeID map[string][]string
+			nodeIDs, conceptIDsByNodeID, missingCoverage = selectedNodeIDs(plan.SelectedConcepts, activeGenerationID)
 			nodes, err = st.NodesForIDs(context.Background(), nodeIDs)
 			if err != nil {
 				return QueryPayload{}, err
 			}
-			if len(nodes) == 0 {
-				selectedConceptsResolvedNoNodes = true
-				for _, conceptID := range plan.SelectedConcepts {
-					if !containsString(missingCoverage, "unknown_selected_concept:"+conceptID) {
-						missingCoverage = append(missingCoverage, "unknown_selected_concept:"+conceptID)
-					}
+			resolvedNodeIDs := nodeIDsFromNodes(nodes)
+			for _, nodeID := range nodeIDs {
+				if resolvedNodeIDs[nodeID] {
+					continue
+				}
+				selectedConceptsMissingNodes = true
+				for _, conceptID := range conceptIDsByNodeID[nodeID] {
+					missingCoverage = appendMissingCoverage(missingCoverage, "unknown_selected_concept:"+conceptID)
 				}
 			}
 			if len(plan.Paths) == 0 && len(nodes) > 0 {
@@ -183,7 +186,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	}
 	readiness := status.Readiness
 	recommendedNextAction := status.RecommendedNextAction
-	if selectedConceptsResolvedNoNodes && status.Readiness == rt.ReadyReadiness {
+	if selectedConceptsMissingNodes && status.Readiness == rt.ReadyReadiness {
 		readiness = "review"
 		recommendedNextAction = "use_minimal_live_reads_and_review_missing_coverage"
 	}
@@ -273,8 +276,9 @@ func parseConceptID(value string) (conceptRef, bool) {
 	return conceptRef{GenerationID: parts[1], NodeID: parts[2]}, true
 }
 
-func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]string, []string) {
+func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]string, map[string][]string, []string) {
 	nodeIDs := []string{}
+	conceptIDsByNodeID := map[string][]string{}
 	missingCoverage := []string{}
 	seen := map[string]bool{}
 	for _, conceptID := range selectedConcepts {
@@ -296,8 +300,9 @@ func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]st
 		}
 		seen[nodeID] = true
 		nodeIDs = append(nodeIDs, nodeID)
+		conceptIDsByNodeID[nodeID] = append(conceptIDsByNodeID[nodeID], conceptID)
 	}
-	return nodeIDs, missingCoverage
+	return nodeIDs, conceptIDsByNodeID, missingCoverage
 }
 
 func pathsFromNodes(nodes []map[string]any) []string {
@@ -312,13 +317,25 @@ func pathsFromNodes(nodes []map[string]any) []string {
 	return normalizePaths(paths)
 }
 
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
+func nodeIDsFromNodes(nodes []map[string]any) map[string]bool {
+	ids := map[string]bool{}
+	for _, node := range nodes {
+		id, ok := node["id"].(string)
+		if !ok {
+			continue
+		}
+		ids[id] = true
+	}
+	return ids
+}
+
+func appendMissingCoverage(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
 		}
 	}
-	return false
+	return append(values, value)
 }
 
 func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, activeGenerationID string) QueryPayload {
