@@ -636,6 +636,149 @@ func TestRunMissingBaselineReturnsNeedsRebuildWithoutCreatingDatabase(t *testing
 	}
 }
 
+func TestRunResolvesSelectedConceptsToNodesAndReads(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-gui",
+			SourceKind:  "source",
+			SourcePath:  "src/gui/window.tsx",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-gui",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-gui",
+			Type:        "capability",
+			Title:       "GUI Shell",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-gui"},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-gui",
+			Path:       "src/gui/window.tsx",
+			NodeID:     "N-gui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-gui",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "GUI feels laggy",
+		Plan: Plan{
+			RawQuery:            "GUI feels laggy",
+			LexiconGenerationID: "GEN-ui",
+			SelectedConcepts:    []string{"concept:GEN-ui:N-gui"},
+			ConceptDecisions: []ConceptDecision{{
+				ConceptID:       "concept:GEN-ui:N-gui",
+				Decision:        "selected",
+				SelectionReason: "GUI owns the laggy surface.",
+				Confidence:      "high",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Readiness != rt.ReadyReadiness {
+		t.Fatalf("Readiness = %q, want query_ready", payload.Readiness)
+	}
+	if len(payload.AffectedNodes) == 0 {
+		t.Fatalf("AffectedNodes = %#v, want selected concept node", payload.AffectedNodes)
+	}
+	if !hasString(payload.MinimalLiveReads, "src/gui/window.tsx") {
+		t.Fatalf("MinimalLiveReads = %#v, want src/gui/window.tsx", payload.MinimalLiveReads)
+	}
+	if len(payload.QueryPlan.ConceptDecisions) != 1 {
+		t.Fatalf("QueryPlan.ConceptDecisions = %#v", payload.QueryPlan.ConceptDecisions)
+	}
+}
+
+func TestRunReportsLexiconGenerationMismatch(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-current",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-gui",
+			SourceKind:  "source",
+			SourcePath:  "src/gui/window.tsx",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-gui",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-gui",
+			Type:        "capability",
+			Title:       "GUI Shell",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-gui"},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-gui",
+			Path:       "src/gui/window.tsx",
+			NodeID:     "N-gui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-gui",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "GUI feels laggy",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-old",
+			SelectedConcepts:    []string{"concept:GEN-old:N-gui"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Readiness != "ambiguous" {
+		t.Fatalf("Readiness = %q, want ambiguous", payload.Readiness)
+	}
+	if payload.RecommendedNextAction != "rerun_project_cognition_lexicon" {
+		t.Fatalf("RecommendedNextAction = %q", payload.RecommendedNextAction)
+	}
+	if !hasString(payload.MissingCoverage, "lexicon_generation_mismatch") {
+		t.Fatalf("MissingCoverage = %#v, want lexicon_generation_mismatch", payload.MissingCoverage)
+	}
+}
+
+func TestRunReportsUnknownSelectedConcept(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-ui",
+		Kind:         "full",
+		SourceCommit: "abc123",
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "implement",
+		Query:  "GUI feels laggy",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-ui",
+			SelectedConcepts:    []string{"concept:GEN-ui:N-missing"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Readiness != "review" {
+		t.Fatalf("Readiness = %q, want review", payload.Readiness)
+	}
+	if !hasString(payload.MissingCoverage, "unknown_selected_concept:concept:GEN-ui:N-missing") {
+		t.Fatalf("MissingCoverage = %#v", payload.MissingCoverage)
+	}
+}
+
 func queryTestPaths(t *testing.T) rt.Paths {
 	t.Helper()
 	root := t.TempDir()

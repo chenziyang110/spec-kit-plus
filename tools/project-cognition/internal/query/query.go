@@ -16,6 +16,11 @@ import (
 
 const CandidateUniverseVersion = 1
 
+type conceptRef struct {
+	GenerationID string
+	NodeID       string
+}
+
 type ConceptDecision struct {
 	ConceptID       string   `json:"concept_id"`
 	Decision        string   `json:"decision"`
@@ -127,6 +132,8 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		plan.Paths = normalizePaths(input.Paths)
 	}
 	nodes := []map[string]any{}
+	missingCoverage := []string{}
+	selectedConceptsResolvedNoNodes := false
 	st, err := store.OpenExisting(paths)
 	if errors.Is(err, os.ErrNotExist) {
 		st = nil
@@ -137,14 +144,48 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	}
 	if st != nil {
 		defer st.Close()
-		nodes, err = st.NodesForPaths(context.Background(), plan.Paths)
+		activeGenerationID, err := st.ActiveGenerationID(context.Background())
 		if err != nil {
 			return QueryPayload{}, err
 		}
+		if plan.LexiconGenerationID != "" && activeGenerationID != "" && plan.LexiconGenerationID != activeGenerationID {
+			return generationMismatchPayload(status, input, plan, activeGenerationID), nil
+		}
+		if len(plan.SelectedConcepts) > 0 {
+			var nodeIDs []string
+			nodeIDs, missingCoverage = selectedNodeIDs(plan.SelectedConcepts, activeGenerationID)
+			nodes, err = st.NodesForIDs(context.Background(), nodeIDs)
+			if err != nil {
+				return QueryPayload{}, err
+			}
+			if len(nodes) == 0 {
+				selectedConceptsResolvedNoNodes = true
+				for _, conceptID := range plan.SelectedConcepts {
+					if !containsString(missingCoverage, "unknown_selected_concept:"+conceptID) {
+						missingCoverage = append(missingCoverage, "unknown_selected_concept:"+conceptID)
+					}
+				}
+			}
+			if len(plan.Paths) == 0 && len(nodes) > 0 {
+				plan.Paths = pathsFromNodes(nodes)
+			}
+		}
+		if len(nodes) == 0 && (len(plan.SelectedConcepts) == 0 || len(plan.Paths) > 0) {
+			nodes, err = st.NodesForPaths(context.Background(), plan.Paths)
+			if err != nil {
+				return QueryPayload{}, err
+			}
+		}
 	}
-	reads := plan.Paths
+	reads := normalizePaths(append(append([]string{}, plan.Paths...), pathsFromNodes(nodes)...))
 	if len(reads) == 0 {
 		reads = []string{".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db"}
+	}
+	readiness := status.Readiness
+	recommendedNextAction := status.RecommendedNextAction
+	if selectedConceptsResolvedNoNodes && status.Readiness == rt.ReadyReadiness {
+		readiness = "review"
+		recommendedNextAction = "use_minimal_live_reads_and_review_missing_coverage"
 	}
 	routePack := map[string]any{
 		"items":              nodes,
@@ -170,8 +211,8 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		},
 		WorkflowRequirement:   "use_project_cognition_then_minimal_live_reads",
 		PathAdoption:          map[string]any{"paths": plan.Paths},
-		Readiness:             status.Readiness,
-		RecommendedNextAction: status.RecommendedNextAction,
+		Readiness:             readiness,
+		RecommendedNextAction: recommendedNextAction,
 		Intent:                input.Intent,
 		Query:                 input.Query,
 		QueryPlan:             plan,
@@ -182,7 +223,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		SymptomCandidates:     []map[string]any{},
 		AffectedNodes:         nodes,
 		MinimalLiveReads:      reads,
-		MissingCoverage:       []string{},
+		MissingCoverage:       missingCoverage,
 		RoutePack:             routePack,
 		Subgraph:              subgraph,
 	}, nil
@@ -218,6 +259,112 @@ func normalizeStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func parseConceptID(value string) (conceptRef, bool) {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "concept:") {
+		return conceptRef{}, false
+	}
+	parts := strings.Split(value, ":")
+	if len(parts) < 3 || parts[1] == "" || parts[2] == "" {
+		return conceptRef{}, false
+	}
+	return conceptRef{GenerationID: parts[1], NodeID: parts[2]}, true
+}
+
+func selectedNodeIDs(selectedConcepts []string, activeGenerationID string) ([]string, []string) {
+	nodeIDs := []string{}
+	missingCoverage := []string{}
+	seen := map[string]bool{}
+	for _, conceptID := range selectedConcepts {
+		conceptID = strings.TrimSpace(conceptID)
+		if conceptID == "" {
+			continue
+		}
+		ref, ok := parseConceptID(conceptID)
+		nodeID := conceptID
+		if ok {
+			if activeGenerationID != "" && ref.GenerationID != activeGenerationID {
+				missingCoverage = append(missingCoverage, "selected_concept_generation_mismatch:"+conceptID)
+				continue
+			}
+			nodeID = ref.NodeID
+		}
+		if nodeID == "" || seen[nodeID] {
+			continue
+		}
+		seen[nodeID] = true
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	return nodeIDs, missingCoverage
+}
+
+func pathsFromNodes(nodes []map[string]any) []string {
+	paths := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		path, ok := node["path"].(string)
+		if !ok {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return normalizePaths(paths)
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, activeGenerationID string) QueryPayload {
+	reads := []string{".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db"}
+	return QueryPayload{
+		BaselineHealth: map[string]any{
+			"freshness":             status.Freshness,
+			"readiness":             status.Readiness,
+			"dirty":                 status.Dirty,
+			"active_generation_id":  activeGenerationID,
+			"lexicon_generation_id": plan.LexiconGenerationID,
+		},
+		QueryCoverage: map[string]any{
+			"paths":                 plan.Paths,
+			"nodes":                 0,
+			"active_generation_id":  activeGenerationID,
+			"lexicon_generation_id": plan.LexiconGenerationID,
+		},
+		WorkflowRequirement:   "use_project_cognition_then_minimal_live_reads",
+		PathAdoption:          map[string]any{"paths": plan.Paths},
+		Readiness:             "ambiguous",
+		RecommendedNextAction: "rerun_project_cognition_lexicon",
+		Intent:                input.Intent,
+		Query:                 input.Query,
+		QueryPlan:             plan,
+		SelectedConcepts:      plan.SelectedConcepts,
+		RejectedConcepts:      plan.RejectedConcepts,
+		SelectionReason:       plan.SelectionReason,
+		CapabilityCandidates:  []map[string]any{},
+		SymptomCandidates:     []map[string]any{},
+		AffectedNodes:         []map[string]any{},
+		MinimalLiveReads:      reads,
+		MissingCoverage:       []string{"lexicon_generation_mismatch"},
+		RoutePack: map[string]any{
+			"items":              []map[string]any{},
+			"routes":             plan.Paths,
+			"minimal_live_reads": reads,
+			"why_these_reads":    "Lexicon generation does not match the active project cognition graph; rerun lexicon before interpreting selected concepts.",
+		},
+		Subgraph: map[string]any{
+			"nodes":     []map[string]any{},
+			"edges":     []map[string]any{},
+			"claims":    []map[string]any{},
+			"conflicts": []map[string]any{},
+		},
+	}
 }
 
 func normalizeConceptDecisions(decisions []ConceptDecision, selectedConcepts, rejectedConcepts []string, selectionReason string) []ConceptDecision {
