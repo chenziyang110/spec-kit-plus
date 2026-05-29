@@ -1103,7 +1103,7 @@ func seedReadyGraph(t *testing.T, paths rt.Paths, input store.ImportInput) {
 		_ = st.Close()
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID, rt.BaselineKindBrownfieldFull); err != nil {
 		_ = st.Close()
 		t.Fatal(err)
 	}

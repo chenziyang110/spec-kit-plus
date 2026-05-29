@@ -102,6 +102,58 @@ func TestImportGenerationPublishesActiveIdentitySnapshot(t *testing.T) {
 	}
 }
 
+func TestInitializeGreenfieldEmptyCreatesReadyEmptyGeneration(t *testing.T) {
+	paths := testPaths(t)
+	st, err := Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generationID == "" {
+		t.Fatal("generationID is empty")
+	}
+
+	activeGenerationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeGenerationID != generationID {
+		t.Fatalf("active generation = %q, want %q", activeGenerationID, generationID)
+	}
+
+	kind, err := st.ActiveGenerationKind(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kind != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("generation kind = %q, want %q", kind, rt.BaselineKindGreenfieldEmpty)
+	}
+
+	meta, err := st.Metadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("metadata baseline_kind = %q, want %q", meta["baseline_kind"], rt.BaselineKindGreenfieldEmpty)
+	}
+	if meta["graph_ready"] != "true" {
+		t.Fatalf("metadata graph_ready = %q, want true", meta["graph_ready"])
+	}
+
+	snapshot, err := st.ActiveIdentitySnapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Nodes) != 0 || len(snapshot.Evidence) != 0 || len(snapshot.CoveragePaths) != 0 {
+		t.Fatalf("greenfield snapshot = %#v, want empty graph rows", snapshot)
+	}
+}
+
 func TestActiveConceptCandidateRowsDeriveGraphMaterial(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
@@ -287,7 +339,7 @@ func TestImportGenerationClearsPriorReadyContractMetadata(t *testing.T) {
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-next")); err != nil {
@@ -324,7 +376,7 @@ func TestPublishRuntimeMetadataRefusesGenerationMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-validated")
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-validated", rt.BaselineKindBrownfieldFull)
 	if err == nil {
 		t.Fatal("PublishRuntimeMetadata error = nil, want generation mismatch error")
 	}
@@ -357,7 +409,7 @@ func TestPublishRuntimeMetadataCommitsWhenStatusCallbackFails(t *testing.T) {
 	}
 	callbackErr := errors.New("status write failed")
 
-	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", func() error {
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", rt.BaselineKindBrownfieldFull, func() error {
 		return callbackErr
 	})
 	if !errors.Is(err, callbackErr) {
@@ -404,7 +456,7 @@ END`); err != nil {
 	}
 	called := false
 
-	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", func() error {
+	_, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", rt.BaselineKindBrownfieldFull, func() error {
 		called = true
 		return nil
 	})
@@ -439,7 +491,7 @@ func TestMarkRuntimeMetadataBlockedCommitsWhenStatusCallbackFails(t *testing.T) 
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 	callbackErr := errors.New("blocked status write failed")
@@ -477,7 +529,7 @@ func TestMarkRuntimeMetadataBlockedRefusesGenerationMismatch(t *testing.T) {
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-current")); err != nil {
@@ -509,7 +561,7 @@ func TestMarkRuntimeMetadataBlockedDoesNotCallStatusCallbackWhenPostCommitGenera
 	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-ready")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready"); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(ctx, "GEN-ready", rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.DB().ExecContext(ctx, `
@@ -858,6 +910,16 @@ func TestImportGenerationStoresRejectionsInGenerationAttrs(t *testing.T) {
 
 func openImportTestStore(t *testing.T) *Store {
 	t.Helper()
+	paths := testPaths(t)
+	st, err := Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+func testPaths(t *testing.T) rt.Paths {
+	t.Helper()
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
 		t.Fatal(err)
@@ -866,11 +928,7 @@ func openImportTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, err := Open(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return st
+	return paths
 }
 
 func validImportInput(generationID string) ImportInput {

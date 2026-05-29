@@ -601,7 +601,7 @@ func seedMatchingQueryReadyDatabase(t *testing.T, paths rt.Paths, rejections []s
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID, rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -631,7 +631,7 @@ func seedQueryReadyDatabaseWithNodeIDAndDecisions(t *testing.T, paths rt.Paths, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID, rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -765,7 +765,7 @@ func seedQueryReadyDatabaseWithPaths(t *testing.T, paths rt.Paths, pathsInScan, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID, rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -142,9 +142,10 @@ func Run(paths rt.Paths) (Payload, error) {
 	status.RecommendedNextAction = "use_project_cognition"
 	status.GraphReady = true
 	status.ActiveGenerationID = generationID
+	status.BaselineKind = rt.BaselineKindBrownfieldFull
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
-	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), generationID, func() error {
+	if _, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), generationID, rt.BaselineKindBrownfieldFull, func() error {
 		if err := rt.WriteStatus(paths, status); err != nil {
 			return fmt.Errorf("write status: %w", err)
 		}
@@ -235,7 +236,7 @@ func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 	rejections := coverageRejections(pkg)
 	return store.ImportInput{
 		GenerationID: newGenerationID(),
-		Kind:         "full",
+		Kind:         rt.BaselineKindBrownfieldFull,
 		SourceCommit: firstSourceCommit(pkg.Evidence),
 		Evidence:     evidenceImports(pkg.Evidence),
 		Nodes:        nodeImports(pkg.Nodes),

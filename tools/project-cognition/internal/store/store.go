@@ -317,7 +317,10 @@ func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON s
 	return nil
 }
 
-func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string, afterCommit ...func() error) (map[string]string, string, error) {
+func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string, baselineKind string, afterCommit ...func() error) (map[string]string, string, error) {
+	if strings.TrimSpace(baselineKind) == "" {
+		baselineKind = rt.BaselineKindBrownfieldFull
+	}
 	expectedGenerationID = strings.TrimSpace(expectedGenerationID)
 	if expectedGenerationID == "" {
 		return nil, "", fmt.Errorf("expected generation id is required")
@@ -348,6 +351,7 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID
 		"graph_store_path":        ".specify/project-cognition/project-cognition.db",
 		"graph_ready":             true,
 		"baseline_state":          "fresh",
+		"baseline_kind":           baselineKind,
 		"query_contract_version":  1,
 		"update_contract_version": 1,
 		"published_at":            now,
@@ -384,6 +388,37 @@ func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID
 		return nil, "", err
 	}
 	return meta, generationID, nil
+}
+
+func (s *Store) InitializeGreenfieldEmpty(ctx context.Context) (string, error) {
+	generationID := "GEN-greenfield-" + time.Now().UTC().Format("20060102T150405.000000000Z")
+	input := ImportInput{
+		GenerationID: generationID,
+		Kind:         rt.BaselineKindGreenfieldEmpty,
+		SourceCommit: "",
+		Evidence:     []EvidenceImport{},
+		Nodes:        []NodeImport{},
+		Edges:        []EdgeImport{},
+		Observations: []ObservationImport{},
+		PathIndex:    []PathIndexImport{},
+		Rejections:   []RowDecision{},
+		MergeRecords: []MergeRecord{},
+	}
+	importedGenerationID, err := s.ImportGeneration(ctx, input)
+	if err != nil {
+		return "", err
+	}
+	meta, readyGenerationID, err := s.PublishRuntimeMetadata(ctx, importedGenerationID, rt.BaselineKindGreenfieldEmpty)
+	if err != nil {
+		return "", err
+	}
+	if readyGenerationID != importedGenerationID {
+		return "", fmt.Errorf("greenfield metadata active generation mismatch: got %s, want %s", readyGenerationID, importedGenerationID)
+	}
+	if meta["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		return "", fmt.Errorf("greenfield metadata baseline_kind = %q, want %q", meta["baseline_kind"], rt.BaselineKindGreenfieldEmpty)
+	}
+	return importedGenerationID, nil
 }
 
 func activeGenerationIDTx(ctx context.Context, tx *sql.Tx) (string, error) {
@@ -478,6 +513,22 @@ func (s *Store) ActiveGenerationID(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("scan active generation: %w", err)
 	}
 	return id, rows.Err()
+}
+
+func (s *Store) ActiveGenerationKind(ctx context.Context) (string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT kind FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`)
+	if err != nil {
+		return "", fmt.Errorf("read active generation kind: %w", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return "", nil
+	}
+	var kind string
+	if err := rows.Scan(&kind); err != nil {
+		return "", fmt.Errorf("scan active generation kind: %w", err)
+	}
+	return kind, rows.Err()
 }
 
 func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string]any, error) {

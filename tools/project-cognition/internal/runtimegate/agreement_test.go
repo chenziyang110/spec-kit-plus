@@ -306,7 +306,7 @@ func importAndPublishReady(t *testing.T, st *store.Store, generationID string) {
 	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{GenerationID: generationID, Kind: "full"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID); err != nil {
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), generationID, rt.BaselineKindBrownfieldFull); err != nil {
 		t.Fatal(err)
 	}
 }

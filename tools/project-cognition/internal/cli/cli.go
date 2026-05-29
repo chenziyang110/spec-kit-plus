@@ -310,9 +310,10 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	status.RecommendedNextAction = "use_project_cognition"
 	status.GraphReady = true
 	status.ActiveGenerationID = activeGenerationID
+	status.BaselineKind = rt.BaselineKindBrownfieldFull
 	status.QueryContractVersion = 1
 	status.UpdateContractVersion = 1
-	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID, func() error {
+	meta, readyGenerationID, err := st.PublishRuntimeMetadata(context.Background(), activeGenerationID, rt.BaselineKindBrownfieldFull, func() error {
 		if err := rt.WriteStatus(paths, status); err != nil {
 			return fmt.Errorf("write ready status: %w", err)
 		}
