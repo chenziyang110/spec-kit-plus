@@ -1,7 +1,7 @@
 # sp-discussion Advisor Upgrade Design
 
-**Date:** 2026-05-29  
-**Status:** Proposed  
+**Date:** 2026-05-29
+**Status:** Proposed
 **Owner:** Codex
 
 ## Summary
@@ -299,14 +299,27 @@ The first implementation should update shared surfaces:
 - `templates/commands/discussion.md`
 - `templates/command-partials/discussion/shell.md`
 - `templates/discussion-state-template.md`
+- `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`
+- `templates/passive-skills/spec-kit-workflow-routing/SKILL.md` when advisor
+  behavior changes route recommendations, handoff readiness wording, or discussion
+  selection guidance
 - `tests/test_alignment_templates.py`
-- generated integration tests that assert shared command/skill output where needed
-- README and handbook wording only if user-facing behavior descriptions need to
-  mention the upgrade
+- generated integration tests that assert shared command/skill output where needed,
+  especially generated passive skill output
+- `tests/test_specify_guidance_docs.py` when README, quickstart, or handbook wording
+  changes
+- `tests/integrations/test_cli.py` and `src/specify_cli/__init__.py` only if CLI help,
+  command descriptions, skill descriptions, or user-facing entrypoint text changes
+- `README.md` and `PROJECT-HANDBOOK.md` when user-facing workflow descriptions need
+  to mention the upgrade
 
 Because this is a shared workflow behavior, implementation should avoid
 Codex-specific wording unless a Codex integration surface needs separate generated
 coverage.
+
+If an implementation intentionally leaves any of these surfaces unchanged, it should
+record the stand-down reason in the implementation plan so the omission is an
+explicit decision rather than accidental drift.
 
 ## Testing Strategy
 
