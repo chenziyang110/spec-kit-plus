@@ -266,6 +266,43 @@ func TestRuntimeGateBlocksGreenfieldKindMismatch(t *testing.T) {
 	}
 }
 
+func TestRuntimeGateBlocksMetadataGenerationKindMismatch(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `UPDATE metadata SET value_json = '"brownfield_full"' WHERE key = 'baseline_kind'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.BaselineKind = rt.BaselineKindBrownfieldFull
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	agreement := Check(paths)
+
+	if agreement.Status != "blocked" {
+		t.Fatalf("agreement = %#v", agreement)
+	}
+	if !containsString(agreement.Errors, `baseline_kind mismatch: DB metadata has "brownfield_full", active generation has "greenfield_empty"`) {
+		t.Fatalf("errors = %#v", agreement.Errors)
+	}
+}
+
 func TestBlockIfExistingSkipsMissingBaselineAndBlocksSplitBrain(t *testing.T) {
 	missingPaths := testPaths(t)
 	if err := BlockIfExisting(missingPaths); err != nil {

@@ -258,16 +258,29 @@ func baselineKindAgreement(ctx context.Context, st *store.Store, status rt.Statu
 	if err != nil {
 		return "", "", fmt.Errorf("read DB metadata: %w", err)
 	}
-	dbKind = strings.TrimSpace(meta["baseline_kind"])
+	statusKind := normalizeBaselineKind(status.BaselineKind)
+	dbKind = normalizeBaselineKind(meta["baseline_kind"])
 	generationKind, err = st.ActiveGenerationKind(ctx)
 	if err != nil {
 		return "", "", err
 	}
-	if strings.TrimSpace(status.BaselineKind) != "" && dbKind != status.BaselineKind {
-		return dbKind, generationKind, fmt.Errorf("baseline_kind mismatch: status.json has %q, DB metadata has %q", status.BaselineKind, dbKind)
+	generationKind = normalizeBaselineKind(generationKind)
+	if statusKind != "" && dbKind != statusKind {
+		return dbKind, generationKind, fmt.Errorf("baseline_kind mismatch: status.json has %q, DB metadata has %q", statusKind, dbKind)
 	}
-	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty && generationKind != rt.BaselineKindGreenfieldEmpty {
-		return dbKind, generationKind, fmt.Errorf("greenfield_empty status requires active generation kind %q, got %q", rt.BaselineKindGreenfieldEmpty, generationKind)
+	if dbKind != "" && generationKind != "" && dbKind != generationKind {
+		return dbKind, generationKind, fmt.Errorf("baseline_kind mismatch: DB metadata has %q, active generation has %q", dbKind, generationKind)
 	}
 	return dbKind, generationKind, nil
+}
+
+func normalizeBaselineKind(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "":
+		return ""
+	case "full":
+		return rt.BaselineKindBrownfieldFull
+	default:
+		return strings.TrimSpace(kind)
+	}
 }
