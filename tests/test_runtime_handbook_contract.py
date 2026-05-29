@@ -53,7 +53,7 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "carry forward the selected concepts" in lowered
     assert "rejected concepts" in lowered
     assert "next workflow artifact or execution state" in lowered
-    assert "returned map terms" not in lowered
+    assert "returned map " + "terms" not in lowered
 
 
 def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> None:
@@ -138,7 +138,13 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "task-local project cognition query bundle" in lowered
     assert "agent-planned `project-cognition query`" in lowered
     assert "project-cognition lexicon" in lowered
-    assert "query_plan" in content
+    assert "graph-backed project concept candidates" in lowered
+    assert "concept_decisions" in content
+    assert "lexicon_generation_id" in content
+    assert "candidate_universe_version" in content
+    assert "active_generation_id" in content
+    assert "returned map " + "terms" not in lowered
+    assert "project-cognition query --query-plan" in lowered
     assert "advisory navigation" in lowered
     assert "live repository evidence" in lowered or "live evidence" in lowered
     assert "workflow-owned mutation closeout is not external map maintenance" in lowered
@@ -150,6 +156,30 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     )
     assert "uncertain closure is recorded by inline update or `map-update` as partial/low-confidence facts" in lowered
     assert "workflow-appropriate slices" not in lowered
+
+
+def test_runtime_docs_explain_graph_backed_project_cognition_lexicon() -> None:
+    required_phrases = (
+        "graph-backed project concept candidates",
+        "concept_decisions",
+        "lexicon_generation_id",
+        "candidate_universe_version",
+        "active_generation_id",
+        "project-cognition lexicon",
+        "project-cognition query --query-plan",
+    )
+
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        for phrase in required_phrases:
+            assert phrase in content, f"{rel_path} missing {phrase!r}"
+        assert "returned map " + "terms" not in lowered
+        assert "raw user intent into a `query_plan`" not in lowered
+        assert "raw user intent into a " + "query_plan" not in lowered
+        assert "using returned map " + "terms" not in lowered
+        assert "generate a query_plan from " + "returned" not in lowered
 
 
 def test_runtime_docs_explain_project_cognition_ignore_rules() -> None:
