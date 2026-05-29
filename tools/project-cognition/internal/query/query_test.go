@@ -668,8 +668,9 @@ func TestRunGreenfieldEmptyPreservesPlanPathsInMinimalLiveReads(t *testing.T) {
 	payload, err := Run(paths, QueryInput{
 		Intent: "plan",
 		Plan: Plan{
-			RawQuery: "build login",
-			Paths:    []string{"./docs/login.md", ".specify/memory/constitution.md", "docs/login.md"},
+			RawQuery:  "build login",
+			Paths:     []string{"./docs/login.md", ".specify/memory/constitution.md", "docs/login.md"},
+			PathHints: []string{"./docs/auth.md", "docs/login.md"},
 		},
 	})
 	if err != nil {
@@ -683,6 +684,7 @@ func TestRunGreenfieldEmptyPreservesPlanPathsInMinimalLiveReads(t *testing.T) {
 		".specify/memory/project-rules.md",
 		"AGENTS.md",
 		"docs/login.md",
+		"docs/auth.md",
 	} {
 		if !hasString(payload.MinimalLiveReads, want) {
 			t.Fatalf("MinimalLiveReads = %#v, want %s", payload.MinimalLiveReads, want)
@@ -697,6 +699,9 @@ func TestRunGreenfieldEmptyPreservesPlanPathsInMinimalLiveReads(t *testing.T) {
 	}
 	if !equalStrings(routePackReads, payload.MinimalLiveReads) {
 		t.Fatalf("route_pack.minimal_live_reads = %#v, want %#v", routePackReads, payload.MinimalLiveReads)
+	}
+	if !hasString(routePackReads, "docs/auth.md") {
+		t.Fatalf("route_pack.minimal_live_reads = %#v, want docs/auth.md", routePackReads)
 	}
 	if !hasString(payload.MissingCoverage, "greenfield_empty_no_project_code") {
 		t.Fatalf("MissingCoverage = %#v, want greenfield_empty_no_project_code", payload.MissingCoverage)

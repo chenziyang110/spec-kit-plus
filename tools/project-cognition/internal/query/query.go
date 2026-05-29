@@ -134,11 +134,14 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		plan.Paths = normalizePaths(input.Paths)
 	}
 	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty {
-		reads := normalizePaths(append([]string{
+		readCandidates := []string{
 			".specify/memory/constitution.md",
 			".specify/memory/project-rules.md",
 			"AGENTS.md",
-		}, plan.Paths...))
+		}
+		readCandidates = append(readCandidates, plan.Paths...)
+		readCandidates = append(readCandidates, plan.PathHints...)
+		reads := normalizePaths(readCandidates)
 		return QueryPayload{
 			BaselineHealth: map[string]any{
 				"freshness":     status.Freshness,
