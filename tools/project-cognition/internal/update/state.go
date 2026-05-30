@@ -293,8 +293,22 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		if err != nil {
 			return UpdatePayload{}, err
 		}
-		changedJSON, _ := json.Marshal(kept)
-		if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
+		if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
+			ID:            updateID,
+			Trigger:       input.Reason,
+			ChangedPaths:  kept,
+			AffectedNodes: nodeIDsFromRows(nodes),
+			ResultState:   ResultPartialRefresh,
+			Attrs: map[string]any{
+				"workflow":           input.Workflow,
+				"behavior_surfaces":  input.BehaviorSurfaces,
+				"generated_surfaces": input.GeneratedSurfaces,
+				"state_contracts":    input.StateContracts,
+				"verification":       input.Verification,
+				"known_unknowns":     input.KnownUnknowns,
+				"confidence_notes":   input.ConfidenceNotes,
+			},
+		}); err != nil {
 			return UpdatePayload{}, err
 		}
 	}
@@ -410,6 +424,21 @@ func applyPayloadFileInput(input UpdateInput, payload PayloadFileInput) UpdateIn
 	return input
 }
 
+func nodeIDsFromRows(rows []map[string]any) []string {
+	ids := make([]string, 0, len(rows))
+	seen := map[string]bool{}
+	for _, row := range rows {
+		id, ok := row["id"].(string)
+		if !ok || id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
 func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	cfg, err := config.Load(paths.Root)
 	if err != nil {
@@ -443,8 +472,22 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	}
 	if st != nil {
 		defer st.Close()
-		changedJSON, _ := json.Marshal(result.ChangedPaths)
-		if err := st.RecordUpdate(context.Background(), updateID, input.Reason, string(changedJSON)); err != nil {
+		if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
+			ID:           updateID,
+			Trigger:      input.Reason,
+			ChangedPaths: result.ChangedPaths,
+			ResultState:  ResultPartialRefresh,
+			Attrs: map[string]any{
+				"workflow":           input.Workflow,
+				"behavior_surfaces":  input.BehaviorSurfaces,
+				"generated_surfaces": input.GeneratedSurfaces,
+				"state_contracts":    input.StateContracts,
+				"verification":       input.Verification,
+				"known_unknowns":     input.KnownUnknowns,
+				"confidence_notes":   input.ConfidenceNotes,
+				"boundary":           result,
+			},
+		}); err != nil {
 			return UpdatePayload{}, err
 		}
 	}

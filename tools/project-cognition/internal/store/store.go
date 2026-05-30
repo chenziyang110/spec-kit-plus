@@ -33,6 +33,17 @@ type ConceptCandidateRow struct {
 	ObservationSummaries []string
 }
 
+type UpdateRecord struct {
+	ID             string
+	Trigger        string
+	ChangedPaths   []string
+	AffectedNodes  []string
+	AffectedClaims []string
+	AffectedSlices []string
+	ResultState    string
+	Attrs          map[string]any
+}
+
 func Open(paths rt.Paths) (*Store, error) {
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create runtime dir: %w", err)
@@ -372,6 +383,20 @@ func decodeMetadataValue(value string) string {
 }
 
 func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON string) error {
+	var changed []string
+	if strings.TrimSpace(changedPathsJSON) != "" {
+		_ = json.Unmarshal([]byte(changedPathsJSON), &changed)
+	}
+	return s.RecordStructuredUpdate(ctx, UpdateRecord{
+		ID:           id,
+		Trigger:      reason,
+		ChangedPaths: changed,
+		ResultState:  "recorded",
+		Attrs:        map[string]any{"legacy_record_update": true},
+	})
+}
+
+func (s *Store) RecordStructuredUpdate(ctx context.Context, record UpdateRecord) error {
 	generationID, err := s.ActiveGenerationID(ctx)
 	if err != nil {
 		return err
@@ -379,10 +404,33 @@ func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON s
 	if generationID == "" {
 		return nil
 	}
+	if strings.TrimSpace(record.ResultState) == "" {
+		record.ResultState = "blocked"
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err = s.db.ExecContext(ctx, `INSERT INTO updates(id, generation_id, trigger, changed_paths_json, affected_nodes_json, affected_claims_json, affected_slices_json, result_state, completed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, generationID, reason, changedPathsJSON, "[]", "[]", "[]", "recorded", now, "{}")
+	changedJSON, err := json.Marshal(record.ChangedPaths)
 	if err != nil {
-		return fmt.Errorf("record update: %w", err)
+		return fmt.Errorf("encode update changed paths: %w", err)
+	}
+	nodesJSON, err := json.Marshal(record.AffectedNodes)
+	if err != nil {
+		return fmt.Errorf("encode update affected nodes: %w", err)
+	}
+	claimsJSON, err := json.Marshal(record.AffectedClaims)
+	if err != nil {
+		return fmt.Errorf("encode update affected claims: %w", err)
+	}
+	slicesJSON, err := json.Marshal(record.AffectedSlices)
+	if err != nil {
+		return fmt.Errorf("encode update affected slices: %w", err)
+	}
+	attrs, err := attrsJSONOrEmpty(record.Attrs)
+	if err != nil {
+		return fmt.Errorf("encode update attrs: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO updates(id, generation_id, trigger, changed_paths_json, affected_nodes_json, affected_claims_json, affected_slices_json, result_state, completed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, record.ID, generationID, record.Trigger, string(changedJSON), string(nodesJSON), string(claimsJSON), string(slicesJSON), record.ResultState, now, attrs)
+	if err != nil {
+		return fmt.Errorf("record structured update: %w", err)
 	}
 	return nil
 }
