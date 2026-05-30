@@ -15,6 +15,10 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Create or resume the discussion session.
 - Run the Context Boundary Gate before project-specific technical options, affected-file claims, implementation-path claims, or handoff generation.
 - Use project cognition as advisory navigation only when current-project facts matter; use `--intent discussion`, read returned `minimal_live_reads`, and prove technical claims from live repository files.
+- Complete a Truth Pass before source-grounded technical advice, affected-surface claims, implementation-path recommendations, or testing strategy claims tied to existing code; record `verified_project_facts`, `open_assumptions`, `evidence_checked`, and `advice_confidence`.
+- Use a Boss-Friendly Advisor Response for substantive turns: lead with plain-language judgment, then evidence, risk, recommendation, and next discussion paths.
+- Maintain a Discussion Compass in `discussion-state.md` so long conversations preserve what is being solved, what is confirmed, what changed, what remains undecided, the current recommendation, and the next useful decision.
+- Apply the Anti-Toothpaste Protocol: show the broader decision map, recommend a next path, and ask only the highest-impact question when user judgment is needed.
 - Classify each user turn before asking a question.
 - Run the Question Evidence Gate before asking the user; answer repository-discoverable facts from live evidence.
 - Use an Adaptive Question Pack: ask one required primary question, and optionally add up to two same-topic follow-ups only when the topic is local and low risk.
@@ -36,6 +40,8 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Maintain the independent discussion state and artifacts under `.specify/discussions/<slug>/`.
 - Provide 2-3 project-grounded technical options only after the relevant boundary is locked.
 - Report unresolved questions honestly instead of forcing planning readiness.
+- Distinguish verified project facts from open assumptions before presenting technical options.
+- Keep the current discussion compass fresh at semantic checkpoints.
 - Write `handoff-to-specify.md` and `handoff-to-specify.json` together as a draft pair; both files are mandatory, and the pair becomes handoff-ready only after self-review and user confirmation.
 - Do not write separate split planning artifacts or candidate-specific handoff files.
 - When explicit handoff is requested, include `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger.
@@ -48,5 +54,5 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Do not edit source code or tests.
 - Do not create feature branches or feature directories.
 - Do not automatically invoke or route into `sp-specify`.
-- Do not make project-specific technical claims before the Context Boundary Gate and staged cognition gate pass.
+- Do not make project-specific technical claims before the Context Boundary Gate, staged cognition gate, and Truth Pass are complete.
 - Do not use current project cognition to prove another project's implementation facts.

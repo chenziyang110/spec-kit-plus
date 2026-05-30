@@ -146,6 +146,15 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "ordinary turns append" in skill_lower
     assert "semantic checkpoints" in skill_lower
     assert "draft pair" in skill_lower
+    assert "truth pass" in skill_lower
+    assert "verified_project_facts" in skill_content
+    assert "open_assumptions" in skill_content
+    assert "evidence_checked" in skill_content
+    assert "advice_confidence" in skill_content
+    assert "boss-friendly advisor response" in skill_lower
+    assert "discussion compass" in skill_lower
+    assert "anti-toothpaste" in skill_lower
+    assert "ask only the highest-impact question" in skill_lower
     assert "Context Boundary Gate" in skill_content
     assert "target project root" in skill_lower
     assert "adaptive question pack" in skill_lower
@@ -215,7 +224,7 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe")
 
 
-def test_collected_skills_integrations_preserve_shared_contracts(tmp_path):
+def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_path):
     for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
         project = tmp_path / integration_key
         integration = get_integration(integration_key)

@@ -613,6 +613,33 @@ def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates
     assert "Do NOT" in content
 
 
+def _assert_discussion_advisor_upgrade_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "Truth Pass" in content
+    assert "truth pass" in lowered
+    assert "verified_project_facts" in content
+    assert "open_assumptions" in content
+    assert "evidence_checked" in content
+    assert "advice_confidence" in content
+    assert "Boss-Friendly Advisor Response" in content
+    assert "judgment" in lowered
+    assert "evidence" in lowered
+    assert "risk" in lowered
+    assert "recommendation" in lowered
+    assert "next discussion" in lowered
+    assert "Discussion Compass" in content
+    assert "discussion_compass_status" in content
+    assert "current_decision_frame" in content
+    assert "confirmed_decisions" in content
+    assert "changed_recommendations" in content
+    assert "next_discussion_paths" in content
+    assert "Anti-Toothpaste Protocol" in content
+    assert "show the map" in lowered
+    assert "ask only the highest-impact question" in lowered
+    assert "do not recommend implementation work before the relevant truth pass" in lowered
+
+
 def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     content = _read_project_file("templates/commands/discussion.md")
     lowered = content.lower()
@@ -641,6 +668,7 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "do not automatically run" in lowered
     assert "explicit user" in lowered
     assert "{{spec-kit-include: ../command-partials/discussion/shell.md}}" in content
+    _assert_discussion_advisor_upgrade_contract(content)
 
 
 def test_discussion_command_locks_context_boundary_before_technicalization() -> None:
@@ -685,6 +713,57 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "minimal viable path" not in lowered
     assert "scope reduction requires user confirmation" in lowered
     assert "2-3" in content
+
+
+def test_discussion_requires_truth_pass_before_project_specific_advice() -> None:
+    content = _read("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "## Truth Pass" in content
+    assert "current project behavior" in lowered
+    assert "existing capability reuse" in lowered
+    assert "cross-cli propagation" in lowered
+    assert "compatibility, lifecycle, state, security, or downstream workflow risk" in lowered
+    assert "before the truth pass completes" in lowered
+    assert "must not name affected files, modules, apis, tests, or implementation paths as facts" in lowered
+    assert "project cognition remains advisory navigation" in lowered
+    assert "live repository evidence proves current project behavior" in lowered
+
+
+def test_discussion_uses_boss_friendly_advisor_response_and_compass() -> None:
+    content = _read("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "## Boss-Friendly Advisor Response" in content
+    assert "the first sentence should be understandable to a non-technical owner" in lowered
+    assert "judgment:" in lowered
+    assert "evidence:" in lowered
+    assert "risk:" in lowered
+    assert "recommendation:" in lowered
+    assert "next discussion paths:" in lowered
+    assert "## Discussion Compass" in content
+    assert "what are we solving now" in lowered
+    assert "what has been confirmed" in lowered
+    assert "what changed from earlier thinking" in lowered
+    assert "what remains undecided" in lowered
+    assert "what is the current recommended direction" in lowered
+    assert "where we are" in lowered
+
+
+def test_discussion_anti_toothpaste_protocol_maps_adjacent_decisions() -> None:
+    content = _read("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "## Anti-Toothpaste Protocol" in content
+    assert "literal issue the user raised" in lowered
+    assert "deeper decision or risk behind it" in lowered
+    assert "adjacent product, technical, workflow, or verification implications" in lowered
+    assert "which items can be discussed together" in lowered
+    assert "which item requires a clear user decision" in lowered
+    assert "recommended order for the next discussion steps" in lowered
+    assert 'the rule is not "ask many questions."' in lowered
+    assert "show the map" in lowered
+    assert "ask only the highest-impact question" in lowered
 
 
 def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -> None:
@@ -752,7 +831,10 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "do not refresh all files" in lowered
     assert "requirements.md only when product requirements have changed enough to matter" in combined
     assert "technical-options.md only when options are introduced, revised, selected, or rejected" in combined
-    assert "project-context.md only when source-grounding evidence or cognition coverage changes" in combined
+    assert (
+        "project-context.md only when source-grounding evidence, truth-pass evidence, assumptions, "
+        "advice confidence, or cognition coverage changes"
+    ) in combined
     assert "open-questions.md only when blocking or soft unknowns materially change" in combined
 
 
@@ -796,6 +878,14 @@ def test_discussion_shell_partial_summarizes_boundary_and_single_handoff_contrac
     assert "handoff-to-specify.json" in content
     assert "handoffs/<candidate_id>" not in content
     assert "split-plan.md" not in content
+    assert "truth pass" in lowered
+    assert "boss-friendly advisor response" in lowered
+    assert "discussion compass" in lowered
+    assert "anti-toothpaste" in lowered
+    assert "verified_project_facts" in content
+    assert "open_assumptions" in content
+    assert "evidence_checked" in content
+    assert "advice_confidence" in content
 
 
 def test_discussion_state_template_is_independent_from_feature_workflow_state() -> None:
@@ -817,6 +907,16 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "primary_question:" in content
     assert "optional_followups:" in content
     assert "recommendation_required_for_choices: true" in content
+    assert "truth_pass_status: not-needed | needed | in-progress | complete | blocked" in content
+    assert "verified_project_facts:" in content
+    assert "open_assumptions:" in content
+    assert "evidence_checked:" in content
+    assert "advice_confidence: high | medium | low | blocked | none" in content
+    assert "discussion_compass_status: current | stale | missing" in content
+    assert "current_decision_frame:" in content
+    assert "confirmed_decisions:" in content
+    assert "changed_recommendations:" in content
+    assert "next_discussion_paths:" in content
     assert "## Allowed Artifact Writes" in content
     assert "discussion-state.md" in content
     assert "handoff-to-specify.md" in content
@@ -911,6 +1011,10 @@ def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -
     assert "explicit handoff" in lowered
     assert "{{invoke:discussion}}" in content
     assert "{{invoke:specify}}" in content
+    assert "senior product-engineering advisor" in lowered
+    assert "truth pass" in lowered
+    assert "discussion compass" in lowered
+    assert "proactive implication mapping" in lowered
 
 
 def test_project_cognition_gate_has_staged_discussion_gate() -> None:
@@ -928,6 +1032,11 @@ def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     assert "project-cognition lexicon --intent plan" not in content
     assert "project-cognition query --intent plan" not in content
     assert "use `--intent plan` from `sp-discussion`" in content
+    assert "truth pass" in lowered
+    assert "verified_project_facts" in content
+    assert "open_assumptions" in content
+    assert "evidence_checked" in content
+    assert "advice_confidence" in content
 
 
 def test_project_cognition_gate_reference_refresh_uses_closed_conditions() -> None:

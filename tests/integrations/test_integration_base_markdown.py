@@ -118,6 +118,15 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "ordinary turns append" in command_lower
     assert "semantic checkpoints" in command_lower
     assert "draft pair" in command_lower
+    assert "truth pass" in command_lower
+    assert "verified_project_facts" in command_content
+    assert "open_assumptions" in command_content
+    assert "evidence_checked" in command_content
+    assert "advice_confidence" in command_content
+    assert "boss-friendly advisor response" in command_lower
+    assert "discussion compass" in command_lower
+    assert "anti-toothpaste" in command_lower
+    assert "ask only the highest-impact question" in command_lower
     assert "Context Boundary Gate" in command_content
     assert "target project root" in command_lower
     assert "adaptive question pack" in command_lower
@@ -200,7 +209,7 @@ def _discussion_artifact_path(integration, project_root):
 MARKDOWN_INTEGRATION_SAMPLE_KEYS = ("claude", "opencode", "kiro-cli")
 
 
-def test_collected_markdown_integrations_preserve_shared_contracts(tmp_path):
+def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tmp_path):
     for integration_key in MARKDOWN_INTEGRATION_SAMPLE_KEYS:
         project = tmp_path / integration_key
         integration = get_integration(integration_key)

@@ -192,6 +192,9 @@ def test_guidance_docs_position_discussion_before_specify() -> None:
                 matching_guidance.append(paragraph)
 
         assert matching_guidance
+        assert "senior product-engineering advisor" in content.lower()
+        assert "truth pass" in content.lower()
+        assert "discussion compass" in content.lower()
 
 
 def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None:
@@ -212,6 +215,10 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "project cognition" in lowered
         assert "advisory navigation" in lowered
         assert "semantic checkpoints" in lowered
+        assert "senior product-engineering advisor" in lowered
+        assert "verified facts" in lowered or "verified project facts" in lowered
+        assert "advice confidence" in lowered
+        assert "discussion compass" in lowered
         assert "draft unified handoff pair" in lowered or "one unified handoff pair" in lowered
         assert "quality_gate" in content
         assert "user confirmation" in lowered

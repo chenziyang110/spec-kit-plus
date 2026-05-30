@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 
 import yaml
@@ -18,9 +19,10 @@ def test_top_level_cli_exposes_discussion_entrypoint():
 
     assert root_help.exit_code == 0, root_help.output
     assert discussion_help.exit_code == 0, discussion_help.output
+    discussion_output = re.sub(r"\s+", " ", strip_ansi(discussion_help.output).lower())
     assert "discussion" in root_help.output
-    assert "resumable product/technical" in discussion_help.output.lower()
-    assert "discussion before formal specification" in discussion_help.output.lower()
+    assert "resumable senior product-engineering" in discussion_output
+    assert "discussion before formal specification" in discussion_output
 
 
 class TestInitIntegrationFlag:

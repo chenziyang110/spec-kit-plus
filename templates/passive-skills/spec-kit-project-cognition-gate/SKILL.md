@@ -36,11 +36,14 @@ judgment in an established Spec Kit Plus repository:
   the returned readiness state; do not widen live repository reads beyond the
   returned `route_pack` and `minimal_live_reads`.
 - For `sp-discussion`, product framing may begin before the cognition gate. Before
-  technical options, affected-surface claims, source-code reads, or
-  source-grounded recommendations, use the active workflow's launcher-backed project cognition query planning flow to retrieve the task-local project
-  cognition bundle. Use `project-cognition lexicon --intent discussion` and
-  `project-cognition query --intent discussion` for discussion grounding. Do not
-  use `--intent plan` from `sp-discussion`.
+  technical options, affected-surface claims, testing strategy claims tied to
+  existing code, implementation-path recommendations, or source-grounded
+  recommendations, complete the workflow's Truth Pass with the active
+  launcher-backed project cognition query planning flow and bounded live evidence.
+  Use `project-cognition lexicon --intent discussion` and
+  `project-cognition query --intent discussion` for discussion grounding. Record
+  `verified_project_facts`, `open_assumptions`, `evidence_checked`, and
+  `advice_confidence`. Do not use `--intent plan` from `sp-discussion`.
 - Project cognition is project-scoped. Current project cognition proves only
   current project facts.
 - In `sp-discussion`, if the implementation target is another repository or
