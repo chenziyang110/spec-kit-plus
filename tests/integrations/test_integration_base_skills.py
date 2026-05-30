@@ -185,8 +185,13 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "inline project cognition update" in content
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --changed-path" in content
-    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+    assert "project-cognition update --payload-file" in content
+    assert "result_state" in content
+    assert "update_id" in content
+    assert "clean closeout" in content
+    assert "not `update_id`, `last_update_id`, or freshness alone" in content
+    assert "recorded-only output" in content
+    assert "project-cognition update --changed-path" not in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "actual `{{invoke:map-update}}` refresh" not in content
     assert "project_cognition_refresh` recommending" not in content

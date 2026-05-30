@@ -129,6 +129,12 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         assert "entry advisory is not closeout ownership" in content
         assert "workflow-owned mutation closeout" in content
         assert "inline project cognition update" in content
+        assert "project-cognition update --payload-file" in content
+        assert "result_state" in content
+        assert "update_id" in content
+        assert "clean closeout" in content
+        assert "recorded-only output" in content
+        assert "project-cognition update --changed-path" not in content
         assert "sp-map-update is for manual/external maintenance" in content
         assert "crucial first step" in content
         if "sp-debug" in rel:
@@ -182,6 +188,12 @@ def test_cursor_closeout_advisory_uses_exact_heading_marker(tmp_path):
         == 1
     )
     assert "Entry advisory is not closeout ownership" in content
+    assert "project-cognition update --payload-file" in content
+    assert "result_state" in content
+    assert "update_id" in content
+    assert "clean closeout" in content
+    assert "recorded-only output" in content
+    assert "project-cognition update --changed-path" not in content
 
     second = integration._append_runtime_handbook_compatibility_to_file(
         project_root=tmp_path,
