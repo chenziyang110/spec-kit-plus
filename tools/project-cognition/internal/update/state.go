@@ -287,18 +287,20 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		return UpdatePayload{}, err
 	}
 	nodes := []map[string]any{}
+	resultState := updateResultState(kept, nodes, input)
 	if st != nil {
 		defer st.Close()
 		nodes, err = st.NodesForPaths(context.Background(), kept)
 		if err != nil {
 			return UpdatePayload{}, err
 		}
+		resultState = updateResultState(kept, nodes, input)
 		if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
 			ID:            updateID,
 			Trigger:       input.Reason,
 			ChangedPaths:  kept,
 			AffectedNodes: nodeIDsFromRows(nodes),
-			ResultState:   ResultPartialRefresh,
+			ResultState:   resultState,
 			Attrs: map[string]any{
 				"workflow":           input.Workflow,
 				"behavior_surfaces":  input.BehaviorSurfaces,
@@ -317,44 +319,35 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	status.LastUpdateID = updateID
-	status.LastRefreshChangedFilesBasis = kept
-	status.StalePaths = appendUnique(status.StalePaths, kept...)
-	status.StaleReasons = appendUnique(status.StaleReasons, input.Reason)
-	if len(kept) > 0 {
-		status.Dirty = true
-		status.Status = "stale"
-		status.Freshness = rt.StaleFreshness
-		status.Readiness = rt.BlockedReadiness
-		status.RecommendedNextAction = "review_project_cognition_update"
-	}
+	status = applyResultState(status, resultState, updateID, kept, input.Reason)
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return UpdatePayload{}, err
 	}
 
+	updatePaths := updatePathPayloads(resultState, kept)
 	pathAdoption := map[string]any{
-		"adopted":         kept,
+		"adopted":         updatePaths.adopted,
 		"ignored":         ignored,
-		"needs_review":    kept,
+		"needs_review":    updatePaths.review,
 		"path_accounting": pathAccounting,
 	}
 	return UpdatePayload{
 		Readiness:               status.Readiness,
 		RecommendedNextAction:   status.RecommendedNextAction,
 		UpdateID:                updateID,
-		ResultState:             ResultPartialRefresh,
+		ResultState:             resultState,
 		StatusUpdate:            statusUpdateFromStatus(status),
-		ChangedPaths:            kept,
+		ChangedPaths:            updatePaths.changed,
 		IgnoredPaths:            ignored,
 		AffectedNodes:           nodes,
 		MissingCoverage:         []string{},
-		AdoptedPaths:            kept,
-		ReviewPaths:             kept,
+		AdoptedPaths:            updatePaths.adopted,
+		ReviewPaths:             updatePaths.review,
 		UnadoptablePaths:        []string{},
-		KnownUnknowns:           []string{},
-		MinimalLiveReads:        kept,
+		KnownUnknowns:           compactStrings(input.KnownUnknowns),
+		MinimalLiveReads:        updatePaths.minimalLiveReads,
 		PathAdoption:            pathAdoption,
-		LastRefreshChangedBasis: kept,
+		LastRefreshChangedBasis: updatePaths.changed,
 	}, nil
 }
 
@@ -380,6 +373,101 @@ func statusUpdateFromStatus(status rt.Status) StatusUpdate {
 		StaleReasons:          append([]string{}, status.StaleReasons...),
 		LastUpdateID:          status.LastUpdateID,
 		LastUpdateOutcome:     status.LastUpdateOutcome,
+	}
+}
+
+func updateResultState(kept []string, nodes []map[string]any, input UpdateInput) string {
+	if len(kept) == 0 {
+		return ResultNoOp
+	}
+	if len(nodes) > 0 && len(input.Verification) > 0 && len(compactStrings(input.KnownUnknowns)) == 0 {
+		return ResultReady
+	}
+	return ResultPartialRefresh
+}
+
+func applyResultState(status rt.Status, resultState string, updateID string, changedPaths []string, reason string) rt.Status {
+	status.LastUpdateID = updateID
+	status.LastUpdateOutcome = resultState
+	status.LastRefreshChangedFilesBasis = append([]string{}, changedPaths...)
+	switch resultState {
+	case ResultReady:
+		status.Status = "ok"
+		status.Freshness = rt.ReadyFreshness
+		status.Readiness = rt.ReadyReadiness
+		status.RecommendedNextAction = "use_project_cognition"
+		status.Dirty = false
+		status.StalePaths = subtractStrings(status.StalePaths, changedPaths)
+		status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
+	case ResultNoOp:
+		if status.Status == "" {
+			status.Status = "ok"
+		}
+		if status.Freshness == "" || status.Freshness == rt.MissingFreshness {
+			status.Freshness = rt.ReadyFreshness
+		}
+		if status.Readiness == "" {
+			status.Readiness = rt.ReadyReadiness
+		}
+		if status.RecommendedNextAction == "" {
+			status.RecommendedNextAction = "use_project_cognition"
+		}
+	case ResultPartialRefresh:
+		status.Status = "stale"
+		status.Freshness = rt.PartialRefreshFreshness
+		status.Readiness = rt.ReviewReadiness
+		status.RecommendedNextAction = "review_project_cognition_update"
+		status.Dirty = true
+		status.StalePaths = appendUnique(status.StalePaths, changedPaths...)
+		status.StaleReasons = appendUnique(status.StaleReasons, reason)
+	case ResultNeedsRebuild:
+		status.Status = "stale"
+		status.Freshness = rt.StaleFreshness
+		status.Readiness = rt.NeedsRebuildReadiness
+		status.RecommendedNextAction = "run_map_scan_build"
+		status.Dirty = true
+		status.StalePaths = appendUnique(status.StalePaths, changedPaths...)
+		status.StaleReasons = appendUnique(status.StaleReasons, reason)
+	default:
+		status.Status = "stale"
+		status.Freshness = rt.StaleFreshness
+		status.Readiness = rt.BlockedReadiness
+		status.RecommendedNextAction = "review_project_cognition_update"
+		status.Dirty = true
+		status.StalePaths = appendUnique(status.StalePaths, changedPaths...)
+		status.StaleReasons = appendUnique(status.StaleReasons, reason)
+	}
+	return status
+}
+
+type updatePathPayload struct {
+	changed          []string
+	adopted          []string
+	review           []string
+	minimalLiveReads []string
+}
+
+func updatePathPayloads(resultState string, kept []string) updatePathPayload {
+	switch resultState {
+	case ResultReady:
+		return updatePathPayload{
+			changed: append([]string{}, kept...),
+			adopted: append([]string{}, kept...),
+		}
+	case ResultNoOp:
+		return updatePathPayload{
+			changed:          []string{},
+			adopted:          []string{},
+			review:           []string{},
+			minimalLiveReads: []string{},
+		}
+	default:
+		return updatePathPayload{
+			changed:          append([]string{}, kept...),
+			adopted:          []string{},
+			review:           append([]string{}, kept...),
+			minimalLiveReads: append([]string{}, kept...),
+		}
 	}
 }
 
@@ -662,6 +750,28 @@ func appendUnique(existing []string, values ...string) []string {
 		}
 		seen[value] = true
 		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func subtractStrings(values []string, remove []string) []string {
+	removeSet := map[string]bool{}
+	for _, value := range remove {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			removeSet[trimmed] = true
+		}
+	}
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" || removeSet[trimmed] || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		out = append(out, trimmed)
 	}
 	sort.Strings(out)
 	return out

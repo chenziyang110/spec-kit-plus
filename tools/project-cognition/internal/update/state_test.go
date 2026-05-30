@@ -225,6 +225,91 @@ func TestRunUpdateKeepsIgnoredPathsOutOfMinimalLiveReads(t *testing.T) {
 	}
 }
 
+func TestRunUpdateNoOpWhenAllChangedPathsAreIgnored(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	if err := os.WriteFile(filepath.Join(paths.Root, ".cognitionignore"), []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"vendor/a.go"},
+		Reason:       "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultNoOp {
+		t.Fatalf("ResultState = %q, want %q", payload.ResultState, ResultNoOp)
+	}
+	if containsString(payload.MinimalLiveReads, "vendor/a.go") {
+		t.Fatalf("MinimalLiveReads = %#v, did not want ignored path", payload.MinimalLiveReads)
+	}
+}
+
+func TestRunUpdatePathOnlyUnknownCoverageReturnsPartialRefresh(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/new-feature.go"},
+		Reason:       "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultPartialRefresh {
+		t.Fatalf("ResultState = %q, want partial_refresh", payload.ResultState)
+	}
+	if payload.Readiness != "review" {
+		t.Fatalf("Readiness = %q, want review", payload.Readiness)
+	}
+	if !containsString(payload.MinimalLiveReads, "src/new-feature.go") {
+		t.Fatalf("MinimalLiveReads = %#v, want changed path", payload.MinimalLiveReads)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastUpdateOutcome != ResultPartialRefresh {
+		t.Fatalf("LastUpdateOutcome = %q", status.LastUpdateOutcome)
+	}
+}
+
+func TestRunUpdatePayloadForIndexedPathReturnsReady(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/app.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"application entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed", Artifact: "artifacts/quality-runs/example/report.md"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if payload.Readiness != rt.ReadyReadiness {
+		t.Fatalf("Readiness = %q, want query_ready", payload.Readiness)
+	}
+	if len(payload.AffectedNodes) == 0 {
+		t.Fatalf("AffectedNodes = %#v, want indexed node", payload.AffectedNodes)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Freshness != rt.ReadyFreshness || status.LastUpdateOutcome != ResultReady {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
 func TestCompleteRefreshBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
 	paths := testPaths(t)
 	seedSplitBrainRuntime(t, paths)
