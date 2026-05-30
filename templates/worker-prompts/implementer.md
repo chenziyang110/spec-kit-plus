@@ -59,3 +59,7 @@ Treat these fields as binding execution inputs from the worker packet or `handof
 - Do not edit production code until the RED state is verified.
 - Do not report success without explicit GREEN state evidence for the same gate you used during RED.
 - If a required decision is missing, stop and return `NEEDS_CONTEXT`.
+
+## Inline Project Cognition Handoff
+
+When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload.

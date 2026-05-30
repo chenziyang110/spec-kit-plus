@@ -141,3 +141,7 @@ missing_questions:
   - "question 1"
   - "question 2"
 ```
+
+## Inline Project Cognition Handoff
+
+When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload.

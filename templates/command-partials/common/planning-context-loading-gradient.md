@@ -85,7 +85,11 @@ Preserve the distinction between the machine freshness field and public state
 guidance: `freshness` records map quality, while `recommended_next_action` is a
 map-maintenance recommendation.
 
-Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership. Planning-only artifact writes do not require project cognition refresh. If this planning workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, it stops being artifact-only for closeout: run inline project cognition update using the workflow-owned changed paths and affected surfaces. Workflow-owned mutation closeout is not external map maintenance. `sp-map-update` is for manual/external maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
+Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. That entry routing rule does not waive closeout ownership.
+
+Planning-only artifact writes do not require project cognition refresh. If this planning workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, follow the shared inline closeout contract:
+
+{{spec-kit-include: inline-project-cognition-update.md}}
 
 ### Greenfield Empty Baseline
 

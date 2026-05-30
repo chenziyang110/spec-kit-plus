@@ -335,7 +335,10 @@ Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped c
       - write-set conflict status
     - Recommended next command: `{{invoke:implement}}` for normal completed or non-escalated task generation.
     - For escalated remediation: preserve the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stop without an analyze handoff.
-    - cognition follow-up: if artifact-only task generation exposes future shared surfaces, workflow joins, or validation entry points that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `tasks.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date. If this workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, it stops being artifact-only for closeout: run inline project cognition update from the workflow-owned changed paths and affected surfaces, and use `project-cognition mark-dirty` only when inline update cannot complete. `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made.
+    - cognition follow-up: if artifact-only task generation exposes future shared surfaces, workflow joins, or validation entry points that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `tasks.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
+    - If this workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, follow the shared inline closeout contract:
+
+{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

@@ -90,17 +90,9 @@ If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live r
 
 ### Mutation Closeout Rule
 
-Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership: once the workflow itself changes project-related files or behavior, it must run inline project cognition update for its own changes.
+Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
 
-Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, closeout must run inline project cognition update from the workflow-owned ledger:
-
-1. Append closeout evidence to the current delta session when one exists using `project-cognition delta append --session "$DELTA_SESSION_ID" --event-type workflow_closeout --changed-path "<path>" --behavior-surface "<surface>" --verification "<evidence>" --format json`.
-2. Finalize with `project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`; include `--commit-range "<base>..<head>"` only with `--delta-session` when a safe task commit boundary exists.
-3. If no delta session exists, use `project-cognition update --changed-path "<path>" --scope "<affected-scope>" --reason workflow-finalize --format json`.
-
-A persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`. Use `project-cognition mark-dirty --reason "<reason>" --format json` only when inline update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
-
-`sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is external map maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
+{{spec-kit-include: inline-project-cognition-update.md}}
 
 ### Primary Read Restriction
 

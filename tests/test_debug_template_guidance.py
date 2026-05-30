@@ -154,8 +154,10 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --changed-path" in content
-    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+    assert "project-cognition update --payload-file" in content
+    assert "clean closeout keys on `result_state`" in content
+    assert "not `update_id`, `last_update_id`, or freshness alone" in content
+    assert "legacy recorded-only output" in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "dirty only when inline update" in content
     assert "ordinary uncertain closure" in content
@@ -172,8 +174,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "project-cognition validate-build --format json" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "if that refresh cannot be completed now" in content
-    assert "manual override/fallback" in content
+    assert "project-cognition mark-dirty` only when inline update cannot complete" in content
+    assert "write the selected capability or symptom, evidence routes" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content
     assert "do not modify production behavior until the red state is proven" in content

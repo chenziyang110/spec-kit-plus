@@ -32,6 +32,56 @@ def _launcher_lexicon(intent: str) -> str:
     return f'{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query="$ARGUMENTS" --format json}}}}'
 
 
+def test_inline_project_cognition_update_uses_shared_partial() -> None:
+    shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
+    assert "project-cognition update --payload-file" in shared
+    assert "result_state" in shared
+    assert "recorded" in shared
+
+    common_partials = [
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/command-partials/common/navigation-check.md",
+    ]
+    for path in common_partials:
+        content = _read_project_file(path)
+        assert "inline-project-cognition-update.md" in content, path
+        assert "project-cognition update --changed-path" not in content, path
+
+    commands = [
+        "templates/commands/fast.md",
+        "templates/commands/quick.md",
+        "templates/commands/implement.md",
+        "templates/commands/debug.md",
+        "templates/commands/map-update.md",
+    ]
+    for path in commands:
+        assert "inline-project-cognition-update.md" in _read_project_file(path), path
+
+
+def test_worker_prompts_report_inline_update_payload_evidence() -> None:
+    required_fields = (
+        "changed_paths",
+        "behavior_surfaces",
+        "generated_surfaces",
+        "state_contracts",
+        "verification",
+        "known_unknowns",
+        "confidence_notes",
+    )
+    for path in (
+        "templates/worker-prompts/quick-worker.md",
+        "templates/worker-prompts/implementer.md",
+        "templates/worker-prompts/debug-investigator.md",
+        "templates/worker-prompts/debug-thinker.md",
+        "templates/worker-prompts/code-quality-reviewer.md",
+        "templates/worker-prompts/spec-reviewer.md",
+    ):
+        content = _read(path)
+        for field in required_fields:
+            assert field in content, f"{path} missing {field}"
+
+
 def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
     assert _launcher_lexicon(intent) in content
     assert _launcher_query(intent) in content
@@ -2540,8 +2590,8 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in lowered
     assert "project-cognition delta append" in lowered
     assert "project-cognition update --delta-session" in lowered
-    assert "project-cognition update --changed-path" in lowered
-    assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in lowered
+    assert "project-cognition update --payload-file" in lowered
+    assert "clean closeout keys on `result_state`" in lowered
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in lowered
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
@@ -2579,8 +2629,8 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
         assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
         assert "project-cognition delta append" in content
         assert "project-cognition update --delta-session" in content
-        assert "project-cognition update --changed-path" in content
-        assert "persisted update_id with non-ready readiness is `review` or `partial_refresh`, not `dirty`" in content
+        assert "project-cognition update --payload-file" in content
+        assert "clean closeout keys on `result_state`" in content
         assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
         assert "project-cognition mark-dirty" in content
         assert "dirty only when inline update" in content

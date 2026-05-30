@@ -88,7 +88,10 @@ scripts:
 - When cognition reports `ambiguous`, ask the user to select the intended candidate before writing artifacts.
 - When cognition reports `needs_rebuild` or `blocked`, report the blocking issue and the required project-map command instead of guessing.
 - Carry material repository facts into `context.md` and `alignment.md`; do not leave planning-relevant facts only in transient tool output.
-- Cognition follow-up: if artifact-only specification work identifies future modules, workflows, integration boundaries, verification surfaces, or ownership facts that the current query-backed runtime does not yet encode, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date. If this workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, it stops being artifact-only for closeout: run inline project cognition update from the workflow-owned changed paths and affected surfaces, and use `project-cognition mark-dirty` only when inline update cannot complete. `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made.
+- Cognition follow-up: if artifact-only specification work identifies future modules, workflows, integration boundaries, verification surfaces, or ownership facts that the current query-backed runtime does not yet encode, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
+- If this workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, follow the shared inline closeout contract:
+
+{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 
 ## Discussion Source-File Sweep
 

@@ -274,7 +274,10 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --changed-path" in content
+    assert "project-cognition update --payload-file" in content
+    assert "clean closeout keys on `result_state`" in content
+    assert "not `update_id`, `last_update_id`, or freshness alone" in content
+    assert "legacy recorded-only output" in content
     assert "project_cognition_refresh" in content
     assert "changed_code_paths" in content
     assert "changed_behavior_surfaces" in content
@@ -283,9 +286,9 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" not in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "it is not routine cleanup for changes this workflow just made" in content
-    assert "escalate to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for first/missing/unusable baseline" in content
-    assert "schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
+    assert "`needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required" in content
+    assert "schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
+    assert "project-cognition mark-dirty` only when inline update cannot complete" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:

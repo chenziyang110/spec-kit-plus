@@ -444,6 +444,10 @@ Ask the user: "Would you like me to draft concrete remediation edits and the exa
 - **Use examples over exhaustive rules** (cite specific instances, not generic patterns)
 - **Report zero issues gracefully** (emit success report with coverage statistics)
 
+If this workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, follow the shared inline closeout contract:
+
+{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
+
 ## Invocation Context
 
 {ARGS}

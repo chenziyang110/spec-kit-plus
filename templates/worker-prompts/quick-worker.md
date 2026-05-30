@@ -37,3 +37,7 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - Do not rewrite adjacent surfaces without explicit instruction.
 - Do not use a surface-only or symptom-only patch as a substitute for root-cause work on a bug fix.
 - If the lane is too large, stop and return a narrower proposed split.
+
+## Inline Project Cognition Handoff
+
+When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload.

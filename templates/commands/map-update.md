@@ -80,6 +80,16 @@ schema failure, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - Provisional adoption must write valid graph records: an adoption `evidence` row plus a `path_index` row with `relation="provisional_path"` and graph confidence `weak` or `partial`.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
+- Before `validate-build` or `complete-refresh`, build a payload or delta session and call:
+
+```text
+project-cognition update --payload-file ".specify/project-cognition/updates/<map-update-id>.json" --reason map-update --format json
+```
+
+Use the returned `result_state` to decide whether to finalize, report `partial_refresh`, route to rebuild, or report blocked state.
+
+{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
+
 - After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.
 - If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid` condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If `validate-build` is blocked after update recording, report `partial_refresh` and preserve the validation errors instead of claiming the runtime is fresh.

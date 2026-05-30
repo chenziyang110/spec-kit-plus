@@ -36,3 +36,7 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 - Prefer decisive signals over broad narration.
 - If instrumentation is required, say so explicitly instead of guessing.
 - The worker must not update the debug file; the leader remains the only owner of session state.
+
+## Inline Project Cognition Handoff
+
+When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload.
