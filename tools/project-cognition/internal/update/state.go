@@ -29,19 +29,79 @@ type DirtyInput struct {
 	PacketFile       string
 }
 
-type UpdateInput struct {
-	ChangedPaths   []string
-	ScopePaths     []string
-	Reason         string
-	DeltaSessionID string
-	CommitRange    string
+type VerificationEvidence struct {
+	Command  string `json:"command"`
+	Result   string `json:"result"`
+	Artifact string `json:"artifact,omitempty"`
 }
+
+type UpdateBoundaryInput struct {
+	CommitRange        string   `json:"commit_range,omitempty"`
+	InitialDirtyPaths  []string `json:"initial_dirty_paths,omitempty"`
+	WorkflowOwnedPaths []string `json:"workflow_owned_paths,omitempty"`
+}
+
+type PayloadFileInput struct {
+	Workflow          string                 `json:"workflow"`
+	Reason            string                 `json:"reason"`
+	ChangedPaths      []string               `json:"changed_paths"`
+	ScopePaths        []string               `json:"scope_paths"`
+	BehaviorSurfaces  []string               `json:"behavior_surfaces"`
+	GeneratedSurfaces []string               `json:"generated_surfaces"`
+	StateContracts    []string               `json:"state_contracts"`
+	Verification      []VerificationEvidence `json:"verification"`
+	KnownUnknowns     []string               `json:"known_unknowns"`
+	ConfidenceNotes   []string               `json:"confidence_notes"`
+	UserDecisions     []string               `json:"user_decisions"`
+	Boundary          UpdateBoundaryInput    `json:"boundary"`
+}
+
+type UpdateInput struct {
+	ChangedPaths      []string
+	ScopePaths        []string
+	Reason            string
+	DeltaSessionID    string
+	CommitRange       string
+	PayloadFile       string
+	Workflow          string
+	BehaviorSurfaces  []string
+	GeneratedSurfaces []string
+	StateContracts    []string
+	Verification      []VerificationEvidence
+	KnownUnknowns     []string
+	ConfidenceNotes   []string
+	UserDecisions     []string
+	Boundary          UpdateBoundaryInput
+}
+
+type StatusUpdate struct {
+	Status                string   `json:"status"`
+	Freshness             string   `json:"freshness"`
+	Readiness             string   `json:"readiness"`
+	RecommendedNextAction string   `json:"recommended_next_action"`
+	Dirty                 bool     `json:"dirty"`
+	StalePaths            []string `json:"stale_paths"`
+	StaleReasons          []string `json:"stale_reasons"`
+	LastUpdateID          string   `json:"last_update_id"`
+	LastUpdateOutcome     string   `json:"last_update_outcome"`
+}
+
+const (
+	ResultReady          = "ready"
+	ResultNoOp           = "no_op"
+	ResultPartialRefresh = "partial_refresh"
+	ResultNeedsRebuild   = "needs_rebuild"
+	ResultBlocked        = "blocked"
+	ResultRecorded       = "recorded"
+)
 
 type UpdatePayload struct {
 	Readiness               string           `json:"readiness"`
 	RecommendedNextAction   string           `json:"recommended_next_action"`
 	UpdateID                string           `json:"update_id"`
 	UpdateOutcome           string           `json:"update_outcome"`
+	ResultState             string           `json:"result_state"`
+	StatusUpdate            StatusUpdate     `json:"status_update"`
 	ChangedPaths            []string         `json:"changed_paths"`
 	IgnoredPaths            []string         `json:"ignored_paths"`
 	AffectedNodes           []map[string]any `json:"affected_nodes"`
@@ -191,6 +251,13 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	if err := blockSplitBrainBaseline(paths); err != nil {
 		return UpdatePayload{}, err
 	}
+	if input.PayloadFile != "" {
+		payload, err := loadPayloadFile(input.PayloadFile)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		input = applyPayloadFileInput(input, payload)
+	}
 	if input.DeltaSessionID != "" {
 		return runDeltaSessionUpdate(paths, input)
 	}
@@ -261,6 +328,8 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		Readiness:               status.Readiness,
 		RecommendedNextAction:   status.RecommendedNextAction,
 		UpdateID:                updateID,
+		ResultState:             ResultPartialRefresh,
+		StatusUpdate:            statusUpdateFromStatus(status),
 		ChangedPaths:            kept,
 		IgnoredPaths:            ignored,
 		AffectedNodes:           nodes,
@@ -284,6 +353,61 @@ func agreementAction(agreement runtimegate.Agreement) string {
 		return agreement.RecoveryAction
 	}
 	return agreement.RecommendedNextAction
+}
+
+func statusUpdateFromStatus(status rt.Status) StatusUpdate {
+	return StatusUpdate{
+		Status:                status.Status,
+		Freshness:             status.Freshness,
+		Readiness:             status.Readiness,
+		RecommendedNextAction: status.RecommendedNextAction,
+		Dirty:                 status.Dirty,
+		StalePaths:            append([]string{}, status.StalePaths...),
+		StaleReasons:          append([]string{}, status.StaleReasons...),
+		LastUpdateID:          status.LastUpdateID,
+		LastUpdateOutcome:     status.LastUpdateOutcome,
+	}
+}
+
+func loadPayloadFile(path string) (PayloadFileInput, error) {
+	if strings.TrimSpace(path) == "" {
+		return PayloadFileInput{}, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return PayloadFileInput{}, fmt.Errorf("read update payload file: %w", err)
+	}
+	var payload PayloadFileInput
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return PayloadFileInput{}, fmt.Errorf("parse update payload file: %w", err)
+	}
+	payload.ChangedPaths = normalizePaths(payload.ChangedPaths)
+	payload.ScopePaths = normalizePaths(payload.ScopePaths)
+	payload.KnownUnknowns = compactStrings(payload.KnownUnknowns)
+	payload.ConfidenceNotes = compactStrings(payload.ConfidenceNotes)
+	return payload, nil
+}
+
+func applyPayloadFileInput(input UpdateInput, payload PayloadFileInput) UpdateInput {
+	if payload.Workflow != "" {
+		input.Workflow = payload.Workflow
+	}
+	if payload.Reason != "" && input.Reason == "" {
+		input.Reason = payload.Reason
+	}
+	input.ChangedPaths = append(input.ChangedPaths, payload.ChangedPaths...)
+	input.ScopePaths = append(input.ScopePaths, payload.ScopePaths...)
+	input.BehaviorSurfaces = append(input.BehaviorSurfaces, payload.BehaviorSurfaces...)
+	input.GeneratedSurfaces = append(input.GeneratedSurfaces, payload.GeneratedSurfaces...)
+	input.StateContracts = append(input.StateContracts, payload.StateContracts...)
+	input.Verification = append(input.Verification, payload.Verification...)
+	input.KnownUnknowns = append(input.KnownUnknowns, payload.KnownUnknowns...)
+	input.ConfidenceNotes = append(input.ConfidenceNotes, payload.ConfidenceNotes...)
+	input.UserDecisions = append(input.UserDecisions, payload.UserDecisions...)
+	if payload.Boundary.CommitRange != "" {
+		input.Boundary = payload.Boundary
+	}
+	return input
 }
 
 func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
@@ -350,6 +474,8 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 		RecommendedNextAction: status.RecommendedNextAction,
 		UpdateID:              updateID,
 		UpdateOutcome:         result.Outcome,
+		ResultState:           ResultPartialRefresh,
+		StatusUpdate:          statusUpdateFromStatus(status),
 		ChangedPaths:          result.ChangedPaths,
 		IgnoredPaths:          result.IgnoredPaths,
 		AffectedNodes:         []map[string]any{},
@@ -493,6 +619,21 @@ func appendUnique(existing []string, values ...string) []string {
 		}
 		seen[value] = true
 		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func compactStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		out = append(out, trimmed)
 	}
 	sort.Strings(out)
 	return out

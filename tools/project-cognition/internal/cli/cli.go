@@ -496,6 +496,7 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	reason := fs.String("reason", "update", "Update reason")
 	deltaSession := fs.String("delta-session", "", "Delta session id")
 	commitRange := fs.String("commit-range", "", "Commit range base..head")
+	payloadFile := fs.String("payload-file", "", "Structured update payload JSON file")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -506,6 +507,7 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 		Reason:         *reason,
 		DeltaSessionID: *deltaSession,
 		CommitRange:    *commitRange,
+		PayloadFile:    *payloadFile,
 	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }

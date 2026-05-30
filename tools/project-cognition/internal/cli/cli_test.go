@@ -1820,6 +1820,64 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 	return root
 }
 
+func TestUpdateCommandAcceptsPayloadFileAndEmitsResultState(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	payloadPath := filepath.Join(root, ".specify", "project-cognition", "updates", "workflow-finalize.json")
+	if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]any{
+		"workflow":          "sp-implement",
+		"reason":            "workflow-finalize",
+		"changed_paths":     []string{"src/app.go"},
+		"scope_paths":       []string{"src"},
+		"behavior_surfaces": []string{"application entrypoint"},
+		"verification": []map[string]string{
+			{"command": "go test ./...", "result": "passed", "artifact": "artifacts/quality-runs/example/report.md"},
+		},
+		"known_unknowns":   []string{},
+		"confidence_notes": []string{"indexed path refresh"},
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(payloadPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"update", "--payload-file", payloadPath, "--reason", "workflow-finalize", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["result_state"] == "" {
+		t.Fatalf("payload = %#v, want result_state", result)
+	}
+	if result["update_id"] == "" {
+		t.Fatalf("payload = %#v, want update_id", result)
+	}
+	if _, ok := result["status_update"].(map[string]any); !ok {
+		t.Fatalf("payload = %#v, want status_update object", result)
+	}
+}
+
 func writeAcceptedCLIScanQueue(t *testing.T, runtimeDir string, assignedPaths []string) {
 	t.Helper()
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "scan-queue.json"), map[string]any{
