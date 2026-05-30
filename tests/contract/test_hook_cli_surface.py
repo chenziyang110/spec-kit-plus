@@ -2378,13 +2378,37 @@ def test_hook_validate_artifacts_blocks_map_update_when_last_update_id_is_missin
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("last_update_id" in message and "freshness" in message for message in payload["errors"])
+    assert any("result_state" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_accepts_map_update_when_status_records_freshness(tmp_path: Path):
+def test_hook_validate_artifacts_rejects_map_update_with_freshness_only(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("result_state" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_accepts_map_update_with_ready_result_state(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _update_project_cognition_status(
+        run_dir,
+        version=1,
+        freshness="fresh",
+        readiness="query_ready",
+        last_update_id="UPD-001",
+        last_update_outcome="ready",
+        recommended_next_action="use_project_cognition",
+    )
 
     result = _invoke_in_project(
         project,
@@ -2399,7 +2423,12 @@ def test_hook_validate_artifacts_accepts_map_update_when_status_records_partial_
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    _update_project_cognition_status(run_dir, freshness="partial_refresh")
+    _update_project_cognition_status(
+        run_dir,
+        freshness="partial_refresh",
+        last_update_id="UPD-001",
+        last_update_outcome="partial_refresh",
+    )
 
     result = _invoke_in_project(
         project,
@@ -2410,7 +2439,7 @@ def test_hook_validate_artifacts_accepts_map_update_when_status_records_partial_
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_accepts_map_update_when_changed_scope_metadata_exists(tmp_path: Path):
+def test_hook_validate_artifacts_rejects_map_update_with_last_update_id_only(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2422,14 +2451,15 @@ def test_hook_validate_artifacts_accepts_map_update_when_changed_scope_metadata_
     )
 
     payload = json.loads(result.output.strip())
-    assert payload["status"] == "ok"
+    assert payload["status"] == "blocked"
+    assert any("result_state" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_accepts_map_update_without_graph_json_runtime(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    _update_project_cognition_status(run_dir, last_update_id="UPD-001")
+    _update_project_cognition_status(run_dir, last_update_id="UPD-001", last_update_outcome="no_op")
 
     result = _invoke_in_project(
         project,

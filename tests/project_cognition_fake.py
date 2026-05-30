@@ -861,6 +861,42 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 }
 
 
+            def _update(args):
+                payload = _read_status()
+                result_state = "partial_refresh"
+                if "--payload-file" in args:
+                    result_state = "ready"
+                payload["last_update_id"] = "upd-fake"
+                payload["last_update_outcome"] = result_state
+                payload["result_state"] = result_state
+                if result_state == "ready":
+                    payload["status"] = "fresh"
+                    payload["freshness"] = "fresh"
+                    payload["state"] = "fresh"
+                    payload["readiness"] = "query_ready"
+                    payload["recommended_next_action"] = "use_project_cognition"
+                    payload["dirty"] = False
+                else:
+                    payload["status"] = "stale"
+                    payload["freshness"] = "partial_refresh"
+                    payload["state"] = "partial_refresh"
+                    payload["readiness"] = "review"
+                    payload["recommended_next_action"] = "review_project_cognition_update"
+                    payload["dirty"] = True
+                _write_status(payload)
+                payload["update_id"] = payload["last_update_id"]
+                payload["status_update"] = {
+                    "status": payload["status"],
+                    "freshness": payload["freshness"],
+                    "readiness": payload["readiness"],
+                    "recommended_next_action": payload["recommended_next_action"],
+                    "dirty": payload["dirty"],
+                    "last_update_id": payload["last_update_id"],
+                    "last_update_outcome": payload["last_update_outcome"],
+                }
+                return payload
+
+
             def _record_refresh(args):
                 reason = _flag_value(args, "--reason", "manual")
                 payload = _read_status()
@@ -915,6 +951,9 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                     return 0
                 if command == "validate-build":
                     print(json.dumps(_validate_build()))
+                    return 0
+                if command == "update":
+                    print(json.dumps(_update(args)))
                     return 0
                 if command == "record-refresh":
                     print(json.dumps(_record_refresh(args)))

@@ -1864,8 +1864,31 @@ def _validate_map_update_artifacts(feature_dir: Path) -> list[str]:
     if not isinstance(payload, dict):
         errors.append("status.json must contain a top-level JSON object")
         return errors
-    if not payload.get("last_update_id") and payload.get("freshness") not in {"fresh", "partial_refresh"}:
-        errors.append("status.json must record last_update_id or a post-update freshness state")
+    result_state = str(payload.get("last_update_outcome") or payload.get("result_state") or "").strip()
+    freshness = str(payload.get("freshness") or "").strip()
+    readiness = str(payload.get("readiness") or "").strip()
+    recommended = str(payload.get("recommended_next_action") or "").strip()
+    valid_states = {"ready", "no_op", "partial_refresh", "needs_rebuild", "blocked"}
+    if result_state not in valid_states:
+        errors.append(
+            "status.json must record last_update_outcome/result_state as ready, no_op, partial_refresh, needs_rebuild, or blocked"
+        )
+        return errors
+    if (
+        result_state == "ready"
+        and (freshness != "fresh" or readiness != "query_ready" or recommended != "use_project_cognition")
+    ):
+        errors.append(
+            "ready map-update result_state requires freshness=fresh, readiness=query_ready, and recommended_next_action=use_project_cognition"
+        )
+    if result_state == "partial_refresh" and freshness != "partial_refresh":
+        errors.append("partial_refresh map-update result_state requires freshness=partial_refresh")
+    if result_state == "needs_rebuild" and readiness != "needs_rebuild":
+        errors.append("needs_rebuild map-update result_state requires readiness=needs_rebuild")
+    if result_state == "blocked" and readiness != "blocked":
+        errors.append("blocked map-update result_state requires readiness=blocked")
+    if result_state == "no_op" and not payload.get("last_update_id"):
+        errors.append("no_op map-update result_state requires last_update_id")
     return errors
 
 
