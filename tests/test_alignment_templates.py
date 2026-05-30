@@ -3091,7 +3091,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         assert "cognition follow-up" in lowered
         assert "artifact-only" in lowered
         assert "actual source/runtime changes" in lowered
-        assert "use `project-cognition mark-dirty` only when inline update cannot complete" in lowered
+        assert '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}' in lowered
         assert "project-cognition complete-refresh" not in lowered
 
     for path in [
@@ -3117,7 +3117,7 @@ def test_planning_only_workflows_do_not_dirty_project_cognition_after_artifact_w
         lowered = _read(path).lower()
 
         assert "do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date" in lowered
-        assert "use `project-cognition mark-dirty` only when inline update cannot complete" in lowered
+        assert '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}' in lowered
         assert "project-cognition complete-refresh" not in lowered
         assert "project-cognition validate-build --format json" not in lowered
         assert "artifact-only" in lowered
