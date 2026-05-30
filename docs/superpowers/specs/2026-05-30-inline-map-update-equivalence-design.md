@@ -405,6 +405,12 @@ stand-down note explaining why a listed surface is unaffected:
   `result_state` decision.
 - Shared partial:
   `templates/command-partials/common/inline-project-cognition-update.md`.
+- Existing common partials that already contain inline closeout or navigation
+  wording must consume the new shared partial, delegate to it, or explicitly
+  stand down their local closeout text:
+  `templates/command-partials/common/context-loading-gradient.md`,
+  `templates/command-partials/common/planning-context-loading-gradient.md`, and
+  `templates/command-partials/common/navigation-check.md`.
 - Workflow templates:
   `templates/commands/{fast,quick,implement,debug,specify,clarify,deep-research,plan,tasks,analyze,map-update}.md`.
 - Workflow shell partials:
@@ -421,6 +427,10 @@ stand-down note explaining why a listed surface is unaffected:
 - Integration rendering: `src/specify_cli/integrations/base.py`,
   `src/specify_cli/integrations/cursor_agent/__init__.py`, and generated-output
   tests under `tests/integrations/**`.
+- Python hook validation: `src/specify_cli/hooks/artifact_validation.py` must
+  validate map-update and inline update artifacts by `result_state` and the
+  agreed status mapping, not by `last_update_id` or freshness alone; update
+  `tests/contract/test_hook_cli_surface.py` expectations in the same pass.
 - Fake/runtime test fixtures: `tests/project_cognition_fake.py` and Go tests
   under `tools/project-cognition/internal/**`.
 - Documentation: `README.md`, `PROJECT-HANDBOOK.md`,
@@ -449,8 +459,15 @@ Implementation must include regression coverage for:
   unless complete closure is provable from live runtime state alone.
 - Map-update template: `sp-map-update` calls `project-cognition update` through
   the shared helper before validation and freshness finalization.
+- Hook validation: `specify hook validate-artifacts --command map-update`
+  rejects recorded-only status, `last_update_id`-only status, and stale
+  `partial_refresh` claims that lack the new `result_state` contract.
 - Template alignment: source-changing workflows include the shared inline
   update partial.
+- Template alignment: existing common partials
+  `context-loading-gradient.md`, `planning-context-loading-gradient.md`, and
+  `navigation-check.md` no longer carry independent weaker inline closeout
+  wording.
 - Integration output: shared base and Cursor-specific addenda carry the same
   strong-equivalence rule.
 - Documentation: README, handbook, quickstart, installation docs, and passive
@@ -463,8 +480,13 @@ Implementation must include regression coverage for:
 
 - Generated `sp-*` workflows have one shared inline update contract instead of
   multiple drifting copies.
+- Existing common partials that mention navigation or mutation closeout do not
+  preserve independent weaker wording.
 - A source-changing workflow cannot treat `last_update_id` or
   `result_state="recorded"` as clean project cognition closeout.
+- Hook artifact validation rejects map-update artifacts that lack the
+  `result_state` contract, even when `last_update_id` or freshness fields are
+  present.
 - Non-delta strong-equivalence closeout has a canonical
   `project-cognition update --payload-file <json>` input path; path-only update
   cannot cleanly complete unless closure is provable from runtime state alone.
