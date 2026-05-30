@@ -287,20 +287,41 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		return UpdatePayload{}, err
 	}
 	nodes := []map[string]any{}
+	closure := store.AffectedClosure{}
 	resultState := updateResultState(kept, nodes, input)
 	if st != nil {
 		defer st.Close()
-		nodes, err = st.NodesForPaths(context.Background(), kept)
+		closure, err = st.AffectedClosureForPaths(context.Background(), kept)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		nodes, err = st.NodesForIDs(context.Background(), closure.NodeIDs)
 		if err != nil {
 			return UpdatePayload{}, err
 		}
 		resultState = updateResultState(kept, nodes, input)
+		if resultState == ResultReady && len(closure.NodeIDs) > 0 {
+			for _, path := range kept {
+				if _, err := st.RefreshPathCoverage(context.Background(), store.PathCoverageRefresh{
+					UpdateID:   updateID,
+					Path:       path,
+					NodeID:     closure.NodeIDs[0],
+					Relation:   "owns",
+					Confidence: "verified",
+					Reason:     input.Reason,
+				}); err != nil {
+					return UpdatePayload{}, err
+				}
+			}
+		}
 		if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
-			ID:            updateID,
-			Trigger:       input.Reason,
-			ChangedPaths:  kept,
-			AffectedNodes: nodeIDsFromRows(nodes),
-			ResultState:   resultState,
+			ID:             updateID,
+			Trigger:        input.Reason,
+			ChangedPaths:   kept,
+			AffectedNodes:  closure.NodeIDs,
+			AffectedClaims: closure.ClaimIDs,
+			AffectedSlices: closure.SliceIDs,
+			ResultState:    resultState,
 			Attrs: map[string]any{
 				"workflow":           input.Workflow,
 				"behavior_surfaces":  input.BehaviorSurfaces,

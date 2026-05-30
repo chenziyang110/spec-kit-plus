@@ -310,6 +310,41 @@ func TestRunUpdatePayloadForIndexedPathReturnsReady(t *testing.T) {
 	}
 }
 
+func TestRunUpdateRecordsAffectedClosure(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "workflow-finalize",
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var nodesJSON, claimsJSON, slicesJSON string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT affected_nodes_json, affected_claims_json, affected_slices_json FROM updates WHERE id = ?`, payload.UpdateID).Scan(&nodesJSON, &claimsJSON, &slicesJSON); err != nil {
+		t.Fatal(err)
+	}
+	if !jsonArrayContains(t, nodesJSON, "N-app") {
+		t.Fatalf("affected_nodes_json = %s, want N-app", nodesJSON)
+	}
+	if !jsonArrayContains(t, claimsJSON, "claim:app") {
+		t.Fatalf("affected_claims_json = %s, want claim:app", claimsJSON)
+	}
+	if !jsonArrayContains(t, slicesJSON, "slice:runtime") {
+		t.Fatalf("affected_slices_json = %s, want slice:runtime", slicesJSON)
+	}
+}
+
 func TestCompleteRefreshBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
 	paths := testPaths(t)
 	seedSplitBrainRuntime(t, paths)
@@ -577,7 +612,16 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 		SourceCommit: "abc123",
 		Evidence:     []store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
 		Nodes:        []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
+		Claims: []store.ClaimImport{{
+			ID:          "claim:app",
+			SubjectRef:  "N-app",
+			Predicate:   "owns",
+			ObjectText:  "src/app.go",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-app"},
+		}},
 		PathIndex:    []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+		SliceMembers: []store.SliceMemberImport{{ID: "slice-member:app", SliceID: "slice:runtime", ObjectType: "node", ObjectID: "N-app", Rank: 1, Reason: "runtime entrypoint"}},
 	})
 	if err != nil {
 		_ = st.Close()
@@ -590,6 +634,15 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 	if closeErr := st.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
+}
+
+func jsonArrayContains(t *testing.T, raw string, want string) bool {
+	t.Helper()
+	var values []string
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		t.Fatal(err)
+	}
+	return containsString(values, want)
 }
 
 func assertStatusActiveGeneration(t *testing.T, paths rt.Paths, want string) {

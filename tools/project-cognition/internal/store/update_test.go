@@ -51,6 +51,78 @@ func TestRecordStructuredUpdatePersistsAffectedFields(t *testing.T) {
 	}
 }
 
+func TestAffectedClosureForPathsReturnsNodesClaimsAndSlices(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	input := validImportInput("GEN-closure")
+	input.Claims = append(input.Claims, ClaimImport{
+		ID:          "claim:app",
+		SubjectRef:  "N-app",
+		Predicate:   "owns",
+		ObjectText:  "src/app.go",
+		Confidence:  "verified",
+		EvidenceIDs: []string{"E-001"},
+	})
+	input.SliceMembers = append(input.SliceMembers, SliceMemberImport{
+		ID:         "slice-member:app",
+		SliceID:    "slice:runtime",
+		ObjectType: "node",
+		ObjectID:   "N-app",
+		Rank:       1,
+		Reason:     "runtime entrypoint",
+	})
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+
+	closure, err := st.AffectedClosureForPaths(ctx, []string{"src/app.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsString(closure.NodeIDs, "N-app") {
+		t.Fatalf("closure = %#v", closure)
+	}
+	if !containsString(closure.ClaimIDs, "claim:app") {
+		t.Fatalf("closure = %#v", closure)
+	}
+	if !containsString(closure.SliceIDs, "slice:runtime") {
+		t.Fatalf("closure = %#v", closure)
+	}
+}
+
+func TestRefreshPathCoverageUpdatesIndexedPathEvidence(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	input := validImportInput("GEN-adopt")
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+
+	record, err := st.RefreshPathCoverage(ctx, PathCoverageRefresh{
+		UpdateID:   "upd-adopt",
+		Path:       "src/app.go",
+		NodeID:     "N-app",
+		Relation:   "owns",
+		Confidence: "verified",
+		Reason:     "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.EvidenceID == "" {
+		t.Fatalf("record = %#v, want evidence id", record)
+	}
+	var evidenceID string
+	if err := st.DB().QueryRowContext(ctx, `SELECT evidence_id FROM path_index WHERE generation_id = ? AND path = ?`, "GEN-adopt", "src/app.go").Scan(&evidenceID); err != nil {
+		t.Fatal(err)
+	}
+	if evidenceID != record.EvidenceID {
+		t.Fatalf("path evidence = %q, want %q", evidenceID, record.EvidenceID)
+	}
+}
+
 func assertJSONStrings(t *testing.T, raw string, want []string) {
 	t.Helper()
 	var got []string
@@ -65,4 +137,13 @@ func assertJSONStrings(t *testing.T, raw string, want []string) {
 			t.Fatalf("got %#v, want %#v", got, want)
 		}
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

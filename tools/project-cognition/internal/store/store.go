@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -42,6 +43,26 @@ type UpdateRecord struct {
 	AffectedSlices []string
 	ResultState    string
 	Attrs          map[string]any
+}
+
+type AffectedClosure struct {
+	NodeIDs  []string
+	ClaimIDs []string
+	SliceIDs []string
+}
+
+type PathCoverageRefresh struct {
+	UpdateID   string
+	Path       string
+	NodeID     string
+	Relation   string
+	Confidence string
+	Reason     string
+}
+
+type PathCoverageRefreshResult struct {
+	EvidenceID  string
+	PathIndexID string
 }
 
 func Open(paths rt.Paths) (*Store, error) {
@@ -433,6 +454,120 @@ func (s *Store) RecordStructuredUpdate(ctx context.Context, record UpdateRecord)
 		return fmt.Errorf("record structured update: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) AffectedClosureForPaths(ctx context.Context, paths []string) (AffectedClosure, error) {
+	nodes, err := s.NodesForPaths(ctx, paths)
+	if err != nil {
+		return AffectedClosure{}, err
+	}
+	nodeIDs := nodeIDsFromMaps(nodes)
+	claimIDs, err := s.claimIDsForSubjects(ctx, nodeIDs)
+	if err != nil {
+		return AffectedClosure{}, err
+	}
+	sliceIDs, err := s.sliceIDsForObjects(ctx, nodeIDs)
+	if err != nil {
+		return AffectedClosure{}, err
+	}
+	return AffectedClosure{
+		NodeIDs:  uniqueSorted(nodeIDs),
+		ClaimIDs: uniqueSorted(claimIDs),
+		SliceIDs: uniqueSorted(sliceIDs),
+	}, nil
+}
+
+func (s *Store) RefreshPathCoverage(ctx context.Context, refresh PathCoverageRefresh) (PathCoverageRefreshResult, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return PathCoverageRefreshResult{}, err
+	}
+	if generationID == "" {
+		return PathCoverageRefreshResult{}, fmt.Errorf("project-cognition.db has no active generation")
+	}
+	path := strings.TrimSpace(refresh.Path)
+	nodeID := strings.TrimSpace(refresh.NodeID)
+	if path == "" {
+		return PathCoverageRefreshResult{}, fmt.Errorf("path coverage refresh path is required")
+	}
+	if nodeID == "" {
+		return PathCoverageRefreshResult{}, fmt.Errorf("path coverage refresh node id is required")
+	}
+	relation := defaultString(refresh.Relation, "owns")
+	confidence := defaultString(refresh.Confidence, "partial")
+	updateID := defaultString(refresh.UpdateID, "manual")
+	now := time.Now().UTC().Format(time.RFC3339)
+	evidenceID := "E-update-" + stableIDPart(updateID) + "-" + stableIDPart(path)
+	pathIndexID, err := s.pathIndexIDForPath(ctx, generationID, path)
+	if err != nil {
+		return PathCoverageRefreshResult{}, err
+	}
+	if pathIndexID == "" {
+		pathIndexID = "P-update-" + stableIDPart(path)
+	}
+	attrs, err := attrsJSONOrEmpty(map[string]any{"update_id": updateID, "reason": refresh.Reason})
+	if err != nil {
+		return PathCoverageRefreshResult{}, err
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES(?, ?, 'workflow_update', ?, '', '', 'project-cognition update', '', ?, ?) ON CONFLICT(id) DO UPDATE SET captured_at=excluded.captured_at, attrs_json=excluded.attrs_json`, evidenceID, generationID, path, now, attrs)
+	if err != nil {
+		return PathCoverageRefreshResult{}, fmt.Errorf("upsert update evidence: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET path=excluded.path, node_id=excluded.node_id, relation=excluded.relation, confidence=excluded.confidence, evidence_id=excluded.evidence_id, updated_at=excluded.updated_at`, pathIndexID, generationID, path, nodeID, relation, confidence, evidenceID, now)
+	if err != nil {
+		return PathCoverageRefreshResult{}, fmt.Errorf("upsert path coverage: %w", err)
+	}
+	return PathCoverageRefreshResult{EvidenceID: evidenceID, PathIndexID: pathIndexID}, nil
+}
+
+func (s *Store) claimIDsForSubjects(ctx context.Context, subjectRefs []string) ([]string, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if generationID == "" || len(subjectRefs) == 0 {
+		return []string{}, nil
+	}
+	out := []string{}
+	for _, subjectRef := range uniqueSorted(subjectRefs) {
+		values, err := s.nodeStringValues(ctx, `SELECT id FROM claims WHERE generation_id = ? AND subject_ref = ? ORDER BY id`, generationID, subjectRef)
+		if err != nil {
+			return nil, fmt.Errorf("query claims for subject %s: %w", subjectRef, err)
+		}
+		out = append(out, values...)
+	}
+	return uniqueSorted(out), nil
+}
+
+func (s *Store) sliceIDsForObjects(ctx context.Context, objectIDs []string) ([]string, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if generationID == "" || len(objectIDs) == 0 {
+		return []string{}, nil
+	}
+	out := []string{}
+	for _, objectID := range uniqueSorted(objectIDs) {
+		values, err := s.nodeStringValues(ctx, `SELECT DISTINCT slice_id FROM slice_members WHERE generation_id = ? AND object_type = 'node' AND object_id = ? ORDER BY slice_id`, generationID, objectID)
+		if err != nil {
+			return nil, fmt.Errorf("query slices for object %s: %w", objectID, err)
+		}
+		out = append(out, values...)
+	}
+	return uniqueSorted(out), nil
+}
+
+func (s *Store) pathIndexIDForPath(ctx context.Context, generationID string, path string) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM path_index WHERE generation_id = ? AND path = ? ORDER BY id LIMIT 1`, generationID, path).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("query path index for %s: %w", path, err)
+	}
+	return id, nil
 }
 
 func (s *Store) PublishRuntimeMetadata(ctx context.Context, expectedGenerationID string, baselineKind string, afterCommit ...func() error) (map[string]string, string, error) {
@@ -876,6 +1011,32 @@ func normalizeStoreStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func nodeIDsFromMaps(rows []map[string]any) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		id, ok := row["id"].(string)
+		if ok {
+			ids = append(ids, id)
+		}
+	}
+	return uniqueSorted(ids)
+}
+
+func uniqueSorted(values []string) []string {
+	out := normalizeStoreStrings(values)
+	sort.Strings(out)
+	return out
+}
+
+func stableIDPart(value string) string {
+	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-", ".", "-", ":", "-")
+	part := strings.Trim(replacer.Replace(strings.TrimSpace(value)), "-")
+	if part == "" {
+		return "unknown"
+	}
+	return part
 }
 
 func scanNodeRows(rows *sql.Rows) ([]map[string]any, error) {
