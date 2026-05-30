@@ -149,6 +149,8 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "live repository evidence" in lowered or "live evidence" in lowered
     assert "workflow-owned mutation closeout is not external map maintenance" in lowered
     assert "run inline project cognition update" in lowered or "runs inline project cognition update" in lowered
+    assert "project-cognition update --payload-file" in lowered
+    assert "result_state" in lowered
     assert (
         "sp-map-update remains the external/manual" in lowered
         or "`sp-map-update` remains the external/manual" in lowered

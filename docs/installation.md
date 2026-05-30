@@ -103,6 +103,16 @@ map-scan -> map-build solely because the graph has no paths. Projects with
 existing code still use map-scan -> map-build when a full first brownfield
 cognition baseline is needed for a first/missing/unusable baseline.
 
+Workflow-owned mutation closeout uses the same lower-level update engine as
+`sp-map-update`. Delta-session closeout calls
+`project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`;
+non-delta closeout writes `.specify/project-cognition/updates/<update-id>.json`
+and calls
+`project-cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json`.
+A clean closeout requires `result_state=ready` or `result_state=no_op`;
+`update_id`, `last_update_id`, freshness, and legacy `recorded-only` output are
+not enough.
+
 ```bash
 # Linux / macOS
 curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash

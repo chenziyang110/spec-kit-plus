@@ -225,6 +225,10 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     readme = _read("README.md").lower()
 
     assert "workflow-owned mutation closeout is inline" in readme
+    assert "project-cognition update --payload-file" in readme
+    assert "result_state" in readme
+    assert "update_id" in readme
+    assert "recorded-only" in readme
     assert (
         "sp-map-update remains the external/manual maintenance workflow" in readme
         or "`sp-map-update` remains the external/manual maintenance workflow" in readme
@@ -284,6 +288,11 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "recommend project cognition map maintenance as a follow-up" not in quickstart_lower
     assert "source-changing `sp-*` workflows run inline project cognition update for their own closeout" in quickstart_lower
     assert "source-changing `sp-*` workflow that alters navigation meaning should run inline project cognition update" in quickstart_lower
+    assert "project-cognition update --payload-file" in quickstart_lower
+    assert "result_state" in quickstart_lower
+    installation_lower = _read("docs/installation.md").lower()
+    assert "project-cognition update --payload-file" in installation_lower
+    assert "result_state" in installation_lower
     assert "`map-scan` followed by `map-build` only when the baseline is first/missing/unusable, schema failure" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance

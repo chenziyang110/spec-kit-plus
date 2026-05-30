@@ -71,6 +71,7 @@ A subagent prompt must include:
   workflow state, project cognition entries, and memory rules when present.
 - Required RED/GREEN or diagnosis evidence.
 - For scan, build, PRD scan, and map-update evidence lanes, include explicit `assigned_paths` or changed paths. A subagent must not silently narrow assigned scope; if the set does not fit, the worker result returns top-level `acceptance=fail_gap`, marks affected paths with path-level `coverage[].outcome="overflow"` or `coverage[].outcome="blocked"`, and includes the smallest safe split or recovery suggestion. `overflow` and `blocked` are path or queue states, not top-level worker result acceptance values.
+- Worker results for mutable work must include changed paths, behavior surfaces, generated surfaces, state contracts, verification, known unknowns, and confidence notes so the parent workflow can build the inline project cognition update payload.
 - Required structured handoff format.
 
 The leader must not dispatch from raw task text alone. If the packet is missing,
