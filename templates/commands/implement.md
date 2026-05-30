@@ -183,6 +183,17 @@ retry_attempts: [0 if none]
   evidence: [short command output or observed failure]
   recovery_action: [smallest safe next recovery step]
 
+## Actionable Blocker Resolution
+- blocker: [task id or validation gate]
+  classification: technical | external | human-action | verification_policy | project_cognition_readiness | baseline_timeout
+  owner: agent | user | maintainer | external-system
+  evidence: [artifact path, command output summary, or missing artifact]
+  exact_next_action: [specific command, focused investigation, rerun, approval request, or upstream workflow]
+  approval_question: [exact yes/no approval question when owner is user or maintainer, otherwise none]
+  unblock_criteria: [observable condition that changes this from blocked to complete]
+  implementation_can_continue: yes | no
+  completion_impact: mandatory_for_completion | optional_cleanup | external_baseline_maintenance | follow_up_risk
+
 ## Validation
 planned_checks:
   - [independent tests, acceptance checks, or validation commands]
@@ -499,6 +510,9 @@ until the cognition gate has passed.
    - A completed wave does not automatically complete the whole ready batch; do not cross the batch join point until every lane in the batch is accepted or explicitly blocked/deferred under the workflow contract
    - Planned validation tasks are still ready work. If the remaining tasks are executable tests, E2E checks, security verification, quickstart validation, or other scripted validation work already present in `tasks.md`, continue automatically instead of asking whether validation should start.
    - Do not stop to ask whether validation should start unless a manual-only check or approval step is explicitly recorded in the tracker or task plan.
+   - If a manual-only check, approval gate, or verification-policy gate is reached, stop only after recording an **Actionable Blocker Resolution** entry with `owner: user | maintainer`, the exact approval question, the exact rerun command or discovery command when known, and the criteria that will make the gate complete.
+   - If a verification command reports passing checks but exits nonzero due to a policy gate, classify it as `verification_policy`; do not describe tests as failing, and do not leave the next step as "approval required" without naming the approver, approval token or policy label when known, rerun command, and artifact path that proves the gate.
+   - If project cognition, baseline comparison, or external live-baseline validation times out after implementation validation is otherwise green, classify it separately as `baseline_timeout` or `project_cognition_readiness`. Say whether it blocks feature completion under the active profile, provide the next bounded retry or waiver decision, and preserve the timeout evidence path.
    - If a subagent lane flips to `completed` or drifts into `idle` before the promised handoff, result file, or completion evidence arrives, treat it as a stale lane rather than accepted work: probe once for the missing handoff, then re-dispatch, block, or defer explicitly instead of silently continuing
    - Before accepting a completed batch, verify the structured handoff includes profile-matched evidence for the current `active_profile` and the exact `required_evidence` constraints from `workflow-state.md`.
    - For `Reference-Implementation`, require the persisted evidence terms activated upstream: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
@@ -519,6 +533,7 @@ until the cognition gate has passed.
    - If recovery attempts still fail, set tracker status to `blocked`, keep the blocker explicit, and preserve the best known `next_action` for the next `sp-implement` run
    - Provide clear error messages with context for debugging
    - Suggest next steps if implementation cannot proceed
+   - Final blocked reports must include the **Actionable Blocker Resolution** entries from the tracker. Do not leave the user to infer whether to handle the blocker; state the recommended handling path, who owns it, and what exact evidence will allow `sp-implement` to resume or close.
    - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
 
 {{spec-kit-include: ../command-partials/common/gate-self-check.md}}

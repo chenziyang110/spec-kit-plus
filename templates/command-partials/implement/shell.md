@@ -24,6 +24,8 @@ Advance the current feature through tracked implementation batches while keeping
 - Produce verified implementation changes plus updated execution-state artifacts for the active feature.
 - Keep `implement-tracker.md` and worker-result handoffs aligned with what actually happened.
 - Report blockers, retries, and completion honestly rather than inferring success from partial progress.
+- For any blocked, approval-gated, timeout-gated, or nonzero-verification exit, include an **Actionable Blocker Resolution** section instead of a bare blocked summary. It must name each blocker, `owner: agent | user | maintainer | external-system`, `exact_next_action`, `approval_question` when human approval is the next step, artifact or log evidence, `unblock_criteria`, and whether the rest of implementation can continue.
+- Do not leave the user to infer whether to handle the blocker. Say whether the blocker is mandatory for completion, optional cleanup, external baseline maintenance, or a follow-up risk, and name the next command or approval decision when one is known.
 - Preserve any `MP-*` obligations carried in task packets, implementation state, or result handoff expectations.
 - Worker result handoffs must include must-preserve evidence when packet obligations require it.
 - If implementation discovers a conflict with an `MP-*` obligation, return a blocked result instead of silently changing the protected discussion decision.

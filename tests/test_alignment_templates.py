@@ -3681,6 +3681,21 @@ def test_implement_template_rejects_locked_goal_redefinition() -> None:
     assert "cannot redefine the product goal" in implement or "must not redefine the product goal" in implement
 
 
+def test_implement_template_requires_actionable_blocked_closeout() -> None:
+    implement = _read("templates/commands/implement.md")
+    shell = _read("templates/command-partials/implement/shell.md")
+    combined = "\n".join([implement, shell])
+    lowered = combined.lower()
+
+    assert "actionable blocker resolution" in lowered
+    assert "owner: agent | user | maintainer | external-system" in lowered
+    assert "exact_next_action" in lowered
+    assert "unblock_criteria" in lowered
+    assert "approval_question" in lowered
+    assert "verification_policy" in lowered
+    assert "do not leave the user to infer whether to handle the blocker" in lowered
+
+
 def test_implement_execution_state_template_requires_structured_execution_contract_from_tasks() -> None:
     content = _read("templates/implement-execution-state-template.json")
 
