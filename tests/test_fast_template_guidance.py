@@ -82,7 +82,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "complete-refresh" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "project-cognition mark-dirty` only when inline update cannot complete" in content
+    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
     assert "returned task-local bundle" in content

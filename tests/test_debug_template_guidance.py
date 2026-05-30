@@ -174,7 +174,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "project-cognition validate-build --format json" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "project-cognition mark-dirty` only when inline update cannot complete" in content
+    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
     assert "write the selected capability or symptom, evidence routes" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content

@@ -27,6 +27,6 @@ Clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or fre
 - `blocked`: report the runtime or validation blocker and the exact recovery command.
 - `recorded`: legacy recorded-only output; treat it as partial or blocked, never as clean completion.
 
-Use `project-cognition mark-dirty` only when inline update cannot complete: when inline update is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
+Use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` only when inline update cannot complete: when inline update is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
 
 sp-map-update is for manual/external maintenance and follow-up repair. `{{invoke:map-update}}` remains the external/manual workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. It is not routine cleanup for changes this workflow just made.

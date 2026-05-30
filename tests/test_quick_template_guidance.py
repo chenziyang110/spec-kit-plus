@@ -288,7 +288,7 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "it is not routine cleanup for changes this workflow just made" in content
     assert "`needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required" in content
     assert "schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
-    assert "project-cognition mark-dirty` only when inline update cannot complete" in content
+    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:
