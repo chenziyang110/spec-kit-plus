@@ -175,6 +175,45 @@ func TestRunUpdateWithDeltaSessionReturnsBoundaryResolved(t *testing.T) {
 	}
 }
 
+func TestRunUpdateWithDeltaSessionUsesResultStateContract(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:              paths.Root,
+		RuntimeDir:        paths.RuntimeDir,
+		OriginCommand:     "implement",
+		InitialDirtyPaths: []string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := delta.Append(delta.AppendInput{
+		RuntimeDir:       paths.RuntimeDir,
+		SessionID:        session.SessionID,
+		EventType:        "workflow_closeout",
+		ChangedPaths:     []string{"src/app.go"},
+		BehaviorSurfaces: []string{"application entrypoint"},
+		Verification:     []string{"go test ./... PASS"},
+		KnownUnknowns:    []string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if payload.StatusUpdate.LastUpdateOutcome != ResultReady {
+		t.Fatalf("StatusUpdate = %#v", payload.StatusUpdate)
+	}
+}
+
 func TestRunUpdateKeepsIgnoredPathsOutOfMinimalLiveReads(t *testing.T) {
 	paths := testPaths(t)
 	seedReadyRuntime(t, paths)
@@ -461,8 +500,11 @@ func TestRunUpdateWithDeltaSessionRecordsStatusMetadata(t *testing.T) {
 	if status.LastDeltaSessionID != session.SessionID {
 		t.Fatalf("LastDeltaSessionID = %q, want %q", status.LastDeltaSessionID, session.SessionID)
 	}
-	if status.LastUpdateOutcome != "boundary_resolved" {
-		t.Fatalf("LastUpdateOutcome = %q, want boundary_resolved", status.LastUpdateOutcome)
+	if status.LastUpdateOutcome != ResultPartialRefresh {
+		t.Fatalf("LastUpdateOutcome = %q, want partial_refresh", status.LastUpdateOutcome)
+	}
+	if status.LastUpdateBoundary != "delta_journal" {
+		t.Fatalf("LastUpdateBoundary = %q, want delta_journal", status.LastUpdateBoundary)
 	}
 }
 

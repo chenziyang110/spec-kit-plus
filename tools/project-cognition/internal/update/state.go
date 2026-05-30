@@ -275,7 +275,23 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	kept, ignored := matcher.Filter(changed)
 	kept = normalizePaths(kept)
 	ignored = normalizePaths(ignored)
-	pathAccounting := updatePathAccounting(kept, ignored)
+	return runResolvedUpdate(paths, input, kept, ignored, nil)
+}
+
+func blockSplitBrainBaseline(paths rt.Paths) error {
+	return runtimegate.BlockIfExisting(paths)
+}
+
+func agreementAction(agreement runtimegate.Agreement) string {
+	if agreement.RecoveryAction != "" {
+		return agreement.RecoveryAction
+	}
+	return agreement.RecommendedNextAction
+}
+
+func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, ignored []string, boundaryResult *boundary.Result) (UpdatePayload, error) {
+	changed = normalizePaths(changed)
+	ignored = normalizePaths(ignored)
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 
 	st, err := store.OpenExisting(paths)
@@ -288,10 +304,10 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	}
 	nodes := []map[string]any{}
 	closure := store.AffectedClosure{}
-	resultState := updateResultState(kept, nodes, input)
+	resultState := updateResultState(changed, nodes, input)
 	if st != nil {
 		defer st.Close()
-		closure, err = st.AffectedClosureForPaths(context.Background(), kept)
+		closure, err = st.AffectedClosureForPaths(context.Background(), changed)
 		if err != nil {
 			return UpdatePayload{}, err
 		}
@@ -299,9 +315,9 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		if err != nil {
 			return UpdatePayload{}, err
 		}
-		resultState = updateResultState(kept, nodes, input)
+		resultState = updateResultState(changed, nodes, input)
 		if resultState == ResultReady && len(closure.NodeIDs) > 0 {
-			for _, path := range kept {
+			for _, path := range changed {
 				if _, err := st.RefreshPathCoverage(context.Background(), store.PathCoverageRefresh{
 					UpdateID:   updateID,
 					Path:       path,
@@ -317,7 +333,7 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
 			ID:             updateID,
 			Trigger:        input.Reason,
-			ChangedPaths:   kept,
+			ChangedPaths:   changed,
 			AffectedNodes:  closure.NodeIDs,
 			AffectedClaims: closure.ClaimIDs,
 			AffectedSlices: closure.SliceIDs,
@@ -330,6 +346,7 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 				"verification":       input.Verification,
 				"known_unknowns":     input.KnownUnknowns,
 				"confidence_notes":   input.ConfidenceNotes,
+				"boundary":           boundaryResult,
 			},
 		}); err != nil {
 			return UpdatePayload{}, err
@@ -340,22 +357,45 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	status = applyResultState(status, resultState, updateID, kept, input.Reason)
+	status = applyResultState(status, resultState, updateID, changed, input.Reason)
+	if input.DeltaSessionID != "" {
+		status.LastDeltaSessionID = input.DeltaSessionID
+	}
+	if boundaryResult != nil {
+		status.LastUpdateBoundary = boundaryResult.BoundarySource
+	}
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return UpdatePayload{}, err
 	}
 
-	updatePaths := updatePathPayloads(resultState, kept)
+	updatePaths := updatePathPayloads(resultState, changed)
+	pathAccounting := updatePathAccounting(changed, ignored)
+	if boundaryResult != nil {
+		pathAccounting = boundaryResult.PathAccounting
+	}
+	reviewPaths := updatePaths.review
+	if boundaryResult != nil && resultState != ResultReady {
+		reviewPaths = appendUnique(reviewPaths, boundaryResult.AmbiguousPaths...)
+	}
+	knownUnknowns := compactStrings(input.KnownUnknowns)
+	if boundaryResult != nil {
+		knownUnknowns = compactStrings(append(knownUnknowns, boundaryResult.Warnings...))
+	}
 	pathAdoption := map[string]any{
 		"adopted":         updatePaths.adopted,
 		"ignored":         ignored,
-		"needs_review":    updatePaths.review,
+		"needs_review":    reviewPaths,
 		"path_accounting": pathAccounting,
+	}
+	if boundaryResult != nil {
+		pathAdoption["phase"] = "boundary_resolved"
+		pathAdoption["auto_commit_decision"] = boundaryResult.AutoCommitDecision
 	}
 	return UpdatePayload{
 		Readiness:               status.Readiness,
 		RecommendedNextAction:   status.RecommendedNextAction,
 		UpdateID:                updateID,
+		UpdateOutcome:           boundaryOutcome(boundaryResult),
 		ResultState:             resultState,
 		StatusUpdate:            statusUpdateFromStatus(status),
 		ChangedPaths:            updatePaths.changed,
@@ -363,24 +403,14 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		AffectedNodes:           nodes,
 		MissingCoverage:         []string{},
 		AdoptedPaths:            updatePaths.adopted,
-		ReviewPaths:             updatePaths.review,
+		ReviewPaths:             reviewPaths,
 		UnadoptablePaths:        []string{},
-		KnownUnknowns:           compactStrings(input.KnownUnknowns),
+		KnownUnknowns:           knownUnknowns,
 		MinimalLiveReads:        updatePaths.minimalLiveReads,
 		PathAdoption:            pathAdoption,
 		LastRefreshChangedBasis: updatePaths.changed,
+		Boundary:                boundaryResult,
 	}, nil
-}
-
-func blockSplitBrainBaseline(paths rt.Paths) error {
-	return runtimegate.BlockIfExisting(paths)
-}
-
-func agreementAction(agreement runtimegate.Agreement) string {
-	if agreement.RecoveryAction != "" {
-		return agreement.RecoveryAction
-	}
-	return agreement.RecommendedNextAction
 }
 
 func statusUpdateFromStatus(status rt.Status) StatusUpdate {
@@ -401,7 +431,7 @@ func updateResultState(kept []string, nodes []map[string]any, input UpdateInput)
 	if len(kept) == 0 {
 		return ResultNoOp
 	}
-	if len(nodes) > 0 && len(input.Verification) > 0 && len(compactStrings(input.KnownUnknowns)) == 0 {
+	if len(nodes) > 0 && len(input.Verification) > 0 && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
 		return ResultReady
 	}
 	return ResultPartialRefresh
@@ -492,6 +522,29 @@ func updatePathPayloads(resultState string, kept []string) updatePathPayload {
 	}
 }
 
+func boundaryOutcome(result *boundary.Result) string {
+	if result == nil {
+		return ""
+	}
+	return result.Outcome
+}
+
+func blockingKnownUnknowns(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range compactStrings(values) {
+		if isNonBlockingBoundaryWarning(value) {
+			continue
+		}
+		out = append(out, value)
+	}
+	return out
+}
+
+func isNonBlockingBoundaryWarning(value string) bool {
+	lower := strings.ToLower(value)
+	return strings.Contains(lower, "auto-commit")
+}
+
 func loadPayloadFile(path string) (PayloadFileInput, error) {
 	if strings.TrimSpace(path) == "" {
 		return PayloadFileInput{}, nil
@@ -533,19 +586,64 @@ func applyPayloadFileInput(input UpdateInput, payload PayloadFileInput) UpdateIn
 	return input
 }
 
-func nodeIDsFromRows(rows []map[string]any) []string {
-	ids := make([]string, 0, len(rows))
-	seen := map[string]bool{}
-	for _, row := range rows {
-		id, ok := row["id"].(string)
-		if !ok || id == "" || seen[id] {
+func applyDeltaBundleInput(input UpdateInput, bundle delta.Bundle) UpdateInput {
+	if input.Workflow == "" {
+		input.Workflow = bundle.Session.OriginCommand
+	}
+	input.Boundary.InitialDirtyPaths = append(input.Boundary.InitialDirtyPaths, bundle.Session.Git.InitialDirtyPaths...)
+	for _, event := range bundle.Events {
+		input.BehaviorSurfaces = append(input.BehaviorSurfaces, event.BehaviorSurfaces...)
+		input.GeneratedSurfaces = append(input.GeneratedSurfaces, event.GeneratedSurfaces...)
+		input.KnownUnknowns = append(input.KnownUnknowns, event.KnownUnknowns...)
+		input.ConfidenceNotes = append(input.ConfidenceNotes, event.OwnerConsumers...)
+		if event.Confidence != "" {
+			input.ConfidenceNotes = append(input.ConfidenceNotes, event.Confidence)
+		}
+		for _, evidence := range event.Verification {
+			input.Verification = append(input.Verification, verificationEvidenceFromDelta(evidence))
+		}
+	}
+	input.BehaviorSurfaces = compactStrings(input.BehaviorSurfaces)
+	input.GeneratedSurfaces = compactStrings(input.GeneratedSurfaces)
+	input.KnownUnknowns = compactStrings(input.KnownUnknowns)
+	input.ConfidenceNotes = compactStrings(input.ConfidenceNotes)
+	return input
+}
+
+func updateInputFromBoundary(input UpdateInput, result boundary.Result) UpdateInput {
+	input.ChangedPaths = append(input.ChangedPaths, result.ChangedPaths...)
+	input.KnownUnknowns = append(input.KnownUnknowns, blockingBoundaryWarnings(result.Warnings)...)
+	input.Boundary.WorkflowOwnedPaths = append(input.Boundary.WorkflowOwnedPaths, result.WorkflowOwnedPaths...)
+	if input.CommitRange != "" {
+		input.Boundary.CommitRange = input.CommitRange
+	}
+	input.ChangedPaths = normalizePaths(input.ChangedPaths)
+	input.KnownUnknowns = compactStrings(input.KnownUnknowns)
+	input.Boundary.WorkflowOwnedPaths = normalizePaths(input.Boundary.WorkflowOwnedPaths)
+	return input
+}
+
+func verificationEvidenceFromDelta(value string) VerificationEvidence {
+	result := "recorded"
+	lower := strings.ToLower(value)
+	if strings.Contains(lower, "pass") {
+		result = "passed"
+	}
+	if strings.Contains(lower, "fail") {
+		result = "failed"
+	}
+	return VerificationEvidence{Command: value, Result: result}
+}
+
+func blockingBoundaryWarnings(values []string) []string {
+	out := []string{}
+	for _, value := range compactStrings(values) {
+		if isNonBlockingBoundaryWarning(value) {
 			continue
 		}
-		seen[id] = true
-		ids = append(ids, id)
+		out = append(out, value)
 	}
-	sort.Strings(ids)
-	return ids
+	return out
 }
 
 func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
@@ -557,6 +655,7 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	if err != nil {
 		return UpdatePayload{}, err
 	}
+	input = applyDeltaBundleInput(input, bundle)
 
 	gitDiff, err := gitDiffPathsFromCommitRange(paths.Root, input.CommitRange)
 	if err != nil {
@@ -570,81 +669,16 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	})
 	forceBoundaryOnlyAutoCommitDecision(&result)
 
-	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
-	st, err := store.OpenExisting(paths)
-	if errors.Is(err, os.ErrNotExist) {
-		st = nil
-		err = nil
-	}
+	resolvedInput := updateInputFromBoundary(input, result)
+	kept, extraIgnored := ignore.Load(paths.Root).Filter(result.ChangedPaths)
+	ignored := normalizePaths(append(result.IgnoredPaths, extraIgnored...))
+	payload, err := runResolvedUpdate(paths, resolvedInput, normalizePaths(kept), ignored, &result)
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	if st != nil {
-		defer st.Close()
-		if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
-			ID:           updateID,
-			Trigger:      input.Reason,
-			ChangedPaths: result.ChangedPaths,
-			ResultState:  ResultPartialRefresh,
-			Attrs: map[string]any{
-				"workflow":           input.Workflow,
-				"behavior_surfaces":  input.BehaviorSurfaces,
-				"generated_surfaces": input.GeneratedSurfaces,
-				"state_contracts":    input.StateContracts,
-				"verification":       input.Verification,
-				"known_unknowns":     input.KnownUnknowns,
-				"confidence_notes":   input.ConfidenceNotes,
-				"boundary":           result,
-			},
-		}); err != nil {
-			return UpdatePayload{}, err
-		}
-	}
-
-	status, err := rt.ReadStatus(paths)
-	if err != nil {
-		return UpdatePayload{}, err
-	}
-	status.LastUpdateID = updateID
-	status.LastDeltaSessionID = input.DeltaSessionID
-	status.LastUpdateOutcome = result.Outcome
-	status.LastUpdateBoundary = result.BoundarySource
-	status.LastRefreshChangedFilesBasis = result.ChangedPaths
-	status.StalePaths = appendUnique(status.StalePaths, result.ChangedPaths...)
-	status.StaleReasons = appendUnique(status.StaleReasons, input.Reason)
-	status.Dirty = true
-	status.Status = "stale"
-	status.Freshness = rt.StaleFreshness
-	status.Readiness = rt.BlockedReadiness
-	status.RecommendedNextAction = "review_project_cognition_update"
-	if err := rt.WriteStatus(paths, status); err != nil {
-		return UpdatePayload{}, err
-	}
-
-	return UpdatePayload{
-		Readiness:             status.Readiness,
-		RecommendedNextAction: status.RecommendedNextAction,
-		UpdateID:              updateID,
-		UpdateOutcome:         result.Outcome,
-		ResultState:           ResultPartialRefresh,
-		StatusUpdate:          statusUpdateFromStatus(status),
-		ChangedPaths:          result.ChangedPaths,
-		IgnoredPaths:          result.IgnoredPaths,
-		AffectedNodes:         []map[string]any{},
-		MissingCoverage:       []string{},
-		AdoptedPaths:          []string{},
-		ReviewPaths:           result.AmbiguousPaths,
-		UnadoptablePaths:      []string{},
-		KnownUnknowns:         result.Warnings,
-		MinimalLiveReads:      result.WorkflowOwnedPaths,
-		PathAdoption: map[string]any{
-			"phase":                "boundary_only",
-			"auto_commit_decision": result.AutoCommitDecision,
-			"path_accounting":      result.PathAccounting,
-		},
-		LastRefreshChangedBasis: result.ChangedPaths,
-		Boundary:                &result,
-	}, nil
+	payload.UpdateOutcome = result.Outcome
+	payload.Boundary = &result
+	return payload, nil
 }
 
 func updatePathAccounting(kept []string, ignored []string) map[string]boundary.PathAccounting {
