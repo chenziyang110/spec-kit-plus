@@ -1479,7 +1479,10 @@ def test_project_map_root_templates_document_scenario_profile_contracts() -> Non
 
 def test_constitution_template_uses_current_shared_context_and_reentry_contract() -> None:
     content = _read("templates/commands/constitution.md")
+    shell = _read("templates/command-partials/constitution/shell.md")
+    combined = f"{content}\n{shell}"
     lowered = content.lower()
+    shell_lowered = shell.lower()
 
     assert ".specify/memory/project-rules.md" in content
     _assert_learning_index_detail_model(content)
@@ -1509,6 +1512,17 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "mark the related project cognition compatibility/export surface for refresh" in lowered
     assert "ordinary existing-baseline" in lowered
     assert "first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in lowered
+    assert "rewrite only `.specify/memory/constitution.md`" in shell_lowered
+    assert "report pending alignment instead" in shell_lowered
+    assert "not as permission to edit additional files" in shell_lowered
+    for forbidden in (
+        "the constitution must stay synchronized with dependent templates",
+        "propagate any downstream template",
+        "keep dependent templates, guidance, and lower-order project memory aligned",
+        "reopen the highest affected downstream stage",
+        "without updating them or flagging them",
+    ):
+        assert forbidden not in combined.lower()
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():

@@ -421,10 +421,23 @@ def test_codex_generated_skills_render_launcher_backed_runtime_commands(tmp_path
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     constitution_content = (target / ".codex" / "skills" / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8")
+    constitution_normalized = " ".join(constitution_content.split())
     implement_content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
     quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8")
 
     assert "learning start --command constitution --format json" in constitution_content
+    assert "This workflow writes only `.specify/memory/constitution.md`." in constitution_content
+    assert "Do not modify templates, command files, docs, project rules, learning files" in constitution_content
+    assert "report the highest affected downstream stage instead of editing those artifacts" in constitution_normalized
+    assert "record them as pending follow-up items in the Sync Impact Report instead of applying them" in constitution_normalized
+    for forbidden in (
+        "the constitution must stay synchronized with dependent templates",
+        "propagate any downstream template",
+        "keep dependent templates, guidance, and lower-order project memory aligned",
+        "reopen the highest affected downstream stage",
+        "without updating them or flagging them",
+    ):
+        assert forbidden not in constitution_content.lower()
     assert "{{specify-subcmd:" not in constitution_content
 
     for content in (implement_content, quick_content):
@@ -643,11 +656,24 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "no new facts gate" in prd_build_content
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
+    constitution_normalized = " ".join(constitution_content.split())
     assert ".specify/memory/project-rules.md" in constitution_content
     assert ".specify/memory/learnings/index.md" in constitution_content
     assert "future senior engineer" in constitution_content
     assert ".planning/learnings/candidates.md" not in constitution_content or "compatibility" in constitution_content
     assert "learning start --command constitution --format json" in constitution_content
+    assert "this workflow writes only `.specify/memory/constitution.md`." in constitution_content
+    assert "do not modify templates, command files, docs, project rules, learning files" in constitution_content
+    assert "report the highest affected downstream stage instead of editing those artifacts" in constitution_normalized
+    assert "record them as pending follow-up items in the sync impact report instead of applying them" in constitution_normalized
+    for forbidden in (
+        "the constitution must stay synchronized with dependent templates",
+        "propagate any downstream template",
+        "keep dependent templates, guidance, and lower-order project memory aligned",
+        "reopen the highest affected downstream stage",
+        "without updating them or flagging them",
+    ):
+        assert forbidden not in constitution_content
     assert ".specify/project-cognition/status.json" in constitution_content
     assert "build-handbook.md" not in constitution_content
     assert ".specify/project-map/index/status.json" not in constitution_content
