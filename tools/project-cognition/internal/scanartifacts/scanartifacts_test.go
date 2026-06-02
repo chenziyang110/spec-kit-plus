@@ -153,6 +153,44 @@ func TestLoadRejectsQueueWorkerAssignedPathMismatch(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsGlobLikeAssignedAndReadPaths(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"assigned_paths":["src/*.go"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]
+	}`+"\n"))
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/*.go"],
+		"paths_read":["src/*.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/*.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/*.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	for _, want := range []string{
+		"scan-queue packet lane-1 assigned_paths[0] must be a concrete repository path, not a glob or directory pattern",
+		"worker result lane-1 assigned_paths[0] must be a concrete repository path, not a glob or directory pattern",
+		"packet lane-1 paths_read[0] must be a concrete repository path, not a glob or directory pattern",
+	} {
+		if !containsError(result.Errors, want) {
+			t.Fatalf("Errors = %#v, want %q", result.Errors, want)
+		}
+	}
+}
+
 func TestLoadRejectsHandoffReturnWrongWorkerResultPath(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -336,6 +374,30 @@ func TestLoadRejectsAcceptedQueueWithoutCoverage(t *testing.T) {
 	}
 	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires accepted coverage for assigned path src/app.go") {
 		t.Fatalf("Errors = %#v, want accepted queue coverage error", result.Errors)
+	}
+}
+
+func TestLoadRejectsAcceptedQueueCoveredOnlyByLedgerWithoutWorkerCoverage(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires worker result coverage for assigned path src/app.go") {
+		t.Fatalf("Errors = %#v, want worker result coverage error", result.Errors)
 	}
 }
 
@@ -984,6 +1046,42 @@ func TestValidateBlocksIncludedCandidateWithoutCoverageOrGap(t *testing.T) {
 	}
 	if !containsError(result.Errors, "repository-universe included path src/missing.go has no coverage row or accepted nonblocking gap") {
 		t.Fatalf("Errors = %#v, want missing included path coverage error", result.Errors)
+	}
+}
+
+func TestValidateBlocksIncludedCandidateCoveredOnlyByLeaderLedger(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "coverage.json"), []byte(`{"rows":[{"path":"src/app.go"},{"path":"src/forgotten.go"}]}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), []byte(`{
+		"rows":[
+			{"path":"src/app.go","status":"covered"},
+			{"path":"src/forgotten.go","status":"covered"}
+		],
+		"open_gaps":[]
+	}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+		"schema_version":1,
+		"candidate_universe":[
+			{"path":"src/app.go","disposition":"deep_read","decision_source":"git"},
+			{"path":"src/forgotten.go","disposition":"deep_read","decision_source":"git"}
+		],
+		"included_paths":["src/app.go","src/forgotten.go"],
+		"excluded_paths":[],
+		"ambiguous_paths":[],
+		"dispositions":{"src/app.go":"deep_read","src/forgotten.go":"deep_read"},
+		"criticality":{"src/app.go":"important","src/forgotten.go":"important"},
+		"classification_reasons":{"src/app.go":"source","src/forgotten.go":"source"},
+		"decision_source":{"src/app.go":"git","src/forgotten.go":"git"}
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "repository-universe included path src/forgotten.go has coverage row but no scan packet assignment or accepted nonblocking gap") {
+		t.Fatalf("Errors = %#v, want unassigned included path error", result.Errors)
 	}
 }
 
