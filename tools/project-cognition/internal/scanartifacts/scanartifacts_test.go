@@ -401,6 +401,63 @@ func TestLoadRejectsAcceptedQueueCoveredOnlyByLedgerWithoutWorkerCoverage(t *tes
 	}
 }
 
+func TestLoadRejectsAcceptedQueueBorrowingWorkerCoverageFromAnotherPacket(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"rows":[
+			{
+				"packet_id":"lane-1",
+				"state":"accepted",
+				"assigned_paths":["src/app.go"],
+				"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+			},
+			{
+				"packet_id":"lane-2",
+				"state":"accepted",
+				"assigned_paths":["src/app.go"],
+				"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-2.json"
+			}
+		]
+	}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), []byte(`{"events":[
+		{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+		{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-1.json","created_at":"2026-05-26T00:01:00Z"},
+		{"event_id":"dispatch-2","packet_id":"lane-2","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+		{"event_id":"return-2","packet_id":"lane-2","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-2.json","created_at":"2026-05-26T00:01:00Z"}
+	]}`+"\n"))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-2.md"), []byte("# Lane 2\n"))
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+	writeWorkerResult(t, paths, "lane-2.json", `{
+		"packet_id":"lane-2",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Errors, "scan-queue packet lane-1 accepted state requires worker result coverage for assigned path src/app.go") {
+		t.Fatalf("Errors = %#v, want packet-local worker coverage error", result.Errors)
+	}
+}
+
 func TestLoadRejectsAcceptedQueueWithBlockedOrPartialLedgerRows(t *testing.T) {
 	for _, row := range []string{
 		`{"path":"src/app.go","status":"blocked"}`,

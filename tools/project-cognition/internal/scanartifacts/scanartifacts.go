@@ -76,13 +76,15 @@ type queueRow struct {
 }
 
 type queueState struct {
-	rowsByPacket        map[string]queueRow
-	childrenByParent    map[string][]string
-	returnedPackets     map[string]bool
-	returnCounts        map[string]int
-	returnPathsByPacket map[string]string
-	acceptedPaths       map[string]bool
-	openGaps            []openGapClosure
+	rowsByPacket          map[string]queueRow
+	childrenByParent      map[string][]string
+	returnedPackets       map[string]bool
+	returnCounts          map[string]int
+	returnPathsByPacket   map[string]string
+	acceptedPaths         map[string]bool
+	assignedPaths         map[string]bool
+	workerCoveredByPacket map[string]map[string]bool
+	openGaps              []openGapClosure
 }
 
 type openGapClosure struct {
@@ -184,8 +186,8 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadCoverage(paths, &pkg, &result)
 	boundary := loadBoundary(paths, &result)
 	pkg.AcceptedGaps = acceptedNonblockingGapPaths(paths, boundary)
-	validateBoundaryCoverage(boundary, pkg, &result)
 	queue := loadQueueState(paths, &result)
+	validateBoundaryCoverage(boundary, pkg, queue, &result)
 	validateScanPacketQueueFiles(paths, boundary, pkg, queue, &result)
 	packetSummary := validateWorkerResults(paths, boundary, pkg, queue, &result)
 	result.Errors = append(result.Errors, validateCoverageLedger(paths, "scan")...)
@@ -352,13 +354,15 @@ func loadOptionalWorkbenchJSON(paths rt.Paths, result *Result, name string) {
 
 func loadQueueState(paths rt.Paths, result *Result) queueState {
 	state := queueState{
-		rowsByPacket:        map[string]queueRow{},
-		childrenByParent:    map[string][]string{},
-		returnedPackets:     map[string]bool{},
-		returnCounts:        map[string]int{},
-		returnPathsByPacket: map[string]string{},
-		acceptedPaths:       map[string]bool{},
-		openGaps:            []openGapClosure{},
+		rowsByPacket:          map[string]queueRow{},
+		childrenByParent:      map[string][]string{},
+		returnedPackets:       map[string]bool{},
+		returnCounts:          map[string]int{},
+		returnPathsByPacket:   map[string]string{},
+		acceptedPaths:         map[string]bool{},
+		assignedPaths:         map[string]bool{},
+		workerCoveredByPacket: map[string]map[string]bool{},
+		openGaps:              []openGapClosure{},
 	}
 	for path := range loadCoverageLedgerState(paths, result) {
 		state.acceptedPaths[path] = true
@@ -393,9 +397,14 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 					ParentPacketID:    parentPacketID,
 					ResultHandoffPath: normalizedString(row["result_handoff_path"]),
 				}
+				validateConcretePathArray("scan-queue packet "+packetID, "assigned_paths", row["assigned_paths"], result)
+				for _, assignedPath := range state.rowsByPacket[packetID].AssignedPaths {
+					state.assignedPaths[assignedPath] = true
+				}
 			}
 		}
 	}
+	loadWorkerCoverageState(paths, &state, result)
 	rawEvents, err := readJSONFile(filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), "handoff-ledger.json")
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
@@ -460,6 +469,46 @@ func loadCoverageLedgerState(paths rt.Paths, result *Result) map[string]bool {
 		}
 	}
 	return accepted
+}
+
+func loadWorkerCoverageState(paths rt.Paths, state *queueState, result *Result) {
+	resultsDir := filepath.Join(paths.RuntimeDir, "workbench", "worker-results")
+	entries, err := os.ReadDir(resultsDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		fileStem := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+		packetPath := filepath.Join(resultsDir, entry.Name())
+		raw, err := readJSONFile(packetPath, entry.Name())
+		if err != nil {
+			continue
+		}
+		packet, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		packetID := normalizedString(packet["packet_id"])
+		if packetID == "" {
+			packetID = fileStem
+		}
+		validateConcretePathArray("worker result "+packetID, "assigned_paths", packet["assigned_paths"], result)
+		for i, row := range packetCoverageRows(packet["coverage"]) {
+			path := validateConcretePathField("packet "+packetID, fmt.Sprintf("coverage[%d].path", i), row["path"], result)
+			if path == "" {
+				continue
+			}
+			if workerCoverageRowIsAccepted(row) {
+				if state.workerCoveredByPacket[packetID] == nil {
+					state.workerCoveredByPacket[packetID] = map[string]bool{}
+				}
+				state.workerCoveredByPacket[packetID][path] = true
+			}
+		}
+	}
 }
 
 func loadOpenGapClosures(paths rt.Paths, result *Result) []openGapClosure {
@@ -895,7 +944,7 @@ func boundaryCandidatePaths(value any) map[string]string {
 	return paths
 }
 
-func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
+func validateBoundaryCoverage(boundary Boundary, pkg Package, queue queueState, result *Result) {
 	if boundary.LegacyRows {
 		return
 	}
@@ -944,6 +993,8 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 			}
 			if !coveragePaths[path] && !acceptedGaps[path] {
 				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted nonblocking gap", path))
+			} else if coveragePaths[path] && !queue.assignedPaths[path] && !acceptedGaps[path] {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has coverage row but no scan packet assignment or accepted nonblocking gap", path))
 			}
 		case disposition == "excluded":
 			if !boundary.ExcludedPaths[path] {
@@ -986,6 +1037,8 @@ func validateBoundaryCoverage(boundary Boundary, pkg Package, result *Result) {
 		}
 		if includedDispositionRequiresCoverage(disposition) && !coveragePaths[path] && !acceptedGaps[path] {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has no coverage row or accepted nonblocking gap", path))
+		} else if includedDispositionRequiresCoverage(disposition) && coveragePaths[path] && !queue.assignedPaths[path] && !acceptedGaps[path] {
+			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe included path %s has coverage row but no scan packet assignment or accepted nonblocking gap", path))
 		}
 	}
 	for path := range boundary.ExcludedPaths {
@@ -1152,7 +1205,7 @@ func validateScanPacketQueueFiles(paths rt.Paths, _ Boundary, _ Package, queue q
 			result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s has no matching scan packet", packetID))
 		}
 		validateQueueRowAcceptedAssignedPaths(packetID, row, result)
-		validateQueueRowCoverage(packetID, row, queue.acceptedPaths, result)
+		validateQueueRowCoverage(packetID, row, queue, result)
 		validateQueueRowClosure(packetID, row, queue, result)
 	}
 }
@@ -1204,7 +1257,7 @@ func validateScanPacket(packetID string, packet map[string]any, acceptance strin
 	}
 	validatePacketPathsRead(packetID, packet, acceptance, acceptanceOK, assignedSet, coverageByPath, result)
 	validatePacketAcceptance(packetID, acceptance, acceptanceOK, packet, assignedSet, ledger, coverageByPath, result)
-	validateQueueRowCoverage(packetID, row, queue.acceptedPaths, result)
+	validateQueueRowCoverage(packetID, row, queue, result)
 	validateQueueRowClosure(packetID, row, queue, result)
 }
 
@@ -1309,16 +1362,24 @@ func validateQueueRowAcceptedAssignedPaths(packetID string, row queueRow, result
 	}
 }
 
-func validateQueueRowCoverage(packetID string, row queueRow, accepted map[string]bool, result *Result) {
+func validateQueueRowCoverage(packetID string, row queueRow, queue queueState, result *Result) {
 	if row.PacketID == "" || row.State != "accepted" {
 		return
 	}
+	accepted := queue.acceptedPaths
 	if accepted == nil {
 		accepted = map[string]bool{}
+	}
+	workerCovered := map[string]bool{}
+	if queue.workerCoveredByPacket != nil && queue.workerCoveredByPacket[packetID] != nil {
+		workerCovered = queue.workerCoveredByPacket[packetID]
 	}
 	for _, path := range row.AssignedPaths {
 		if !accepted[path] {
 			result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s accepted state requires accepted coverage for assigned path %s", packetID, path))
+		}
+		if !workerCovered[path] {
+			result.Errors = append(result.Errors, fmt.Sprintf("scan-queue packet %s accepted state requires worker result coverage for assigned path %s", packetID, path))
 		}
 	}
 }
@@ -1368,7 +1429,10 @@ func validatePacketLedger(packetID string, assigned map[string]bool, ledger map[
 			result.Errors = append(result.Errors, fmt.Sprintf("packet %s ledger.%s must be an array", packetID, state))
 			continue
 		}
-		for _, path := range normalizedStringSlice(ledger[state]) {
+		for i, path := range normalizedStringSlice(ledger[state]) {
+			if !validConcreteRepositoryPath(path) {
+				result.Errors = append(result.Errors, fmt.Sprintf("packet %s ledger.%s[%d] must be a concrete repository path, not a glob or directory pattern", packetID, state, i))
+			}
 			if !assigned[path] {
 				result.Errors = append(result.Errors, fmt.Sprintf("packet %s ledger path %s is not in assigned_paths", packetID, path))
 			}
@@ -1501,7 +1565,7 @@ func validatePacketPathsRead(packetID string, packet map[string]any, acceptance 
 		result.Errors = append(result.Errors, fmt.Sprintf("packet %s paths_read must be an array of concrete paths", packetID))
 		return
 	}
-	validateConcretePathArray(packetID, "paths_read", rawPathsRead, result)
+	validateConcretePathArray("packet "+packetID, "paths_read", rawPathsRead, result)
 	pathsRead := normalizedStringSlice(rawPathsRead)
 	if len(pathsRead) == 0 && packetRequiresPathsRead(acceptance, acceptanceOK, coverageByPath) {
 		result.Errors = append(result.Errors, fmt.Sprintf("packet %s paths_read must include at least one concrete path", packetID))
@@ -1524,14 +1588,30 @@ func validatePacketPathsRead(packetID string, packet map[string]any, acceptance 
 func validateConcretePathArray(packetID string, field string, value any, result *Result) {
 	raw, ok := value.([]any)
 	if !ok {
+		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be an array of concrete repository paths", packetID, field))
 		return
 	}
 	for i, item := range raw {
-		text, ok := item.(string)
-		if !ok || normalizedString(text) == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("packet %s %s[%d] must be a concrete path string", packetID, field, i))
-		}
+		validateConcretePathField(packetID, fmt.Sprintf("%s[%d]", field, i), item, result)
 	}
+}
+
+func validateConcretePathField(packetID string, field string, value any, result *Result) string {
+	text, ok := value.(string)
+	if !ok {
+		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be a concrete path string", packetID, field))
+		result.Errors = append(result.Errors, fmt.Sprintf("%s %s path must be a string", packetID, field))
+		return ""
+	}
+	path := normalizedString(text)
+	if path == "" {
+		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be a concrete path string", packetID, field))
+		return ""
+	}
+	if !validConcreteRepositoryPath(path) {
+		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be a concrete repository path, not a glob or directory pattern", packetID, field))
+	}
+	return path
 }
 
 func packetRequiresPathsRead(acceptance string, acceptanceOK bool, coverageByPath map[string]map[string]any) bool {
@@ -1568,6 +1648,15 @@ func packetCoverageRows(value any) []map[string]any {
 	return objects
 }
 
+func workerCoverageRowIsAccepted(row map[string]any) bool {
+	switch normalizedString(row["outcome"]) {
+	case "read", "deep_read", "sampled", "inventory_only":
+		return true
+	default:
+		return false
+	}
+}
+
 func ledgerAccountsForFinalPath(ledger map[string]any, path string) bool {
 	for _, state := range []string{"done", "blocked", "overflow"} {
 		for _, item := range normalizedStringSlice(ledger[state]) {
@@ -1577,6 +1666,27 @@ func ledgerAccountsForFinalPath(ledger map[string]any, path string) bool {
 		}
 	}
 	return false
+}
+
+func validConcreteRepositoryPath(path string) bool {
+	if path == "" || path == "." || path == ".." {
+		return false
+	}
+	if filepath.IsAbs(path) || strings.HasPrefix(path, "/") || strings.Contains(path, ":") {
+		return false
+	}
+	if strings.HasSuffix(path, "/") || strings.Contains(path, "//") {
+		return false
+	}
+	if strings.HasPrefix(path, "../") || strings.Contains(path, "/../") {
+		return false
+	}
+	for _, marker := range []string{"*", "?", "[", "]", "{", "}"} {
+		if strings.Contains(path, marker) {
+			return false
+		}
+	}
+	return true
 }
 
 func hasGapLedgerState(ledger map[string]any) bool {

@@ -164,12 +164,27 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 if not isinstance(value, str):
                     errors.append(f"{label} must be a string")
                     return ""
-                return _normalize_path(value)
+                path = _normalize_path(value)
+                if path and not _is_concrete_repository_path(path):
+                    errors.append(f"{label} must be a concrete repository path, not a glob or directory pattern")
+                return path
+
+
+            def _is_concrete_repository_path(path):
+                if path in {"", ".", ".."}:
+                    return False
+                if path.startswith("/") or path.startswith("../") or "/../" in path:
+                    return False
+                if ":" in path or path.endswith("/") or "//" in path:
+                    return False
+                return not any(marker in path for marker in ("*", "?", "[", "]", "{", "}"))
 
 
             def _path_values(items, label="", errors=None):
                 paths = set()
                 if not isinstance(items, list):
+                    if errors is not None and label:
+                        errors.append(f"{label} must be an array of concrete repository paths")
                     return paths
                 for index, item in enumerate(items):
                     value = item.get("path") if isinstance(item, dict) else item
@@ -178,6 +193,9 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         errors.append(f"{field_label} must be a string")
                         continue
                     path = _normalize_path(value)
+                    if errors is not None and path and not _is_concrete_repository_path(path):
+                        field_label = f"{label}[{index}]" if label else f"paths[{index}]"
+                        errors.append(f"{field_label} must be a concrete repository path, not a glob or directory pattern")
                     if path:
                         paths.add(path)
                 return paths
@@ -382,6 +400,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                             errors.append(f"{rel}: {exc}")
                 coverage_path = Path.cwd() / ".specify/project-cognition/coverage.json"
                 coverage_paths = set()
+                included_paths = set()
+                accepted_gap_paths = set()
                 if coverage_path.exists():
                     try:
                         coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
@@ -419,6 +439,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                     else:
                         if isinstance(universe, dict):
                             excluded_paths = _path_values(universe.get("excluded_paths", []))
+                            included_paths = _path_values(universe.get("included_paths", []))
                             for path in sorted(excluded_paths & coverage_paths):
                                 errors.append(f"excluded path {path} must not appear in coverage.json")
                 evidence_dir = Path.cwd() / ".specify/project-cognition/evidence"
@@ -437,6 +458,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                     try:
                         ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
                         open_coverage_gap_paths = _open_coverage_gap_paths(ledger)
+                        accepted_gap_paths = set(open_coverage_gap_paths)
                         rows = ledger.get("rows") if isinstance(ledger, dict) else None
                         if not isinstance(rows, list):
                             errors.append("coverage-ledger.json must define a top-level rows array")
@@ -453,6 +475,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 if scan_packets_dir.is_dir():
                     scan_packet_ids = {path.stem for path in scan_packets_dir.glob("*.md")}
                 queue_rows = {}
+                queue_assigned_paths = set()
                 queue_path = Path.cwd() / ".specify/project-cognition/workbench/scan-queue.json"
                 if queue_path.exists():
                     try:
@@ -466,6 +489,9 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 errors.append(f"scan-queue.json packet_id {packet_id} appears more than once")
                                 continue
                             queue_rows[packet_id] = row
+                            queue_assigned_paths.update(
+                                _path_values(row.get("assigned_paths"), f"scan-queue packet {packet_id} assigned_paths", errors)
+                            )
                     except json.JSONDecodeError:
                         pass
                 returned_packets = set()
@@ -618,6 +644,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                             )
                         coverage_rows = result_payload.get("coverage")
                         coverage_by_path = {}
+                        worker_covered_paths = set()
                         if isinstance(coverage_rows, list):
                             for row_index, row in enumerate(coverage_rows):
                                 if not isinstance(row, dict):
@@ -642,6 +669,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                         errors.append(f"packet {packet_id} path {path} read outcome must include evidence_ids")
                                 if path:
                                     coverage_by_path[path] = row
+                                    if outcome in {"read", "deep_read", "sampled", "inventory_only"}:
+                                        worker_covered_paths.add(path)
                         else:
                             errors.append(f"packet {packet_id} must define coverage array")
                         for path in sorted(assigned_paths):
@@ -660,6 +689,16 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 outcome = str(row.get("outcome") or "").strip() if isinstance(row, dict) else ""
                                 if outcome in {"", "blocked", "overflow", "excluded"}:
                                     errors.append(f"packet {packet_id} cannot pass with unresolved path {path}")
+                                if path not in worker_covered_paths:
+                                    errors.append(
+                                        f"scan-queue packet {packet_id} accepted state requires worker result coverage for assigned path {path}"
+                                    )
+                for path in sorted(included_paths & coverage_paths):
+                    if path not in queue_assigned_paths and path not in accepted_gap_paths:
+                        errors.append(
+                            f"repository-universe included path {path} has coverage row "
+                            "but no scan packet assignment or accepted nonblocking gap"
+                        )
                 for result_id, (packet_id, result_path) in sorted(expected_queue_results.items()):
                     if result_id not in actual_worker_result_ids:
                         errors.append(

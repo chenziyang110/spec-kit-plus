@@ -106,6 +106,12 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "top-level `outcome`" in lowered
     assert "legacy alias" in lowered
     assert "accepted_nonblocking_gap_paths" in content
+    assert "concrete repository file paths enumerated from `repository-universe.json`" in lowered
+    assert "globs such as `jzwinrenew/*.cpp`" in lowered
+    assert "directory patterns, absolute paths, and summary labels are invalid" in lowered
+    assert "a top-level `coverage.json` or `coverage-ledger.json` row is not proof that a path was scanned" in lowered
+    assert "included_paths - assigned_paths - accepted_nonblocking_gap_paths" in content
+    assert "every assigned path must also have a packet-local worker `coverage[]` outcome" in lowered
 
     assert "current-runtime native subagents are the default" in lowered
     assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered
@@ -324,6 +330,9 @@ def test_map_scan_template_requires_canonical_boundary_contract() -> None:
     assert "`criticality`" in content
     assert "excluded paths must not appear in graph-facing `coverage.json` rows" in lowered
     assert "overflow" in lowered
+    assert "assigned_paths`, queue rows, worker `paths_read`, and worker coverage paths" in content
+    assert "concrete repository file paths enumerated from `repository-universe.json`" in lowered
+    assert "a top-level `coverage.json` or `coverage-ledger.json` row is not proof" in lowered
 
 
 def test_map_scan_template_requires_packet_ledger_contract() -> None:
@@ -338,6 +347,7 @@ def test_map_scan_template_requires_packet_ledger_contract() -> None:
     assert "boolean read flags are invalid" in lowered
     assert "existing `evidence_ids`" in lowered
     assert "source_path" in lowered
+    assert "packet-local worker `coverage[]` outcome" in lowered
     assert "acceptance value other than `pass` blocks" in lowered
     assert "worker results without a matching scan packet are invalid" in lowered
     assert "coverage gate" in lowered

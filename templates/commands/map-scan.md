@@ -177,11 +177,13 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - `sampled` and `inventory_only` are acceptable only when the disposition and criticality together justify them.
 - Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, or `minimal_live_reads`.
 - `MapScanPacket` must include bounded `assigned_paths`.
+- `assigned_paths`, queue rows, worker `paths_read`, and worker coverage paths must be concrete repository file paths enumerated from `repository-universe.json`; globs such as `JZWinReNew/*.cpp`, directory patterns, absolute paths, and summary labels are invalid.
 - Each packet carries a packet-local task ledger with `todo`, `doing`, `done`, `blocked`, and `overflow`.
 - Each accepted worker result must repeat `assigned_paths`, include `paths_read` as a non-empty array of concrete repository paths, include packet-local `coverage` rows for the final outcome of each assigned path, and include confidence.
 - `paths_read: true`, summary-only read claims, and boolean read flags are invalid.
 - `read` and `deep_read` outcomes must reference existing `evidence_ids`, and at least one referenced evidence row must have `source_path` equal to the covered path.
 - Subagents must account for every assigned path with evidence, `sampled`, `inventory_only`, `excluded`, `blocked`, or `overflow`.
+- A top-level `coverage.json` or `coverage-ledger.json` row is not proof that a path was scanned. Before accepting a packet or closing the scan, compute `included_paths - assigned_paths - accepted_nonblocking_gap_paths`; any non-empty set blocks completion. For accepted packets, every assigned path must also have a packet-local worker `coverage[]` outcome.
 - If assigned paths do not fit in context, the subagent must return `acceptance=fail_gap`, mark path-level `coverage[].outcome="overflow"` or `coverage[].outcome="blocked"`, and include split or recovery recommendations; the leader records queue state `overflow` or `blocked`.
 - Leader acceptance has two gates: a coverage gate that requires every assigned path to have a declared outcome, and a quality gate that rejects summary-only or inconsistent evidence.
 - The leader may classify packet failure as `fail_gap`, `fail_quality`, `fail_contract`, or `fail_systemic`.

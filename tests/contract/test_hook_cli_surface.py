@@ -1628,6 +1628,178 @@ def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_paths_read(
     assert "packet core pass acceptance must include non-empty paths_read" in payload["errors"]
 
 
+def test_hook_validate_artifacts_blocks_map_scan_leader_only_coverage(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "coverage.json").write_text(
+        json.dumps({"rows": [{"path": "src/auth/login.ts"}, {"path": "src/auth/forgotten.ts"}]}) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "coverage-ledger.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {"path": "src/auth/login.ts", "coverage_state": "covered"},
+                    {"path": "src/auth/forgotten.ts", "coverage_state": "covered"},
+                ],
+                "open_gaps": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "candidate_universe": [
+                    {"path": "src/auth/login.ts", "disposition": "deep_read", "decision_source": "git"},
+                    {"path": "src/auth/forgotten.ts", "disposition": "deep_read", "decision_source": "git"},
+                ],
+                "included_paths": ["src/auth/login.ts", "src/auth/forgotten.ts"],
+                "excluded_paths": [],
+                "ambiguous_paths": [],
+                "dispositions": {
+                    "src/auth/login.ts": "deep_read",
+                    "src/auth/forgotten.ts": "deep_read",
+                },
+                "criticality": {
+                    "src/auth/login.ts": "critical",
+                    "src/auth/forgotten.ts": "important",
+                },
+                "classification_reasons": {
+                    "src/auth/login.ts": "source",
+                    "src/auth/forgotten.ts": "source",
+                },
+                "decision_source": {
+                    "src/auth/login.ts": "git",
+                    "src/auth/forgotten.ts": "git",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert (
+        "repository-universe included path src/auth/forgotten.ts has coverage row "
+        "but no scan packet assignment or accepted nonblocking gap"
+    ) in payload["errors"]
+
+
+def test_hook_validate_artifacts_blocks_map_scan_cross_packet_worker_coverage(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    (run_dir / "workbench" / "scan-packets" / "lane-1.md").write_text("# Lane 1\n", encoding="utf-8")
+    (run_dir / "workbench" / "scan-packets" / "lane-2.md").write_text("# Lane 2\n", encoding="utf-8")
+    (run_dir / "workbench" / "scan-packets" / "core.md").unlink()
+    (run_dir / "workbench" / "scan-queue.json").write_text(
+        json.dumps(
+            {
+                "packets": [
+                    {
+                        "packet_id": "lane-1",
+                        "state": "accepted",
+                        "assigned_paths": ["src/auth/login.ts"],
+                        "result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+                    },
+                    {
+                        "packet_id": "lane-2",
+                        "state": "accepted",
+                        "assigned_paths": ["src/auth/login.ts"],
+                        "result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-2.json",
+                    },
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "handoff-ledger.json").write_text(
+        json.dumps(
+            {
+                "events": [
+                    {"event_id": "dispatch-1", "packet_id": "lane-1", "event_type": "dispatched"},
+                    {
+                        "event_id": "return-1",
+                        "packet_id": "lane-1",
+                        "event_type": "returned",
+                        "worker_result_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+                    },
+                    {"event_id": "dispatch-2", "packet_id": "lane-2", "event_type": "dispatched"},
+                    {
+                        "event_id": "return-2",
+                        "packet_id": "lane-2",
+                        "event_type": "returned",
+                        "worker_result_path": ".specify/project-cognition/workbench/worker-results/lane-2.json",
+                    },
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "worker-results" / "core.json").unlink()
+    (run_dir / "workbench" / "worker-results" / "lane-1.json").write_text(
+        json.dumps(
+            {
+                "packet_id": "lane-1",
+                "assigned_paths": ["src/auth/login.ts"],
+                "paths_read": ["src/auth/login.ts"],
+                "coverage": [],
+                "acceptance": "pass",
+                "confidence": "high",
+                "ledger": _project_cognition_packet_ledger(),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workbench" / "worker-results" / "lane-2.json").write_text(
+        json.dumps(
+            {
+                "packet_id": "lane-2",
+                "assigned_paths": ["src/auth/login.ts"],
+                "paths_read": ["src/auth/login.ts"],
+                "coverage": [
+                    {
+                        "path": "src/auth/login.ts",
+                        "outcome": "deep_read",
+                        "evidence_ids": ["E-001"],
+                        "confidence": "high",
+                    }
+                ],
+                "acceptance": "pass",
+                "confidence": "high",
+                "ledger": _project_cognition_packet_ledger(),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert (
+        "scan-queue packet lane-1 accepted state requires worker result coverage for assigned path src/auth/login.ts"
+        in payload["errors"]
+    )
+
+
 @pytest.mark.parametrize("state", ["overflow", "blocked", "repack_required"])
 def test_hook_validate_artifacts_blocks_map_scan_queue_continuation_state_without_gap_or_child_packet(
     tmp_path: Path, state: str
