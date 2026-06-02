@@ -217,6 +217,94 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
 def test_project_cognition_required_commands_include_init_empty():
     assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "update --payload-file --verification" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "delta append --verification --generated-surface" in project_cognition_runtime.REQUIRED_COMMANDS
+
+
+def test_project_cognition_binary_support_requires_update_payload_file(monkeypatch, tmp_path: Path):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = "Commands: status, build-from-scan, init-empty, update, delta\n"
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -changed-path value\n"
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [[str(binary), "--help"], [str(binary), "update", "--help"]]
+
+
+def test_project_cognition_binary_support_requires_update_verification_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = "Commands: status, build-from-scan, init-empty, update, delta\n"
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_delta_append_verification_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = "Commands: status, build-from-scan, init-empty, update, delta\n"
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class DeltaAppendHelpResult:
+        stdout = "Usage of delta append:\n  -changed-path value\n  -generated-surface value\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["delta", "append", "--help"]:
+            return DeltaAppendHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
 
 
 def test_project_cognition_init_empty_declined_zero_exit_is_not_greenfield(

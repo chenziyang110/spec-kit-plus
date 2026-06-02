@@ -315,6 +315,139 @@ func TestRunUpdatePathOnlyUnknownCoverageReturnsPartialRefresh(t *testing.T) {
 	}
 }
 
+func TestRunUpdateAdoptsVerifiedUnindexedPath(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/new-feature.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-quick",
+		BehaviorSurfaces: []string{"new feature entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
+		t.Fatalf("AdoptedPaths = %#v, want new feature path", payload.AdoptedPaths)
+	}
+	if len(payload.AffectedNodes) == 0 {
+		t.Fatalf("AffectedNodes = %#v, want adopted workflow update node", payload.AffectedNodes)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	nodes, err := st.NodesForPaths(context.Background(), []string{"src/new-feature.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) == 0 {
+		t.Fatal("expected adopted path to be queryable")
+	}
+}
+
+func TestRunUpdatePayloadFileAcceptsVerificationEvidenceAlias(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	payloadPath := filepath.Join(paths.RuntimeDir, "updates", "workflow-finalize.json")
+	if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte(`{
+  "workflow": "sp-fast",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/new-feature.go"],
+  "behavior_surfaces": ["new feature entrypoint"],
+  "verification_evidence": [
+    {"command": "go test ./...", "result": "passed", "artifact": "artifacts/quality-runs/unit/report.md"}
+  ],
+  "known_unknowns": []
+}`)
+	if err := os.WriteFile(payloadPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		PayloadFile: payloadPath,
+		Reason:      "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
+		t.Fatalf("AdoptedPaths = %#v, want payload alias path adoption", payload.AdoptedPaths)
+	}
+}
+
+func TestRunUpdatePayloadFileAcceptsStringVerificationEvidenceAlias(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	payloadPath := filepath.Join(paths.RuntimeDir, "updates", "workflow-finalize.json")
+	if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte(`{
+  "workflow": "sp-quick",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/string-evidence.go"],
+  "behavior_surfaces": ["string evidence entrypoint"],
+  "verification_evidence": ["go test ./... PASS"],
+  "known_unknowns": []
+}`)
+	if err := os.WriteFile(payloadPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		PayloadFile: payloadPath,
+		Reason:      "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/string-evidence.go") {
+		t.Fatalf("AdoptedPaths = %#v, want string evidence path adoption", payload.AdoptedPaths)
+	}
+}
+
+func TestRunUpdateFailedVerificationDoesNotReturnReady(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/app.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"application entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "failed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState == ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v, want not ready for failed verification", payload.ResultState, payload)
+	}
+	if payload.Readiness == rt.ReadyReadiness {
+		t.Fatalf("Readiness = %q, want not query_ready for failed verification", payload.Readiness)
+	}
+}
+
 func TestRunUpdatePayloadForIndexedPathReturnsReady(t *testing.T) {
 	paths := testPaths(t)
 	seedReadyRuntime(t, paths)

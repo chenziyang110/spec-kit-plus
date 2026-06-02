@@ -490,10 +490,25 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	fs.SetOutput(stderr)
 	var changed stringList
 	var scopes stringList
+	var behaviorSurfaces stringList
+	var generatedSurfaces stringList
+	var stateContracts stringList
+	var verification stringList
+	var knownUnknowns stringList
+	var confidenceNotes stringList
+	var userDecisions stringList
 	fs.Var(&changed, "changed-paths", "Changed path")
 	fs.Var(&changed, "changed-path", "Changed path")
 	fs.Var(&scopes, "scope", "Scope path")
+	fs.Var(&behaviorSurfaces, "behavior-surface", "Behavior surface")
+	fs.Var(&generatedSurfaces, "generated-surface", "Generated surface note")
+	fs.Var(&stateContracts, "state-contract", "State contract")
+	fs.Var(&verification, "verification", "Verification evidence")
+	fs.Var(&knownUnknowns, "known-unknown", "Known unknown")
+	fs.Var(&confidenceNotes, "confidence-note", "Confidence note")
+	fs.Var(&userDecisions, "user-decision", "User decision")
 	reason := fs.String("reason", "update", "Update reason")
+	workflow := fs.String("workflow", "", "Workflow name")
 	deltaSession := fs.String("delta-session", "", "Delta session id")
 	commitRange := fs.String("commit-range", "", "Commit range base..head")
 	payloadFile := fs.String("payload-file", "", "Structured update payload JSON file")
@@ -502,14 +517,42 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 		return 2
 	}
 	payload, err := update.RunUpdate(paths, update.UpdateInput{
-		ChangedPaths:   changed,
-		ScopePaths:     scopes,
-		Reason:         *reason,
-		DeltaSessionID: *deltaSession,
-		CommitRange:    *commitRange,
-		PayloadFile:    *payloadFile,
+		ChangedPaths:      changed,
+		ScopePaths:        scopes,
+		Reason:            *reason,
+		DeltaSessionID:    *deltaSession,
+		CommitRange:       *commitRange,
+		PayloadFile:       *payloadFile,
+		Workflow:          *workflow,
+		BehaviorSurfaces:  behaviorSurfaces,
+		GeneratedSurfaces: generatedSurfaces,
+		StateContracts:    stateContracts,
+		Verification:      verificationEvidenceFromCLI(verification),
+		KnownUnknowns:     knownUnknowns,
+		ConfidenceNotes:   confidenceNotes,
+		UserDecisions:     userDecisions,
 	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func verificationEvidenceFromCLI(values []string) []update.VerificationEvidence {
+	out := make([]update.VerificationEvidence, 0, len(values))
+	for _, value := range values {
+		out = append(out, update.VerificationEvidence{Command: value, Result: verificationResultFromText(value)})
+	}
+	return out
+}
+
+func verificationResultFromText(value string) string {
+	result := "recorded"
+	lower := strings.ToLower(value)
+	if strings.Contains(lower, "pass") {
+		result = "passed"
+	}
+	if strings.Contains(lower, "fail") {
+		result = "failed"
+	}
+	return result
 }
 
 func lexiconCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

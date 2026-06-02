@@ -62,6 +62,18 @@ install -m 0755 "$tmp" "$target"
 
 echo "==> Verifying..."
 "$target" --version
+update_help="$("$target" update --help 2>&1 || true)"
+if [[ "$update_help" != *"-payload-file"* || "$update_help" != *"-verification"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required update flags." >&2
+  echo "Expected 'project-cognition update --help' to include -payload-file and -verification." >&2
+  exit 1
+fi
+delta_append_help="$("$target" delta append --help 2>&1 || true)"
+if [[ "$delta_append_help" != *"-verification"* || "$delta_append_help" != *"-generated-surface"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required delta append flags." >&2
+  echo "Expected 'project-cognition delta append --help' to include -verification and -generated-surface." >&2
+  exit 1
+fi
 
 case ":$PATH:" in
   *":$install_dir:"*) ;;

@@ -35,6 +35,26 @@ type VerificationEvidence struct {
 	Artifact string `json:"artifact,omitempty"`
 }
 
+type VerificationEvidenceList []VerificationEvidence
+
+func (values *VerificationEvidenceList) UnmarshalJSON(data []byte) error {
+	var structured []VerificationEvidence
+	if err := json.Unmarshal(data, &structured); err == nil {
+		*values = normalizeVerificationEvidence(structured)
+		return nil
+	}
+	var strings []string
+	if err := json.Unmarshal(data, &strings); err == nil {
+		out := make([]VerificationEvidence, 0, len(strings))
+		for _, value := range strings {
+			out = append(out, verificationEvidenceFromText(value))
+		}
+		*values = normalizeVerificationEvidence(out)
+		return nil
+	}
+	return fmt.Errorf("verification evidence must be an array of objects or strings")
+}
+
 type UpdateBoundaryInput struct {
 	CommitRange        string   `json:"commit_range,omitempty"`
 	InitialDirtyPaths  []string `json:"initial_dirty_paths,omitempty"`
@@ -42,18 +62,20 @@ type UpdateBoundaryInput struct {
 }
 
 type PayloadFileInput struct {
-	Workflow          string                 `json:"workflow"`
-	Reason            string                 `json:"reason"`
-	ChangedPaths      []string               `json:"changed_paths"`
-	ScopePaths        []string               `json:"scope_paths"`
-	BehaviorSurfaces  []string               `json:"behavior_surfaces"`
-	GeneratedSurfaces []string               `json:"generated_surfaces"`
-	StateContracts    []string               `json:"state_contracts"`
-	Verification      []VerificationEvidence `json:"verification"`
-	KnownUnknowns     []string               `json:"known_unknowns"`
-	ConfidenceNotes   []string               `json:"confidence_notes"`
-	UserDecisions     []string               `json:"user_decisions"`
-	Boundary          UpdateBoundaryInput    `json:"boundary"`
+	Workflow             string                   `json:"workflow"`
+	Reason               string                   `json:"reason"`
+	ChangedPaths         []string                 `json:"changed_paths"`
+	ScopePaths           []string                 `json:"scope_paths"`
+	BehaviorSurfaces     []string                 `json:"behavior_surfaces"`
+	GeneratedSurfaces    []string                 `json:"generated_surfaces"`
+	GeneratedSurfaceNote []string                 `json:"generated_surface_notes"`
+	StateContracts       []string                 `json:"state_contracts"`
+	Verification         VerificationEvidenceList `json:"verification"`
+	VerificationEvidence VerificationEvidenceList `json:"verification_evidence"`
+	KnownUnknowns        []string                 `json:"known_unknowns"`
+	ConfidenceNotes      []string                 `json:"confidence_notes"`
+	UserDecisions        []string                 `json:"user_decisions"`
+	Boundary             UpdateBoundaryInput      `json:"boundary"`
 }
 
 type UpdateInput struct {
@@ -311,6 +333,24 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		if err != nil {
 			return UpdatePayload{}, err
 		}
+		if len(closure.NodeIDs) == 0 && canAdoptWorkflowPaths(changed, input) {
+			for _, path := range changed {
+				if _, err := st.AdoptWorkflowPath(context.Background(), store.WorkflowPathAdoption{
+					UpdateID:         updateID,
+					Path:             path,
+					Workflow:         input.Workflow,
+					BehaviorSurfaces: input.BehaviorSurfaces,
+					Verification:     verificationAttrs(input.Verification),
+					Reason:           input.Reason,
+				}); err != nil {
+					return UpdatePayload{}, err
+				}
+			}
+			closure, err = st.AffectedClosureForPaths(context.Background(), changed)
+			if err != nil {
+				return UpdatePayload{}, err
+			}
+		}
 		nodes, err = st.NodesForIDs(context.Background(), closure.NodeIDs)
 		if err != nil {
 			return UpdatePayload{}, err
@@ -431,10 +471,43 @@ func updateResultState(kept []string, nodes []map[string]any, input UpdateInput)
 	if len(kept) == 0 {
 		return ResultNoOp
 	}
-	if len(nodes) > 0 && len(input.Verification) > 0 && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
+	if len(nodes) > 0 && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
 		return ResultReady
 	}
 	return ResultPartialRefresh
+}
+
+func canAdoptWorkflowPaths(kept []string, input UpdateInput) bool {
+	return len(kept) > 0 && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0
+}
+
+func hasPassingVerification(values []VerificationEvidence) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value.Result), "passed") {
+			return true
+		}
+	}
+	return false
+}
+
+func verificationAttrs(values []VerificationEvidence) []map[string]string {
+	out := make([]map[string]string, 0, len(values))
+	for _, value := range values {
+		item := map[string]string{}
+		if strings.TrimSpace(value.Command) != "" {
+			item["command"] = strings.TrimSpace(value.Command)
+		}
+		if strings.TrimSpace(value.Result) != "" {
+			item["result"] = strings.TrimSpace(value.Result)
+		}
+		if strings.TrimSpace(value.Artifact) != "" {
+			item["artifact"] = strings.TrimSpace(value.Artifact)
+		}
+		if len(item) > 0 {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func applyResultState(status rt.Status, resultState string, updateID string, changedPaths []string, reason string) rt.Status {
@@ -559,6 +632,8 @@ func loadPayloadFile(path string) (PayloadFileInput, error) {
 	}
 	payload.ChangedPaths = normalizePaths(payload.ChangedPaths)
 	payload.ScopePaths = normalizePaths(payload.ScopePaths)
+	payload.GeneratedSurfaces = normalizePaths(append(payload.GeneratedSurfaces, payload.GeneratedSurfaceNote...))
+	payload.Verification = normalizeVerificationEvidence(append(payload.Verification, payload.VerificationEvidence...))
 	payload.KnownUnknowns = compactStrings(payload.KnownUnknowns)
 	payload.ConfidenceNotes = compactStrings(payload.ConfidenceNotes)
 	return payload, nil
@@ -624,6 +699,10 @@ func updateInputFromBoundary(input UpdateInput, result boundary.Result) UpdateIn
 }
 
 func verificationEvidenceFromDelta(value string) VerificationEvidence {
+	return verificationEvidenceFromText(value)
+}
+
+func verificationEvidenceFromText(value string) VerificationEvidence {
 	result := "recorded"
 	lower := strings.ToLower(value)
 	if strings.Contains(lower, "pass") {
@@ -632,7 +711,32 @@ func verificationEvidenceFromDelta(value string) VerificationEvidence {
 	if strings.Contains(lower, "fail") {
 		result = "failed"
 	}
-	return VerificationEvidence{Command: value, Result: result}
+	return VerificationEvidence{Command: strings.TrimSpace(value), Result: result}
+}
+
+func normalizeVerificationEvidence(values []VerificationEvidence) []VerificationEvidence {
+	out := make([]VerificationEvidence, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		normalized := VerificationEvidence{
+			Command:  strings.TrimSpace(value.Command),
+			Result:   strings.TrimSpace(value.Result),
+			Artifact: strings.TrimSpace(value.Artifact),
+		}
+		if normalized.Command == "" && normalized.Result == "" && normalized.Artifact == "" {
+			continue
+		}
+		if normalized.Result == "" {
+			normalized.Result = verificationEvidenceFromText(normalized.Command).Result
+		}
+		key := normalized.Command + "\x00" + normalized.Result + "\x00" + normalized.Artifact
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }
 
 func blockingBoundaryWarnings(values []string) []string {

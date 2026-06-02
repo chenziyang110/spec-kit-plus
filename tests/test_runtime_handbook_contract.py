@@ -151,6 +151,9 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "run inline project cognition update" in lowered or "runs inline project cognition update" in lowered
     assert "project-cognition update --payload-file" in lowered
     assert "result_state" in lowered
+    assert "verification_evidence" in lowered
+    assert "generated_surface_notes" in lowered
+    assert "failed verification evidence" in lowered
     assert (
         "sp-map-update remains the external/manual" in lowered
         or "`sp-map-update` remains the external/manual" in lowered

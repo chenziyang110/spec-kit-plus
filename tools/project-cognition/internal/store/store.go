@@ -65,6 +65,15 @@ type PathCoverageRefreshResult struct {
 	PathIndexID string
 }
 
+type WorkflowPathAdoption struct {
+	UpdateID         string
+	Path             string
+	Workflow         string
+	BehaviorSurfaces []string
+	Verification     []map[string]string
+	Reason           string
+}
+
 func Open(paths rt.Paths) (*Store, error) {
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create runtime dir: %w", err)
@@ -518,6 +527,62 @@ func (s *Store) RefreshPathCoverage(ctx context.Context, refresh PathCoverageRef
 		return PathCoverageRefreshResult{}, fmt.Errorf("upsert path coverage: %w", err)
 	}
 	return PathCoverageRefreshResult{EvidenceID: evidenceID, PathIndexID: pathIndexID}, nil
+}
+
+func (s *Store) AdoptWorkflowPath(ctx context.Context, adoption WorkflowPathAdoption) (string, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return "", err
+	}
+	if generationID == "" {
+		return "", fmt.Errorf("project-cognition.db has no active generation")
+	}
+	path := strings.TrimSpace(adoption.Path)
+	if path == "" {
+		return "", fmt.Errorf("workflow path adoption path is required")
+	}
+	updateID := defaultString(adoption.UpdateID, "manual")
+	nodeID := "N-update-" + stableIDPart(path)
+	title := workflowPathTitle(path)
+	now := time.Now().UTC().Format(time.RFC3339)
+	attrs, err := attrsJSONOrEmpty(map[string]any{
+		"source":            "project-cognition update",
+		"update_id":         updateID,
+		"workflow":          adoption.Workflow,
+		"behavior_surfaces": adoption.BehaviorSurfaces,
+		"verification":      adoption.Verification,
+		"reason":            adoption.Reason,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encode adopted workflow node attrs: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES(?, ?, 'workflow_update', ?, 'verified', ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, confidence=excluded.confidence, attrs_json=excluded.attrs_json, updated_at=excluded.updated_at`, nodeID, generationID, title, attrs, now, now)
+	if err != nil {
+		return "", fmt.Errorf("upsert adopted workflow node: %w", err)
+	}
+	if _, err := s.RefreshPathCoverage(ctx, PathCoverageRefresh{
+		UpdateID:   updateID,
+		Path:       path,
+		NodeID:     nodeID,
+		Relation:   "workflow_changed",
+		Confidence: "verified",
+		Reason:     adoption.Reason,
+	}); err != nil {
+		return "", err
+	}
+	return nodeID, nil
+}
+
+func workflowPathTitle(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "Workflow-updated path"
+	}
+	base := filepath.Base(trimmed)
+	if base == "." || base == string(filepath.Separator) || base == "" {
+		return trimmed
+	}
+	return base
 }
 
 func (s *Store) claimIDsForSubjects(ctx context.Context, subjectRefs []string) ([]string, error) {

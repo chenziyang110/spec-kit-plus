@@ -194,6 +194,39 @@ func TestAppendPacketFilePersistsEvent(t *testing.T) {
 	}
 }
 
+func TestAppendPacketFileAcceptsWorkflowPayloadAliases(t *testing.T) {
+	root := t.TempDir()
+	runtimeDir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	session, err := Begin(BeginInput{Root: root, RuntimeDir: runtimeDir, OriginCommand: "quick"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packet := filepath.Join(root, "packet.json")
+	data := []byte(`{
+  "event_type": "worker_result",
+  "changed_paths": ["src/a.go"],
+  "generated_surfaces": ["templates/commands/quick.md"],
+  "verification": ["go test ./... PASS"]
+}`)
+	if err := os.WriteFile(packet, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := AppendPacketFile(runtimeDir, session.SessionID, packet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := event.GeneratedSurfaces; len(got) != 1 || got[0] != "templates/commands/quick.md" {
+		t.Fatalf("GeneratedSurfaces = %#v", got)
+	}
+	if got := event.Verification; len(got) != 1 || got[0] != "go test ./... PASS" {
+		t.Fatalf("Verification = %#v", got)
+	}
+}
+
 func TestLoadSortsEventsByParsedCreatedAtTimestamp(t *testing.T) {
 	root := t.TempDir()
 	runtimeDir := filepath.Join(root, ".specify", "project-cognition")

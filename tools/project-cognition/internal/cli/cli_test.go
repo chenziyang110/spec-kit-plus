@@ -1878,6 +1878,44 @@ func TestUpdateCommandAcceptsPayloadFileAndEmitsResultState(t *testing.T) {
 	}
 }
 
+func TestUpdateCommandAcceptsVerificationForDirectChangedPaths(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	buildCode := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test")
+	if buildCode != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"update",
+		"--changed-path", "src/app.go",
+		"--behavior-surface", "application entrypoint",
+		"--verification", "go test ./... PASS",
+		"--reason", "workflow-finalize",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["result_state"] != "ready" {
+		t.Fatalf("payload = %#v, want ready result_state", result)
+	}
+	if result["readiness"] != rt.ReadyReadiness {
+		t.Fatalf("payload = %#v, want ready readiness", result)
+	}
+}
+
 func writeAcceptedCLIScanQueue(t *testing.T, runtimeDir string, assignedPaths []string) {
 	t.Helper()
 	writeTestJSON(t, filepath.Join(runtimeDir, "workbench", "scan-queue.json"), map[string]any{

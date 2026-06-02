@@ -37,6 +37,8 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     assert "project-cognition update --payload-file" in shared
     assert "result_state" in shared
     assert "recorded" in shared
+    assert "verification_evidence" in shared
+    assert "generated_surface_notes" in shared
 
     common_partials = [
         "templates/command-partials/common/context-loading-gradient.md",
@@ -57,6 +59,53 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     ]
     for path in commands:
         assert "inline-project-cognition-update.md" in _read_project_file(path), path
+
+
+def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract() -> None:
+    commands = [
+        "templates/commands/fast.md",
+        "templates/commands/quick.md",
+        "templates/commands/implement.md",
+        "templates/commands/debug.md",
+        "templates/commands/analyze.md",
+        "templates/commands/specify.md",
+        "templates/commands/clarify.md",
+        "templates/commands/deep-research.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+    ]
+    for path in commands:
+        content = _read_project_file(path)
+        assert "inline-project-cognition-update.md" in content, path
+        assert "project-cognition mark-dirty" not in content or "inline-project-cognition-update.md" in content, path
+
+
+def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime_aliases() -> None:
+    shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
+    required_payload_fields = (
+        "changed_paths",
+        "behavior_surfaces",
+        "generated_surfaces",
+        "state_contracts",
+        "verification",
+        "verification_evidence",
+        "known_unknowns",
+        "confidence_notes",
+    )
+    for field in required_payload_fields:
+        assert field in shared, f"inline closeout partial missing {field}"
+
+    for path in (
+        "templates/worker-prompts/quick-worker.md",
+        "templates/worker-prompts/implementer.md",
+        "templates/worker-prompts/debug-investigator.md",
+        "templates/worker-prompts/debug-thinker.md",
+        "templates/worker-prompts/code-quality-reviewer.md",
+        "templates/worker-prompts/spec-reviewer.md",
+    ):
+        content = _read(path)
+        assert "verification" in content, f"{path} missing canonical worker verification field"
+        assert "generated_surfaces" in content, f"{path} missing canonical generated_surfaces field"
 
 
 def test_worker_prompts_report_inline_update_payload_evidence() -> None:
@@ -2796,10 +2845,16 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         "templates/command-partials/common/context-loading-gradient.md",
         "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+        "templates/project-handbook-template.md",
     ):
         content = _read(path).lower()
-        assert "entry-time stale or weak cognition is still an advisory navigation concern" in content
-        assert "does not waive closeout ownership" in content
+        if path.endswith("context-loading-gradient.md") or path.endswith("planning-context-loading-gradient.md"):
+            assert "entry-time stale or weak cognition is still an advisory navigation concern" in content
+            assert "does not waive closeout ownership" in content
+        assert "verification_evidence" in content
+        assert "generated_surface_notes" in content
+        assert "failed verification evidence" in content or "failed verification cannot produce" in content
 
     passive_gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
     assert "do not silently switch into `sp-map-update`" not in passive_gate

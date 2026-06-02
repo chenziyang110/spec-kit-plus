@@ -154,6 +154,8 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
     assert "project-cognition update --payload-file" in content
+    assert "verification_evidence" in content
+    assert "generated_surface_notes" in content
     assert "result_state" in content
     assert "update_id" in content
     assert "clean closeout" in content

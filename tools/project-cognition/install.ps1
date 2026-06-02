@@ -50,6 +50,18 @@ try {
 
 Write-Host "==> Verifying..."
 & $target --version
+$updateHelp = & $target update --help 2>&1
+if (($updateHelp -notmatch '-payload-file') -or ($updateHelp -notmatch '-verification')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required update flags."
+    Write-Host "Expected 'project-cognition update --help' to include -payload-file and -verification."
+    exit 1
+}
+$deltaAppendHelp = & $target delta append --help 2>&1
+if (($deltaAppendHelp -notmatch '-verification') -or ($deltaAppendHelp -notmatch '-generated-surface')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required delta append flags."
+    Write-Host "Expected 'project-cognition delta append --help' to include -verification and -generated-surface."
+    exit 1
+}
 
 $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($userPath -notlike "*$InstallDir*") {

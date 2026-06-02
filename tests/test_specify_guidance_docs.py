@@ -234,6 +234,9 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     assert "workflow-owned mutation closeout is inline" in readme
     assert "project-cognition update --payload-file" in readme
     assert "result_state" in readme
+    assert "verification_evidence" in readme
+    assert "generated_surface_notes" in readme
+    assert "failed verification evidence" in readme
     assert "update_id" in readme
     assert "recorded-only" in readme
     assert (

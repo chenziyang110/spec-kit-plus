@@ -130,6 +130,8 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         assert "workflow-owned mutation closeout" in content
         assert "inline project cognition update" in content
         assert "project-cognition update --payload-file" in content
+        assert "verification_evidence" in content
+        assert "generated_surface_notes" in content
         assert "result_state" in content
         assert "update_id" in content
         assert "clean closeout" in content

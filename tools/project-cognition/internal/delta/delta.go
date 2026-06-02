@@ -89,19 +89,21 @@ type Bundle struct {
 }
 
 type packetEvent struct {
-	EventType         string         `json:"event_type"`
-	OriginCommand     string         `json:"origin_command"`
-	OriginLaneID      string         `json:"origin_lane_id"`
-	Phase             string         `json:"phase"`
-	ChangedPaths      []string       `json:"changed_paths"`
-	ReadPaths         []string       `json:"read_paths"`
-	BehaviorSurfaces  []string       `json:"behavior_surfaces"`
-	GraphSemantics    map[string]any `json:"graph_semantics"`
-	GeneratedSurfaces []string       `json:"generated_surface_notes"`
-	OwnerConsumers    []string       `json:"owner_consumer_notes"`
-	KnownUnknowns     []string       `json:"known_unknowns"`
-	Verification      []string       `json:"verification_evidence"`
-	Confidence        string         `json:"confidence"`
+	EventType             string         `json:"event_type"`
+	OriginCommand         string         `json:"origin_command"`
+	OriginLaneID          string         `json:"origin_lane_id"`
+	Phase                 string         `json:"phase"`
+	ChangedPaths          []string       `json:"changed_paths"`
+	ReadPaths             []string       `json:"read_paths"`
+	BehaviorSurfaces      []string       `json:"behavior_surfaces"`
+	GraphSemantics        map[string]any `json:"graph_semantics"`
+	GeneratedSurfaces     []string       `json:"generated_surfaces"`
+	GeneratedSurfaceNotes []string       `json:"generated_surface_notes"`
+	OwnerConsumers        []string       `json:"owner_consumer_notes"`
+	KnownUnknowns         []string       `json:"known_unknowns"`
+	Verification          []string       `json:"verification"`
+	VerificationEvidence  []string       `json:"verification_evidence"`
+	Confidence            string         `json:"confidence"`
 }
 
 func Begin(input BeginInput) (Session, error) {
@@ -197,10 +199,10 @@ func AppendPacketFile(runtimeDir string, sessionID string, packetFile string) (E
 		ReadPaths:         packet.ReadPaths,
 		BehaviorSurfaces:  packet.BehaviorSurfaces,
 		GraphSemantics:    packet.GraphSemantics,
-		GeneratedSurfaces: packet.GeneratedSurfaces,
+		GeneratedSurfaces: append(packet.GeneratedSurfaces, packet.GeneratedSurfaceNotes...),
 		OwnerConsumers:    packet.OwnerConsumers,
 		KnownUnknowns:     packet.KnownUnknowns,
-		Verification:      packet.Verification,
+		Verification:      append(packet.Verification, packet.VerificationEvidence...),
 		Confidence:        packet.Confidence,
 	})
 }

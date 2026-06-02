@@ -13,7 +13,12 @@ from specify_cli.launcher import write_project_cognition_launcher_config
 
 REPO = "chenziyang110/spec-kit-plus"
 DEFAULT_VERSION = "latest"
-REQUIRED_COMMANDS = ("build-from-scan", "init-empty")
+REQUIRED_COMMANDS = (
+    "build-from-scan",
+    "init-empty",
+    "update --payload-file --verification",
+    "delta append --verification --generated-surface",
+)
 
 
 def get_platform() -> tuple[str, str]:
@@ -76,7 +81,7 @@ def download(version: str = DEFAULT_VERSION) -> Path:
 
 def _binary_supports_required_commands(binary: Path) -> bool:
     try:
-        result = subprocess.run(
+        root_result = subprocess.run(
             [str(binary), "--help"],
             capture_output=True,
             check=False,
@@ -88,8 +93,42 @@ def _binary_supports_required_commands(binary: Path) -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
 
-    output = f"{result.stdout}\n{result.stderr}"
-    return all(command in output for command in REQUIRED_COMMANDS)
+    root_output = f"{root_result.stdout}\n{root_result.stderr}"
+    if not all(command.split()[0] in root_output for command in REQUIRED_COMMANDS):
+        return False
+
+    try:
+        update_result = subprocess.run(
+            [str(binary), "update", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    update_output = f"{update_result.stdout}\n{update_result.stderr}"
+    if "-payload-file" not in update_output or "-verification" not in update_output:
+        return False
+
+    try:
+        delta_append_result = subprocess.run(
+            [str(binary), "delta", "append", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    delta_append_output = f"{delta_append_result.stdout}\n{delta_append_result.stderr}"
+    return "-verification" in delta_append_output and "-generated-surface" in delta_append_output
 
 
 def _bundled_project_cognition_source() -> Path | None:
