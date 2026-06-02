@@ -718,7 +718,7 @@ class ClaudeIntegration(SkillsIntegration):
         parsed_options: dict[str, Any] | None = None,
         **opts: Any,
     ) -> list[Path]:
-        """Install Claude skills, then inject user-invocable, disable-model-invocation, and augment with leader guidance."""
+        """Install Claude skills, then inject user-invocable and augment with leader guidance."""
         # Run base setup which handles the core sp-skill creation and default augmentation
         created = super().setup(project_root, manifest, parsed_options, **opts)
 
@@ -775,9 +775,6 @@ class ClaudeIntegration(SkillsIntegration):
 
             # Inject user-invocable: true (Claude skills are accessible via /command)
             updated = self._inject_frontmatter_flag(content, "user-invocable")
-
-            # Inject disable-model-invocation: true (Claude skills run only when invoked)
-            updated = self._inject_frontmatter_flag(updated, "disable-model-invocation")
 
             # Inject argument-hint if available for this skill
             skill_dir_name = path.parent.name  # e.g. "sp-plan"

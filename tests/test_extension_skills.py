@@ -764,7 +764,7 @@ class TestExtensionSkillRegistration:
         assert isinstance(parsed, dict)
         assert parsed["name"] == "sp-test-ext-hello"
         assert "description" in parsed
-        assert parsed["disable-model-invocation"] is True
+        assert "disable-model-invocation" not in parsed
 
     def test_no_skills_when_ai_skills_disabled(self, no_skills_project, extension_dir):
         """No skills should be created when ai_skills is false."""

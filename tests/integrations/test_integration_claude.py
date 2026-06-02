@@ -268,9 +268,15 @@ class TestClaudeIntegration:
         parsed = yaml.safe_load(parts[1])
         assert parsed["name"] == "sp-plan"
         assert parsed["user-invocable"] is True
-        assert parsed["disable-model-invocation"] is True
+        assert "disable-model-invocation" not in parsed
         assert parsed["metadata"]["source"] == "templates/commands/plan.md"
         assert (skills_dir / "sp-implement-teams" / "SKILL.md").exists()
+
+        for skill_file in sorted(skills_dir.glob("sp-*/SKILL.md")):
+            skill_content = skill_file.read_text(encoding="utf-8")
+            skill_frontmatter = yaml.safe_load(skill_content.split("---", 2)[1])
+            assert skill_frontmatter["user-invocable"] is True
+            assert "disable-model-invocation" not in skill_frontmatter
 
     def test_setup_keeps_passive_skills_model_invokable(self, tmp_path):
         integration = get_integration("claude")
@@ -2142,7 +2148,7 @@ class TestClaudeIntegration:
         assert skill_file.exists()
         skill_content = skill_file.read_text(encoding="utf-8")
         assert "user-invocable: true" in skill_content
-        assert "disable-model-invocation: true" in skill_content
+        assert "disable-model-invocation" not in skill_content
 
         init_options = json.loads(
             (project / ".specify" / "init-options.json").read_text(encoding="utf-8")
@@ -2243,7 +2249,7 @@ class TestClaudeIntegration:
         assert "preset:claude-skill-command" in content
         assert "name: sp-research" in content
         assert "user-invocable: true" in content
-        assert "disable-model-invocation: true" in content
+        assert "disable-model-invocation" not in content
 
         metadata = manager.registry.get("claude-skill-command")
         assert "sp-research" in metadata.get("registered_skills", [])

@@ -282,9 +282,7 @@ class CommandRegistrar:
         }
         if agent_name == "claude":
             # Claude skills should be user-invocable (accessible via /command)
-            # and only run when explicitly invoked (not auto-triggered by the model).
             skill_frontmatter["user-invocable"] = True
-            skill_frontmatter["disable-model-invocation"] = True
         return skill_frontmatter
 
     @staticmethod
