@@ -561,11 +561,17 @@ func lexiconCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	intent := fs.String("intent", "", "Intent")
 	text := fs.String("query", "", "Query text")
 	limit := fs.Int("limit", 10, "Limit")
+	mode := fs.String("mode", "", "Lexicon mode")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	payload, err := query.Lexicon(paths, *intent, *text, *limit)
+	payload, err := query.LexiconWithOptions(paths, query.LexiconInput{
+		Intent: *intent,
+		Query:  *text,
+		Limit:  *limit,
+		Mode:   *mode,
+	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 

@@ -13,16 +13,22 @@ scripts, configuration, or authoritative docs.
 
 Use the launcher-backed project cognition query planning flow required by this
 command's workflow contract to retrieve the task-local project cognition bundle:
-When project cognition is available, run `project-cognition lexicon` to retrieve
-graph-backed project concept candidates. Inspect `concept_candidates`, select
-task-relevant existing project concepts in `selected_concepts`, record
-non-selected or unsafe candidates in `rejected_concepts`, and write per-concept
-rationale in `concept_decisions`.
+When project cognition is available, run `project-cognition lexicon --mode catalog`
+to retrieve the alias catalog before relying on a narrowed candidate window.
+Use the project alias catalog plus the raw user prompt to write an explicit
+`semantic_intake` object with `workflow_intent`, `normalized_query`,
+`intent_facets`, `negative_constraints`, `alias_interpretations`, and
+`open_semantic_questions`. The runtime can still use raw query terms, but the
+agent must search from normalized project language and stated intent facets.
+
+Inspect `concept_candidates`, select task-relevant existing project concepts in
+`selected_concepts`, record non-selected or unsafe candidates in
+`rejected_concepts`, and write per-concept rationale in `concept_decisions`.
 
 Carry `lexicon_generation_id` into the `query_plan` so `project-cognition query`
 can detect generation drift. The `query_plan` should include
-`selected_concepts`, `rejected_concepts`, `concept_decisions`,
-`expanded_queries`, and justified `paths`, then be sent to
+`semantic_intake`, `selected_concepts`, `rejected_concepts`,
+`concept_decisions`, `expanded_queries`, and justified `paths`, then be sent to
 `project-cognition query --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
 ### Concept Selection
@@ -34,6 +40,11 @@ Select concepts that match the user's intent and the workflow objective, reject
 concepts that are unrelated or unsafe to assume, and preserve the
 `selection_reason` and `concept_decisions` so downstream artifacts can
 understand why the query was bounded that way.
+Each `concept_decisions` entry should record `covered_facets`,
+`missing_facets`, `match_sources`, confidence, and risk. Candidate selection
+must satisfy facet coverage for the active workflow; do not trust top similarity alone,
+whether the match came from lexical overlap, vector similarity, aliases, paths,
+or graph-neighbor expansion.
 
 When candidate concepts conflict, are too broad, or remain unknown, follow the
 returned readiness state instead of guessing. Do not bypass `route_pack` or
@@ -53,7 +64,9 @@ only when readiness drives routing, minimal_live_reads constrains inspection,
 and relevant facts are carried into the next workflow artifact or execution state.
 
 Extract and carry forward the selected concepts, rejected concepts,
-`selection_reason`, `concept_decisions`, `lexicon_generation_id`, matched
+`selection_reason`, `semantic_intake`, `normalized_query`, `intent_facets`,
+`negative_constraints`, `concept_decisions`, `covered_facets`,
+`missing_facets`, `match_sources`, `lexicon_generation_id`, matched
 capability or symptom, affected nodes and subgraph, `route_pack`,
 `minimal_live_reads`, missing coverage, evidence traces, verification routes,
 ambiguity, conflicts, and weak coverage.

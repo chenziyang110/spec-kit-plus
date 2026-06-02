@@ -1429,6 +1429,39 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_legacy_ledger_upd
     assert "packet core must define ledger object" in payload["errors"]
 
 
+def test_hook_validate_artifacts_accepts_map_scan_worker_result_packet_local_ledger_alias(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    _write_project_cognition_scan_artifacts(run_dir)
+    _write_project_cognition_worker_result(
+        run_dir,
+        {
+            "packet_id": "core",
+            "assigned_paths": ["src/auth/login.ts"],
+            "paths_read": ["src/auth/login.ts"],
+            "coverage": [
+                {
+                    "path": "src/auth/login.ts",
+                    "outcome": "deep_read",
+                    "evidence_ids": ["E-001"],
+                    "confidence": "high",
+                }
+            ],
+            "acceptance": "pass",
+            "confidence": "high",
+            "packet_local_ledger": _project_cognition_packet_ledger(),
+        },
+    )
+
+    result = _invoke_map_scan_artifact_validation(project, run_dir)
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+
+
 def test_hook_validate_artifacts_blocks_map_scan_worker_result_without_matching_queue_row(
     tmp_path: Path,
 ):

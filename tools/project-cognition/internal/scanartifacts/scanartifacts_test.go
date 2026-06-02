@@ -401,6 +401,30 @@ func TestLoadRejectsAcceptedQueueCoveredOnlyByLedgerWithoutWorkerCoverage(t *tes
 	}
 }
 
+func TestLoadAcceptsWorkerResultPacketLocalLedgerAliasWithWarning(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeWorkerResult(t, paths, "lane-1.json", `{
+		"packet_id":"lane-1",
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"packet_local_ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`)
+
+	_, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if !containsError(result.Warnings, "packet lane-1 uses legacy packet_local_ledger alias; write top-level ledger in worker-results/lane-1.json") {
+		t.Fatalf("Warnings = %#v, want packet_local_ledger compatibility warning", result.Warnings)
+	}
+}
+
 func TestLoadRejectsAcceptedQueueBorrowingWorkerCoverageFromAnotherPacket(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)

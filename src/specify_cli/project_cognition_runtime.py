@@ -16,6 +16,7 @@ DEFAULT_VERSION = "latest"
 REQUIRED_COMMANDS = (
     "build-from-scan",
     "init-empty",
+    "lexicon --mode",
     "update --payload-file --verification",
     "delta append --verification --generated-surface",
 )
@@ -115,6 +116,23 @@ def _binary_supports_required_commands(binary: Path) -> bool:
         return False
 
     try:
+        lexicon_result = subprocess.run(
+            [str(binary), "lexicon", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    lexicon_output = f"{lexicon_result.stdout}\n{lexicon_result.stderr}"
+    if "-mode" not in lexicon_output:
+        return False
+
+    try:
         delta_append_result = subprocess.run(
             [str(binary), "delta", "append", "--help"],
             capture_output=True,
@@ -204,7 +222,15 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
 
     override = os.environ.get("PROJECT_COGNITION_BIN", "").strip()
     if override:
-        return Path(override).expanduser()
+        binary = Path(override).expanduser()
+        if _binary_supports_required_commands(binary):
+            return binary
+        required = ", ".join(REQUIRED_COMMANDS)
+        raise RuntimeError(
+            "PROJECT_COGNITION_BIN points to an incompatible project-cognition runtime. "
+            f"Required command support: {required}. Use a newer binary or unset "
+            "PROJECT_COGNITION_BIN so specify can download or build a compatible runtime."
+        )
 
     dest = cached_executable()
     if dest.exists() and not force:

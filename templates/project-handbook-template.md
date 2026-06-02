@@ -42,7 +42,7 @@ and what sits clearly outside the system boundary.]
 - **Advisory project cognition index**:
   - `.specify/project-cognition/status.json` for freshness, coverage, stale paths, and refresh metadata
   - `.specify/project-cognition/project-cognition.db` as the canonical graph store
-  - `project-cognition lexicon` plus `project-cognition query --query-plan` for graph-backed project concept candidates, `concept_decisions`, `lexicon_generation_id`, `candidate_universe_version`, `active_generation_id`, readiness, and `minimal_live_reads`
+  - `project-cognition lexicon --mode catalog` plus `project-cognition query --query-plan` for the alias catalog, `semantic_intake`, graph-backed project concept candidates, facet coverage in `concept_decisions`, `lexicon_generation_id`, `candidate_universe_version`, `active_generation_id`, readiness, and `minimal_live_reads`
 - **Cross-project cognition reference**: use the project cognition runtime as
   explicit-only, supplemental-only, fresh-only context with a minimal read before
   broader source inspection. When another local directory is used as a
@@ -54,7 +54,7 @@ and what sits clearly outside the system boundary.]
   true. If the reference is stale, blocked, or incomplete, do not treat legacy
   `.specify/project-map/**` outputs as current truth; fall back to minimal live
   reads or refresh the reference project.
-- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon`, and `project-cognition query --query-plan` as advisory navigation inputs. `project-cognition lexicon` returns graph-backed project concept candidates from the active graph; agents select existing concepts, record rejected concepts in `concept_decisions`, carry `lexicon_generation_id`, and then run `project-cognition query --query-plan`. The lexicon payload includes `candidate_universe_version` and `active_generation_id` so query planning stays tied to the graph generation that produced the candidates.
+- New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, `project-cognition lexicon --mode catalog`, and `project-cognition query --query-plan` as advisory navigation inputs. `project-cognition lexicon` returns the alias catalog plus graph-backed project concept candidates from the active graph; agents write explicit `semantic_intake` with `normalized_query`, `intent_facets`, `negative_constraints`, and `alias_interpretations`, select existing concepts, record rejected concepts in `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, and then run `project-cognition query --query-plan`. Facet coverage gates selection; top lexical or vector similarity alone is not route truth. The lexicon payload includes `candidate_universe_version` and `active_generation_id` so query planning stays tied to the graph generation that produced the candidates.
 - Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH before direct project cognition helpers run.
 - Read this handbook only when a user or workflow explicitly asks for the compatibility/export view; it is not the default runtime truth path or evidence path.
 - Entry-time stale or weak cognition is advisory unless the user requested map maintenance. Workflow-owned mutation closeout is not external map maintenance: normal `sp-*` workflows that change project-related source, runtime, templates, config, tests, generated assets, state contracts, or behavior-bearing docs must run inline project cognition update from their changed paths and affected surfaces. sp-map-update is for manual/external maintenance after user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
@@ -153,7 +153,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 
 - `.specify/project-cognition/status.json` - default runtime status, freshness, coverage, stale paths, and refresh metadata
 - `.specify/project-cognition/project-cognition.db` - canonical SQLite graph store
-- `project-cognition lexicon` plus `project-cognition query --query-plan` bundle - default route to graph-backed project concept candidates, `concept_decisions`, `lexicon_generation_id`, `candidate_universe_version`, `active_generation_id`, task-local cognition bundles, readiness, and `minimal_live_reads`
+- `project-cognition lexicon --mode catalog` plus `project-cognition query --query-plan` bundle - default route to the alias catalog, `semantic_intake`, graph-backed project concept candidates, facet coverage in `concept_decisions`, `lexicon_generation_id`, `candidate_universe_version`, `active_generation_id`, task-local cognition bundles, readiness, and `minimal_live_reads`
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
 - Legacy project-map artifacts - historical compatibility/export artifacts for existing projects, not the new runtime truth path

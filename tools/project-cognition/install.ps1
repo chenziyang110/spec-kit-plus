@@ -56,6 +56,12 @@ if (($updateHelp -notmatch '-payload-file') -or ($updateHelp -notmatch '-verific
     Write-Host "Expected 'project-cognition update --help' to include -payload-file and -verification."
     exit 1
 }
+$lexiconHelp = & $target lexicon --help 2>&1
+if ($lexiconHelp -notmatch '-mode') {
+    Write-Host "Error: downloaded project-cognition binary is missing required lexicon catalog mode."
+    Write-Host "Expected 'project-cognition lexicon --help' to include -mode."
+    exit 1
+}
 $deltaAppendHelp = & $target delta append --help 2>&1
 if (($deltaAppendHelp -notmatch '-verification') -or ($deltaAppendHelp -notmatch '-generated-surface')) {
     Write-Host "Error: downloaded project-cognition binary is missing required delta append flags."

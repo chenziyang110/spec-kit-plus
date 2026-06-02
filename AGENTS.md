@@ -583,10 +583,11 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 
 - `tools/project-cognition/` is the standalone Go runtime used by generated `sp-map-scan`, `sp-map-build`, `sp-map-update`, and project-cognition-backed workflow guidance. It is a user-facing binary, not a Python `specify` subcommand.
 - Distribution must follow the same release-tool pattern as `spec-lint`: the primary `.github/workflows/release.yml` flow cross-compiles and attaches project-cognition release assets during `gh release create`; `.github/workflows/release-project-cognition.yml` is only a fallback for externally created releases.
+- Any project-cognition update that changes user-visible runtime behavior, command names, flags, output contracts, install/runtime compatibility checks, or generated-workflow expectations must ship with a new GitHub release before it is considered distributed. Do not leave these changes only on `main`: trigger the release flow, publish fresh `project-cognition-*` assets, and verify the latest release binary reports the new version and exposes the expected commands/flags.
 - `tools/project-cognition/install.sh` and `tools/project-cognition/install.ps1` must download the matching prebuilt release binary by default and verify it with `project-cognition --version`.
 - `specify init` must best-effort auto-download/cache the prebuilt binary, then persist the resolved executable in `.specify/config.json` under `project_cognition_launcher` so generated command templates invoke the pinned binary path instead of relying only on PATH.
 - If init cannot download the binary, it must not fail project initialization; it should leave generated commands usable via `PROJECT_COGNITION_BIN` or `project-cognition` on PATH and print a clear install warning.
-- When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/project_cognition_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass.
+- When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/project_cognition_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass, then publish and verify the release assets in the same workstream.
 
 ### Workflow Family Map
 

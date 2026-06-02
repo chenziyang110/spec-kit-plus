@@ -1228,9 +1228,9 @@ func validateScanPacket(packetID string, packet map[string]any, acceptance strin
 		result.Errors = append(result.Errors, fmt.Sprintf("packet %s must define assigned_paths", packetID))
 	}
 	assignedSet := stringSet(assigned)
-	ledger, ok := packet["ledger"].(map[string]any)
+	ledger, ok := packetLedger(packetID, packet, result)
 	if !ok {
-		result.Errors = append(result.Errors, fmt.Sprintf("packet %s must define packet-local ledger", packetID))
+		result.Errors = append(result.Errors, fmt.Sprintf("packet %s must define packet-local ledger as top-level ledger in worker-results/%s.json", packetID, packetID))
 	} else {
 		validatePacketLedger(packetID, assignedSet, ledger, result)
 	}
@@ -1259,6 +1259,17 @@ func validateScanPacket(packetID string, packet map[string]any, acceptance strin
 	validatePacketAcceptance(packetID, acceptance, acceptanceOK, packet, assignedSet, ledger, coverageByPath, result)
 	validateQueueRowCoverage(packetID, row, queue, result)
 	validateQueueRowClosure(packetID, row, queue, result)
+}
+
+func packetLedger(packetID string, packet map[string]any, result *Result) (map[string]any, bool) {
+	if ledger, ok := packet["ledger"].(map[string]any); ok {
+		return ledger, true
+	}
+	if ledger, ok := packet["packet_local_ledger"].(map[string]any); ok {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("packet %s uses legacy packet_local_ledger alias; write top-level ledger in worker-results/%s.json", packetID, packetID))
+		return ledger, true
+	}
+	return nil, false
 }
 
 func validateQueueWorkerAssignedPaths(packetID string, row queueRow, workerAssigned []string, result *Result) {

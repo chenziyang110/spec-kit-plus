@@ -361,7 +361,9 @@ class TestBuiltInSkillGeneration:
         assert "planning-relevant gray areas" in specify_body.lower()
         assert "project-cognition lexicon --intent plan" in specify_body
         assert "project-cognition query --intent plan" in specify_body
-        assert "graph-backed project concept candidates" in specify_body.lower()
+        assert "alias catalog" in specify_body.lower()
+        assert "semantic_intake" in specify_body.lower()
+        assert "facet coverage" in specify_body.lower()
         assert "concept_decisions" in specify_body
         assert "lexicon_generation_id" in specify_body
         assert "--query-plan" in specify_body
@@ -578,7 +580,9 @@ class TestBuiltInSkillGeneration:
         assert "specify learning capture --command checklist" in checklist_lower
         assert "project-cognition lexicon --intent plan" in checklist_lower
         assert "project-cognition query --intent plan" in checklist_lower
-        assert "graph-backed project concept candidates" in checklist_lower
+        assert "alias catalog" in checklist_lower
+        assert "semantic_intake" in checklist_lower
+        assert "facet coverage" in checklist_lower
         assert "concept_decisions" in checklist_lower
         assert "lexicon_generation_id" in checklist_lower
         assert "--query-plan" in checklist_lower

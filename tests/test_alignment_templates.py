@@ -29,7 +29,7 @@ def _launcher_query(intent: str) -> str:
 
 
 def _launcher_lexicon(intent: str) -> str:
-    return f'{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query="$ARGUMENTS" --format json}}}}'
+    return f'{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query="$ARGUMENTS" --mode catalog --format json}}}}'
 
 
 def test_inline_project_cognition_update_uses_shared_partial() -> None:
@@ -135,6 +135,11 @@ def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
     assert _launcher_lexicon(intent) in content
     assert _launcher_query(intent) in content
     assert "query_plan" in content
+    assert "semantic_intake" in content
+    assert "facet coverage" in content
+    assert "covered_facets" in content
+    assert "missing_facets" in content
+    assert "match_sources" in content
 
 
 def _assert_learning_index_detail_model(content: str) -> None:

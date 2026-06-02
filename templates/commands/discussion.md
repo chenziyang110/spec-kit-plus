@@ -290,8 +290,8 @@ Bounded source-code reads are allowed during the Truth Pass when they are needed
 Before `context-grounding`, `technical-options`, affected-surface analysis, or source-grounded recommendations, use project cognition only when current-project facts matter:
 
 1. Read `.specify/project-cognition/status.json` for advisory freshness and runtime metadata when present.
-2. Run `{{specify-subcmd:project-cognition lexicon --intent discussion --query="$ARGUMENTS" --format json}}`.
-3. Select from the returned graph-backed project concept candidates and create a bounded `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `lexicon_generation_id`, `expanded_queries`, justified `paths`, and `selection_reason`.
+2. Run `{{specify-subcmd:project-cognition lexicon --intent discussion --query="$ARGUMENTS" --mode catalog --format json}}`.
+3. Write `semantic_intake` from the alias catalog with `normalized_query`, `intent_facets`, `negative_constraints`, and `alias_interpretations`; select from the returned graph-backed project concept candidates by facet coverage and create a bounded `query_plan` with `semantic_intake`, `selected_concepts`, `rejected_concepts`, `concept_decisions` containing `covered_facets`, `missing_facets`, and `match_sources`, `lexicon_generation_id`, `expanded_queries`, justified `paths`, and `selection_reason`. Do not trust top similarity alone.
 4. Run `{{specify-subcmd:project-cognition query --intent discussion --query-plan "<query_plan_json>" --format json}}`.
 5. Use the returned readiness, route_pack, subgraph, missing coverage, and `minimal_live_reads` only as advisory navigation.
 6. Read the returned `minimal_live_reads` before making project-specific technical claims.

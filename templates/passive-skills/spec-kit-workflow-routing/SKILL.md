@@ -120,10 +120,16 @@ standalone branch-creation command.
   symptom route exists; do not jump straight to broad repository search.
 - Use the direct `project-cognition` query planning flow required by the
   selected workflow contract to retrieve the task-local project cognition
-  bundle. The agent must translate the raw user request into a `query_plan`
-  using returned graph-backed project concept candidates, `concept_decisions`,
-  and `lexicon_generation_id` before running
+  bundle. Retrieve the project alias catalog with `project-cognition lexicon --mode catalog`,
+  write explicit `semantic_intake` from the raw prompt plus project vocabulary,
+  including `normalized_query`, `intent_facets`, `negative_constraints`,
+  `alias_interpretations`, and open semantic questions, then translate that into
+  a `query_plan` using returned graph-backed project concept candidates,
+  `concept_decisions`, and `lexicon_generation_id` before running
   `project-cognition query --query-plan`.
+  Candidate selection must satisfy facet coverage through `covered_facets`,
+  `missing_facets`, and `match_sources`; do not trust top similarity alone,
+  whether lexical or vector-based.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
 ## Consequence-Aware Routing

@@ -151,6 +151,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - The leader loop is: leader receives worker result, leader reads durable scan state, leader validates handoff quality, leader updates queue, coverage, and handoff ledgers, leader plans next packets, and leader dispatches the next bounded wave.
 - Worker packet acceptance is separate from path coverage outcome. If a packet exceeds budget, the worker returns `acceptance=fail_gap`, marks affected paths as `coverage[].outcome="overflow"`, and includes split recommendations.
 - New worker results must write top-level `acceptance`. Top-level `outcome` is a legacy alias only and must not appear in generated worker prompt examples.
+- `worker-results/<packet-id>.json` must write the packet-local ledger as top-level `ledger`, not `packet_local_ledger`, `packet-local-ledger`, scan-packet Markdown sections, or inline JSON inside `scan-packets/*.md`.
 - `accepted_nonblocking_gap_paths` contains only low-risk paths with owner, reason, evidence expectation, revisit condition, and `low_risk_open_gap` status.
 - Scan packets are executable read instructions, not final truth documents.
 - `MapScanPacket` is the required packet contract for each delegated scan lane.
@@ -178,8 +179,10 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, or `minimal_live_reads`.
 - `MapScanPacket` must include bounded `assigned_paths`.
 - `assigned_paths`, queue rows, worker `paths_read`, and worker coverage paths must be concrete repository file paths enumerated from `repository-universe.json`; globs such as `JZWinReNew/*.cpp`, directory patterns, absolute paths, and summary labels are invalid.
-- Each packet carries a packet-local task ledger with `todo`, `doing`, `done`, `blocked`, and `overflow`.
+- Each packet carries a packet-local task ledger in the worker result JSON top-level `ledger` object with `todo`, `doing`, `done`, `blocked`, and `overflow`.
 - Each accepted worker result must repeat `assigned_paths`, include `paths_read` as a non-empty array of concrete repository paths, include packet-local `coverage` rows for the final outcome of each assigned path, and include confidence.
+- Minimal accepted worker result JSON shape:
+  `{"packet_id":"lane-1","family_id":"app","assigned_paths":["src/app.go"],"paths_read":["src/app.go"],"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],"confidence":"high","acceptance":"pass"}`
 - `paths_read: true`, summary-only read claims, and boolean read flags are invalid.
 - `read` and `deep_read` outcomes must reference existing `evidence_ids`, and at least one referenced evidence row must have `source_path` equal to the covered path.
 - Subagents must account for every assigned path with evidence, `sampled`, `inventory_only`, `excluded`, `blocked`, or `overflow`.

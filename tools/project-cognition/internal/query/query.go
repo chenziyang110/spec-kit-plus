@@ -26,22 +26,47 @@ type ConceptDecision struct {
 	ConceptID       string   `json:"concept_id"`
 	Decision        string   `json:"decision"`
 	SelectionReason string   `json:"selection_reason,omitempty"`
+	CoveredFacets   []string `json:"covered_facets,omitempty"`
+	MissingFacets   []string `json:"missing_facets,omitempty"`
+	MatchSources    []string `json:"match_sources,omitempty"`
 	Confidence      string   `json:"confidence,omitempty"`
 	Paths           []string `json:"paths,omitempty"`
 	Risk            string   `json:"risk,omitempty"`
 }
 
+type AliasInterpretation struct {
+	Alias      string `json:"alias"`
+	Meaning    string `json:"meaning"`
+	Confidence string `json:"confidence,omitempty"`
+}
+
+type SemanticIntake struct {
+	WorkflowIntent        string                `json:"workflow_intent,omitempty"`
+	NormalizedQuery       string                `json:"normalized_query,omitempty"`
+	IntentFacets          []string              `json:"intent_facets,omitempty"`
+	NegativeConstraints   []string              `json:"negative_constraints,omitempty"`
+	AliasInterpretations  []AliasInterpretation `json:"alias_interpretations,omitempty"`
+	OpenSemanticQuestions []string              `json:"open_semantic_questions,omitempty"`
+}
+
 type Plan struct {
-	RawQuery            string            `json:"raw_query,omitempty"`
-	ExpandedQueries     []string          `json:"expanded_queries,omitempty"`
-	Paths               []string          `json:"paths,omitempty"`
-	PathHints           []string          `json:"path_hints,omitempty"`
-	SelectedConcepts    []string          `json:"selected_concepts,omitempty"`
-	RejectedConcepts    []string          `json:"rejected_concepts,omitempty"`
-	ConceptDecisions    []ConceptDecision `json:"concept_decisions,omitempty"`
-	LexiconGenerationID string            `json:"lexicon_generation_id,omitempty"`
-	SelectionReason     string            `json:"selection_reason,omitempty"`
-	Reason              string            `json:"reason,omitempty"`
+	RawQuery              string                `json:"raw_query,omitempty"`
+	SemanticIntake        SemanticIntake        `json:"semantic_intake,omitempty"`
+	WorkflowIntent        string                `json:"workflow_intent,omitempty"`
+	NormalizedQuery       string                `json:"normalized_query,omitempty"`
+	IntentFacets          []string              `json:"intent_facets,omitempty"`
+	NegativeConstraints   []string              `json:"negative_constraints,omitempty"`
+	AliasInterpretations  []AliasInterpretation `json:"alias_interpretations,omitempty"`
+	OpenSemanticQuestions []string              `json:"open_semantic_questions,omitempty"`
+	ExpandedQueries       []string              `json:"expanded_queries,omitempty"`
+	Paths                 []string              `json:"paths,omitempty"`
+	PathHints             []string              `json:"path_hints,omitempty"`
+	SelectedConcepts      []string              `json:"selected_concepts,omitempty"`
+	RejectedConcepts      []string              `json:"rejected_concepts,omitempty"`
+	ConceptDecisions      []ConceptDecision     `json:"concept_decisions,omitempty"`
+	LexiconGenerationID   string                `json:"lexicon_generation_id,omitempty"`
+	SelectionReason       string                `json:"selection_reason,omitempty"`
+	Reason                string                `json:"reason,omitempty"`
 }
 
 type QueryInput struct {
@@ -107,6 +132,13 @@ func NormalizePlan(plan Plan) Plan {
 	if plan.SelectionReason == "" && plan.Reason != "" {
 		plan.SelectionReason = plan.Reason
 	}
+	plan.WorkflowIntent = strings.TrimSpace(plan.WorkflowIntent)
+	plan.NormalizedQuery = strings.TrimSpace(plan.NormalizedQuery)
+	plan.IntentFacets = normalizeStrings(plan.IntentFacets)
+	plan.NegativeConstraints = normalizeStrings(plan.NegativeConstraints)
+	plan.AliasInterpretations = normalizeAliasInterpretations(plan.AliasInterpretations)
+	plan.OpenSemanticQuestions = normalizeStrings(plan.OpenSemanticQuestions)
+	plan.SemanticIntake = normalizeSemanticIntake(mergeSemanticIntakeAliases(plan.SemanticIntake, plan))
 	plan.Paths = normalizePaths(plan.Paths)
 	plan.PathHints = normalizePaths(plan.PathHints)
 	plan.SelectedConcepts = normalizeStrings(plan.SelectedConcepts)
@@ -182,7 +214,6 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	}
 	nodes := []map[string]any{}
 	missingCoverage := []string{}
-	selectedConceptsMissingNodes := false
 	st, err := store.OpenExisting(paths)
 	if errors.Is(err, os.ErrNotExist) {
 		st = nil
@@ -200,13 +231,19 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		if plan.LexiconGenerationID != "" && activeGenerationID != "" && plan.LexiconGenerationID != activeGenerationID {
 			return generationMismatchPayload(status, input, plan, activeGenerationID), nil
 		}
+		if hasSemanticIntake(plan.SemanticIntake) && len(plan.SelectedConcepts) == 0 {
+			rows, err := st.AllActiveConceptCandidateRows(context.Background())
+			if err != nil {
+				return QueryPayload{}, err
+			}
+			plan, missingCoverage = applySemanticIntakeSelection(plan, rows, activeGenerationID)
+		}
 		if len(plan.SelectedConcepts) > 0 {
 			var nodeIDs []string
 			var selectedRefs []selectedConceptRef
-			selectedRefs, missingCoverage = selectedConceptRefs(plan.SelectedConcepts, activeGenerationID)
-			if len(missingCoverage) > 0 {
-				selectedConceptsMissingNodes = true
-			}
+			var selectedMissingCoverage []string
+			selectedRefs, selectedMissingCoverage = selectedConceptRefs(plan.SelectedConcepts, activeGenerationID)
+			missingCoverage = appendUniqueStrings(missingCoverage, selectedMissingCoverage...)
 			nodeCandidates := selectedNodeIDCandidates(selectedRefs)
 			nodes, err = st.NodesForIDs(context.Background(), nodeCandidates)
 			if err != nil {
@@ -215,7 +252,6 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 			resolvedNodeIDs := nodeIDsFromNodes(nodes)
 			nodeIDs, missingConcepts := resolveSelectedNodeIDs(selectedRefs, resolvedNodeIDs)
 			for _, conceptID := range missingConcepts {
-				selectedConceptsMissingNodes = true
 				missingCoverage = appendMissingCoverage(missingCoverage, "unknown_selected_concept:"+conceptID)
 			}
 			nodes, err = st.NodesForIDs(context.Background(), nodeIDs)
@@ -239,7 +275,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	}
 	readiness := status.Readiness
 	recommendedNextAction := status.RecommendedNextAction
-	if selectedConceptsMissingNodes && status.Readiness == rt.ReadyReadiness {
+	if shouldReviewMissingCoverage(missingCoverage) && status.Readiness == rt.ReadyReadiness {
 		readiness = "review"
 		recommendedNextAction = "use_minimal_live_reads_and_review_missing_coverage"
 	}
@@ -318,6 +354,67 @@ func normalizeStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func normalizeSemanticIntake(intake SemanticIntake) SemanticIntake {
+	intake.WorkflowIntent = strings.TrimSpace(intake.WorkflowIntent)
+	intake.NormalizedQuery = strings.TrimSpace(intake.NormalizedQuery)
+	intake.IntentFacets = normalizeStrings(intake.IntentFacets)
+	intake.NegativeConstraints = normalizeStrings(intake.NegativeConstraints)
+	intake.OpenSemanticQuestions = normalizeStrings(intake.OpenSemanticQuestions)
+	intake.AliasInterpretations = normalizeAliasInterpretations(intake.AliasInterpretations)
+	return intake
+}
+
+func mergeSemanticIntakeAliases(intake SemanticIntake, plan Plan) SemanticIntake {
+	if intake.WorkflowIntent == "" {
+		intake.WorkflowIntent = plan.WorkflowIntent
+	}
+	if intake.NormalizedQuery == "" {
+		intake.NormalizedQuery = plan.NormalizedQuery
+	}
+	if len(intake.IntentFacets) == 0 {
+		intake.IntentFacets = append([]string{}, plan.IntentFacets...)
+	}
+	if len(intake.NegativeConstraints) == 0 {
+		intake.NegativeConstraints = append([]string{}, plan.NegativeConstraints...)
+	}
+	if len(intake.AliasInterpretations) == 0 {
+		intake.AliasInterpretations = append([]AliasInterpretation{}, plan.AliasInterpretations...)
+	}
+	if len(intake.OpenSemanticQuestions) == 0 {
+		intake.OpenSemanticQuestions = append([]string{}, plan.OpenSemanticQuestions...)
+	}
+	return intake
+}
+
+func normalizeAliasInterpretations(values []AliasInterpretation) []AliasInterpretation {
+	seenAliases := map[string]bool{}
+	interpretations := make([]AliasInterpretation, 0, len(values))
+	for _, interpretation := range values {
+		interpretation.Alias = strings.TrimSpace(interpretation.Alias)
+		interpretation.Meaning = strings.TrimSpace(interpretation.Meaning)
+		interpretation.Confidence = strings.TrimSpace(interpretation.Confidence)
+		if interpretation.Alias == "" && interpretation.Meaning == "" {
+			continue
+		}
+		key := interpretation.Alias + "\x00" + interpretation.Meaning
+		if seenAliases[key] {
+			continue
+		}
+		seenAliases[key] = true
+		interpretations = append(interpretations, interpretation)
+	}
+	return interpretations
+}
+
+func hasSemanticIntake(intake SemanticIntake) bool {
+	return intake.WorkflowIntent != "" ||
+		intake.NormalizedQuery != "" ||
+		len(intake.IntentFacets) > 0 ||
+		len(intake.NegativeConstraints) > 0 ||
+		len(intake.AliasInterpretations) > 0 ||
+		len(intake.OpenSemanticQuestions) > 0
 }
 
 func parseConceptID(value string) (conceptRef, bool) {
@@ -445,6 +542,25 @@ func appendMissingCoverage(values []string, value string) []string {
 	return append(values, value)
 }
 
+func appendUniqueStrings(values []string, additions ...string) []string {
+	for _, addition := range additions {
+		values = appendMissingCoverage(values, addition)
+	}
+	return values
+}
+
+func shouldReviewMissingCoverage(missingCoverage []string) bool {
+	for _, value := range missingCoverage {
+		if strings.HasPrefix(value, "unknown_selected_concept:") ||
+			strings.HasPrefix(value, "selected_concept_generation_mismatch:") ||
+			value == "semantic_intake_partial_facet_coverage" ||
+			value == "semantic_intake_facets_uncovered" {
+			return true
+		}
+	}
+	return false
+}
+
 func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, activeGenerationID string) QueryPayload {
 	reads := []string{".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db"}
 	return QueryPayload{
@@ -494,6 +610,270 @@ func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, ac
 	}
 }
 
+type semanticCandidateDecision struct {
+	conceptID       string
+	paths           []string
+	coveredFacets   []string
+	missingFacets   []string
+	matchSources    []string
+	score           int
+	negativeOverlap bool
+}
+
+func applySemanticIntakeSelection(plan Plan, rows []store.ConceptCandidateRow, activeGenerationID string) (Plan, []string) {
+	if activeGenerationID == "" && len(rows) > 0 {
+		activeGenerationID = rows[0].GenerationID
+	}
+	if plan.LexiconGenerationID == "" {
+		plan.LexiconGenerationID = activeGenerationID
+	}
+	decisions := make([]semanticCandidateDecision, 0, len(rows))
+	for _, row := range rows {
+		decision := semanticDecisionForRow(row, plan.SemanticIntake)
+		if decision.conceptID == "" {
+			continue
+		}
+		decisions = append(decisions, decision)
+	}
+	missingCoverage := []string{}
+	requiredFacets := plan.SemanticIntake.IntentFacets
+	selected := selectSemanticCoverageDecisions(decisions, requiredFacets)
+	if len(selected) == 0 {
+		if len(requiredFacets) > 0 {
+			missingCoverage = appendMissingCoverage(missingCoverage, "semantic_intake_facets_uncovered")
+		}
+		return plan, missingCoverage
+	}
+	coveredBySelected := []string{}
+	for _, selectedDecision := range selected {
+		coveredBySelected = appendUniqueStrings(coveredBySelected, selectedDecision.coveredFacets...)
+	}
+	aggregateMissingFacets := missingFacetValues(requiredFacets, coveredBySelected)
+	for _, selectedDecision := range selected {
+		plan.SelectedConcepts = appendMissingCoverage(plan.SelectedConcepts, selectedDecision.conceptID)
+		plan.Paths = appendUniqueStrings(plan.Paths, selectedDecision.paths...)
+		plan.ConceptDecisions = append(plan.ConceptDecisions, ConceptDecision{
+			ConceptID:       selectedDecision.conceptID,
+			Decision:        "selected",
+			SelectionReason: "Selected by semantic_intake runtime fallback for facet coverage over normalized query and project aliases.",
+			CoveredFacets:   selectedDecision.coveredFacets,
+			MissingFacets:   missingFacetValues(requiredFacets, selectedDecision.coveredFacets),
+			MatchSources:    selectedDecision.matchSources,
+			Confidence:      confidenceForCoverage(coveredBySelected, requiredFacets),
+			Paths:           selectedDecision.paths,
+		})
+	}
+	if len(aggregateMissingFacets) > 0 {
+		missingCoverage = appendMissingCoverage(missingCoverage, "semantic_intake_partial_facet_coverage")
+	}
+	selectedIDs := map[string]bool{}
+	for _, selectedDecision := range selected {
+		selectedIDs[selectedDecision.conceptID] = true
+	}
+	for _, decision := range decisions {
+		if selectedIDs[decision.conceptID] {
+			continue
+		}
+		if decision.negativeOverlap || len(decision.coveredFacets) > 0 {
+			plan.RejectedConcepts = appendMissingCoverage(plan.RejectedConcepts, decision.conceptID)
+			risk := "insufficient facet coverage"
+			reason := "Rejected because semantic_intake facet coverage is weaker than the selected concept."
+			if decision.negativeOverlap {
+				risk = "lexical false positive"
+				reason = "Matches surface wording or a negative constraint but misses core semantic_intake facets."
+			}
+			plan.ConceptDecisions = append(plan.ConceptDecisions, ConceptDecision{
+				ConceptID:       decision.conceptID,
+				Decision:        "rejected",
+				SelectionReason: reason,
+				CoveredFacets:   decision.coveredFacets,
+				MissingFacets:   decision.missingFacets,
+				MatchSources:    decision.matchSources,
+				Confidence:      "medium",
+				Paths:           decision.paths,
+				Risk:            risk,
+			})
+		}
+	}
+	plan.ConceptDecisions = normalizeConceptDecisions(plan.ConceptDecisions, plan.SelectedConcepts, plan.RejectedConcepts, plan.SelectionReason)
+	return plan, missingCoverage
+}
+
+func selectSemanticCoverageDecisions(decisions []semanticCandidateDecision, requiredFacets []string) []semanticCandidateDecision {
+	remaining := map[string]bool{}
+	for _, facet := range requiredFacets {
+		remaining[facet] = true
+	}
+	selected := []semanticCandidateDecision{}
+	used := map[string]bool{}
+	for {
+		bestIndex := -1
+		bestNewCoverage := 0
+		for i, decision := range decisions {
+			if used[decision.conceptID] || decision.negativeOverlap || len(decision.coveredFacets) == 0 {
+				continue
+			}
+			newCoverage := countNewFacetCoverage(decision.coveredFacets, remaining)
+			if bestIndex == -1 ||
+				newCoverage > bestNewCoverage ||
+				(newCoverage == bestNewCoverage && decision.score > decisions[bestIndex].score) {
+				bestIndex = i
+				bestNewCoverage = newCoverage
+			}
+		}
+		if bestIndex == -1 {
+			break
+		}
+		if len(requiredFacets) > 0 && bestNewCoverage == 0 {
+			break
+		}
+		decision := decisions[bestIndex]
+		selected = append(selected, decision)
+		used[decision.conceptID] = true
+		for _, facet := range decision.coveredFacets {
+			delete(remaining, facet)
+		}
+		if len(remaining) == 0 {
+			break
+		}
+	}
+	return selected
+}
+
+func countNewFacetCoverage(coveredFacets []string, remaining map[string]bool) int {
+	if len(remaining) == 0 {
+		return len(coveredFacets)
+	}
+	count := 0
+	for _, facet := range coveredFacets {
+		if remaining[facet] {
+			count++
+		}
+	}
+	return count
+}
+
+func semanticDecisionForRow(row store.ConceptCandidateRow, intake SemanticIntake) semanticCandidateDecision {
+	candidate := newRankedConceptCandidate(row)
+	conceptID := "concept:" + row.GenerationID + ":" + row.NodeID
+	searchMaterial := strings.ToLower(strings.Join(uniqueStrings(append(append([]string{
+		row.NodeID,
+		row.NodeType,
+		row.Title,
+		attrString(candidate.attrs, "domain"),
+		attrString(candidate.attrs, "owner"),
+	}, candidate.aliases...), candidate.paths...)), " "))
+	coveredFacets := []string{}
+	matchSources := []string{}
+	for _, facet := range intake.IntentFacets {
+		if semanticMaterialMatches(searchMaterial, facet) {
+			coveredFacets = appendMissingCoverage(coveredFacets, facet)
+			matchSources = appendMissingCoverage(matchSources, "intent_facets")
+		}
+	}
+	if semanticMaterialMatches(searchMaterial, intake.NormalizedQuery) {
+		matchSources = appendMissingCoverage(matchSources, "semantic_intake")
+	}
+	for _, interpretation := range intake.AliasInterpretations {
+		if semanticMaterialMatches(searchMaterial, interpretation.Alias) || semanticMaterialMatches(searchMaterial, interpretation.Meaning) {
+			matchSources = appendMissingCoverage(matchSources, "alias")
+			if interpretation.Meaning != "" {
+				for _, facet := range intake.IntentFacets {
+					if semanticMaterialMatches(strings.ToLower(interpretation.Meaning), facet) {
+						coveredFacets = appendMissingCoverage(coveredFacets, facet)
+					}
+				}
+			}
+		}
+	}
+	if len(candidate.paths) > 0 {
+		for _, facet := range coveredFacets {
+			for _, path := range candidate.paths {
+				if semanticMaterialMatches(strings.ToLower(path), facet) {
+					matchSources = appendMissingCoverage(matchSources, "path")
+					break
+				}
+			}
+		}
+	}
+	missingFacets := missingFacetValues(intake.IntentFacets, coveredFacets)
+	negativeOverlap := false
+	for _, constraint := range intake.NegativeConstraints {
+		if semanticMaterialMatches(searchMaterial, constraint) {
+			negativeOverlap = true
+			matchSources = appendMissingCoverage(matchSources, "negative_constraints")
+		}
+	}
+	score := len(coveredFacets)*10 + len(matchSources)
+	if negativeOverlap {
+		score -= 25
+	}
+	return semanticCandidateDecision{
+		conceptID:       conceptID,
+		paths:           candidate.paths,
+		coveredFacets:   coveredFacets,
+		missingFacets:   missingFacets,
+		matchSources:    matchSources,
+		score:           score,
+		negativeOverlap: negativeOverlap,
+	}
+}
+
+func semanticMaterialMatches(material, phrase string) bool {
+	material = strings.ToLower(strings.TrimSpace(material))
+	phrase = strings.ToLower(strings.TrimSpace(phrase))
+	if material == "" || phrase == "" {
+		return false
+	}
+	if strings.Contains(material, phrase) {
+		return true
+	}
+	terms := termsFrom(phrase, 20)
+	if len(terms) == 0 {
+		return false
+	}
+	matched := 0
+	for _, term := range terms {
+		if len(term) < 3 {
+			continue
+		}
+		if strings.Contains(material, term) {
+			matched++
+		}
+	}
+	if matched == 0 {
+		return false
+	}
+	return matched == len(terms) || matched >= 2
+}
+
+func missingFacetValues(required, covered []string) []string {
+	coveredSet := map[string]bool{}
+	for _, value := range covered {
+		coveredSet[value] = true
+	}
+	missing := []string{}
+	for _, value := range required {
+		if !coveredSet[value] {
+			missing = appendMissingCoverage(missing, value)
+		}
+	}
+	return missing
+}
+
+func confidenceForCoverage(covered, required []string) string {
+	switch {
+	case len(required) == 0:
+		return "medium"
+	case len(covered) >= len(required):
+		return "high"
+	case len(covered) >= 2:
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
 func normalizeConceptDecisions(decisions []ConceptDecision, selectedConcepts, rejectedConcepts []string, selectionReason string) []ConceptDecision {
 	seen := map[string]bool{}
 	out := make([]ConceptDecision, 0, len(decisions)+len(selectedConcepts)+len(rejectedConcepts))
@@ -504,6 +884,9 @@ func normalizeConceptDecisions(decisions []ConceptDecision, selectedConcepts, re
 		decision.Confidence = strings.TrimSpace(decision.Confidence)
 		decision.Risk = strings.TrimSpace(decision.Risk)
 		decision.Paths = normalizePaths(decision.Paths)
+		decision.CoveredFacets = normalizeStrings(decision.CoveredFacets)
+		decision.MissingFacets = normalizeStrings(decision.MissingFacets)
+		decision.MatchSources = normalizeStrings(decision.MatchSources)
 		if decision.ConceptID == "" || decision.Decision == "" {
 			continue
 		}

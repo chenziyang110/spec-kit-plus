@@ -44,7 +44,8 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
         assert f"project-cognition query --intent {intent}" in content
         assert "--query-plan" in content
         assert "query_plan" in content
-        assert "returned graph-backed project concept candidates" in content
+        assert "semantic_intake" in content
+        assert "facet coverage" in content
         assert "concept_decisions" in content
         assert "lexicon_generation_id" in content
         assert "returned map terms" not in content
@@ -83,6 +84,58 @@ def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
         assert "graph artifacts" not in content
         assert "slices/change.json" not in content
         assert "slices/debug.json" not in content
+
+
+def test_shared_project_cognition_partials_require_semantic_intake_contract() -> None:
+    required_terms = [
+        "alias catalog",
+        "semantic_intake",
+        "normalized_query",
+        "intent_facets",
+        "negative_constraints",
+        "alias_interpretations",
+        "concept_decisions",
+        "covered_facets",
+        "missing_facets",
+        "match_sources",
+        "facet coverage",
+        "do not trust top similarity alone",
+    ]
+    for path in [
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    ]:
+        content = _read(path).lower()
+        for term in required_terms:
+            assert term in content, f"{path} missing shared semantic intake term: {term}"
+
+
+def test_semantic_intake_contract_is_not_debug_only() -> None:
+    brownfield_workflows = {
+        "discussion.md",
+        "specify.md",
+        "clarify.md",
+        "deep-research.md",
+        "plan.md",
+        "tasks.md",
+        "analyze.md",
+        "fast.md",
+        "quick.md",
+        "implement.md",
+        "debug.md",
+        "checklist.md",
+        "prd-scan.md",
+        "map-update.md",
+    }
+    missing = []
+    for name in brownfield_workflows:
+        content = read_template(f"templates/commands/{name}").lower()
+        if "semantic_intake" not in content or "facet coverage" not in content:
+            missing.append(name)
+
+    assert missing == [], f"semantic intake contract must not be limited to sp-debug; missing: {missing}"
 
 
 def test_map_scan_template_targets_graph_native_runtime() -> None:

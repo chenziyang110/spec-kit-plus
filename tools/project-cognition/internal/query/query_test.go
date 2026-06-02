@@ -63,6 +63,107 @@ func TestParsePlanAcceptsConceptDecisionsAndGeneration(t *testing.T) {
 	}
 }
 
+func TestParsePlanAcceptsSemanticIntakeAndFacetCoverageDecisions(t *testing.T) {
+	plan, err := ParsePlan(`{
+		"raw_query": "Token usage today says 230M, is that wrong?",
+		"semantic_intake": {
+			"workflow_intent": "debug",
+			"normalized_query": "Investigate local CLI session token usage aggregation and daily accounting accuracy.",
+			"intent_facets": ["token accounting", "usage aggregation", "daily total"],
+			"negative_constraints": ["not only CLI launcher invocation behavior"],
+			"alias_interpretations": [
+				{"alias": "usage", "meaning": "token usage aggregation", "confidence": "high"}
+			],
+			"open_semantic_questions": []
+		},
+		"concept_decisions": [
+			{
+				"concept_id": "concept:GEN-usage:N-token-accounting",
+				"decision": "selected",
+				"selection_reason": "Covers accounting and aggregation facets.",
+				"covered_facets": ["token accounting", "usage aggregation"],
+				"missing_facets": ["daily total"],
+				"match_sources": ["alias", "semantic_intake", "path"],
+				"confidence": "high"
+			}
+		]
+	}`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.SemanticIntake.WorkflowIntent != "debug" {
+		t.Fatalf("SemanticIntake.WorkflowIntent = %q, want debug", plan.SemanticIntake.WorkflowIntent)
+	}
+	if len(plan.SemanticIntake.IntentFacets) != 3 {
+		t.Fatalf("SemanticIntake.IntentFacets = %#v, want three facets", plan.SemanticIntake.IntentFacets)
+	}
+	if len(plan.SemanticIntake.AliasInterpretations) != 1 || plan.SemanticIntake.AliasInterpretations[0].Meaning != "token usage aggregation" {
+		t.Fatalf("SemanticIntake.AliasInterpretations = %#v", plan.SemanticIntake.AliasInterpretations)
+	}
+	decision := plan.ConceptDecisions[0]
+	if !hasString(decision.CoveredFacets, "token accounting") {
+		t.Fatalf("CoveredFacets = %#v, want token accounting", decision.CoveredFacets)
+	}
+	if !hasString(decision.MissingFacets, "daily total") {
+		t.Fatalf("MissingFacets = %#v, want daily total", decision.MissingFacets)
+	}
+	if !hasString(decision.MatchSources, "semantic_intake") {
+		t.Fatalf("MatchSources = %#v, want semantic_intake", decision.MatchSources)
+	}
+}
+
+func TestParsePlanMergesTopLevelSemanticIntakeAliases(t *testing.T) {
+	plan, err := ParsePlan(`{
+		"workflow_intent": " debug ",
+		"normalized_query": " token usage accounting ",
+		"intent_facets": ["token accounting", "token accounting", "daily total"],
+		"negative_constraints": ["not pricing"],
+		"alias_interpretations": [
+			{"alias": " usage ", "meaning": " token usage ", "confidence": " high "}
+		],
+		"open_semantic_questions": ["which date window?"]
+	}`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if plan.SemanticIntake.WorkflowIntent != "debug" {
+		t.Fatalf("WorkflowIntent = %q", plan.SemanticIntake.WorkflowIntent)
+	}
+	if plan.SemanticIntake.NormalizedQuery != "token usage accounting" {
+		t.Fatalf("NormalizedQuery = %q", plan.SemanticIntake.NormalizedQuery)
+	}
+	if len(plan.SemanticIntake.IntentFacets) != 2 || plan.SemanticIntake.IntentFacets[1] != "daily total" {
+		t.Fatalf("IntentFacets = %#v", plan.SemanticIntake.IntentFacets)
+	}
+	if len(plan.SemanticIntake.AliasInterpretations) != 1 ||
+		plan.SemanticIntake.AliasInterpretations[0].Alias != "usage" ||
+		plan.SemanticIntake.AliasInterpretations[0].Meaning != "token usage" {
+		t.Fatalf("AliasInterpretations = %#v", plan.SemanticIntake.AliasInterpretations)
+	}
+}
+
+func TestParsePlanKeepsNestedSemanticIntakeOverTopLevelAliases(t *testing.T) {
+	plan, err := ParsePlan(`{
+		"normalized_query": "top level query",
+		"intent_facets": ["top facet"],
+		"semantic_intake": {
+			"normalized_query": "nested query",
+			"intent_facets": ["nested facet"]
+		}
+	}`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if plan.SemanticIntake.NormalizedQuery != "nested query" {
+		t.Fatalf("NormalizedQuery = %q", plan.SemanticIntake.NormalizedQuery)
+	}
+	if len(plan.SemanticIntake.IntentFacets) != 1 || plan.SemanticIntake.IntentFacets[0] != "nested facet" {
+		t.Fatalf("IntentFacets = %#v", plan.SemanticIntake.IntentFacets)
+	}
+}
+
 func TestNormalizePlanBackfillsLegacyConceptDecisions(t *testing.T) {
 	plan := NormalizePlan(Plan{
 		SelectedConcepts: []string{"concept:GEN-ui:N-gui", "concept:GEN-ui:N-gui"},
@@ -229,6 +330,159 @@ func TestTermsFromKeepsUnicodeLetters(t *testing.T) {
 		if !hasString(terms, want) {
 			t.Fatalf("termsFrom() = %#v, want %q", terms, want)
 		}
+	}
+}
+
+func TestLexiconCatalogIncludesCompactAliasMaterialBeforeCandidateRanking(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-usage",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-usage",
+			SourceKind:  "source",
+			SourcePath:  "src/usage/daily_rollup.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-usage",
+		}, {
+			ID:          "E-cli",
+			SourceKind:  "source",
+			SourcePath:  "src/cli/launcher.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-cli",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-token-accounting",
+			Type:        "capability",
+			Title:       "Token Usage Accounting",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-usage"},
+			Attrs: map[string]any{
+				"aliases":            []any{"usage rollup", "daily token accounting"},
+				"domain":             "usage",
+				"owner":              "billing-runtime",
+				"route_hints":        []any{"src/usage"},
+				"verification_hints": []any{"go test ./internal/usage"},
+			},
+		}, {
+			ID:          "N-claude-cli-launcher",
+			Type:        "capability",
+			Title:       "Claude CLI Launcher",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-cli"},
+			Attrs: map[string]any{
+				"aliases": []any{"CLI launcher invocation behavior"},
+				"domain":  "cli",
+				"owner":   "launcher",
+			},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-usage",
+			Path:       "src/usage/daily_rollup.go",
+			NodeID:     "N-token-accounting",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-usage",
+		}, {
+			ID:         "P-cli",
+			Path:       "src/cli/launcher.go",
+			NodeID:     "N-claude-cli-launcher",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-cli",
+		}},
+		Observations: []store.ObservationImport{{
+			ID:              "OBS-usage",
+			ObservationType: "summary",
+			Summary:         "daily token rollup",
+			EvidenceIDs:     []string{"E-usage"},
+		}},
+	})
+
+	payload, err := LexiconWithOptions(paths, LexiconInput{
+		Intent: "debug",
+		Query:  "today says 230M, is it wrong?",
+		Limit:  1,
+		Mode:   "catalog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.ConceptCandidates) != 1 {
+		t.Fatalf("ConceptCandidates = %#v, want selection window limited to one candidate", payload.ConceptCandidates)
+	}
+	if len(payload.AliasCatalog) != 1 {
+		t.Fatalf("AliasCatalog = %#v, want budgeted alias catalog with one entry", payload.AliasCatalog)
+	}
+	if payload.AliasCatalogCount != 2 {
+		t.Fatalf("AliasCatalogCount = %d, want full active graph count 2", payload.AliasCatalogCount)
+	}
+	if payload.AliasCatalogLimit != 1 {
+		t.Fatalf("AliasCatalogLimit = %d, want 1", payload.AliasCatalogLimit)
+	}
+	if !payload.AliasCatalogTruncated {
+		t.Fatalf("AliasCatalogTruncated = false, want true")
+	}
+	firstCatalog := payload.AliasCatalog[0]
+	for _, key := range []string{"concept_id", "title", "aliases", "owner", "domain", "node_type", "confidence", "path_hints", "route_hints", "verification_hints", "evidence_summary_tags"} {
+		if _, ok := firstCatalog[key]; !ok {
+			t.Fatalf("alias catalog item missing %s: %#v", key, firstCatalog)
+		}
+	}
+	acceptedFields := payload.QueryPlanningContract["accepted_fields"]
+	for _, want := range []string{"semantic_intake", "normalized_query", "intent_facets", "negative_constraints"} {
+		if !mapStringSliceContains(acceptedFields, want) {
+			t.Fatalf("accepted_fields = %#v, want %q", acceptedFields, want)
+		}
+	}
+	decisionFields := payload.QueryPlanningContract["concept_decision_fields"]
+	for _, want := range []string{"covered_facets", "missing_facets", "match_sources"} {
+		if !mapStringSliceContains(decisionFields, want) {
+			t.Fatalf("concept_decision_fields = %#v, want %q", decisionFields, want)
+		}
+	}
+}
+
+func TestLexiconCatalogModeReturnsAliasCatalogForEmptyQuery(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-empty-query",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-token-accounting",
+			Type:       "capability",
+			Title:      "Token Usage Accounting",
+			Confidence: "verified",
+			Attrs: map[string]any{
+				"aliases": []any{"usage rollup"},
+			},
+		}},
+	})
+
+	payload, err := LexiconWithOptions(paths, LexiconInput{
+		Intent: "debug",
+		Query:  "",
+		Limit:  10,
+		Mode:   "catalog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = false, want true for empty query terms")
+	}
+	if !hasString(payload.MissingCoverage, "empty_query_terms") {
+		t.Fatalf("MissingCoverage = %#v, want empty_query_terms", payload.MissingCoverage)
+	}
+	if len(payload.AliasCatalog) != 1 {
+		t.Fatalf("AliasCatalog = %#v, want alias catalog despite empty query", payload.AliasCatalog)
+	}
+	if len(payload.ConceptCandidates) != 0 {
+		t.Fatalf("ConceptCandidates = %#v, want no ranked candidates for empty query", payload.ConceptCandidates)
 	}
 }
 
@@ -771,6 +1025,306 @@ func TestRunResolvesSelectedConceptsToNodesAndReads(t *testing.T) {
 	}
 }
 
+func TestRunSemanticIntakeRetrievesFacetMatchAndRejectsNegativeFalsePositive(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-usage",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-usage",
+			SourceKind:  "source",
+			SourcePath:  "src/usage/daily_rollup.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-usage",
+		}, {
+			ID:          "E-cli",
+			SourceKind:  "source",
+			SourcePath:  "src/cli/launcher.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-cli",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-token-accounting",
+			Type:        "capability",
+			Title:       "Token Usage Accounting",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-usage"},
+			Attrs: map[string]any{
+				"aliases": []any{"usage aggregation", "local session records", "daily total", "unit conversion"},
+				"domain":  "usage",
+				"owner":   "billing-runtime",
+			},
+		}, {
+			ID:          "N-claude-cli-launcher",
+			Type:        "capability",
+			Title:       "Claude CLI Launcher",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-cli"},
+			Attrs: map[string]any{
+				"aliases": []any{"CLI launcher invocation behavior", "general Claude CLI startup"},
+				"domain":  "cli",
+				"owner":   "launcher",
+			},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-usage",
+			Path:       "src/usage/daily_rollup.go",
+			NodeID:     "N-token-accounting",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-usage",
+		}, {
+			ID:         "P-cli",
+			Path:       "src/cli/launcher.go",
+			NodeID:     "N-claude-cli-launcher",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-cli",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "Today says 230M, is that wrong?",
+		Plan: Plan{
+			RawQuery:            "Today says 230M, is that wrong?",
+			LexiconGenerationID: "GEN-usage",
+			SemanticIntake: SemanticIntake{
+				WorkflowIntent:  "debug",
+				NormalizedQuery: "Investigate local CLI session token usage aggregation and daily accounting accuracy.",
+				IntentFacets: []string{
+					"token accounting",
+					"usage aggregation",
+					"local session records",
+					"daily total",
+					"duplicate counting",
+					"unit conversion",
+				},
+				NegativeConstraints: []string{
+					"not only CLI launcher invocation behavior",
+					"not general model pricing",
+				},
+				AliasInterpretations: []AliasInterpretation{{
+					Alias:      "usage",
+					Meaning:    "token usage aggregation",
+					Confidence: "high",
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasString(payload.SelectedConcepts, "concept:GEN-usage:N-token-accounting") {
+		t.Fatalf("SelectedConcepts = %#v, want token accounting concept", payload.SelectedConcepts)
+	}
+	if !hasString(payload.RejectedConcepts, "concept:GEN-usage:N-claude-cli-launcher") {
+		t.Fatalf("RejectedConcepts = %#v, want CLI launcher false positive rejected", payload.RejectedConcepts)
+	}
+	if !hasString(payload.MinimalLiveReads, "src/usage/daily_rollup.go") {
+		t.Fatalf("MinimalLiveReads = %#v, want usage rollup path", payload.MinimalLiveReads)
+	}
+	if payload.Readiness != "review" {
+		t.Fatalf("Readiness = %q, want review for partial semantic facet coverage", payload.Readiness)
+	}
+	if payload.RecommendedNextAction != "use_minimal_live_reads_and_review_missing_coverage" {
+		t.Fatalf("RecommendedNextAction = %q", payload.RecommendedNextAction)
+	}
+	if !hasString(payload.MissingCoverage, "semantic_intake_partial_facet_coverage") {
+		t.Fatalf("MissingCoverage = %#v, want semantic_intake_partial_facet_coverage", payload.MissingCoverage)
+	}
+	selectedDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, "concept:GEN-usage:N-token-accounting", "selected")
+	if selectedDecision == nil {
+		t.Fatalf("ConceptDecisions = %#v, want selected token accounting decision", payload.QueryPlan.ConceptDecisions)
+	}
+	if !hasString(selectedDecision.CoveredFacets, "usage aggregation") || !hasString(selectedDecision.CoveredFacets, "daily total") {
+		t.Fatalf("selected CoveredFacets = %#v", selectedDecision.CoveredFacets)
+	}
+	if !hasString(selectedDecision.MatchSources, "semantic_intake") || !hasString(selectedDecision.MatchSources, "intent_facets") {
+		t.Fatalf("selected MatchSources = %#v", selectedDecision.MatchSources)
+	}
+	rejectedDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, "concept:GEN-usage:N-claude-cli-launcher", "rejected")
+	if rejectedDecision == nil {
+		t.Fatalf("ConceptDecisions = %#v, want rejected CLI launcher decision", payload.QueryPlan.ConceptDecisions)
+	}
+	if rejectedDecision.Risk != "lexical false positive" {
+		t.Fatalf("rejected Risk = %q, want lexical false positive", rejectedDecision.Risk)
+	}
+	if !hasString(rejectedDecision.MissingFacets, "token accounting") {
+		t.Fatalf("rejected MissingFacets = %#v, want token accounting", rejectedDecision.MissingFacets)
+	}
+}
+
+func TestRunSemanticIntakeNegativeConstraintsIgnoreNegationFillers(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-negative",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-token",
+			SourceKind:  "source",
+			SourcePath:  "src/usage/tokens.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-token",
+		}, {
+			ID:          "E-general",
+			SourceKind:  "source",
+			SourcePath:  "src/general/help.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-general",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-token-accounting",
+			Type:        "capability",
+			Title:       "Token Usage Accounting",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-token"},
+			Attrs: map[string]any{
+				"aliases": []any{"token accounting", "usage aggregation"},
+			},
+		}, {
+			ID:          "N-general-help",
+			Type:        "documentation",
+			Title:       "General Help",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-general"},
+			Attrs: map[string]any{
+				"aliases": []any{"general guide"},
+			},
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "usage total looks wrong",
+		Plan: Plan{
+			RawQuery:            "usage total looks wrong",
+			LexiconGenerationID: "GEN-negative",
+			SemanticIntake: SemanticIntake{
+				WorkflowIntent:      "debug",
+				NormalizedQuery:     "Investigate token usage aggregation.",
+				IntentFacets:        []string{"token accounting", "usage aggregation"},
+				NegativeConstraints: []string{"not general model pricing"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	generalDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, "concept:GEN-negative:N-general-help", "rejected")
+	if generalDecision != nil && generalDecision.Risk == "lexical false positive" {
+		t.Fatalf("general filler term triggered negative false positive: %#v", generalDecision)
+	}
+}
+
+func TestRunSemanticIntakeFallbackSelectsMultipleFacetCoveringConcepts(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-multi",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-usage",
+			SourceKind:  "source",
+			SourcePath:  "src/usage/rollup.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-usage",
+		}, {
+			ID:          "E-session",
+			SourceKind:  "source",
+			SourcePath:  "src/session/store.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-session",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-usage-rollup",
+			Type:        "capability",
+			Title:       "Usage Rollup",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-usage"},
+			Attrs: map[string]any{
+				"aliases": []any{"usage aggregation", "daily total"},
+			},
+		}, {
+			ID:          "N-session-records",
+			Type:        "capability",
+			Title:       "Session Records",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-session"},
+			Attrs: map[string]any{
+				"aliases": []any{"local session records", "duplicate counting"},
+			},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-usage",
+			Path:       "src/usage/rollup.go",
+			NodeID:     "N-usage-rollup",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-usage",
+		}, {
+			ID:         "P-session",
+			Path:       "src/session/store.go",
+			NodeID:     "N-session-records",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-session",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "usage total looks duplicated",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-multi",
+			SemanticIntake: SemanticIntake{
+				WorkflowIntent:  "debug",
+				NormalizedQuery: "Investigate usage aggregation over local session records and duplicate counting.",
+				IntentFacets: []string{
+					"usage aggregation",
+					"daily total",
+					"local session records",
+					"duplicate counting",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"concept:GEN-multi:N-usage-rollup", "concept:GEN-multi:N-session-records"} {
+		if !hasString(payload.SelectedConcepts, want) {
+			t.Fatalf("SelectedConcepts = %#v, want %s", payload.SelectedConcepts, want)
+		}
+	}
+	for _, want := range []string{"src/usage/rollup.go", "src/session/store.go"} {
+		if !hasString(payload.MinimalLiveReads, want) {
+			t.Fatalf("MinimalLiveReads = %#v, want %s", payload.MinimalLiveReads, want)
+		}
+	}
+	if hasString(payload.MissingCoverage, "semantic_intake_partial_facet_coverage") {
+		t.Fatalf("MissingCoverage = %#v, all facets should be covered across selected concepts", payload.MissingCoverage)
+	}
+	usageDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, "concept:GEN-multi:N-usage-rollup", "selected")
+	sessionDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, "concept:GEN-multi:N-session-records", "selected")
+	if usageDecision == nil || sessionDecision == nil {
+		t.Fatalf("ConceptDecisions = %#v, want both selected concepts", payload.QueryPlan.ConceptDecisions)
+	}
+	if !strings.Contains(usageDecision.SelectionReason, "runtime fallback") ||
+		!strings.Contains(sessionDecision.SelectionReason, "runtime fallback") {
+		t.Fatalf("Selection reasons should mark runtime fallback: %#v", payload.QueryPlan.ConceptDecisions)
+	}
+}
+
 func TestRunReportsPartiallyUnknownSelectedConcepts(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
@@ -1286,4 +1840,13 @@ func candidateHasKeys(candidate map[string]any, keys ...string) bool {
 		}
 	}
 	return true
+}
+
+func findConceptDecision(decisions []ConceptDecision, conceptID, decision string) *ConceptDecision {
+	for i := range decisions {
+		if decisions[i].ConceptID == conceptID && decisions[i].Decision == decision {
+			return &decisions[i]
+		}
+	}
+	return nil
 }

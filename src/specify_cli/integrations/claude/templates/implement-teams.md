@@ -68,8 +68,9 @@ TeamCreate({
    - team membership lives in `~/.claude/teams/{team-name}/config.json`
    - shared tasks live under `~/.claude/tasks/{team-name}/`
 7. Before the first `TaskCreate`, compile an execution context bundle for the current batch:
-   - include the `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}` lexicon result, the agent-generated `query_plan`, and the `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` result for the current batch
-   - the literal runtime commands are `project-cognition lexicon --intent implement` and `project-cognition query --intent implement`; include their outputs, not raw graph files, in teammate context
+   - include the `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --mode catalog --format json}}` lexicon result, the agent-generated `semantic_intake` and `query_plan`, and the `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` result for the current batch
+   - the literal runtime commands are `project-cognition lexicon --intent implement --mode catalog` and `project-cognition query --intent implement`; include their outputs, not raw graph files, in teammate context
+   - candidate selection must satisfy facet coverage through `covered_facets`, `missing_facets`, and `match_sources`; do not trust top similarity alone
    - include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane
    - include `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` as the runtime freshness/store boundary when the teammate must acknowledge the underlying cognition runtime
    - include compatibility/export files such as `PROJECT-HANDBOOK.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported handbook wording

@@ -453,7 +453,7 @@ class IntegrationBase(ABC):
             "- Before drafting or asking clarification questions, identify the scope boundary, key constraints, affected surface area, known unknowns, and safest next step.\n"
             "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
-            "- Run project cognition planning navigation with `project-cognition lexicon --intent plan`, select from graph-backed project concept candidates, carry `lexicon_generation_id`, write `concept_decisions`, then run `project-cognition query --intent plan --query-plan`; carry returned `minimal_live_reads` into the coverage-model check.\n"
+            "- Run project cognition planning navigation with `project-cognition lexicon --intent plan --mode catalog`, use the alias catalog to write `semantic_intake` with `normalized_query`, `intent_facets`, `negative_constraints`, and `alias_interpretations`, carry `lexicon_generation_id`, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, then run `project-cognition query --intent plan --query-plan`; facet coverage must drive selection, not top similarity alone, and returned `minimal_live_reads` feeds the coverage-model check.\n"
             "- The coverage-model check should identify truth-owning surfaces, change-propagation hotspots, verification entry points, and known unknowns relevant to the request, including module ownership, reusable components/services/hooks, integration points, and neighboring workflow constraints.\n"
             "- Read `.specify/templates/workflow-state-template.md`. Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known with `phase_mode: planning-only`. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- If the topical coverage for the touched area is missing, stale, or too broad: Run a codebase scout before clarification. Build a concise internal scout summary for the request area covering truth-owning surfaces and shared coordination surfaces, change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review, verification entry points and regression-sensitive checks, and known unknowns, stale evidence boundaries, or observability gaps.\n"
@@ -505,7 +505,7 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- Run `project-cognition lexicon --intent plan`, select from graph-backed project concept candidates, include `concept_decisions` and `lexicon_generation_id` in the `query_plan`, then run `project-cognition query --intent plan --query-plan` before shaping the checklist.\n"
+            "- Run `project-cognition lexicon --intent plan --mode catalog`, use the alias catalog to write `semantic_intake` with `normalized_query`, `intent_facets`, `negative_constraints`, and `alias_interpretations`, include `concept_decisions` with `covered_facets`, `missing_facets`, `match_sources`, and `lexicon_generation_id` in the `query_plan`, then run `project-cognition query --intent plan --query-plan` before shaping the checklist. Do not trust top similarity alone.\n"
             "- Use the returned task-local bundle and `minimal_live_reads` to decide whether the touched area's owning surfaces are covered; if coverage is missing, stale, or too broad, follow the returned `recommended_next_action`.\n"
             "- `needs_update`: for checklist intake, treat this as advisory routing. Use `{{invoke:map-update}}` or `/sp-map-update` only when the user requested map maintenance or checklist quality depends on a separate map-maintenance pass; otherwise continue with returned `minimal_live_reads` and live evidence.\n"
         )
@@ -618,11 +618,12 @@ class IntegrationBase(ABC):
         }.get(command_name, "implement")
         return (
             "**Crucial First Step**: You MUST use agent-assisted project cognition query planning first: "
-            f"retrieve the map lexicon with `{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}`, "
-            "retrieve graph-backed project concept candidates with the lexicon command, select relevant existing concepts, record rejected concepts, write "
-            "`concept_decisions`, carry `lexicon_generation_id`, then run "
+            f"retrieve the alias catalog and map lexicon with `{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query=\"$ARGUMENTS\" --mode catalog --format json}}}}`, "
+            "write `semantic_intake` with `normalized_query`, `intent_facets`, `negative_constraints`, and `alias_interpretations`, "
+            "select relevant existing concepts, record rejected concepts, write "
+            "`concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, then run "
             f"`{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan \"<query_plan_json>\" --format json}}}}` "
-            f"{command_step}. Use the returned readiness, task-local bundle, and `minimal_live_reads`."
+            f"{command_step}. Candidate selection must satisfy facet coverage; do not trust top similarity alone. Use the returned readiness, task-local bundle, and `minimal_live_reads`."
         )
 
     def _append_toml_debug_runtime_bridge(

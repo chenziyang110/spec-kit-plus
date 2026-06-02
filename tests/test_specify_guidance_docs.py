@@ -324,7 +324,9 @@ def test_repo_docs_route_brownfield_runtime_through_cognition_query() -> None:
     for content in (readme, handbook):
         assert "project-cognition query" in content
         assert "project-cognition.db" in content
-        assert "graph-backed project concept candidates" in content
+        assert "alias catalog" in content
+        assert "semantic_intake" in content
+        assert "facet coverage" in content
         assert "concept_decisions" in content
         assert "lexicon_generation_id" in content
         assert "candidate_universe_version" in content

@@ -113,7 +113,7 @@ scripts:
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
    - **Required when present**: `.specify/memory/learnings/INDEX.md` (searchable reusable learning index that may shape decomposition, validation, or guardrails)
    - **Required when relevant index entries exist**: open only the linked learning detail docs relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
-   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}`, then select from returned graph-backed project concept candidates, write `concept_decisions`, carry `lexicon_generation_id`, then generate a `query_plan`, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
+   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --mode catalog --format json}}`, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`.
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: record a planning advisory in the feature artifacts, inspect the minimum live files still needed to replace guesswork with evidence, and carry explicit assumptions or follow-up tasks instead of requiring a project cognition refresh during artifact-only task generation
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
@@ -126,8 +126,8 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}
-# Agent: select from returned graph-backed project concept candidates; include selected_concepts, rejected_concepts, concept_decisions, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>.
+{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --mode catalog --format json}}
+# Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone.
 {{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
 ```
 

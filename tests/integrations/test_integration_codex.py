@@ -151,7 +151,9 @@ class TestCodexIntegration:
         )
 
         assert "project-cognition query" in generated
-        assert "graph-backed project concept candidates" in generated
+        assert "alias catalog" in generated
+        assert "semantic_intake" in generated
+        assert "facet coverage" in generated
         assert "concept_decisions" in generated
         assert "lexicon_generation_id" in generated
         assert "minimal_live_reads" in generated
@@ -877,7 +879,9 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert ".specify/project-cognition/project-cognition.db" in build_content
     assert "lexicon --intent implement" in build_content
     assert "query --intent implement" in build_content
-    assert "graph-backed project concept candidates" in build_content
+    assert "alias catalog" in build_content
+    assert "semantic_intake" in build_content
+    assert "facet coverage" in build_content
     assert "concept_decisions" in build_content
     assert "lexicon_generation_id" in build_content
     assert "--query-plan" in build_content
@@ -1120,7 +1124,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "lexicon --intent implement" in content
     assert "query --intent implement" in content
-    assert "graph-backed project concept candidates" in content
+    assert "alias catalog" in content
+    assert "semantic_intake" in content
+    assert "facet coverage" in content
     assert "concept_decisions" in content
     assert "lexicon_generation_id" in content
     assert "--query-plan" in content
@@ -1166,7 +1172,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "lexicon --intent implement" in content
     assert "query --intent implement" in content
-    assert "graph-backed project concept candidates" in content
+    assert "alias catalog" in content
+    assert "semantic_intake" in content
+    assert "facet coverage" in content
     assert "concept_decisions" in content
     assert "lexicon_generation_id" in content
     assert "--query-plan" in content

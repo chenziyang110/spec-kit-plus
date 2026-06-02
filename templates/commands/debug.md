@@ -161,8 +161,8 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition lexicon --intent debug --query="$ARGUMENTS" --format json}}
-# Agent: select from returned graph-backed project concept candidates; include selected_concepts, rejected_concepts, concept_decisions, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>.
+{{specify-subcmd:project-cognition lexicon --intent debug --query="$ARGUMENTS" --mode catalog --format json}}
+# Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone.
 {{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}
 ```
 
@@ -182,7 +182,7 @@ Use the returned readiness:
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent debug --query="$ARGUMENTS" --format json}}`, then select from returned graph-backed project concept candidates, write `concept_decisions`, carry `lexicon_generation_id`, then generate a `query_plan`, then run `{{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}` before trusting existing brownfield routing assumptions.
+- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent debug --query="$ARGUMENTS" --mode catalog --format json}}`, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, then run `{{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}` before trusting existing brownfield routing assumptions.
 - If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
 - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.

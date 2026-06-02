@@ -279,7 +279,7 @@ human_needed_checks:
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
    - **IF LANE RESOLUTION OR SESSION-STATE RECONCILE RETURNS `uncertain`**: stop and surface the conflict instead of guessing which lane to continue.
    - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
-   - **REQUIRED**: Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}`, then select from returned graph-backed project concept candidates, write `concept_decisions`, carry `lexicon_generation_id`, then generate a `query_plan`, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
+   - **REQUIRED**: Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --mode catalog --format json}}`, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, then run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.
    - **IF READINESS IS `needs_rebuild`**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing.
    - **IF READINESS IS `needs_update` OR TOO WEAK FOR THE TOUCHED AREA**: Use `/sp-map-update` with the changed paths. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
    - **IF READINESS IS `review`**: Inspect only the returned `minimal_live_reads` before trusting the runtime for implementation decisions.
@@ -331,8 +331,8 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --format json}}
-# Agent: select from returned graph-backed project concept candidates; include selected_concepts, rejected_concepts, concept_decisions, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>.
+{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --mode catalog --format json}}
+# Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone.
 {{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}
 ```
 

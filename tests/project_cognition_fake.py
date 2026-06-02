@@ -267,6 +267,20 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         errors.append(f"packet {packet_id} assigned path {path} is missing from packet-local ledger")
 
 
+            def _packet_ledger(packet_id, payload, warnings):
+                ledger = payload.get("ledger")
+                if isinstance(ledger, dict):
+                    return ledger
+                legacy_ledger = payload.get("packet_local_ledger")
+                if isinstance(legacy_ledger, dict):
+                    warnings.append(
+                        f"packet {packet_id} uses legacy packet_local_ledger alias; "
+                        f"write top-level ledger in worker-results/{packet_id}.json"
+                    )
+                    return legacy_ledger
+                return ledger
+
+
             def _universe_criticality(universe):
                 if not isinstance(universe, dict):
                     return {}
@@ -380,6 +394,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                 ]
                 root = Path.cwd()
                 errors = [f"missing {rel}" for rel in required if not (root / rel).exists()]
+                warnings = []
                 for rel in [
                     ".specify/project-cognition/status.json",
                     ".specify/project-cognition/provisional/nodes.json",
@@ -631,7 +646,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                         if not assigned_paths:
                             errors.append(f"packet {packet_id} must define assigned_paths")
                         paths_read = _path_values(result_payload.get("paths_read"), f"worker result {packet_id} paths_read", errors)
-                        ledger = result_payload.get("ledger")
+                        ledger = _packet_ledger(packet_id, result_payload, warnings)
                         _validate_packet_ledger(packet_id, assigned_paths, ledger, errors)
                         acceptance = str(result_payload.get("acceptance") or result_payload.get("outcome") or "").strip()
                         if not acceptance:
@@ -714,7 +729,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                     "gate": "scan_acceptance",
                     "readiness": "blocked" if errors else "scan_ready",
                     "errors": errors,
-                    "warnings": [],
+                    "warnings": warnings,
                 }
 
 

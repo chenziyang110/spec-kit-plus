@@ -187,6 +187,31 @@ def test_ensure_project_cognition_binary_builds_bundled_source_when_download_fai
     assert binary.read_text(encoding="utf-8") == "built runtime"
 
 
+def test_ensure_project_cognition_binary_validates_project_cognition_bin_override(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "old-project-cognition"
+    binary.write_text("old runtime", encoding="utf-8")
+
+    monkeypatch.setenv("PROJECT_COGNITION_BIN", str(binary))
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_binary_supports_required_commands",
+        lambda candidate: False,
+        raising=False,
+    )
+
+    try:
+        project_cognition_runtime.ensure_binary(version="v1.2.3")
+    except RuntimeError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("ensure_binary accepted unsupported PROJECT_COGNITION_BIN")
+
+    assert "PROJECT_COGNITION_BIN" in message
+    assert "lexicon --mode" in message
+
+
 def test_write_project_cognition_launcher_records_downloaded_binary(tmp_path: Path):
     binary = tmp_path / ".specify" / "bin" / "project-cognition"
     binary.parent.mkdir(parents=True)
@@ -217,6 +242,7 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
 def test_project_cognition_required_commands_include_init_empty():
     assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "lexicon --mode" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "update --payload-file --verification" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "delta append --verification --generated-surface" in project_cognition_runtime.REQUIRED_COMMANDS
 
@@ -226,7 +252,7 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, delta\n"
+        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
         stderr = ""
 
     class UpdateHelpResult:
@@ -256,7 +282,7 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, delta\n"
+        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
         stderr = ""
 
     class UpdateHelpResult:
@@ -275,6 +301,38 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
     assert project_cognition_runtime._binary_supports_required_commands(binary) is False
 
 
+def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class LexiconHelpResult:
+        stdout = "Usage of lexicon:\n  -query string\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["lexicon", "--help"]:
+            return LexiconHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
 def test_project_cognition_binary_support_requires_delta_append_verification_flag(
     monkeypatch, tmp_path: Path
 ):
@@ -282,11 +340,15 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, delta\n"
+        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class LexiconHelpResult:
+        stdout = "Usage of lexicon:\n  -mode string\n"
         stderr = ""
 
     class DeltaAppendHelpResult:
@@ -298,6 +360,8 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["lexicon", "--help"]:
+            return LexiconHelpResult()
         if command[1:] == ["delta", "append", "--help"]:
             return DeltaAppendHelpResult()
         raise AssertionError(f"unexpected command: {command}")

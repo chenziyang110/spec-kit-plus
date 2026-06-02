@@ -25,7 +25,9 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
 
     assert "launcher-backed project cognition query planning flow" in lowered
     assert "project-cognition lexicon" in lowered
-    assert "graph-backed project concept candidates" in lowered
+    assert "alias catalog" in lowered
+    assert "semantic_intake" in lowered
+    assert "facet coverage" in lowered
     assert "concept_candidates" in content
     assert "selected_concepts" in content
     assert "rejected_concepts" in content
@@ -138,7 +140,9 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "task-local project cognition query bundle" in lowered
     assert "agent-planned `project-cognition query`" in lowered
     assert "project-cognition lexicon" in lowered
-    assert "graph-backed project concept candidates" in lowered
+    assert "alias catalog" in lowered
+    assert "semantic_intake" in lowered
+    assert "facet coverage" in lowered
     assert "concept_decisions" in content
     assert "lexicon_generation_id" in content
     assert "candidate_universe_version" in content
@@ -165,7 +169,12 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
 
 def test_runtime_docs_explain_graph_backed_project_cognition_lexicon() -> None:
     required_phrases = (
-        "graph-backed project concept candidates",
+        "alias catalog",
+        "semantic_intake",
+        "facet coverage",
+        "covered_facets",
+        "missing_facets",
+        "match_sources",
         "concept_decisions",
         "lexicon_generation_id",
         "candidate_universe_version",

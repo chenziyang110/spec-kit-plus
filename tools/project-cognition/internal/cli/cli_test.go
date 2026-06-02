@@ -475,6 +475,52 @@ func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
 	}
 }
 
+func TestLexiconCommandCatalogModeEmitsAliasCatalogAndSemanticContract(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"lexicon", "--intent", "debug", "--query", "App GUI", "--mode", "catalog", "--limit", "1", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	catalog, ok := payload["alias_catalog"].([]any)
+	if !ok || len(catalog) == 0 {
+		t.Fatalf("alias_catalog = %#v, want non-empty catalog", payload["alias_catalog"])
+	}
+	if payload["alias_catalog_count"].(float64) < float64(len(catalog)) {
+		t.Fatalf("alias_catalog_count = %#v, catalog len = %d", payload["alias_catalog_count"], len(catalog))
+	}
+	if payload["alias_catalog_limit"].(float64) != 1 {
+		t.Fatalf("alias_catalog_limit = %#v, want 1", payload["alias_catalog_limit"])
+	}
+	first, ok := catalog[0].(map[string]any)
+	if !ok {
+		t.Fatalf("alias catalog item = %#v, want object", catalog[0])
+	}
+	for _, key := range []string{"concept_id", "title", "aliases", "owner", "domain", "node_type", "confidence", "path_hints", "route_hints", "verification_hints", "evidence_summary_tags"} {
+		if _, ok := first[key]; !ok {
+			t.Fatalf("alias catalog item missing %s: %#v", key, first)
+		}
+	}
+	contract, ok := payload["query_planning_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("query_planning_contract missing from payload = %#v", payload)
+	}
+	if !jsonStringSliceContains(contract["accepted_fields"], "semantic_intake") {
+		t.Fatalf("accepted_fields = %#v, want semantic_intake", contract["accepted_fields"])
+	}
+	if !jsonStringSliceContains(contract["accepted_fields"], "intent_facets") {
+		t.Fatalf("accepted_fields = %#v, want intent_facets", contract["accepted_fields"])
+	}
+	if !jsonStringSliceContains(contract["concept_decision_fields"], "covered_facets") {
+		t.Fatalf("concept_decision_fields = %#v, want covered_facets", contract["concept_decision_fields"])
+	}
+}
+
 func TestLexiconCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	initEmptyCLIRuntime(t)
 

@@ -247,7 +247,9 @@ class TomlIntegrationTests:
         )
 
         assert "project-cognition query" in generated
-        assert "graph-backed project concept candidates" in generated
+        assert "alias catalog" in generated
+        assert "semantic_intake" in generated
+        assert "facet coverage" in generated
         assert "concept_decisions" in generated
         assert "lexicon_generation_id" in generated
         assert "minimal_live_reads" in generated
@@ -468,7 +470,9 @@ class TomlIntegrationTests:
             else:
                 assert "project cognition" in content
                 assert "project-cognition query" in content
-                assert "graph-backed project concept candidates" in content
+                assert "alias catalog" in content
+                assert "semantic_intake" in content
+                assert "facet coverage" in content
                 assert "concept_decisions" in content
                 assert "lexicon_generation_id" in content
                 assert "minimal_live_reads" in content

@@ -23,9 +23,14 @@ judgment in an established Spec Kit Plus repository:
 
 - Use the direct `project-cognition` query planning flow required by the active
   workflow contract to retrieve the task-local project cognition bundle. Run
-  `project-cognition lexicon` first to get graph-backed project concept candidates
-  from the active project cognition graph. The user request ranks and filters
-  existing project concepts; it does not create project concepts. Choose
+  `project-cognition lexicon --mode catalog` first to get the project alias catalog
+  plus graph-backed project concept candidates from the active project cognition
+  graph. The alias catalog comes before narrow retrieval: use it to translate
+  user language into project language before selecting candidates. The user
+  request ranks and filters existing project concepts; it does not create
+  project concepts. Write an explicit `semantic_intake` object with
+  `workflow_intent`, `normalized_query`, `intent_facets`, `negative_constraints`,
+  `alias_interpretations`, and `open_semantic_questions`. Choose
   task-relevant `selected_concepts`, record considered but unsafe or irrelevant
   `rejected_concepts`, write per-concept `concept_decisions`, carry
   `lexicon_generation_id` in the `query_plan`, and then run
@@ -35,12 +40,17 @@ judgment in an established Spec Kit Plus repository:
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
   the returned readiness state; do not widen live repository reads beyond the
   returned `route_pack` and `minimal_live_reads`.
+- Candidate selection must satisfy facet coverage for the active workflow. Each
+  `concept_decisions` item should include `covered_facets`, `missing_facets`,
+  `match_sources`, confidence, and risk. Do not trust top similarity alone:
+  lexical overlap, vector similarity, alias matches, path matches, and graph
+  neighbor expansion are signals, not route truth.
 - For `sp-discussion`, product framing may begin before the cognition gate. Before
   technical options, affected-surface claims, testing strategy claims tied to
   existing code, implementation-path recommendations, or source-grounded
   recommendations, complete the workflow's Truth Pass with the active
   launcher-backed project cognition query planning flow and bounded live evidence.
-  Use `project-cognition lexicon --intent discussion` and
+  Use `project-cognition lexicon --intent discussion --mode catalog` and
   `project-cognition query --intent discussion` for discussion grounding. Record
   `verified_project_facts`, `open_assumptions`, `evidence_checked`, and
   `advice_confidence`. Do not use `--intent plan` from `sp-discussion`.
@@ -66,7 +76,9 @@ judgment in an established Spec Kit Plus repository:
   constrains inspection, live evidence proves technical claims, and relevant
   facts are carried into the next workflow artifact or execution state.
 - Extract and carry forward `selected_concepts`, `rejected_concepts`,
-  `selection_reason`, `concept_decisions`, `lexicon_generation_id`, the matched
+  `selection_reason`, `semantic_intake`, `normalized_query`, `intent_facets`,
+  `negative_constraints`, `concept_decisions`, `covered_facets`,
+  `missing_facets`, `match_sources`, `lexicon_generation_id`, the matched
   capability or symptom, affected nodes and subgraph, `route_pack`,
   `minimal_live_reads`, missing coverage, evidence traces, verification routes,
   ambiguity, conflicts, and weak coverage.

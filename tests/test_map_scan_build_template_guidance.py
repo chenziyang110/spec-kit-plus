@@ -112,6 +112,11 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "a top-level `coverage.json` or `coverage-ledger.json` row is not proof that a path was scanned" in lowered
     assert "included_paths - assigned_paths - accepted_nonblocking_gap_paths" in content
     assert "every assigned path must also have a packet-local worker `coverage[]` outcome" in lowered
+    assert "worker-results/<packet-id>.json` must write the packet-local ledger as top-level `ledger`" in lowered
+    assert "`packet_local_ledger`, `packet-local-ledger`, scan-packet markdown sections" in lowered
+    assert '"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]}' in content
+    assert '"assigned_paths":["src/app.go"]' in content
+    assert '"paths_read":["src/app.go"]' in content
 
     assert "current-runtime native subagents are the default" in lowered
     assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered

@@ -119,8 +119,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --format json}}
-     # Agent: select from returned graph-backed project concept candidates; include selected_concepts, rejected_concepts, concept_decisions, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>.
+     {{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --mode catalog --format json}}
+     # Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone.
      {{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
      ```
 
