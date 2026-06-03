@@ -1239,6 +1239,133 @@ func TestRunSemanticIntakeRetrievesFacetMatchAndRejectsNegativeFalsePositive(t *
 	}
 }
 
+func TestRunLocalizedSemanticIntakeSelectsDriverDownloadStallConcept(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedDriverDownloadGraph(t, paths)
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "PE程序下驱动下载目前好像有点问题，现象就是卡在进度95卡了很久很久 排查下问题",
+		Plan: Plan{
+			RawQuery:            "PE程序下驱动下载目前好像有点问题，现象就是卡在进度95卡了很久很久 排查下问题",
+			LexiconGenerationID: "GEN-driver",
+			SemanticIntake: SemanticIntake{
+				WorkflowIntent:  "debug",
+				NormalizedQuery: "Investigate driver download progress stalling near 95 percent in the WinPE program flow.",
+				IntentFacets: []string{
+					"WinPE runtime",
+					"driver download",
+					"progress reporting",
+					"95 percent stall",
+					"download completion transition",
+				},
+				NegativeConstraints: []string{
+					"not a generic UI status screen issue",
+				},
+				AliasInterpretations: []AliasInterpretation{{
+					Alias:      "PE程序",
+					Meaning:    "WinPE environment program flow",
+					Confidence: "high",
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	driverConcept := "concept:GEN-driver:N-driver-download"
+	uiConcept := "concept:GEN-driver:N-progress-ui"
+	if !hasString(payload.SelectedConcepts, driverConcept) {
+		t.Fatalf("SelectedConcepts = %#v, want driver download concept", payload.SelectedConcepts)
+	}
+	if !hasString(payload.RejectedConcepts, uiConcept) {
+		t.Fatalf("RejectedConcepts = %#v, want general progress UI rejected", payload.RejectedConcepts)
+	}
+	if !hasString(payload.MinimalLiveReads, "src/winpe/driver_download.go") {
+		t.Fatalf("MinimalLiveReads = %#v, want driver download source", payload.MinimalLiveReads)
+	}
+	selectedDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, driverConcept, "selected")
+	if selectedDecision == nil {
+		t.Fatalf("ConceptDecisions = %#v, want selected driver decision", payload.QueryPlan.ConceptDecisions)
+	}
+	for _, facet := range []string{"WinPE runtime", "driver download", "progress reporting", "95 percent stall", "download completion transition"} {
+		if !hasString(selectedDecision.CoveredFacets, facet) {
+			t.Fatalf("selected CoveredFacets = %#v, want %s", selectedDecision.CoveredFacets, facet)
+		}
+	}
+	if !hasString(selectedDecision.MatchSources, "semantic_intake") || !hasString(selectedDecision.MatchSources, "alias") {
+		t.Fatalf("selected MatchSources = %#v, want semantic_intake and alias", selectedDecision.MatchSources)
+	}
+	rejectedDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, uiConcept, "rejected")
+	if rejectedDecision == nil {
+		t.Fatalf("ConceptDecisions = %#v, want rejected UI decision", payload.QueryPlan.ConceptDecisions)
+	}
+	if !hasString(rejectedDecision.MissingFacets, "driver download") {
+		t.Fatalf("rejected MissingFacets = %#v, want driver download", rejectedDecision.MissingFacets)
+	}
+	if rejectedDecision.Risk != "lexical false positive" {
+		t.Fatalf("rejected Risk = %q, want lexical false positive", rejectedDecision.Risk)
+	}
+}
+
+func TestRunInformalSemanticIntakeSelectsDriverFetchCompletion(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedDriverDownloadGraph(t, paths)
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "installer hangs right before finishing the driver fetch",
+		Plan: Plan{
+			RawQuery:            "installer hangs right before finishing the driver fetch",
+			LexiconGenerationID: "GEN-driver",
+			SemanticIntake: SemanticIntake{
+				WorkflowIntent:  "debug",
+				NormalizedQuery: "Investigate installer driver fetch completion transition hang.",
+				IntentFacets: []string{
+					"installer flow",
+					"driver fetch",
+					"completion transition",
+				},
+				NegativeConstraints: []string{
+					"not a generic installer status screen issue",
+				},
+				AliasInterpretations: []AliasInterpretation{{
+					Alias:      "driver fetch",
+					Meaning:    "driver download completion transition",
+					Confidence: "high",
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	driverConcept := "concept:GEN-driver:N-driver-download"
+	installerUIConcept := "concept:GEN-driver:N-installer-progress-ui"
+	if !hasString(payload.SelectedConcepts, driverConcept) {
+		t.Fatalf("SelectedConcepts = %#v, want driver download concept", payload.SelectedConcepts)
+	}
+	if !hasString(payload.RejectedConcepts, installerUIConcept) {
+		t.Fatalf("RejectedConcepts = %#v, want installer UI progress rejected", payload.RejectedConcepts)
+	}
+	selectedDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, driverConcept, "selected")
+	if selectedDecision == nil {
+		t.Fatalf("ConceptDecisions = %#v, want selected driver decision", payload.QueryPlan.ConceptDecisions)
+	}
+	for _, facet := range []string{"installer flow", "driver fetch", "completion transition"} {
+		if !hasString(selectedDecision.CoveredFacets, facet) {
+			t.Fatalf("selected CoveredFacets = %#v, want %s", selectedDecision.CoveredFacets, facet)
+		}
+	}
+	rejectedDecision := findConceptDecision(payload.QueryPlan.ConceptDecisions, installerUIConcept, "rejected")
+	if rejectedDecision == nil {
+		t.Fatalf("ConceptDecisions = %#v, want rejected installer UI decision", payload.QueryPlan.ConceptDecisions)
+	}
+	if !hasString(rejectedDecision.MissingFacets, "driver fetch") {
+		t.Fatalf("rejected MissingFacets = %#v, want driver fetch", rejectedDecision.MissingFacets)
+	}
+}
+
 func TestRunSemanticIntakeNegativeConstraintsIgnoreNegationFillers(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
@@ -1802,6 +1929,111 @@ func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func seedDriverDownloadGraph(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-driver",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-driver",
+			SourceKind:  "source",
+			SourcePath:  "src/winpe/driver_download.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-driver",
+		}, {
+			ID:          "E-progress-ui",
+			SourceKind:  "source",
+			SourcePath:  "src/ui/progress_view.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-progress",
+		}, {
+			ID:          "E-installer-ui",
+			SourceKind:  "source",
+			SourcePath:  "src/installer/progress_screen.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-installer-progress",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-driver-download",
+			Type:        "capability",
+			Title:       "WinPE Driver Download Completion",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-driver"},
+			Attrs: map[string]any{
+				"aliases": []any{
+					"WinPE runtime",
+					"WinPE environment program flow",
+					"driver download",
+					"driver fetch",
+					"progress reporting",
+					"95 percent stall",
+					"download completion transition",
+					"completion transition",
+					"installer flow",
+				},
+				"domain": "driver-download",
+				"owner":  "winpe-runtime",
+			},
+		}, {
+			ID:          "N-progress-ui",
+			Type:        "ui",
+			Title:       "Generic Progress Display",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-progress-ui"},
+			Attrs: map[string]any{
+				"aliases": []any{
+					"general UI progress display",
+					"progress reporting",
+					"generic progress screen",
+				},
+				"domain": "ui",
+				"owner":  "shell-ui",
+			},
+		}, {
+			ID:          "N-installer-progress-ui",
+			Type:        "ui",
+			Title:       "Installer Status Screen",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-installer-ui"},
+			Attrs: map[string]any{
+				"aliases": []any{
+					"generic installer status screen",
+					"installer progress UI",
+					"installer flow",
+				},
+				"domain": "ui",
+				"owner":  "installer-shell",
+			},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-driver",
+			Path:       "src/winpe/driver_download.go",
+			NodeID:     "N-driver-download",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-driver",
+		}, {
+			ID:         "P-progress-ui",
+			Path:       "src/ui/progress_view.go",
+			NodeID:     "N-progress-ui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-progress-ui",
+		}, {
+			ID:         "P-installer-ui",
+			Path:       "src/installer/progress_screen.go",
+			NodeID:     "N-installer-progress-ui",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-installer-ui",
+		}},
+	})
 }
 
 func seedReadyGraph(t *testing.T, paths rt.Paths, input store.ImportInput) {
