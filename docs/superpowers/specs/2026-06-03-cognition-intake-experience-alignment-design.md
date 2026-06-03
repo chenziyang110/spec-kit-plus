@@ -83,14 +83,21 @@ The audit and alignment pass applies to:
 - shared project cognition partials:
   - `templates/command-partials/common/context-loading-gradient.md`
   - `templates/command-partials/common/planning-context-loading-gradient.md`
+  - `templates/command-partials/common/senior-consequence-analysis-gate.md`
+    because it owns shared readiness-to-routing wording for `ready`, `review`,
+    `ambiguous`, `needs_update`, `needs_rebuild`, and `blocked`
 - workflow templates that mention cognition intake:
   - `discussion`, `specify`, `clarify`, `deep-research`, `plan`, `tasks`,
     `analyze`, `fast`, `quick`, `implement`, `debug`, `checklist`, `prd-scan`,
-    and `map-update`
+    `map-build`, and `map-update`
+  - `map-build` is in scope for its completion-time smoke query even though it
+    is not a normal user-intent intake workflow; its lexicon -> semantic_intake
+    -> query check must use the same contract as the rest of the runtime
 - passive workflow guidance:
   - `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`
   - `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`
-  - any passive learning guidance that can run at workflow start
+  - `templates/passive-skills/spec-kit-project-learning/SKILL.md`, especially
+    its "required preflight memory" wording for light and heavy work
 - runtime:
   - `tools/project-cognition/internal/query/lexicon.go`
   - `tools/project-cognition/internal/query/query.go`
@@ -224,11 +231,25 @@ array. It should also show `concept_decisions` with `covered_facets`,
 ### 3. Make Runtime Errors Workflow-Friendly
 
 `project-cognition query` should detect common query-plan shape mistakes and
-return actionable diagnostics. At minimum:
+return actionable diagnostics. Workflows call it with `--format json`, so the
+diagnostics contract must be machine-readable:
 
-- If `alias_interpretations` is a string array, either coerce each string into a
-  low-confidence `{alias, meaning}` object or return a clear message that shows
-  the expected object shape.
+- When coercion succeeds, stdout JSON should include the normal query payload
+  plus `warnings` or `repair_hints`, and the returned `query_plan` should show
+  the normalized shape actually used by the runtime. Exit code should remain
+  zero unless the query itself fails for another reason.
+- When rejection is necessary, stdout JSON should contain a structured error
+  payload with at least `error`, `repair_hints`, and `expected_shape`; stderr may
+  repeat a concise human message, but stderr-only parser failures are not
+  acceptable for `--format json` workflow consumers. The exit code should be
+  non-zero.
+
+At minimum:
+
+- If `alias_interpretations` is a string array at either the top level or inside
+  `semantic_intake`, either coerce each string into a low-confidence
+  `{alias, meaning}` object or return a structured JSON error that shows the
+  expected object shape.
 - If nested and top-level semantic intake aliases conflict, keep the current
   nested-preferred behavior but report normalized output in the returned
   `query_plan`.
@@ -250,7 +271,11 @@ well enough to keep the primary workflow moving. The desired behavior is:
 - leave primary workflow continuation possible with direct memory file reads
 
 This hardening is cross-workflow because `learning start` appears in many
-workflow templates, not only `debug`.
+workflow templates, not only `debug`. The passive
+`templates/passive-skills/spec-kit-project-learning/SKILL.md` wording must align
+with this behavior: "required preflight memory" means required to attempt and
+surface when available, not allowed to mask the primary workflow with a legacy
+index parser failure.
 
 ### 5. Test The Experience, Not Only The Words
 
@@ -263,6 +288,9 @@ Regression tests should assert behavior-level outcomes:
   selection without relying only on raw keyword overlap
 - `learning start` survives legacy index entries missing optional or formerly
   required fields
+- JSON-mode `project-cognition query` emits machine-readable warnings,
+  `repair_hints`, normalized `query_plan` output, or structured JSON errors for
+  query-plan shape problems
 - generated integration outputs preserve the shared cognition guidance
 
 ## Acceptance Criteria
@@ -274,10 +302,15 @@ Regression tests should assert behavior-level outcomes:
   shape.
 - `project-cognition query` no longer fails with an opaque struct-unmarshal
   error for the common string-array alias interpretation mistake.
+- Successful query-plan coercion returns stdout JSON with warning or repair-hint
+  diagnostics and the normalized `query_plan`; unrecoverable query-plan parsing
+  returns a structured JSON error under `--format json` rather than stderr-only
+  text.
 - `learning start --command <workflow> --format json` does not terminate with
   `KeyError` when the learning index contains legacy entries.
 - Tests cover at least `sp-debug`, one planning workflow, one execution
-  workflow, and one generated integration surface.
+  workflow, `sp-map-build` smoke-query guidance, and one generated integration
+  surface.
 - The final user-facing workflow guidance for `review` readiness explains what
   to inspect next through `minimal_live_reads`.
 
@@ -285,11 +318,15 @@ Regression tests should assert behavior-level outcomes:
 
 - Whether string-array `alias_interpretations` should be silently coerced or
   rejected with a friendly error. The recommended default is coercion with a
-  diagnostic warning because it preserves workflow momentum.
+  diagnostic warning because it preserves workflow momentum. If implemented,
+  coercion should apply both to top-level `alias_interpretations` and nested
+  `semantic_intake.alias_interpretations`.
 - Whether the experience audit should become a permanent test fixture or a
   one-time design-to-implementation checklist. The recommended default is both:
-  write the audit as a temporary implementation artifact, then encode the
-  durable checks in tests.
+  write the audit as a temporary implementation artifact under the planning
+  workspace or design notes, then encode the durable checks in tests. It does
+  not need to become a permanent docs artifact unless it carries decisions that
+  future maintainers need outside the tests.
 
 ## Implementation Handoff
 
