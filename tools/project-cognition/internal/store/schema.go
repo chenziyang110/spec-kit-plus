@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS alias_index (
 CREATE INDEX IF NOT EXISTS idx_alias_normalized ON alias_index(normalized_alias);
 CREATE INDEX IF NOT EXISTS idx_alias_target ON alias_index(target_id);
 CREATE INDEX IF NOT EXISTS idx_alias_generation_normalized ON alias_index(generation_id, normalized_alias);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alias_identity ON alias_index(generation_id, target_type, target_id, normalized_alias, source);
 
 CREATE TABLE IF NOT EXISTS updates (
 	id TEXT PRIMARY KEY,

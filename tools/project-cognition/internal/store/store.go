@@ -30,9 +30,18 @@ type ConceptCandidateRow struct {
 	Confidence           string
 	AttrsJSON            string
 	Paths                []string
+	Aliases              []ConceptAliasRow
 	EvidenceIDs          []string
 	EvidencePaths        []string
 	ObservationSummaries []string
+}
+
+type ConceptAliasRow struct {
+	Alias           string
+	NormalizedAlias string
+	Source          string
+	Confidence      string
+	EvidenceID      string
 }
 
 type UpdateRecord struct {
@@ -978,6 +987,10 @@ func (s *Store) activeConceptCandidateRows(ctx context.Context, limit int, limit
 		if err != nil {
 			return nil, fmt.Errorf("query active concept candidate paths for %s: %w", row.NodeID, err)
 		}
+		row.Aliases, err = s.nodeAliasRows(ctx, generationID, row.NodeID)
+		if err != nil {
+			return nil, fmt.Errorf("query active concept candidate aliases for %s: %w", row.NodeID, err)
+		}
 		row.EvidenceIDs, err = s.nodeStringValues(ctx, `
 WITH candidate_evidence AS (
 	SELECT ne.evidence_id
@@ -1073,6 +1086,30 @@ ORDER BY n.id`, generationID, nodeID)
 		out = append(out, nodes...)
 	}
 	return out, nil
+}
+
+func (s *Store) nodeAliasRows(ctx context.Context, generationID string, nodeID string) ([]ConceptAliasRow, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT alias, normalized_alias, source, confidence, evidence_id FROM alias_index WHERE generation_id = ? AND target_type = 'node' AND target_id = ? ORDER BY source, normalized_alias, id`, generationID, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []ConceptAliasRow{}
+	seen := map[string]bool{}
+	for rows.Next() {
+		var row ConceptAliasRow
+		if err := rows.Scan(&row.Alias, &row.NormalizedAlias, &row.Source, &row.Confidence, &row.EvidenceID); err != nil {
+			return nil, err
+		}
+		key := row.Source + "\x00" + row.NormalizedAlias
+		if strings.TrimSpace(row.Alias) == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) nodeStringValues(ctx context.Context, query string, args ...any) ([]string, error) {

@@ -20,6 +20,7 @@ type ImportInput struct {
 	Edges        []EdgeImport
 	Observations []ObservationImport
 	PathIndex    []PathIndexImport
+	Aliases      []AliasImport
 	Rejections   []RowDecision
 	MergeRecords []MergeRecord
 }
@@ -69,6 +70,18 @@ type PathIndexImport struct {
 	Relation   string
 	Confidence string
 	EvidenceID string
+}
+
+type AliasImport struct {
+	ID              string
+	Alias           string
+	NormalizedAlias string
+	TargetType      string
+	TargetID        string
+	Language        string
+	Source          string
+	Confidence      string
+	EvidenceID      string
 }
 
 type RowDecision struct {
@@ -194,6 +207,15 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 	for _, pathIndex := range input.PathIndex {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, pathIndex.ID, input.GenerationID, pathIndex.Path, pathIndex.NodeID, pathIndex.Relation, pathIndex.Confidence, pathIndex.EvidenceID, now); err != nil {
 			return "", fmt.Errorf("insert path index %s: %w", pathIndex.ID, err)
+		}
+	}
+
+	for _, alias := range input.Aliases {
+		language := defaultString(alias.Language, "unknown")
+		source := defaultString(alias.Source, "scan_alias")
+		confidence := defaultString(alias.Confidence, "medium")
+		if _, err := tx.ExecContext(ctx, `INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, alias.ID, input.GenerationID, alias.Alias, alias.NormalizedAlias, alias.TargetType, alias.TargetID, language, source, confidence, alias.EvidenceID); err != nil {
+			return "", fmt.Errorf("insert alias index %s: %w", alias.ID, err)
 		}
 	}
 
@@ -359,6 +381,25 @@ func validateImportReferences(input ImportInput) error {
 		}
 		if pathIndex.EvidenceID != "" {
 			if err := validateImportedEvidenceID("path_index", pathIndex.ID, pathIndex.EvidenceID, evidenceIDs); err != nil {
+				return err
+			}
+		}
+	}
+	for _, alias := range input.Aliases {
+		if strings.TrimSpace(alias.Alias) == "" {
+			return fmt.Errorf("alias_index %s alias is required", alias.ID)
+		}
+		if strings.TrimSpace(alias.NormalizedAlias) == "" {
+			return fmt.Errorf("alias_index %s normalized_alias is required", alias.ID)
+		}
+		if alias.TargetType != "node" {
+			return fmt.Errorf("alias_index %s target_type %q is not supported", alias.ID, alias.TargetType)
+		}
+		if !nodeIDs[alias.TargetID] {
+			return fmt.Errorf("alias_index %s references missing node %s", alias.ID, alias.TargetID)
+		}
+		if alias.EvidenceID != "" {
+			if err := validateImportedEvidenceID("alias_index", alias.ID, alias.EvidenceID, evidenceIDs); err != nil {
 				return err
 			}
 		}

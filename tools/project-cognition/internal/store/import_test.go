@@ -262,6 +262,126 @@ func TestMarkRuntimeMetadataBlockedRefreshesBaselineKindAfterGreenfieldReady(t *
 	}
 }
 
+func TestImportGenerationStoresAliasIndexRows(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	input := validImportInput("GEN-alias")
+	input.Aliases = []AliasImport{{
+		ID:              "ALIAS-app",
+		Alias:           "App UI",
+		NormalizedAlias: "app ui",
+		TargetType:      "node",
+		TargetID:        "N-app",
+		EvidenceID:      "E-001",
+	}}
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := st.ActiveConceptCandidateRows(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %#v, want one row", rows)
+	}
+	if !conceptAliasContains(rows[0].Aliases, "App UI", "scan_alias") {
+		t.Fatalf("Aliases = %#v, want App UI scan_alias", rows[0].Aliases)
+	}
+	if rows[0].Aliases[0].Confidence != "medium" {
+		t.Fatalf("alias confidence = %q, want medium", rows[0].Aliases[0].Confidence)
+	}
+
+	var language, source, confidence string
+	if err := st.DB().QueryRowContext(ctx, `SELECT language, source, confidence FROM alias_index WHERE id = ?`, "ALIAS-app").Scan(&language, &source, &confidence); err != nil {
+		t.Fatal(err)
+	}
+	if language != "unknown" || source != "scan_alias" || confidence != "medium" {
+		t.Fatalf("alias defaults = language:%q source:%q confidence:%q, want unknown scan_alias medium", language, source, confidence)
+	}
+}
+
+func TestImportGenerationRejectsInvalidAliasReferences(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	tests := []struct {
+		name    string
+		alias   AliasImport
+		wantErr string
+	}{
+		{
+			name: "missing node",
+			alias: AliasImport{
+				ID:              "ALIAS-missing-node",
+				Alias:           "Missing",
+				NormalizedAlias: "missing",
+				TargetType:      "node",
+				TargetID:        "N-missing",
+				Language:        "en",
+				Source:          "scan_alias",
+				Confidence:      "verified",
+			},
+			wantErr: "references missing node N-missing",
+		},
+		{
+			name: "missing evidence",
+			alias: AliasImport{
+				ID:              "ALIAS-missing-evidence",
+				Alias:           "App",
+				NormalizedAlias: "app",
+				TargetType:      "node",
+				TargetID:        "N-app",
+				Language:        "en",
+				Source:          "scan_alias",
+				Confidence:      "verified",
+				EvidenceID:      "E-missing",
+			},
+			wantErr: "references missing evidence E-missing",
+		},
+		{
+			name: "empty normalized alias",
+			alias: AliasImport{
+				ID:         "ALIAS-empty",
+				Alias:      "App",
+				TargetType: "node",
+				TargetID:   "N-app",
+				Language:   "en",
+				Source:     "scan_alias",
+				Confidence: "verified",
+			},
+			wantErr: "normalized_alias is required",
+		},
+		{
+			name: "empty alias",
+			alias: AliasImport{
+				ID:              "ALIAS-empty-alias",
+				Alias:           " ",
+				NormalizedAlias: "app",
+				TargetType:      "node",
+				TargetID:        "N-app",
+				Language:        "en",
+				Source:          "scan_alias",
+				Confidence:      "verified",
+			},
+			wantErr: "alias is required",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := validImportInput("GEN-" + tt.name)
+			input.Aliases = []AliasImport{tt.alias}
+			_, err := st.ImportGeneration(ctx, input)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestActiveConceptCandidateRowsDeriveGraphMaterial(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)
@@ -304,6 +424,30 @@ func TestActiveConceptCandidateRowsDeriveGraphMaterial(t *testing.T) {
 		Confidence: "verified",
 		EvidenceID: "E-gui",
 	}}
+	input.Aliases = []AliasImport{
+		{
+			ID:              "ALIAS-gui",
+			Alias:           "GUI",
+			NormalizedAlias: "gui",
+			TargetType:      "node",
+			TargetID:        "N-gui",
+			Language:        "en",
+			Source:          "scan_alias",
+			Confidence:      "verified",
+			EvidenceID:      "E-gui",
+		},
+		{
+			ID:              "ALIAS-desktop-ui",
+			Alias:           "desktop UI",
+			NormalizedAlias: "desktop ui",
+			TargetType:      "node",
+			TargetID:        "N-gui",
+			Language:        "en",
+			Source:          "scan_alias",
+			Confidence:      "verified",
+			EvidenceID:      "E-gui",
+		},
+	}
 	if _, err := st.ImportGeneration(ctx, input); err != nil {
 		t.Fatal(err)
 	}
@@ -323,8 +467,11 @@ func TestActiveConceptCandidateRowsDeriveGraphMaterial(t *testing.T) {
 	assertStringSliceContains(t, row.EvidenceIDs, "E-gui")
 	assertStringSliceContains(t, row.EvidencePaths, "src/gui/window.tsx")
 	assertStringSliceContains(t, row.ObservationSummaries, "GUI Shell owns frame rendering and input dispatch.")
-	if !strings.Contains(row.AttrsJSON, "desktop UI") {
-		t.Fatalf("AttrsJSON = %s, want attrs with alias material", row.AttrsJSON)
+	if !conceptAliasContains(row.Aliases, "GUI", "scan_alias") {
+		t.Fatalf("Aliases = %#v, want GUI scan_alias", row.Aliases)
+	}
+	if !conceptAliasContains(row.Aliases, "desktop UI", "scan_alias") {
+		t.Fatalf("Aliases = %#v, want desktop UI scan_alias", row.Aliases)
 	}
 }
 
@@ -1085,4 +1232,13 @@ func assertStringSliceContains(t *testing.T, values []string, want string) {
 		}
 	}
 	t.Fatalf("%#v does not contain %q", values, want)
+}
+
+func conceptAliasContains(rows []ConceptAliasRow, alias string, source string) bool {
+	for _, row := range rows {
+		if row.Alias == alias && row.Source == source {
+			return true
+		}
+	}
+	return false
 }
