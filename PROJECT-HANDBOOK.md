@@ -69,7 +69,7 @@ For generated projects, use project cognition first:
 The cognition model should help answer:
 
 - which workflow-specific cognition slice owns the current task
-- which graph claims, conflicts, or slices must be read before source work begins
+- which graph-backed concept candidates, alias interpretations, paths, and affected surfaces must be read before source work begins
 - which propagation risks and verification routes matter before changing code
 - what remains unknown and therefore needs live repository confirmation
 - whether the factual freshness state is runtime staleness, support drift, or a partial refresh that still blocks readiness
