@@ -592,6 +592,68 @@ func TestLexiconCatalogModeReturnsAliasCatalogForEmptyQuery(t *testing.T) {
 	}
 }
 
+func TestLexiconUsesStoredAliasRowsInsteadOfAttrsAliases(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-stored-alias",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-app",
+			Type:       "capability",
+			Title:      "Application Shell",
+			Confidence: "verified",
+			Attrs: map[string]any{
+				"aliases": []any{"legacy attr alias"},
+			},
+		}},
+		Aliases: []store.AliasImport{{
+			ID:              "AI-stored-alias",
+			Alias:           "Stored Name",
+			NormalizedAlias: "stored name",
+			TargetType:      "node",
+			TargetID:        "N-app",
+			Source:          "test",
+			Confidence:      "verified",
+		}},
+	})
+
+	payload, err := LexiconWithOptions(paths, LexiconInput{
+		Intent: "debug",
+		Query:  "legacy attr alias",
+		Limit:  10,
+		Mode:   "catalog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.AliasCatalog) != 1 {
+		t.Fatalf("AliasCatalog = %#v, want one item", payload.AliasCatalog)
+	}
+	if !payload.UnmappedIntent {
+		t.Fatalf("UnmappedIntent = false, want legacy attrs alias query to be unmapped")
+	}
+	if !hasString(payload.MissingCoverage, "no_graph_candidate_matched_query") {
+		t.Fatalf("MissingCoverage = %#v, want no_graph_candidate_matched_query", payload.MissingCoverage)
+	}
+	if len(payload.ConceptCandidates) != 1 {
+		t.Fatalf("ConceptCandidates = %#v, want one zero-score catalogued candidate", payload.ConceptCandidates)
+	}
+	if payload.ConceptCandidates[0]["score"] != 0 {
+		t.Fatalf("ConceptCandidates = %#v, want no score from legacy attrs alias", payload.ConceptCandidates)
+	}
+	aliases, ok := payload.AliasCatalog[0]["aliases"].([]string)
+	if !ok {
+		t.Fatalf("aliases = %#v, want []string", payload.AliasCatalog[0]["aliases"])
+	}
+	if !hasString(aliases, "Stored Name") {
+		t.Fatalf("aliases = %#v, want Stored Name from alias_index", aliases)
+	}
+	if hasString(aliases, "legacy attr alias") {
+		t.Fatalf("aliases = %#v, do not want legacy attrs alias", aliases)
+	}
+}
+
 func TestLexiconReturnsGraphCandidatesWithoutInventedTermConcepts(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
@@ -2063,6 +2125,7 @@ func seedDriverDownloadGraph(t *testing.T, paths rt.Paths) {
 
 func seedReadyGraph(t *testing.T, paths rt.Paths, input store.ImportInput) {
 	t.Helper()
+	input = withFixtureAliasRows(input)
 	st, err := store.Open(paths)
 	if err != nil {
 		t.Fatal(err)
@@ -2095,6 +2158,65 @@ func seedReadyGraph(t *testing.T, paths rt.Paths, input store.ImportInput) {
 	status.BaselineKind = rt.BaselineKindBrownfieldFull
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func withFixtureAliasRows(input store.ImportInput) store.ImportInput {
+	nodesWithExplicitAliases := map[string]bool{}
+	for _, alias := range input.Aliases {
+		if alias.TargetType == "node" {
+			nodesWithExplicitAliases[alias.TargetID] = true
+		}
+	}
+	for _, node := range input.Nodes {
+		if nodesWithExplicitAliases[node.ID] {
+			continue
+		}
+		aliases := []string{node.Title, node.ID, node.Type}
+		aliases = append(aliases, testAttrStrings(node.Attrs, "aliases")...)
+		seenNormalized := map[string]bool{}
+		aliasIndex := 0
+		for _, alias := range uniqueStrings(aliases) {
+			normalized := strings.ToLower(strings.TrimSpace(alias))
+			if normalized == "" || seenNormalized[normalized] {
+				continue
+			}
+			seenNormalized[normalized] = true
+			input.Aliases = append(input.Aliases, store.AliasImport{
+				ID:              fmt.Sprintf("AI-fixture-%s-%d", node.ID, aliasIndex),
+				Alias:           alias,
+				NormalizedAlias: normalized,
+				TargetType:      "node",
+				TargetID:        node.ID,
+				Source:          "test_fixture",
+				Confidence:      "verified",
+			})
+			aliasIndex++
+		}
+	}
+	return input
+}
+
+func testAttrStrings(attrs map[string]any, key string) []string {
+	value, ok := attrs[key]
+	if !ok {
+		return []string{}
+	}
+	switch typed := value.(type) {
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok {
+				out = append(out, text)
+			}
+		}
+		return out
+	case []string:
+		return typed
+	case string:
+		return []string{typed}
+	default:
+		return []string{}
 	}
 }
 

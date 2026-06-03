@@ -602,6 +602,19 @@ func TestLexiconCommandCatalogModeEmitsAliasCatalogAndSemanticContract(t *testin
 	if !ok {
 		t.Fatalf("alias catalog item = %#v, want object", catalog[0])
 	}
+	aliases, ok := first["aliases"].([]any)
+	if !ok {
+		t.Fatalf("aliases = %#v", first["aliases"])
+	}
+	if !jsonAnySliceContains(aliases, "App") {
+		t.Fatalf("aliases = %#v, want App from alias_index", aliases)
+	}
+	if jsonAnySliceContains(aliases, "App observed") {
+		t.Fatalf("aliases = %#v, do not want raw observation summary alias", aliases)
+	}
+	if jsonAnySliceContains(aliases, "App owns frame rendering and input dispatch.") {
+		t.Fatalf("aliases = %#v, do not want observation summary alias", aliases)
+	}
 	for _, key := range []string{"concept_id", "title", "aliases", "owner", "domain", "node_type", "confidence", "path_hints", "route_hints", "verification_hints", "evidence_summary_tags"} {
 		if _, ok := first[key]; !ok {
 			t.Fatalf("alias catalog item missing %s: %#v", key, first)
@@ -2028,6 +2041,11 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 			"observation_type": "summary",
 			"summary":          "App owns frame rendering and input dispatch.",
 			"evidence_ids":     []string{"E-001"},
+		}, {
+			"id":               "OBS-app-observed",
+			"observation_type": "summary",
+			"summary":          "App observed",
+			"evidence_ids":     []string{"E-001"},
 		}},
 	})
 	writeTestJSON(t, filepath.Join(runtimeDir, "coverage.json"), map[string]any{
@@ -2245,6 +2263,10 @@ func jsonStringSliceContains(value any, want string) bool {
 	if !ok {
 		return false
 	}
+	return jsonAnySliceContains(values, want)
+}
+
+func jsonAnySliceContains(values []any, want string) bool {
 	for _, value := range values {
 		if text, ok := value.(string); ok && text == want {
 			return true

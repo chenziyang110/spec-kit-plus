@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -288,16 +287,7 @@ func rankConceptCandidates(rows []store.ConceptCandidateRow, terms []string, lim
 func newRankedConceptCandidate(row store.ConceptCandidateRow) rankedConceptCandidate {
 	attrs := parseAttrs(row.AttrsJSON)
 	paths := uniqueStrings(append(append([]string{}, row.Paths...), row.EvidencePaths...))
-	aliases := []string{row.Title, row.NodeID, row.NodeType}
-	aliases = append(aliases, attrStrings(attrs, "aliases")...)
-	aliases = append(aliases, attrString(attrs, "domain"), attrString(attrs, "owner"), attrString(attrs, "workflow"), attrString(attrs, "route"))
-	aliases = append(aliases, attrStrings(attrs, "route_hints")...)
-	aliases = append(aliases, attrStrings(attrs, "verification_hints")...)
-	aliases = append(aliases, paths...)
-	for _, path := range paths {
-		aliases = append(aliases, pathMaterial(path)...)
-	}
-	aliases = append(aliases, row.ObservationSummaries...)
+	aliases := aliasStrings(row.Aliases)
 	return rankedConceptCandidate{
 		row:               row,
 		attrs:             attrs,
@@ -306,6 +296,14 @@ func newRankedConceptCandidate(row store.ConceptCandidateRow) rankedConceptCandi
 		routeHints:        uniqueStrings(append(attrStrings(attrs, "route_hints"), attrString(attrs, "route"))),
 		verificationHints: uniqueStrings(attrStrings(attrs, "verification_hints")),
 	}
+}
+
+func aliasStrings(rows []store.ConceptAliasRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.Alias)
+	}
+	return uniqueStrings(out)
 }
 
 func (candidate rankedConceptCandidate) toMap(rank int) map[string]any {
@@ -470,23 +468,6 @@ func toString(value any) string {
 		}
 		return strings.TrimSpace(string(bytes))
 	}
-}
-
-func pathMaterial(path string) []string {
-	path = filepath.ToSlash(strings.TrimSpace(path))
-	if path == "" {
-		return []string{}
-	}
-	parts := strings.FieldsFunc(path, func(r rune) bool {
-		return r == '/' || r == '\\' || r == '.' || r == '_' || r == '-'
-	})
-	base := filepath.Base(path)
-	ext := filepath.Ext(base)
-	if ext != "" {
-		base = strings.TrimSuffix(base, ext)
-	}
-	parts = append(parts, base)
-	return uniqueStrings(parts)
 }
 
 func uniqueStrings(values []string) []string {
