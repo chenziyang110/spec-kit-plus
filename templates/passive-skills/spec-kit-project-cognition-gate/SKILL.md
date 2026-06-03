@@ -39,6 +39,18 @@ judgment in an established Spec Kit Plus repository:
   `repair_hints`, normalized `query_plan`, structured `errors`, and
   `expected_shape` so the workflow can repair the plan instead of ending on a
   raw parser exception.
+  Before any source search, turn the user's wording into project-language search
+  terms derived from the alias catalog, `semantic_intake`, selected candidates,
+  and returned route metadata. Write these as `repository_search_terms` in the
+  query plan or workflow notes. Include component names, state names, file names,
+  command names, UI labels, and route names when the lexicon or candidate
+  payload exposes them. Do not search only the raw user words. If the user's
+  phrase has no direct code match, use `normalized_query`,
+  `alias_interpretations`, candidate titles, candidate aliases, `matched_terms`,
+  `colloquial_matches`, returned paths, and `expanded_queries` to form the
+  first search set. Use these project-language search terms before broad
+  repository search; only widen after the translated terms and returned
+  `minimal_live_reads` fail to identify the owner.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - Treat `concept_candidates` as structured project concept candidates, not a
   flat keyword list. Resolve broad, conflicting, or unknown candidates through

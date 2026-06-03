@@ -37,7 +37,7 @@ Required context inputs:
 
   ```text
   {{specify-subcmd:project-cognition lexicon --intent research --query="$ARGUMENTS" --mode catalog --format json}}
-  # Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone.
+  # Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, repository_search_terms, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone. Derive project-language search terms from the alias catalog before reading source. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, normalized_query, and expanded_queries. Use these project-language search terms before broad repository search.
   {{specify-subcmd:project-cognition query --intent research --query-plan "<query_plan_json>" --format json}}
   ```
 

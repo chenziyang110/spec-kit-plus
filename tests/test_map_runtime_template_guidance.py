@@ -137,6 +137,22 @@ def test_shared_project_cognition_partials_require_semantic_intake_contract() ->
             assert term in content, f"{path} missing shared semantic intake term: {term}"
 
 
+def test_shared_project_cognition_partials_require_project_language_search_terms() -> None:
+    for path in [
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    ]:
+        content = _compact(_read(path).lower())
+        assert "project-language search terms" in content, path
+        assert "repository_search_terms" in content, path
+        assert "derived from the alias catalog" in content, path
+        assert "do not search only the raw user words" in content, path
+        assert "component names, state names, file names, command names, ui labels, and route names" in content, path
+        assert "use these project-language search terms before broad repository search" in content, path
+
+
 def test_shared_project_cognition_partials_include_canonical_query_plan_skeleton() -> None:
     required_skeleton_terms = (
         '"raw_query"',
@@ -155,6 +171,7 @@ def test_shared_project_cognition_partials_include_canonical_query_plan_skeleton
         '"match_sources"',
         '"lexicon_generation_id"',
         '"expanded_queries"',
+        '"repository_search_terms"',
         '"paths"',
     )
 
@@ -182,6 +199,9 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
         "project-cognition query",
         "--query-plan",
         "minimal_live_reads",
+        "repository_search_terms",
+        "project-language search terms",
+        "do not search only the raw user words",
     )
 
     for name in COGNITION_INTAKE_COMMANDS:
@@ -204,6 +224,9 @@ def test_map_update_preserves_semantic_intake_classification_without_user_intent
         "covered_facets",
         "missing_facets",
         "match_sources",
+        "repository_search_terms",
+        "project-language search terms",
+        "do not search only the raw user words",
         "do not trust top similarity alone",
     ):
         assert term in content

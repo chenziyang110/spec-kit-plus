@@ -63,6 +63,7 @@ Use this canonical query-plan skeleton when shaping `<query_plan_json>`. Keep
   ],
   "lexicon_generation_id": "<lexicon_generation_id from lexicon payload>",
   "expanded_queries": ["<normalized project-language query>"],
+  "repository_search_terms": ["<project-local term to search before raw wording>"],
   "paths": ["<justified path hint>"]
 }
 ```
@@ -70,6 +71,22 @@ Use this canonical query-plan skeleton when shaping `<query_plan_json>`. Keep
 If `project-cognition query` reports query-plan diagnostics, carry forward its
 `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and
 `expected_shape` instead of reducing them to a raw parser exception.
+
+### Project-Language Search Terms
+
+Before any source search, turn the user's wording into project-language search
+terms derived from the alias catalog, `semantic_intake`, selected candidates,
+and returned route metadata. Write these as `repository_search_terms` in the
+query plan or workflow notes. Include component names, state names, file names,
+command names, UI labels, and route names when the lexicon or candidate payload
+exposes them.
+
+Do not search only the raw user words. If the user's phrase has no direct code
+match, use `normalized_query`, `alias_interpretations`, candidate titles,
+candidate aliases, `matched_terms`, `colloquial_matches`, returned paths, and
+`expanded_queries` to form the first search set. Use these project-language
+search terms before broad repository search; only widen after the translated
+terms and returned `minimal_live_reads` fail to identify the owner.
 
 ### Readiness Routing
 

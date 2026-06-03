@@ -59,6 +59,7 @@ type Plan struct {
 	AliasInterpretations  []AliasInterpretation `json:"alias_interpretations,omitempty"`
 	OpenSemanticQuestions []string              `json:"open_semantic_questions,omitempty"`
 	ExpandedQueries       []string              `json:"expanded_queries,omitempty"`
+	RepositorySearchTerms []string              `json:"repository_search_terms,omitempty"`
 	Paths                 []string              `json:"paths,omitempty"`
 	PathHints             []string              `json:"path_hints,omitempty"`
 	SelectedConcepts      []string              `json:"selected_concepts,omitempty"`
@@ -176,6 +177,7 @@ func NormalizePlan(plan Plan) Plan {
 	plan.AliasInterpretations = normalizeAliasInterpretations(plan.AliasInterpretations)
 	plan.OpenSemanticQuestions = normalizeStrings(plan.OpenSemanticQuestions)
 	plan.SemanticIntake = normalizeSemanticIntake(mergeSemanticIntakeAliases(plan.SemanticIntake, plan))
+	plan.RepositorySearchTerms = normalizeStrings(plan.RepositorySearchTerms)
 	plan.Paths = normalizePaths(plan.Paths)
 	plan.PathHints = normalizePaths(plan.PathHints)
 	plan.SelectedConcepts = normalizeStrings(plan.SelectedConcepts)

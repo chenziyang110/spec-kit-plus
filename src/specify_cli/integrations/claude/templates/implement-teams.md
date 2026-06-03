@@ -68,7 +68,8 @@ TeamCreate({
    - team membership lives in `~/.claude/teams/{team-name}/config.json`
    - shared tasks live under `~/.claude/tasks/{team-name}/`
 7. Before the first `TaskCreate`, compile an execution context bundle for the current batch:
-   - include the `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --mode catalog --format json}}` lexicon result, the agent-generated `semantic_intake` and `query_plan`, and the `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` result for the current batch
+   - include the `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --mode catalog --format json}}` lexicon result, the agent-generated `semantic_intake` and `query_plan` with `repository_search_terms`, and the `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` result for the current batch
+   - derive project-language search terms from the alias catalog before source search; do not search only the raw user words
    - the literal runtime commands are `project-cognition lexicon --intent implement --mode catalog` and `project-cognition query --intent implement`; include their outputs, not raw graph files, in teammate context
    - candidate selection must satisfy facet coverage through `covered_facets`, `missing_facets`, and `match_sources`; do not trust top similarity alone
    - include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane

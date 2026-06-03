@@ -130,6 +130,12 @@ standalone branch-creation command.
   Candidate selection must satisfy facet coverage through `covered_facets`,
   `missing_facets`, and `match_sources`; do not trust top similarity alone,
   whether lexical or vector-based.
+  Before source search, write project-language search terms derived from the
+  alias catalog, `semantic_intake`, selected candidates, and route metadata.
+  Write them as `repository_search_terms`; include component names, state names,
+  file names, command names, UI labels, and route names when present. Do not
+  search only the raw user words. Use these project-language search terms before
+  broad repository search.
   If the query command reports query-plan diagnostics, preserve its `warnings`,
   `repair_hints`, normalized `query_plan`, structured `errors`, and
   `expected_shape` so the owning workflow can repair the plan instead of ending

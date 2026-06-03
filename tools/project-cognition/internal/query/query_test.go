@@ -64,6 +64,31 @@ func TestParsePlanAcceptsConceptDecisionsAndGeneration(t *testing.T) {
 	}
 }
 
+func TestParsePlanPreservesRepositorySearchTerms(t *testing.T) {
+	plan, err := ParsePlan(`{
+		"raw_query": "Complete button should live in workflow status",
+		"repository_search_terms": [
+			"workflow status",
+			"Complete",
+			"workflow status",
+			"status header",
+			""
+		]
+	}`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"workflow status", "Complete", "status header"}
+	if len(plan.RepositorySearchTerms) != len(want) {
+		t.Fatalf("RepositorySearchTerms = %#v, want %#v", plan.RepositorySearchTerms, want)
+	}
+	for index, term := range want {
+		if plan.RepositorySearchTerms[index] != term {
+			t.Fatalf("RepositorySearchTerms = %#v, want %#v", plan.RepositorySearchTerms, want)
+		}
+	}
+}
+
 func TestParsePlanAcceptsSemanticIntakeAndFacetCoverageDecisions(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"raw_query": "Token usage today says 230M, is that wrong?",
@@ -514,7 +539,7 @@ func TestLexiconCatalogIncludesCompactAliasMaterialBeforeCandidateRanking(t *tes
 		}
 	}
 	acceptedFields := payload.QueryPlanningContract["accepted_fields"]
-	for _, want := range []string{"semantic_intake", "normalized_query", "intent_facets", "negative_constraints"} {
+	for _, want := range []string{"semantic_intake", "normalized_query", "intent_facets", "negative_constraints", "repository_search_terms"} {
 		if !mapStringSliceContains(acceptedFields, want) {
 			t.Fatalf("accepted_fields = %#v, want %q", acceptedFields, want)
 		}

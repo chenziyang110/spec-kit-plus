@@ -208,6 +208,7 @@ func queryPlanningContract() map[string]any {
 			"alias_interpretations",
 			"open_semantic_questions",
 			"expanded_queries",
+			"repository_search_terms",
 			"paths",
 			"path_hints",
 			"selected_concepts",

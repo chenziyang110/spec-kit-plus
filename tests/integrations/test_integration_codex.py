@@ -1137,6 +1137,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "facet coverage" in content
     assert "concept_decisions" in content
     assert "lexicon_generation_id" in content
+    assert "project-language search terms" in content
+    assert "repository_search_terms" in content
+    assert "do not search only the raw user words" in content
     assert "--query-plan" in content
     assert "minimal_live_reads" in content
     assert "returned map terms" not in content

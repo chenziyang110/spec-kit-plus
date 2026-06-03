@@ -88,6 +88,11 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "returned task-local bundle" in content
     assert "fast-task state or report" in content
     assert "verification route" in content
+    assert "project-language search terms" in content
+    assert "repository_search_terms" in content
+    assert "do not search only the raw user words" in content
+    assert "component names, state names, file names, command names, ui labels, and route names" in content
+    assert "use these project-language search terms before broad repository search" in content
 
 
 def test_fast_template_uses_leader_direct_contract() -> None:
