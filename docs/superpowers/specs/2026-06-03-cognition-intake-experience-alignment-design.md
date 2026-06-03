@@ -98,6 +98,12 @@ The audit and alignment pass applies to:
     preserve lexicon -> semantic_intake -> query context before `TaskCreate`,
     and generated-skill parity tests should confirm it does not drift from the
     base implementation contract.
+- workflow templates that invoke `learning start`, even when they do not
+  perform cognition intake:
+  - `constitution`, `map-scan`, and any other command template with
+    `learning start --command <workflow> --format json`
+  - these surfaces are in scope only for passive learning hardening so malformed
+    legacy learning index entries cannot block non-cognition workflows
 - passive workflow guidance:
   - `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`
   - `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`
@@ -298,6 +304,9 @@ Regression tests should assert behavior-level outcomes:
   selection without relying only on raw keyword overlap
 - `learning start` survives legacy index entries missing optional or formerly
   required fields
+- learning hardening tests cover the actual known `learning start` command
+  family, including non-cognition workflows such as `constitution`, `map-scan`,
+  and `map-build`, not only `debug` or planning/execution cognition workflows
 - JSON-mode `project-cognition query` emits machine-readable warnings,
   `repair_hints`, normalized `query_plan` output, or structured JSON errors for
   query-plan shape problems
@@ -318,6 +327,9 @@ Regression tests should assert behavior-level outcomes:
   text, with `errors`, `warnings`, `repair_hints`, and `expected_shape`.
 - `learning start --command <workflow> --format json` does not terminate with
   `KeyError` when the learning index contains legacy entries.
+- Non-cognition workflows that still call `learning start`, including
+  `constitution`, `map-scan`, and `map-build`, receive the same legacy-entry
+  tolerance and warning diagnostics.
 - Tests cover at least `sp-debug`, one planning workflow, one execution
   workflow, `sp-map-build` smoke-query guidance, `sp-implement-teams`
   generated-skill parity, and one generated integration surface.
