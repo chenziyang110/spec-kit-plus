@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -81,6 +82,9 @@ func Open(paths rt.Paths) (*Store, error) {
 	if _, err := ReplaceIncompatibleDatabase(paths); err != nil {
 		return nil, err
 	}
+	if _, err := ReplaceOutdatedDatabase(paths); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -131,6 +135,50 @@ func ExistingDatabaseCompatible(paths rt.Paths) (bool, error) {
 		return false, fmt.Errorf("open sqlite for schema compatibility check: %w", err)
 	}
 	return SchemaCompatible(context.Background(), db)
+}
+
+func ReplaceOutdatedDatabase(paths rt.Paths) (bool, error) {
+	version, exists, err := ExistingDatabaseSchemaVersion(paths)
+	if err != nil {
+		return false, err
+	}
+	if !exists || version >= SchemaVersion {
+		return false, nil
+	}
+	archivePath, err := archiveDatabasePath(paths.DatabasePath)
+	if err != nil {
+		return false, err
+	}
+	if err := os.Rename(paths.DatabasePath, archivePath); err != nil {
+		return false, fmt.Errorf("archive outdated project-cognition.db: %w", err)
+	}
+	return true, nil
+}
+
+func ExistingDatabaseSchemaVersion(paths rt.Paths) (int, bool, error) {
+	info, err := os.Stat(paths.DatabasePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("stat project-cognition.db: %w", err)
+	}
+	if info.Size() == 0 {
+		return 0, false, nil
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		return 0, true, fmt.Errorf("open sqlite for schema version check: %w", err)
+	}
+	defer db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		return 0, true, fmt.Errorf("open sqlite for schema version check: %w", err)
+	}
+	version, err := databaseSchemaVersion(context.Background(), db)
+	if err != nil {
+		return 0, true, err
+	}
+	return version, true, nil
 }
 
 func SchemaCompatible(ctx context.Context, db *sql.DB) (bool, error) {
@@ -404,6 +452,37 @@ func metadataValueColumn(ctx context.Context, db *sql.DB) (string, error) {
 	return "", fmt.Errorf("metadata table has no value_json column")
 }
 
+func databaseSchemaVersion(ctx context.Context, db *sql.DB) (int, error) {
+	exists, err := tableExists(ctx, db, "metadata")
+	if err != nil {
+		return 0, err
+	}
+	if !exists {
+		return 0, nil
+	}
+	valueColumn, err := metadataValueColumn(ctx, db)
+	if err != nil {
+		return 0, nil
+	}
+	var value string
+	err = db.QueryRowContext(ctx, `SELECT `+valueColumn+` FROM metadata WHERE key = 'schema_version'`).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read metadata schema_version: %w", err)
+	}
+	var decoded int
+	if err := json.Unmarshal([]byte(value), &decoded); err == nil {
+		return decoded, nil
+	}
+	decoded, err = strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0, nil
+	}
+	return decoded, nil
+}
+
 func decodeMetadataValue(value string) string {
 	var decoded any
 	if err := json.Unmarshal([]byte(value), &decoded); err != nil {
@@ -470,19 +549,10 @@ func (s *Store) AffectedClosureForPaths(ctx context.Context, paths []string) (Af
 	if err != nil {
 		return AffectedClosure{}, err
 	}
-	nodeIDs := nodeIDsFromMaps(nodes)
-	claimIDs, err := s.claimIDsForSubjects(ctx, nodeIDs)
-	if err != nil {
-		return AffectedClosure{}, err
-	}
-	sliceIDs, err := s.sliceIDsForObjects(ctx, nodeIDs)
-	if err != nil {
-		return AffectedClosure{}, err
-	}
 	return AffectedClosure{
-		NodeIDs:  uniqueSorted(nodeIDs),
-		ClaimIDs: uniqueSorted(claimIDs),
-		SliceIDs: uniqueSorted(sliceIDs),
+		NodeIDs:  uniqueSorted(nodeIDsFromMaps(nodes)),
+		ClaimIDs: []string{},
+		SliceIDs: []string{},
 	}, nil
 }
 
@@ -583,44 +653,6 @@ func workflowPathTitle(path string) string {
 		return trimmed
 	}
 	return base
-}
-
-func (s *Store) claimIDsForSubjects(ctx context.Context, subjectRefs []string) ([]string, error) {
-	generationID, err := s.ActiveGenerationID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if generationID == "" || len(subjectRefs) == 0 {
-		return []string{}, nil
-	}
-	out := []string{}
-	for _, subjectRef := range uniqueSorted(subjectRefs) {
-		values, err := s.nodeStringValues(ctx, `SELECT id FROM claims WHERE generation_id = ? AND subject_ref = ? ORDER BY id`, generationID, subjectRef)
-		if err != nil {
-			return nil, fmt.Errorf("query claims for subject %s: %w", subjectRef, err)
-		}
-		out = append(out, values...)
-	}
-	return uniqueSorted(out), nil
-}
-
-func (s *Store) sliceIDsForObjects(ctx context.Context, objectIDs []string) ([]string, error) {
-	generationID, err := s.ActiveGenerationID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if generationID == "" || len(objectIDs) == 0 {
-		return []string{}, nil
-	}
-	out := []string{}
-	for _, objectID := range uniqueSorted(objectIDs) {
-		values, err := s.nodeStringValues(ctx, `SELECT DISTINCT slice_id FROM slice_members WHERE generation_id = ? AND object_type = 'node' AND object_id = ? ORDER BY slice_id`, generationID, objectID)
-		if err != nil {
-			return nil, fmt.Errorf("query slices for object %s: %w", objectID, err)
-		}
-		out = append(out, values...)
-	}
-	return uniqueSorted(out), nil
 }
 
 func (s *Store) pathIndexIDForPath(ctx context.Context, generationID string, path string) (string, error) {

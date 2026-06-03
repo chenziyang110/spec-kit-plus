@@ -476,9 +476,6 @@ func graphPathTableChecks() []struct {
 	}{
 		{table: "path_index", column: "path"},
 		{table: "evidence", column: "source_path"},
-		{table: "symbol_index", column: "path"},
-		{table: "entrypoint_index", column: "path"},
-		{table: "test_index", column: "test_path"},
 	}
 }
 

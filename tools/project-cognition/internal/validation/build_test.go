@@ -734,7 +734,7 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 		`INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-001', 'GEN-0001', 'src/app.go', 'capability:app', 'owns', 'verified', 'E-001', ?)`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('runtime_format', '"project-cognition-go"', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '1', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
-		`INSERT INTO metadata(key, value_json, updated_at) VALUES('schema_version', '1', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
+		fmt.Sprintf(`INSERT INTO metadata(key, value_json, updated_at) VALUES('schema_version', '%d', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`, store.SchemaVersion),
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('active_generation_id', '"GEN-0001"', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('graph_store_path', '".specify/project-cognition/project-cognition.db"', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('graph_ready', 'true', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,

@@ -19,9 +19,7 @@ type ImportInput struct {
 	Nodes        []NodeImport
 	Edges        []EdgeImport
 	Observations []ObservationImport
-	Claims       []ClaimImport
 	PathIndex    []PathIndexImport
-	SliceMembers []SliceMemberImport
 	Rejections   []RowDecision
 	MergeRecords []MergeRecord
 }
@@ -64,19 +62,6 @@ type ObservationImport struct {
 	Attrs           map[string]any
 }
 
-type ClaimImport struct {
-	ID          string
-	SubjectRef  string
-	Predicate   string
-	ObjectRef   string
-	ObjectText  string
-	TruthLayer  string
-	Confidence  string
-	Status      string
-	EvidenceIDs []string
-	Attrs       map[string]any
-}
-
 type PathIndexImport struct {
 	ID         string
 	Path       string
@@ -84,15 +69,6 @@ type PathIndexImport struct {
 	Relation   string
 	Confidence string
 	EvidenceID string
-}
-
-type SliceMemberImport struct {
-	ID         string
-	SliceID    string
-	ObjectType string
-	ObjectID   string
-	Rank       int
-	Reason     string
 }
 
 type RowDecision struct {
@@ -215,33 +191,9 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 		}
 	}
 
-	for _, claim := range input.Claims {
-		truthLayer := defaultString(claim.TruthLayer, "observed")
-		status := defaultString(claim.Status, "active")
-		confidence := defaultString(claim.Confidence, "partial")
-		attrs, err := attrsJSONOrEmpty(claim.Attrs)
-		if err != nil {
-			return "", fmt.Errorf("encode claim %s attrs: %w", claim.ID, err)
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO claims(id, generation_id, subject_ref, predicate, object_ref, object_value, truth_layer, confidence, status, last_validated_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, claim.ID, input.GenerationID, claim.SubjectRef, claim.Predicate, claim.ObjectRef, claim.ObjectText, truthLayer, confidence, status, now, attrs); err != nil {
-			return "", fmt.Errorf("insert claim %s: %w", claim.ID, err)
-		}
-		for _, evidenceID := range claim.EvidenceIDs {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id) VALUES(?, ?)`, claim.ID, evidenceID); err != nil {
-				return "", fmt.Errorf("insert claim evidence %s/%s: %w", claim.ID, evidenceID, err)
-			}
-		}
-	}
-
 	for _, pathIndex := range input.PathIndex {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, pathIndex.ID, input.GenerationID, pathIndex.Path, pathIndex.NodeID, pathIndex.Relation, pathIndex.Confidence, pathIndex.EvidenceID, now); err != nil {
 			return "", fmt.Errorf("insert path index %s: %w", pathIndex.ID, err)
-		}
-	}
-
-	for _, member := range input.SliceMembers {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO slice_members(id, generation_id, slice_id, object_type, object_id, rank, reason, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, member.ID, input.GenerationID, member.SliceID, member.ObjectType, member.ObjectID, member.Rank, member.Reason, now); err != nil {
-			return "", fmt.Errorf("insert slice member %s: %w", member.ID, err)
 		}
 	}
 
@@ -401,13 +353,6 @@ func validateImportReferences(input ImportInput) error {
 			}
 		}
 	}
-	for _, claim := range input.Claims {
-		for _, evidenceID := range claim.EvidenceIDs {
-			if err := validateImportedEvidenceID("claim", claim.ID, evidenceID, evidenceIDs); err != nil {
-				return err
-			}
-		}
-	}
 	for _, pathIndex := range input.PathIndex {
 		if !nodeIDs[pathIndex.NodeID] {
 			return fmt.Errorf("path_index %s references missing node %s", pathIndex.ID, pathIndex.NodeID)
@@ -469,17 +414,8 @@ func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) 
 		`DELETE FROM observation_evidence WHERE observation_id IN (SELECT id FROM observations WHERE generation_id = ?)`,
 		`DELETE FROM node_evidence WHERE node_id IN (SELECT id FROM nodes WHERE generation_id = ?)`,
 		`DELETE FROM edge_evidence WHERE edge_id IN (SELECT id FROM edges WHERE generation_id = ?)`,
-		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claims WHERE generation_id = ?)`,
-		`DELETE FROM conflict_claims WHERE conflict_id IN (SELECT id FROM conflicts WHERE generation_id = ?)`,
-		`DELETE FROM query_examples WHERE generation_id = ?`,
-		`DELETE FROM slice_members WHERE generation_id = ?`,
-		`DELETE FROM test_index WHERE generation_id = ?`,
-		`DELETE FROM entrypoint_index WHERE generation_id = ?`,
 		`DELETE FROM alias_index WHERE generation_id = ?`,
-		`DELETE FROM symbol_index WHERE generation_id = ?`,
 		`DELETE FROM path_index WHERE generation_id = ?`,
-		`DELETE FROM conflicts WHERE generation_id = ?`,
-		`DELETE FROM claims WHERE generation_id = ?`,
 		`DELETE FROM edges WHERE generation_id = ?`,
 		`DELETE FROM observations WHERE generation_id = ?`,
 		`DELETE FROM nodes WHERE generation_id = ?`,

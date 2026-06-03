@@ -51,28 +51,11 @@ func TestRecordStructuredUpdatePersistsAffectedFields(t *testing.T) {
 	}
 }
 
-func TestAffectedClosureForPathsReturnsNodesClaimsAndSlices(t *testing.T) {
+func TestAffectedClosureForPathsReturnsNodesOnlyInSchemaV2(t *testing.T) {
 	st := openImportTestStore(t)
 	defer st.Close()
 	ctx := context.Background()
-	input := validImportInput("GEN-closure")
-	input.Claims = append(input.Claims, ClaimImport{
-		ID:          "claim:app",
-		SubjectRef:  "N-app",
-		Predicate:   "owns",
-		ObjectText:  "src/app.go",
-		Confidence:  "verified",
-		EvidenceIDs: []string{"E-001"},
-	})
-	input.SliceMembers = append(input.SliceMembers, SliceMemberImport{
-		ID:         "slice-member:app",
-		SliceID:    "slice:runtime",
-		ObjectType: "node",
-		ObjectID:   "N-app",
-		Rank:       1,
-		Reason:     "runtime entrypoint",
-	})
-	if _, err := st.ImportGeneration(ctx, input); err != nil {
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-closure")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,13 +64,13 @@ func TestAffectedClosureForPathsReturnsNodesClaimsAndSlices(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !containsString(closure.NodeIDs, "N-app") {
-		t.Fatalf("closure = %#v", closure)
+		t.Fatalf("closure = %#v, want N-app", closure)
 	}
-	if !containsString(closure.ClaimIDs, "claim:app") {
-		t.Fatalf("closure = %#v", closure)
+	if len(closure.ClaimIDs) != 0 {
+		t.Fatalf("closure.ClaimIDs = %#v, want empty until claim tables return", closure.ClaimIDs)
 	}
-	if !containsString(closure.SliceIDs, "slice:runtime") {
-		t.Fatalf("closure = %#v", closure)
+	if len(closure.SliceIDs) != 0 {
+		t.Fatalf("closure.SliceIDs = %#v, want empty until slice tables return", closure.SliceIDs)
 	}
 }
 
