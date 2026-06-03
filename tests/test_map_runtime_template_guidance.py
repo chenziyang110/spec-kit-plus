@@ -1,13 +1,38 @@
+import re
 from pathlib import Path
 
 from .template_utils import read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SHARED_COGNITION_PARTIALS = (
+    "templates/command-partials/common/context-loading-gradient.md",
+    "templates/command-partials/common/planning-context-loading-gradient.md",
+)
+COGNITION_INTAKE_COMMANDS = (
+    "discussion.md",
+    "specify.md",
+    "clarify.md",
+    "deep-research.md",
+    "plan.md",
+    "tasks.md",
+    "analyze.md",
+    "fast.md",
+    "quick.md",
+    "implement.md",
+    "debug.md",
+    "checklist.md",
+    "prd-scan.md",
+    "map-build.md",
+)
 
 
 def _read(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
+
+
+def _compact(text: str) -> str:
+    return " ".join(text.split())
 
 
 def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> None:
@@ -110,6 +135,103 @@ def test_shared_project_cognition_partials_require_semantic_intake_contract() ->
         content = _read(path).lower()
         for term in required_terms:
             assert term in content, f"{path} missing shared semantic intake term: {term}"
+
+
+def test_shared_project_cognition_partials_include_canonical_query_plan_skeleton() -> None:
+    required_skeleton_terms = (
+        '"raw_query"',
+        '"semantic_intake"',
+        '"workflow_intent"',
+        '"normalized_query"',
+        '"intent_facets"',
+        '"negative_constraints"',
+        '"alias_interpretations"',
+        '"open_semantic_questions"',
+        '"selected_concepts"',
+        '"rejected_concepts"',
+        '"concept_decisions"',
+        '"covered_facets"',
+        '"missing_facets"',
+        '"match_sources"',
+        '"lexicon_generation_id"',
+        '"expanded_queries"',
+        '"paths"',
+    )
+
+    for path in SHARED_COGNITION_PARTIALS:
+        content = _read(path)
+        compact = _compact(content)
+        for term in required_skeleton_terms:
+            assert term in content, f"{path} missing canonical query-plan skeleton term {term}"
+        assert '"alias": "<user term>"' in compact, path
+        assert '"meaning": "<project term>"' in compact, path
+        assert '"confidence": "medium"' in compact, path
+        assert '"alias_interpretations": ["' not in compact, path
+
+
+def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
+    required_terms = (
+        "project-cognition lexicon",
+        "alias catalog",
+        "semantic_intake",
+        "concept_decisions",
+        "covered_facets",
+        "missing_facets",
+        "match_sources",
+        "lexicon_generation_id",
+        "project-cognition query",
+        "--query-plan",
+        "minimal_live_reads",
+    )
+
+    for name in COGNITION_INTAKE_COMMANDS:
+        content = read_template(f"templates/commands/{name}").lower()
+        for term in required_terms:
+            assert term in content, f"{name} missing shared cognition intake term {term}"
+
+
+def test_map_update_preserves_semantic_intake_classification_without_user_intent_query() -> None:
+    content = read_template("templates/commands/map-update.md").lower()
+
+    for term in (
+        "shared semantic intake contract",
+        "semantic_intake",
+        "alias catalog",
+        "intent_facets",
+        "negative_constraints",
+        "alias_interpretations",
+        "concept_decisions",
+        "covered_facets",
+        "missing_facets",
+        "match_sources",
+        "do not trust top similarity alone",
+    ):
+        assert term in content
+
+
+def test_shared_readiness_review_guidance_uses_minimal_live_reads() -> None:
+    for path in (
+        *SHARED_COGNITION_PARTIALS,
+        "templates/command-partials/common/senior-consequence-analysis-gate.md",
+    ):
+        content = _compact(_read(path).lower())
+        assert "`review`" in content, path
+        assert "review" in content and "minimal_live_reads" in content, path
+        assert (
+            "inspect the returned `minimal_live_reads` before expanding" in content
+            or "inspect the returned `minimal_live_reads` before continuing" in content
+            or "perform only the returned `minimal_live_reads` before continuing" in content
+        ), path
+
+
+def test_learning_start_hardening_scope_matches_command_templates() -> None:
+    commands_with_learning_start: set[str] = set()
+    for path in (PROJECT_ROOT / "templates" / "commands").glob("*.md"):
+        content = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"learning start --command ([a-z-]+) --format json", content):
+            commands_with_learning_start.add(match.group(1))
+
+    assert {"debug", "plan", "implement", "constitution", "map-scan", "map-build"} <= commands_with_learning_start
 
 
 def test_semantic_intake_contract_is_not_debug_only() -> None:

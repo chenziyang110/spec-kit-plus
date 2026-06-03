@@ -35,6 +35,10 @@ judgment in an established Spec Kit Plus repository:
   `rejected_concepts`, write per-concept `concept_decisions`, carry
   `lexicon_generation_id` in the `query_plan`, and then run
   `project-cognition query --query-plan`.
+  If the query command reports query-plan diagnostics, preserve its `warnings`,
+  `repair_hints`, normalized `query_plan`, structured `errors`, and
+  `expected_shape` so the workflow can repair the plan instead of ending on a
+  raw parser exception.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - Treat `concept_candidates` as structured project concept candidates, not a
   flat keyword list. Resolve broad, conflicting, or unknown candidates through

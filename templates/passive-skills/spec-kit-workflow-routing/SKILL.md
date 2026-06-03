@@ -130,6 +130,10 @@ standalone branch-creation command.
   Candidate selection must satisfy facet coverage through `covered_facets`,
   `missing_facets`, and `match_sources`; do not trust top similarity alone,
   whether lexical or vector-based.
+  If the query command reports query-plan diagnostics, preserve its `warnings`,
+  `repair_hints`, normalized `query_plan`, structured `errors`, and
+  `expected_shape` so the owning workflow can repair the plan instead of ending
+  on a raw parser exception.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
 ## Consequence-Aware Routing

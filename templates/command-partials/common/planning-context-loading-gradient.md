@@ -32,6 +32,59 @@ can detect generation drift. The `query_plan` should include
 `concept_decisions`, `expanded_queries`, and justified `paths`, then be sent to
 `project-cognition query --query-plan`. Treat raw graph JSON artifacts as obsolete runtime surfaces.
 
+Use this canonical query-plan skeleton when shaping `<query_plan_json>`. Keep
+`alias_interpretations` as an array of objects, not strings:
+
+```json
+{
+  "raw_query": "$ARGUMENTS",
+  "semantic_intake": {
+    "workflow_intent": "<active workflow intent>",
+    "normalized_query": "<project-language interpretation>",
+    "intent_facets": ["<facet the selected concept must cover>"],
+    "negative_constraints": ["<scope boundary not to treat as route truth>"],
+    "alias_interpretations": [
+      {"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"}
+    ],
+    "open_semantic_questions": []
+  },
+  "selected_concepts": ["<concept id from lexicon payload>"],
+  "rejected_concepts": ["<considered concept id>"],
+  "concept_decisions": [
+    {
+      "concept_id": "<concept id>",
+      "decision": "selected",
+      "selection_reason": "<facet-coverage rationale>",
+      "covered_facets": ["<covered facet>"],
+      "missing_facets": [],
+      "match_sources": ["alias", "semantic_intake"],
+      "confidence": "medium",
+      "risk": ""
+    }
+  ],
+  "lexicon_generation_id": "<lexicon_generation_id from lexicon payload>",
+  "expanded_queries": ["<normalized project-language query>"],
+  "paths": ["<justified path hint>"]
+}
+```
+
+If `project-cognition query` reports query-plan diagnostics, carry forward its
+`warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and
+`expected_shape` instead of reducing them to a raw parser exception.
+
+### Readiness Routing
+
+- `ready`: continue with the returned task-local bundle.
+- `review`: inspect the returned `minimal_live_reads` before expanding.
+- `ambiguous`: ask a bounded clarification question.
+- `needs_update`: use `{{invoke:map-update}}` only when updated runtime
+  coverage is needed; otherwise carry the stale or weak coverage gap and prove
+  claims from live evidence.
+- `needs_rebuild`: reserve `{{invoke:map-scan}} -> {{invoke:map-build}}` for
+  documented brownfield rebuild triggers.
+- `blocked`: report the runtime state clearly; continue with live evidence only
+  when this workflow allows degraded advisory navigation.
+
 ### Concept Selection
 
 `concept_candidates` are not a flat keyword list. Treat them as structured
