@@ -15,6 +15,7 @@ from specify_cli.integrations.base import IntegrationBase
 from specify_cli.integrations.claude import ARGUMENT_HINTS
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_claude_hook_launcher
+from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
@@ -2578,6 +2579,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "check-prerequisites.sh --json --require-tasks --include-tasks" in lower
     assert "parse `feature_dir` and `available_docs` list" in lower
     assert "all paths must be absolute" in lower
+    _assert_canonical_cognition_intake_contract(content)
     assert "minimal readiness probe message before task assignment" in lower
     assert "shared contract with `/sp-implement`" in lower
     assert "canonical implementation workflow" in lower

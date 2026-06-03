@@ -3,7 +3,10 @@
 import json
 from pathlib import Path
 
-from .test_base import _assert_subagent_using_surfaces_have_discovery
+from .test_base import (
+    _assert_canonical_cognition_intake_contract,
+    _assert_subagent_using_surfaces_have_discovery,
+)
 from .test_integration_base_skills import (
     _assert_compact_managed_context,
     _extract_generated_cognition_policy,
@@ -155,8 +158,12 @@ class TestCodexIntegration:
         assert "semantic_intake" in generated
         assert "facet coverage" in generated
         assert "concept_decisions" in generated
+        assert "covered_facets" in generated
+        assert "missing_facets" in generated
+        assert "match_sources" in generated
         assert "lexicon_generation_id" in generated
         assert "minimal_live_reads" in generated
+        _assert_canonical_cognition_intake_contract(generated)
         assert "returned map terms" not in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in cognition_policy
@@ -364,6 +371,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "check-prerequisites.sh --json --require-tasks --include-tasks" in lower
     assert "parse `feature_dir` and `available_docs` list" in lower
     assert "all paths must be absolute" in lower
+    _assert_canonical_cognition_intake_contract(content)
 
 
 def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contract(tmp_path):

@@ -11,6 +11,7 @@ import os
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import MarkdownIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
+from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
@@ -228,6 +229,7 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
         assert "state-behavior matrix" in generated, integration_key
         assert "dependency impact table" in generated, integration_key
         assert "ca-###" in generated, integration_key
+        _assert_canonical_cognition_intake_contract(generated)
 
         discussion_path = _discussion_artifact_path(integration, project)
         assert discussion_path.exists(), integration_key
@@ -275,8 +277,12 @@ class MarkdownIntegrationTests:
         assert "semantic_intake" in generated
         assert "facet coverage" in generated
         assert "concept_decisions" in generated
+        assert "covered_facets" in generated
+        assert "missing_facets" in generated
+        assert "match_sources" in generated
         assert "lexicon_generation_id" in generated
         assert "minimal_live_reads" in generated
+        _assert_canonical_cognition_intake_contract(generated)
         assert "returned map terms" not in generated
         assert "using returned map terms" not in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:

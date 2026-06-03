@@ -55,6 +55,44 @@ def _assert_subagent_using_surfaces_have_discovery(paths):
     assert {"specify", "plan", "tasks", "implement", "debug", "quick", "map-scan", "map-build", "map-update"} <= checked
 
 
+def _assert_canonical_cognition_intake_contract(content: str) -> None:
+    normalized = " ".join(
+        content.replace('\\"', '"').replace("\\n", "\n").split()
+    ).lower()
+
+    for required in (
+        "project-cognition lexicon",
+        "project-cognition query",
+        "--query-plan",
+        "alias catalog",
+        "semantic_intake",
+        "workflow_intent",
+        "normalized_query",
+        "intent_facets",
+        "negative_constraints",
+        "alias_interpretations",
+        '{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"}',
+        "selected_concepts",
+        "rejected_concepts",
+        "concept_decisions",
+        "covered_facets",
+        "missing_facets",
+        "match_sources",
+        "lexicon_generation_id",
+        "minimal_live_reads",
+        "warnings",
+        "repair_hints",
+        "query_plan",
+        "errors",
+        "expected_shape",
+        "readiness",
+        "task-local bundle",
+    ):
+        assert required in normalized
+
+    assert '"alias_interpretations": ["' not in normalized
+
+
 class TestIntegrationOption:
     def test_defaults(self):
         opt = IntegrationOption(name="--flag")

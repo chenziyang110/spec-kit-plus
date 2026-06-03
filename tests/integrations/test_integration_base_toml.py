@@ -16,6 +16,7 @@ import pytest
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import TomlIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
+from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
@@ -203,6 +204,7 @@ def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
         assert "state-behavior matrix" in generated, integration_key
         assert "dependency impact table" in generated, integration_key
         assert "ca-###" in generated, integration_key
+        _assert_canonical_cognition_intake_contract(generated)
 
         discussion_path = integration.commands_dest(project) / integration.command_filename("discussion")
         assert discussion_path.exists(), integration_key
@@ -251,8 +253,12 @@ class TomlIntegrationTests:
         assert "semantic_intake" in generated
         assert "facet coverage" in generated
         assert "concept_decisions" in generated
+        assert "covered_facets" in generated
+        assert "missing_facets" in generated
+        assert "match_sources" in generated
         assert "lexicon_generation_id" in generated
         assert "minimal_live_reads" in generated
+        _assert_canonical_cognition_intake_contract(generated)
         assert "returned map terms" not in generated
         for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
             assert phrase not in cognition_policy
