@@ -174,23 +174,14 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
             CREATE TABLE IF NOT EXISTS node_evidence(node_id TEXT NOT NULL, evidence_id TEXT NOT NULL, PRIMARY KEY(node_id, evidence_id));
             CREATE TABLE IF NOT EXISTS edges(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, type TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, confidence TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS edge_evidence(edge_id TEXT NOT NULL, evidence_id TEXT NOT NULL, PRIMARY KEY(edge_id, evidence_id));
-            CREATE TABLE IF NOT EXISTS claims(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, subject_ref TEXT NOT NULL, predicate TEXT NOT NULL, object_ref TEXT NOT NULL, object_value TEXT NOT NULL, truth_layer TEXT NOT NULL, confidence TEXT NOT NULL, status TEXT NOT NULL, last_validated_at TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}');
-            CREATE TABLE IF NOT EXISTS claim_evidence(claim_id TEXT NOT NULL, evidence_id TEXT NOT NULL, PRIMARY KEY(claim_id, evidence_id));
-            CREATE TABLE IF NOT EXISTS conflicts(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, subject_ref TEXT NOT NULL, conflict_type TEXT NOT NULL, impact_scope TEXT NOT NULL, agent_behavior_rule TEXT NOT NULL, resolution_status TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS conflict_claims(conflict_id TEXT NOT NULL, claim_id TEXT NOT NULL, PRIMARY KEY(conflict_id, claim_id));
             CREATE TABLE IF NOT EXISTS alias_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, alias TEXT NOT NULL, normalized_alias TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, language TEXT NOT NULL, source TEXT NOT NULL, confidence TEXT NOT NULL, evidence_id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS path_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, path TEXT NOT NULL, node_id TEXT NOT NULL, relation TEXT NOT NULL, confidence TEXT NOT NULL, evidence_id TEXT NOT NULL, updated_at TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS symbol_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, symbol_name TEXT NOT NULL, normalized_symbol TEXT NOT NULL, node_id TEXT NOT NULL, path TEXT NOT NULL, relation TEXT NOT NULL, evidence_id TEXT NOT NULL, confidence TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS entrypoint_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, entrypoint_key TEXT NOT NULL, entrypoint_type TEXT NOT NULL, node_id TEXT NOT NULL, capability_id TEXT NOT NULL, path TEXT NOT NULL, evidence_id TEXT NOT NULL, confidence TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS test_index(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, test_path TEXT NOT NULL, test_name TEXT NOT NULL, node_id TEXT NOT NULL, capability_id TEXT NOT NULL, verification_node_id TEXT NOT NULL, evidence_id TEXT NOT NULL, confidence TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS slice_members(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, slice_id TEXT NOT NULL, object_type TEXT NOT NULL, object_id TEXT NOT NULL, rank INTEGER NOT NULL, reason TEXT NOT NULL, updated_at TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS query_examples(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, query_text TEXT NOT NULL, intent TEXT NOT NULL, expected_target_type TEXT NOT NULL, expected_target_id TEXT NOT NULL, language TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS updates(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, trigger TEXT NOT NULL, changed_paths_json TEXT NOT NULL, affected_nodes_json TEXT NOT NULL, affected_claims_json TEXT NOT NULL, affected_slices_json TEXT NOT NULL, result_state TEXT NOT NULL, completed_at TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}');
             """
         )
         conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_format', '\"project-cognition-go\"', '2026-05-23T00:00:00Z')")
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '1', '2026-05-23T00:00:00Z')")
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('schema_version', '1', '2026-05-23T00:00:00Z')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '2', '2026-05-23T00:00:00Z')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('schema_version', '2', '2026-05-23T00:00:00Z')")
         conn.execute(
             "INSERT OR REPLACE INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) VALUES(?, 1, 'full', 'active', 'abc123', '2026-05-23T00:00:00Z', '2026-05-23T00:00:00Z', '', '{}')",
             (generation_id,),
@@ -205,6 +196,10 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
         )
         conn.execute(
             "INSERT OR REPLACE INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-login', ?, 'src/auth/login.ts', 'capability:auth.login', 'owns', 'verified', 'E-login', '2026-05-23T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) VALUES('ALIAS-login', ?, 'Login', 'login', 'node', 'capability:auth.login', 'en', 'node_title', 'verified', '')",
             (generation_id,),
         )
         conn.commit()
@@ -2509,6 +2504,28 @@ def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_rea
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
     assert any("project-cognition.db" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_fake_db_is_schema_v1(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+
+    with sqlite3.connect(run_dir / "project-cognition.db") as conn:
+        conn.execute(
+            "UPDATE metadata SET value_json = '1' WHERE key IN ('schema_version', 'runtime_schema')"
+        )
+        conn.commit()
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("schema_version" in message for message in payload["errors"])
+    assert any("run_map_scan_build" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_map_build_when_specify_paths_enter_graph_store(tmp_path: Path):

@@ -54,7 +54,7 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader scan context.
 - Passive learning files are workflow guidance, not scan evidence.
 - `.specify/**` must never enter the project cognition graph.
-- `.specify/memory/**` must not appear in repository-universe, coverage-ledger, evidence rows, provisional nodes, provisional edges, observations, path_index, alias_index, or graph claims.
+- `.specify/memory/**` must not appear in repository-universe, coverage-ledger, evidence rows, provisional nodes, provisional edges, observations, path_index, or alias_index.
 - Open only learning detail docs linked from map-scan-relevant index entries.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When scan friction exposes route changes, artifact rewrites, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `map-state.md` captures that durable context.
@@ -65,7 +65,7 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 - `sp-map-scan` must not publish final cognition truth.
 - `sp-map-scan` must not claim the baseline is graph-ready.
 - `sp-map-scan` must produce evidence, provisional nodes, provisional edges, observations, and coverage diagnostics only.
-- `sp-map-scan` may classify evidence and derive provisional structure, but `sp-map-build` owns claim synthesis, conflict construction, confidence assignment, and slice publication.
+- `sp-map-scan` may classify evidence and derive provisional structure, but `sp-map-build` owns schema v2 graph-store publication, confidence assignment, route validation, and alias catalog readiness.
 
 ## Output Contract
 
@@ -110,6 +110,17 @@ uses:
 - `evidence_ids`: evidence row IDs that justify the node.
 - `attrs`: optional object for secondary metadata.
 
+Emit alias-ready node material for schema v2. `nodes[].title`, `nodes[].type`,
+`nodes[].paths`, and `nodes[].attrs.aliases`, `domain`, `owner`, `workflow`,
+`route`, `route_hints`, and `verification_hints` feed the `alias_index` during
+`sp-map-build`. This creates the alias catalog used to normalize user input
+before query planning. Do not write raw observation summaries as aliases.
+Observations may support bounded observation tags only when tied to graph
+evidence. If validation reports schema v1 or rebuild-required readiness, run
+sp-map-scan -> sp-map-build so build-from-scan can publish schema v2 alias
+catalog rows.
+When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
+
 Compatibility aliases accepted by the runtime are `node_id` for `id`, `kind` for
 `type`, `label` or `name` for `title`, and `attrs_json` for `attrs`. These are
 fallbacks only; do not use them in newly generated scan artifacts.
@@ -136,7 +147,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Do not publish final cognition truth from this command.
 - Do not treat raw inventory notes or raw chat summaries as accepted scan results.
 - Do not silently downgrade unknown or unclassified project-relevant surfaces.
-- `.specify/**` workflow/runtime state is excluded from default source/runtime scan targets; do not put `.specify/**` paths into project graph evidence.
+- `.specify/**` workflow/runtime state is excluded from default source/runtime scan targets; do not put `.specify/**` paths into project graph evidence, nodes, observations, path_index, or alias_index.
 - Only read `.specify/**` for workflow operation, validation, migration, or when the requested scan is explicitly about generated workflow surfaces or spec-kit-plus itself; even then, classify it as workflow/reference support rather than source/runtime graph truth.
 - Respect project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. These files use gitignore-compatible syntax, including comments, directory patterns, globs, `**`, and `!` re-includes.
 - `.cognitionignore` excludes project cognition scan/build/update targets only; it does not replace `.gitignore` or prove that ignored code is irrelevant to other tooling.
@@ -176,7 +187,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - sampled and inventory_only are not free-form convenience labels; they must align with the recorded disposition and criticality in `repository-universe.json`.
 - Critical entrypoints, shared state, configuration, tests, verification surfaces, and generated-surface propagation chains should not pass as `sampled` unless the boundary artifact already records an explicit accepted gap or an equally explicit lower-depth decision.
 - `sampled` and `inventory_only` are acceptable only when the disposition and criticality together justify them.
-- Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, or `minimal_live_reads`.
+- Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, alias indexes, or `minimal_live_reads`.
 - `MapScanPacket` must include bounded `assigned_paths`.
 - `assigned_paths`, queue rows, worker `paths_read`, and worker coverage paths must be concrete repository file paths enumerated from `repository-universe.json`; globs such as `JZWinReNew/*.cpp`, directory patterns, absolute paths, and summary labels are invalid.
 - Each packet carries a packet-local task ledger in the worker result JSON top-level `ledger` object with `todo`, `doing`, `done`, `blocked`, and `overflow`.

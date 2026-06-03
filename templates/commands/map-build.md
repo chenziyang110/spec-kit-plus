@@ -2,7 +2,7 @@
 description: Use when `sp-map-scan` has produced a full evidence baseline and you need to reconstruct the project cognition SQLite runtime.
 workflow_contract:
   when_to_use: A scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
-  primary_objective: Validate scan evidence, reconstruct graph nodes and edges into the SQLite cognition database, synthesize claims, assign confidence, create conflicts, and publish queryable task-oriented cognition bundles.
+  primary_objective: Validate scan evidence, reconstruct graph nodes, edges, observations, path indexes, and alias indexes into the schema v2 SQLite cognition database, assign confidence, and publish queryable task-oriented cognition bundles.
   primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
   default_handoff: Return to the blocked brownfield workflow once the query-backed cognition baseline is ready.
 ---
@@ -42,7 +42,7 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
 - Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import.
-- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation; this owns DB import, metadata, status publication, and DB/status agreement.
+- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation; this rebuilds the graph store into schema v2 and owns DB import, metadata, status publication, and DB/status agreement.
 - If `build-from-scan` returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action` and do not proceed to build validation.
 - Run `{{specify-subcmd:project-cognition validate-build --format json}}` after `build-from-scan`.
 
@@ -70,8 +70,8 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 
 - `sp-map-build` is the command that publishes query-backed cognition truth.
 - `sp-map-build` must not fall back to handbook-first runtime output.
-- `sp-map-build` owns claim synthesis, `truth_layer` assignment, confidence assignment, conflict construction, and SQLite runtime publication.
-- Existing narratives may inform continuity, but final graph claims must be backed by scan evidence.
+- `sp-map-build` owns schema v2 SQLite runtime publication, confidence assignment, route validation, and alias catalog readiness.
+- Existing narratives may inform continuity, but final runtime rows must be backed by scan evidence. Map points, code proves: the alias catalog is route vocabulary, not evidence by itself.
 
 ## Required Inputs
 
@@ -104,6 +104,27 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 - `path_index_to_included_ratio` must be computed from included paths minus true exclusions and `accepted_nonblocking_gap_paths`.
 - Critical and important included paths must remain in the sparse path-index denominator unless they are true repository-universe exclusions.
 - `build-from-scan` must not set `freshness=fresh`, must not set `readiness=query_ready`, and must not set `graph_ready=true` until sparse path-index gates pass.
+
+## Schema V2 Runtime Contract
+
+`project-cognition build-from-scan --format json` archives schema v1 or old broad
+schema databases and creates a clean schema v2 database. Schema v2 keeps the
+implemented runtime tables: `metadata`, `generations`, `evidence`, `nodes`,
+`node_evidence`, `edges`, `edge_evidence`, `observations`,
+`observation_evidence`, `path_index`, `alias_index`, and `updates`.
+
+Future semantic tables such as claims, conflicts, symbols, entrypoints, tests, slices, query examples, FTS tables, and compatibility `query_examples` are not current readiness requirements.
+
+For brownfield baselines, `alias_index` is required: every active node must have
+at least one active-generation alias row, no alias may point at a missing node,
+and no alias may reference a missing non-empty evidence id. The schema v2 alias
+catalog normalizes user input before query planning; it does not prove behavior
+without live repository evidence.
+
+If validation reports schema v1, an old broad schema, or rebuild-required
+readiness, route the user to `sp-map-scan -> sp-map-build`; build-from-scan
+archives the v1 DB and creates a clean schema v2 database.
+When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 
 ## Path Index Source Contract
 
@@ -157,9 +178,9 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - The build phase is not a scaffold, migration, or file-moving command.
 - Treat scan artifacts as inputs, not evidence, until packet evidence is accepted.
 - `.specify/**` inputs are workbench/control artifacts, not graph evidence rows.
-- DB publication must not write `.specify/**` into `evidence.source_path`, `path_index.path`, `symbol_index.path`, `entrypoint_index.path`, `test_index.test_path`, or graph claims.
+- DB publication must not write `.specify/**` into `evidence.source_path`, `path_index.path`, or `alias_index` target material.
 - Build intake must reject `.cognitionignore`-excluded paths from scan coverage, evidence rows, provisional nodes, provisional edges, observations, packet results, and `repository-universe.json` included paths.
-- DB publication must not write `.cognitionignore`-excluded paths into `evidence.source_path`, `path_index.path`, `symbol_index.path`, `entrypoint_index.path`, `test_index.test_path`, or graph claims.
+- DB publication must not write `.cognitionignore`-excluded paths into `evidence.source_path`, `path_index.path`, or `alias_index` target material.
 
 ## Build Duties
 
@@ -169,15 +190,13 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - validate scan completeness for graph reconstruction
 - deduplicate provisional nodes into graph nodes
 - convert candidate edges into validated graph edges
-- synthesize claims from evidence with explicit `truth_layer`
-- assign claim confidence
-- create explicit conflict records
+- build schema v2 `alias_index` rows from alias-ready node titles, types, paths, and bounded attrs
+- assign node, edge, observation, path, and alias confidence
 - publish queryable task-oriented bundles for downstream agent work
 - produce workflow-operational reachability validation
 - produce reverse coverage validation
 - project graph truth into retrieval outputs by building evidence-backed route rows
-- publish `query_examples` that demonstrate common task, symptom, and workflow
-  phrases against the accepted graph truth
+- preserve compatibility `query_examples` only as non-readiness route examples when present
 - synthesize `concept_candidates` from graph-backed aliases, ownership,
   capabilities, symptoms, generated surfaces, and verification routes
 - publish `route_pack` entries that connect selected concepts to owners,
@@ -201,33 +220,31 @@ or route semantics are weak.
 - consumer edges for direct callsites, generated-surface propagation, adjacent workflows, user-facing commands, and automation/runtime entry points
 - lifecycle/state edges for active actors, running work, queues, sessions, locks, caches, persisted state, cleanup, retry, rollback, and idempotency behavior
 - shared-state and destructive-operation edges where close/delete/archive/rename/migrate actions can affect members, consumers, or in-flight work
-- verification-route claims for the checks that prove owners, consumers, state transitions, and recovery behavior
-- conflict, known-unknown, stale-claim, confidence, and `minimal_live_reads` records that `sp-map-update` can preserve or narrow incrementally
+- verification-route records for the checks that prove owners, consumers, state transitions, and recovery behavior
+- known-unknown, stale-route, confidence, and `minimal_live_reads` records that `sp-map-update` can preserve or narrow incrementally
 
 The resulting query-backed runtime must be able to answer which owners, consumers, state surfaces, generated surfaces, and verification routes are implicated by a changed path or requested behavior.
 
 ## Required Graph Semantics
 
-Every accepted graph build must make room for:
+Every accepted schema v2 graph build must make room for:
 
 - nodes
 - edges
-- claims
-- conflicts
+- observations
+- path_index
+- alias_index
 - updates
 - queryable task-local bundles
 
-At minimum, claims must include:
-
-- `backing_evidence_ids`
-- `truth_layer`
-- `confidence`
+The alias catalog must be route vocabulary backed by `alias_index` rows. It helps
+normalize user input into project vocabulary; it is not evidence by itself.
 
 ## Dispatch Guidance
 
 - Use `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)` before lane execution.
 - Dispatch each build lane from a validated `MapBuildPacket`.
-- Recommended build lanes include DB normalization, claim synthesis, conflict review, and queryable task-local bundle generation.
+- Recommended build lanes include DB normalization, alias readiness review, route validation, and queryable task-local bundle generation.
 - The leader owns final graph consistency and readiness state.
 
 ## Completion Rule
@@ -247,7 +264,7 @@ Before reporting completion:
 - every `important` row is reachable through active runtime path and route indexes
 - every scan packet is consumed
 - every accepted packet result has paths read and confidence
-- every graph claim is backed by at least one accepted packet evidence row
+- every runtime node, edge, observation, path row, and alias row is backed by accepted packet evidence where the row requires evidence
 - query bundle and route reachability are validated through runtime query surfaces
 - no final report claims success for a structural-only refresh
 - `map_state_file` records accepted packet results

@@ -21,6 +21,15 @@ Use the project alias catalog plus the raw user prompt to write an explicit
 `open_semantic_questions`. The runtime can still use raw query terms, but the
 agent must search from normalized project language and stated intent facets.
 
+Use the alias-first project cognition flow. Run `project-cognition lexicon
+--mode catalog` first, read the schema v2 `alias_index`-backed alias catalog,
+normalize user input into project vocabulary, record `alias_interpretations`,
+and only then call `project-cognition query --query-plan`. If the runtime
+reports schema v1 or rebuild-required readiness, do not query through the old
+DB; continue with live repository evidence and recommend `sp-map-scan ->
+sp-map-build` when a usable brownfield baseline is needed.
+When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
+
 Inspect `concept_candidates`, select task-relevant existing project concepts in
 `selected_concepts`, record non-selected or unsafe candidates in
 `rejected_concepts`, and write per-concept rationale in `concept_decisions`.

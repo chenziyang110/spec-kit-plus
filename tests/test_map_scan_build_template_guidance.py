@@ -35,6 +35,24 @@ def test_map_scan_and_build_templates_require_mandatory_subagent_guidance() -> N
         assert "unknown` blocks" in content
 
 
+def test_map_guidance_documents_schema_v2_alias_readiness() -> None:
+    scan_content = _read("templates/commands/map-scan.md").lower()
+    build_content = _read("templates/commands/map-build.md").lower()
+    shared_context = _read("templates/command-partials/common/context-loading-gradient.md").lower()
+    planning_context = _read("templates/command-partials/common/planning-context-loading-gradient.md").lower()
+
+    for content in (scan_content, build_content, shared_context, planning_context):
+        assert "schema v2" in content
+        assert "alias_index" in content
+        assert "alias catalog" in content
+        assert "normalize user input" in content
+        assert "run map-scan -> map-build" in content or "run sp-map-scan -> sp-map-build" in content
+
+    assert "claims table" not in build_content
+    assert "conflicts table" not in build_content
+    assert "symbol_index" not in build_content
+
+
 def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()
@@ -88,7 +106,7 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "passive learning files are workflow guidance, not scan evidence" in lowered
     assert (
         "`.specify/memory/**` must not appear in repository-universe, coverage-ledger, evidence rows, "
-        "provisional nodes, provisional edges, observations, path_index, alias_index, or graph claims"
+        "provisional nodes, provisional edges, observations, path_index, or alias_index"
     ) in content
     assert "`.specify/**` workflow/runtime state is excluded from default source/runtime scan targets" in content
     assert (
@@ -237,7 +255,7 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
         "every `important` row is reachable through active runtime path and route indexes",
         "every scan packet is consumed",
         "every accepted packet result has paths read and confidence",
-        "every graph claim is backed by at least one accepted packet evidence row",
+        "every runtime node, edge, observation, path row, and alias row is backed by accepted packet evidence",
         "query bundle and route reachability are validated through runtime query surfaces",
         "no final report claims success for a structural-only refresh",
         "`map_state_file` records accepted packet results",
@@ -270,6 +288,7 @@ def test_map_workflow_templates_require_project_concept_lexicon_signals() -> Non
     assert "domain ownership evidence" in scan_lowered
 
     assert "query_examples" in build_content
+    assert "not current readiness requirements" in build_lowered
     assert "concept_candidates" in build_content
     assert "route_pack" in build_content
     assert "graph truth projection" in build_lowered

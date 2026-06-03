@@ -19,6 +19,17 @@ def test_map_build_runtime_outputs_are_project_cognition_database_artifacts() ->
     assert "runtime handbook output contract" not in content.lower()
 
 
+def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
+    handbook = _read("PROJECT-HANDBOOK.md").lower()
+    readme = _read("README.md").lower()
+    for content in (handbook, readme):
+        assert "alias_index" in content
+        assert "schema v2" in content
+        assert "v1" in content
+        assert "rebuild" in content
+        assert "alias-first" in content
+
+
 def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     content = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered = content.lower()

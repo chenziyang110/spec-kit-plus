@@ -51,6 +51,14 @@ judgment in an established Spec Kit Plus repository:
   first search set. Use these project-language search terms before broad
   repository search; only widen after the translated terms and returned
   `minimal_live_reads` fail to identify the owner.
+  Use the alias-first project cognition flow: read the schema v2
+  `alias_index`-backed alias catalog, normalize user input into project
+  vocabulary, record `alias_interpretations`, and only then call
+  `project-cognition query --query-plan`. If the runtime reports schema v1 or
+  rebuild-required readiness, do not query through the old DB; continue with
+  live repository evidence and recommend `sp-map-scan -> sp-map-build` when a
+  usable brownfield baseline is needed. Map points, code proves: the alias
+  catalog is route vocabulary, not evidence by itself.
   Treat raw graph JSON artifacts as obsolete runtime surfaces.
 - Treat `concept_candidates` as structured project concept candidates, not a
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
@@ -171,6 +179,9 @@ judgment in an established Spec Kit Plus repository:
 - Use `map-update` for ordinary existing-baseline gaps. Use `map-scan -> map-build`
   only for brownfield first/missing/unusable baseline, schema failure, zero active-generation
   path_index rows outside `greenfield_empty`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+  Schema v2 brownfield readiness also requires `alias_index`; schema v1 or old
+  broad-schema baselines must be rebuilt through `sp-map-scan -> sp-map-build`
+  before their alias catalog is treated as usable navigation.
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
 - Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
