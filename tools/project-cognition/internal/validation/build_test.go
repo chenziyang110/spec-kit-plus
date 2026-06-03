@@ -266,6 +266,138 @@ func TestValidateBuildAcceptsQueryReadyDatabase(t *testing.T) {
 	}
 }
 
+func TestValidateBuildBlocksBrownfieldWithoutAliases(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	seedQueryReadyDatabase(t, paths)
+	db := openValidationDB(t, paths)
+	if _, err := db.ExecContext(context.Background(), `DELETE FROM alias_index`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "active_generation_has_no_alias_rows") {
+		t.Fatalf("Errors = %#v, want missing alias rows error", payload.Errors)
+	}
+}
+
+func TestValidateBuildBlocksActiveNodeMissingAliases(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	seedQueryReadyDatabaseWithPaths(t, paths, []string{"src/app.go", "src/worker.go"}, []string{"src/app.go", "src/worker.go"})
+	db := openValidationDB(t, paths)
+	if _, err := db.ExecContext(context.Background(), `UPDATE alias_index SET normalized_alias = '' WHERE target_id = 'N-002'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "active_generation_node_missing_aliases:N-002") {
+		t.Fatalf("Errors = %#v, want missing node alias error", payload.Errors)
+	}
+}
+
+func TestValidateBuildBlocksAliasIndexOrphans(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	seedQueryReadyDatabase(t, paths)
+	db := openValidationDB(t, paths)
+	if _, err := db.ExecContext(
+		context.Background(),
+		`INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) VALUES('ALIAS-missing-node', 'GEN-0001', 'Missing', 'missing', 'node', 'N-missing', '', 'node_title', 'verified', 'E-001')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "alias_index_orphan_target_id:N-missing") {
+		t.Fatalf("Errors = %#v, want orphan alias target error", payload.Errors)
+	}
+}
+
+func TestValidateBuildBlocksAliasIndexMissingEvidence(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	seedQueryReadyDatabase(t, paths)
+	db := openValidationDB(t, paths)
+	if _, err := db.ExecContext(
+		context.Background(),
+		`INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) VALUES('ALIAS-missing-evidence', 'GEN-0001', 'Missing Evidence', 'missing evidence', 'node', 'capability:app', '', 'scan_alias', 'verified', 'E-missing')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
+	}
+	if !hasValidationError(payload.Errors, "alias_index_missing_evidence_id:E-missing") {
+		t.Fatalf("Errors = %#v, want missing alias evidence error", payload.Errors)
+	}
+}
+
+func TestValidateBuildAllowsGreenfieldWithoutAliases(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "ok" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
 func TestValidateBuildBlocksExcludedBoundaryPathInDB(t *testing.T) {
 	paths := validationTestPaths(t)
 	writeBuildAcceptanceInputs(t, paths)
@@ -677,6 +809,7 @@ func seedMatchingQueryReadyDatabase(t *testing.T, paths rt.Paths, rejections []s
 		Edges:        []store.EdgeImport{{ID: "EDGE-app-self", Type: "owns", SourceID: "N-app", TargetID: "N-app", Confidence: "verified", EvidenceIDs: []string{"E-001"}, Attrs: map[string]any{"relation": "self"}}},
 		Observations: []store.ObservationImport{{ID: "OBS-app", ObservationType: "implementation", Summary: "App exists", EvidenceIDs: []string{"E-001"}, Attrs: map[string]any{"source": "test"}}},
 		PathIndex:    []store.PathIndexImport{{ID: "P-001", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-001"}},
+		Aliases:      []store.AliasImport{{ID: "ALIAS-app-title", Alias: "App", NormalizedAlias: "app", TargetType: "node", TargetID: "N-app", Source: "node_title", Confidence: "verified", EvidenceID: "E-001"}},
 		Rejections:   rejections,
 		MergeRecords: mergeRecords,
 	})
@@ -707,6 +840,7 @@ func seedQueryReadyDatabaseWithNodeIDAndDecisions(t *testing.T, paths rt.Paths, 
 		Evidence:     []store.EvidenceImport{{ID: "E-001", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Span: "L1-L5", Extractor: "test", ContentHash: "hash-app"}},
 		Nodes:        []store.NodeImport{{ID: nodeID, Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-001"}}},
 		PathIndex:    []store.PathIndexImport{{ID: "P-001", Path: "src/app.go", NodeID: nodeID, Relation: "owns", Confidence: "verified", EvidenceID: "E-001"}},
+		Aliases:      []store.AliasImport{{ID: "ALIAS-app-title", Alias: "App", NormalizedAlias: "app", TargetType: "node", TargetID: nodeID, Source: "node_title", Confidence: "verified", EvidenceID: "E-001"}},
 		Rejections:   rejections,
 		MergeRecords: mergeRecords,
 	})
@@ -732,6 +866,7 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 		`INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES('E-001', 'GEN-0001', 'source', 'src/app.go', 'abc123', '', 'test', 'hash', ?, '{}')`,
 		`INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES('capability:app', 'GEN-0001', 'capability', 'App', 'verified', '{}', ?, ?)`,
 		`INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-001', 'GEN-0001', 'src/app.go', 'capability:app', 'owns', 'verified', 'E-001', ?)`,
+		`INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) VALUES('ALIAS-app-title', 'GEN-0001', 'App', 'app', 'node', 'capability:app', '', 'node_title', 'verified', 'E-001')`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('runtime_format', '"project-cognition-go"', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		`INSERT INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '1', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`,
 		fmt.Sprintf(`INSERT INTO metadata(key, value_json, updated_at) VALUES('schema_version', '%d', ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at`, store.SchemaVersion),
@@ -748,6 +883,7 @@ func seedQueryReadyDatabase(t *testing.T, paths rt.Paths) {
 		{now},
 		{now, now},
 		{now},
+		{},
 		{now},
 		{now},
 		{now},
@@ -796,6 +932,16 @@ func seedQueryReadyDatabaseWithPaths(t *testing.T, paths rt.Paths, pathsInScan, 
 			Title:       path,
 			Confidence:  "verified",
 			EvidenceIDs: []string{evidenceID},
+		})
+		input.Aliases = append(input.Aliases, store.AliasImport{
+			ID:              fmt.Sprintf("ALIAS-%03d-title", i+1),
+			Alias:           path,
+			NormalizedAlias: path,
+			TargetType:      "node",
+			TargetID:        nodeID,
+			Source:          "node_title",
+			Confidence:      "verified",
+			EvidenceID:      evidenceID,
 		})
 		input.Observations = append(input.Observations, store.ObservationImport{
 			ID:              fmt.Sprintf("OBS-%03d", i+1),
@@ -1131,6 +1277,15 @@ func writeCoverageLedger(t *testing.T, paths rt.Paths, content string) {
 	if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func openValidationDB(t *testing.T, paths rt.Paths) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db
 }
 
 func hasValidationError(errors []string, want string) bool {

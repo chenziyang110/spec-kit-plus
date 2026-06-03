@@ -635,6 +635,36 @@ func TestLexiconCommandCatalogModeEmitsAliasCatalogAndSemanticContract(t *testin
 	}
 }
 
+func TestLexiconBlocksV1DatabaseWithRebuildGuidance(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), `INSERT INTO metadata(key, value_json, updated_at) VALUES('schema_version', '1', CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json = '1', updated_at = CURRENT_TIMESTAMP`); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"lexicon", "--intent", "debug", "--mode", "catalog", "--format", "json"}, &stdout, &stderr, "test")
+
+	if code == 0 {
+		t.Fatalf("code = %d, want non-zero; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	output := stdout.String() + stderr.String()
+	if !strings.Contains(output, "run_map_scan_build") && !strings.Contains(output, "schema_version") {
+		t.Fatalf("output = %s, want rebuild or schema version guidance", output)
+	}
+}
+
 func TestLexiconCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	initEmptyCLIRuntime(t)
 

@@ -350,6 +350,14 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		details["evidence_count"] = evidenceCount
 		greenfieldEmpty := isGreenfieldEmptyBaseline(status, db, activeGenerationID)
 		details["baseline_kind"] = status.BaselineKind
+		aliasDetails, aliasErrors, err := validateAliasIndex(db, activeGenerationID, greenfieldEmpty)
+		if err != nil {
+			errors = append(errors, err.Error())
+		}
+		for key, value := range aliasDetails {
+			details[key] = value
+		}
+		errors = append(errors, aliasErrors...)
 		if nodeCount == 0 && !greenfieldEmpty {
 			errors = append(errors, "active generation has no nodes")
 		}
@@ -405,6 +413,64 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		}
 	}
 	return details, errors, warnings
+}
+
+func validateAliasIndex(db *sql.DB, generationID string, greenfieldEmpty bool) (map[string]any, []string, error) {
+	details := map[string]any{}
+	errors := []string{}
+	aliasCount, err := countGenerationRows(db, "alias_index", generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	details["alias_index_count"] = aliasCount
+	if greenfieldEmpty {
+		return details, errors, nil
+	}
+	if aliasCount == 0 {
+		errors = append(errors, "active_generation_has_no_alias_rows")
+	}
+
+	missingAliasNodeIDs, err := stringColumnRows(db, `
+SELECT n.id FROM nodes n WHERE n.generation_id = ? AND NOT EXISTS (
+  SELECT 1 FROM alias_index a
+  WHERE a.generation_id = n.generation_id
+    AND a.target_type = 'node'
+    AND a.target_id = n.id
+    AND TRIM(a.normalized_alias) <> ''
+) ORDER BY n.id`, generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	for _, nodeID := range missingAliasNodeIDs {
+		errors = append(errors, "active_generation_node_missing_aliases:"+nodeID)
+	}
+
+	orphanTargetIDs, err := stringColumnRows(db, `
+SELECT DISTINCT a.target_id
+FROM alias_index a
+LEFT JOIN nodes n ON n.generation_id = a.generation_id AND n.id = a.target_id
+WHERE a.generation_id = ? AND a.target_type = 'node' AND n.id IS NULL
+ORDER BY a.target_id`, generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	for _, targetID := range orphanTargetIDs {
+		errors = append(errors, "alias_index_orphan_target_id:"+targetID)
+	}
+
+	missingEvidenceIDs, err := stringColumnRows(db, `
+SELECT DISTINCT a.evidence_id
+FROM alias_index a
+LEFT JOIN evidence e ON e.generation_id = a.generation_id AND e.id = a.evidence_id
+WHERE a.generation_id = ? AND TRIM(a.evidence_id) <> '' AND e.id IS NULL
+ORDER BY a.evidence_id`, generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	for _, evidenceID := range missingEvidenceIDs {
+		errors = append(errors, "alias_index_missing_evidence_id:"+evidenceID)
+	}
+	return details, errors, nil
 }
 
 func isGreenfieldEmptyBaseline(status rt.Status, db *sql.DB, activeGenerationID string) bool {
@@ -572,4 +638,21 @@ func countGenerationRows(db *sql.DB, table string, generationID string) (int, er
 		return 0, fmt.Errorf("count %s rows: %w", table, err)
 	}
 	return count, nil
+}
+
+func stringColumnRows(db *sql.DB, query string, args ...any) ([]string, error) {
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	values := []string{}
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return values, rows.Err()
 }
