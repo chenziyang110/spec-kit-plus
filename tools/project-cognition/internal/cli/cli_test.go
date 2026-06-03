@@ -601,6 +601,118 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 }
 
+func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInputs(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"raw_query":               "PE程序下驱动下载卡在95",
+		"normalized_query":        "Investigate WinPE driver download progress stalling at 95 percent.",
+		"intent_facets":           []string{"WinPE runtime", "driver download", "95 percent stall"},
+		"alias_interpretations":   []string{"PE程序"},
+		"expanded_queries":        []string{"WinPE driver download progress stall"},
+		"paths":                   []string{"src/app.go"},
+		"open_semantic_questions": []string{},
+	})
+	queryPlanFile := filepath.Join(root, "query-plan.json")
+	if err := os.WriteFile(queryPlanFile, []byte(queryPlan), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "inline",
+			args: []string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"},
+		},
+		{
+			name: "at-file",
+			args: []string{"query", "--intent", "debug", "--query-plan", "@" + queryPlanFile, "--format", "json"},
+		},
+		{
+			name: "query-plan-file",
+			args: []string{"query", "--intent", "debug", "--query-plan-file", queryPlanFile, "--format", "json"},
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run(tt.args, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if !jsonStringSliceContains(payload["warnings"], "coerced_top_level_alias_interpretations") {
+				t.Fatalf("warnings = %#v, want alias coercion warning", payload["warnings"])
+			}
+			if !jsonStringSliceContains(payload["warnings"], "query_plan_missing_lexicon_generation_id") {
+				t.Fatalf("warnings = %#v, want missing generation warning", payload["warnings"])
+			}
+			if hints, ok := payload["repair_hints"].([]any); !ok || len(hints) == 0 {
+				t.Fatalf("repair_hints = %#v, want non-empty hints", payload["repair_hints"])
+			}
+			queryPlanPayload, ok := payload["query_plan"].(map[string]any)
+			if !ok {
+				t.Fatalf("query_plan missing from payload = %#v", payload)
+			}
+			intake, ok := queryPlanPayload["semantic_intake"].(map[string]any)
+			if !ok {
+				t.Fatalf("semantic_intake missing from query_plan = %#v", queryPlanPayload)
+			}
+			aliases, ok := intake["alias_interpretations"].([]any)
+			if !ok || len(aliases) != 1 {
+				t.Fatalf("alias_interpretations = %#v, want one normalized alias object", intake["alias_interpretations"])
+			}
+			alias, ok := aliases[0].(map[string]any)
+			if !ok {
+				t.Fatalf("alias_interpretations[0] = %#v, want object", aliases[0])
+			}
+			if alias["alias"] != "PE程序" || alias["meaning"] != "PE程序" || alias["confidence"] != "low" {
+				t.Fatalf("alias = %#v, want low-confidence coerced object", alias)
+			}
+		})
+	}
+}
+
+func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+	queryPlan := `{"semantic_intake":{"alias_interpretations":[{"alias":95}]}}`
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = 0, want non-zero for unrecoverable query plan; stdout=%s", stdout.String())
+	}
+	if strings.TrimSpace(stdout.String()) == "" {
+		t.Fatalf("stdout is empty; stderr-only parser failures are not acceptable, stderr=%s", stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not JSON: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+	}
+	if payload["status"] != "error" {
+		t.Fatalf("payload = %#v, want status=error", payload)
+	}
+	if errors, ok := payload["errors"].([]any); !ok || len(errors) == 0 {
+		t.Fatalf("errors = %#v, want non-empty errors array", payload["errors"])
+	}
+	if _, ok := payload["warnings"].([]any); !ok {
+		t.Fatalf("warnings = %#v, want warnings array", payload["warnings"])
+	}
+	if hints, ok := payload["repair_hints"].([]any); !ok || len(hints) == 0 {
+		t.Fatalf("repair_hints = %#v, want non-empty repair hints", payload["repair_hints"])
+	}
+	if _, ok := payload["expected_shape"].(map[string]any); !ok {
+		t.Fatalf("expected_shape = %#v, want object", payload["expected_shape"])
+	}
+	if !strings.Contains(stderr.String(), "query plan") {
+		t.Fatalf("stderr = %q, want concise query plan message", stderr.String())
+	}
+}
+
 func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	initEmptyCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{

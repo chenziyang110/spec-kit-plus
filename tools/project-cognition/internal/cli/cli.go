@@ -589,12 +589,24 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	plan, err := query.ParsePlan(*planJSON, *planFile)
+	plan, diagnostics, err := query.ParsePlanWithDiagnostics(*planJSON, *planFile)
 	if err != nil {
+		var planErr *query.PlanParseError
+		if errors.As(err, &planErr) {
+			fmt.Fprintf(stderr, "project-cognition: query plan diagnostics require repair\n")
+			return writeErrorJSON(stdout, map[string]any{
+				"status":         "error",
+				"readiness":      rt.BlockedReadiness,
+				"errors":         planErr.Errors,
+				"warnings":       planErr.Warnings,
+				"repair_hints":   planErr.RepairHints,
+				"expected_shape": planErr.ExpectedShape,
+			})
+		}
 		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
 		return 1
 	}
-	payload, err := query.Run(paths, query.QueryInput{Intent: *intent, Query: *text, ExpandedQuery: *expanded, Paths: pathHints, Plan: plan})
+	payload, err := query.Run(paths, query.QueryInput{Intent: *intent, Query: *text, ExpandedQuery: *expanded, Paths: pathHints, Plan: plan, PlanDiagnostics: diagnostics})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 

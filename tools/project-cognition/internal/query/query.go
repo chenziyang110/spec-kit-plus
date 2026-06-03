@@ -70,11 +70,12 @@ type Plan struct {
 }
 
 type QueryInput struct {
-	Intent        string
-	Query         string
-	ExpandedQuery string
-	Paths         []string
-	Plan          Plan
+	Intent          string
+	Query           string
+	ExpandedQuery   string
+	Paths           []string
+	Plan            Plan
+	PlanDiagnostics PlanDiagnostics
 }
 
 type QueryPayload struct {
@@ -98,9 +99,36 @@ type QueryPayload struct {
 	MissingCoverage       []string         `json:"missing_coverage"`
 	RoutePack             map[string]any   `json:"route_pack"`
 	Subgraph              map[string]any   `json:"subgraph"`
+	Warnings              []string         `json:"warnings,omitempty"`
+	RepairHints           []string         `json:"repair_hints,omitempty"`
+}
+
+type PlanDiagnostics struct {
+	Warnings      []string       `json:"warnings,omitempty"`
+	RepairHints   []string       `json:"repair_hints,omitempty"`
+	ExpectedShape map[string]any `json:"expected_shape,omitempty"`
+}
+
+type PlanParseError struct {
+	Errors        []string
+	Warnings      []string
+	RepairHints   []string
+	ExpectedShape map[string]any
+}
+
+func (err *PlanParseError) Error() string {
+	if err == nil || len(err.Errors) == 0 {
+		return "parse query plan"
+	}
+	return "parse query plan: " + strings.Join(err.Errors, "; ")
 }
 
 func ParsePlan(value, file string) (Plan, error) {
+	plan, _, err := ParsePlanWithDiagnostics(value, file)
+	return plan, err
+}
+
+func ParsePlanWithDiagnostics(value, file string) (Plan, PlanDiagnostics, error) {
 	if file == "" && strings.HasPrefix(value, "@") {
 		file = strings.TrimPrefix(value, "@")
 		value = ""
@@ -111,18 +139,27 @@ func ParsePlan(value, file string) (Plan, error) {
 	case file != "":
 		data, err = os.ReadFile(file)
 		if err != nil {
-			return Plan{}, fmt.Errorf("read query plan file: %w", err)
+			return Plan{}, PlanDiagnostics{}, fmt.Errorf("read query plan file: %w", err)
 		}
 	case value != "":
 		data = []byte(value)
 	default:
-		return Plan{}, nil
+		return Plan{}, PlanDiagnostics{}, nil
+	}
+	normalized, diagnostics, err := normalizePlanJSON(data)
+	if err != nil {
+		return Plan{}, diagnostics, err
 	}
 	var plan Plan
-	if err := json.Unmarshal(data, &plan); err != nil {
-		return Plan{}, fmt.Errorf("parse query plan: %w", err)
+	if err := json.Unmarshal(normalized, &plan); err != nil {
+		parseErr := planParseError(
+			[]string{fmt.Sprintf("query_plan has unsupported field shape: %v", err)},
+			diagnostics.Warnings,
+			diagnostics.RepairHints,
+		)
+		return Plan{}, diagnostics, parseErr
 	}
-	return NormalizePlan(plan), nil
+	return NormalizePlan(plan), diagnostics, nil
 }
 
 func NormalizePlan(plan Plan) Plan {
@@ -145,6 +182,165 @@ func NormalizePlan(plan Plan) Plan {
 	plan.RejectedConcepts = normalizeStrings(plan.RejectedConcepts)
 	plan.ConceptDecisions = normalizeConceptDecisions(plan.ConceptDecisions, plan.SelectedConcepts, plan.RejectedConcepts, plan.SelectionReason)
 	return plan
+}
+
+func normalizePlanJSON(data []byte) ([]byte, PlanDiagnostics, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, PlanDiagnostics{}, planParseError(
+			[]string{fmt.Sprintf("query_plan must be a JSON object: %v", err)},
+			nil,
+			nil,
+		)
+	}
+	diagnostics := PlanDiagnostics{}
+	if err := normalizeAliasInterpretationPayload(payload, "alias_interpretations", "coerced_top_level_alias_interpretations", &diagnostics); err != nil {
+		return nil, diagnostics, err
+	}
+	if rawIntake, ok := payload["semantic_intake"]; ok && rawIntake != nil {
+		intake, ok := rawIntake.(map[string]any)
+		if !ok {
+			return nil, diagnostics, planParseError(
+				[]string{"semantic_intake must be an object"},
+				diagnostics.Warnings,
+				diagnostics.RepairHints,
+			)
+		}
+		if err := normalizeAliasInterpretationPayload(intake, "semantic_intake.alias_interpretations", "coerced_semantic_intake_alias_interpretations", &diagnostics); err != nil {
+			return nil, diagnostics, err
+		}
+	}
+	if generationID, ok := payload["lexicon_generation_id"].(string); !ok || strings.TrimSpace(generationID) == "" {
+		appendDiagnostic(&diagnostics.Warnings, "query_plan_missing_lexicon_generation_id")
+		appendDiagnostic(&diagnostics.RepairHints, "Carry lexicon_generation_id from the project-cognition lexicon payload into the query_plan.")
+	}
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return nil, diagnostics, planParseError(
+			[]string{fmt.Sprintf("normalize query_plan: %v", err)},
+			diagnostics.Warnings,
+			diagnostics.RepairHints,
+		)
+	}
+	return normalized, diagnostics, nil
+}
+
+func normalizeAliasInterpretationPayload(container map[string]any, fieldPath string, warning string, diagnostics *PlanDiagnostics) error {
+	raw, ok := container["alias_interpretations"]
+	if !ok || raw == nil {
+		return nil
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return unsupportedAliasInterpretationsError(fieldPath, *diagnostics)
+	}
+	converted := make([]any, 0, len(items))
+	sawString := false
+	sawObject := false
+	for _, item := range items {
+		switch typed := item.(type) {
+		case string:
+			value := strings.TrimSpace(typed)
+			if value == "" {
+				continue
+			}
+			sawString = true
+			converted = append(converted, map[string]any{
+				"alias":      value,
+				"meaning":    value,
+				"confidence": "low",
+			})
+		case map[string]any:
+			sawObject = true
+			normalized, err := normalizeAliasInterpretationObject(typed, fieldPath, *diagnostics)
+			if err != nil {
+				return err
+			}
+			converted = append(converted, normalized)
+		default:
+			return unsupportedAliasInterpretationsError(fieldPath, *diagnostics)
+		}
+	}
+	if sawString && sawObject {
+		return planParseError(
+			[]string{fieldPath + " must not mix string aliases with object aliases"},
+			diagnostics.Warnings,
+			diagnostics.RepairHints,
+		)
+	}
+	if sawString {
+		container["alias_interpretations"] = converted
+		appendDiagnostic(&diagnostics.Warnings, warning)
+		appendDiagnostic(&diagnostics.RepairHints, "Use alias_interpretations as objects with alias, meaning, and optional confidence fields.")
+	}
+	return nil
+}
+
+func normalizeAliasInterpretationObject(value map[string]any, fieldPath string, diagnostics PlanDiagnostics) (map[string]any, error) {
+	out := map[string]any{}
+	for _, key := range []string{"alias", "meaning", "confidence"} {
+		raw, ok := value[key]
+		if !ok || raw == nil {
+			continue
+		}
+		text, ok := raw.(string)
+		if !ok {
+			return nil, unsupportedAliasInterpretationsError(fieldPath, diagnostics)
+		}
+		out[key] = strings.TrimSpace(text)
+	}
+	for key, raw := range value {
+		if key == "alias" || key == "meaning" || key == "confidence" {
+			continue
+		}
+		out[key] = raw
+	}
+	return out, nil
+}
+
+func unsupportedAliasInterpretationsError(fieldPath string, diagnostics PlanDiagnostics) *PlanParseError {
+	return planParseError(
+		[]string{fieldPath + " must be an array of objects with string alias, meaning, and confidence fields"},
+		diagnostics.Warnings,
+		diagnostics.RepairHints,
+	)
+}
+
+func planParseError(errors []string, warnings []string, repairHints []string) *PlanParseError {
+	hints := append([]string{}, repairHints...)
+	appendDiagnostic(&hints, "Use alias_interpretations as objects with alias, meaning, and optional confidence fields.")
+	return &PlanParseError{
+		Errors:        errors,
+		Warnings:      append([]string{}, warnings...),
+		RepairHints:   hints,
+		ExpectedShape: expectedQueryPlanShape(),
+	}
+}
+
+func expectedQueryPlanShape() map[string]any {
+	return map[string]any{
+		"alias_interpretations": []map[string]string{
+			{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"},
+		},
+		"semantic_intake": map[string]any{
+			"alias_interpretations": []map[string]string{
+				{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"},
+			},
+		},
+	}
+}
+
+func appendDiagnostic(values *[]string, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	for _, existing := range *values {
+		if existing == value {
+			return
+		}
+	}
+	*values = append(*values, value)
 }
 
 func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
@@ -210,6 +406,8 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 				"claims":    []map[string]any{},
 				"conflicts": []map[string]any{},
 			},
+			Warnings:    input.PlanDiagnostics.Warnings,
+			RepairHints: input.PlanDiagnostics.RepairHints,
 		}, nil
 	}
 	nodes := []map[string]any{}
@@ -321,6 +519,8 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		MissingCoverage:       missingCoverage,
 		RoutePack:             routePack,
 		Subgraph:              subgraph,
+		Warnings:              input.PlanDiagnostics.Warnings,
+		RepairHints:           input.PlanDiagnostics.RepairHints,
 	}, nil
 }
 
@@ -607,6 +807,8 @@ func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, ac
 			"claims":    []map[string]any{},
 			"conflicts": []map[string]any{},
 		},
+		Warnings:    input.PlanDiagnostics.Warnings,
+		RepairHints: input.PlanDiagnostics.RepairHints,
 	}
 }
 

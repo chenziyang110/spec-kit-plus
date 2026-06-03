@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -143,13 +144,64 @@ func TestParsePlanMergesTopLevelSemanticIntakeAliases(t *testing.T) {
 	}
 }
 
+func TestParsePlanWithDiagnosticsCoercesTopLevelStringAliases(t *testing.T) {
+	plan, diagnostics, err := ParsePlanWithDiagnostics(`{
+		"normalized_query": "WinPE driver download stall",
+		"alias_interpretations": ["PE程序"]
+	}`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !hasString(diagnostics.Warnings, "coerced_top_level_alias_interpretations") {
+		t.Fatalf("warnings = %#v, want coerced_top_level_alias_interpretations", diagnostics.Warnings)
+	}
+	if !hasString(diagnostics.Warnings, "query_plan_missing_lexicon_generation_id") {
+		t.Fatalf("warnings = %#v, want missing lexicon generation warning", diagnostics.Warnings)
+	}
+	if len(plan.SemanticIntake.AliasInterpretations) != 1 {
+		t.Fatalf("SemanticIntake.AliasInterpretations = %#v", plan.SemanticIntake.AliasInterpretations)
+	}
+	alias := plan.SemanticIntake.AliasInterpretations[0]
+	if alias.Alias != "PE程序" || alias.Meaning != "PE程序" || alias.Confidence != "low" {
+		t.Fatalf("alias = %#v, want low-confidence coerced object", alias)
+	}
+}
+
+func TestParsePlanWithDiagnosticsCoercesNestedStringAliases(t *testing.T) {
+	plan, diagnostics, err := ParsePlanWithDiagnostics(`{
+		"lexicon_generation_id": "GEN-debug",
+		"semantic_intake": {
+			"normalized_query": "WinPE driver download stall",
+			"alias_interpretations": ["PE程序"]
+		}
+	}`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !hasString(diagnostics.Warnings, "coerced_semantic_intake_alias_interpretations") {
+		t.Fatalf("warnings = %#v, want nested alias coercion warning", diagnostics.Warnings)
+	}
+	alias := plan.SemanticIntake.AliasInterpretations[0]
+	if alias.Alias != "PE程序" || alias.Meaning != "PE程序" || alias.Confidence != "low" {
+		t.Fatalf("alias = %#v, want low-confidence coerced object", alias)
+	}
+}
+
 func TestParsePlanKeepsNestedSemanticIntakeOverTopLevelAliases(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"normalized_query": "top level query",
 		"intent_facets": ["top facet"],
+		"alias_interpretations": [
+			{"alias": "top", "meaning": "top alias"}
+		],
 		"semantic_intake": {
 			"normalized_query": "nested query",
-			"intent_facets": ["nested facet"]
+			"intent_facets": ["nested facet"],
+			"alias_interpretations": [
+				{"alias": "nested", "meaning": "nested alias"}
+			]
 		}
 	}`, "")
 	if err != nil {
@@ -161,6 +213,35 @@ func TestParsePlanKeepsNestedSemanticIntakeOverTopLevelAliases(t *testing.T) {
 	}
 	if len(plan.SemanticIntake.IntentFacets) != 1 || plan.SemanticIntake.IntentFacets[0] != "nested facet" {
 		t.Fatalf("IntentFacets = %#v", plan.SemanticIntake.IntentFacets)
+	}
+	if len(plan.SemanticIntake.AliasInterpretations) != 1 ||
+		plan.SemanticIntake.AliasInterpretations[0].Alias != "nested" {
+		t.Fatalf("AliasInterpretations = %#v, want nested alias only", plan.SemanticIntake.AliasInterpretations)
+	}
+}
+
+func TestParsePlanWithDiagnosticsRejectsUnsupportedAliasShape(t *testing.T) {
+	_, _, err := ParsePlanWithDiagnostics(`{
+		"lexicon_generation_id": "GEN-debug",
+		"semantic_intake": {
+			"alias_interpretations": [{"alias": 95}]
+		}
+	}`, "")
+	if err == nil {
+		t.Fatal("expected unsupported alias shape error")
+	}
+	var parseErr *PlanParseError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("error = %T %[1]v, want PlanParseError", err)
+	}
+	if len(parseErr.Errors) == 0 {
+		t.Fatalf("parseErr.Errors = %#v, want diagnostic errors", parseErr.Errors)
+	}
+	if len(parseErr.RepairHints) == 0 {
+		t.Fatalf("parseErr.RepairHints = %#v, want repair hints", parseErr.RepairHints)
+	}
+	if parseErr.ExpectedShape == nil {
+		t.Fatalf("parseErr.ExpectedShape = nil, want expected shape")
 	}
 }
 
