@@ -88,7 +88,7 @@ Required columns:
 - `target_type`: initially `node`.
 - `target_id`: graph node id.
 - `language`: examples include `en`, `zh`, `code`, or `unknown`.
-- `source`: provenance such as `node_title`, `path_material`, `scan_alias`, `observation`, or `update`.
+- `source`: provenance such as `node_title`, `path_material`, `scan_alias`, `observation_tag`, or `update`.
 - `confidence`: `verified`, `high`, `medium`, `low`, or `provisional`.
 - `evidence_id`: optional supporting evidence row id. The column exists on every row, but the value may be empty for aliases derived from node title, node id, node type, or other concept metadata without direct evidence. When non-empty, it must reference an evidence row in the same generation.
 
@@ -152,11 +152,12 @@ Empty removed tables are no longer relevant because they no longer exist in sche
 
 ## Compatibility
 
-Schema v1 databases may contain the old broad table set. The runtime should treat them as compatible enough to inspect but should not keep creating v1 databases.
+Schema v1 databases may contain the old broad table set. The runtime should treat them as compatible enough to inspect for diagnostics, but not as query-compatible after schema v2 becomes the active runtime schema.
 
 Recommended compatibility behavior:
 
-- `ExistingDatabaseCompatible` accepts current v1 databases for read/query if required active-generation tables exist.
+- `status`, `doctor`, and `validate-build` may inspect current v1 databases to report schema version, active generation, table profile, and rebuild guidance.
+- `lexicon` and `query` require schema v2 readiness. If runtime agreement sees `metadata.schema_version < 2`, those commands should report rebuild-required guidance instead of trying to query through v1.
 - Read compatibility is not build compatibility. `build-from-scan` must replace or recreate the database when `metadata.schema_version < 2`, even if the v1 database is readable.
 - The build path must not rely on `CREATE TABLE IF NOT EXISTS` to upgrade v1 to v2 because that leaves removed v1 tables behind. It should archive the old DB through the existing legacy archive pattern or otherwise create a clean schema v2 database before import.
 - `doctor` or `validate-build` reports schema version and table profile so users can distinguish old broad schema from v2 minimal schema.
