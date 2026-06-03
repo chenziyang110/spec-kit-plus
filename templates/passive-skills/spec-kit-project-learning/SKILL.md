@@ -150,11 +150,21 @@ Keep the learning index useful. Avoid turning it into a transcript.
 ## Start-Time Memory Effects
 
 Treat `learning start` as required preflight memory for light and heavy work,
-not optional telemetry.
+not optional telemetry. Required means the workflow must attempt it and report
+its result; it does not mean a legacy learning-index parser failure may block
+the primary workflow.
 
 The start surface should make project rules and relevant learning index entries
 visible before later work repeats the same mistake. Detail documents should be
 opened selectively only when their triggers match the current task.
+
+If `learning start --format json` reports `warnings`,
+`learning_index_diagnostics`, skipped malformed entries, or helper
+unavailability, continue with direct memory reads from
+`.specify/memory/project-rules.md`, `.specify/memory/project-learnings.md`, and
+`.specify/memory/learnings/INDEX.md` when those files exist. Treat those
+diagnostics as preflight evidence to surface in the workflow, not as a hard gate
+unless the active command explicitly declares learning as blocking.
 
 Native hooks are an optional enhancement. Without native hooks, the shared
 `{{specify-subcmd:learning start}}`, `{{specify-subcmd:learning capture}}`, and

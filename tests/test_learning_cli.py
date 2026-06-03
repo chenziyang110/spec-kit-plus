@@ -3,6 +3,7 @@ import hashlib
 import os
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from specify_cli import app
@@ -42,6 +43,82 @@ def _invoke_in_project(project: Path, args: list[str]):
         return runner.invoke(app, args, catch_exceptions=False)
     finally:
         os.chdir(old_cwd)
+
+
+def _write_learning_index_payload(project: Path, payloads: list[object]) -> None:
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(payloads, indent=2),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _legacy_and_malformed_index_payloads(command_name: str) -> list[object]:
+    normalized_command = normalize_command_name(command_name)
+    return [
+        {
+            "id": "learn-2026-06-03-valid-entry",
+            "problem": "Use focused preflight context before workflow execution",
+            "lesson": "Read relevant learning detail docs before repeating the same workflow mistake.",
+            "learning_type": "pitfall",
+            "source_command": normalized_command,
+            "recurrence_key": f"{normalized_command}.valid-index-entry",
+            "applies_to": [normalized_command],
+            "trigger_signals": ["pitfall", "medium"],
+            "detail": "./learn-2026-06-03-valid-entry.md",
+            "first_seen": "2026-06-03T00:00:00Z",
+            "last_seen": "2026-06-03T00:00:00Z",
+            "occurrence_count": 1,
+            "signal_strength": "medium",
+        },
+        {
+            "id": "learn-2026-06-03-missing-type",
+            "problem": "Legacy index row omitted its learning type",
+            "lesson": "Default missing learning_type to workflow_gap so start preflight can continue.",
+            "source_command": normalized_command,
+            "recurrence_key": f"{normalized_command}.missing-learning-type",
+            "applies_to": [normalized_command],
+            "trigger_signals": ["medium"],
+            "detail": "./learn-2026-06-03-missing-type.md",
+            "first_seen": "2026-06-03T00:00:00Z",
+            "last_seen": "2026-06-03T00:00:00Z",
+            "occurrence_count": 1,
+            "signal_strength": "medium",
+        },
+        {
+            "id": "LRN-legacy-summary-only",
+            "summary": "Legacy summary should become the index problem",
+            "evidence": "Legacy evidence should become the index lesson.",
+            "learning_type": "recovery_path",
+            "recurrence_key": f"{normalized_command}.summary-only",
+            "applies_to": [normalized_command],
+            "signal_strength": "medium",
+            "status": "confirmed",
+            "first_seen": "2026-06-03T00:00:00Z",
+            "last_seen": "2026-06-03T00:00:00Z",
+            "occurrence_count": 1,
+        },
+        {
+            "id": "learn-2026-06-03-malformed-entry",
+            "problem": "Malformed entry has no recoverable command routing",
+            "lesson": "This row should be skipped with diagnostics.",
+            "learning_type": "pitfall",
+            "recurrence_key": f"{normalized_command}.malformed-entry",
+            "applies_to": {"not": "a-list"},
+            "first_seen": "2026-06-03T00:00:00Z",
+            "last_seen": "2026-06-03T00:00:00Z",
+        },
+    ]
 
 
 def _write_implement_tracker(
@@ -1396,6 +1473,57 @@ def test_learning_start_reads_legacy_index_entries_without_problem_field(tmp_pat
     assert payload["relevant_index_entries"][0]["problem"] == "Legacy quick learning summary"
     assert payload["relevant_index_entries"][0]["lesson"] == "Legacy evidence should become the index lesson."
     assert payload["relevant_index_entries"][0]["detail"].startswith("./learn-")
+
+
+def test_learning_start_reports_diagnostics_for_legacy_and_malformed_index_entries(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+    _write_learning_index_payload(project, _legacy_and_malformed_index_payloads("debug"))
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "debug", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    recurrence_keys = {entry["recurrence_key"] for entry in payload["relevant_index_entries"]}
+    assert "sp-debug.valid-index-entry" in recurrence_keys
+    assert "sp-debug.missing-learning-type" in recurrence_keys
+    assert "sp-debug.summary-only" in recurrence_keys
+    assert "sp-debug.malformed-entry" not in recurrence_keys
+    by_key = {entry["recurrence_key"]: entry for entry in payload["relevant_index_entries"]}
+    assert by_key["sp-debug.missing-learning-type"]["learning_type"] == "workflow_gap"
+    assert by_key["sp-debug.summary-only"]["problem"] == "Legacy summary should become the index problem"
+    assert by_key["sp-debug.summary-only"]["lesson"] == "Legacy evidence should become the index lesson."
+    assert payload["warnings"]
+    diagnostics = payload["learning_index_diagnostics"]
+    assert diagnostics["normalized_legacy_entries"] >= 2
+    assert diagnostics["skipped_malformed_entries"] == 1
+    assert any(detail["action"] == "skipped" for detail in diagnostics["details"])
+
+
+@pytest.mark.parametrize("command_name", ["constitution", "map-scan", "map-build"])
+def test_learning_start_reports_index_diagnostics_for_non_cognition_workflows(
+    tmp_path: Path,
+    command_name: str,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+    _write_learning_index_payload(project, _legacy_and_malformed_index_payloads(command_name))
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", command_name, "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    normalized_command = normalize_command_name(command_name)
+    recurrence_keys = {entry["recurrence_key"] for entry in payload["relevant_index_entries"]}
+    assert f"{normalized_command}.valid-index-entry" in recurrence_keys
+    assert f"{normalized_command}.summary-only" in recurrence_keys
+    assert f"{normalized_command}.malformed-entry" not in recurrence_keys
+    assert payload["warnings"]
+    assert payload["learning_index_diagnostics"]["skipped_malformed_entries"] == 1
 
 
 def test_learning_start_returns_relevant_index_entries_and_detail_refs(tmp_path: Path) -> None:

@@ -724,11 +724,133 @@ def _render_index_entry_summary(entry: LearningIndexEntry) -> str:
     )
 
 
-def _read_index_entries(path: Path) -> tuple[str, list[LearningIndexEntry]]:
+def _empty_learning_index_diagnostics() -> dict[str, Any]:
+    return {
+        "normalized_legacy_entries": 0,
+        "skipped_malformed_entries": 0,
+        "file_level_errors": 0,
+        "details": [],
+        "warnings": [],
+    }
+
+
+def _normalize_learning_index_payload(payload: Any, index: int) -> tuple[dict[str, Any], list[str]]:
+    if not isinstance(payload, dict):
+        raise ValueError("learning index entry is not an object")
+
+    normalized = dict(payload)
+    warnings: list[str] = []
+
+    raw_applies_to = normalized.get("applies_to")
+    if raw_applies_to is not None and not isinstance(raw_applies_to, list):
+        normalized["applies_to"] = []
+        warnings.append("invalid_applies_to_coerced_empty")
+
+    applies_to = _coerce_str_list(normalized.get("applies_to"))
+    if not str(normalized.get("source_command") or "").strip():
+        if applies_to:
+            normalized["source_command"] = applies_to[0]
+            warnings.append("derived_source_command_from_applies_to")
+        else:
+            raise ValueError("missing source_command and no applies_to fallback")
+
+    if not str(normalized.get("learning_type") or "").strip():
+        normalized["learning_type"] = "workflow_gap"
+        warnings.append("defaulted_learning_type")
+
+    if not str(normalized.get("problem") or "").strip():
+        problem = str(
+            normalized.get("summary")
+            or normalized.get("lesson")
+            or normalized.get("id")
+            or normalized.get("recurrence_key")
+            or ""
+        ).strip()
+        if not problem:
+            raise ValueError("missing problem and no fallback")
+        normalized["problem"] = problem
+        warnings.append("derived_problem_from_legacy_fields")
+
+    if not str(normalized.get("lesson") or "").strip():
+        lesson = str(normalized.get("evidence") or normalized.get("problem") or "").strip()
+        if not lesson:
+            raise ValueError("missing lesson and no fallback")
+        normalized["lesson"] = lesson.splitlines()[0]
+        warnings.append("derived_lesson_from_legacy_fields")
+
+    if not str(normalized.get("recurrence_key") or "").strip():
+        raise ValueError("missing recurrence_key")
+
+    return normalized, warnings
+
+
+def _read_index_entries_with_diagnostics(
+    path: Path,
+    *,
+    tolerate_file_errors: bool = True,
+) -> tuple[str, list[LearningIndexEntry], dict[str, Any]]:
+    diagnostics = _empty_learning_index_diagnostics()
     if not path.exists():
-        return "", []
-    preamble, payloads = _extract_payload_block(path.read_text(encoding="utf-8"))
-    return preamble, [LearningIndexEntry.from_payload(payload) for payload in payloads]
+        return "", [], diagnostics
+
+    try:
+        preamble, payloads = _extract_payload_block(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, ValueError) as exc:
+        if not tolerate_file_errors:
+            raise
+        message = f"learning_index_parse_error:{type(exc).__name__}"
+        diagnostics["file_level_errors"] = 1
+        diagnostics["warnings"].append(message)
+        diagnostics["details"].append(
+            {
+                "index": None,
+                "action": "fallback_direct_memory_reads",
+                "reason": str(exc),
+            }
+        )
+        return "", [], diagnostics
+
+    entries: list[LearningIndexEntry] = []
+    for index, payload in enumerate(payloads):
+        entry_id = payload.get("id") if isinstance(payload, dict) else None
+        try:
+            normalized, item_warnings = _normalize_learning_index_payload(payload, index)
+            entry = LearningIndexEntry.from_payload(normalized)
+        except Exception as exc:  # noqa: BLE001 - diagnostics must report and continue per legacy index contract.
+            diagnostics["skipped_malformed_entries"] += 1
+            warning = f"learning_index_entry_{index}_skipped:{type(exc).__name__}"
+            diagnostics["warnings"].append(warning)
+            diagnostics["details"].append(
+                {
+                    "index": index,
+                    "id": str(entry_id or ""),
+                    "action": "skipped",
+                    "reason": str(exc),
+                }
+            )
+            continue
+
+        entries.append(entry)
+        if item_warnings:
+            diagnostics["normalized_legacy_entries"] += 1
+            diagnostics["warnings"].append(
+                f"learning_index_entry_{index}_normalized:{','.join(item_warnings)}"
+            )
+            diagnostics["details"].append(
+                {
+                    "index": index,
+                    "id": entry.id,
+                    "action": "normalized",
+                    "warnings": item_warnings,
+                }
+            )
+
+    return preamble, entries, diagnostics
+
+
+def _read_index_entries(path: Path) -> tuple[str, list[LearningIndexEntry]]:
+    preamble, entries, _diagnostics = _read_index_entries_with_diagnostics(path, tolerate_file_errors=False)
+    return preamble, entries
 
 
 def _render_learning_index_file(preamble: str, entries: list[LearningIndexEntry]) -> str:
@@ -1555,7 +1677,10 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         )
         candidate_entries = remaining_candidates
 
-    index_preamble, index_entries = _read_index_entries(paths.learning_index)
+    _index_preamble, index_entries, learning_index_diagnostics = _read_index_entries_with_diagnostics(
+        paths.learning_index
+    )
+    learning_index_warnings = list(learning_index_diagnostics.get("warnings", []))
     relevant_rules = [entry.to_payload() for entry in rule_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_learnings = [entry.to_payload() for entry in learning_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_candidates = [entry.to_payload() for entry in candidate_entries if is_relevant_to_command(entry, normalized_command)]
@@ -1677,8 +1802,16 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
             "promotable_candidates": len(promotable),
             "confirmation_candidates": len(confirmation_candidates),
             "preflight_warnings": len(preflight_warning_entries),
+            "learning_index_warnings": len(learning_index_warnings),
+            "skipped_malformed_index_entries": int(
+                learning_index_diagnostics.get("skipped_malformed_entries", 0)
+            ),
         },
         "top_warnings": top_warnings,
+        "warnings": learning_index_warnings,
+        "learning_index_diagnostics": {
+            key: value for key, value in learning_index_diagnostics.items() if key != "warnings"
+        },
     }
 
 
