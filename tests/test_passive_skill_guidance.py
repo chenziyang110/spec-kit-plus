@@ -163,6 +163,18 @@ def test_dispatching_parallel_agents_uses_current_runtime_before_external_sessio
     assert "advise the user to run multiple parallel instances" not in content
 
 
+def test_generated_passive_skill_files_do_not_reference_uninstalled_superpowers_names() -> None:
+    offenders = []
+    passive_root = PROJECT_ROOT / "templates" / "passive-skills"
+
+    for path in sorted(passive_root.rglob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        if "superpowers:" in content:
+            offenders.append(str(path.relative_to(PROJECT_ROOT)))
+
+    assert offenders == []
+
+
 def test_project_cognition_gate_references_routing_and_learning_roles() -> None:
     content = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
 

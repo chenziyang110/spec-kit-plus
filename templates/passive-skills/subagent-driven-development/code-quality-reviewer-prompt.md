@@ -7,8 +7,8 @@ Use this template when dispatching a code quality reviewer subagent.
 **Only dispatch after spec compliance review passes.**
 
 ```
-Task tool (superpowers:code-reviewer):
-  Use template at requesting-code-review/code-reviewer.md
+Task tool (native reviewer subagent):
+  Use template at .specify/templates/worker-prompts/code-quality-reviewer.md
 
   WHAT_WAS_IMPLEMENTED: [from implementer's report]
   PLAN_OR_REQUIREMENTS: Task N from [plan-file]
