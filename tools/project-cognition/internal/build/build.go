@@ -242,9 +242,10 @@ func basePayload(paths rt.Paths) Payload {
 }
 
 func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
+	generationID := newGenerationID()
 	rejections := coverageRejections(pkg)
 	return store.ImportInput{
-		GenerationID: newGenerationID(),
+		GenerationID: generationID,
 		Kind:         rt.BaselineKindBrownfieldFull,
 		SourceCommit: firstSourceCommit(pkg.Evidence),
 		Evidence:     evidenceImports(pkg.Evidence),
@@ -252,6 +253,7 @@ func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 		Edges:        edgeImports(pkg.Edges),
 		Observations: observationImports(pkg.Observations),
 		PathIndex:    pathIndexImports(pkg.Nodes),
+		Aliases:      aliasImports(generationID, pkg),
 		Rejections:   rejections,
 		MergeRecords: []store.MergeRecord{},
 	}

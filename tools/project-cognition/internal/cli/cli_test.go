@@ -323,6 +323,39 @@ func TestBuildFromScanCommandCreatesRuntime(t *testing.T) {
 	}
 }
 
+func TestBuildFromScanCommandWritesAliasIndexRows(t *testing.T) {
+	payload := runBuildFromScanCLI(t, "build-from-scan")
+
+	if payload["status"] != "ok" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	paths, err := rt.ResolvePaths(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	var aliasCount int
+	if err := db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM alias_index WHERE target_type = 'node'`).Scan(&aliasCount); err != nil {
+		t.Fatal(err)
+	}
+	if aliasCount == 0 {
+		t.Fatal("alias_index node row count = 0, want > 0")
+	}
+
+	var rawSummaryAliases int
+	if err := db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM alias_index WHERE alias LIKE '%owns frame rendering and input dispatch%'`).Scan(&rawSummaryAliases); err != nil {
+		t.Fatal(err)
+	}
+	if rawSummaryAliases != 0 {
+		t.Fatalf("raw summary alias count = %d, want 0", rawSummaryAliases)
+	}
+}
+
 func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)
@@ -1993,7 +2026,7 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 		"observations": []map[string]any{{
 			"id":               "OBS-app",
 			"observation_type": "summary",
-			"summary":          "App observed",
+			"summary":          "App owns frame rendering and input dispatch.",
 			"evidence_ids":     []string{"E-001"},
 		}},
 	})
