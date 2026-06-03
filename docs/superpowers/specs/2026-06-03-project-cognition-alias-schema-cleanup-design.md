@@ -98,7 +98,7 @@ The build should derive aliases from:
 - Node type.
 - `nodes[].attrs.aliases`, `attrs.domain`, `attrs.owner`, `attrs.workflow`, `attrs.route`, `attrs.route_hints`, and `attrs.verification_hints`.
 - Path material from `nodes[].paths`, including meaningful filename, directory, and class-like tokens.
-- Observation summaries when tied to node evidence.
+- Bounded observation tags derived from summaries when tied to node evidence.
 - Explicit scan-provided alias rows if the scan artifact schema adds them.
 
 The build should not write aliases for excluded paths or `.specify/**` workflow state.
