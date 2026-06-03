@@ -79,7 +79,7 @@ Remove these tables from the default schema until there is an implemented produc
 
 `alias_index` stores user-facing and project-facing names for graph concepts.
 
-Required fields:
+Required columns:
 
 - `id`: stable row id.
 - `generation_id`: active generation owner.
@@ -90,7 +90,7 @@ Required fields:
 - `language`: examples include `en`, `zh`, `code`, or `unknown`.
 - `source`: provenance such as `node_title`, `path_material`, `scan_alias`, `observation`, or `update`.
 - `confidence`: `verified`, `high`, `medium`, `low`, or `provisional`.
-- `evidence_id`: supporting evidence row when available.
+- `evidence_id`: optional supporting evidence row id. The column exists on every row, but the value may be empty for aliases derived from node title, node id, node type, or other concept metadata without direct evidence. When non-empty, it must reference an evidence row in the same generation.
 
 The build should derive aliases from:
 
@@ -102,6 +102,18 @@ The build should derive aliases from:
 - Explicit scan-provided alias rows if the scan artifact schema adds them.
 
 The build should not write aliases for excluded paths or `.specify/**` workflow state.
+
+Alias invariants:
+
+- Every active non-greenfield node must have at least one active-generation alias row.
+- Every alias row must target an existing node in the same generation when `target_type=node`.
+- `normalized_alias` must be non-empty.
+- Alias identity is unique by `generation_id`, `target_type`, `target_id`, `normalized_alias`, and `source`.
+- Alias row ids must be stable hashes of that identity, not sequence numbers or rebuild-time counters.
+- Duplicate derivations with the same identity should merge to one row, keeping the strongest confidence and a non-empty evidence id when available.
+- Path-derived aliases should use the node or path evidence id when one is available.
+- Non-empty `evidence_id` values must be validated; empty evidence ids are allowed only for metadata-derived aliases.
+- Observation summaries must not be inserted as raw long aliases. They may contribute bounded tags only when converted into short terms or phrases with clear provenance, for example `source=observation_tag`.
 
 ## Data Flow
 
@@ -131,7 +143,8 @@ For `brownfield_full` baselines, `validate-build` should require:
 - `path_index` has active-generation rows.
 - Scan package and DB identity reconciliation pass.
 - Sparse path-index gates pass.
-- `alias_index` has active-generation rows for at least the produced node universe.
+- `alias_index` has one or more active-generation alias rows for every active node.
+- `alias_index` has no orphan `target_id` values.
 
 For `greenfield_empty`, zero nodes, zero path indexes, and zero aliases remain valid.
 
@@ -144,7 +157,8 @@ Schema v1 databases may contain the old broad table set. The runtime should trea
 Recommended compatibility behavior:
 
 - `ExistingDatabaseCompatible` accepts current v1 databases for read/query if required active-generation tables exist.
-- `build-from-scan` replaces or rebuilds into schema v2 when it imports a new generation.
+- Read compatibility is not build compatibility. `build-from-scan` must replace or recreate the database when `metadata.schema_version < 2`, even if the v1 database is readable.
+- The build path must not rely on `CREATE TABLE IF NOT EXISTS` to upgrade v1 to v2 because that leaves removed v1 tables behind. It should archive the old DB through the existing legacy archive pattern or otherwise create a clean schema v2 database before import.
 - `doctor` or `validate-build` reports schema version and table profile so users can distinguish old broad schema from v2 minimal schema.
 - No manual SQL migration is required for downstream projects. Running `sp-map-scan -> sp-map-build` refreshes the graph store.
 
@@ -178,6 +192,7 @@ Add focused tests for:
 - Greenfield empty validation does not require aliases.
 - Existing v1 databases can still be inspected or routed to rebuild without crashing.
 - Generated map-scan/map-build guidance explains that alias rows are required, while removed tables are not part of current readiness.
+- Shared cognition guidance surfaces carry the alias-first contract, including `templates/commands/**`, `templates/command-partials/common/context-loading-gradient.md`, `templates/command-partials/common/planning-context-loading-gradient.md`, passive cognition skills, integration rendering, README, PROJECT-HANDBOOK, and the related template/integration tests.
 
 ## Rollout
 
@@ -186,7 +201,7 @@ Implement in one contained project-cognition runtime change set:
 - Update schema and required table lists.
 - Add alias import/build logic.
 - Update validation and lexicon reads.
-- Update tests and docs.
+- Update shared prompt surfaces, integration rendering, tests, README, and PROJECT-HANDBOOK.
 - Rebuild downstream baselines through normal `sp-map-scan -> sp-map-build` when desired.
 
 This keeps the database small, truthful, and aligned with the actual alias-first cognition workflow.
