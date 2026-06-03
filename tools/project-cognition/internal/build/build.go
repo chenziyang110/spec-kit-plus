@@ -77,6 +77,15 @@ func Run(paths rt.Paths) (Payload, error) {
 		payload.LegacyRuntimeReplaced = true
 	}
 
+	replacedOutdatedDB, err := store.ReplaceOutdatedDatabase(paths)
+	if err != nil {
+		payload.Errors = append(payload.Errors, fmt.Sprintf("recover outdated graph store: %v", err))
+		return payload, err
+	}
+	if replacedOutdatedDB {
+		payload.LegacyRuntimeReplaced = true
+	}
+
 	st, err := store.Open(paths)
 	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("open graph store: %v", err))

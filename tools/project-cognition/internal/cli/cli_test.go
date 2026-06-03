@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"os"
@@ -319,6 +320,73 @@ func TestBuildFromScanCommandCreatesRuntime(t *testing.T) {
 	}
 	if _, ok := payload["identity_reconciliation"].(map[string]any); !ok {
 		t.Fatalf("identity_reconciliation missing from payload = %#v", payload)
+	}
+}
+
+func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), `CREATE TABLE legacy_marker(id TEXT PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), `INSERT INTO metadata(key, value_json, updated_at) VALUES('schema_version', '1', CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json='1', updated_at=CURRENT_TIMESTAMP`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"build-from-scan", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["legacy_runtime_replaced"] != true {
+		t.Fatalf("legacy_runtime_replaced = %#v, payload = %#v", payload["legacy_runtime_replaced"], payload)
+	}
+
+	reopened, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if hasTable(t, reopened, "legacy_marker") {
+		t.Fatal("legacy_marker table survived outdated database replacement")
+	}
+	var version string
+	if err := reopened.QueryRowContext(context.Background(), `SELECT value_json FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != "2" {
+		t.Fatalf("schema_version = %q, want 2", version)
+	}
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
+		t.Fatalf("legacy archive missing: %v", err)
 	}
 }
 
@@ -1859,6 +1927,19 @@ func marshalQueryPlan(t *testing.T, payload map[string]any) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func hasTable(t *testing.T, db *sql.DB, tableName string) bool {
+	t.Helper()
+	var name string
+	err := db.QueryRowContext(context.Background(), `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, tableName).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return true
 }
 
 func writeMinimalCLIScanPackage(t *testing.T) string {
