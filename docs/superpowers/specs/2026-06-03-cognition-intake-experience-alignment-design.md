@@ -93,6 +93,11 @@ The audit and alignment pass applies to:
   - `map-build` is in scope for its completion-time smoke query even though it
     is not a normal user-intent intake workflow; its lexicon -> semantic_intake
     -> query check must use the same contract as the rest of the runtime
+  - `sp-implement-teams` is in scope as a team-execution consumer of the
+    `sp-implement` cognition bundle contract. Claude Agent Teams guidance must
+    preserve lexicon -> semantic_intake -> query context before `TaskCreate`,
+    and generated-skill parity tests should confirm it does not drift from the
+    base implementation contract.
 - passive workflow guidance:
   - `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`
   - `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`
@@ -239,7 +244,10 @@ diagnostics contract must be machine-readable:
   the normalized shape actually used by the runtime. Exit code should remain
   zero unless the query itself fails for another reason.
 - When rejection is necessary, stdout JSON should contain a structured error
-  payload with at least `error`, `repair_hints`, and `expected_shape`; stderr may
+  payload following existing runtime conventions: `errors` as an array and
+  `warnings` as an array are required, while singular `error` or `error_code`
+  may be included as compatibility/detail fields. The payload must also include
+  `repair_hints` and `expected_shape` for query-plan shape failures. Stderr may
   repeat a concise human message, but stderr-only parser failures are not
   acceptable for `--format json` workflow consumers. The exit code should be
   non-zero.
@@ -284,6 +292,8 @@ Regression tests should assert behavior-level outcomes:
 - shared templates include the canonical query plan skeleton
 - every relevant workflow points to the shared semantic intake contract
 - runtime accepts or clearly rejects common malformed query plan shapes
+- diagnostics are identical across inline `--query-plan`, `--query-plan @file`,
+  and `--query-plan-file <path>` parse paths
 - localized natural-language input can produce semantic-intake-driven concept
   selection without relying only on raw keyword overlap
 - `learning start` survives legacy index entries missing optional or formerly
@@ -305,12 +315,14 @@ Regression tests should assert behavior-level outcomes:
 - Successful query-plan coercion returns stdout JSON with warning or repair-hint
   diagnostics and the normalized `query_plan`; unrecoverable query-plan parsing
   returns a structured JSON error under `--format json` rather than stderr-only
-  text.
+  text, with `errors`, `warnings`, `repair_hints`, and `expected_shape`.
 - `learning start --command <workflow> --format json` does not terminate with
   `KeyError` when the learning index contains legacy entries.
 - Tests cover at least `sp-debug`, one planning workflow, one execution
-  workflow, `sp-map-build` smoke-query guidance, and one generated integration
-  surface.
+  workflow, `sp-map-build` smoke-query guidance, `sp-implement-teams`
+  generated-skill parity, and one generated integration surface.
+- Query-plan diagnostics tests cover inline `--query-plan`,
+  `--query-plan @file`, and `--query-plan-file <path>`.
 - The final user-facing workflow guidance for `review` readiness explains what
   to inspect next through `minimal_live_reads`.
 
