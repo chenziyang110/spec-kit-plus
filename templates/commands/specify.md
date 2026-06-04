@@ -192,6 +192,9 @@ Use a simple row per term:
 - Do not use this mode for implementation architecture brainstorming.
 - For each approach, summarize product fit, implementation risk, user-visible trade-offs, compatibility impact, and verification implications.
 - Recommend one approach and explain why it best preserves the user's stated intent.
+- When this command is resumed through `sp-auto` with `auto_default_recommendation: true`, and the only blocked state is `approach_comparison_status: awaiting-user-confirmation` for a previously presented bounded choice, automatically choose the single explicitly recommended approach if it preserves the user's stated intent and does not narrow scope, defer or drop an upstream capability signal, waive a risk, or contradict explicit user input. Record `approach_comparison_status: auto-accepted-recommended`, the selected approach, and the reason in `workflow-state.md` or `alignment.md`, then continue.
+- Under `auto_default_recommendation: true`, do not ask the user to reply `1`, `2`, or `3` when the single safe pending action is accepting that recommended approach.
+- Scope reduction still requires explicit user confirmation. Out-of-scope conflicts still require explicit user confirmation. Unresolved planning-critical ambiguity still blocks planning readiness.
 - If the user chooses a different approach, record that as a locked decision rather than re-litigating it later.
 
 ## Spec Section Approval
@@ -206,6 +209,9 @@ Use a simple row per term:
   - semantic term decisions
   - upstream signal dispositions
   - open questions or known risks
+- When this command is resumed through `sp-auto` with `auto_default_recommendation: true`, and the only blocked state is section-shape confirmation with no requested changes and one safe recommended/default section shape, automatically approve that shape. Record `section_approval_status: auto-approved-recommended` and continue to artifact writing.
+- Do not auto-approve a section shape that removes, narrows, defers, or drops user-requested scope, hides an unresolved planning-critical ambiguity, or resolves an out-of-scope conflict without explicit user confirmation.
+- Under `auto_default_recommendation: true`, do not ask the user to reply `1`, `2`, or `3` when the single safe pending action is accepting that recommended section shape.
 - If the user requests changes, update the working understanding before writing final artifacts.
 
 ## Artifact Writing Contract

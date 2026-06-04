@@ -2459,6 +2459,16 @@ def test_workflow_state_template_documents_recovery_sections() -> None:
     assert "## Phase Mode" in content
     assert "## Stage State" in content
     assert "blocker_reason: [None | Why progress is blocked]" in content
+    assert (
+        "approach_comparison_status: [not-needed | pending | awaiting-user-confirmation | "
+        "selected | auto-accepted-recommended]"
+        in content
+    )
+    assert (
+        "section_approval_status: [not-needed | pending | awaiting-user-confirmation | "
+        "approved | auto-approved-recommended]"
+        in content
+    )
     assert "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]" in content
     assert "Re-read this file first after compaction or session recovery." not in content
 
@@ -2487,6 +2497,31 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "/sp.debug" in content
     assert "/sp.quick" in content
     assert "/sp.fast" in content
+
+
+def test_auto_template_auto_accepts_single_safe_recommended_option() -> None:
+    content = _read("templates/commands/auto.md")
+    lowered = content.lower()
+
+    assert "auto_default_recommendation" in content
+    assert "single explicitly recommended option" in lowered
+    assert "record the recommended option as accepted by `sp-auto`" in lowered
+    assert "do not stop only to ask the user to reply `1`, `2`, or `3`" in lowered
+    assert "scope reduction" in lowered
+    assert "out-of-scope conflict" in lowered
+    assert "unresolved planning-critical ambiguity" in lowered
+
+
+def test_specify_template_honors_sp_auto_recommended_choice_resume() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert "auto_default_recommendation" in content
+    assert "approach_comparison_status: auto-accepted-recommended" in content
+    assert "section_approval_status: auto-approved-recommended" in content
+    assert "do not ask the user to reply `1`, `2`, or `3`" in lowered
+    assert "scope reduction still requires explicit user confirmation" in lowered
+    assert "out-of-scope conflicts still require explicit user confirmation" in lowered
 
 
 def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeout():

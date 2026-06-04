@@ -65,6 +65,72 @@ def test_validate_state_accepts_matching_specify_workflow_state(tmp_path: Path):
     assert result.errors == []
 
 
+def test_validate_state_serializes_stage_state_fields(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+                "## Stage State",
+                "",
+                "- current_stage: `section-approval`",
+                "- current_domain: `scope`",
+                "- next_action: `auto-accept recommended section shape`",
+                "- blocker_reason: `None`",
+                "- approach_comparison_status: `auto-accepted-recommended`",
+                "- section_approval_status: `auto-approved-recommended`",
+                "- final_handoff_decision: `/sp.plan`",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    checkpoint = result.data["checkpoint"]
+    assert checkpoint["current_stage"] == "section-approval"
+    assert checkpoint["current_domain"] == "scope"
+    assert checkpoint["next_action"] == "auto-accept recommended section shape"
+    assert checkpoint["approach_comparison_status"] == "auto-accepted-recommended"
+    assert checkpoint["section_approval_status"] == "auto-approved-recommended"
+    assert checkpoint["final_handoff_decision"] == "/sp.plan"
+
+
 def test_validate_state_exposes_profile_contract_fields(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"

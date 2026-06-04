@@ -16,6 +16,8 @@
 - current_domain: [scope | acceptance | integration | compatibility | security | data-shape | external-dependency | none]
 - next_action: [Smallest next workflow action to take]
 - blocker_reason: [None | Why progress is blocked]
+- approach_comparison_status: [not-needed | pending | awaiting-user-confirmation | selected | auto-accepted-recommended]
+- section_approval_status: [not-needed | pending | awaiting-user-confirmation | approved | auto-approved-recommended]
 - final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
 
 ## Review State

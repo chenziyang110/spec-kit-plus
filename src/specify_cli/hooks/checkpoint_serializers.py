@@ -159,6 +159,8 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     current_command = section_body(text, "Current Command")
     phase_mode = section_body(text, "Phase Mode")
     fixed_lifecycle_state = section_body(text, "Fixed Lifecycle State")
+    stage_state = section_body(text, "Stage State")
+    lifecycle_state = fixed_lifecycle_state or stage_state
     analyze_gate = section_body(text, "Analyze Gate")
     scenario_profile = section_body(text, "Scenario Profile")
     profile_obligations = section_body(text, "Profile Obligations")
@@ -222,16 +224,20 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
                 "transition_policy": extract_field(profile_obligations, "transition_policy"),
             }
         ),
-        "current_stage": extract_field(fixed_lifecycle_state, "current_stage")
+        "current_stage": extract_field(lifecycle_state, "current_stage")
         or _frontmatter_string(frontmatter, "current_stage"),
-        "current_domain": extract_field(fixed_lifecycle_state, "current_domain")
+        "current_domain": extract_field(lifecycle_state, "current_domain")
         or _frontmatter_string(frontmatter, "current_domain"),
-        "next_action": extract_field(fixed_lifecycle_state, "next_action")
+        "next_action": extract_field(lifecycle_state, "next_action")
         or extract_first_nonempty_line(next_action)
         or _frontmatter_string(frontmatter, "next_action"),
-        "blocker_reason": extract_field(fixed_lifecycle_state, "blocker_reason")
+        "blocker_reason": extract_field(lifecycle_state, "blocker_reason")
         or _frontmatter_string(frontmatter, "blocker_reason"),
-        "final_handoff_decision": extract_field(fixed_lifecycle_state, "final_handoff_decision")
+        "approach_comparison_status": extract_field(lifecycle_state, "approach_comparison_status")
+        or _frontmatter_string(frontmatter, "approach_comparison_status"),
+        "section_approval_status": extract_field(lifecycle_state, "section_approval_status")
+        or _frontmatter_string(frontmatter, "section_approval_status"),
+        "final_handoff_decision": extract_field(lifecycle_state, "final_handoff_decision")
         or _frontmatter_string(frontmatter, "final_handoff_decision"),
         "gate_status": extract_field(analyze_gate, "gate_status"),
         "gate_cycle": extract_field(analyze_gate, "gate_cycle"),

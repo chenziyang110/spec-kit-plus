@@ -102,9 +102,23 @@ Choose exactly one routed command.
 Once the routed command is chosen:
 
 1. Announce the routed command and the state file that justified it.
-2. Read `.specify/templates/commands/<target>.md` when available, or follow the routed command's shared contract from the generated local integration surface if that is the active source of truth.
-3. Continue under the routed command's rules, artifacts, validations, delegation policy, and completion criteria for the rest of the turn.
-4. Do not blend multiple workflows into one ad hoc pass. Route once, then execute that workflow faithfully.
+2. Carry a temporary routed-pass mode named `auto_default_recommendation: true` into the target command. This is an execution hint for this turn only; do not persist it as the target workflow's canonical `next_command`.
+3. Read `.specify/templates/commands/<target>.md` when available, or follow the routed command's shared contract from the generated local integration surface if that is the active source of truth.
+4. Continue under the routed command's rules, artifacts, validations, delegation policy, and completion criteria for the rest of the turn.
+5. Do not blend multiple workflows into one ad hoc pass. Route once, then execute that workflow faithfully.
+
+## Recommended Default Continuation
+
+When `auto_default_recommendation: true` is active, the routed command may accept a bounded choice or confirmation automatically only when all of these are true:
+
+- The target workflow would otherwise stop only to ask the user to choose from a bounded list.
+- The list has one single explicitly recommended option.
+- The recommended option preserves the user's current stated intent, keeps the current scope, and does not discard or defer an upstream capability signal.
+- There is no explicit user disagreement, no unresolved planning-critical ambiguity, no out-of-scope conflict, no scope reduction, no security-sensitive decision, no destructive or irreversible action, and no external-cost or credential-affecting decision.
+
+If those conditions hold, record the recommended option as accepted by `sp-auto` in the routed workflow's state or summary and continue. Do not stop only to ask the user to reply `1`, `2`, or `3` when the only safe pending action is accepting that single recommended option.
+
+If any condition is false, keep the routed workflow's normal user-confirmation gate and ask or stop exactly where that workflow says to stop.
 
 ## Diagnostic Fallback
 
