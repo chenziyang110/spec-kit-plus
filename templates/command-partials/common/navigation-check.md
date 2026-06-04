@@ -15,7 +15,8 @@
   query scope, recommend `{{invoke:map-update}}` for ordinary existing-baseline
   gaps; rebuild only when no usable
   baseline remains. Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for
-  brownfield first/missing/unusable baseline, schema failure, zero active-generation
-  `path_index` rows outside `greenfield_empty`, `explicit_rebuild_requested`, or
-  `baseline_identity_invalid`.
+  brownfield first/missing/unusable baseline, schema failure, schema v1 or old
+  broad-schema rebuild-required readiness, zero active-generation `path_index`
+  rows outside `greenfield_empty`, missing or invalid `alias_index`,
+  `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - This navigation check is entry-only. Entry-time stale or weak cognition is advisory unless the user requested map maintenance. Workflow-owned mutation closeout is separate, is not external map maintenance, runs inline project cognition update when mutation happens, and is governed by `context-loading-gradient.md` and `inline-project-cognition-update.md`. sp-map-update is for manual/external maintenance, not routine workflow-owned closeout.

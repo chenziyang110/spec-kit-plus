@@ -549,8 +549,8 @@ class TestBuiltInSkillGeneration:
         assert "query-ready baseline" in build_body
         assert "Do not publish handbook-first runtime truth" in build_body
         assert "validate scan completeness for graph reconstruction" in build_body
-        assert "synthesize claims from evidence" in build_body
-        assert "create explicit conflict records" in build_body
+        assert "build schema v2 `alias_index` rows" in build_body
+        assert "synthesize `concept_candidates` from graph-backed aliases" in build_body
         assert "status.json` reflects a query-ready baseline" in build_body
 
         fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")

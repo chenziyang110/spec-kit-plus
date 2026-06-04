@@ -497,8 +497,10 @@ class MarkdownIntegrationTests:
                 "use map-update for ordinary existing-baseline gaps. if baseline_kind=greenfield_empty, "
                 "do not recommend map-scan -> map-build solely because the graph has no paths; continue "
                 "with workflow artifacts and live requirements. use map-scan -> map-build only for "
-                "brownfield first/missing/unusable baseline, schema failure, zero active-generation "
-                "path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid"
+                "brownfield first/missing/unusable baseline, schema failure, schema v1 or old "
+                "broad-schema rebuild-required readiness, zero active-generation path_index rows "
+                "outside greenfield_empty, missing or invalid alias_index, explicit_rebuild_requested, "
+                "or baseline_identity_invalid"
             ) in content
             for stale_phrase in (
                 "path-index-" + "incomplete",

@@ -130,7 +130,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
      - `review`: perform only the returned `minimal_live_reads` before continuing.
      - `ambiguous`: ask the user to select the intended candidate.
      - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-clarify`; this includes adoptable missing path-index coverage.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.
      - `blocked`: stop and report the blocking runtime issue.
      - **CARRY FORWARD**: Use project-cognition facts to decide whether an
        apparent requirement gap is already answered by repository truth. Preserve

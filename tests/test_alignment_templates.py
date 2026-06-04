@@ -176,8 +176,10 @@ def _assert_contains_any(text: str, *needles: str) -> None:
 
 MAP_UPDATE_FIRST_POLICY = (
     "use map-update for ordinary existing-baseline gaps. use map-scan -> map-build "
-    "only for brownfield first/missing/unusable baseline, schema failure, zero active-generation "
-    "path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid"
+    "only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old "
+    "broad-schema rebuild-required readiness, zero active-generation path_index rows outside "
+    "greenfield_empty, missing or invalid alias_index, explicit_rebuild_requested, or "
+    "baseline_identity_invalid"
 )
 
 STALE_MAP_MAINTENANCE_POLICY_PHRASES = (
@@ -221,8 +223,10 @@ TASK7_GREENFIELD_POLICY_PHRASE = (
 )
 
 TASK7_BROWNFIELD_REBUILD_PHRASE = (
-    "brownfield first/missing/unusable baseline, schema failure, zero active-generation "
-    "path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid"
+    "brownfield first/missing/unusable baseline, schema failure, schema v1 or old "
+    "broad-schema rebuild-required readiness, zero active-generation path_index rows outside "
+    "greenfield_empty, missing or invalid alias_index, explicit_rebuild_requested, or "
+    "baseline_identity_invalid"
 )
 
 TASK7_GREENFIELD_POLICY_SURFACES = {
@@ -1457,8 +1461,8 @@ def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
         else:
             assert label in LEGACY_MAP_POLICY_ALLOWLIST, label
             assert (
-                "brownfield first/missing/unusable baseline, schema failure, zero active-generation path_index rows outside greenfield_empty, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
-                or "first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+                "brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows outside greenfield_empty, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
+                or "first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid" in normalized
             ), label
         _assert_no_stale_map_policy_phrases(content, label)
 
@@ -1565,7 +1569,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "project cognition runtime truth" in lowered
     assert "mark the related project cognition compatibility/export surface for refresh" in lowered
     assert "ordinary existing-baseline" in lowered
-    assert "first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in lowered
+    assert "first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in lowered
     assert "rewrite only `.specify/memory/constitution.md`" in shell_lowered
     assert "report pending alignment instead" in shell_lowered
     assert "not as permission to edit additional files" in shell_lowered
@@ -2959,7 +2963,7 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     for gate in (lowered_gate, lowered_planning_gate):
         assert "changed paths missing from `path_index`" in gate
         assert "recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps" in gate
-        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows outside baseline-kind exceptions described below, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
+        assert "use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside baseline-kind exceptions described below, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in gate
         stale_scan_build_phrase = "recommend `sp-map-scan -> sp-map-build` only if the user wants " + "map " + "repair"
         assert stale_scan_build_phrase not in gate
     assert "cannot create absent path coverage" not in shared_gate

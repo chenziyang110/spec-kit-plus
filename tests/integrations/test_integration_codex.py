@@ -914,9 +914,9 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "do not record `subagent-blocked`" in update_content
     assert "wait_agent" in update_content
     assert "diff impact closure" in update_content
-    assert "affected claim refresh" in update_content
+    assert "affected graph and alias refresh" in update_content
     assert "user supplement normalization" in update_content
-    assert "conflict reconciliation" in update_content
+    assert "route-pack reconciliation" in update_content
     assert "prefer the smallest executable update lane set" in update_content
     assert "user-supplied scope remains authoritative unless repository evidence disproves it" in update_content
     assert "do not turn a one-slice or metadata-only refresh into scan-style parallel exploration" in update_content
@@ -991,7 +991,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "if cognition freshness is `missing`, continue with live repository evidence" in content
     assert (
         "use `$sp-map-scan -> $sp-map-build` only for brownfield first/missing/unusable baseline, "
-        "schema failure, zero active-generation `path_index` rows outside baseline-kind exceptions described below"
+        "schema failure, schema v1 or old broad-schema rebuild-required readiness, "
+        "zero active-generation `path_index` rows outside baseline-kind exceptions described below, "
+        "missing or invalid `alias_index`"
     ) in content
     assert "if cognition freshness is `stale`, treat map output as advisory" in content
     assert "truth-owning layers" in content

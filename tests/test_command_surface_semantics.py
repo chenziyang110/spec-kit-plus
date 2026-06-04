@@ -563,8 +563,10 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
     assert "learning reflex" in readme
 
     closed_rebuild_policy = " ".join((
-        "first/missing/unusable baseline, schema failure, zero active-generation "
-        "path_index rows, explicit_rebuild_requested, or baseline_identity_invalid"
+        "first/missing/unusable baseline, schema failure, schema v1 or old "
+        "broad-schema rebuild-required readiness, zero active-generation path_index "
+        "rows, missing or invalid alias_index, explicit_rebuild_requested, or "
+        "baseline_identity_invalid"
     ).split())
 
     for content in (readme, handbook, handbook_template):

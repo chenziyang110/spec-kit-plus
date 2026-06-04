@@ -233,9 +233,9 @@ class CodexIntegration(SkillsIntegration):
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting, but only after confirming the refresh is not metadata-only or single-slice.\n"
                 "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
                 "- Leader-inline-fallback for a one-lane update is preferred over forcing extra subagents.\n"
-                "- Suggested bounded update lanes include diff impact closure, affected claim refresh, user supplement normalization, and conflict reconciliation.\n"
+                "- Suggested bounded update lanes include diff impact closure, affected graph and alias refresh, user supplement normalization, and route-pack reconciliation.\n"
                 "- Do not turn a one-slice or metadata-only refresh into scan-style parallel exploration.\n"
-                f"- Use `wait_agent` only at the documented join points before updating graph claims, conflicts, and slices.\n"
+                f"- Use `wait_agent` only at the documented join points before updating graph, path-index, alias-index, and route-pack outputs.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )

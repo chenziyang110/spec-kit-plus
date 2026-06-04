@@ -106,9 +106,10 @@ standalone branch-creation command.
   map maintenance first, including ordinary existing-baseline gaps.
 - If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements. Do not recommend map-scan -> map-build solely because the graph has no paths.
 - Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build
-  only for brownfield first/missing/unusable baseline, schema failure, zero active-generation
-  path_index rows outside `greenfield_empty`, `explicit_rebuild_requested`, or
-  `baseline_identity_invalid`.
+  only for brownfield first/missing/unusable baseline, schema failure, schema v1
+  or old broad-schema rebuild-required readiness, zero active-generation
+  path_index rows outside `greenfield_empty`, missing or invalid `alias_index`,
+  `explicit_rebuild_requested`, or `baseline_identity_invalid`.
   Schema v2 brownfield readiness also requires `alias_index`; schema v1 or old
   broad-schema baselines must rebuild through `sp-map-scan -> sp-map-build`
   before their alias catalog is usable navigation.

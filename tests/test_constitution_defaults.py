@@ -88,8 +88,9 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "sp-map-update is for manual/external maintenance" in lowered
     assert (
         "Recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, "
-        "schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, "
-        "or `baseline_identity_invalid`."
+        "schema failure, schema v1 or old broad-schema rebuild-required readiness, "
+        "zero active-generation `path_index` rows, missing or invalid `alias_index`, "
+        "`explicit_rebuild_requested`, or `baseline_identity_invalid`."
     ) in compact_content
     _assert_project_style_standard(content)
     assert "[PROJECT_NAME]" not in content
