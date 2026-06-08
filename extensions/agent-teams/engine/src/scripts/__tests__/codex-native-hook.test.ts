@@ -2778,6 +2778,92 @@ export async function onHookEvent(event) {
     }
   });
 
+  it("suppresses repeated identical PostToolUse advisory context in the same session", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-posttool-advisory-dedupe-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      const featureDir = join(cwd, "specs", "001-demo");
+      const otherFeatureDir = join(cwd, "specs", "002-demo");
+      await writeImplementTracker(featureDir, {
+        retryAttempts: 3,
+        falseStarts: ["assumed the failure was tool-local before checking the workflow state"],
+      });
+      await writeImplementTracker(otherFeatureDir, {
+        retryAttempts: 3,
+        falseStarts: ["assumed the failure was tool-local before checking the workflow state"],
+      });
+
+      const payload = {
+        hook_event_name: "PostToolUse",
+        cwd,
+        session_id: "sess-posttool-dedupe",
+        thread_id: "thread-posttool-dedupe",
+        command_name: "implement",
+        feature_dir: featureDir,
+        tool_name: "Bash",
+        tool_use_id: "tool-learning",
+        tool_input: { command: "pwd" },
+        tool_response: "{\"exit_code\":0,\"stdout\":\"/repo\",\"stderr\":\"\"}",
+      };
+      const first = await dispatchCodexNativeHook(payload, { cwd });
+      const second = await dispatchCodexNativeHook(
+        { ...payload, tool_use_id: "tool-learning-again" },
+        { cwd },
+      );
+
+      assert.match(
+        String((first.outputJson as { hookSpecificOutput?: { additionalContext?: string } } | null)
+          ?.hookSpecificOutput?.additionalContext ?? ""),
+        /learning pain score/i,
+      );
+      assert.equal(second.outputJson, null);
+
+      const differentFeature = await dispatchCodexNativeHook(
+        {
+          ...payload,
+          feature_dir: otherFeatureDir,
+          tool_use_id: "tool-learning-other-feature",
+        },
+        { cwd },
+      );
+      assert.match(
+        String((differentFeature.outputJson as { hookSpecificOutput?: { additionalContext?: string } } | null)
+          ?.hookSpecificOutput?.additionalContext ?? ""),
+        /learning pain score/i,
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("does not suppress repeated PostToolUse block output", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-posttool-block-no-dedupe-"));
+    try {
+      const payload = {
+        hook_event_name: "PostToolUse",
+        cwd,
+        session_id: "sess-posttool-block-no-dedupe",
+        thread_id: "thread-posttool-block-no-dedupe",
+        tool_name: "Bash",
+        tool_use_id: "tool-command-failure",
+        tool_input: { command: "missing-command" },
+        tool_response: "{\"exit_code\":127,\"stdout\":\"\",\"stderr\":\"missing-command: command not found\"}",
+      };
+
+      const first = await dispatchCodexNativeHook(payload, { cwd });
+      const second = await dispatchCodexNativeHook(
+        { ...payload, tool_use_id: "tool-command-failure-again" },
+        { cwd },
+      );
+
+      assert.equal(first.outputJson?.decision, "block");
+      assert.equal(second.outputJson?.decision, "block");
+      assert.match(String(second.outputJson?.reason ?? ""), /command\/setup failure/i);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("returns CLI fallback guidance and preserves failed team state on clear MCP transport death", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-posttool-mcp-transport-"));
     try {

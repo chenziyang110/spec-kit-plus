@@ -1,4 +1,5 @@
 import { execFileSync } from "child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "fs";
 import { mkdir, readFile, readdir, writeFile } from "fs/promises";
 import { basename, dirname, join, resolve } from "path";
@@ -100,6 +101,8 @@ const TERMINAL_MODE_PHASES = new Set(["complete", "failed", "cancelled"]);
 const SKILL_STOP_BLOCKERS = new Set(["ralplan"]);
 const TEAM_TERMINAL_TASK_STATUSES = new Set(["completed", "failed"]);
 const NATIVE_STOP_STATE_FILE = "native-stop-state.json";
+const POST_TOOL_ADVISORY_STATE_FILE = "post-tool-advisory-state.json";
+const MAX_POST_TOOL_ADVISORY_SESSIONS = 50;
 const STABLE_FINAL_RECOMMENDATION_PATTERNS = [
   /^\s*(?:launch|release|ship)-?ready\s*:\s*(?:yes|no)\b[^\n\r]*/im,
   /^\s*ready to release\s*:\s*(?:yes|no)\b[^\n\r]*/im,
@@ -532,6 +535,114 @@ function withHookSpecificAdditionalContext(
       additionalContext,
     },
   };
+}
+
+interface PostToolAdvisorySessionState {
+  signature: string;
+  emittedAt: string;
+}
+
+interface PostToolAdvisoryState {
+  version: 1;
+  sessions: Record<string, PostToolAdvisorySessionState>;
+}
+
+function hashText(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function readPurePostToolAdvisoryContext(outputJson: Record<string, unknown> | null): string {
+  if (!outputJson) return "";
+  if (
+    "decision" in outputJson
+    || "reason" in outputJson
+    || "systemMessage" in outputJson
+    || "system_message" in outputJson
+  ) {
+    return "";
+  }
+  const hookSpecificOutput = outputJson.hookSpecificOutput;
+  if (!hookSpecificOutput || typeof hookSpecificOutput !== "object") return "";
+  const specific = hookSpecificOutput as Record<string, unknown>;
+  if (safeString(specific.hookEventName).trim() !== "PostToolUse") return "";
+  if ("permissionDecision" in specific || "permissionDecisionReason" in specific) return "";
+  return safeString(specific.additionalContext).trim();
+}
+
+async function readPostToolAdvisoryState(statePath: string): Promise<PostToolAdvisoryState> {
+  try {
+    const parsed = JSON.parse(await readFile(statePath, "utf-8")) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return { version: 1, sessions: {} };
+    }
+    const sessions = (parsed as { sessions?: unknown }).sessions;
+    if (!sessions || typeof sessions !== "object" || Array.isArray(sessions)) {
+      return { version: 1, sessions: {} };
+    }
+    return {
+      version: 1,
+      sessions: sessions as Record<string, PostToolAdvisorySessionState>,
+    };
+  } catch {
+    return { version: 1, sessions: {} };
+  }
+}
+
+function prunePostToolAdvisoryState(state: PostToolAdvisoryState): PostToolAdvisoryState {
+  const entries = Object.entries(state.sessions)
+    .filter(([, value]) => value && typeof value.signature === "string")
+    .sort((left, right) => safeString(left[1].emittedAt).localeCompare(safeString(right[1].emittedAt)));
+  if (entries.length <= MAX_POST_TOOL_ADVISORY_SESSIONS) {
+    return { version: 1, sessions: Object.fromEntries(entries) };
+  }
+  return {
+    version: 1,
+    sessions: Object.fromEntries(entries.slice(entries.length - MAX_POST_TOOL_ADVISORY_SESSIONS)),
+  };
+}
+
+async function suppressRepeatedPostToolUseAdvisory(
+  outputJson: Record<string, unknown> | null,
+  cwd: string,
+  stateDir: string,
+  payload: CodexHookPayload,
+  sessionIdForState: string,
+): Promise<Record<string, unknown> | null> {
+  const advisoryContext = readPurePostToolAdvisoryContext(outputJson);
+  if (!advisoryContext) return outputJson;
+
+  const context = await resolveLearningSignalContext(cwd, payload);
+  const stateFile = context ? buildStateFileFromContext(context) : null;
+  const contextIdentity = context && stateFile
+    ? [
+      context.commandName,
+      resolve(cwd, stateFile),
+    ].join("|")
+    : "";
+  if (!contextIdentity) return outputJson;
+
+  const sessionKey = [
+    sessionIdForState || "no-session",
+    safeString(payload.thread_id ?? payload.threadId).trim() || "no-thread",
+    contextIdentity,
+  ].join("|");
+  const signature = hashText(advisoryContext);
+  const statePath = join(stateDir, POST_TOOL_ADVISORY_STATE_FILE);
+
+  try {
+    const state = await readPostToolAdvisoryState(statePath);
+    if (state.sessions[sessionKey]?.signature === signature) {
+      return null;
+    }
+    state.sessions[sessionKey] = {
+      signature,
+      emittedAt: new Date().toISOString(),
+    };
+    await writeFile(statePath, `${JSON.stringify(prunePostToolAdvisoryState(state), null, 2)}\n`, "utf-8");
+    return outputJson;
+  } catch {
+    return outputJson;
+  }
 }
 
 function buildSharedStopMonitorArgs(payload: CodexHookPayload): string[] | null {
@@ -2433,6 +2544,7 @@ export async function dispatchCodexNativeHook(
         outputJson = withHookSpecificAdditionalContext(outputJson, "PostToolUse", mergedContext);
       }
     }
+    outputJson = await suppressRepeatedPostToolUseAdvisory(outputJson, cwd, stateDir, payload, sessionIdForState);
   } else if (hookEventName === "Stop") {
     outputJson = await buildStopHookOutput(payload, cwd, stateDir);
     const sharedStopMonitorArgs = buildSharedStopMonitorArgs(payload);
