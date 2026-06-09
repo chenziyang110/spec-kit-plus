@@ -57,6 +57,105 @@ def test_gemini_hook_infers_active_context_from_specify_features_root(tmp_path):
     assert inferred["feature_dir"] == str(feature_dir)
 
 
+def test_gemini_hook_treats_custom_complete_statuses_as_terminal(tmp_path):
+    module = _load_gemini_hook_dispatch_module()
+    project_root = tmp_path / "gemini-hook-terminal-compat"
+
+    implement_dir = project_root / ".specify" / "features" / "001-implement"
+    implement_dir.mkdir(parents=True, exist_ok=True)
+    (implement_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: complete_with_cognition_review",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "next_action: Optional follow-up: run `$sp-map-update` if needed.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    quick_dir = project_root / ".planning" / "quick" / "001-quick"
+    quick_dir.mkdir(parents=True, exist_ok=True)
+    (quick_dir / "STATUS.md").write_text(
+        "---\nstatus: completed_with_partial_cognition_closeout\n---\n",
+        encoding="utf-8",
+    )
+
+    workflow_dir = project_root / "specs" / "002-workflow"
+    workflow_dir.mkdir(parents=True, exist_ok=True)
+    (workflow_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-plan`",
+                "- status: `completed_with_partial_cognition_closeout`",
+                "",
+                "## Next Action",
+                "",
+                "- Optional follow-up: manual review if needed.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert module._infer_active_context(project_root) is None
+
+
+def test_gemini_hook_suppresses_optional_compaction_resume_cue(tmp_path, monkeypatch):
+    module = _load_gemini_hook_dispatch_module()
+    context = {"command_name": "plan", "feature_dir": str(tmp_path / "specs" / "001-demo")}
+    monkeypatch.setattr(module, "_infer_active_context", lambda _project_root: context)
+
+    def fake_run_shared_hook(_project_root, args):
+        if args[0] == "read-compaction":
+            return {
+                "status": "ok",
+                "data": {
+                    "artifact": {
+                        "phase_state": {
+                            "next_action": "Optional follow-up: run `$sp-map-update` if needed."
+                        }
+                    }
+                },
+            }
+        return None
+
+    monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+
+    assert module._compaction_resume_context(tmp_path, build=False, trigger="prompt") == ""
+
+
+def test_gemini_hook_suppresses_optional_recovery_summary_next_action(tmp_path, monkeypatch):
+    module = _load_gemini_hook_dispatch_module()
+    context = {"command_name": "plan", "feature_dir": str(tmp_path / "specs" / "001-demo")}
+    monkeypatch.setattr(module, "_infer_active_context", lambda _project_root: context)
+
+    def fake_run_shared_hook(_project_root, args):
+        if args[0] == "read-compaction":
+            return {
+                "status": "ok",
+                "data": {
+                    "artifact": {
+                        "recovery_summary": {
+                            "next_action": "Optional follow-up: run `$sp-map-update` if needed."
+                        }
+                    }
+                },
+            }
+        return None
+
+    monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+
+    assert module._compaction_resume_context(tmp_path, build=False, trigger="prompt") == ""
+
+
 def test_gemini_integration_metadata():
     integration = get_integration("gemini")
 

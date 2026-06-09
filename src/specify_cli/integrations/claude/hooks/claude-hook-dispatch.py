@@ -37,7 +37,15 @@ WORKFLOW_COMMAND_MAP = {
     "sp-checklist": "checklist",
 }
 ACTIVE_STATE_STATUSES = {"active", "started", "starting", "in_progress", "executing", "execution"}
-TERMINAL_STATE_STATUSES = {"resolved", "completed", "done", "cancelled", "closed", "blocked", "failed"}
+TERMINAL_STATE_STATUSES = {"resolved", "complete", "completed", "done", "cancelled", "closed", "blocked", "failed"}
+TERMINAL_STATE_PREFIXES = ("complete_with_", "completed_with_")
+OPTIONAL_NEXT_ACTION_PREFIXES = (
+    "optional follow-up",
+    "optional followup",
+    "optional:",
+    "manual review if needed",
+    "manual review if required",
+)
 LEARNING_SIGNAL_FIELDS = {
     "retry_attempts": "--retry-attempts",
     "hypothesis_changes": "--hypothesis-changes",
@@ -262,7 +270,7 @@ def _format_recovery_summary(summary: dict[str, Any]) -> str:
     route_reason = str(summary.get("route_reason") or "").strip()
     if phase_mode:
         parts.append(f"Phase: {phase_mode}.")
-    if next_action:
+    if next_action and not _is_optional_next_action(next_action):
         parts.append(f"Next action: {next_action}.")
     if next_command:
         parts.append(f"Next command: {next_command}.")
@@ -271,18 +279,38 @@ def _format_recovery_summary(summary: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def _normalized_state(value: str) -> str:
+    return re.sub(r"[\s-]+", "_", str(value or "").strip().lower())
+
+
+def _is_terminal_state_status(value: str) -> bool:
+    normalized = _normalized_state(value)
+    return normalized in TERMINAL_STATE_STATUSES or normalized.startswith(TERMINAL_STATE_PREFIXES)
+
+
+def _is_active_state_status(value: str) -> bool:
+    return _normalized_state(value) in ACTIVE_STATE_STATUSES
+
+
+def _is_optional_next_action(value: str) -> bool:
+    normalized = " ".join(str(value or "").strip().lower().split()).rstrip(".")
+    return normalized in {"", "none", "n/a", "no-op", "noop"} or normalized.startswith(
+        OPTIONAL_NEXT_ACTION_PREFIXES
+    )
+
+
 def _artifact_resume_cue(artifact: dict[str, Any]) -> str:
     phase_state = artifact.get("phase_state", {})
     if not isinstance(phase_state, dict):
         phase_state = {}
     next_action = str(phase_state.get("next_action") or "").strip()
-    if next_action:
+    if next_action and not _is_optional_next_action(next_action):
         return f"Resume cue: {next_action}."
     resume_cue = artifact.get("resume_cue", [])
     if isinstance(resume_cue, list):
         for item in resume_cue:
             text = str(item or "").strip()
-            if text:
+            if text and not _is_optional_next_action(text.removeprefix("Resume cue:").strip()):
                 return text
     return ""
 
@@ -413,7 +441,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
             if not text:
                 continue
             status = _extract_frontmatter_field(text, "status").lower()
-            if not status or status in TERMINAL_STATE_STATUSES:
+            if not status or _is_terminal_state_status(status):
                 continue
             implement_candidates.append(
                 (
@@ -434,7 +462,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
         if not text:
             continue
         status = _extract_frontmatter_field(text, "status").lower()
-        if not status or status in TERMINAL_STATE_STATUSES:
+        if not status or _is_terminal_state_status(status):
             continue
         quick_candidates.append(
             (
@@ -460,7 +488,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
             active_command = _extract_field(text, "active_command").lower()
             status = _extract_field(text, "status").lower()
             mapped = WORKFLOW_COMMAND_MAP.get(active_command)
-            if not mapped or (status and status not in ACTIVE_STATE_STATUSES):
+            if not mapped or (status and not _is_active_state_status(status)):
                 continue
             workflow_candidates.append(
                 (
@@ -942,7 +970,7 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
             checkpoint = shared.get("data", {}).get("checkpoint", {})
             if isinstance(checkpoint, dict):
                 next_action = str(checkpoint.get("next_action") or "").strip()
-                if next_action:
+                if next_action and not _is_optional_next_action(next_action):
                     extra = f"{extra} Resume cue: {next_action}.".strip()
         signal_context = _learning_signal_context(project_root, context, "Stop")
         if signal_context:

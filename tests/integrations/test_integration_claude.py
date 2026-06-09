@@ -100,6 +100,131 @@ def test_claude_hook_infers_active_context_from_specify_features_root(tmp_path):
     assert inferred["feature_dir"] == str(feature_dir)
 
 
+def test_claude_hook_treats_custom_complete_statuses_as_terminal(tmp_path):
+    module = _load_claude_hook_dispatch_module()
+    project_root = tmp_path / "claude-hook-terminal-compat"
+
+    implement_dir = project_root / ".specify" / "features" / "001-implement"
+    implement_dir.mkdir(parents=True, exist_ok=True)
+    (implement_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: complete_with_cognition_review",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "next_action: Optional follow-up: run `$sp-map-update` if needed.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    quick_dir = project_root / ".planning" / "quick" / "001-quick"
+    quick_dir.mkdir(parents=True, exist_ok=True)
+    (quick_dir / "STATUS.md").write_text(
+        "---\nstatus: completed_with_partial_cognition_closeout\n---\n",
+        encoding="utf-8",
+    )
+
+    workflow_dir = project_root / "specs" / "002-workflow"
+    workflow_dir.mkdir(parents=True, exist_ok=True)
+    (workflow_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-plan`",
+                "- status: `completed_with_partial_cognition_closeout`",
+                "",
+                "## Next Action",
+                "",
+                "- Optional follow-up: manual review if needed.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert module._infer_active_context(project_root) is None
+
+
+def test_claude_hook_suppresses_optional_compaction_resume_cue():
+    module = _load_claude_hook_dispatch_module()
+
+    cue = module._artifact_resume_cue(
+        {
+            "phase_state": {
+                "next_action": "Optional follow-up: run `$sp-map-update` for changed surfaces if needed."
+            }
+        }
+    )
+
+    assert cue == ""
+
+
+def test_claude_hook_suppresses_optional_recovery_summary_next_action(tmp_path, monkeypatch):
+    module = _load_claude_hook_dispatch_module()
+    context = {"command_name": "plan", "feature_dir": str(tmp_path / "specs" / "001-demo")}
+
+    def fake_run_shared_hook(_project_root, args):
+        if args[0] == "read-compaction":
+            return {
+                "status": "ok",
+                "data": {
+                    "artifact": {
+                        "recovery_summary": {
+                            "next_action": "Optional follow-up: run `$sp-map-update` if needed."
+                        }
+                    }
+                },
+            }
+        return None
+
+    monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+
+    assert (
+        module._compaction_resume_context(
+            tmp_path,
+            context,
+            build=False,
+            read_first=True,
+            trigger="session_start",
+            prefer_summary=True,
+        )
+        == ""
+    )
+
+
+def test_claude_stop_monitor_suppresses_optional_checkpoint_resume_cue(tmp_path, monkeypatch):
+    module = _load_claude_hook_dispatch_module()
+    context = {"command_name": "quick", "workspace": str(tmp_path / ".planning" / "quick" / "001-demo")}
+    monkeypatch.setattr(module, "_infer_active_context", lambda _project_root: context)
+
+    def fake_run_shared_hook(_project_root, args):
+        if args[0] == "monitor-context":
+            return {
+                "status": "warn",
+                "warnings": ["checkpoint recommended before further work continues"],
+                "actions": [],
+                "data": {
+                    "checkpoint": {
+                        "next_action": "Optional follow-up: run `$sp-map-update` if needed."
+                    }
+                },
+            }
+        return None
+
+    monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+    monkeypatch.setattr(module, "_learning_signal_context", lambda *_args, **_kwargs: "")
+
+    payload = module._handle_stop_monitor(tmp_path, {})
+
+    assert payload == {"systemMessage": "checkpoint recommended before further work continues"}
+
+
 class TestClaudeIntegration:
     @staticmethod
     def _expected_launcher_hook(route: str, *, script_type: str = "sh") -> dict:
