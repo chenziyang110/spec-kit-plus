@@ -492,6 +492,8 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "specify quick status <id>" in readme
     assert "quick-task helper command shapes:" in readme
     assert "command shape: `specify quick status <id>`" in readme
+    assert "discussion helper command shapes:" in readme
+    assert "command shape: `specify discussion close <slug> --status completed|abandoned`" in readme
     assert "command shape: `specify hook mark-dirty --reason " not in readme
     assert "command shape: `project-cognition mark-dirty --reason " in readme
     assert "command shape: `specify project-map mark-dirty --reason " not in readme
@@ -506,6 +508,46 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "specify eval create --recurrence-key <key> ..." not in quickstart
     assert "quick-task helper command shapes:" in quickstart
     assert "command shape: `specify quick status <id>`" in quickstart
+    assert "discussion helper command shapes:" in quickstart
+    assert "command shape: `specify discussion close <slug> --status completed|abandoned`" in quickstart
+
+
+def test_discussion_workflow_uses_recommendation_first_decision_progression() -> None:
+    command = read_template("templates/commands/discussion.md").lower()
+    shell = read_template("templates/command-partials/discussion/shell.md").lower()
+    state_template = read_template("templates/discussion-state-template.md").lower()
+    readme = read_template("README.md").lower()
+    quickstart = read_template("docs/quickstart.md").lower()
+    installation = read_template("docs/installation.md").lower()
+    handbook_template = read_template("templates/project-handbook-template.md").lower()
+
+    assert "recommendation-first decision progression" in command
+    assert "recommendation-first decision progression" in shell
+    assert "do not run `sp-discussion` as a permission-first loop" in command
+    assert "do not end a turn with a bare open question" in command
+    assert "after recording a user-confirmed decision" in command
+    assert "next useful decision with a recommended default" in command
+    assert "decision_advancement_mode: recommendation-first" in state_template
+    assert "recommendation-first decision progression" in readme
+    assert "recommendation-first decision progression" in quickstart
+    assert "recommendation-first decision progression" in installation
+    assert "recommendation-first decision progression" in handbook_template
+
+
+def test_discussion_helper_uses_active_python_interpreter() -> None:
+    cli = (PROJECT_ROOT / "src" / "specify_cli" / "__init__.py").read_text(encoding="utf-8")
+    bash = (PROJECT_ROOT / "scripts" / "bash" / "discussion-state.sh").read_text(encoding="utf-8")
+    powershell = (PROJECT_ROOT / "scripts" / "powershell" / "discussion-state.ps1").read_text(
+        encoding="utf-8"
+    )
+    discussion_helper = cli.split("def _run_discussion_helper", 1)[1].split(
+        "def _prd_helper_script", 1
+    )[0]
+
+    assert 'env.setdefault("SPECIFY_PYTHON", sys.executable)' in discussion_helper
+    assert 'PYTHON_BIN="${SPECIFY_PYTHON:-}"' in bash
+    assert 'command -v python3' in bash
+    assert "$pythonBin = if ($env:SPECIFY_PYTHON)" in powershell
 
 
 def test_update_agent_context_managed_block_emitters_remain_cross_shell_equivalent() -> None:

@@ -7,6 +7,8 @@
 - status: active | blocked | handoff-ready | completed | abandoned
 - slug: [normalized-slug]
 - updated_at: [ISO-8601 timestamp]
+- closed_at: [ISO-8601 timestamp or none]
+- archived_at: [ISO-8601 timestamp or none]
 
 ## Phase Mode
 
@@ -18,6 +20,7 @@
 - current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | ui-interaction-discussion | handoff-assessment | handoff-draft | handoff-self-review | handoff-user-review | handoff-ready
 - current_topic: [Short topic label]
 - question_pack_mode: single-question | adaptive-pack | none
+- decision_advancement_mode: recommendation-first
 - primary_question: [One required boundary, product, trade-off, evidence-conflict, or high-impact question, or none]
 - optional_followups: []
 - recommendation_required_for_choices: true
@@ -74,6 +77,7 @@
 - incomplete_statuses: active, blocked, handoff-ready
 - resume_rule: resume only when exactly one incomplete discussion is available or the user selected a slug
 - collision_rule: append date or short numeric suffix when a generated slug already exists
+- close_archive_rule: handoff-ready remains resumable; close as completed or abandoned before archiving
 
 ## Handoff Assessment
 

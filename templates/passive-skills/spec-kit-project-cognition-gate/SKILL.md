@@ -168,6 +168,14 @@ judgment in an established Spec Kit Plus repository:
 - If the freshness state is `partial_refresh`, tell the user the refresh was
   recorded but readiness did not pass; follow the reported
   `recommended_next_action` instead of implying success.
+- If `partial_refresh` follows `sp-map-update` and validation shows bounded
+  path-led `identity_reconciliation` debt, the next action is a focused
+  identity-repair pass inside `sp-map-update`, not an immediate user choice
+  between repair and full rebuild. Escalate to `sp-map-scan -> sp-map-build`
+  only when validation reports a reserved rebuild condition such as unusable
+  baseline, schema failure, zero active-generation path index rows outside
+  `greenfield_empty`, missing or invalid `alias_index`,
+  `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - If project cognition readiness is `blocked`, report the runtime issue as
   degraded advisory map state. Ordinary discussion may continue with product
   framing or bounded live evidence; recommend a map maintenance workflow only

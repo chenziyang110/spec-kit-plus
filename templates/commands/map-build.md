@@ -1,8 +1,8 @@
 ---
-description: Use when `sp-map-scan` has produced a full evidence baseline and you need to reconstruct the project cognition SQLite runtime.
+description: Use when `sp-map-scan` has produced a value-weighted evidence baseline and you need to reconstruct the project cognition SQLite runtime.
 workflow_contract:
   when_to_use: A scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
-  primary_objective: Validate scan evidence, reconstruct graph nodes, edges, observations, path indexes, and alias indexes into the schema v2 SQLite cognition database, assign confidence, and publish queryable task-oriented cognition bundles.
+  primary_objective: Validate value-weighted scan evidence, reconstruct graph nodes, edges, observations, path indexes, and alias indexes from high-value evidence into the schema v2 SQLite cognition database, assign confidence, and publish queryable task-oriented cognition bundles.
   primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
   default_handoff: Return to the blocked brownfield workflow once the query-backed cognition baseline is ready.
 ---
@@ -23,7 +23,7 @@ Use `execution_surface: native-subagents`.
 
 ## Objective
 
-Reconstruct or refresh the query-backed project cognition runtime from a completed evidence baseline.
+Reconstruct or refresh the query-backed project cognition runtime from a completed value-weighted evidence baseline.
 
 ## Passive Project Learning Layer
 
@@ -39,6 +39,10 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Start with validation, not writing.
 - Update `map-state.md` before long-running reconstruction, join-point acceptance, compaction-risk transitions, or any stop where resume will depend on more than the visible conversation.
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
+- Validate both `.specify/project-cognition/workbench/repository-universe.json` and `.specify/project-cognition/workbench/scan-targets.json` before graph import. `repository-universe.json` is full path accounting; `scan-targets.json` is the high-value execution target set.
+- Treat `P0`/`P1` `scan_decision=scan` rows as graph-build candidates that must be backed by accepted packet evidence before they can publish queryable runtime truth.
+- Treat `P2` rows according to their recorded `scan_decision`: scanned or sampled rows can support graph truth when evidence-backed; inventory-only rows remain boundary accounting.
+- Treat `P3`, `inventory_only`, and `excluded` rows as boundary accounting only unless explicit accepted scan evidence and a high-value reason promote them. Do not derive graph, path_index, alias_index, route rows, or `minimal_live_reads` from raw inventory-only rows.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
 - Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import.
@@ -83,6 +87,8 @@ Before writing query-backed truth, read:
 - `.specify/project-cognition/provisional/edges.json`
 - `.specify/project-cognition/provisional/observations.json`
 - `.specify/project-cognition/coverage.json`
+- `.specify/project-cognition/workbench/repository-universe.json`
+- `.specify/project-cognition/workbench/scan-targets.json`
 - `.specify/project-cognition/workbench/coverage-ledger.json`
 - `.specify/project-cognition/workbench/scan-queue.json`
 - `.specify/project-cognition/workbench/handoff-ledger.json`
@@ -92,17 +98,21 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 
 ## Boundary Acceptance
 
-`sp-map-build` must validate `.specify/project-cognition/workbench/repository-universe.json` before publishing runtime truth.
+`sp-map-build` must validate `.specify/project-cognition/workbench/repository-universe.json` and `.specify/project-cognition/workbench/scan-targets.json` before publishing runtime truth.
 
-- Every `included_paths` entry must appear in `coverage.json`, `coverage-ledger.json`, or an accepted non-blocking gap.
-- Every included path is represented in scan coverage or an accepted gap.
+- Every `included_paths` entry in `repository-universe.json` must have one explicit boundary disposition: `deep_read`, `sampled`, `inventory_only`, `excluded`, or `blocked`.
+- For graph-eligible selected paths, every included path is represented in scan coverage or an accepted gap.
+- Every `selected_paths` entry in `scan-targets.json` must appear in `coverage.json`, `coverage-ledger.json`, or an accepted non-blocking gap.
+- Every `P0` or `P1` row with `scan_decision=scan` must have accepted packet evidence before runtime publication, or the build must return a scan gap report and route back to `sp-map-scan`.
+- `P2` rows may be sampled or inventory-only only when `scan-targets.json` records the lower-depth decision and `coverage-ledger.json` preserves the evidence expectation and revisit condition.
+- `P3`, `inventory_only`, and `excluded` rows are not missing graph evidence. They are complete only as boundary accounting and must not inflate graph-readiness failure counts.
 - Every `excluded_paths` entry must stay only in the boundary artifact or grouped exclusion ledger.
-- Excluded paths are represented only by the boundary artifact, not by graph-facing coverage rows.
-- Excluded paths must not appear in graph-facing coverage rows, evidence rows, provisional graph rows, DB path indexes, route indexes, or `minimal_live_reads`.
-- If repository-universe, coverage, and packet handoffs cannot explain the same path universe, return a scan gap report and route back to `sp-map-scan`.
+- Excluded paths are represented only by the boundary artifact or grouped accounting ledgers, not by graph-facing coverage rows. Inventory-only paths follow the same boundary-accounting rule unless explicitly promoted.
+- Excluded paths must not appear in graph-facing coverage rows, evidence rows, provisional graph rows, DB path indexes, route indexes, alias indexes, or `minimal_live_reads`. Inventory-only paths follow the same rule unless the scan target explicitly promoted them with accepted evidence.
+- If repository-universe, scan-targets, coverage, and packet handoffs cannot explain the same selected path universe, return a scan gap report and route back to `sp-map-scan`.
 - If scan packet acceptance reports `fail_contract` or `fail_systemic`, route back to `sp-map-scan` with a scan gap report because the repair is not only a local patch.
-- `path_index_to_included_ratio` must be computed from included paths minus true exclusions and `accepted_nonblocking_gap_paths`.
-- Critical and important included paths must remain in the sparse path-index denominator unless they are true repository-universe exclusions.
+- `path_index_to_included_ratio` must be computed from graph-eligible paths: selected `P0`/`P1` paths plus evidence-backed selected `P2` paths, minus true exclusions and `accepted_nonblocking_gap_paths`.
+- Critical and important graph-eligible paths must remain in the sparse path-index denominator unless they are true repository-universe exclusions or explicitly accepted nonblocking gaps.
 - `build-from-scan` must not set `freshness=fresh`, must not set `readiness=query_ready`, and must not set `graph_ready=true` until sparse path-index gates pass.
 
 ## Schema V2 Runtime Contract
@@ -128,8 +138,8 @@ When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-bu
 
 ## Path Index Source Contract
 
-build-from-scan creates DB path_index rows from nodes.json `paths`. It does not read `attrs_json.path`, raw node metadata, or `coverage.json` as path-index sources.
-coverage.json rows without matching node paths are recorded as rejected coverage with reason `no_node_relation`. If `validate-build` reports
+build-from-scan creates DB path_index rows from nodes.json `paths`. It does not read `attrs_json.path`, raw node metadata, `repository-universe.json`, `scan-targets.json`, or `coverage.json` as path-index sources.
+coverage.json rows without matching node paths are recorded as rejected coverage with reason `no_node_relation`. Inventory-only and excluded rows do not need path_index rows and must not be inserted into nodes solely to satisfy raw path-count coverage. If `validate-build` reports
 `active_generation_has_no_path_index_rows`, route back to `sp-map-scan` to repair
 node `paths` in the scan package instead of inserting SQL manually.
 
@@ -181,13 +191,15 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - DB publication must not write `.specify/**` into `evidence.source_path`, `path_index.path`, or `alias_index` target material.
 - Build intake must reject `.cognitionignore`-excluded paths from scan coverage, evidence rows, provisional nodes, provisional edges, observations, packet results, and `repository-universe.json` included paths.
 - DB publication must not write `.cognitionignore`-excluded paths into `evidence.source_path`, `path_index.path`, or `alias_index` target material.
+- DB publication must not write raw inventory-only paths into `evidence.source_path`, `nodes.paths`, `path_index.path`, `alias_index`, route rows, or `minimal_live_reads` unless the path was promoted by `scan-targets.json` and backed by accepted evidence.
 
 ## Build Duties
 
 `sp-map-build` must:
 
 - begins with validation, not writing
-- validate scan completeness for graph reconstruction
+- validate scan completeness for graph reconstruction through the value-weighted target set
+- validate that `scan-targets.json` selects high-value graph evidence and keeps low-value inventory-only surfaces out of graph publication
 - deduplicate provisional nodes into graph nodes
 - convert candidate edges into validated graph edges
 - build schema v2 `alias_index` rows from alias-ready node titles, types, paths, and bounded attrs
@@ -205,7 +217,8 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - do not rebuild the scan from chat memory
 - must not guess and continue when required scan inputs are incomplete
 - must reject `.cognitionignore`-excluded paths before graph reconstruction; if scan artifacts contain them, return a scan gap report instead of publishing runtime truth
-- maintain a scan gap report when unresolved critical rows remain
+- must reject raw inventory-only paths before graph reconstruction unless they were promoted by `scan-targets.json` and backed by accepted evidence
+- maintain a scan gap report when unresolved critical rows remain in the graph-eligible set
 
 The build must keep graph truth projection explicit: every route row that feeds
 `concept_candidates`, `query_examples`, or `route_pack` must be evidence-backed,
@@ -261,7 +274,9 @@ Before reporting completion:
 - confirm that the runtime remains query-backed and does not advertise raw graph JSON or handbook-first outputs as runtime truth
 - report whether follow-on localized maintenance should continue through `map-update` for future touched-area drift
 - every `critical` row is covered by active runtime path and route indexes
-- every `important` row is reachable through active runtime path and route indexes
+- every `important` row is reachable through active runtime path and route indexes when graph-eligible
+- every `P0`/`P1` row with `scan_decision=scan` is covered by accepted evidence and active runtime path or route indexes
+- every `P3`, `inventory_only`, or `excluded` row remains out of graph-facing runtime outputs unless explicitly promoted with accepted evidence
 - every scan packet is consumed
 - every accepted packet result has paths read and confidence
 - every runtime node, edge, observation, path row, and alias row is backed by accepted packet evidence where the row requires evidence

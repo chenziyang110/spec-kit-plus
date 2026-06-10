@@ -120,11 +120,16 @@ func filterRequiredBuildErrors(errors []string, greenfieldEmpty bool) []string {
 
 func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
 	details := map[string]any{
-		"identity_reconciliation": "not_run",
-		"scan_artifact_counts":    identityCounts(scanartifacts.IdentitySet{}),
-		"db_counts":               identitySnapshotCounts(store.IdentitySnapshot{}),
-		"rejections":              []store.RowDecision{},
-		"merge_records":           []store.MergeRecord{},
+		"identity_reconciliation":          "not_run",
+		"scan_artifact_counts":             identityCounts(scanartifacts.IdentitySet{}),
+		"db_counts":                        identitySnapshotCounts(store.IdentitySnapshot{}),
+		"identity_diffs":                   map[string]identityCategoryDiff{},
+		"identity_mismatch_count":          0,
+		"identity_mismatch_categories":     []string{},
+		"identity_repairability":           "not_applicable",
+		"identity_recommended_next_action": "none",
+		"rejections":                       []store.RowDecision{},
+		"merge_records":                    []store.MergeRecord{},
 	}
 	errors := []string{}
 	pkg, result := scanartifacts.Load(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
@@ -150,11 +155,28 @@ func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
 	details["db_counts"] = identitySnapshotCounts(snapshot)
 	details["rejections"] = snapshot.Rejections
 	details["merge_records"] = snapshot.MergeRecords
-	errors = append(errors, compareIdentityCategory("evidence", pkg.Identities.Evidence, snapshot.Evidence, snapshot)...)
-	errors = append(errors, compareIdentityCategory("node", pkg.Identities.Nodes, snapshot.Nodes, snapshot)...)
-	errors = append(errors, compareIdentityCategory("edge", pkg.Identities.Edges, snapshot.Edges, snapshot)...)
-	errors = append(errors, compareIdentityCategory("observation", pkg.Identities.Observations, snapshot.Observations, snapshot)...)
-	errors = append(errors, compareIdentityCategory("coverage_path", pkg.Identities.CoveragePaths, snapshot.CoveragePaths, snapshot)...)
+	identityDiffs := map[string]identityCategoryDiff{}
+	for _, category := range []struct {
+		name     string
+		expected map[string]bool
+		actual   map[string]bool
+	}{
+		{name: "evidence", expected: pkg.Identities.Evidence, actual: snapshot.Evidence},
+		{name: "node", expected: pkg.Identities.Nodes, actual: snapshot.Nodes},
+		{name: "edge", expected: pkg.Identities.Edges, actual: snapshot.Edges},
+		{name: "observation", expected: pkg.Identities.Observations, actual: snapshot.Observations},
+		{name: "coverage_path", expected: pkg.Identities.CoveragePaths, actual: snapshot.CoveragePaths},
+	} {
+		diff, categoryErrors := compareIdentityCategoryDetailed(category.name, category.expected, category.actual, snapshot)
+		identityDiffs[category.name] = diff
+		errors = append(errors, categoryErrors...)
+	}
+	details["identity_diffs"] = identityDiffs
+	details["identity_mismatch_count"] = identityMismatchCount(identityDiffs)
+	details["identity_mismatch_categories"] = identityMismatchCategories(identityDiffs)
+	repairability := classifyIdentityRepairability(identityDiffs)
+	details["identity_repairability"] = repairability
+	details["identity_recommended_next_action"] = identityRecommendedNextAction(repairability)
 	if len(errors) > 0 {
 		details["identity_reconciliation"] = "blocked"
 	} else {
@@ -208,7 +230,18 @@ func identitySnapshotCounts(snapshot store.IdentitySnapshot) map[string]int {
 	}
 }
 
+type identityCategoryDiff struct {
+	MissingScan   []string `json:"missing_scan"`
+	UnexpectedDB  []string `json:"unexpected_db"`
+	MismatchCount int      `json:"mismatch_count"`
+}
+
 func compareIdentityCategory(category string, expected map[string]bool, actual map[string]bool, snapshot store.IdentitySnapshot) []string {
+	_, errors := compareIdentityCategoryDetailed(category, expected, actual, snapshot)
+	return errors
+}
+
+func compareIdentityCategoryDetailed(category string, expected map[string]bool, actual map[string]bool, snapshot store.IdentitySnapshot) (identityCategoryDiff, []string) {
 	missing := []string{}
 	unexpected := []string{}
 	for identity := range expected {
@@ -230,7 +263,65 @@ func compareIdentityCategory(category string, expected map[string]bool, actual m
 	if len(unexpected) > 0 {
 		errors = append(errors, "unexpected DB "+identityErrorNoun(category)+" identities: "+strings.Join(unexpected, ", "))
 	}
-	return errors
+	return identityCategoryDiff{
+		MissingScan:   missing,
+		UnexpectedDB:  unexpected,
+		MismatchCount: len(missing) + len(unexpected),
+	}, errors
+}
+
+func identityMismatchCount(diffs map[string]identityCategoryDiff) int {
+	total := 0
+	for _, diff := range diffs {
+		total += diff.MismatchCount
+	}
+	return total
+}
+
+func identityMismatchCategories(diffs map[string]identityCategoryDiff) []string {
+	categories := []string{}
+	for category, diff := range diffs {
+		if diff.MismatchCount > 0 {
+			categories = append(categories, category)
+		}
+	}
+	sort.Strings(categories)
+	return categories
+}
+
+func classifyIdentityRepairability(diffs map[string]identityCategoryDiff) string {
+	total := identityMismatchCount(diffs)
+	if total == 0 {
+		return "not_needed"
+	}
+	categories := identityMismatchCategories(diffs)
+	if total <= 10 && len(categories) == 1 && categories[0] == "coverage_path" {
+		return "bounded_path_repair"
+	}
+	if total <= 10 && identityCategoriesArePathLed(categories) {
+		return "bounded_path_identity_review"
+	}
+	return "manual_identity_review"
+}
+
+func identityCategoriesArePathLed(categories []string) bool {
+	for _, category := range categories {
+		if category != "coverage_path" && category != "evidence" {
+			return false
+		}
+	}
+	return len(categories) > 0
+}
+
+func identityRecommendedNextAction(repairability string) string {
+	switch repairability {
+	case "not_needed":
+		return "none"
+	case "bounded_path_repair", "bounded_path_identity_review":
+		return "repair_identity_reconciliation"
+	default:
+		return "review_project_cognition_update"
+	}
 }
 
 func identityCoveredByDecision(category string, identity string, snapshot store.IdentitySnapshot) bool {

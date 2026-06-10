@@ -2,8 +2,8 @@
 description: Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction.
 workflow_contract:
   when_to_use: A workflow needs reliable brownfield cognition and no graph-native baseline exists yet, or a full baseline rebuild is explicitly required.
-  primary_objective: Enumerate all project-relevant in-repo evidence, build provisional nodes and candidate edges, and publish the scan artifacts required for graph reconstruction.
-  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, `.specify/project-cognition/coverage.json`, `.specify/project-cognition/workbench/coverage-ledger.*`, `.specify/project-cognition/workbench/scan-queue.json`, `.specify/project-cognition/workbench/handoff-ledger.json`, and `.specify/project-cognition/workbench/map-state.md`.'
+  primary_objective: Enumerate the full project file universe cheaply, classify file value, deep-scan the highest-value project evidence, build provisional nodes and candidate edges, and publish the scan artifacts required for graph reconstruction.
+  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, `.specify/project-cognition/coverage.json`, `.specify/project-cognition/workbench/repository-universe.json`, `.specify/project-cognition/workbench/scan-targets.json`, `.specify/project-cognition/workbench/coverage-ledger.*`, `.specify/project-cognition/workbench/scan-queue.json`, `.specify/project-cognition/workbench/handoff-ledger.json`, and `.specify/project-cognition/workbench/map-state.md`.'
   default_handoff: /sp-map-build after the evidence baseline is complete and the scan outputs are ready for graph reconstruction.
 ---
 
@@ -23,10 +23,73 @@ Use `execution_surface: native-subagents`.
 
 ## Process
 
-- Build the evidence baseline before any graph reconstruction work begins.
+- Build a value-weighted evidence baseline before any graph reconstruction work begins.
+- First spread out the whole repository as a cheap inventory pass: enumerate paths, metadata, ignore status, Git tracking status, size, extension, directory family, and likely generated/vendor/test/doc/config/source classification without deep-reading file contents.
+- Classify every non-excluded candidate path by value tier before dispatch: `P0` core behavior and entry surfaces, `P1` supporting contracts and runtime/config surfaces, `P2` selective tests/docs/examples, and `P3` low-signal generated/vendor/assets/cache/static output.
+- Deep-scan `P0` and `P1` first. Use `P2` selectively when it proves behavior, verification, or public contracts. Keep `P3` as inventory-only or excluded unless the user explicitly asks for that surface or it is the only evidence for a critical behavior.
+- Write `.specify/project-cognition/workbench/scan-targets.json` after classification and before dispatch. It is the leader-owned execution target list derived from `repository-universe.json`.
 - Dispatch each bounded scan lane only from a validated `MapScanPacket`.
 - Wait for every dispatched lane's structured handoff before accepting scan coverage.
 - If a safe scan lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
+
+## Value-Weighted Repository Inventory
+
+`sp-map-scan` must inventory all candidate paths, but it must not deep-read all
+files by default. The first pass is a path-level accounting pass, not a content
+scan.
+
+Write `.specify/project-cognition/workbench/repository-universe.json` with one
+row per candidate path after `.cognitionignore` filtering. Each included or
+ambiguous row should record:
+
+- `path`: repository-relative path
+- `path_kind`: `source`, `test`, `config`, `script`, `doc`, `template`, `asset`, `generated`, `vendor`, `build_output`, `lockfile`, `unknown`
+- `extension`
+- `size_bytes`
+- `directory_family`
+- `git_tracked`
+- `ignored_by_cognition`
+- `matched_ignore_rule` when applicable
+- `value_tier`: `P0`, `P1`, `P2`, or `P3`
+- `scan_decision`: `scan`, `sample`, `inventory_only`, `exclude`, or `blocked`
+- `disposition`: existing boundary disposition: `deep_read`, `sampled`, `inventory_only`, `excluded`, or `blocked`
+- `criticality`: `critical`, `important`, or `low_risk`
+- `classification_reasons`
+- `decision_source`
+
+Value tier rules:
+
+- `P0`: application/runtime entrypoints, CLI commands, routes/controllers,
+  public APIs, core services, state machines, data flow owners, protocol
+  boundaries, security/auth/payment/destructive-operation surfaces, generated
+  source templates that affect downstream behavior, and primary user workflows.
+- `P1`: package/build/config manifests, CI/release scripts, migrations/schemas,
+  adapter boundaries, feature gates, runtime wiring, verification entrypoints,
+  and docs that define behavior or operator contracts.
+- `P2`: tests, examples, secondary docs, story/demo files, and usage samples.
+  Scan them when they prove behavior, expected contracts, or verification
+  reachability; otherwise sample or inventory them.
+- `P3`: vendored dependencies, generated bundles, cache/build/dist output,
+  binary/static assets, lockfiles that do not define behavior beyond dependency
+  identity, archived material, and large low-signal files. Keep these as
+  `inventory_only` or `excluded` unless explicitly needed.
+
+Write `.specify/project-cognition/workbench/scan-targets.json` with the subset
+selected for packet dispatch. It must include:
+
+- `schema_version`
+- `selection_policy: "value_weighted"`
+- `selected_paths`
+- `sampled_paths`
+- `inventory_only_paths`
+- `excluded_paths`
+- `blocked_paths`
+- per-path `value_tier`, `scan_decision`, `disposition`, `criticality`, and
+  `classification_reasons`
+
+High-value coverage is more important than raw path-count coverage. A scan can
+validly leave many `P3` paths inventory-only, but it must not leave unexplained
+`P0` or `P1` gaps.
 
 ## Machine-Readable Blocked State
 
@@ -86,6 +149,7 @@ The only canonical outputs for this command are:
 - `.specify/project-cognition/workbench/worker-results/<packet-id>.json`
 - `.specify/project-cognition/workbench/map-state.md`
 - `.specify/project-cognition/workbench/repository-universe.json`
+- `.specify/project-cognition/workbench/scan-targets.json`
 - `.specify/project-cognition/workbench/capability-ledger.json`
 - `.specify/project-cognition/workbench/control-ledger.json`
 - refresh-workbench `coverage-ledger` artifacts that summarize scan coverage for follow-on build validation
@@ -158,9 +222,12 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - `MAP_STATE_FILE=.specify/project-cognition/workbench/map-state.md`
 - Treat `.specify/project-cognition/workbench/map-state.md` as the refresh-workbench state surface for scan progress, accepted packets, and unresolved gaps.
 - `scan-queue.json` is the leader-owned scheduler queue. Every `scan-packets/<packet-id>.md` file must have exactly one queue row.
+- `scan-targets.json` is the leader-owned value-weighted target set. Every scan packet must draw concrete `assigned_paths` from `scan-targets.json`, not from broad directory globs or unclassified path lists.
 - `handoff-ledger.json` records every dispatch and return event. Every `worker-results/<packet-id>.json` file must have a matching queue row and return event.
 - The leader loop is: leader receives worker result, leader reads durable scan state, leader validates handoff quality, leader updates queue, coverage, and handoff ledgers, leader plans next packets, and leader dispatches the next bounded wave.
 - Worker packet acceptance is separate from path coverage outcome. If a packet exceeds budget, the worker returns `acceptance=fail_gap`, marks affected paths as `coverage[].outcome="overflow"`, and includes split recommendations.
+- Do not create huge mixed-value packets. Target packet size should be small enough for the worker to read and account for every path concretely. Prefer 25-75 paths for `P0`/`P1` code lanes, use a hard cap of 150 paths for any one packet, and split large directories by behavior owner, entrypoint family, or dependency boundary.
+- A timed-out or overflowed `P0`/`P1` packet must be split and retried before it can become an accepted gap. Only low-risk `P3` or justified `P2` paths may become accepted nonblocking inventory gaps.
 - New worker results must write top-level `acceptance`. Top-level `outcome` is a legacy alias only and must not appear in generated worker prompt examples.
 - `worker-results/<packet-id>.json` must write the packet-local ledger as top-level `ledger`, not `packet_local_ledger`, `packet-local-ledger`, scan-packet Markdown sections, or inline JSON inside `scan-packets/*.md`.
 - `accepted_nonblocking_gap_paths` contains only low-risk paths with owner, reason, evidence expectation, revisit condition, and `low_risk_open_gap` status.
@@ -181,12 +248,13 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 ## Canonical Boundary Contract
 
 - `.specify/project-cognition/workbench/repository-universe.json` is the canonical boundary artifact.
-- It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `criticality`, `classification_reasons`, and `decision_source`.
+- It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `criticality`, `value_tier`, `scan_decision`, `path_kind`, `classification_reasons`, and `decision_source`.
 - Every candidate path must receive exactly one disposition: `deep_read`, `sampled`, `inventory_only`, `excluded`, or `blocked`.
-- Disposition is separate from criticality. Criticality remains `critical`, `important`, or `low_risk`.
+- Disposition is separate from criticality; value tier adds another classification axis. Value tier remains `P0`, `P1`, `P2`, or `P3`; criticality remains `critical`, `important`, or `low_risk`.
+- `scan_decision` is the execution intent derived from value tier and disposition. Use `scan` for deep-read packets, `sample` for sampled proof, `inventory_only` for accounted low-value surfaces, `exclude` for boundary exclusions, and `blocked` when no safe decision can be made.
 - sampled and inventory_only are not free-form convenience labels; they must align with the recorded disposition and criticality in `repository-universe.json`.
-- Critical entrypoints, shared state, configuration, tests, verification surfaces, and generated-surface propagation chains should not pass as `sampled` unless the boundary artifact already records an explicit accepted gap or an equally explicit lower-depth decision.
-- `sampled` and `inventory_only` are acceptable only when the disposition and criticality together justify them.
+- Critical entrypoints, shared state, configuration, tests, verification surfaces, generated-surface propagation chains, and any `P0`/`P1` path should not pass as `sampled` or `inventory_only` unless the boundary artifact already records an explicit accepted gap or an equally explicit lower-depth decision.
+- `sampled` and `inventory_only` are acceptable only when the disposition and criticality together justify them, with value tier confirming the lower-depth decision.
 - Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, alias indexes, or `minimal_live_reads`.
 - `MapScanPacket` must include bounded `assigned_paths`.
 - `assigned_paths`, queue rows, worker `paths_read`, and worker coverage paths must be concrete repository file paths enumerated from `repository-universe.json`; globs such as `JZWinReNew/*.cpp`, directory patterns, absolute paths, and summary labels are invalid.
@@ -199,6 +267,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Subagents must account for every assigned path with evidence, `sampled`, `inventory_only`, `excluded`, `blocked`, or `overflow`.
 - A top-level `coverage.json` or `coverage-ledger.json` row is not proof that a path was scanned. Before accepting a packet or closing the scan, compute `included_paths - assigned_paths - accepted_nonblocking_gap_paths`; any non-empty set blocks completion. For accepted packets, every assigned path must also have a packet-local worker `coverage[]` outcome.
 - If assigned paths do not fit in context, the subagent must return `acceptance=fail_gap`, mark path-level `coverage[].outcome="overflow"` or `coverage[].outcome="blocked"`, and include split or recovery recommendations; the leader records queue state `overflow` or `blocked`.
+- For `P0`/`P1` overflow, the leader must split and redispatch a smaller packet before closing the scan. Do not mark a high-value overflow as accepted nonblocking coverage.
 - Leader acceptance has two gates: a coverage gate that requires every assigned path to have a declared outcome, and a quality gate that rejects summary-only or inconsistent evidence.
 - The leader may classify packet failure as `fail_gap`, `fail_quality`, `fail_contract`, or `fail_systemic`.
 - `fail_quality` must return a machine-checkable repack subset naming at least one of `paths[]`, `claim_ids[]`, `coverage_row_ids[]`, or `evidence_ids[]`; otherwise treat it as `fail_contract`.
@@ -209,17 +278,18 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 
 `sp-map-scan` must:
 
-- enumerate project-internal evidence comprehensively
+- enumerate project-internal evidence comprehensively as value-weighted repository inventory, then scan evidence selectively by value
 - generate a full project-relevant inventory across nested directories and Git-tracked files
 - write `.specify/project-cognition/workbench/repository-universe.json` with `included_paths` and `excluded_paths`; every `.cognitionignore` match belongs in `excluded_paths` with the matched rule or a human-readable reason
+- write `.specify/project-cognition/workbench/scan-targets.json` with the value-weighted execution target set
 - classify project-relevant repository surfaces
-- gather evidence from committed source, tests, scripts, configs, docs, templates, generated-surface sources, and `.git` history
+- gather evidence first from high-value committed source, runtime entrypoints, tests that prove behavior, scripts, configs, docs that define behavior, templates, generated-surface sources, and `.git` history
 - construct provisional nodes and candidate edges
 - record uncertainty, blockers, and missing evidence explicitly
 - stay graph-native from the start rather than staging a handbook-first atlas
 - current-runtime native subagents are the default execution surface for scan lanes
 - scan packets are executable read instructions and must still execute the packet reads before the leader accepts atlas evidence
-- every project-relevant row is categorized with coverage classes such as `inventory`, `sampled`, `deep-read`, `critical`, `important`, and `low-risk`
+- every project-relevant row is categorized with value tiers and coverage classes such as `P0`, `P1`, `P2`, `P3`, `inventory`, `sampled`, `deep-read`, `critical`, `important`, and `low-risk`
 - `unknown` is a scan failure
 - maintain `excluded_from_deep_read` reasoning for `vendor-cache-build-output` and similar excluded roots
 - Git-tracked files remain the primary inventory boundary unless the scan explicitly records why untracked evidence matters.

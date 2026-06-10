@@ -687,6 +687,63 @@ func TestValidateBuildReportsCategorySpecificMissingIdentities(t *testing.T) {
 			t.Fatalf("Errors = %#v, want %q", payload.Errors, want)
 		}
 	}
+	if payload.Details["identity_mismatch_count"] != 4 {
+		t.Fatalf("identity_mismatch_count = %#v, want 4; details=%#v", payload.Details["identity_mismatch_count"], payload.Details)
+	}
+	categories, ok := payload.Details["identity_mismatch_categories"].([]string)
+	if !ok {
+		t.Fatalf("identity_mismatch_categories has type %T, want []string", payload.Details["identity_mismatch_categories"])
+	}
+	if got := strings.Join(categories, ","); got != "coverage_path,edge,evidence,observation" {
+		t.Fatalf("identity_mismatch_categories = %q", got)
+	}
+	diffs, ok := payload.Details["identity_diffs"].(map[string]identityCategoryDiff)
+	if !ok {
+		t.Fatalf("identity_diffs has type %T, want map[string]identityCategoryDiff", payload.Details["identity_diffs"])
+	}
+	if got := diffs["coverage_path"].MissingScan; len(got) != 1 || got[0] != "src/app.go" {
+		t.Fatalf("coverage_path missing_scan = %#v", got)
+	}
+	if payload.Details["identity_repairability"] != "manual_identity_review" {
+		t.Fatalf("identity_repairability = %#v", payload.Details["identity_repairability"])
+	}
+	if payload.Details["identity_recommended_next_action"] != "review_project_cognition_update" {
+		t.Fatalf("identity_recommended_next_action = %#v", payload.Details["identity_recommended_next_action"])
+	}
+}
+
+func TestValidateBuildClassifiesBoundedCoveragePathIdentityRepair(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeMatchingScanPackage(t, paths)
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE path = 'src/app.go'`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if !hasValidationError(payload.Errors, "missing scan coverage path identities") {
+		t.Fatalf("Errors = %#v, want coverage path mismatch", payload.Errors)
+	}
+	if payload.Details["identity_mismatch_count"] != 1 {
+		t.Fatalf("identity_mismatch_count = %#v, want 1; details=%#v", payload.Details["identity_mismatch_count"], payload.Details)
+	}
+	if payload.Details["identity_repairability"] != "bounded_path_repair" {
+		t.Fatalf("identity_repairability = %#v", payload.Details["identity_repairability"])
+	}
+	if payload.Details["identity_recommended_next_action"] != "repair_identity_reconciliation" {
+		t.Fatalf("identity_recommended_next_action = %#v", payload.Details["identity_recommended_next_action"])
+	}
 }
 
 func TestValidateBuildBlocksGenerationMismatchWithRecoveryAction(t *testing.T) {

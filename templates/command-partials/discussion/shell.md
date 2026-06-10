@@ -17,6 +17,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Use project cognition as advisory navigation only when current-project facts matter; use `--intent discussion`, read returned `minimal_live_reads`, and prove technical claims from live repository files.
 - Complete a Truth Pass before source-grounded technical advice, affected-surface claims, implementation-path recommendations, or testing strategy claims tied to existing code; record `verified_project_facts`, `open_assumptions`, `evidence_checked`, and `advice_confidence`.
 - Use a Boss-Friendly Advisor Response for substantive turns: lead with plain-language judgment, then evidence, risk, recommendation, and next discussion paths.
+- Use Recommendation-First Decision Progression: when evidence and user intent support a safe default, state the recommended choice directly, give the reason, and move to the next useful decision instead of ending on a bare "should we?" question.
 - Maintain a Discussion Compass in `discussion-state.md` so long conversations preserve what is being solved, what is confirmed, what changed, what remains undecided, the current recommendation, and the next useful decision.
 - Apply the Anti-Toothpaste Protocol: show the broader decision map, recommend a next path, and ask only the highest-impact question when user judgment is needed.
 - Classify each user turn before asking a question.
@@ -38,6 +39,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 ## Output Contract
 
 - Maintain the independent discussion state and artifacts under `.specify/discussions/<slug>/`.
+- Treat `handoff-ready` as resumable until the user confirms the handoff has been consumed or the topic should be dropped; close as `completed` or `abandoned` before archiving.
 - Provide 2-3 project-grounded technical options only after the relevant boundary is locked.
 - Report unresolved questions honestly instead of forcing planning readiness.
 - Distinguish verified project facts from open assumptions before presenting technical options.

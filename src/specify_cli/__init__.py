@@ -442,6 +442,15 @@ teams_app = typer.Typer(
 )
 app.add_typer(teams_app, name="sp-teams")
 
+discussion_app = typer.Typer(
+    name="discussion",
+    help="Use when a rough idea or requirement needs a resumable senior product-engineering discussion before formal specification.",
+    add_completion=False,
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
+app.add_typer(discussion_app, name="discussion")
+
 quick_app = typer.Typer(
     name="quick",
     help="Inspect and manage tracked quick tasks",
@@ -799,6 +808,81 @@ def _run_quick_helper(
     return payload
 
 
+def _discussion_helper_script() -> tuple[list[str], Path]:
+    project_root = _project_root_from_source()
+    core_pack = _locate_core_pack()
+    if os.name == "nt":
+        script_path = (
+            core_pack / "scripts" / "powershell" / "discussion-state.ps1"
+            if core_pack is not None
+            else project_root / "scripts" / "powershell" / "discussion-state.ps1"
+        )
+        if shutil.which("pwsh"):
+            return ["pwsh", "-NoProfile", "-File"], script_path
+        if shutil.which("powershell"):
+            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], script_path
+        console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
+        raise typer.Exit(1)
+    script_path = (
+        core_pack / "scripts" / "bash" / "discussion-state.sh"
+        if core_pack is not None
+        else project_root / "scripts" / "bash" / "discussion-state.sh"
+    )
+    return ["bash"], script_path
+
+
+def _run_discussion_helper(
+    mode: str,
+    slug: str = "",
+    status: str = "",
+    include_all: bool = False,
+) -> dict[str, Any]:
+    interpreter, script_path = _discussion_helper_script()
+    if not script_path.exists():
+        console.print(f"[red]Error:[/red] Discussion helper script not found: {script_path}")
+        raise typer.Exit(1)
+
+    cmd = [
+        *interpreter,
+        str(script_path),
+        str(Path.cwd()),
+        mode,
+        slug,
+        status,
+        "true" if include_all else "false",
+    ]
+
+    env = os.environ.copy()
+    env.setdefault("SPECIFY_PYTHON", sys.executable)
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        env=env,
+    )
+    if result.returncode != 0:
+        error_output = (result.stderr or result.stdout or "").strip() or "discussion helper failed"
+        console.print(f"[red]Error:[/red] {error_output}")
+        raise typer.Exit(1)
+
+    raw = (result.stdout or "").strip()
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Error:[/red] Failed to parse discussion helper output: {exc}")
+        raise typer.Exit(1) from exc
+    if not isinstance(payload, dict):
+        console.print("[red]Error:[/red] Discussion helper returned an invalid payload")
+        raise typer.Exit(1)
+    return payload
+
+
 def _prd_helper_script() -> tuple[list[str], Path]:
     project_root = _project_root_from_source()
     core_pack = _locate_core_pack()
@@ -1059,6 +1143,21 @@ def _render_quick_task_table(tasks: list[dict[str, Any]]) -> None:
     console.print(table)
 
 
+def _render_discussion_table(discussions: list[dict[str, Any]]) -> None:
+    console.print("[bold]Discussions[/bold]")
+    table = Table.grid(expand=False, padding=(0, 2))
+    table.add_column("Slug", style="cyan", no_wrap=True)
+    table.add_column("Status", style="yellow", no_wrap=True)
+    table.add_column("Summary")
+    for discussion in discussions:
+        table.add_row(
+            str(discussion.get("slug", "")),
+            str(discussion.get("status", "")),
+            str(discussion.get("summary", "")),
+        )
+    console.print(table)
+
+
 def _normalize_prd_payload(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
     mode = str(payload.get("mode") or "")
@@ -1179,6 +1278,94 @@ def prd_command(
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_prd_helper("status" if status else "init", run_slug=run_slug)
     _render_prd_payload(payload, json_output=json_output)
+
+
+@discussion_app.command("list")
+def discussion_list(
+    all_discussions: bool = typer.Option(False, "--all", help="Include closed and archived discussions"),
+):
+    """List tracked discussion sessions."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("list", include_all=all_discussions)
+    discussions = payload.get("discussions", [])
+    if not discussions:
+        console.print("No discussions found.")
+        return
+    _render_discussion_table(discussions)
+
+
+@discussion_app.command("status")
+def discussion_status(
+    slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+):
+    """Show discussion-state.md-backed details for a discussion."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("status", slug=slug)
+    discussion = payload.get("discussion")
+    if not isinstance(discussion, dict):
+        console.print("[red]Error:[/red] Discussion not found")
+        raise typer.Exit(1)
+
+    details = _labeled_grid(
+        [
+            ("Slug", str(discussion.get("slug", ""))),
+            ("Status", str(discussion.get("status", ""))),
+            ("Summary", str(discussion.get("summary", ""))),
+            ("Stage", str(discussion.get("current_stage", ""))),
+            ("Next", str(discussion.get("next_command", ""))),
+            ("Workspace", str(discussion.get("workspace_path", ""))),
+        ]
+    )
+    console.print(_cli_panel(details, title="Discussion Status", border_style="cyan"))
+
+
+@discussion_app.command("resume")
+def discussion_resume(
+    slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+):
+    """Print compact resume guidance for a discussion."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("status", slug=slug)
+    discussion = payload.get("discussion")
+    if not isinstance(discussion, dict):
+        console.print("[red]Error:[/red] Discussion not found")
+        raise typer.Exit(1)
+
+    console.print(f"Resume discussion {discussion.get('slug')}: {discussion.get('summary')}")
+    console.print(f"Status: {discussion.get('status')}")
+    console.print(f"Workspace: {discussion.get('workspace_path')}")
+
+
+@discussion_app.command("close")
+def discussion_close(
+    slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+    status: str = typer.Option(
+        ...,
+        "--status",
+        help="Terminal discussion status (completed or abandoned)",
+    ),
+):
+    """Mark a discussion as closed in discussion-state.md."""
+    status_value = status.strip().lower()
+    if status_value not in {"completed", "abandoned"}:
+        console.print("[red]Error:[/red] --status must be 'completed' or 'abandoned'")
+        raise typer.Exit(1)
+
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("close", slug=slug, status=status_value)
+    discussion = payload.get("discussion", {})
+    console.print(f"Closed discussion {discussion.get('slug')} with status {discussion.get('status')}.")
+
+
+@discussion_app.command("archive")
+def discussion_archive(
+    slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+):
+    """Archive a closed discussion workspace."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("archive", slug=slug)
+    discussion = payload.get("discussion", {})
+    console.print(f"Archived discussion {discussion.get('slug')} to {discussion.get('workspace_path')}.")
 
 
 @quick_app.command("list")
@@ -2722,8 +2909,8 @@ SKILL_DESCRIPTIONS = {
     "analyze": "Use when explicitly requested or legacy state records a need for optional read-only diagnostic and boundary-guardrail analysis across spec, plan, and tasks artifacts.",
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need an optional requirements-quality checklist aid for validating requirements or planning completeness before implementation.",
-    "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction.",
-    "map-build": "Use when map-scan has produced a full evidence baseline and you need to reconstruct the schema v2 project cognition graph, path and alias indexes, and query-backed runtime outputs.",
+    "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must inventory the repository, classify file value, and scan high-value evidence before graph reconstruction.",
+    "map-build": "Use when map-scan has produced a value-weighted evidence baseline and you need to reconstruct the schema v2 project cognition graph, path and alias indexes, and query-backed runtime outputs.",
     "map-update": "Use when a graph-native project cognition baseline exists and diff-based evidence refresh or user-supplied corrections must update the cognition runtime incrementally.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
@@ -2758,10 +2945,11 @@ def map_update_command() -> None:
     _workflow_entrypoint_surface_only("map-update")
 
 
-@app.command("discussion", help=SKILL_DESCRIPTIONS["discussion"])
-def discussion_command() -> None:
+@discussion_app.callback(invoke_without_command=True)
+def discussion_command(ctx: typer.Context) -> None:
     """Workflow entrypoint surface for resumable pre-specification discussion."""
-    _workflow_entrypoint_surface_only("discussion")
+    if ctx.invoked_subcommand is None:
+        _workflow_entrypoint_surface_only("discussion")
 
 
 def _install_codex_team_assets_if_needed(
@@ -3423,8 +3611,8 @@ def init(
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Scan the complete project tree and produce the graph-native evidence baseline for brownfield cognition")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the scan baseline")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline for brownfield cognition")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-update')}[/] - Refresh the cognition runtime incrementally after the baseline exists")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
     steps_lines.append(f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before formal specification")
@@ -3463,8 +3651,8 @@ def init(
         )
     enhancement_lines.extend(
         [
-            f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Produce the graph-native evidence baseline before deeper brownfield specification, planning, task generation, or implementation resumes",
-            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the scan baseline",
+            f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline before deeper brownfield specification, planning, task generation, or implementation resumes",
+            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline",
             f"○ [cyan]{_display_cmd('map-update')}[/] [bright_black](after baseline)[/bright_black] - Refresh the project cognition runtime incrementally when changed areas or user supplements land",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
             f"○ [cyan]{_display_cmd('discussion')}[/] [bright_black](pre-spec discussion)[/bright_black] - Preserve senior product-engineering discussion state before explicit handoff to [cyan]{_display_cmd('specify')}[/]",

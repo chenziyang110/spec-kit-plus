@@ -93,6 +93,9 @@ Use the returned `result_state` to decide whether to finalize, report `partial_r
 
 - After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.
 - If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid` condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- If `validate-build` reports `identity_reconciliation=blocked` but the blocked set is bounded and path-led, `sp-map-update` must run a focused identity-repair pass before offering rebuild. Treat missing or unexpected `coverage_path` identities, renamed paths, deleted paths, ignored paths, stale DB path rows, and path-derived evidence identities as map-update repair work when they can be explained from git delta, file existence, `.cognitionignore`, existing merge records, or explicit row decisions.
+- During the identity-repair pass, classify every blocked identity as one of: adopted with provisional path/evidence, merged to a canonical path, rejected with an explicit row decision, ignored by boundary rules, stale/deleted, or still blocked with a concrete reason. Then rerun `{{specify-subcmd:project-cognition validate-build --format json}}`.
+- Do not ask the user to choose between focused identity repair and full rebuild when the repair set is bounded and no reserved rebuild reason is present; perform the focused repair first and escalate only if the repair cannot safely explain the identities or validation later reports a reserved rebuild condition.
 - If `validate-build` is blocked after update recording, report `partial_refresh` and preserve the validation errors instead of claiming the runtime is fresh.
 - If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:project-cognition complete-refresh --format json}}` so cognition freshness metadata cannot remain stale.
 - If the update helper returns `ready` and `validate-build` passes, but the shared freshness check still sees the same refreshed source paths only because those source changes are not committed yet, report the incremental update as recorded and baseline-finalization pending. Do not tell the user to run `{{invoke:map-scan}}` or `{{invoke:map-build}}` merely because refreshed source changes are not committed yet.
@@ -125,6 +128,7 @@ The canonical outputs for this command are:
 ## Guardrails
 
 - Do not silently escalate to a full rebuild without recording why.
+- Do not present full rebuild as an equal next option for bounded identity reconciliation debt; run the focused repair pass first.
 - Do not refresh unaffected runtime records just because the touched area is ambiguous; record partial or low-confidence closure for the affected records instead.
 - Do not invent closure when changed paths or user supplements do not support the update.
 - Do not re-read or rewrite raw graph JSON artifacts; use the query/update helpers and the smallest affected runtime records that can truthfully restore readiness.
@@ -136,6 +140,7 @@ The canonical outputs for this command are:
 
 - Escalate to `sp-map-scan`, then `sp-map-build` only when no query-backed baseline exists, the current baseline is unusable, DB/status/schema validation fails, zero active-generation `path_index` rows exist, the user explicitly requested a rebuild (`explicit_rebuild_requested`), or the repository architecture changed so broadly that the baseline identity is invalid (`baseline_identity_invalid`).
 - Do not escalate merely because the affected closure is uncertain; record the uncertainty as partial/low-confidence update data with `known_unknowns` and `minimal_live_reads`.
+- Do not escalate merely because `validate-build` reports bounded path identity reconciliation debt; classify and repair those identities inside `sp-map-update` first.
 - Record the exact reason for escalation, including the failed baseline, DB, schema, explicit-request, or architecture-replacement fact.
 
 ## Update Duties

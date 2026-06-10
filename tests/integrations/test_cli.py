@@ -16,13 +16,16 @@ def test_top_level_cli_exposes_discussion_entrypoint():
     runner = CliRunner()
     root_help = runner.invoke(app, ["--help"], catch_exceptions=False)
     discussion_help = runner.invoke(app, ["discussion", "--help"], catch_exceptions=False)
+    discussion_entrypoint = runner.invoke(app, ["discussion"], catch_exceptions=False)
 
     assert root_help.exit_code == 0, root_help.output
     assert discussion_help.exit_code == 0, discussion_help.output
+    assert discussion_entrypoint.exit_code == 0, discussion_entrypoint.output
     discussion_output = re.sub(r"\s+", " ", strip_ansi(discussion_help.output).lower())
     assert "discussion" in root_help.output
     assert "resumable senior product-engineering" in discussion_output
     assert "discussion before formal specification" in discussion_output
+    assert "workflow entrypoint and help surface" in strip_ansi(discussion_entrypoint.output).lower()
 
 
 class TestInitIntegrationFlag:
