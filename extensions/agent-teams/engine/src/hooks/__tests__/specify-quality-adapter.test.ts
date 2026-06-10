@@ -77,6 +77,24 @@ describe("specify quality adapter", () => {
     assert.match(merged ?? "", /Resume cue: finish design review\./);
   });
 
+  it("suppresses empty shared compaction resume cues", () => {
+    for (const nextAction of ["None", "n/a", "no-op", "noop", ""]) {
+      const merged = appendSharedHookContext("Base context.", {
+        event: "workflow.compaction.build",
+        status: "ok",
+        data: {
+          artifact: {
+            phase_state: {
+              next_action: nextAction,
+            },
+          },
+        },
+      });
+
+      assert.equal(merged, "Base context.");
+    }
+  });
+
   it("appends shared recovery summary text to existing context", () => {
     const merged = appendSharedHookContext("Base context.", {
       event: "workflow.compaction.build",

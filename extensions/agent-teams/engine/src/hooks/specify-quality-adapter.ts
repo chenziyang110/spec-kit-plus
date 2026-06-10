@@ -152,7 +152,7 @@ export function appendSharedHookContext(
     const nextAction = phaseState && typeof phaseState["next_action"] === "string"
       ? String(phaseState["next_action"])
       : "";
-    if (nextAction) {
+    if (nextAction && !isEmptyResumeCue(nextAction)) {
       lines.push(`Resume cue: ${nextAction}.`);
     }
   }
@@ -161,6 +161,17 @@ export function appendSharedHookContext(
   }
   if (lines.length === 0) return existing;
   return dedupeOrdered([existing ?? "", ...lines]).filter(Boolean).join(" ");
+}
+
+function isEmptyResumeCue(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replace(/\.$/, "");
+  return (
+    normalized === ""
+    || normalized === "none"
+    || normalized === "n/a"
+    || normalized === "no-op"
+    || normalized === "noop"
+  );
 }
 
 function sharedRecoverySummary(data: Record<string, unknown> | undefined): Record<string, unknown> | null {
