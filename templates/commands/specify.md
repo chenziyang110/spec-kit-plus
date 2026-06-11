@@ -151,7 +151,7 @@ When `sp-specify` starts from `sp-discussion`, do not trust only the handoff sum
 - Default to concise clarification turns. Do not restate the full current understanding after every answer. Save the full synthesis for the alignment-ready turn.
 - Do not repeat the same question unless the user's answer changes the prior premise or explicitly asks to revisit it.
 - If the runtime exposes separate progress/commentary and final reply channels, keep progress in commentary and ask the current clarification question in the final user-visible reply. The user should see the current clarification question exactly once.
-- Before generating any clarification question, confirmation, or bounded selection, check whether a native structured question tool is available. If a native structured question tool is available, you must use it.
+- Before generating any clarification question, confirmation, or bounded selection, apply the `sp-auto` Recommended Default Continuation when `auto_default_recommendation: true` is active. If that gate does not auto-resolve the question, check whether a native structured question tool is available. If a native structured question tool is available, you must use it.
 - When using a native structured question tool, map the same stage header plus topic label into the native header or title field.
 - Do not render the textual fallback block when the native tool is available. Do not self-authorize textual fallback because the question seems simple. Only fall back after the native tool is unavailable or the tool call fails.
 - Treat the shared open question block structure below as fallback-only text format guidance.
@@ -187,6 +187,7 @@ Use a simple row per term:
 
 ## Approach Comparison
 
+- When this command runs with `auto_default_recommendation: true`, apply the `sp-auto` Recommended Default Continuation before every bounded question, approach comparison, or section approval gate. If one safe recommended/default answer exists, record it and continue instead of asking; if it is not safe to assume, keep the confirmation gate and include a self-unblock recommendation.
 - Present two or three approaches before committing to the spec shape.
 - For a requirement-shaping decision, switch into decision-fork mode and present 2-3 concrete options when the choice changes behavior, boundary, compatibility, or acceptance proof.
 - Do not use this mode for implementation architecture brainstorming.

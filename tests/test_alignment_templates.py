@@ -1219,7 +1219,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Do not restate the full current understanding after every answer" in content
     assert "Save the full synthesis for the alignment-ready turn" in content
     assert "Treat the shared open question block structure below as fallback-only text format guidance" in content
-    assert "before generating any clarification question, confirmation, or bounded selection, check whether a native structured question tool is available" in lowered
+    assert "before generating any clarification question, confirmation, or bounded selection, apply the `sp-auto` recommended default continuation" in lowered
+    assert "if that gate does not auto-resolve the question, check whether a native structured question tool is available" in lowered
     assert "when using a native structured question tool, map the same stage header plus topic label into the native header or title field" in lowered
     assert "if a native structured question tool is available, you must use it" in lowered
     assert "do not render the textual fallback block when the native tool is available" in lowered
@@ -2489,6 +2490,8 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "obey the recorded upstream gate" in lowered or "must obey the recorded upstream gate" in lowered
     assert "if state is missing, stale, conflicting, or cannot identify one safe next step" in lowered
     assert "stop in read-only diagnosis" in lowered or "diagnostic mode" in lowered
+    assert "read-only diagnostic plus a self-unblock recommendation" in lowered
+    assert "future `sp-auto` run continue automatically" in lowered
     assert "read `.specify/templates/commands/<target>.md`" in lowered or "follow the routed command's shared contract" in lowered
     assert "/sp.plan" in content
     assert "/sp.tasks" in content
@@ -2505,11 +2508,16 @@ def test_auto_template_auto_accepts_single_safe_recommended_option() -> None:
 
     assert "auto_default_recommendation" in content
     assert "single explicitly recommended option" in lowered
+    assert "must auto-resolve" in lowered
+    assert "question or confirmation" in lowered
     assert "record the recommended option as accepted by `sp-auto`" in lowered
+    assert "do not invoke a structured question tool" in lowered
     assert "do not stop only to ask the user to reply `1`, `2`, or `3`" in lowered
     assert "scope reduction" in lowered
     assert "out-of-scope conflict" in lowered
     assert "unresolved planning-critical ambiguity" in lowered
+    assert "write a self-unblock recommendation" in lowered
+    assert "do not wait silently for user input" in lowered
 
 
 def test_specify_template_honors_sp_auto_recommended_choice_resume() -> None:
@@ -2517,8 +2525,10 @@ def test_specify_template_honors_sp_auto_recommended_choice_resume() -> None:
     lowered = content.lower()
 
     assert "auto_default_recommendation" in content
+    assert "before every bounded question, approach comparison, or section approval gate" in lowered
     assert "approach_comparison_status: auto-accepted-recommended" in content
     assert "section_approval_status: auto-approved-recommended" in content
+    assert "self-unblock recommendation" in lowered
     assert "do not ask the user to reply `1`, `2`, or `3`" in lowered
     assert "scope reduction still requires explicit user confirmation" in lowered
     assert "out-of-scope conflicts still require explicit user confirmation" in lowered

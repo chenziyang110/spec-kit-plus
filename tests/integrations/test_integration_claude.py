@@ -2815,6 +2815,9 @@ def test_claude_question_driven_skills_prefer_ask_user_question_with_fallback(tm
         assert "`multiSelect`" in content
         assert "fallback-only guidance" in lower
         assert "must use it" in lower
+        assert "auto_default_recommendation" in content
+        assert "must auto-resolve" in lower
+        assert "do not invoke the native structured question tool" in lower
         assert "do not render the textual fallback block" in lower
         assert "do not self-authorize textual fallback" in lower
         assert "active question exactly once" in lower
@@ -2826,5 +2829,8 @@ def test_claude_question_driven_skills_prefer_ask_user_question_with_fallback(tm
         )
 
     specify_content = (target / ".claude" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
-    assert "If the runtime's native structured question tool is available for the current turn, you must use it." in specify_content
+    assert (
+        "If the runtime's native structured question tool is available for the current turn "
+        "and the `sp-auto` automatic gate did not resolve the question, you must use it."
+    ) in specify_content
     assert "Treat the shared open question block structure below as fallback-only text format guidance" in specify_content

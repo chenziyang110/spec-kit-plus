@@ -604,6 +604,9 @@ class TomlIntegrationTests:
             assert "native structured question tool" in content
             assert "fallback-only guidance" in content
             assert "must use it" in content
+            assert "auto_default_recommendation" in content
+            assert "must auto-resolve" in content
+            assert "do not invoke the native structured question tool" in content
             assert "do not render the textual fallback block" in content
             assert "do not self-authorize textual fallback" in content
             assert (

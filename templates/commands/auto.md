@@ -48,7 +48,7 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 - Report the routed command and the state file that justified it.
 - Preserve the downstream workflow's canonical `next_command` and artifact semantics.
-- If no safe route exists, return a read-only diagnostic explaining the missing or conflicting state.
+- If no safe route exists, return a read-only diagnostic plus a self-unblock recommendation explaining the missing or conflicting state and the safest repair or canonical command.
 
 ## Guardrails
 
@@ -109,16 +109,16 @@ Once the routed command is chosen:
 
 ## Recommended Default Continuation
 
-When `auto_default_recommendation: true` is active, the routed command may accept a bounded choice or confirmation automatically only when all of these are true:
+When `auto_default_recommendation: true` is active, the routed command must auto-resolve a question or confirmation gate by accepting the recommended/default continuation when all of these are true:
 
-- The target workflow would otherwise stop only to ask the user to choose from a bounded list.
-- The list has one single explicitly recommended option.
-- The recommended option preserves the user's current stated intent, keeps the current scope, and does not discard or defer an upstream capability signal.
+- The target workflow would otherwise stop only to ask the user to answer a bounded question, choose from a bounded list, or confirm a previously presented safe default.
+- The list or confirmation gate has one single explicitly recommended option or one safe default continuation.
+- The recommended/default option preserves the user's current stated intent, keeps the current scope, and does not discard or defer an upstream capability signal.
 - There is no explicit user disagreement, no unresolved planning-critical ambiguity, no out-of-scope conflict, no scope reduction, no security-sensitive decision, no destructive or irreversible action, and no external-cost or credential-affecting decision.
 
-If those conditions hold, record the recommended option as accepted by `sp-auto` in the routed workflow's state or summary and continue. Do not stop only to ask the user to reply `1`, `2`, or `3` when the only safe pending action is accepting that single recommended option.
+If those conditions hold, record the recommended option as accepted by `sp-auto` in the routed workflow's state or summary and continue. Do not invoke a structured question tool, do not render a textual question block, and do not stop only to ask the user to reply `1`, `2`, or `3` when the only safe pending action is accepting that single recommended option.
 
-If any condition is false, keep the routed workflow's normal user-confirmation gate and ask or stop exactly where that workflow says to stop.
+If the recommended/default continuation cannot satisfy every condition, do not guess and do not wait silently for user input. Write a self-unblock recommendation that names the blocker, the safest recommended user decision or canonical command, the evidence that would make automatic continuation safe next time, and any reversible repair the agent can perform before stopping under the routed workflow's normal confirmation gate.
 
 ## Diagnostic Fallback
 
@@ -127,7 +127,9 @@ If no safe route can be selected:
 - stay read-only
 - report which state files were checked
 - report what was missing or conflicting
+- perform any reversible state-inspection or reconcile step allowed by this contract before giving up
 - tell the user which canonical workflow must be run manually or which state artifact must be repaired first
+- include the exact evidence that would let a future `sp-auto` run continue automatically
 
 ## Expected Routed Outcomes
 

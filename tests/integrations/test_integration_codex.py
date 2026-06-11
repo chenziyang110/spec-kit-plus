@@ -715,6 +715,9 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
         assert "request_user_input" in content
         assert "if the current codex runtime exposes it" in lower
         assert "must use it" in lower
+        assert "auto_default_recommendation" in content
+        assert "must auto-resolve" in lower
+        assert "do not invoke the native structured question tool" in lower
         assert "do not render the textual fallback block" in lower
         assert "do not self-authorize textual fallback" in lower
         assert "recommended option first" in lower

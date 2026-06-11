@@ -1149,6 +1149,9 @@ def test_gemini_question_driven_commands_prefer_ask_user_with_fallback(tmp_path)
         assert "`choice`, `yesno`, and `text`" in content
         assert "`header`" in content
         assert "`type`" in content
+        assert "auto_default_recommendation" in content
+        assert "must auto-resolve" in lower
+        assert "do not invoke the native structured question tool" in lower
         assert "active question exactly once" in lower
         assert (
             "fall back to the" in lower
