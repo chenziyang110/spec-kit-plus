@@ -30,12 +30,12 @@
 #
 # 5. Multi-Agent Support
 #    - Handles agent-specific file paths and naming conventions
-#    - Supports: Claude, Gemini, Copilot, Cursor, Qwen, opencode, Codex, Windsurf, Junie, Kilo Code, Auggie CLI, Roo Code, CodeBuddy CLI, Qoder CLI, Amp, SHAI, Tabnine CLI, Kiro CLI, Mistral Vibe, Kimi Code, Pi Coding Agent, iFlow CLI, Forge, Antigravity or Generic
+#    - Supports: Claude, Gemini, Copilot, Cursor, Qwen, opencode, Codex, Windsurf, Junie, Kilo Code, Auggie CLI, Roo Code, CodeBuddy CLI, Qoder CLI, Amp, SHAI, Tabnine CLI, Kiro CLI, Mistral Vibe, Kimi Code, MiMo Code, Pi Coding Agent, iFlow CLI, Forge, Antigravity or Generic
 #    - Can update single agents or all existing agent files
 #    - Creates default Claude file if no agent files exist
 #
 # Usage: ./update-agent-context.sh [agent_type]
-# Agent types: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|forge|generic
+# Agent types: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic
 # Leave empty to update all existing agent files
 
 set -e
@@ -74,7 +74,7 @@ AUGGIE_FILE="$REPO_ROOT/.augment/rules/specify-rules.md"
 ROO_FILE="$REPO_ROOT/.roo/rules/specify-rules.md"
 CODEBUDDY_FILE="$REPO_ROOT/CODEBUDDY.md"
 QODER_FILE="$REPO_ROOT/QODER.md"
-# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, Pi, and Forge
+# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, MiMo Code, Pi, and Forge
 # all share AGENTS.md — use AGENTS_FILE to avoid
 # updating the same file multiple times.
 AMP_FILE="$AGENTS_FILE"
@@ -88,6 +88,7 @@ VIBE_LEGACY_FILE="$REPO_ROOT/.vibe/agents/specify-agents.md"
 KIMI_FILE="$REPO_ROOT/KIMI.md"
 TRAE_FILE="$REPO_ROOT/.trae/rules/project_rules.md"
 IFLOW_FILE="$REPO_ROOT/IFLOW.md"
+MIMO_FILE="$AGENTS_FILE"
 FORGE_FILE="$AGENTS_FILE"
 
 # Template file
@@ -849,6 +850,9 @@ update_specific_agent() {
         iflow)
             update_agent_file "$IFLOW_FILE" "iFlow CLI" || return 1
             ;;
+        mimo)
+            update_agent_file "$MIMO_FILE" "MiMo Code" || return 1
+            ;;
         forge)
             update_agent_file "$AGENTS_FILE" "Forge" || return 1
             ;;
@@ -857,7 +861,7 @@ update_specific_agent() {
             ;;
         *)
             log_error "Unknown agent type '$agent_type'"
-            log_error "Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|forge|generic"
+            log_error "Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic"
             exit 1
             ;;
     esac
@@ -901,7 +905,7 @@ update_all_existing_agents() {
     _update_if_new "$COPILOT_FILE" "GitHub Copilot"        || _all_ok=false
     _update_if_new "$CURSOR_FILE" "Cursor IDE"             || _all_ok=false
     _update_if_new "$QWEN_FILE" "Qwen Code"                || _all_ok=false
-    _update_if_new "$AGENTS_FILE" "Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/Pi/Forge" || _all_ok=false
+    _update_if_new "$AGENTS_FILE" "Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/MiMo Code/Pi/Forge" || _all_ok=false
     _update_if_new "$WINDSURF_FILE" "Windsurf"             || _all_ok=false
     _update_if_new "$JUNIE_FILE" "Junie"                || _all_ok=false
     _update_if_new "$KILOCODE_FILE" "Kilo Code"            || _all_ok=false
@@ -947,7 +951,7 @@ print_summary() {
     fi
     
     echo
-    log_info "Usage: $0 [claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|forge|generic]"
+    log_info "Usage: $0 [claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic]"
 }
 
 #==============================================================================

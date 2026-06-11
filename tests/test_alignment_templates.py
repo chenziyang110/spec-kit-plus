@@ -2967,6 +2967,8 @@ def test_implement_template_requires_resume_audit_before_trusting_terminal_state
     assert "terminal-audit-required" in lowered
     assert "checked tasks as claims" in lowered
     assert "consumer evidence" in lowered
+    assert "real_entrypoint_evidence" in content
+    assert "synthetic-only" in lowered
     assert "do not preserve `resolved`" in lowered
 
 
@@ -3104,6 +3106,9 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
     assert "/sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
     assert "send: false" in content
     assert "Implementation-Readiness Task Self-Audit" in content
+    assert "User-Observable Path Coverage" in content
+    assert "real_entrypoint_evidence" in content
+    assert "synthetic component" in lowered
     assert "buildable `FR-*`" in content
     assert "locked planning decision" in lowered
     assert "Implementation Constitution" in content
@@ -3120,6 +3125,15 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
     assert "normal completed or non-escalated task generation" in lowered
     assert "escalated remediation preserves the upstream `next_command`" in content
     assert "stops without an analyze handoff" in lowered
+
+
+def test_tasks_template_enriched_example_includes_real_entrypoint_packet_fields():
+    content = _read("templates/tasks-template.md")
+    example = content[content.index("## Enriched Task Reference Example") :]
+
+    assert "| consumer_surfaces |" in example
+    assert "| required_evidence |" in example
+    assert "real_entrypoint_evidence" in example
 
 
 def test_implement_template_honors_pending_analyze_gate_from_workflow_state():
@@ -3173,6 +3187,9 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "do not claim verification that was not run" in implementer.lower()
     assert "consumer evidence" in implementer.lower()
     assert "created but not wired" in implementer.lower()
+    assert "real_entrypoint_evidence" in implementer
+    assert "kind: real_entrypoint" in implementer
+    assert "synthetic component" in implementer.lower()
 
     assert "# Debug Investigator Worker Prompt" in debug_investigator
     assert "current hypothesis" in debug_investigator.lower()

@@ -225,6 +225,8 @@ def test_compile_worker_task_packet_reads_enriched_task_contract_fields(
                 "| forbidden | [.env] |",
                 "| does_not_remove | [scaffold capability via TUI route] |",
                 "| capability_operations | [create/scaffold skill -> TUI route] |",
+                "| consumer_surfaces | [OpenTUI Inspector renders TargetSelectionPanel] |",
+                "| required_evidence | [consumer_evidence, real_entrypoint_evidence] |",
                 "",
                 "### Anti-Goals",
                 "- Do not add public commands beyond check and publish",
@@ -248,6 +250,8 @@ def test_compile_worker_task_packet_reads_enriched_task_contract_fields(
     assert ".env" in packet.intent.constraints
     assert packet.does_not_remove == ["scaffold capability via TUI route"]
     assert packet.capability_operations == ["create/scaffold skill -> TUI route"]
+    assert packet.consumer_surfaces == ["OpenTUI Inspector renders TargetSelectionPanel"]
+    assert packet.required_evidence == ["consumer_evidence", "real_entrypoint_evidence"]
 
 
 def test_compile_worker_task_packet_accepts_materialized_task_input(

@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Linux/macOS** (or Windows; PowerShell scripts now supported without WSL)
-- AI coding agent: [Claude Code](https://www.anthropic.com/claude-code), [GitHub Copilot](https://code.visualstudio.com/), [Codebuddy CLI](https://www.codebuddy.ai/cli), [Gemini CLI](https://github.com/google-gemini/gemini-cli), or [Pi Coding Agent](https://pi.dev)
+- AI coding agent: [Claude Code](https://www.anthropic.com/claude-code), [GitHub Copilot](https://code.visualstudio.com/), [Codebuddy CLI](https://www.codebuddy.ai/cli), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [MiMo Code](https://mimo.xiaomi.com/mimocode/start), or [Pi Coding Agent](https://pi.dev)
 - [uv](https://docs.astral.sh/uv/) for package management
 - [Python 3.11+](https://www.python.org/downloads/)
 - [Git](https://git-scm.com/downloads)
@@ -58,6 +58,7 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai gemini
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai copilot
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai codebuddy
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai mimo
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai pi
 ```
 
@@ -147,6 +148,7 @@ Invocation syntax depends on the integration:
 | Codex skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-tasks` |
 | Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-tasks` |
 | Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-tasks` |
+| MiMo Code commands | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
 | Slash-dot command integrations | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
 
 `/sp-*` is not universal for skills-backed integrations. Use the invocation

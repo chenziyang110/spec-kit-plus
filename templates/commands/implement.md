@@ -218,6 +218,7 @@ human_needed_checks:
 - If `implement-tracker.md` is `resolved`, all tasks appear checked, or the previous session exit is unknown, run `{{specify-subcmd:implement resume-audit --feature-dir "$FEATURE_DIR" --format json}}` before final reporting or new closeout.
 - Treat `terminal-audit-required` as validation/recovery work, not completion.
 - Require consumer evidence for tasks that create UI components, routes, providers, registries, factories, configs, tests, API handlers, or other reusable surfaces.
+- When a task packet or workflow state requires `real_entrypoint_evidence`, the worker result's `consumer_evidence` must include an item with `kind: real_entrypoint` plus `entrypoint`, `producer`, `transformer`, `consumer`, `boundary_or_executor`, and `validation`; synthetic-only component, reducer, helper, or hand-built state evidence is not enough.
 - Do not preserve `resolved` when the audit finds missing wiring, missing validation evidence, stale subagent handoff, unresolved `open_gaps`, or unexecuted planned validation tasks.
 - If resume audit fails, update `implement-tracker.md` to `validating` or `recovering` with the audit gaps and continue from the smallest executable repair batch.
 
@@ -309,6 +310,7 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized subagent result envelope to `FEATURE_DIR/worker-results/<task-id>.json`
     - **REQUIRED FOR SUBAGENT EXECUTION**: When the local CLI is available and no runtime-managed result channel exists, prefer `{{specify-subcmd:result path}}` to compute the canonical handoff target and `{{specify-subcmd:result submit}}` to normalize and write the result envelope
     - **REQUIRED FOR SUBAGENT EXECUTION**: Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state
+    - **REQUIRED FOR REAL ENTRYPOINT TASKS**: If the compiled `WorkerTaskPacket.required_evidence` includes `real_entrypoint_evidence`, require `consumer_evidence` with `kind: real_entrypoint` and the real path from entrypoint through producer, transformer, consumer, and boundary/executor. Do not accept synthetic-only evidence for that packet.
     - **REQUIRED FOR SUBAGENT EXECUTION**: Idle subagent is not an accepted result.
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
     - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
@@ -512,6 +514,7 @@ until the cognition gate has passed.
    - If project cognition, baseline comparison, or external live-baseline validation times out after implementation validation is otherwise green, classify it separately as `baseline_timeout` or `project_cognition_readiness`. Say whether it blocks feature completion under the active profile, provide the next bounded retry or waiver decision, and preserve the timeout evidence path.
    - If a subagent lane flips to `completed` or drifts into `idle` before the promised handoff, result file, or completion evidence arrives, treat it as a stale lane rather than accepted work: probe once for the missing handoff, then re-dispatch, block, or defer explicitly instead of silently continuing
    - Before accepting a completed batch, verify the structured handoff includes profile-matched evidence for the current `active_profile` and the exact `required_evidence` constraints from `workflow-state.md`.
+   - If `required_evidence` includes `real_entrypoint_evidence`, require real-entrypoint consumer evidence and reject synthetic-only evidence even when component-level or helper-level tests pass.
    - For `Reference-Implementation`, require the persisted evidence terms activated upstream: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
    - Comparison evidence, a deviation log, or fidelity audit notes may satisfy those persisted terms when they map directly to them, but they do not replace the upstream `required_evidence` vocabulary.
    - Generic `tests passed` output is not sufficient when the active profile requires stronger exit evidence; require the profile-matched evidence named by `required_evidence` before crossing the join point.
@@ -556,6 +559,7 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - Confirm final exit evidence matches `active_profile` and `required_evidence` from `workflow-state.md` when present.
    - For `Standard Delivery`, behavior validation and regression proof are the lighter default unless stronger required evidence was explicitly activated.
    - For `Reference-Implementation`, do not mark completion unless profile-matched evidence is present for the exact persisted `required_evidence` terms activated upstream: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
+   - For UI/TUI/CLI/API/runtime-visible work that requires `real_entrypoint_evidence`, do not mark completion unless the result evidence covers the real entrypoint path instead of only a synthesized object or hand-built state.
    - Comparison evidence, a deviation log, or fidelity audit notes are acceptable artifact forms only when they satisfy those persisted `Reference-Implementation` terms; do not treat them as replacement `required_evidence` names.
    - Do not accept generic `tests passed` output as sufficient when the active profile requires stronger exit evidence.
    - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion

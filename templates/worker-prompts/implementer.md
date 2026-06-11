@@ -24,6 +24,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - verify the RED state before editing production code
   - rerun the same gate and capture the GREEN state before reporting success
 - For any task that creates a reusable surface such as a UI component, route, provider, registry entry, factory branch, config field, API handler, or test file, return consumer evidence showing where that surface is imported, registered, rendered, executed, or included. A created but not wired file is not complete.
+- If the packet's `required_evidence` includes `real_entrypoint_evidence`, include a `consumer_evidence` item with `kind: real_entrypoint`, `entrypoint`, `producer`, `transformer`, `consumer`, `boundary_or_executor`, and `validation`. Synthetic component, reducer, helper, or hand-built state evidence may be included as support, but it does not satisfy the real-entrypoint requirement by itself.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.
 

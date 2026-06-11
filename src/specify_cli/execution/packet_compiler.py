@@ -528,6 +528,22 @@ def compile_worker_task_packet(
             _capability_operations_for_task(tasks_text, task_id)
             + _task_detail_table_field_values(task_detail, "Scope Boundaries", "capability_operations")
         ),
+        verify_commands=_unique(
+            _task_contract_bullet_values(task_detail, "Verify Commands", "Verification Commands")
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "verify_commands")
+        ),
+        acceptance_criteria=_unique(
+            _task_contract_bullet_values(task_detail, "Acceptance Criteria")
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "acceptance_criteria")
+        ),
+        consumer_surfaces=_unique(
+            _task_contract_bullet_values(task_detail, "Consumer Surfaces")
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "consumer_surfaces")
+        ),
+        required_evidence=_unique(
+            _task_contract_bullet_values(task_detail, "Required Evidence")
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "required_evidence")
+        ),
         must_preserve_obligations=must_preserve_obligations,
         consequence_obligations=_consequence_obligations_for_task(tasks_text, task_id),
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),

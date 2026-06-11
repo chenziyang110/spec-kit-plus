@@ -335,6 +335,153 @@ def test_validate_worker_task_result_rejects_missing_required_consumer_evidence(
     assert "consumer evidence" in exc.value.message
 
 
+def test_validate_worker_task_result_rejects_synthetic_only_real_entrypoint_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.consumer_surfaces = ["OpenTUI Inspector renders TargetSelectionPanel"]
+    sample_packet.required_evidence = ["consumer_evidence", "real_entrypoint_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        consumer_evidence=[
+            {
+                "kind": "synthetic",
+                "surface": "TargetSelectionPanel",
+                "evidence": "Hand-built plan renders target rows",
+            }
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "real-entrypoint" in exc.value.message
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        None,
+        True,
+        False,
+        [],
+        {},
+        "TODO",
+        "TBD",
+        "N/A",
+        "none",
+    ],
+)
+def test_validate_worker_task_result_rejects_blank_real_entrypoint_fields(
+    sample_packet: WorkerTaskPacket,
+    invalid_value: object,
+) -> None:
+    sample_packet.consumer_surfaces = ["OpenTUI Inspector renders TargetSelectionPanel"]
+    sample_packet.required_evidence = ["consumer_evidence", "real_entrypoint_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        consumer_evidence=[
+            {
+                "kind": "real_entrypoint",
+                "entrypoint": invalid_value,
+                "producer": invalid_value,
+                "transformer": invalid_value,
+                "consumer": invalid_value,
+                "boundary_or_executor": invalid_value,
+                "validation": invalid_value,
+            }
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "real-entrypoint" in exc.value.message
+
+
+def test_validate_worker_task_result_accepts_real_entrypoint_consumer_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.consumer_surfaces = ["OpenTUI Inspector renders TargetSelectionPanel"]
+    sample_packet.required_evidence = ["consumer_evidence", "real_entrypoint_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        consumer_evidence=[
+            {
+                "kind": "real_entrypoint",
+                "entrypoint": "OpenTUI browse/install",
+                "producer": "catalog supported_agents",
+                "transformer": "createProjectTuiState -> createInstallPlan",
+                "consumer": "Inspector renders TargetSelectionPanel",
+                "boundary_or_executor": "install runner receives selected targets",
+                "validation": "open-tui-copy regression",
+            }
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.status == "success"
+
+
 def test_validate_worker_task_result_requires_must_preserve_evidence(
     sample_packet: WorkerTaskPacket,
 ) -> None:

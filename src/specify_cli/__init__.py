@@ -3020,6 +3020,7 @@ def init(
         specify init --here --ai codex --ai-skills
         specify init --here --ai codebuddy
         specify init --here --ai vibe      # Initialize with Mistral Vibe support
+        specify init --here --ai mimo      # Initialize with MiMo Code support
         specify init --here
         specify init --here --force  # Skip confirmation when current directory not empty
         specify init my-project --ai claude   # Claude installs skills by default

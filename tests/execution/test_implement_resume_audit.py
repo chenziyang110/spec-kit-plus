@@ -130,6 +130,13 @@ def test_resolved_tracker_with_worker_result_and_consumer_evidence_passes(tmp_pa
   "validation_results": [{"command": "npm test -- providers", "status": "passed", "output": "PASS"}],
   "consumer_evidence": [
     {
+      "kind": "real_entrypoint",
+      "entrypoint": "DeviceProviderPage",
+      "producer": "provider catalog fixture",
+      "transformer": "FormFactory cliToolType routing",
+      "consumer": "DeviceProviderFormModal renders ClaudeForm",
+      "boundary_or_executor": "React render test",
+      "validation": "npm test -- providers",
       "surface": "DeviceProviderFormModal",
       "evidence": "FormFactory renders ClaudeForm for cliToolType=claude",
       "method": "focused test"
@@ -152,3 +159,115 @@ def test_resolved_tracker_with_worker_result_and_consumer_evidence_passes(tmp_pa
     assert payload["status"] == "pass"
     assert payload["trusted_terminal_state"] is True
     assert payload["recommended_tracker_status"] == "resolved"
+
+
+def test_checked_component_task_with_synthetic_only_consumer_evidence_is_gap(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "# Tasks",
+                "",
+                "## T001: Create provider form",
+                "",
+                "### Scope Boundaries",
+                "| Field | Value |",
+                "|-------|-------|",
+                "| required_evidence | [consumer_evidence, real_entrypoint_evidence] |",
+                "",
+                "- [X] T001 [US1] Create provider form in apps/web/src/features/providers/forms/ClaudeForm.tsx",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    (result_dir / "T001.json").write_text(
+        """
+{
+  "task_id": "T001",
+  "status": "success",
+  "changed_files": [
+    "apps/web/src/features/providers/forms/ClaudeForm.tsx",
+    "apps/web/src/features/providers/DeviceProviderFormModal.tsx"
+  ],
+  "validation_results": [{"command": "npm test -- providers", "status": "passed", "output": "PASS"}],
+  "consumer_evidence": [
+    {
+      "kind": "synthetic",
+      "surface": "DeviceProviderFormModal",
+      "evidence": "Hand-built modal state renders ClaudeForm"
+    }
+  ],
+  "summary": "Created and wired ClaudeForm component",
+  "rule_acknowledgement": {
+    "required_references_read": true,
+    "forbidden_drift_respected": true,
+    "context_bundle_read": true,
+    "paths_read": []
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["recommended_tracker_status"] == "validating"
+    assert any("real-entrypoint consumer evidence" in finding["missing_evidence"] for finding in payload["task_findings"])
+
+
+def test_explicit_real_entrypoint_requirement_is_enforced_without_consumer_keyword(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "# Tasks",
+                "",
+                "## T001: Wire install flow",
+                "",
+                "### Scope Boundaries",
+                "| Field | Value |",
+                "|-------|-------|",
+                "| required_evidence | [consumer_evidence, real_entrypoint_evidence] |",
+                "",
+                "- [X] T001 [US1] Wire install flow in src/install.ts",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    (result_dir / "T001.json").write_text(
+        """
+{
+  "task_id": "T001",
+  "status": "success",
+  "changed_files": ["src/install.ts"],
+  "validation_results": [{"command": "npm test -- install", "status": "passed", "output": "PASS"}],
+  "consumer_evidence": [
+    {
+      "kind": "synthetic",
+      "surface": "install plan",
+      "evidence": "Hand-built install plan includes targets"
+    }
+  ],
+  "summary": "Wired install flow",
+  "rule_acknowledgement": {
+    "required_references_read": true,
+    "forbidden_drift_respected": true,
+    "context_bundle_read": true,
+    "paths_read": []
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any("real-entrypoint consumer evidence" in finding["missing_evidence"] for finding in payload["task_findings"])

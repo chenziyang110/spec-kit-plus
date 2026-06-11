@@ -168,6 +168,15 @@ Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped c
 - Anti-goals must include a does-not-remove guard when they restrict command, route, API, lifecycle, or public surface growth. Example: "Do not add public commands beyond X; does-not-remove guard: preserve scaffold capability via TUI route or core API."
 - Do not generate an anti-goal that forbids a public command and also leaves the underlying operation without another selected entry point.
 
+## User-Observable Path Coverage
+
+Before finalizing `tasks.md`, add a real-entrypoint validation path for every user-observable UI, TUI, CLI, API route, installer, registry/factory/config wiring, generated asset, or runtime boundary affected by the feature.
+
+- For each visible or runtime-consumed behavior, map: real entrypoint -> producer data -> transformer/state builder -> consumer surface -> executor/boundary -> validation task.
+- Do not treat synthetic component, reducer, helper, or hand-built state tests as sufficient by themselves when the feature is visible through a real route, command, TUI screen, API, installer, or runtime executor.
+- At least one task for each mapped path must carry `consumer_surfaces` and `required_evidence` including `real_entrypoint_evidence` in its packet fields.
+- If no real-entrypoint validation surface exists yet, create the smallest feasible validation task or record an explicit user-confirmed deferral with residual risk.
+
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, split work only into the supported task-generation lanes: `story and phase decomposition`, `dependency graph analysis`, and `write-set and parallel-safety analysis`.
     - [AGENT] Before dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
@@ -263,6 +272,7 @@ Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped c
     - Confirm every locked planning decision that affects implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails appears in `tasks.md`.
     - Confirm `Implementation Constitution` rules from `plan.md` are preserved through a guardrail phase, `Task Guardrail Index`, task notes, or explicit escalation.
     - Confirm the `Task Guardrail Index` maps applicable guardrails to concrete implementation tasks.
+    - Confirm every UI/TUI/CLI/API/runtime-visible path has User-Observable Path Coverage with a real-entrypoint validation task or user-confirmed deferral.
     - Confirm each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
     - Confirm task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
     - Confirm reference fidelity behavior items map to task IDs, checkpoints, join points, or explicit deferred notes.
@@ -291,6 +301,7 @@ Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped c
    - Fidelity checkpoints before `Reference-Implementation` batches that can materially change the reference-preserved surface
    - Deviation Review join points before downstream work continues when an implementation may intentionally diverge from the reference contract
    - Task completion criteria that carry required evidence from the active profile instead of relying only on generic behavior validation
+   - User-Observable Path Coverage section for every UI/TUI/CLI/API/runtime-visible behavior, including task packet fields `consumer_surfaces` and `required_evidence: real_entrypoint_evidence` where required
    - Analyze Remediation Mapping section when regenerating tasks after a blocked `sp-analyze` gate
    - Parallel execution examples per story
     - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
@@ -329,6 +340,7 @@ Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped c
       - coverage mapping status
       - locked decision preservation status
       - guardrail mapping status
+      - user-observable path coverage status
       - DP1/DP2/DP3 packet-readiness status
       - reference fidelity mapping status
       - unmapped task status

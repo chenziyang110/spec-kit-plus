@@ -817,6 +817,7 @@ class IntegrationBase(ABC):
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
             "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Require consumer evidence when a worker creates a reusable UI, route, provider, registry, factory, config, API, or test surface; a created but not wired file is not complete.\n"
+            "- When a packet requires `real_entrypoint_evidence`, require `consumer_evidence` with `kind: real_entrypoint`, `entrypoint`, `producer`, `transformer`, `consumer`, `boundary_or_executor`, and `validation`; synthetic-only component, reducer, helper, or hand-built state evidence is not enough.\n"
             "- Dispatch only from validated `WorkerTaskPacket`.\n"
             "\n"
             "**Hard rule:** The leader must not edit implementation files directly while subagent execution is active.\n"

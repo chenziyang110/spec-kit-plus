@@ -22,6 +22,7 @@ description: "Task list template for feature implementation"
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
 - **Must-preserve discussion obligations**: Copy relevant `MP-*` items from `plan.md`, `spec.md`, `alignment.md`, `context.md`, `references.md`, and `brainstorming/handoff-to-specify.json`. Each implementation-shaping item must appear in the Task Guardrail Index, a required reference, a validation checkpoint, a task packet field, or an explicit deferred note.
 - **Capability operations**: Copy every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
+- **User-observable paths**: For any UI, TUI, CLI, API route, installer, registry/factory/config wiring, or generated asset consumed by runtime behavior, record the real entrypoint path from producer data through transformer/state builder to the consumer surface and executor/boundary.
 - Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
 - Do not allow command-surface anti-goals to delete capability. Each anti-goal that limits commands, routes, APIs, lifecycle operations, or public surfaces must include a does-not-remove guard naming the preserved operation and selected entry point.
 - Detect semantic degradation before handoff: if a create/scaffold capability is represented only by a template-only task, manual copy docs, or an authoring guide with no executable entry point, stop task generation and route back to `sp-plan` or `sp-clarify`.
@@ -44,6 +45,16 @@ description: "Task list template for feature implementation"
 
 - Template directories, sample files, and authoring documentation are supporting assets. They do not satisfy a confirmed create/scaffold operation unless manual copy was explicitly selected and confirmed upstream.
 - A task packet anti-goal such as "do not add public commands" must carry a does-not-remove guard for the underlying operation, for example preserving scaffold through a TUI route or core API.
+
+## User-Observable Path Coverage
+
+| Feature / Surface | Real Entry Point | Producer Data | Transformer / State Builder | Consumer Surface | Executor / Boundary | Task IDs / Packet Fields | Validation |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| [UI/TUI/CLI/API visible behavior] | [route, command, screen, install path, or runtime entry] | [catalog/config/request/source data] | [builder, adapter, reducer, model, or mapper] | [rendered panel, command output, API response, generated file] | [runner, boundary adapter, executor, HTTP handler] | [T### plus `consumer_surfaces` and `required_evidence: real_entrypoint_evidence`] | [test or concrete manual check from the real entrypoint] |
+
+- Use this section when a task changes behavior that a user, command, integration, generated project, or downstream runtime can observe.
+- Synthetic component, reducer, helper, or hand-built state tests may support implementation, but they do not satisfy `real_entrypoint_evidence` by themselves.
+- Any task listed here must carry `consumer_surfaces` and `required_evidence` including `real_entrypoint_evidence` in its task packet fields.
 
 ## Implementation Target Boundary
 
@@ -93,6 +104,7 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 - Stop decomposition once the current executable window is atomic.
 - Leave later phases at the coarser story or phase level when their exact shape depends on earlier join points, then refine them after the checkpoint instead of guessing too early.
 - Every task MUST carry the enriched subagent contract fields defined in the `sp-tasks` shell output contract: agent, depends_on, parallel_safe, context navigation table, scope boundaries (write_scope / read_scope / forbidden), expected outputs, anti_goals, acceptance criteria, verify commands, handoff format, and failure handling (retry_max, escalation).
+- Tasks that appear in User-Observable Path Coverage MUST also include `consumer_surfaces` and `required_evidence` with `real_entrypoint_evidence` so `sp-implement` can reject synthetic-only consumer proof.
 - Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, the task MUST be refined before `tasks.md` can be finalized.
 - If the active profile has a reference fidelity contract, add an explicit Fidelity Checkpoint before any implementation batch that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
 - Any task that intentionally departs from the reference object MUST name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
@@ -106,6 +118,7 @@ Before final handoff to `sp-implement`, confirm:
 - `Implementation Constitution` rules from `plan.md` are preserved through the implementation guardrails phase, `Task Guardrail Index`, task notes, or explicit escalation.
 - `Task Guardrail Index` entries map applicable guardrails to concrete implementation tasks.
 - Preserved capability operations map to implementation tasks, validation tasks, packet fields, or user-confirmed deferred notes.
+- User-observable UI/TUI/CLI/API/runtime paths map to at least one real-entrypoint validation task or explicit user-confirmed deferral.
 - No operation-shaped create/scaffold capability has degraded to template-only task output, manual copy docs, or an authoring guide without an executable entry point.
 - Anti-goals that restrict public surfaces include does-not-remove guards.
 - Each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
@@ -448,6 +461,8 @@ Below is a complete enriched task showing every required subagent contract field
 | forbidden | [src/db/, .env, src/config/] |
 | does_not_remove | [login capability through middleware contract, scaffold capability through TUI route] |
 | capability_operations | [implements auth middleware, does not own scaffold operation] |
+| consumer_surfaces | [Protected route middleware invoked through real HTTP request path] |
+| required_evidence | [consumer_evidence, real_entrypoint_evidence] |
 
 ### Expected Outputs
 - src/middleware/auth.ts （新建）

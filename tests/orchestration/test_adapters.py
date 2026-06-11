@@ -4,6 +4,7 @@ from specify_cli.integrations.claude import ClaudeMultiAgentAdapter
 from specify_cli.integrations.codex import CodexMultiAgentAdapter
 from specify_cli.integrations.copilot import CopilotMultiAgentAdapter
 from specify_cli.integrations.gemini import GeminiMultiAgentAdapter
+from specify_cli.integrations.mimo import MimoMultiAgentAdapter
 
 
 def test_multi_agent_adapter_protocol_shape():
@@ -11,6 +12,7 @@ def test_multi_agent_adapter_protocol_shape():
     assert isinstance(CodexMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(GeminiMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(CopilotMultiAgentAdapter(), MultiAgentAdapter)
+    assert isinstance(MimoMultiAgentAdapter(), MultiAgentAdapter)
 
 
 def test_claude_adapter_capability_snapshot():
@@ -62,6 +64,18 @@ def test_copilot_adapter_capability_snapshot():
     assert snapshot.runtime_probe_succeeded is True
 
 
+def test_mimo_adapter_capability_snapshot():
+    snapshot = MimoMultiAgentAdapter().detect_capabilities()
+
+    assert snapshot.integration_key == "mimo"
+    assert snapshot.native_subagents is True
+    assert snapshot.managed_team_supported is False
+    assert snapshot.native_worker_surface == "native-cli"
+    assert snapshot.delegation_confidence == "medium"
+    assert any("general" in note.lower() and "explore" in note.lower() for note in snapshot.notes)
+    assert snapshot.runtime_probe_succeeded is True
+
+
 def test_claude_adapter_uses_model_probe_to_lower_delegation_confidence(monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SUBAGENT_MODEL", "claude-3-5-haiku")
 
@@ -94,7 +108,12 @@ def test_claude_adapter_ignores_claude_model_env_var(monkeypatch):
 
 
 def test_adapters_support_known_commands_and_reject_unknown_commands():
-    for adapter in [ClaudeMultiAgentAdapter(), CodexMultiAgentAdapter(), GeminiMultiAgentAdapter()]:
+    for adapter in [
+        ClaudeMultiAgentAdapter(),
+        CodexMultiAgentAdapter(),
+        GeminiMultiAgentAdapter(),
+        MimoMultiAgentAdapter(),
+    ]:
         assert adapter.supports_command("implement") is True
         assert adapter.supports_command("sp-implement") is True
         assert adapter.supports_command("/plan") is True

@@ -39,6 +39,7 @@ class TestAgentConfigConsistency:
             "trae": (".trae/", "skills"),
             "pi": (".pi/", "prompts"),
             "iflow": (".iflow/", "commands"),
+            "mimo": (".mimocode/", "commands"),
         }
 
         for agent_key, (folder, commands_subdir) in expected.items():
@@ -53,6 +54,8 @@ class TestAgentConfigConsistency:
         assert AGENT_CONFIG["pi"]["requires_cli"] is True
         assert AGENT_CONFIG["pi"]["install_url"] is not None
         assert AGENT_CONFIG["iflow"]["requires_cli"] is True
+        assert AGENT_CONFIG["mimo"]["requires_cli"] is True
+        assert AGENT_CONFIG["mimo"]["install_url"] == "https://mimo.xiaomi.com/mimocode/start"
 
     def test_extension_registrar_configs_for_nonstandard_agents(self):
         """Extension command registrar should target each agent's command surface."""
@@ -67,6 +70,7 @@ class TestAgentConfigConsistency:
             "trae": {"dir": ".trae/skills", "format": "markdown", "args": "$ARGUMENTS", "extension": "/SKILL.md"},
             "pi": {"dir": ".pi/prompts", "format": "markdown", "args": "$ARGUMENTS", "extension": ".md"},
             "iflow": {"dir": ".iflow/commands", "format": "markdown", "args": "$ARGUMENTS"},
+            "mimo": {"dir": ".mimocode/commands", "format": "markdown", "args": "$ARGUMENTS", "extension": ".md"},
         }
 
         cfg = CommandRegistrar.AGENT_CONFIGS
@@ -185,8 +189,12 @@ class TestAgentConfigConsistency:
         assert "IFLOW_FILE" in bash_text
         assert "iflow" in pwsh_text
         assert "IFLOW_FILE" in pwsh_text
+        assert "mimo" in bash_text
+        assert "MiMo Code" in bash_text
+        assert "mimo" in pwsh_text
+        assert "MiMo Code" in pwsh_text
 
     def test_ai_help_includes_nonstandard_agents(self):
         """CLI help text for --ai should include nonstandard agent keys."""
-        for agent_key in ("tabnine", "kimi", "trae", "pi", "iflow"):
+        for agent_key in ("tabnine", "kimi", "trae", "pi", "iflow", "mimo"):
             assert agent_key in AI_ASSISTANT_HELP

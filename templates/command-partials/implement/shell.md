@@ -13,7 +13,7 @@ Advance the current feature through tracked implementation batches while keeping
 ## Process
 
 - Recover tracker state and identify the current ready batch.
-- On resume, audit terminal-looking tracker/task state before trusting completion; checked tasks are claims until validation, handoff, join point, and consumer evidence prove them.
+- On resume, audit terminal-looking tracker/task state before trusting completion; checked tasks are claims until validation, handoff, join point, and consumer evidence prove them. When `real_entrypoint_evidence` is required, synthetic-only consumer proof is not sufficient.
 - Carry every `CA-###` consequence obligation from packets into dispatch, implementation evidence, result acceptance, tracker open gaps, and stop-and-reopen routing.
 - Choose the execution strategy and dispatch subagents or a documented fallback path.
 - Integrate structured handoffs, update tracker truth, and keep verification evidence current.

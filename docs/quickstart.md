@@ -52,12 +52,13 @@ Invocation syntax depends on the integration:
 | Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-tasks` |
 | Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-tasks` |
 | Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-tasks` |
+| MiMo Code commands | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
 | Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
 
 `/sp-*` is not universal for skills-backed integrations. Use the syntax
 generated for the integration selected during `specify init`; for example, run
 `$sp-specify` in Codex, `/skill:sp-specify` in Kimi, `/sp-specify` in Claude, or
-`/sp.specify` in slash-dot command integrations. For existing-project PRD
+`/sp.specify` in MiMo Code and other slash-dot command integrations. For existing-project PRD
 extraction, use the same mapping for the canonical `prd-scan -> prd-build`
 workflow pair, such as `$sp-prd-scan -> $sp-prd-build`, `/skill:sp-prd-scan ->
 /skill:sp-prd-build`, `/sp-prd-scan -> /sp-prd-build`, or `/sp.prd-scan ->

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .evidence import has_real_entrypoint_consumer_evidence, normalize_evidence_label
 from .packet_schema import WorkerTaskPacket
 from .packet_validator import PacketValidationError
 from .result_schema import WorkerTaskResult
@@ -97,13 +98,23 @@ def validate_worker_task_result(
                     f"worker result is missing validation output for gate: {command}",
                 )
         required_evidence = {
-            item.strip().lower()
+            normalize_evidence_label(item)
             for item in packet.required_evidence
             if item.strip()
         }
-        if packet.consumer_surfaces or "consumer_evidence" in required_evidence:
+        if (
+            packet.consumer_surfaces
+            or "consumer_evidence" in required_evidence
+            or "real_entrypoint_evidence" in required_evidence
+        ):
             if not result.consumer_evidence:
                 raise PacketValidationError("DP3", "worker result is missing consumer evidence")
+        if "real_entrypoint_evidence" in required_evidence:
+            if not has_real_entrypoint_consumer_evidence(result.consumer_evidence):
+                raise PacketValidationError(
+                    "DP3",
+                    "worker result is missing real-entrypoint consumer evidence",
+                )
         if "acceptance_evidence" in required_evidence and not result.acceptance_evidence:
             raise PacketValidationError("DP3", "worker result is missing acceptance evidence")
         if "manual_evidence" in required_evidence and not result.manual_evidence:

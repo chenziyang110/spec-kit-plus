@@ -7,10 +7,16 @@ import re
 from pathlib import Path
 from typing import Any
 
+from specify_cli.execution.evidence import (
+    has_any_evidence,
+    has_real_entrypoint_consumer_evidence,
+    normalize_evidence_label,
+)
 from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
 
 
 TASK_RE = re.compile(r"(?m)^\s*-\s\[(?P<checked>[ xX])\]\s+(?P<task_id>T\d+)\b(?P<body>.*)$")
+TASK_DETAIL_RE = re.compile(r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)")
 CONSUMER_KEYWORDS = (
     "component",
     "form",
@@ -39,16 +45,31 @@ def _parse_tasks(tasks_path: Path) -> list[dict[str, Any]]:
     text = _read_text(tasks_path)
     tasks: list[dict[str, Any]] = []
     for match in TASK_RE.finditer(text):
+        task_id = match.group("task_id")
         body = match.group("body").strip()
+        detail = _task_detail_body(text, task_id)
         tasks.append(
             {
-                "task_id": match.group("task_id"),
+                "task_id": task_id,
                 "checked": match.group("checked").lower() == "x",
                 "body": body,
                 "consumer_facing": _looks_consumer_facing(body),
+                "requires_real_entrypoint": _requires_real_entrypoint_evidence(body, detail),
             }
         )
     return tasks
+
+
+def _task_detail_body(tasks_text: str, task_id: str) -> str:
+    for match in TASK_DETAIL_RE.finditer(tasks_text):
+        if match.group("task_id") == task_id:
+            return match.group("body").strip()
+    return ""
+
+
+def _requires_real_entrypoint_evidence(*texts: str) -> bool:
+    normalized = normalize_evidence_label(" ".join(text for text in texts if text))
+    return "real_entrypoint_evidence" in normalized
 
 
 def _looks_consumer_facing(task_body: str) -> bool:
@@ -86,7 +107,12 @@ def _result_has_passed_validation(result: dict[str, Any]) -> bool:
 
 def _result_has_consumer_evidence(result: dict[str, Any]) -> bool:
     evidence = result.get("consumer_evidence") or result.get("consumerEvidence") or []
-    return isinstance(evidence, list) and any(bool(item) for item in evidence)
+    return has_any_evidence(evidence)
+
+
+def _result_has_real_entrypoint_consumer_evidence(result: dict[str, Any]) -> bool:
+    evidence = result.get("consumer_evidence") or result.get("consumerEvidence") or []
+    return has_real_entrypoint_consumer_evidence(evidence)
 
 
 def _tracker_has_open_gaps(feature_dir: Path) -> bool:
@@ -145,7 +171,11 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
         else:
             if not _result_has_passed_validation(result):
                 missing.append("missing passed validation evidence")
-            if task["consumer_facing"] and not _result_has_consumer_evidence(result):
+            if task["requires_real_entrypoint"] and not _result_has_consumer_evidence(result):
+                missing.append("missing consumer evidence")
+            elif task["requires_real_entrypoint"] and not _result_has_real_entrypoint_consumer_evidence(result):
+                missing.append("missing real-entrypoint consumer evidence")
+            elif task["consumer_facing"] and not _result_has_consumer_evidence(result):
                 missing.append("missing consumer evidence")
 
         if missing:
