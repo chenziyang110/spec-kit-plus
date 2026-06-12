@@ -24,11 +24,13 @@ Each pattern records:
 
 **Behavior it enforces:** The agent can reconstruct the current stage, authority, blocker state, and next action without guessing.
 
-**Minimal prompt contract:** Create or resume workflow state before substantive work. Keep state compact and current at phase transitions. Record status, current stage, blockers, next action, allowed writes, forbidden actions, authoritative files, and terminal state. Do not continue from stale or contradictory state without resolving it.
+**Minimal prompt contract:** Create or resume leader-owned workflow state before substantive work. Keep state compact and current at material phase transitions. Record status, current stage, blockers, next action, allowed writes, forbidden actions, authoritative files, terminal state, `state_owner`, `resume_authority`, `last_updated`, and `update_trigger`. Do not continue from stale or contradictory state without resolving it. Treat leader-owned workflow state as the resume source; worker result payloads are evidence inputs, not resume authority.
 
 **Required artifacts:** `discussion-state.md`, `workflow-state.md`, quick `STATUS.md`, debug state, implement tracker, or equivalent.
 
-**Handoff fields:** status, stage, blockers, next action, allowed writes, forbidden actions, authoritative files, terminal state.
+**Canonical surfaces:** `.specify/discussions/<slug>/discussion-state.md`, `FEATURE_DIR/workflow-state.md`, `FEATURE_DIR/implement-tracker.md`, `.planning/quick/<id>-<slug>/STATUS.md`, `.planning/debug/<session>/`, `.planning/debug/results/<session>/<lane-id>.json`.
+
+**Handoff fields:** status, stage, blockers, next action, allowed writes, forbidden actions, authoritative files, terminal state, `state_owner`, `resume_authority`, `last_updated`, `update_trigger`.
 
 **Validation signals:** Resume behavior is deterministic; next action, blockers, and terminal states are explicit; stale state is updated or rejected.
 
@@ -49,6 +51,8 @@ Each pattern records:
 **Minimal prompt contract:** Write handoff only when the handoff gate is satisfied. Include goal, boundary, source evidence, blockers, preserved decisions, downstream instructions, quality gate, and reopen conditions. Use Markdown for human review and JSON only when downstream automation consumes it. Do not mark ready until self-review and required user confirmation are recorded.
 
 **Required artifacts:** `handoff-to-specify.md/json`, `plan-contract.json`, `handoff-to-tasks.json`, task packets, or worker result envelopes.
+
+**Canonical surfaces:** `.specify/discussions/<slug>/handoff-to-specify.{md,json}`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/worker-results/*.json`.
 
 **Handoff fields:** goal, boundary, evidence, blockers, preserved decisions, downstream instructions, quality gate, reopen conditions, confirmation state.
 
@@ -116,6 +120,8 @@ Each pattern records:
 
 **Required artifacts:** MP table, alignment section, plan contract, task packet, validation closeout, or handoff entry.
 
+**Canonical surfaces:** `.specify/discussions/<slug>/handoff-to-specify.{md,json}`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/tasks.md`, `FEATURE_DIR/task-packets/*.json`.
+
 **Handoff fields:** id, type, claim, source, downstream requirement, blocking level, owner, latest resolve phase, status, reopen condition.
 
 **Validation signals:** MP items appear in the next consumer artifact or are explicitly deferred with owner and phase.
@@ -138,6 +144,8 @@ Each pattern records:
 
 **Required artifacts:** CA table, risk section, plan contract, task packet, test plan, or validation closeout.
 
+**Canonical surfaces:** `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/tasks.md`, `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/workflow-state.md`, `FEATURE_DIR/worker-results/*.json`.
+
 **Handoff fields:** claim, affected objects, lifecycle state, dependency impact, owner workflow, latest resolve phase, validation need, status, stop-and-reopen condition.
 
 **Validation signals:** Triggered risks have tests, checks, or explicit residual risk; ready state excludes unmapped CA obligations.
@@ -156,11 +164,13 @@ Each pattern records:
 
 **Behavior it enforces:** Parallel work has explicit read/write boundaries, acceptance criteria, and join conditions.
 
-**Minimal prompt contract:** Choose dispatch shape from workload and safety. Each lane has purpose, read scope, write scope, forbidden scope, acceptance, verification, result format, and join condition. Do not dispatch if the work cannot be packetized safely. At join, consume structured results before declaring completion.
+**Minimal prompt contract:** Choose dispatch shape from workload and safety. Each lane has purpose, read scope, write scope, forbidden scope, acceptance, verification, result format, and join condition. Do not dispatch if the work cannot be packetized safely. At join, consume structured results before declaring completion. For adaptive `sp-plan` and `sp-tasks`, persist `execution_model: adaptive`, `execution_mode: light | standard | heavy`, `workflow_status: ready | blocked`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`, `execution_surface: leader-inline | native-subagents | none`, `capability_degraded: false | true`, and `blocked_reason` when blocked; managed-team fallback is not part of adaptive dispatch. For mandatory workflows such as `sp-implement`, use `execution_model: subagent-mandatory`, `execution_surface: native-subagents`, and no leader-inline fallback for dispatch-blocking conditions. For `sp-debug`, record `execution_model: leader-inline | subagent-assisted | blocked`; blocked records `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`.
 
 **Required artifacts:** Lane packet, task packet, worker prompt, result envelope, or join summary.
 
-**Handoff fields:** purpose, read scope, write scope, forbidden scope, acceptance, verification, result format, join condition.
+**Canonical surfaces:** `FEATURE_DIR/planning/handoffs/<lane-id>.json`, `FEATURE_DIR/planning/checkpoints.ndjson`, `FEATURE_DIR/planning/evidence-index.json`, `FEATURE_DIR/task-generation/handoffs/<lane-id>.json`, `FEATURE_DIR/workflow-state.md`.
+
+**Handoff fields:** purpose, read scope, write scope, forbidden scope, acceptance, verification, result format, join condition, execution model fields, capability degradation, blocked reason.
 
 **Validation signals:** Lane outputs are independently checkable; no lane writes outside scope; join summary reconciles conflicts and residual risks.
 
@@ -178,11 +188,13 @@ Each pattern records:
 
 **Behavior it enforces:** Each task is a bounded work order with enough context to execute and verify without expanding scope.
 
-**Minimal prompt contract:** Each task packet includes task id, objective, dependencies, read scope, write scope, forbidden scope, acceptance criteria, verification commands, preserved MP/CA items, result envelope, and escalation path. Use batch defaults for repeated fields and per-task deltas for differences.
+**Minimal prompt contract:** Each task packet includes task id, objective, authoritative inputs, dependencies, read scope, write scope, forbidden scope, acceptance criteria, done condition, verification commands, preserved MP/CA items, result envelope, and escalation path. Validate the `WorkerTaskPacket` or equivalent execution contract before dispatch. Use runtime-managed result channel when available; otherwise declare a filesystem result handoff path. When local CLI is available and no runtime-managed channel exists, use `specify result path` and `specify result submit`. Preserve `reported_status` when normalizing worker language into canonical state. Use batch defaults for repeated fields and per-task deltas for differences.
 
 **Required artifacts:** Task packet Markdown/JSON, worker prompt, implementation plan task, or queue item.
 
-**Handoff fields:** task id, objective, dependencies, read scope, write scope, forbidden scope, acceptance criteria, verification commands, MP/CA items, result envelope, escalation path.
+**Canonical surfaces:** `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/worker-results/<task-id>.json`, `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`, `.planning/debug/results/<session-slug>/<lane-id>.json`, `FEATURE_DIR/handoff-to-tasks.json`.
+
+**Handoff fields:** task id, objective, authoritative inputs, dependencies, read scope, write scope, forbidden scope, acceptance criteria, done condition, verification commands, MP/CA items, result envelope, result handoff path, `reported_status`, escalation path.
 
 **Validation signals:** A worker can execute the packet without asking for missing scope; verification commands are concrete; forbidden scope is enforceable.
 
@@ -203,6 +215,8 @@ Each pattern records:
 **Minimal prompt contract:** Record validation commands, results, acceptance coverage, unmapped obligations, residual risks, external validation gaps, dirty-state assumptions, and next action. Do not merge residual risk into completion language.
 
 **Required artifacts:** Closeout section, validation report, handoff readiness note, worker result envelope, or final task status.
+
+**Canonical surfaces:** `FEATURE_DIR/workflow-state.md`, `FEATURE_DIR/tasks.md`, `FEATURE_DIR/worker-results/*.json`, `FEATURE_DIR/handoff-to-tasks.json`, `.planning/quick/<id>-<slug>/STATUS.md`, `.planning/debug/results/<session-slug>/<lane-id>.json`.
 
 **Handoff fields:** commands, results, acceptance coverage, unmapped obligations, residual risks, external gaps, dirty-state assumptions, next action.
 
