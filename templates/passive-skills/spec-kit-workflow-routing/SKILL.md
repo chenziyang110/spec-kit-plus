@@ -135,6 +135,15 @@ standalone branch-creation command.
   a `query_plan` using returned graph-backed project concept candidates,
   `concept_decisions`, and `lexicon_generation_id` before running
   `project-cognition query --query-plan`.
+  Agent-owned semantic normalization is mandatory. The raw lexicon ranking is only a bootstrap
+  for retrieving the alias catalog and candidate universe; it is not the route
+  decision. If raw `concept_candidates` are all `score=0`, or the user uses
+  mixed-language or CJK text, do not stop at the raw score. Extract embedded project terms
+  such as command names, UI labels, file stems, state names, adapter names, and
+  skill or package identifiers from the user's wording and the alias catalog. Put those translated terms into
+  `normalized_query`, `alias_interpretations`, `intent_facets`,
+  `expanded_queries`, and `repository_search_terms`, then select or reject
+  concepts by facet coverage.
   Candidate selection must satisfy facet coverage through `covered_facets`,
   `missing_facets`, and `match_sources`; do not trust top similarity alone,
   whether lexical or vector-based.

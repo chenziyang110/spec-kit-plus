@@ -370,6 +370,10 @@ If project-relevant evidence cannot be classified, the scan must remain blocked 
 - Record colloquial user phrases, aliases, shorthand, command names, workflow
   names, symptoms, and domain vocabulary that maintainers naturally use when
   asking for work.
+- Record these signals so downstream agent-owned semantic normalization can
+  extract embedded project terms when raw lexicon ranking is only a bootstrap,
+  all candidates are `score=0`, or user prompts contain mixed-language or CJK
+  text.
 - Attach domain ownership evidence to each retrieval signal, including owning
   paths, modules, generated surfaces, workflow artifacts, tests, and supporting
   evidence rows.

@@ -39,6 +39,15 @@ judgment in an established Spec Kit Plus repository:
   `repair_hints`, normalized `query_plan`, structured `errors`, and
   `expected_shape` so the workflow can repair the plan instead of ending on a
   raw parser exception.
+  Agent-owned semantic normalization is mandatory. The raw lexicon ranking is only a bootstrap
+  for retrieving the alias catalog and candidate universe; it is not the route
+  decision. If raw `concept_candidates` are all `score=0`, or the user uses
+  mixed-language or CJK text, do not stop at the raw score. Extract embedded project terms
+  such as command names, UI labels, file stems, state names, adapter names, and
+  skill or package identifiers from the user's wording and the alias catalog. Put those translated terms into
+  `normalized_query`, `alias_interpretations`, `intent_facets`,
+  `expanded_queries`, and `repository_search_terms`, then select or reject
+  concepts by facet coverage.
   Before any source search, turn the user's wording into project-language search
   terms derived from the alias catalog, `semantic_intake`, selected candidates,
   and returned route metadata. Write these as `repository_search_terms` in the

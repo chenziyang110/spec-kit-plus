@@ -153,6 +153,25 @@ def test_shared_project_cognition_partials_require_project_language_search_terms
         assert "use these project-language search terms before broad repository search" in content, path
 
 
+def test_shared_project_cognition_partials_assign_semantic_normalization_to_agent() -> None:
+    required_terms = (
+        "agent-owned semantic normalization",
+        "raw lexicon ranking is only a bootstrap",
+        "score=0",
+        "mixed-language or cjk text",
+        "extract embedded project terms",
+    )
+    for path in [
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    ]:
+        content = _compact(_read(path).lower())
+        for term in required_terms:
+            assert term in content, f"{path} missing agent semantic normalization rule: {term}"
+
+
 def test_shared_project_cognition_partials_include_canonical_query_plan_skeleton() -> None:
     required_skeleton_terms = (
         '"raw_query"',
@@ -202,6 +221,11 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
         "repository_search_terms",
         "project-language search terms",
         "do not search only the raw user words",
+        "agent-owned semantic normalization",
+        "raw lexicon ranking is only a bootstrap",
+        "score=0",
+        "mixed-language or cjk text",
+        "extract embedded project terms",
     )
 
     for name in COGNITION_INTAKE_COMMANDS:

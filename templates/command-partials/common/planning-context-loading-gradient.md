@@ -35,6 +35,17 @@ Inspect `concept_candidates`, select task-relevant existing project concepts in
 `selected_concepts`, record non-selected or unsafe candidates in
 `rejected_concepts`, and write per-concept rationale in `concept_decisions`.
 
+### Agent-Owned Semantic Normalization
+
+Agent-owned semantic normalization is mandatory. The raw lexicon ranking is only a bootstrap
+for retrieving the alias catalog and candidate universe; it is not the route decision.
+If raw `concept_candidates` are all `score=0`, or the user uses mixed-language or CJK text,
+do not stop at the raw score. Extract embedded project terms such as command names,
+UI labels, file stems, state names, adapter names, and skill or package identifiers
+from the user's wording and the alias catalog. Put those translated terms into `normalized_query`,
+`alias_interpretations`, `intent_facets`, `expanded_queries`, and
+`repository_search_terms`, then select or reject concepts by facet coverage.
+
 Carry `lexicon_generation_id` into the `query_plan` so `project-cognition query`
 can detect generation drift. The `query_plan` should include
 `semantic_intake`, `selected_concepts`, `rejected_concepts`,
