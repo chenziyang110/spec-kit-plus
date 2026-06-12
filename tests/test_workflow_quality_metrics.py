@@ -34,6 +34,8 @@ def test_importlib_loader_without_sys_modules_registration():
     finally:
         if prior_module is not None:
             sys.modules["measure_workflow_costs"] = prior_module
+        else:
+            sys.modules.pop("measure_workflow_costs", None)
 
 
 def test_measure_file_counts_path_kind_lines_words_and_bytes(tmp_path):
