@@ -147,6 +147,70 @@ def test_discussion_close_then_archive_removes_session_from_default_list(tmp_pat
     assert (discussion_root / "archive" / "workflow-template-management" / "discussion-state.md").exists()
 
 
+def test_discussion_mark_consumed_closes_handoff_ready_session(tmp_path: Path):
+    project, discussion_root = _setup_project(tmp_path)
+    _write_discussion(
+        discussion_root,
+        "workflow-template-management",
+        status="handoff-ready",
+        summary="Workflow template management",
+        next_command="sp-specify",
+    )
+
+    consumed_result = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "mark-consumed",
+            "workflow-template-management",
+            "--feature-dir",
+            ".specify/features/009-workflow-template-management",
+        ],
+    )
+    list_result = _invoke_in_project(project, ["discussion", "list"])
+    status_result = _invoke_in_project(project, ["discussion", "status", "workflow-template-management"])
+
+    assert consumed_result.exit_code == 0, consumed_result.stdout
+    assert "marked discussion workflow-template-management consumed" in strip_ansi(consumed_result.stdout).lower()
+    assert list_result.exit_code == 0, list_result.stdout
+    assert "workflow-template-management" not in list_result.stdout
+    assert status_result.exit_code == 0, status_result.stdout
+    state_text = (discussion_root / "workflow-template-management" / "discussion-state.md").read_text(
+        encoding="utf-8"
+    )
+    assert "- status: completed" in state_text
+    assert "- handoff_consumption_status: consumed" in state_text
+    assert "- consumed_by_feature_dir: .specify/features/009-workflow-template-management" in state_text
+    assert "- next_command: none" in state_text
+
+
+def test_discussion_mark_consumed_can_archive_closed_session(tmp_path: Path):
+    project, discussion_root = _setup_project(tmp_path)
+    _write_discussion(
+        discussion_root,
+        "workflow-template-management",
+        status="handoff-ready",
+        summary="Workflow template management",
+        next_command="sp-specify",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "mark-consumed",
+            "workflow-template-management",
+            "--feature-dir",
+            ".specify/features/009-workflow-template-management",
+            "--archive",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert not (discussion_root / "workflow-template-management").exists()
+    assert (discussion_root / "archive" / "workflow-template-management" / "discussion-state.md").exists()
+
+
 def test_discussion_list_rebuilds_index_with_archive_state(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
     _write_discussion(
