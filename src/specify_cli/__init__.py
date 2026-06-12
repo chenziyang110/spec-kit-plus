@@ -1357,6 +1357,35 @@ def discussion_close(
     console.print(f"Closed discussion {discussion.get('slug')} with status {discussion.get('status')}.")
 
 
+@discussion_app.command("mark-consumed")
+def discussion_mark_consumed(
+    slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+    feature_dir: str = typer.Option(
+        ...,
+        "--feature-dir",
+        help="Feature directory that consumed the discussion handoff",
+    ),
+    archive: bool = typer.Option(False, "--archive", help="Archive the consumed discussion after closing it"),
+):
+    """Mark a handoff-ready discussion as consumed by a downstream feature."""
+    consumed_by = feature_dir.strip()
+    if not consumed_by:
+        console.print("[red]Error:[/red] --feature-dir is required")
+        raise typer.Exit(1)
+
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("mark-consumed", slug=slug, status=consumed_by)
+    discussion = payload.get("discussion", {})
+    if archive:
+        payload = _run_discussion_helper("archive", slug=slug)
+        discussion = payload.get("discussion", {})
+        console.print(
+            f"Marked discussion {discussion.get('slug')} consumed by {consumed_by} and archived it."
+        )
+        return
+    console.print(f"Marked discussion {discussion.get('slug')} consumed by {consumed_by}.")
+
+
 @discussion_app.command("archive")
 def discussion_archive(
     slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),

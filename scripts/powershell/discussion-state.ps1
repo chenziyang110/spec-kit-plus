@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 param(
     [string]$ProjectRoot = ".",
-    [ValidateSet("list", "status", "rebuild-index", "close", "archive")]
+    [ValidateSet("list", "status", "rebuild-index", "close", "mark-consumed", "archive")]
     [string]$Mode = "list",
     [string]$Slug = "",
     [string]$Status = "",
@@ -100,6 +100,9 @@ def read_discussion(workspace: Path, archived: bool) -> dict[str, object] | None
         "updated_at": fields.get("updated_at", fields.get("updated", "")),
         "closed_at": fields.get("closed_at", ""),
         "archived_at": fields.get("archived_at", ""),
+        "handoff_consumption_status": fields.get("handoff_consumption_status", ""),
+        "consumed_at": fields.get("consumed_at", ""),
+        "consumed_by_feature_dir": fields.get("consumed_by_feature_dir", ""),
         "archived": archived,
     }
 
@@ -176,6 +179,33 @@ def close_discussion(discussion: dict[str, object], status_value: str) -> None:
     update_state_file(workspace, apply)
 
 
+def mark_discussion_consumed(discussion: dict[str, object], consumed_by_feature_dir: str) -> None:
+    if bool(discussion.get("archived")):
+        raise ValueError("archived discussion cannot be marked consumed")
+    status = str(discussion.get("status", "")).strip().lower()
+    if status not in {"handoff-ready", "completed"}:
+        raise ValueError("only handoff-ready or completed discussions can be marked consumed")
+    consumed_by = consumed_by_feature_dir.strip()
+    if not consumed_by:
+        raise ValueError("consumed feature directory is required")
+
+    workspace = Path(str(discussion["workspace_path"]))
+    timestamp = now_utc()
+
+    def apply(text: str) -> str:
+        text = set_markdown_field(text, "status", "completed")
+        text = set_markdown_field(text, "updated_at", timestamp)
+        if not str(discussion.get("closed_at", "")).strip():
+            text = set_markdown_field(text, "closed_at", timestamp)
+        text = set_markdown_field(text, "handoff_consumption_status", "consumed")
+        text = set_markdown_field(text, "consumed_at", timestamp)
+        text = set_markdown_field(text, "consumed_by_feature_dir", consumed_by)
+        text = set_markdown_field(text, "next_command", "none")
+        return text
+
+    update_state_file(workspace, apply)
+
+
 def archive_discussion(discussion: dict[str, object], discussion_root: Path) -> dict[str, object]:
     if bool(discussion.get("archived")):
         raise ValueError("discussion is already archived")
@@ -243,6 +273,14 @@ def main() -> int:
     if mode == "close":
         discussion = match_discussion(discussions, slug)
         close_discussion(discussion, target_status)
+        refreshed = scan_discussions(discussion_root)
+        write_index(discussion_root, refreshed)
+        print(json.dumps({"discussion": match_discussion(refreshed, slug)}))
+        return 0
+
+    if mode == "mark-consumed":
+        discussion = match_discussion(discussions, slug)
+        mark_discussion_consumed(discussion, target_status)
         refreshed = scan_discussions(discussion_root)
         write_index(discussion_root, refreshed)
         print(json.dumps({"discussion": match_discussion(refreshed, slug)}))
