@@ -14,26 +14,35 @@ import (
 )
 
 type LexiconPayload struct {
-	Readiness                string           `json:"readiness"`
-	RecommendedNextAction    string           `json:"recommended_next_action"`
-	BaselineKind             string           `json:"baseline_kind,omitempty"`
-	Intent                   string           `json:"intent"`
-	Query                    string           `json:"query"`
-	ActiveGenerationID       string           `json:"active_generation_id,omitempty"`
-	LexiconGenerationID      string           `json:"lexicon_generation_id,omitempty"`
-	CandidateUniverseVersion int              `json:"candidate_universe_version"`
-	Terms                    []string         `json:"terms"`
-	AvailableTerms           []string         `json:"available_terms"`
-	ConceptCandidates        []map[string]any `json:"concept_candidates"`
-	AliasCatalog             []map[string]any `json:"alias_catalog,omitempty"`
-	AliasCatalogCount        int              `json:"alias_catalog_count,omitempty"`
-	AliasCatalogLimit        int              `json:"alias_catalog_limit,omitempty"`
-	AliasCatalogTruncated    bool             `json:"alias_catalog_truncated,omitempty"`
-	QueryPlanningContract    map[string]any   `json:"query_planning_contract"`
-	CandidateUniverse        map[string]any   `json:"candidate_universe"`
-	MatchingProfile          map[string]any   `json:"matching_profile"`
-	UnmappedIntent           bool             `json:"unmapped_intent"`
-	MissingCoverage          []string         `json:"missing_coverage"`
+	Readiness                string                        `json:"readiness"`
+	RecommendedNextAction    string                        `json:"recommended_next_action"`
+	BaselineKind             string                        `json:"baseline_kind,omitempty"`
+	Intent                   string                        `json:"intent"`
+	Query                    string                        `json:"query"`
+	ActiveGenerationID       string                        `json:"active_generation_id,omitempty"`
+	LexiconGenerationID      string                        `json:"lexicon_generation_id,omitempty"`
+	CandidateUniverseVersion int                           `json:"candidate_universe_version"`
+	Terms                    []string                      `json:"terms"`
+	AvailableTerms           []string                      `json:"available_terms"`
+	ConceptCandidates        []map[string]any              `json:"concept_candidates"`
+	AliasCatalog             []map[string]any              `json:"alias_catalog,omitempty"`
+	AliasCatalogCount        int                           `json:"alias_catalog_count,omitempty"`
+	AliasCatalogLimit        int                           `json:"alias_catalog_limit,omitempty"`
+	AliasCatalogTruncated    bool                          `json:"alias_catalog_truncated,omitempty"`
+	QueryPlanningContract    map[string]any                `json:"query_planning_contract"`
+	CandidateUniverse        map[string]any                `json:"candidate_universe"`
+	MatchingProfile          map[string]any                `json:"matching_profile"`
+	UnmappedIntent           bool                          `json:"unmapped_intent"`
+	MissingCoverage          []string                      `json:"missing_coverage"`
+	AgentNormalization       *AgentNormalizationDiagnostic `json:"agent_normalization,omitempty"`
+}
+
+type AgentNormalizationDiagnostic struct {
+	Required bool     `json:"required"`
+	Reason   string   `json:"reason"`
+	Triggers []string `json:"triggers"`
+	Action   string   `json:"action"`
+	Reminder string   `json:"reminder"`
 }
 
 type LexiconInput struct {
@@ -171,8 +180,56 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"no_graph_candidate_matched_query"}
 	}
+	payload.AgentNormalization = agentNormalizationDiagnostic(payload.AliasCatalog, positiveMatches, payload.MissingCoverage, text)
 
 	return payload, nil
+}
+
+func agentNormalizationDiagnostic(aliasCatalog []map[string]any, positiveMatches int, missingCoverage []string, query string) *AgentNormalizationDiagnostic {
+	if len(aliasCatalog) == 0 {
+		return nil
+	}
+
+	triggers := []string{}
+	trimmedQuery := strings.TrimSpace(query)
+	if trimmedQuery != "" && positiveMatches == 0 {
+		triggers = append(triggers, "zero_positive_matches")
+	}
+	if hasStringValue(missingCoverage, "no_graph_candidate_matched_query") {
+		triggers = append(triggers, "no_graph_candidate_matched_query")
+	}
+	if queryHasCJKOrMixedCJKASCII(query) {
+		triggers = append(triggers, "cjk_or_mixed_language_query")
+	}
+	if len(triggers) == 0 {
+		return nil
+	}
+
+	return &AgentNormalizationDiagnostic{
+		Required: true,
+		Reason:   "Raw lexicon matching is insufficient for this query; the agent must normalize intent against the alias catalog before selecting concepts.",
+		Triggers: uniqueStrings(triggers),
+		Action:   "write_semantic_intake_from_alias_catalog",
+		Reminder: "Do not synthesize concepts or translate aliases in the runtime; use the alias catalog to write semantic_intake and concept decisions.",
+	}
+}
+
+func queryHasCJKOrMixedCJKASCII(query string) bool {
+	for _, r := range query {
+		if unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasStringValue(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func termsFrom(text string, limit int) []string {

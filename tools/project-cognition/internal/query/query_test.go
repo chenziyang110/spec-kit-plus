@@ -562,6 +562,120 @@ func TestLexiconCatalogIncludesCompactAliasMaterialBeforeCandidateRanking(t *tes
 	}
 }
 
+func TestLexiconAgentNormalizationRequiredForZeroPositiveMatchesWithCatalog(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-normalization-zero",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-lifecycle-confirmation",
+			Type:       "capability",
+			Title:      "Lifecycle Confirmation Preview",
+			Confidence: "verified",
+			Attrs: map[string]any{
+				"aliases": []any{"install lifecycle", "confirmation preview", "action plan preview"},
+			},
+		}},
+	})
+
+	payload, err := LexiconWithOptions(paths, LexiconInput{
+		Intent: "debug",
+		Query:  "payment ledger rounding",
+		Limit:  10,
+		Mode:   "catalog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.AgentNormalization == nil {
+		t.Fatalf("AgentNormalization = nil, want required diagnostic")
+	}
+	if !payload.AgentNormalization.Required {
+		t.Fatalf("AgentNormalization.Required = false, want true")
+	}
+	if payload.AgentNormalization.Action != "write_semantic_intake_from_alias_catalog" {
+		t.Fatalf("AgentNormalization.Action = %q", payload.AgentNormalization.Action)
+	}
+	if !hasString(payload.AgentNormalization.Triggers, "zero_positive_matches") {
+		t.Fatalf("AgentNormalization.Triggers = %#v, want zero_positive_matches", payload.AgentNormalization.Triggers)
+	}
+	if !hasString(payload.AgentNormalization.Triggers, "no_graph_candidate_matched_query") {
+		t.Fatalf("AgentNormalization.Triggers = %#v, want no_graph_candidate_matched_query", payload.AgentNormalization.Triggers)
+	}
+	if len(payload.AliasCatalog) == 0 {
+		t.Fatalf("AliasCatalog = %#v, want usable catalog", payload.AliasCatalog)
+	}
+}
+
+func TestLexiconAgentNormalizationRequiredForCJKWithPositiveRawMatch(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-normalization-cjk",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-tui-install",
+			Type:       "capability",
+			Title:      "TUI Install Lifecycle",
+			Confidence: "verified",
+			Attrs: map[string]any{
+				"aliases": []any{"tui install lifecycle", "install confirmation"},
+			},
+		}},
+	})
+
+	payload, err := LexiconWithOptions(paths, LexiconInput{
+		Intent: "debug",
+		Query:  "使用tui安装后确认弹窗不一样",
+		Limit:  10,
+		Mode:   "catalog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.MatchingProfile["positive_matches"] == 0 {
+		t.Fatalf("positive_matches = 0, want raw match through embedded tui term")
+	}
+	if payload.AgentNormalization == nil {
+		t.Fatalf("AgentNormalization = nil, want required diagnostic for mixed CJK/ASCII")
+	}
+	if !hasString(payload.AgentNormalization.Triggers, "cjk_or_mixed_language_query") {
+		t.Fatalf("AgentNormalization.Triggers = %#v, want cjk_or_mixed_language_query", payload.AgentNormalization.Triggers)
+	}
+}
+
+func TestLexiconOmitsAgentNormalizationForPlainEnglishRawMatch(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-normalization-english",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-lifecycle-confirmation",
+			Type:       "capability",
+			Title:      "Lifecycle Confirmation Preview",
+			Confidence: "verified",
+			Attrs: map[string]any{
+				"aliases": []any{"install lifecycle", "confirmation preview"},
+			},
+		}},
+	})
+
+	payload, err := LexiconWithOptions(paths, LexiconInput{
+		Intent: "debug",
+		Query:  "install lifecycle confirmation preview",
+		Limit:  10,
+		Mode:   "catalog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.AgentNormalization != nil {
+		t.Fatalf("AgentNormalization = %#v, want omitted diagnostic", payload.AgentNormalization)
+	}
+}
+
 func TestLexiconCatalogModeReturnsAliasCatalogForEmptyQuery(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
