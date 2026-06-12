@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import json
 import re
@@ -85,7 +83,9 @@ def summarize(metrics: list[FileMetric]) -> dict[str, object]:
 
     return {
         "totals": totals,
-        "files": [asdict(metric) for metric in metrics],
+        "files": [
+            asdict(metric) for metric in sorted(metrics, key=lambda item: item.path)
+        ],
     }
 
 
@@ -140,6 +140,8 @@ def render_markdown(summary: dict[str, object]) -> str:
 def main() -> int:
     args = parse_args()
     root = Path(args.root).resolve()
+    if not root.is_dir():
+        raise SystemExit(f"root is not a directory: {root}")
 
     metrics = [
         measure_file(root, path, "prompt")
