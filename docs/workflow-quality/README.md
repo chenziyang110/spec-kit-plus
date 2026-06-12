@@ -9,7 +9,7 @@ maximize prompt and intermediate-artifact cost reduction
 subject to quality retention >= 98%
 ```
 
-This standard applies before changing any `templates/commands/sp-*`, `templates/command-partials/**`, `templates/worker-prompts/**`, `templates/passive-skills/**`, `skill-flow-maps/**`, generated workflow artifact contract, handoff shape, state file, task packet format, validation closeout surface, or other handoff/artifact formats.
+This standard applies before changing source command templates under `templates/commands/*.md` (the source for generated `sp-*` workflow commands; downstream or generated install surfaces may refer to these as `templates/commands/sp-*`), `templates/command-partials/**`, `templates/worker-prompts/**`, `templates/passive-skills/**`, `skill-flow-maps/**`, generated workflow artifact contract, handoff shape, state file, task packet format, validation closeout surface, or other handoff/artifact formats.
 
 ## Non-Goals
 
