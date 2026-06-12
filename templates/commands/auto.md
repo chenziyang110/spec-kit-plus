@@ -85,6 +85,13 @@ Inspect the available state surfaces in this order and prefer the most specific 
    - Read active `.planning/debug/*.md` session files.
    - If a live investigation owns the current next action, route to the canonical `/sp.debug` token.
 
+5. Discussion handoff state
+   - Read active `.specify/discussions/*/discussion-state.md` files when no higher-authority feature, implementation, quick, or debug state has already selected a unique route.
+   - Treat `status: handoff-ready` plus `next_command: /sp.specify` or `sp-specify` as a `/sp.specify` candidate only when `handoff_consumption_status` is not `consumed`.
+   - If `handoff_consumption_status: consumed`, `status: completed`, `consumed_by_feature_dir` is populated, or `next_command: none`, do not count that discussion as a resumable candidate.
+   - If a handoff-ready discussion's `handoff-to-specify.md` path is already referenced by a feature `brainstorming/handoff-to-specify.json` as `source_handoff`, treat it as a consumed-stale cleanup item, not a competing route. Recommend `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing.
+   - If multiple unconsumed handoff-ready discussions remain, stop and ask for a specific slug instead of guessing.
+
 ## Route Resolution
 
 Choose exactly one routed command.

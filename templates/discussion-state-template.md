@@ -77,7 +77,7 @@
 - incomplete_statuses: active, blocked, handoff-ready
 - resume_rule: resume only when exactly one incomplete discussion is available or the user selected a slug
 - collision_rule: append date or short numeric suffix when a generated slug already exists
-- close_archive_rule: handoff-ready remains resumable; close as completed or abandoned before archiving
+- close_archive_rule: handoff-ready remains resumable only until consumed or explicitly dropped; after `sp-specify` consumes the handoff, mark consumed/completed before archiving
 
 ## Handoff Assessment
 
@@ -92,6 +92,9 @@
 - handoff_user_confirmed_at: [ISO-8601 timestamp or none]
 - handoff_blocker_reason: none
 - handoff_quality_gate: draft | self_review_passed | user_confirmed | blocked
+- handoff_consumption_status: not_consumed | consumed
+- consumed_at: [ISO-8601 timestamp or none]
+- consumed_by_feature_dir: [FEATURE_DIR that consumed this handoff, or none]
 
 ## Allowed Artifact Writes
 

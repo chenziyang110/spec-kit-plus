@@ -991,6 +991,9 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "handoff_review_status: not-started | draft | self-review-passed | user-confirmed | blocked" in content
     assert "handoff_user_confirmed_at:" in content
     assert "handoff_blocker_reason:" in content
+    assert "handoff_consumption_status: not_consumed | consumed" in content
+    assert "consumed_at:" in content
+    assert "consumed_by_feature_dir:" in content
     assert "handoff-to-specify.md draft after explicit user request and boundary lock" in content
     assert "handoff-to-specify.json draft after explicit user request and boundary lock" in content
     assert "mark handoff-ready only after self-review pass and user confirmation" in content
@@ -1025,6 +1028,9 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "source_files_read" in content
     assert "capability-like" in lowered
     assert "not only the handoff summary" in lowered
+    assert "specify discussion mark-consumed" in content
+    assert "consumed_by_feature_dir" in content
+    assert "handoff_consumption_status" in content
 
 
 def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
@@ -2485,6 +2491,9 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "testing-state.md" not in content
     assert "status.md" in lowered
     assert "debug" in lowered
+    assert "discussion-state.md" in content
+    assert "handoff_consumption_status" in content
+    assert "mark-consumed" in lowered
     assert "next_command" in content
     assert "do not rewrite the underlying workflow state to `/sp.auto`" in lowered
     assert "obey the recorded upstream gate" in lowered or "must obey the recorded upstream gate" in lowered

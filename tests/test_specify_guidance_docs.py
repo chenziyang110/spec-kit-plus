@@ -222,6 +222,8 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "draft unified handoff pair" in lowered or "one unified handoff pair" in lowered
         assert "quality_gate" in content
         assert "user confirmation" in lowered
+        assert "mark-consumed" in lowered
+        assert "handoff_consumption_status" in content or "handoff consumption" in lowered
         assert "split-plan.md" not in content
         assert "handoffs/<candidate_id>" not in content
         assert "CAND-001" not in content

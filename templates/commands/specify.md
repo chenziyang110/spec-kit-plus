@@ -99,6 +99,7 @@ When `sp-specify` starts from `sp-discussion`, do not trust only the handoff sum
 
 - Read `handoff-to-specify.md` when supplied or discoverable.
 - Read `handoff-to-specify.json` when present and preserve compatibility fields such as `entry_source: sp-discussion`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`.
+- When `entry_source: sp-discussion` and `source_handoff` points under `.specify/discussions/<slug>/handoff-to-specify.md`, preserve that slug as the source discussion that must be marked consumed after this command successfully writes and self-reviews the feature specification package.
 - Coverage and planning readiness are separate. Use `coverage_status` for upstream signal mapping completeness and `planning_gate_status` for whether downstream planning may proceed.
 - Planning gate statuses include `ready`, `blocked_by_hard_unknowns`, `blocked_by_conflict`, `blocked_by_incomplete_coverage`, and `blocked_by_handoff_integrity`.
 - Preserve the Must-Preserve Ledger. Every `MP-*` or `MP-###` item must be mapped, deferred, dropped, superseded, or converted into a conflict blocker with source and reopen details.
@@ -273,6 +274,7 @@ Before reporting completion, review the written artifacts, not just the chat sum
 - report the single valid next path for the current state. Do not emit a second alternative next command. Do not present multiple downstream command options.
 - Only the user review gate may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 - The completion state must preserve the literal `next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+- After the feature package is written, self-reviewed, and `workflow-state.md` records the single next command, mark the source discussion consumed when this run came from `sp-discussion`: run `specify discussion mark-consumed <slug> --feature-dir "$FEATURE_DIR"` where `<slug>` is derived from `.specify/discussions/<slug>/handoff-to-specify.md`. This writes `handoff_consumption_status: consumed`, `consumed_by_feature_dir: $FEATURE_DIR`, `status: completed`, and `next_command: none` in the source `discussion-state.md`, preventing stale `handoff-ready` discussions from blocking future `sp-auto` routing. If the helper command is unavailable, update those same fields manually and note the fallback in the completion report. Do not mark consumed before the artifacts exist and pass self-review.
 
 ## Completion Report
 

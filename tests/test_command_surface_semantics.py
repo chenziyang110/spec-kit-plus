@@ -494,6 +494,7 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "command shape: `specify quick status <id>`" in readme
     assert "discussion helper command shapes:" in readme
     assert "command shape: `specify discussion close <slug> --status completed|abandoned`" in readme
+    assert "command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`" in readme
     assert "command shape: `specify hook mark-dirty --reason " not in readme
     assert "command shape: `project-cognition mark-dirty --reason " in readme
     assert "command shape: `specify project-map mark-dirty --reason " not in readme
@@ -510,6 +511,7 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "command shape: `specify quick status <id>`" in quickstart
     assert "discussion helper command shapes:" in quickstart
     assert "command shape: `specify discussion close <slug> --status completed|abandoned`" in quickstart
+    assert "command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`" in quickstart
 
 
 def test_discussion_workflow_uses_recommendation_first_decision_progression() -> None:

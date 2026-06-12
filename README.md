@@ -385,12 +385,13 @@ Routing guide for lightweight work:
   - Command shape: `specify quick resume <id>`
   - Command shape: `specify quick close <id> --status resolved|blocked`
   - Command shape: `specify quick archive <id>`
-- Discussion sessions live under `.specify/discussions/<slug>/`, with `discussion-state.md` as the source of truth and `.specify/discussions/index.json` as a derived management index. `handoff-ready` remains resumable until the discussion is explicitly closed, so old handoff-ready sessions do not disappear automatically.
+- Discussion sessions live under `.specify/discussions/<slug>/`, with `discussion-state.md` as the source of truth and `.specify/discussions/index.json` as a derived management index. `handoff-ready` remains resumable until `sp-specify` consumes the handoff. After consumption, mark the source discussion with `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` so `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none` prevent stale handoffs from blocking future `sp-auto` routing.
 - Use `specify discussion list` to inspect unclosed discussions by default.
 - Discussion helper command shapes:
   - Command shape: `specify discussion status <slug>`
   - Command shape: `specify discussion resume <slug>`
   - Command shape: `specify discussion close <slug> --status completed|abandoned`
+  - Command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`
   - Command shape: `specify discussion archive <slug>`
 - Move from `sp-quick` to `sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
