@@ -22,7 +22,13 @@ adds project-language `repository_search_terms`, and only then calls
 `project-cognition query`.
 
 This design applies to all generated workflows that use project cognition, not
-only `sp-debug`.
+only `sp-debug`. It inherits the affected-surface scope from
+`docs/superpowers/specs/2026-06-03-cognition-intake-experience-alignment-design.md`.
+Implementation must also derive the current surface set with repository search,
+because workflow coverage can change after that design. At minimum, search for
+`project-cognition lexicon` and `project-cognition query` across `templates/`,
+`templates/passive-skills/`, `src/specify_cli/integrations/`, tests, docs, and
+runtime code before editing.
 
 ## Problem
 
@@ -110,7 +116,8 @@ The agent owns semantic judgment:
 ## Runtime Diagnostic
 
 `project-cognition lexicon --mode catalog` should include a non-intelligent
-diagnostic block when raw lexical ranking is not enough.
+diagnostic block when raw lexical ranking is not enough and a usable alias
+catalog is available.
 
 Recommended shape:
 
@@ -129,18 +136,32 @@ Recommended shape:
 }
 ```
 
-The field is advisory guidance to the agent. It is not a route decision.
+The field is advisory guidance to the agent. It is not a route decision. When
+normalization is not required, omit `agent_normalization` from the payload.
+Consumers must treat an omitted field the same as `{"required": false}`.
 
 Recommended trigger rules:
 
-- `positive_matches == 0`
-- `missing_coverage` includes `no_graph_candidate_matched_query`
-- the raw query contains CJK text or mixed CJK and ASCII text
-- the alias catalog is present and non-empty
+- First, preserve readiness and runtime agreement routing. If the graph is
+  missing, stale, blocked, greenfield-empty, rebuild-required, or otherwise not
+  usable for alias-catalog navigation, existing readiness and recovery guidance
+  is primary.
+- Then set `agent_normalization.required=true` exactly when:
 
-If the graph is missing, stale, blocked, or greenfield-empty, existing readiness
-and recovery guidance remains primary. The diagnostic should not hide runtime
-agreement failures.
+  ```text
+  alias_catalog_non_empty
+  && (
+    positive_matches == 0
+    || missing_coverage contains "no_graph_candidate_matched_query"
+    || query_has_cjk_or_mixed_cjk_ascii
+  )
+  ```
+
+- CJK or mixed CJK/ASCII input sets `required=true` even when positive raw
+  lexical matches exist. A raw match may only prove that the prompt included an
+  embedded project token; the agent still owns translation of the surrounding
+  localized user language into project vocabulary.
+- The diagnostic must not hide runtime agreement failures.
 
 ## Workflow Prompt Contract
 
@@ -289,7 +310,10 @@ Runtime tests should cover:
 - `agent_normalization.required=true` for zero positive matches with a usable
   alias catalog.
 - CJK and mixed-language queries trigger the diagnostic without inventing
-  concepts.
+  concepts, including when they contain embedded project terms that produce
+  positive raw lexical matches.
+- `agent_normalization` is omitted when normalization is not required, and
+  consumers treat omission as `required=false`.
 - blocked, missing, stale, and greenfield-empty states keep their existing
   readiness guidance.
 - existing raw lexical matches do not require the diagnostic unless a separate
@@ -302,6 +326,9 @@ Template and integration tests should cover:
   symptom-first prompts.
 - affected `sp-*` workflows preserve the same lexicon -> semantic_intake ->
   query sequence.
+- implementation derives the affected workflow/template/integration set by
+  searching for `project-cognition lexicon` and `project-cognition query` rather
+  than relying on a hand-written list alone.
 - generated Markdown, TOML, prompt, and skill surfaces include the same
   agent-as-brain / CLI-as-tool boundary.
 - `sp-debug` includes examples around lifecycle, reinstall, confirmation, and
