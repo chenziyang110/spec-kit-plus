@@ -439,6 +439,16 @@ func TestTermsFromKeepsUnicodeLetters(t *testing.T) {
 	}
 }
 
+func TestTermsFromExtractsAsciiTermsEmbeddedInCJKText(t *testing.T) {
+	terms := termsFrom("使用tui安装skill选择用户级后用户目录没有对应skill", 10)
+
+	for _, want := range []string{"tui", "skill"} {
+		if !hasString(terms, want) {
+			t.Fatalf("termsFrom() = %#v, want %q", terms, want)
+		}
+	}
+}
+
 func TestLexiconCatalogIncludesCompactAliasMaterialBeforeCandidateRanking(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{

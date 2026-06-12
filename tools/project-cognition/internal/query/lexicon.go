@@ -181,19 +181,58 @@ func termsFrom(text string, limit int) []string {
 	}
 	seen := map[string]bool{}
 	var terms []string
-	for _, field := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
-		return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-')
-	}) {
+	var current strings.Builder
+	currentClass := termClassNone
+	appendCurrent := func() bool {
+		field := strings.Trim(current.String(), "_-")
+		current.Reset()
+		currentClass = termClassNone
 		if field == "" || seen[field] {
-			continue
+			return false
 		}
 		seen[field] = true
 		terms = append(terms, field)
-		if len(terms) >= limit {
-			break
+		return len(terms) >= limit
+	}
+	for _, r := range strings.ToLower(text) {
+		if !isTermRune(r) {
+			if current.Len() > 0 && appendCurrent() {
+				return terms
+			}
+			continue
 		}
+		runeClass := classifyTermRune(r)
+		if current.Len() > 0 && currentClass != runeClass && (currentClass == termClassCJK || runeClass == termClassCJK) {
+			if appendCurrent() {
+				return terms
+			}
+		}
+		current.WriteRune(r)
+		currentClass = runeClass
+	}
+	if current.Len() > 0 {
+		appendCurrent()
 	}
 	return terms
+}
+
+type termClass int
+
+const (
+	termClassNone termClass = iota
+	termClassCJK
+	termClassOther
+)
+
+func isTermRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
+}
+
+func classifyTermRune(r rune) termClass {
+	if unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul) {
+		return termClassCJK
+	}
+	return termClassOther
 }
 
 func queryPlanningContract() map[string]any {
