@@ -714,6 +714,21 @@ func TestLexiconCatalogModeReturnsAliasCatalogForEmptyQuery(t *testing.T) {
 	if len(payload.ConceptCandidates) != 0 {
 		t.Fatalf("ConceptCandidates = %#v, want no ranked candidates for empty query", payload.ConceptCandidates)
 	}
+	if payload.AgentNormalization == nil {
+		t.Fatalf("AgentNormalization = nil, want required diagnostic for empty catalog query")
+	}
+	if !payload.AgentNormalization.Required {
+		t.Fatalf("AgentNormalization.Required = false, want true")
+	}
+	if payload.AgentNormalization.Reason != "raw_terms_did_not_match_project_aliases" {
+		t.Fatalf("AgentNormalization.Reason = %q", payload.AgentNormalization.Reason)
+	}
+	if payload.AgentNormalization.Reminder != "Do not stop at score=0. Translate user language into project vocabulary using the alias catalog." {
+		t.Fatalf("AgentNormalization.Reminder = %q", payload.AgentNormalization.Reminder)
+	}
+	if !hasString(payload.AgentNormalization.Triggers, "zero_positive_matches") {
+		t.Fatalf("AgentNormalization.Triggers = %#v, want zero_positive_matches", payload.AgentNormalization.Triggers)
+	}
 }
 
 func TestLexiconUsesStoredAliasRowsInsteadOfAttrsAliases(t *testing.T) {

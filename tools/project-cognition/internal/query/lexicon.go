@@ -191,8 +191,7 @@ func agentNormalizationDiagnostic(aliasCatalog []map[string]any, positiveMatches
 	}
 
 	triggers := []string{}
-	trimmedQuery := strings.TrimSpace(query)
-	if trimmedQuery != "" && positiveMatches == 0 {
+	if positiveMatches == 0 {
 		triggers = append(triggers, "zero_positive_matches")
 	}
 	if hasStringValue(missingCoverage, "no_graph_candidate_matched_query") {
@@ -207,10 +206,10 @@ func agentNormalizationDiagnostic(aliasCatalog []map[string]any, positiveMatches
 
 	return &AgentNormalizationDiagnostic{
 		Required: true,
-		Reason:   "Raw lexicon matching is insufficient for this query; the agent must normalize intent against the alias catalog before selecting concepts.",
+		Reason:   "raw_terms_did_not_match_project_aliases",
 		Triggers: uniqueStrings(triggers),
 		Action:   "write_semantic_intake_from_alias_catalog",
-		Reminder: "Do not synthesize concepts or translate aliases in the runtime; use the alias catalog to write semantic_intake and concept decisions.",
+		Reminder: "Do not stop at score=0. Translate user language into project vocabulary using the alias catalog.",
 	}
 }
 
