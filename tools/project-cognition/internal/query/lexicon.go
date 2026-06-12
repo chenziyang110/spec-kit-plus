@@ -180,13 +180,13 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"no_graph_candidate_matched_query"}
 	}
-	payload.AgentNormalization = agentNormalizationDiagnostic(payload.AliasCatalog, positiveMatches, payload.MissingCoverage, text)
+	payload.AgentNormalization = agentNormalizationDiagnostic(status, payload.AliasCatalog, positiveMatches, payload.MissingCoverage, text)
 
 	return payload, nil
 }
 
-func agentNormalizationDiagnostic(aliasCatalog []map[string]any, positiveMatches int, missingCoverage []string, query string) *AgentNormalizationDiagnostic {
-	if len(aliasCatalog) == 0 {
+func agentNormalizationDiagnostic(status rt.Status, aliasCatalog []map[string]any, positiveMatches int, missingCoverage []string, query string) *AgentNormalizationDiagnostic {
+	if len(aliasCatalog) == 0 || !agentNormalizationCatalogUsable(status) {
 		return nil
 	}
 
@@ -211,6 +211,10 @@ func agentNormalizationDiagnostic(aliasCatalog []map[string]any, positiveMatches
 		Action:   "write_semantic_intake_from_alias_catalog",
 		Reminder: "Do not stop at score=0. Translate user language into project vocabulary using the alias catalog.",
 	}
+}
+
+func agentNormalizationCatalogUsable(status rt.Status) bool {
+	return status.Readiness == rt.ReadyReadiness && status.Freshness == rt.ReadyFreshness && status.GraphReady
 }
 
 func queryHasCJKOrMixedCJKASCII(query string) bool {

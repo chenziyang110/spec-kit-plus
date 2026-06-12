@@ -731,6 +731,98 @@ func TestLexiconCatalogModeReturnsAliasCatalogForEmptyQuery(t *testing.T) {
 	}
 }
 
+func TestLexiconOmitsAgentNormalizationWhenCatalogIsNotUsable(t *testing.T) {
+	cases := []struct {
+		name       string
+		freshness  string
+		readiness  string
+		graphReady bool
+		nextAction string
+	}{
+		{
+			name:       "needs rebuild",
+			freshness:  rt.ReadyFreshness,
+			readiness:  rt.NeedsRebuildReadiness,
+			graphReady: true,
+			nextAction: "run_map_scan_build",
+		},
+		{
+			name:       "blocked",
+			freshness:  rt.ReadyFreshness,
+			readiness:  rt.BlockedReadiness,
+			graphReady: true,
+			nextAction: "run_map_scan_build",
+		},
+		{
+			name:       "stale",
+			freshness:  rt.StaleFreshness,
+			readiness:  rt.ReadyReadiness,
+			graphReady: true,
+			nextAction: "run_map_update",
+		},
+		{
+			name:       "graph not ready",
+			freshness:  rt.ReadyFreshness,
+			readiness:  rt.ReadyReadiness,
+			graphReady: false,
+			nextAction: "run_map_scan_build",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			paths := queryTestPaths(t)
+			seedReadyGraph(t, paths, store.ImportInput{
+				GenerationID: "GEN-normalization-unusable",
+				Kind:         "full",
+				SourceCommit: "abc123",
+				Nodes: []store.NodeImport{{
+					ID:         "N-lifecycle-confirmation",
+					Type:       "capability",
+					Title:      "Lifecycle Confirmation Preview",
+					Confidence: "verified",
+					Attrs: map[string]any{
+						"aliases": []any{"install lifecycle", "confirmation preview"},
+					},
+				}},
+			})
+			status, err := rt.ReadStatus(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status.Freshness = tc.freshness
+			status.Readiness = tc.readiness
+			status.GraphReady = tc.graphReady
+			status.RecommendedNextAction = tc.nextAction
+			if err := rt.WriteStatus(paths, status); err != nil {
+				t.Fatal(err)
+			}
+
+			payload, err := LexiconWithOptions(paths, LexiconInput{
+				Intent: "debug",
+				Query:  "payment ledger rounding",
+				Limit:  10,
+				Mode:   "catalog",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.AliasCatalog) == 0 {
+				t.Fatalf("AliasCatalog = %#v, want catalog data to remain available", payload.AliasCatalog)
+			}
+			if payload.AgentNormalization != nil {
+				t.Fatalf("AgentNormalization = %#v, want omitted diagnostic when catalog is not usable", payload.AgentNormalization)
+			}
+			if payload.Readiness != tc.readiness {
+				t.Fatalf("Readiness = %q, want %q", payload.Readiness, tc.readiness)
+			}
+			if payload.RecommendedNextAction != tc.nextAction {
+				t.Fatalf("RecommendedNextAction = %q, want %q", payload.RecommendedNextAction, tc.nextAction)
+			}
+		})
+	}
+}
+
 func TestLexiconUsesStoredAliasRowsInsteadOfAttrsAliases(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
