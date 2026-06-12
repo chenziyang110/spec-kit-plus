@@ -19,10 +19,6 @@ uv run python tools\workflow-quality\measure_workflow_costs.py --root . --format
 
 ## Current Totals
 
-# Workflow Cost Metrics
-
-## Totals
-
 | Kind | Files | Lines | Words | Bytes |
 | --- | ---: | ---: | ---: | ---: |
 | prompt | 103 | 21487 | 150294 | 1134186 |
@@ -35,5 +31,5 @@ uv run python tools\workflow-quality\measure_workflow_costs.py --root . --format
 
 ## Next Baselines
 
-- Add artifact-cost baselines from a copied or locally available downstream sample set such as `F:\AI_WORK\jx-skills`.
+- Add artifact-cost baselines from a locally copied downstream sample project, recorded as `<downstream-sample-root>` in evaluation records.
 - Add workflow-specific baselines for the first pilot workflow before changing that workflow.
