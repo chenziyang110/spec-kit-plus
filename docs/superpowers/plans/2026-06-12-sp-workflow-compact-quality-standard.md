@@ -670,15 +670,15 @@ pytest tests/test_workflow_quality_metrics.py -q
 
 Expected: all tests pass.
 
-- [ ] **Step 3: Run the existing skill-flow map tests**
+- [ ] **Step 3: Run the existing workflow template alignment tests**
 
 Run:
 
 ```powershell
-pytest tests/test_skill_flow_maps.py -q
+pytest tests/test_alignment_templates.py -q
 ```
 
-Expected: all tests pass. The workflow-quality docs and tool should not affect skill-flow maps.
+Expected: all tests pass. The workflow-quality docs and tool should not affect workflow template alignment.
 
 - [ ] **Step 4: Commit**
 
@@ -814,7 +814,7 @@ git commit -m "docs: link workflow compact quality standard"
 Run:
 
 ```powershell
-pytest tests/test_workflow_quality_metrics.py tests/test_skill_flow_maps.py -q
+pytest tests/test_workflow_quality_metrics.py tests/test_alignment_templates.py -q
 ```
 
 Expected: all tests pass.
