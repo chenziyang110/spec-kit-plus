@@ -9,6 +9,11 @@ SHARED_COGNITION_PARTIALS = (
     "templates/command-partials/common/context-loading-gradient.md",
     "templates/command-partials/common/planning-context-loading-gradient.md",
 )
+SHARED_COGNITION_GUIDANCE_SURFACES = (
+    *SHARED_COGNITION_PARTIALS,
+    "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+)
 COGNITION_INTAKE_COMMANDS = (
     "discussion.md",
     "specify.md",
@@ -172,6 +177,25 @@ def test_shared_project_cognition_partials_assign_semantic_normalization_to_agen
             assert term in content, f"{path} missing agent semantic normalization rule: {term}"
 
 
+def test_shared_cognition_guidance_explains_agent_normalization_diagnostic() -> None:
+    required_terms = (
+        "agent_normalization",
+        "required=true",
+        "write_semantic_intake_from_alias_catalog",
+        "omitted",
+        "required=false",
+        "cjk or mixed cjk/ascii",
+        "positive raw lexical matches",
+        "agent still owns translation",
+        "not a route decision",
+    )
+
+    for path in SHARED_COGNITION_GUIDANCE_SURFACES:
+        content = _compact(_read(path).lower())
+        for term in required_terms:
+            assert term in content, f"{path} missing agent_normalization diagnostic term: {term}"
+
+
 def test_shared_project_cognition_partials_include_canonical_query_plan_skeleton() -> None:
     required_skeleton_terms = (
         '"raw_query"',
@@ -232,6 +256,23 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
         content = read_template(f"templates/commands/{name}").lower()
         for term in required_terms:
             assert term in content, f"{name} missing shared cognition intake term {term}"
+
+
+def test_cognition_workflows_preserve_direct_agent_normalization_guidance() -> None:
+    required_terms = (
+        "agent_normalization",
+        "write_semantic_intake_from_alias_catalog",
+        "omitted",
+        "required=false",
+        "cjk or mixed cjk/ascii",
+        "positive raw lexical matches",
+        "agent still owns translation",
+    )
+
+    for name in COGNITION_INTAKE_COMMANDS:
+        content = read_template(f"templates/commands/{name}").lower()
+        for term in required_terms:
+            assert term in content, f"{name} missing direct agent_normalization guidance term: {term}"
 
 
 def test_map_update_preserves_semantic_intake_classification_without_user_intent_query() -> None:

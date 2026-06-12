@@ -1371,6 +1371,22 @@ def test_docs_document_runtime_atlas_refresh_scope_and_workbench_boundaries() ->
     assert "`build-handbook.md` - compatibility/export build/change view" in handbook_lowered
 
 
+def test_docs_explain_agent_normalization_as_agent_semantic_not_cli_tool_routing() -> None:
+    required_paths = (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    )
+
+    for path in required_paths:
+        content = _read_project_file(path).lower()
+        assert "agent_normalization" in content, path
+        excerpt = _extract_matching_lines(content, "agent_normalization", context=3)
+        assert "agent" in excerpt and "semantic" in excerpt, path
+        assert "cli" in excerpt and "tool" in excerpt, path
+        assert "not a route decision" in excerpt, path
+
+
 def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
     strict_surfaces = {
         "project cognition gate": _extract_matching_lines(

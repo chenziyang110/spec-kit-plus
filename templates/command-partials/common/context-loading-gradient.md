@@ -36,14 +36,25 @@ Inspect `concept_candidates`, select task-relevant existing project concepts in
 
 ### Agent-Owned Semantic Normalization
 
-Agent-owned semantic normalization is mandatory. The raw lexicon ranking is only a bootstrap
-for retrieving the alias catalog and candidate universe; it is not the route decision.
-If raw `concept_candidates` are all `score=0`, or the user uses mixed-language or CJK text,
-do not stop at the raw score. Extract embedded project terms such as command names,
-UI labels, file stems, state names, adapter names, and skill or package identifiers
-from the user's wording and the alias catalog. Put those translated terms into `normalized_query`,
-`alias_interpretations`, `intent_facets`, `expanded_queries`, and
-`repository_search_terms`, then select or reject concepts by facet coverage.
+Agent-owned semantic normalization is mandatory. The raw lexicon ranking and
+`agent_normalization` are only bootstrap signals for retrieving the alias catalog
+and candidate universe; they are not route decisions. Raw lexicon ranking is only a bootstrap. Treat
+`agent_normalization.required=true` as a non-intelligent CLI reminder to write
+`semantic_intake` from the alias catalog (action:
+write_semantic_intake_from_alias_catalog). If `agent_normalization` is omitted,
+`omitted => required=false`: treat it as `required=false`; omission does not make raw lexical ranking
+authoritative. If raw `concept_candidates` are all `score=0`, or the prompt is
+localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or
+CJK text, do not stop at the raw score. CJK or mixed CJK/ASCII input still
+requires agent normalization even when positive raw lexical matches exist
+because embedded project tokens do not translate the surrounding user language.
+Extract embedded project terms such as command names, UI labels, file stems,
+state names, adapter names, and skill or package identifiers from the user's
+wording and the alias catalog. The agent still owns translation;
+`agent_normalization` is advisory guidance, not a route decision. Put those
+translated terms into `normalized_query`, `alias_interpretations`,
+`intent_facets`, `expanded_queries`, and `repository_search_terms`, then select
+or reject concepts by facet coverage.
 
 Carry `lexicon_generation_id` into the `query_plan` so `project-cognition query`
 can detect generation drift. The `query_plan` should include

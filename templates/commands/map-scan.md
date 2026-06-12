@@ -371,9 +371,19 @@ If project-relevant evidence cannot be classified, the scan must remain blocked 
   names, symptoms, and domain vocabulary that maintainers naturally use when
   asking for work.
 - Record these signals so downstream agent-owned semantic normalization can
-  extract embedded project terms when raw lexicon ranking is only a bootstrap,
-  all candidates are `score=0`, or user prompts contain mixed-language or CJK
-  text.
+  extract embedded project terms when raw lexicon ranking and
+  `agent_normalization` are only bootstrap signals, all candidates are
+  `score=0`, or user prompts are localized, mixed-language, CJK, colloquial,
+  symptom-first, or mixed-language or CJK text. If
+  `agent_normalization.required=true`, treat it as a non-intelligent CLI
+  reminder to write `semantic_intake` from the alias catalog (action:
+  write_semantic_intake_from_alias_catalog). If `agent_normalization` is
+  omitted, treat it as `required=false`; omission does not make raw lexical
+  ranking authoritative. CJK or mixed CJK/ASCII input still requires agent
+  normalization even when positive raw lexical matches exist because embedded
+  project tokens do not translate the surrounding user language. The agent still
+  owns translation; `agent_normalization` is advisory guidance, not a route
+  decision.
 - Attach domain ownership evidence to each retrieval signal, including owning
   paths, modules, generated surfaces, workflow artifacts, tests, and supporting
   evidence rows.
