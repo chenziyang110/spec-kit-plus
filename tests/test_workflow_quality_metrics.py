@@ -25,16 +25,23 @@ def load_module():
 
 
 def test_importlib_loader_without_sys_modules_registration():
-    module = load_module()
-
-    assert module.count_words("sp-discussion Truth Pass 质量") == 6
+    prior_module = sys.modules.pop("measure_workflow_costs", None)
+    try:
+        assert "measure_workflow_costs" not in sys.modules
+        module = load_module()
+        assert "measure_workflow_costs" not in sys.modules
+        assert module.count_words("sp-discussion Truth Pass 质量") == 6
+    finally:
+        if prior_module is not None:
+            sys.modules["measure_workflow_costs"] = prior_module
 
 
 def test_measure_file_counts_path_kind_lines_words_and_bytes(tmp_path):
     module = load_module()
     target = tmp_path / "nested" / "sample.txt"
+    content = "hello world\nsecond line\n"
     target.parent.mkdir()
-    target.write_text("hello world\nsecond line\n", encoding="utf-8")
+    target.write_text(content, encoding="utf-8")
 
     metric = module.measure_file(tmp_path, target, "prompt")
 
@@ -42,7 +49,7 @@ def test_measure_file_counts_path_kind_lines_words_and_bytes(tmp_path):
     assert metric.kind == "prompt"
     assert metric.lines == 2
     assert metric.words == 4
-    assert metric.bytes == 24
+    assert metric.bytes == len(content.encode("utf-8"))
 
 
 def test_summarize_groups_metrics_by_kind_and_sorts_files():
@@ -81,15 +88,17 @@ def test_render_markdown_includes_title_and_prompt_row():
     assert "| prompt | 1 | 2 | 3 | 4 |" in markdown
 
 
-def test_main_invalid_root_exits_nonzero_with_clear_message(monkeypatch):
+def test_main_invalid_root_exits_nonzero_with_clear_message(monkeypatch, tmp_path):
     module = load_module()
+    missing_root = tmp_path / "missing-root"
+    assert not missing_root.exists()
     monkeypatch.setattr(
         sys,
         "argv",
         [
             "measure_workflow_costs.py",
             "--root",
-            "does-not-exist",
+            str(missing_root),
             "--format",
             "json",
         ],
