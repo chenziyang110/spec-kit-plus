@@ -124,7 +124,20 @@ Add:
 
 ```text
 project-cognition compass --intent <intent> --query "<user prompt>" --format json
+project-cognition compass --intent <intent> --query "<user prompt>" --semantic-intake-file <path> --format json
+project-cognition compass --intent <intent> --query-plan-file <path> --format json
 ```
+
+`--query` alone is a mechanical draft mode. It can tokenize, rank, suppress
+broad fallbacks, infer low-confidence mechanical facets, and return
+`agent_normalization` when semantic intake is required. It must not claim full
+facet coverage from raw text alone.
+
+`--semantic-intake-file` and `--query-plan-file` are the precision modes. They
+let the agent provide explicit `semantic_intake`, `intent_facets`,
+`negative_constraints`, `alias_interpretations`, selected or rejected concepts,
+and concept decisions. The coverage gate can only be strict against agent-owned
+facets when one of these richer inputs is present.
 
 Optional expansion:
 
@@ -151,7 +164,11 @@ Recommended default shape:
 ```json
 {
   "readiness": "review",
+  "compass_state": "usable_with_review",
   "mode": "compass",
+  "active_generation_id": "GEN-20260610T112843.959253900Z",
+  "candidate_universe_version": 1,
+  "query_fingerprint": "qf-7d4b...",
   "summary": "Route first-pass evidence across provider/model switch and UI readability lanes.",
   "intent_facets": [
     {
@@ -192,6 +209,10 @@ Recommended default shape:
       ]
     }
   ],
+  "minimal_live_reads": [
+    "desktop/src/components/controls/ModelSelector.tsx",
+    "src/server/ws/handler.ts"
+  ],
   "coverage_diagnostics": [
     {
       "kind": "broad_fallback_suppressed",
@@ -202,15 +223,23 @@ Recommended default shape:
   ],
   "expansion_ref": {
     "id": "exp-20260615-example",
-    "available_sections": [
-      "related_paths",
-      "raw_candidates",
-      "coverage_gaps",
-      "graph_neighbors"
-    ]
+    "active_generation_id": "GEN-20260610T112843.959253900Z",
+    "candidate_universe_version": 1,
+    "query_fingerprint": "qf-7d4b...",
+    "available_sections": {
+      "related_paths": { "state": "available", "estimated_items": 42 },
+      "raw_candidates": { "state": "available", "estimated_items": 120 },
+      "coverage_gaps": { "state": "available", "estimated_items": 3 },
+      "graph_neighbors": { "state": "available", "estimated_items": 18 }
+    },
+    "stale_behavior": "expand must return stale_expansion if the active generation, candidate universe version, or query fingerprint no longer matches"
   }
 }
 ```
+
+`minimal_live_reads` is the top-level deduped, ordered union of lane
+`first_pass_paths`. Existing generated workflows can consume this field without
+losing the richer per-path reasons inside each lane.
 
 ## Output Budgets
 
@@ -290,15 +319,24 @@ Stored large detail that should not be printed by default.
 ```json
 {
   "id": "exp-20260615-example",
+  "active_generation_id": "GEN-20260610T112843.959253900Z",
+  "candidate_universe_version": 1,
+  "query_fingerprint": "qf-7d4b...",
   "sections": {
-    "related_paths": "available",
-    "raw_candidates": "available",
-    "coverage_gaps": "available",
-    "graph_neighbors": "available"
+    "related_paths": { "state": "available", "estimated_items": 42 },
+    "raw_candidates": { "state": "available", "estimated_items": 120 },
+    "coverage_gaps": { "state": "available", "estimated_items": 3 },
+    "graph_neighbors": { "state": "available", "estimated_items": 18 }
   },
   "storage": ".specify/project-cognition/workbench/expansions/exp-20260615-example.json"
 }
 ```
+
+`expand` must validate the bundle before returning a section. If
+`active_generation_id`, `candidate_universe_version`, or `query_fingerprint`
+does not match the current runtime state or request context, it returns a
+structured `stale_expansion` response with a rerun-compass recovery action
+instead of serving stale route material.
 
 ## Candidate Classification
 
@@ -326,6 +364,12 @@ A candidate becomes a coverage diagnostic when it is:
 Coverage diagnostics can lower confidence, request expansion, or recommend map
 maintenance after live evidence work. They cannot be primary route candidates.
 
+Broad fallback suppression is structural, not title-text based. The runtime must
+classify fallback material from typed metadata such as node type, attrs,
+coverage relation, path-count thresholds, or explicit fallback provenance. It
+must not rely on matching a display title such as `Coverage paths not in existing
+nodes`.
+
 ### Expansion Candidate Criteria
 
 A candidate becomes expansion-only when it may matter but is not needed for the
@@ -339,7 +383,14 @@ first-pass route, such as:
 
 ## Coverage Gate
 
-Every compass packet must account for the agent's current intent facets.
+Every compass packet must account for the best available facet set.
+
+- In mechanical draft mode (`--query` only), facets are low-confidence
+  `mechanical_query_facets` derived from raw terms, aliases, and match signals.
+- In precision mode (`--semantic-intake-file` or `--query-plan-file`), facets
+  come from agent-owned `semantic_intake.intent_facets` and concept decisions.
+- The runtime must label which source was used, so workflows know whether the
+  packet is a draft route or a semantic-intake-backed route.
 
 Valid coverage states:
 
@@ -380,29 +431,54 @@ Rules:
 
 ## Readiness Semantics
 
-`compass` should preserve existing project-cognition readiness values:
+`compass` must preserve the current project-cognition runtime readiness values:
 
-- `ready`: compass packet is usable as first evidence route.
+- `query_ready`: compass packet is usable as a first evidence route.
 - `review`: use the packet, but inspect only first-pass reads until evidence
   proves or rejects the route.
-- `ambiguous`: return the competing lanes and a bounded clarification question.
-- `needs_update`: report map maintenance guidance, but still include safe
-  first-pass live reads when available.
 - `needs_rebuild`: reserve for missing, unusable, schema-invalid, or
   rebuild-required baselines.
 - `blocked`: report the runtime blocker and do not imply route confidence.
+- `unsupported_runtime`: report the unsupported runtime and do not create route
+  confidence.
+
+Compass-specific guidance belongs in `compass_state` and
+`recommended_next_action`, not in new readiness values. Recommended
+`compass_state` values:
+
+- `usable`
+- `usable_with_review`
+- `needs_semantic_intake`
+- `needs_expansion_before_fix_claim`
+- `needs_user_clarification`
+- `stale_expansion`
+- `blocked`
 
 ## Localized And Symptom-First Input
 
 For CJK, mixed-language, colloquial, and symptom-first prompts:
 
-- The CLI should set a mechanical `agent_normalization_required` signal when
+- The CLI should reuse the existing `agent_normalization` object shape when
   appropriate.
 - The CLI should not invent translations or synthetic concepts.
 - The compass packet may include project vocabulary hints and first-pass live
   search terms.
 - The agent still writes or carries semantic interpretation before making source
   behavior claims.
+
+Recommended shape:
+
+```json
+{
+  "agent_normalization": {
+    "required": true,
+    "reason": "raw_terms_did_not_match_project_aliases",
+    "triggers": ["cjk_or_mixed_language_query"],
+    "action": "write_semantic_intake_from_alias_catalog",
+    "reminder": "Translate user language into project vocabulary before fix claims."
+  }
+}
+```
 
 ## Example: Desktop Model Switch Failure
 
@@ -447,6 +523,13 @@ Runtime:
 - `tools/project-cognition/internal/store/store.go`
 - runtime tests under `tools/project-cognition/internal/query` and
   `tools/project-cognition/internal/cli`
+- CLI help and command-surface tests for the hard-coded `project-cognition`
+  command list
+- release and install compatibility surfaces for the standalone
+  `project-cognition` binary
+- launcher/runtime compatibility tests that verify generated
+  `{{specify-subcmd:project-cognition ...}}` placeholders can render `compass`
+  and `expand` invocations through the pinned binary
 
 Workflow surfaces:
 
@@ -460,8 +543,14 @@ Workflow surfaces:
 
 Integration and docs:
 
+- `src/specify_cli/project_cognition_runtime.py`
+- `src/specify_cli/launcher.py`
 - `src/specify_cli/integrations/base.py`
 - relevant integration rendering tests
+- `.github/workflows/release.yml`
+- `.github/workflows/release-project-cognition.yml`
+- `tools/project-cognition/install.sh`
+- `tools/project-cognition/install.ps1`
 - `README.md`
 - `PROJECT-HANDBOOK.md`
 
@@ -470,15 +559,23 @@ Integration and docs:
 Runtime tests should cover:
 
 - `compass` returns a compact packet for a focused query.
+- `compass --query` marks mechanical facet coverage as draft quality.
+- `compass --semantic-intake-file` and `compass --query-plan-file` use
+  agent-owned facets for strict coverage accounting.
 - broad fallback nodes are suppressed from `evidence_lanes`.
 - broad fallback nodes appear as `coverage_diagnostics`.
+- broad fallback suppression uses typed metadata or structural provenance, not
+  display-title matching.
 - first-pass paths are budgeted while uncovered facets remain visible.
 - CJK or mixed-language prompts set agent-normalization diagnostics without
   synthetic translation.
 - `expansion_ref` points to stored sections for raw candidates and related
   paths.
 - `expand` returns the requested section without requiring chat-level raw dumps.
+- stale or missing expansion bundles return structured recovery guidance.
 - `readiness=review` preserves first-pass routes and coverage diagnostics.
+- current readiness values stay `query_ready`, `review`, `blocked`,
+  `needs_rebuild`, or `unsupported_runtime`.
 
 Workflow/template tests should cover:
 
@@ -489,6 +586,8 @@ Workflow/template tests should cover:
 - coverage diagnostics are not route candidates.
 - `sp-debug`, one planning workflow, one execution workflow, and skills-based
   integrations all preserve the same compass contract.
+- launcher rendering tests cover `project-cognition compass` and
+  `project-cognition expand`.
 
 Experience tests should cover:
 
