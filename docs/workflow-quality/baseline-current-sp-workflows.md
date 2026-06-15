@@ -21,7 +21,7 @@ uv run python tools\workflow-quality\measure_workflow_costs.py --root . --format
 
 | Kind | Files | Lines | Words | Bytes |
 | --- | ---: | ---: | ---: | ---: |
-| prompt | 103 | 21487 | 150294 | 1134186 |
+| prompt | 103 | 21739 | 156509 | 1179827 |
 
 ## Interpretation
 
