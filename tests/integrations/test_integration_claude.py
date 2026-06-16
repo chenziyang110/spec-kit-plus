@@ -2657,6 +2657,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "hard prerequisite for `/sp-implement-teams`" in lower
     assert "executioncontextbundle" in lower or "execution context bundle" in lower
     assert "project-cognition compass --intent implement" in lower
+    assert "project-cognition lexicon --intent implement" not in lower
     assert "project-cognition query --intent implement" in lower
     assert "--query-plan" in lower
     assert "{{specify-subcmd:" not in content

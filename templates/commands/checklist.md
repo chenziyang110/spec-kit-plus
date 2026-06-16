@@ -72,7 +72,7 @@ Use `execution_surface: native-subagents`.
      - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
      - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
      - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
-- `unsupported_runtime`: continue with live evidence and record that compass intake was unavailable.
+     - `unsupported_runtime`: continue with live evidence and record that compass intake was unavailable.
    - Treat this as a coverage-model check, not a file-presence check. If the returned task-local bundle cannot identify the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, route through the returned `recommended_next_action`.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
