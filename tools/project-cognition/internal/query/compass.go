@@ -171,6 +171,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			payload.ActiveGenerationID = rows[0].GenerationID
 		}
 		candidates := compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input))
+		selectedPaths := compassSelectedPrecisionPaths(input)
 		for _, candidate := range candidates {
 			if candidate.suppressed {
 				payload.CoverageDiagnostics = append(payload.CoverageDiagnostics, CoverageDiagnostic{
@@ -182,7 +183,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 				})
 			}
 		}
-		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets)
+		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets, selectedPaths)
 		payload.MinimalLiveReads = minimalReadsFromLanes(payload.EvidenceLanes)
 	}
 	payload.IntentFacets = coverageForFacets(facets, payload.EvidenceLanes, payload.CoverageDiagnostics, true)
@@ -294,14 +295,14 @@ func isBroadFallbackCandidate(candidate rankedConceptCandidate) (bool, string) {
 	return false, ""
 }
 
-func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string) []EvidenceLane {
+func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string, selectedPaths map[string]bool) []EvidenceLane {
 	lanes := make([]EvidenceLane, 0, maxCompassLanes)
 	readBudget := map[string]bool{}
 	for _, candidate := range candidates {
 		if candidate.suppressed || candidate.ranked.score <= 0 {
 			continue
 		}
-		paths := firstPassPaths(candidate.ranked, readBudget)
+		paths := firstPassPaths(candidate.ranked, readBudget, selectedPaths)
 		if len(paths) == 0 {
 			continue
 		}
@@ -386,6 +387,22 @@ func compassCandidateTerms(input CompassInput, terms, facets []string) []string 
 	return uniqueStrings(values)
 }
 
+func compassSelectedPrecisionPaths(input CompassInput) map[string]bool {
+	if !compassUsesPrecisionInput(input) {
+		return nil
+	}
+	plan := NormalizePlan(input.Plan)
+	paths := append([]string{}, plan.Paths...)
+	for _, decision := range compassSelectedConceptDecisions(plan) {
+		paths = append(paths, decision.Paths...)
+	}
+	selected := map[string]bool{}
+	for _, path := range normalizePaths(paths) {
+		selected[path] = true
+	}
+	return selected
+}
+
 func compassSelectedConceptDecisions(plan Plan) []ConceptDecision {
 	out := []ConceptDecision{}
 	for _, decision := range plan.ConceptDecisions {
@@ -459,8 +476,8 @@ func compassMechanicalFacets(query string, terms []string) []string {
 	return uniqueStrings(facets)
 }
 
-func firstPassPaths(candidate rankedConceptCandidate, readBudget map[string]bool) []FirstPassPath {
-	paths := normalizePaths(candidate.paths)
+func firstPassPaths(candidate rankedConceptCandidate, readBudget map[string]bool, selectedPaths map[string]bool) []FirstPassPath {
+	paths := prioritizeCompassSelectedPaths(normalizePaths(candidate.paths), selectedPaths)
 	out := make([]FirstPassPath, 0, len(paths))
 	for _, path := range paths {
 		if readBudget[path] {
@@ -480,6 +497,24 @@ func firstPassPaths(candidate rankedConceptCandidate, readBudget map[string]bool
 		}
 	}
 	return out
+}
+
+func prioritizeCompassSelectedPaths(paths []string, selectedPaths map[string]bool) []string {
+	if len(selectedPaths) == 0 || len(paths) == 0 {
+		return paths
+	}
+	prioritized := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if selectedPaths[path] {
+			prioritized = append(prioritized, path)
+		}
+	}
+	for _, path := range paths {
+		if !selectedPaths[path] {
+			prioritized = append(prioritized, path)
+		}
+	}
+	return prioritized
 }
 
 func compassLaneCoversFacet(lane EvidenceLane, facet string) bool {

@@ -291,6 +291,46 @@ func TestCompassQueryPlanSelectedDecisionPathSelectsOnlySelectedLane(t *testing.
 	}
 }
 
+func TestCompassQueryPlanPrioritizesSelectedPathInsideLaneBudget(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassWidePrecisionPathGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent:    "debug",
+		Query:     "unmapped request",
+		InputMode: "query_plan",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-compass-wide-paths",
+			ConceptDecisions: []ConceptDecision{
+				{
+					ConceptID:     "concept:GEN-compass-wide-paths:N-wide-owner",
+					Decision:      "selected",
+					CoveredFacets: []string{"wide selected path"},
+					MatchSources:  []string{"agent_selected_path"},
+					Confidence:    "high",
+					Paths:         []string{"src/wide/path-07.ts"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !hasString(payload.MinimalLiveReads, "src/wide/path-07.ts") {
+		t.Fatalf("MinimalLiveReads = %#v, want selected path inside lane budget", payload.MinimalLiveReads)
+	}
+	if len(payload.EvidenceLanes) != 1 {
+		t.Fatalf("EvidenceLanes = %#v, want one selected lane", payload.EvidenceLanes)
+	}
+	if got := len(payload.EvidenceLanes[0].FirstPassPaths); got > maxCompassPathsPerLane {
+		t.Fatalf("FirstPassPaths count = %d, want <= %d", got, maxCompassPathsPerLane)
+	}
+	if len(payload.MinimalLiveReads) > maxCompassReads {
+		t.Fatalf("MinimalLiveReads count = %d, want <= %d", len(payload.MinimalLiveReads), maxCompassReads)
+	}
+}
+
 func TestCompassQueryPlanFingerprintIncludesPrecisionPaths(t *testing.T) {
 	base := CompassInput{
 		Intent:    "debug",
@@ -548,6 +588,49 @@ func seedCompassPrecisionDecisionPathGraph(t *testing.T, paths rt.Paths) {
 			{ID: "P-selected", Path: "src/selected/only.ts", NodeID: "N-selected", Relation: "owns", Confidence: "verified", EvidenceID: "E-selected"},
 			{ID: "P-rejected", Path: "src/rejected/only.ts", NodeID: "N-rejected", Relation: "owns", Confidence: "verified", EvidenceID: "E-rejected"},
 		},
+	})
+}
+
+func seedCompassWidePrecisionPathGraph(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	evidence := make([]store.EvidenceImport, 0, 7)
+	pathIndex := make([]store.PathIndexImport, 0, 7)
+	for index := 1; index <= 7; index++ {
+		id := "wide-0" + string(rune('0'+index))
+		path := "src/wide/path-0" + string(rune('0'+index)) + ".ts"
+		evidence = append(evidence, store.EvidenceImport{
+			ID:          "E-" + id,
+			SourceKind:  "source",
+			SourcePath:  path,
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-" + id,
+		})
+		pathIndex = append(pathIndex, store.PathIndexImport{
+			ID:         "P-" + id,
+			Path:       path,
+			NodeID:     "N-wide-owner",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-" + id,
+		})
+	}
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-compass-wide-paths",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence:     evidence,
+		Nodes: []store.NodeImport{
+			{
+				ID: "N-wide-owner", Type: "capability", Title: "Wide Precision Owner", Confidence: "verified", EvidenceIDs: []string{"E-wide-01", "E-wide-02", "E-wide-03", "E-wide-04", "E-wide-05", "E-wide-06", "E-wide-07"},
+				Attrs: map[string]any{
+					"aliases": []any{"wide precision owner"},
+					"owner":   "wide-owner",
+					"domain":  "wide-domain",
+				},
+			},
+		},
+		PathIndex: pathIndex,
 	})
 }
 
