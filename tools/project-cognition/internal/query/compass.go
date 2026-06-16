@@ -229,7 +229,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		if len(rows) > 0 && payload.ActiveGenerationID == "" {
 			payload.ActiveGenerationID = rows[0].GenerationID
 		}
-		candidates = compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input))
+		candidates = compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input), compassPrecisionConceptFilter(input))
 		selectedPaths := compassSelectedPrecisionPaths(input)
 		for _, candidate := range candidates {
 			if candidate.suppressed {
@@ -380,9 +380,25 @@ func compassFacets(input CompassInput, terms []string) ([]string, string) {
 	}
 }
 
-func compassCandidates(rows []store.ConceptCandidateRow, terms []string, precision bool) []compassCandidate {
+type compassConceptFilter struct {
+	selected map[string]bool
+	rejected map[string]bool
+}
+
+func (filter compassConceptFilter) accepts(conceptID string) bool {
+	if filter.rejected[conceptID] {
+		return false
+	}
+	return len(filter.selected) == 0 || filter.selected[conceptID]
+}
+
+func compassCandidates(rows []store.ConceptCandidateRow, terms []string, precision bool, filter compassConceptFilter) []compassCandidate {
 	candidates := make([]compassCandidate, 0, len(rows))
 	for _, row := range rows {
+		conceptID := "concept:" + row.GenerationID + ":" + row.NodeID
+		if !filter.accepts(conceptID) {
+			continue
+		}
 		ranked := newRankedConceptCandidate(row)
 		ranked.score, ranked.matchedTerms, ranked.colloquialMatches = scoreConceptCandidate(ranked, terms)
 		if precision {
@@ -396,7 +412,7 @@ func compassCandidates(rows []store.ConceptCandidateRow, terms []string, precisi
 		}
 		candidates = append(candidates, compassCandidate{
 			ranked:     ranked,
-			conceptID:  "concept:" + row.GenerationID + ":" + row.NodeID,
+			conceptID:  conceptID,
 			suppressed: suppressed,
 			reason:     reason,
 		})
@@ -577,6 +593,32 @@ func compassSelectedPrecisionPaths(input CompassInput) map[string]bool {
 		selected[path] = true
 	}
 	return selected
+}
+
+func compassPrecisionConceptFilter(input CompassInput) compassConceptFilter {
+	if normalizedCompassInputMode(input.InputMode) != compassInputModeQueryPlan {
+		return compassConceptFilter{}
+	}
+	plan := NormalizePlan(input.Plan)
+	filter := compassConceptFilter{
+		selected: map[string]bool{},
+		rejected: map[string]bool{},
+	}
+	for _, conceptID := range plan.SelectedConcepts {
+		filter.selected[conceptID] = true
+	}
+	for _, conceptID := range plan.RejectedConcepts {
+		filter.rejected[conceptID] = true
+	}
+	for _, decision := range plan.ConceptDecisions {
+		switch strings.ToLower(strings.TrimSpace(decision.Decision)) {
+		case "selected":
+			filter.selected[decision.ConceptID] = true
+		case "rejected":
+			filter.rejected[decision.ConceptID] = true
+		}
+	}
+	return filter
 }
 
 func compassSelectedConceptDecisions(plan Plan) []ConceptDecision {

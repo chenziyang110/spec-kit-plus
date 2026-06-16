@@ -289,6 +289,44 @@ func TestCompassQueryPlanSelectedDecisionPathSelectsOnlySelectedLane(t *testing.
 	if compassLaneTitleContains(payload.EvidenceLanes, "Rejected Precision Owner") {
 		t.Fatalf("EvidenceLanes = %#v, want rejected decision lane excluded", payload.EvidenceLanes)
 	}
+	if compassLaneTitleContains(payload.EvidenceLanes, "Unrelated Precision Owner") {
+		t.Fatalf("EvidenceLanes = %#v, want unrelated raw-query lane excluded when selected concepts exist", payload.EvidenceLanes)
+	}
+}
+
+func TestCompassQueryPlanRejectedConceptHardFilterSuppressesRawQueryMatch(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassPrecisionDecisionPathGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent:    "debug",
+		Query:     "rejected-only capability",
+		InputMode: "query_plan",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-compass-precision-paths",
+			RejectedConcepts:    []string{"concept:GEN-compass-precision-paths:N-rejected"},
+			ConceptDecisions: []ConceptDecision{
+				{
+					ConceptID:     "concept:GEN-compass-precision-paths:N-rejected",
+					Decision:      "rejected",
+					CoveredFacets: []string{"rejected-only capability"},
+					MatchSources:  []string{"raw_query"},
+					Confidence:    "high",
+					Paths:         []string{"src/rejected/only.ts"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if compassLaneTitleContains(payload.EvidenceLanes, "Rejected Precision Owner") {
+		t.Fatalf("EvidenceLanes = %#v, want rejected raw-query lane excluded", payload.EvidenceLanes)
+	}
+	if hasString(payload.MinimalLiveReads, "src/rejected/only.ts") {
+		t.Fatalf("MinimalLiveReads = %#v, want rejected raw-query path excluded", payload.MinimalLiveReads)
+	}
 }
 
 func TestCompassQueryPlanPrioritizesSelectedPathInsideLaneBudget(t *testing.T) {
@@ -565,6 +603,7 @@ func seedCompassPrecisionDecisionPathGraph(t *testing.T, paths rt.Paths) {
 		Evidence: []store.EvidenceImport{
 			{ID: "E-selected", SourceKind: "source", SourcePath: "src/selected/only.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-selected"},
 			{ID: "E-rejected", SourceKind: "source", SourcePath: "src/rejected/only.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-rejected"},
+			{ID: "E-unrelated", SourceKind: "source", SourcePath: "src/unrelated/only.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-unrelated"},
 		},
 		Nodes: []store.NodeImport{
 			{
@@ -583,10 +622,19 @@ func seedCompassPrecisionDecisionPathGraph(t *testing.T, paths rt.Paths) {
 					"domain":  "rejected-domain",
 				},
 			},
+			{
+				ID: "N-unrelated", Type: "capability", Title: "Unrelated Precision Owner", Confidence: "verified", EvidenceIDs: []string{"E-unrelated"},
+				Attrs: map[string]any{
+					"aliases": []any{"unmapped request"},
+					"owner":   "unrelated-owner",
+					"domain":  "unrelated-domain",
+				},
+			},
 		},
 		PathIndex: []store.PathIndexImport{
 			{ID: "P-selected", Path: "src/selected/only.ts", NodeID: "N-selected", Relation: "owns", Confidence: "verified", EvidenceID: "E-selected"},
 			{ID: "P-rejected", Path: "src/rejected/only.ts", NodeID: "N-rejected", Relation: "owns", Confidence: "verified", EvidenceID: "E-rejected"},
+			{ID: "P-unrelated", Path: "src/unrelated/only.ts", NodeID: "N-unrelated", Relation: "owns", Confidence: "verified", EvidenceID: "E-unrelated"},
 		},
 	})
 }
