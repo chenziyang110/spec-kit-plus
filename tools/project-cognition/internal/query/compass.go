@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
@@ -62,7 +63,9 @@ type CompassPayload struct {
 	AgentNormalization       *AgentNormalizationDiagnostic `json:"agent_normalization,omitempty"`
 	Warnings                 []string                      `json:"warnings,omitempty"`
 	RepairHints              []string                      `json:"repair_hints,omitempty"`
+	Errors                   []string                      `json:"errors"`
 	RecommendedNextAction    string                        `json:"recommended_next_action"`
+	RecoveryAction           string                        `json:"recovery_action,omitempty"`
 	BaselineKind             string                        `json:"baseline_kind,omitempty"`
 }
 
@@ -173,8 +176,8 @@ func looksLikeSemanticIntake(payload map[string]json.RawMessage) bool {
 }
 
 func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
-	if err := blockSplitBrainBaseline(paths); err != nil {
-		return CompassPayload{}, err
+	if agreement, exists := runtimegate.CheckExisting(paths); exists && agreement.Status != "ok" {
+		return blockedAgreementCompassPayload(input, agreement), nil
 	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
@@ -198,6 +201,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		CoverageDiagnostics:      []CoverageDiagnostic{},
 		Warnings:                 input.PlanDiagnostics.Warnings,
 		RepairHints:              input.PlanDiagnostics.RepairHints,
+		Errors:                   []string{},
 		RecommendedNextAction:    status.RecommendedNextAction,
 		BaselineKind:             status.BaselineKind,
 	}
@@ -269,6 +273,50 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		}
 	}
 	return payload, nil
+}
+
+func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Agreement) CompassPayload {
+	recommendedAction := firstNonEmpty(agreement.RecommendedNextAction, agreement.RecoveryAction)
+	recoveryAction := firstNonEmpty(agreement.RecoveryAction, agreement.RecommendedNextAction)
+	readiness := agreement.Readiness
+	if recommendedAction == "run_map_scan_build" || recoveryAction == "run_map_scan_build" {
+		readiness = rt.NeedsRebuildReadiness
+		recoveryAction = "run_map_scan_build"
+		recommendedAction = "run_map_scan_build"
+	}
+	if readiness == "" {
+		readiness = rt.BlockedReadiness
+	}
+	_, facetSource := compassFacets(input, termsFrom(strings.Join([]string{input.Intent, input.Query}, " "), 30))
+	return CompassPayload{
+		Readiness:                readiness,
+		CompassState:             compassStateBlocked,
+		Mode:                     compassMode,
+		FacetSource:              facetSource,
+		ActiveGenerationID:       firstNonEmpty(agreement.StatusGenerationID, agreement.DBActiveGenerationID),
+		CandidateUniverseVersion: CandidateUniverseVersion,
+		QueryFingerprint:         compassFingerprint(input),
+		Summary:                  "Compass packet is blocked until project cognition baseline is rebuilt.",
+		IntentFacets:             []CompassIntentFacet{},
+		EvidenceLanes:            []EvidenceLane{},
+		MinimalLiveReads:         []string{},
+		CoverageDiagnostics:      []CoverageDiagnostic{},
+		Warnings:                 input.PlanDiagnostics.Warnings,
+		RepairHints:              input.PlanDiagnostics.RepairHints,
+		Errors:                   []string{},
+		RecommendedNextAction:    recommendedAction,
+		RecoveryAction:           recoveryAction,
+		BaselineKind:             firstNonEmpty(agreement.StatusBaselineKind, agreement.DBBaselineKind),
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func compassFingerprint(input CompassInput) string {

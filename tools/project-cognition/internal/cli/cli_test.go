@@ -764,6 +764,57 @@ func TestCompassCommandEmitsCompactPacket(t *testing.T) {
 	}
 }
 
+func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), `INSERT INTO metadata(key, value_json, updated_at) VALUES('schema_version', '1', CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json = '1', updated_at = CURRENT_TIMESTAMP`); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"compass", "--intent", "debug", "--query", "会话界面切模型失败 Failed to switch provider/model CLI exited during startup code 143 DeepSeek 方块 屏幕很小", "--format", "json"}, &stdout, &stderr, "test")
+
+	if code != 0 {
+		t.Fatalf("code = %d, want 0; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["mode"] != "compass" {
+		t.Fatalf("mode = %#v, payload = %#v", payload["mode"], payload)
+	}
+	if payload["compass_state"] != "blocked" {
+		t.Fatalf("compass_state = %#v, payload = %#v", payload["compass_state"], payload)
+	}
+	if payload["readiness"] != rt.NeedsRebuildReadiness {
+		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
+	}
+	for _, key := range []string{"minimal_live_reads", "evidence_lanes", "coverage_diagnostics", "errors"} {
+		values, ok := payload[key].([]any)
+		if !ok || len(values) != 0 {
+			t.Fatalf("%s = %#v, want empty array; payload = %#v", key, payload[key], payload)
+		}
+	}
+	if payload["recommended_next_action"] != "run_map_scan_build" {
+		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
+	}
+	if payload["recovery_action"] != "run_map_scan_build" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
+	}
+}
+
 func TestExpandCommandReturnsStoredSection(t *testing.T) {
 	setupReadyMinimalCLIRuntime(t)
 
