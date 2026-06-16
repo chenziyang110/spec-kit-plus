@@ -69,9 +69,7 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 	if bundle.SectionPayloads == nil {
 		bundle.SectionPayloads = map[string]any{}
 	}
-	if len(bundle.Sections) == 0 {
-		bundle.Sections = expansionSectionMeta(bundle.SectionPayloads)
-	}
+	bundle.Sections = expansionSectionMeta(bundle.SectionPayloads)
 	if err := os.MkdirAll(filepath.Dir(bundlePath), 0o755); err != nil {
 		return ExpansionRef{}, fmt.Errorf("create expansion bundle dir: %w", err)
 	}
@@ -101,13 +99,14 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	if section == "" {
 		section = defaultExpansionSection
 	}
-	bundlePath, err := expansionBundlePath(paths, strings.TrimSpace(input.ID))
+	requestedID := strings.TrimSpace(input.ID)
+	bundlePath, err := expansionBundlePath(paths, requestedID)
 	if err != nil {
-		return missingExpansionPayload(status, strings.TrimSpace(input.ID), section), nil
+		return missingExpansionPayload(status, requestedID, section), nil
 	}
 	data, err := os.ReadFile(bundlePath)
 	if errors.Is(err, os.ErrNotExist) {
-		return missingExpansionPayload(status, strings.TrimSpace(input.ID), section), nil
+		return missingExpansionPayload(status, requestedID, section), nil
 	}
 	if err != nil {
 		return ExpandPayload{}, fmt.Errorf("read expansion bundle: %w", err)
@@ -116,11 +115,8 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		return ExpandPayload{}, fmt.Errorf("decode expansion bundle: %w", err)
 	}
-	available := bundle.Sections
-	if len(available) == 0 {
-		available = expansionSectionMeta(bundle.SectionPayloads)
-	}
-	if expansionBundleStale(status, bundle) {
+	available := expansionSectionMeta(bundle.SectionPayloads)
+	if expansionBundleStale(status, bundle, requestedID) {
 		return staleExpansionPayload(bundle, available), nil
 	}
 	payload, ok := bundle.SectionPayloads[section]
@@ -206,8 +202,15 @@ func missingExpansionPayload(status rt.Status, id, section string) ExpandPayload
 	}
 }
 
-func expansionBundleStale(status rt.Status, bundle ExpansionBundle) bool {
+func expansionBundleStale(status rt.Status, bundle ExpansionBundle, requestedID string) bool {
+	requestedID = strings.TrimSpace(requestedID)
 	if strings.TrimSpace(bundle.QueryFingerprint) == "" {
+		return true
+	}
+	if bundle.ID != requestedID {
+		return true
+	}
+	if bundle.QueryFingerprint != strings.TrimPrefix(requestedID, "exp-") {
 		return true
 	}
 	if bundle.ActiveGenerationID != status.ActiveGenerationID {

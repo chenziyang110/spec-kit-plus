@@ -200,6 +200,55 @@ func TestExpandReturnsStaleExpansionForGenerationMismatch(t *testing.T) {
 	}
 }
 
+func TestExpansionStaleDetectsBundleIdentityMismatch(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	compass, err := Compass(paths, CompassInput{Intent: "debug", Query: "runtimeOverride"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundlePath, err := expansionBundlePath(paths, compass.ExpansionRef.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(bundlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bundle ExpansionBundle
+	if err := json.Unmarshal(data, &bundle); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("id mismatch", func(t *testing.T) {
+		edited := bundle
+		edited.ID = "exp-other"
+		writeExpansionBundleFileForTest(t, bundlePath, edited)
+
+		payload, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if payload.Status != "stale_expansion" {
+			t.Fatalf("Status = %q, want stale_expansion: %#v", payload.Status, payload)
+		}
+	})
+
+	t.Run("fingerprint mismatch", func(t *testing.T) {
+		edited := bundle
+		edited.QueryFingerprint = "different"
+		writeExpansionBundleFileForTest(t, bundlePath, edited)
+
+		payload, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if payload.Status != "stale_expansion" {
+			t.Fatalf("Status = %q, want stale_expansion: %#v", payload.Status, payload)
+		}
+	})
+}
+
 func TestExpandReturnsMissingExpansionRecovery(t *testing.T) {
 	paths := queryTestPaths(t)
 
@@ -259,6 +308,45 @@ func TestExpandReturnsMissingSectionWithAvailableSections(t *testing.T) {
 	}
 }
 
+func TestSectionMetadataReflectsPayloadSections(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	compass, err := Compass(paths, CompassInput{Intent: "debug", Query: "runtimeOverride"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundlePath, err := expansionBundlePath(paths, compass.ExpansionRef.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(bundlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bundle ExpansionBundle
+	if err := json.Unmarshal(data, &bundle); err != nil {
+		t.Fatal(err)
+	}
+	bundle.Sections = map[string]ExpansionSectionMeta{
+		"stale_advertised": {State: "available", EstimatedItems: 99},
+	}
+	writeExpansionBundleFileForTest(t, bundlePath, bundle)
+
+	payload, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID, Section: "stale_advertised"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Status != "missing_section" {
+		t.Fatalf("Status = %q, want missing_section: %#v", payload.Status, payload)
+	}
+	if _, ok := payload.AvailableSections["stale_advertised"]; ok {
+		t.Fatalf("AvailableSections = %#v, want stale_advertised omitted", payload.AvailableSections)
+	}
+	if _, ok := payload.AvailableSections["related_paths"]; !ok {
+		t.Fatalf("AvailableSections = %#v, want related_paths derived from payloads", payload.AvailableSections)
+	}
+}
+
 func assertNoExpansionBundles(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	expansionDir := filepath.Join(paths.RuntimeDir, "workbench", "expansions")
@@ -268,5 +356,16 @@ func assertNoExpansionBundles(t *testing.T, paths rt.Paths) {
 	}
 	if len(matches) != 0 {
 		t.Fatalf("expansion bundles = %#v, want none", matches)
+	}
+}
+
+func writeExpansionBundleFileForTest(t *testing.T, path string, bundle ExpansionBundle) {
+	t.Helper()
+	data, err := json.MarshalIndent(bundle, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
