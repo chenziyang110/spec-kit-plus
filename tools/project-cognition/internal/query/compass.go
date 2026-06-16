@@ -194,15 +194,21 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 }
 
 func compassFingerprint(input CompassInput) string {
-	normalized := strings.Join(normalizeStrings([]string{
+	mode := normalizedCompassInputMode(input.InputMode)
+	components := []string{
 		strings.ToLower(strings.TrimSpace(input.Intent)),
-		strings.ToLower(strings.TrimSpace(input.InputMode)),
+		mode,
 		strings.ToLower(strings.TrimSpace(input.Query)),
-		strings.ToLower(strings.TrimSpace(input.Plan.NormalizedQuery)),
-		strings.Join(input.Plan.IntentFacets, "\x00"),
-		strings.ToLower(strings.TrimSpace(input.Plan.SemanticIntake.NormalizedQuery)),
-		strings.Join(input.Plan.SemanticIntake.IntentFacets, "\x00"),
-	}), "\x00")
+	}
+	if mode == compassInputModeQueryPlan || mode == compassInputModeSemanticIntake {
+		components = append(components,
+			strings.ToLower(strings.TrimSpace(input.Plan.NormalizedQuery)),
+			strings.Join(input.Plan.IntentFacets, "\x00"),
+			strings.ToLower(strings.TrimSpace(input.Plan.SemanticIntake.NormalizedQuery)),
+			strings.Join(input.Plan.SemanticIntake.IntentFacets, "\x00"),
+		)
+	}
+	normalized := strings.Join(normalizeStrings(components), "\x00")
 	sum := sha256.Sum256([]byte(normalized))
 	return hex.EncodeToString(sum[:12])
 }
@@ -343,6 +349,10 @@ func coverageForFacets(facets []string, lanes []EvidenceLane, diagnostics []Cove
 func compassCandidateTerms(input CompassInput, terms, facets []string) []string {
 	values := append([]string{}, terms...)
 	values = append(values, facets...)
+	mode := normalizedCompassInputMode(input.InputMode)
+	if mode == compassInputModeQuery {
+		return uniqueStrings(values)
+	}
 	values = append(values, termsFrom(input.Plan.NormalizedQuery, 20)...)
 	values = append(values, input.Plan.IntentFacets...)
 	values = append(values, input.Plan.RepositorySearchTerms...)

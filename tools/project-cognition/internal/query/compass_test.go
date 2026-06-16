@@ -131,6 +131,38 @@ func TestCompassPlainQueryModeIgnoresPlanFacets(t *testing.T) {
 	}
 }
 
+func TestCompassPlainQueryModeDoesNotScoreWithStalePlanTerms(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "debug",
+		Query:  "unmatched raw phrase",
+		Plan: Plan{
+			NormalizedQuery:       "small viewport font fallback",
+			IntentFacets:          []string{"small viewport", "font fallback"},
+			RepositorySearchTerms: []string{"desktop/src/styles/global.css"},
+			SemanticIntake: SemanticIntake{
+				NormalizedQuery: "desktop ui readability",
+				IntentFacets:    []string{"square glyphs", "window minimum size"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if compassLaneTitleContains(payload.EvidenceLanes, "Desktop UI Readability") {
+		t.Fatalf("plain query mode selected stale-plan lane: %#v", payload.EvidenceLanes)
+	}
+	if hasString(payload.MinimalLiveReads, "desktop/src/styles/global.css") {
+		t.Fatalf("MinimalLiveReads = %#v, want no stale plan path", payload.MinimalLiveReads)
+	}
+	if len(payload.EvidenceLanes) != 0 {
+		t.Fatalf("EvidenceLanes = %#v, want no match from stale plan terms", payload.EvidenceLanes)
+	}
+}
+
 func TestCompassQueryPlanModeWithCoveredFacetsIsUsable(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedCompassModelSwitchGraph(t, paths)
