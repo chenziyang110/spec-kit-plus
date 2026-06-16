@@ -783,7 +783,7 @@ func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, ac
 		},
 		WorkflowRequirement:   "use_project_cognition_then_minimal_live_reads",
 		PathAdoption:          map[string]any{"paths": plan.Paths},
-		Readiness:             "ambiguous",
+		Readiness:             rt.ReviewReadiness,
 		RecommendedNextAction: "rerun_project_cognition_lexicon",
 		BaselineKind:          status.BaselineKind,
 		Intent:                input.Intent,

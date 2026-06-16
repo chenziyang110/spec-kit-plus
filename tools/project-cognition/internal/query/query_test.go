@@ -2157,8 +2157,8 @@ func TestRunReportsLexiconGenerationMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if payload.Readiness != "ambiguous" {
-		t.Fatalf("Readiness = %q, want ambiguous", payload.Readiness)
+	if payload.Readiness != rt.ReviewReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.ReviewReadiness)
 	}
 	if payload.RecommendedNextAction != "rerun_project_cognition_lexicon" {
 		t.Fatalf("RecommendedNextAction = %q", payload.RecommendedNextAction)
