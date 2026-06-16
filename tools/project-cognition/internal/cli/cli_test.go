@@ -695,6 +695,159 @@ func TestLexiconCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	}
 }
 
+func TestRootHelpListsCompassAndExpand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, command := range []string{"compass", "expand"} {
+		if !strings.Contains(output, command) {
+			t.Fatalf("root help = %q, want %s", output, command)
+		}
+	}
+}
+
+func TestCompassHelpListsPrecisionFlags(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	_ = Run([]string{"compass", "--help"}, &stdout, &stderr, "test")
+	output := stdout.String() + stderr.String()
+	for _, flagName := range []string{"-query", "-semantic-intake-file", "-query-plan-file"} {
+		if !strings.Contains(output, flagName) {
+			t.Fatalf("compass help = %q, want %s", output, flagName)
+		}
+	}
+}
+
+func TestExpandHelpListsSectionFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	_ = Run([]string{"expand", "--help"}, &stdout, &stderr, "test")
+	output := stdout.String() + stderr.String()
+	if !strings.Contains(output, "-section") {
+		t.Fatalf("expand help = %q, want -section", output)
+	}
+}
+
+func TestCompassCommandEmitsCompactPacket(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"compass", "--intent", "debug", "--query", "App GUI", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["mode"] != "compass" {
+		t.Fatalf("mode = %#v, payload = %#v", payload["mode"], payload)
+	}
+	if _, ok := payload["minimal_live_reads"].([]any); !ok {
+		t.Fatalf("minimal_live_reads = %#v, want array", payload["minimal_live_reads"])
+	}
+	lanes, ok := payload["evidence_lanes"].([]any)
+	if !ok {
+		t.Fatalf("evidence_lanes = %#v, want array", payload["evidence_lanes"])
+	}
+	if len(lanes) > 0 {
+		if _, ok := payload["expansion_ref"].(map[string]any); !ok {
+			t.Fatalf("expansion_ref missing for lanes; payload = %#v", payload)
+		}
+	}
+}
+
+func TestExpandCommandReturnsStoredSection(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+
+	var compassStdout, compassStderr bytes.Buffer
+	compassCode := Run([]string{"compass", "--intent", "debug", "--query", "App GUI", "--format", "json"}, &compassStdout, &compassStderr, "test")
+	if compassCode != 0 {
+		t.Fatalf("compass code = %d stderr=%s stdout=%s", compassCode, compassStderr.String(), compassStdout.String())
+	}
+	var compassPayload map[string]any
+	if err := json.Unmarshal(compassStdout.Bytes(), &compassPayload); err != nil {
+		t.Fatal(err)
+	}
+	expansionRef, ok := compassPayload["expansion_ref"].(map[string]any)
+	if !ok {
+		t.Fatalf("expansion_ref missing from compass payload = %#v", compassPayload)
+	}
+	expansionID, ok := expansionRef["id"].(string)
+	if !ok || expansionID == "" {
+		t.Fatalf("expansion_ref.id = %#v", expansionRef["id"])
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"expand", "--id", expansionID, "--section", "related_paths", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "ok" {
+		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
+	}
+	if payload["section"] != "related_paths" {
+		t.Fatalf("section = %#v, payload = %#v", payload["section"], payload)
+	}
+}
+
+func TestCompassCommandAcceptsSemanticIntakeFileShapes(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	cases := []struct {
+		name    string
+		payload string
+	}{
+		{
+			name: "direct",
+			payload: `{
+				"workflow_intent": "debug",
+				"normalized_query": "App GUI",
+				"intent_facets": ["App GUI"],
+				"alias_interpretations": [{"alias": "App", "meaning": "application UI"}]
+			}`,
+		},
+		{
+			name: "wrapper",
+			payload: `{
+				"semantic_intake": {
+					"workflow_intent": "debug",
+					"normalized_query": "App GUI",
+					"intent_facets": ["App GUI"],
+					"alias_interpretations": [{"alias": "GUI", "meaning": "graphical interface"}]
+				}
+			}`,
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(root, tt.name+"-semantic-intake.json")
+			if err := os.WriteFile(path, []byte(tt.payload), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"compass", "--semantic-intake-file", path, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["mode"] != "compass" {
+				t.Fatalf("mode = %#v, payload = %#v", payload["mode"], payload)
+			}
+			if payload["facet_source"] != "semantic_intake.intent_facets" {
+				t.Fatalf("facet_source = %#v, payload = %#v", payload["facet_source"], payload)
+			}
+		})
+	}
+}
+
 func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	paths, err := rt.ResolvePaths(root)

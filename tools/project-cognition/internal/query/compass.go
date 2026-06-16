@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"sort"
 	"strconv"
@@ -116,6 +118,51 @@ type compassCandidate struct {
 	conceptID  string
 	suppressed bool
 	reason     string
+}
+
+func ParseSemanticIntakeFile(path string) (SemanticIntake, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return SemanticIntake{}, fmt.Errorf("read semantic intake file: %w", err)
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return SemanticIntake{}, fmt.Errorf("decode semantic intake file: %w", err)
+	}
+	if len(payload) == 0 {
+		return SemanticIntake{}, fmt.Errorf("semantic intake file has unsupported shape: expected semantic intake object or semantic_intake wrapper")
+	}
+	if raw, ok := payload["semantic_intake"]; ok {
+		var intake SemanticIntake
+		if err := json.Unmarshal(raw, &intake); err != nil {
+			return SemanticIntake{}, fmt.Errorf("decode semantic_intake: %w", err)
+		}
+		return normalizeSemanticIntake(intake), nil
+	}
+	if !looksLikeSemanticIntake(payload) {
+		return SemanticIntake{}, fmt.Errorf("semantic intake file has unsupported shape: expected semantic intake object or semantic_intake wrapper")
+	}
+	var intake SemanticIntake
+	if err := json.Unmarshal(data, &intake); err != nil {
+		return SemanticIntake{}, fmt.Errorf("decode semantic intake object: %w", err)
+	}
+	return normalizeSemanticIntake(intake), nil
+}
+
+func looksLikeSemanticIntake(payload map[string]json.RawMessage) bool {
+	for _, key := range []string{
+		"workflow_intent",
+		"normalized_query",
+		"intent_facets",
+		"negative_constraints",
+		"alias_interpretations",
+		"open_semantic_questions",
+	} {
+		if _, ok := payload[key]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {

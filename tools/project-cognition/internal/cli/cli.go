@@ -84,6 +84,10 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return lexiconCommand(args[1:], stdout, stderr, paths)
 	case "query":
 		return queryCommand(args[1:], stdout, stderr, paths)
+	case "compass":
+		return compassCommand(args[1:], stdout, stderr, paths)
+	case "expand":
+		return expandCommand(args[1:], stdout, stderr, paths)
 	case "discover":
 		return discoverCommand(args[1:], stdout, stderr)
 	case "read":
@@ -101,7 +105,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -607,6 +611,75 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 		return 1
 	}
 	payload, err := query.Run(paths, query.QueryInput{Intent: *intent, Query: *text, ExpandedQuery: *expanded, Paths: pathHints, Plan: plan, PlanDiagnostics: diagnostics})
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("compass", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	intent := fs.String("intent", "", "Intent")
+	text := fs.String("query", "", "Query text")
+	semanticIntakeFile := fs.String("semantic-intake-file", "", "Semantic intake file")
+	planFile := fs.String("query-plan-file", "", "Query plan file")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	inputMode := "query"
+	var plan query.Plan
+	var diagnostics query.PlanDiagnostics
+	if *planFile != "" {
+		var err error
+		plan, diagnostics, err = query.ParsePlanWithDiagnostics("", *planFile)
+		if err != nil {
+			var planErr *query.PlanParseError
+			if errors.As(err, &planErr) {
+				fmt.Fprintf(stderr, "project-cognition: query plan diagnostics require repair\n")
+				return writeErrorJSON(stdout, map[string]any{
+					"status":         "error",
+					"readiness":      rt.BlockedReadiness,
+					"errors":         planErr.Errors,
+					"warnings":       planErr.Warnings,
+					"repair_hints":   planErr.RepairHints,
+					"expected_shape": planErr.ExpectedShape,
+				})
+			}
+			fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+			return 1
+		}
+		inputMode = "query_plan"
+	} else if *semanticIntakeFile != "" {
+		intake, err := query.ParseSemanticIntakeFile(*semanticIntakeFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+			return 1
+		}
+		plan.SemanticIntake = intake
+		inputMode = "semantic_intake"
+	}
+
+	payload, err := query.Compass(paths, query.CompassInput{
+		Intent:          *intent,
+		Query:           *text,
+		Plan:            plan,
+		PlanDiagnostics: diagnostics,
+		InputMode:       inputMode,
+	})
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func expandCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("expand", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	id := fs.String("id", "", "Expansion id")
+	section := fs.String("section", "related_paths", "Expansion section")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	payload, err := query.Expand(paths, query.ExpandInput{ID: *id, Section: *section})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 
