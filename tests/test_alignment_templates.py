@@ -133,7 +133,12 @@ def test_worker_prompts_report_inline_update_payload_evidence() -> None:
 
 def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
     assert _launcher_compass(intent) in content
-    assert _launcher_query(intent) in content
+    assert "project-cognition query" in content
+    assert "--query-plan" in content
+    assert (
+        "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
+        or "In that escalation" in content
+    )
     assert "minimal_live_reads" in content
     assert "first_pass_paths" in content
     assert "coverage_diagnostics" in content
@@ -757,7 +762,8 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "forbidden before the cognition gate" in lowered
     assert ".specify/project-cognition/status.json" in content
     assert "project-cognition compass --intent discussion" in content
-    assert "project-cognition query --intent discussion" in content
+    assert "project-cognition query --query-plan" in content
+    assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
     assert "project-cognition query --intent plan" not in content
     assert "Question Evidence Gate" in content
     assert "Turn Classifier" in content
@@ -1538,7 +1544,8 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
 
     implement = _read("templates/commands/implement.md").lower()
     assert "project-cognition compass --intent implement" in implement
-    assert "project-cognition query --intent implement" in implement
+    assert "project-cognition query --query-plan" in implement
+    assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in implement
     assert "query-plan" in implement
     assert "minimal_live_reads" in implement
     assert "build-handbook.md" not in implement
@@ -3267,7 +3274,8 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
-    assert "project-cognition query --intent plan" in lowered
+    assert "project-cognition query" in lowered
+    assert "--query-plan" in lowered
     assert "project-cognition compass --intent plan" in lowered
     assert "lexicon -> semantic_intake -> query" in lowered
     assert "query-plan" in lowered

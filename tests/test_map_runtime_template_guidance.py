@@ -40,6 +40,13 @@ def _compact(text: str) -> str:
     return " ".join(text.split())
 
 
+def _run_or_emulate_blocks(content: str) -> list[str]:
+    blocks: list[str] = []
+    for match in re.finditer(r"Run or emulate:\s*```text\n(?P<body>.*?)\n\s*```", content, re.DOTALL):
+        blocks.append(match.group("body"))
+    return blocks
+
+
 def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
     workflow_intents = {
         "fast.md": "implement",
@@ -78,7 +85,8 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
             or "lexicon -> semantic_intake -> project-cognition query" in content
         )
         assert "project-cognition query" in content
-        assert f"project-cognition query --intent {intent}" in content
+        assert "project-cognition query --query-plan" in content
+        assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
         assert "--query-plan" in content
         assert "query_plan" in content
         assert "semantic_intake" in content
@@ -108,9 +116,32 @@ def test_cognition_launchers_use_double_brace_generated_forms() -> None:
         content = read_template(f"templates/commands/{name}")
         raw_content = _read(f"templates/commands/{name}")
         assert not re.search(r"(?<!\{)\{specify-subcmd:project-cognition compass", raw_content)
-        assert not re.search(r"(?<!\{)\{specify-subcmd:project-cognition query", raw_content)
         assert "{{specify-subcmd:project-cognition compass" in content
-        assert "{{specify-subcmd:project-cognition query" in content
+
+
+def test_default_runnable_cognition_blocks_only_run_compass() -> None:
+    workflow_intents = {
+        "fast.md": "implement",
+        "quick.md": "implement",
+        "specify.md": "plan",
+        "clarify.md": "plan",
+        "deep-research.md": "research",
+        "plan.md": "plan",
+        "tasks.md": "plan",
+        "implement.md": "implement",
+        "debug.md": "debug",
+        "prd-scan.md": "research",
+    }
+
+    for name, intent in workflow_intents.items():
+        content = read_template(f"templates/commands/{name}")
+        blocks = _run_or_emulate_blocks(content)
+        assert blocks, f"{name} missing Run or emulate fenced block"
+        expected = f'{{{{specify-subcmd:project-cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
+        assert any(block.strip() == expected for block in blocks), f"{name} default runnable block must only contain compass"
+        for block in blocks:
+            assert "project-cognition query" not in block, f"{name} has advanced query in default runnable block"
+            assert "semantic_intake" not in block, f"{name} has semantic-intake guidance in default runnable block"
 
 
 def test_specify_default_intake_does_not_use_old_ready_readiness() -> None:

@@ -105,7 +105,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "Question Evidence Gate" in command_content
     assert "Cognition Advisory, Code Authority" in command_content
     assert "project-cognition compass --intent discussion" in command_content
-    assert "project-cognition query --intent discussion" in command_content
+    assert "project-cognition query --query-plan" in command_content
+    assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in command_content
     assert "--query-plan" in command_content
     assert "lexicon -> semantic_intake -> query" in command_content
     assert "semantic_intake" in command_content

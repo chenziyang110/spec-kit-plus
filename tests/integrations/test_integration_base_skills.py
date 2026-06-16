@@ -142,7 +142,8 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "Question Evidence Gate" in skill_content
     assert "Cognition Advisory, Code Authority" in skill_content
     assert "project-cognition compass --intent discussion" in skill_content
-    assert "project-cognition query --intent discussion" in skill_content
+    assert "project-cognition query --query-plan" in skill_content
+    assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in skill_content
     assert "project-cognition query --intent plan" not in skill_content
     assert "ordinary turns append" in skill_lower
     assert "semantic checkpoints" in skill_lower
@@ -377,7 +378,7 @@ class SkillsIntegrationTests:
             assert "map-build" in content
             _assert_runtime_cognition_carry_forward(content, name)
             if name == "debug":
-                assert "project-cognition query --intent debug" in content
+                assert "project-cognition query --query-plan" in content
                 assert "debug-handbook.md" not in content
             else:
                 assert "build-handbook.md" not in content

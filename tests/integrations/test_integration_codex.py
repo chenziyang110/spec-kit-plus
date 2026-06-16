@@ -248,7 +248,8 @@ class TestCodexAutoPromote:
         assert "Question Evidence Gate" in generated_discussion
         assert "Cognition Advisory, Code Authority" in generated_discussion
         assert "project-cognition compass --intent discussion" in generated_discussion
-        assert "project-cognition query --intent discussion" in generated_discussion
+        assert "project-cognition query --query-plan" in generated_discussion
+        assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in generated_discussion
         assert "project-cognition query --intent plan" not in generated_discussion
         assert "ui-interaction-discussion" in generated_discussion
         assert "senior ui and interaction designer" in generated_lower
@@ -1143,7 +1144,8 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "leave `.specify/memory/learnings/index.md`" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "compass --intent implement" in content
-    assert "query --intent implement" in content
+    assert "query --query-plan" in content
+    assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
     assert "alias catalog" in content
     assert "semantic_intake" in content
     assert "facet coverage" in content
