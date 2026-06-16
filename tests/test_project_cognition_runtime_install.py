@@ -579,7 +579,8 @@ def test_init_prefetches_project_cognition_runtime(monkeypatch, tmp_path: Path):
     assert load_project_cognition_launcher(tmp_path / "project").argv == (str(binary),)
     implement_skill = tmp_path / "project" / ".claude" / "skills" / "sp-implement" / "SKILL.md"
     content = implement_skill.read_text(encoding="utf-8")
-    assert f"{binary} lexicon --intent implement" in content
+    assert f"{binary} compass --intent implement" in content
+    assert f"{binary} lexicon --intent implement" not in content
 
 
 def test_init_runs_project_cognition_init_empty(monkeypatch, tmp_path: Path):
