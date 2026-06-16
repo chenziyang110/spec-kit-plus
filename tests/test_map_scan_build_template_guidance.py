@@ -453,5 +453,7 @@ def test_map_update_template_requires_changed_path_accounting() -> None:
     assert "every changed path must be accounted for" in lowered
     assert "ignored with reason" in lowered
     assert "partial with `minimal_live_reads`" in lowered
+    assert "provisional `path_index` and `alias_index` coverage" in lowered
+    assert "future `project-cognition compass` and alias-catalog routing" in lowered
     assert "must not write `.cognitionignore`-excluded paths into update records" in lowered
     assert "reserved rebuild reason" in lowered

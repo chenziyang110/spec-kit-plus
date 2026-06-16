@@ -139,8 +139,9 @@ judgment in an established Spec Kit Plus repository:
   command to type, write `{{invoke:map-update}}`.
 - If changed paths are missing from project cognition `path_index`, let
   `sp-map-update` classify the gap first. Adoptable paths get provisional
-  coverage, uncertain paths return `minimal_live_reads`, and ordinary
-  existing-baseline gaps stay in `{{invoke:map-update}}`.
+  `path_index` plus `alias_index` coverage, uncertain paths return
+  `minimal_live_reads`, and ordinary existing-baseline gaps stay in
+  `{{invoke:map-update}}`.
 - Treat repository boundary accounting as separate from graph evidence. `.cognitionignore` exclusions and automatic exclusions explain why a path is outside graph-facing coverage; they do not become project cognition evidence.
 - For `map-update`, changed-path accounting must explain every candidate path before readiness can be considered useful.
 - If the freshness state is `support_drift`, stop and tell the user to resolve

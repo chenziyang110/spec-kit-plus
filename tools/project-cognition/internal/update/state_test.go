@@ -10,6 +10,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/boundary"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
@@ -387,6 +388,38 @@ func TestRunUpdatePayloadFileAcceptsVerificationEvidenceAlias(t *testing.T) {
 	}
 	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
 		t.Fatalf("AdoptedPaths = %#v, want payload alias path adoption", payload.AdoptedPaths)
+	}
+}
+
+func TestRunUpdateAdoptedPathIsCompassDiscoverable(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/semantic-router.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"semantic routing"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+
+	compass, err := query.Compass(paths, query.CompassInput{
+		Intent: "implement",
+		Query:  "semantic router",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsString(compass.MinimalLiveReads, "src/semantic-router.go") {
+		t.Fatalf("MinimalLiveReads = %#v, want adopted semantic router path", compass.MinimalLiveReads)
 	}
 }
 

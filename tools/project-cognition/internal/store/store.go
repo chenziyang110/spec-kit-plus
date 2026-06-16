@@ -2,16 +2,20 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	_ "modernc.org/sqlite"
 
@@ -605,6 +609,9 @@ func (s *Store) RefreshPathCoverage(ctx context.Context, refresh PathCoverageRef
 	if err != nil {
 		return PathCoverageRefreshResult{}, fmt.Errorf("upsert path coverage: %w", err)
 	}
+	if err := s.upsertWorkflowPathAliases(ctx, generationID, nodeID, path, "", "", nil, evidenceID, confidence); err != nil {
+		return PathCoverageRefreshResult{}, err
+	}
 	return PathCoverageRefreshResult{EvidenceID: evidenceID, PathIndexID: pathIndexID}, nil
 }
 
@@ -639,14 +646,18 @@ func (s *Store) AdoptWorkflowPath(ctx context.Context, adoption WorkflowPathAdop
 	if err != nil {
 		return "", fmt.Errorf("upsert adopted workflow node: %w", err)
 	}
-	if _, err := s.RefreshPathCoverage(ctx, PathCoverageRefresh{
+	coverage, err := s.RefreshPathCoverage(ctx, PathCoverageRefresh{
 		UpdateID:   updateID,
 		Path:       path,
 		NodeID:     nodeID,
 		Relation:   "workflow_changed",
 		Confidence: "verified",
 		Reason:     adoption.Reason,
-	}); err != nil {
+	})
+	if err != nil {
+		return "", err
+	}
+	if err := s.upsertWorkflowPathAliases(ctx, generationID, nodeID, path, title, adoption.Workflow, adoption.BehaviorSurfaces, coverage.EvidenceID, "verified"); err != nil {
 		return "", err
 	}
 	return nodeID, nil
@@ -662,6 +673,139 @@ func workflowPathTitle(path string) string {
 		return trimmed
 	}
 	return base
+}
+
+func (s *Store) upsertWorkflowPathAliases(ctx context.Context, generationID, nodeID, rawPath, title, workflow string, behaviorSurfaces []string, evidenceID, confidence string) error {
+	seeds := []workflowAliasSeed{}
+	if title = strings.TrimSpace(title); title != "" {
+		seeds = append(seeds, workflowAliasSeed{alias: title, source: "workflow_update_title", confidence: confidence, evidenceID: evidenceID})
+	}
+	if workflow = strings.TrimSpace(workflow); workflow != "" {
+		seeds = append(seeds, workflowAliasSeed{alias: workflow, source: "workflow_update_workflow", confidence: "medium", evidenceID: evidenceID})
+	}
+	if nodeID = strings.TrimSpace(nodeID); nodeID != "" {
+		seeds = append(seeds, workflowAliasSeed{alias: nodeID, source: "workflow_update_node_id", confidence: "high"})
+	}
+	for _, alias := range workflowPathAliasValues(rawPath) {
+		seeds = append(seeds, workflowAliasSeed{alias: alias, source: "workflow_update_path", confidence: confidence, evidenceID: evidenceID, language: "code"})
+	}
+	for _, surface := range behaviorSurfaces {
+		seeds = append(seeds, workflowAliasSeed{alias: surface, source: "workflow_update_surface", confidence: "medium", evidenceID: evidenceID})
+	}
+	for _, seed := range compactWorkflowAliasSeeds(seeds) {
+		if err := s.upsertWorkflowAliasSeed(ctx, generationID, nodeID, seed); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type workflowAliasSeed struct {
+	alias      string
+	source     string
+	confidence string
+	evidenceID string
+	language   string
+}
+
+func (s *Store) upsertWorkflowAliasSeed(ctx context.Context, generationID, nodeID string, seed workflowAliasSeed) error {
+	alias := strings.TrimSpace(seed.alias)
+	normalized := normalizeWorkflowAlias(alias)
+	if alias == "" || normalized == "" || workflowAliasPathExcluded(alias) {
+		return nil
+	}
+	source := defaultString(seed.source, "workflow_update")
+	confidence := defaultString(seed.confidence, "partial")
+	language := defaultString(seed.language, "unknown")
+	id := workflowAliasID(generationID, nodeID, normalized, source)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) VALUES(?, ?, ?, ?, 'node', ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET alias=excluded.alias, normalized_alias=excluded.normalized_alias, language=excluded.language, confidence=excluded.confidence, evidence_id=excluded.evidence_id`, id, generationID, alias, normalized, nodeID, language, source, confidence, seed.evidenceID)
+	if err != nil {
+		return fmt.Errorf("upsert workflow alias %s for %s: %w", alias, nodeID, err)
+	}
+	return nil
+}
+
+func workflowAliasID(generationID, nodeID, normalizedAlias, source string) string {
+	sum := sha256.Sum256([]byte(strings.Join([]string{generationID, "node", nodeID, normalizedAlias, source}, "\x00")))
+	return "ALIAS-update-" + stableIDPart(nodeID) + "-" + hex.EncodeToString(sum[:])[:16]
+}
+
+func workflowPathAliasValues(rawPath string) []string {
+	normalizedPath := filepath.ToSlash(strings.TrimSpace(rawPath))
+	normalizedPath = strings.TrimPrefix(normalizedPath, "./")
+	if normalizedPath == "" || workflowAliasPathExcluded(normalizedPath) {
+		return []string{}
+	}
+	values := []string{normalizedPath}
+	withoutExt := strings.TrimSuffix(normalizedPath, path.Ext(normalizedPath))
+	for _, part := range strings.FieldsFunc(withoutExt, func(r rune) bool {
+		return r == '/' || r == '\\' || r == '-' || r == '_' || r == '.'
+	}) {
+		part = strings.TrimSpace(part)
+		if len(part) >= 3 {
+			values = append(values, part)
+		}
+	}
+	if base := strings.TrimSuffix(path.Base(normalizedPath), path.Ext(normalizedPath)); len(base) >= 3 {
+		values = append(values, base)
+	}
+	return uniqueWorkflowAliases(values)
+}
+
+func compactWorkflowAliasSeeds(seeds []workflowAliasSeed) []workflowAliasSeed {
+	out := []workflowAliasSeed{}
+	seen := map[string]bool{}
+	for _, seed := range seeds {
+		normalized := normalizeWorkflowAlias(seed.alias)
+		if normalized == "" || workflowAliasPathExcluded(seed.alias) {
+			continue
+		}
+		key := seed.source + "\x00" + normalized
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, seed)
+	}
+	return out
+}
+
+func uniqueWorkflowAliases(values []string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, value := range values {
+		normalized := normalizeWorkflowAlias(value)
+		if normalized == "" || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		out = append(out, strings.TrimSpace(value))
+	}
+	return out
+}
+
+func normalizeWorkflowAlias(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	previousSplit := true
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' || r == '/' || r == '.' {
+			b.WriteRune(r)
+			previousSplit = false
+			continue
+		}
+		if !previousSplit {
+			b.WriteByte(' ')
+			previousSplit = true
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func workflowAliasPathExcluded(value string) bool {
+	normalizedPath := filepath.ToSlash(strings.TrimSpace(value))
+	normalizedPath = strings.TrimPrefix(normalizedPath, "./")
+	return normalizedPath == ".specify" || strings.HasPrefix(normalizedPath, ".specify/")
 }
 
 func (s *Store) pathIndexIDForPath(ctx context.Context, generationID string, path string) (string, error) {

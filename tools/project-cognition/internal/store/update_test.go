@@ -106,6 +106,84 @@ func TestRefreshPathCoverageUpdatesIndexedPathEvidence(t *testing.T) {
 	}
 }
 
+func TestRefreshPathCoverageWritesPathAliases(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-path-alias")); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := st.RefreshPathCoverage(ctx, PathCoverageRefresh{
+		UpdateID:   "upd-path-alias",
+		Path:       "src/new-feature.go",
+		NodeID:     "N-app",
+		Relation:   "owns",
+		Confidence: "verified",
+		Reason:     "workflow-finalize",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	row := activeCandidateRow(t, st, ctx, "N-app")
+	if !conceptAliasContains(row.Aliases, "new-feature", "workflow_update_path") {
+		t.Fatalf("aliases = %#v, want workflow_update_path alias for new-feature", row.Aliases)
+	}
+	if !conceptAliasContains(row.Aliases, "src/new-feature.go", "workflow_update_path") {
+		t.Fatalf("aliases = %#v, want workflow_update_path alias for full path", row.Aliases)
+	}
+}
+
+func TestAdoptWorkflowPathWritesAliasRows(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-adopt-alias")); err != nil {
+		t.Fatal(err)
+	}
+
+	nodeID, err := st.AdoptWorkflowPath(ctx, WorkflowPathAdoption{
+		UpdateID:         "upd-adopt-alias",
+		Path:             "src/semantic-router.go",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"semantic routing"},
+		Verification:     []map[string]string{{"command": "go test ./...", "result": "passed"}},
+		Reason:           "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	row := activeCandidateRow(t, st, ctx, nodeID)
+	if !conceptAliasContains(row.Aliases, "semantic-router.go", "workflow_update_title") {
+		t.Fatalf("aliases = %#v, want workflow_update_title alias", row.Aliases)
+	}
+	if !conceptAliasContains(row.Aliases, "semantic-router", "workflow_update_path") {
+		t.Fatalf("aliases = %#v, want workflow_update_path alias", row.Aliases)
+	}
+	if !conceptAliasContains(row.Aliases, "sp-implement", "workflow_update_workflow") {
+		t.Fatalf("aliases = %#v, want workflow_update_workflow alias", row.Aliases)
+	}
+	if !conceptAliasContains(row.Aliases, "semantic routing", "workflow_update_surface") {
+		t.Fatalf("aliases = %#v, want workflow_update_surface alias", row.Aliases)
+	}
+}
+
+func activeCandidateRow(t *testing.T, st *Store, ctx context.Context, nodeID string) ConceptCandidateRow {
+	t.Helper()
+	rows, err := st.AllActiveConceptCandidateRows(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if row.NodeID == nodeID {
+			return row
+		}
+	}
+	t.Fatalf("active candidate rows = %#v, want %s", rows, nodeID)
+	return ConceptCandidateRow{}
+}
+
 func assertJSONStrings(t *testing.T, raw string, want []string) {
 	t.Helper()
 	var got []string
