@@ -133,6 +133,9 @@ func ParseSemanticIntakeFile(path string) (SemanticIntake, error) {
 		return SemanticIntake{}, fmt.Errorf("semantic intake file has unsupported shape: expected semantic intake object or semantic_intake wrapper")
 	}
 	if raw, ok := payload["semantic_intake"]; ok {
+		if !isJSONObject(raw) {
+			return SemanticIntake{}, fmt.Errorf("semantic_intake has unsupported shape: expected object")
+		}
 		var intake SemanticIntake
 		if err := json.Unmarshal(raw, &intake); err != nil {
 			return SemanticIntake{}, fmt.Errorf("decode semantic_intake: %w", err)
@@ -147,6 +150,10 @@ func ParseSemanticIntakeFile(path string) (SemanticIntake, error) {
 		return SemanticIntake{}, fmt.Errorf("decode semantic intake object: %w", err)
 	}
 	return normalizeSemanticIntake(intake), nil
+}
+
+func isJSONObject(raw json.RawMessage) bool {
+	return strings.HasPrefix(strings.TrimSpace(string(raw)), "{")
 }
 
 func looksLikeSemanticIntake(payload map[string]json.RawMessage) bool {

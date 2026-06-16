@@ -711,7 +711,10 @@ func TestRootHelpListsCompassAndExpand(t *testing.T) {
 
 func TestCompassHelpListsPrecisionFlags(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	_ = Run([]string{"compass", "--help"}, &stdout, &stderr, "test")
+	code := Run([]string{"compass", "--help"}, &stdout, &stderr, "test")
+	if code != 2 {
+		t.Fatalf("code = %d, want 2 for flag help; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
 	output := stdout.String() + stderr.String()
 	for _, flagName := range []string{"-query", "-semantic-intake-file", "-query-plan-file"} {
 		if !strings.Contains(output, flagName) {
@@ -722,7 +725,10 @@ func TestCompassHelpListsPrecisionFlags(t *testing.T) {
 
 func TestExpandHelpListsSectionFlag(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	_ = Run([]string{"expand", "--help"}, &stdout, &stderr, "test")
+	code := Run([]string{"expand", "--help"}, &stdout, &stderr, "test")
+	if code != 2 {
+		t.Fatalf("code = %d, want 2 for flag help; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
 	output := stdout.String() + stderr.String()
 	if !strings.Contains(output, "-section") {
 		t.Fatalf("expand help = %q, want -section", output)
@@ -843,6 +849,36 @@ func TestCompassCommandAcceptsSemanticIntakeFileShapes(t *testing.T) {
 			}
 			if payload["facet_source"] != "semantic_intake.intent_facets" {
 				t.Fatalf("facet_source = %#v, payload = %#v", payload["facet_source"], payload)
+			}
+		})
+	}
+}
+
+func TestCompassCommandRejectsWrappedSemanticIntakeNonObject(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	cases := []struct {
+		name    string
+		payload string
+	}{
+		{name: "null", payload: `{"semantic_intake": null}`},
+		{name: "array", payload: `{"semantic_intake": []}`},
+		{name: "string", payload: `{"semantic_intake": "App GUI"}`},
+		{name: "number", payload: `{"semantic_intake": 42}`},
+		{name: "boolean", payload: `{"semantic_intake": true}`},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(root, tt.name+"-bad-semantic-intake.json")
+			if err := os.WriteFile(path, []byte(tt.payload), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"compass", "--semantic-intake-file", path, "--format", "json"}, &stdout, &stderr, "test")
+			if code == 0 {
+				t.Fatalf("code = 0, want non-zero for %s; stdout=%s", tt.name, stdout.String())
+			}
+			if !strings.Contains(stderr.String(), "semantic_intake has unsupported shape: expected object") {
+				t.Fatalf("stderr = %q, want semantic_intake object shape error", stderr.String())
 			}
 		})
 	}
