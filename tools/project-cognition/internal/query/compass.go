@@ -161,6 +161,8 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	if err != nil {
 		return CompassPayload{}, err
 	}
+	candidates := []compassCandidate{}
+	candidatesComputed := false
 	if st != nil {
 		defer st.Close()
 		rows, err := st.AllActiveConceptCandidateRows(context.Background())
@@ -170,7 +172,8 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		if len(rows) > 0 && payload.ActiveGenerationID == "" {
 			payload.ActiveGenerationID = rows[0].GenerationID
 		}
-		candidates := compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input))
+		candidates = compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input))
+		candidatesComputed = true
 		selectedPaths := compassSelectedPrecisionPaths(input)
 		for _, candidate := range candidates {
 			if candidate.suppressed {
@@ -191,6 +194,26 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	payload.CompassState = compassState(status, input, payload)
 	payload.RecommendedNextAction = compassRecommendedNextAction(status, payload.CompassState)
 	payload.Summary = compassSummary(payload)
+	if candidatesComputed {
+		ref, err := writeExpansionBundle(paths, ExpansionBundle{
+			ID:                       "exp-" + payload.QueryFingerprint,
+			ActiveGenerationID:       payload.ActiveGenerationID,
+			CandidateUniverseVersion: payload.CandidateUniverseVersion,
+			QueryFingerprint:         payload.QueryFingerprint,
+			Sections:                 []string{"related_paths", "raw_candidates", "coverage_gaps", "graph_neighbors"},
+			SectionPayloads: map[string]any{
+				"related_paths":   payload.MinimalLiveReads,
+				"raw_candidates":  candidatesForExpansion(candidates),
+				"coverage_gaps":   payload.CoverageDiagnostics,
+				"graph_neighbors": []map[string]any{},
+			},
+		})
+		if err != nil {
+			payload.Warnings = appendDiagnosticString(payload.Warnings, "expansion_bundle_write_failed:"+err.Error())
+		} else {
+			payload.ExpansionRef = &ref
+		}
+	}
 	return payload, nil
 }
 
@@ -336,6 +359,45 @@ func minimalReadsFromLanes(lanes []EvidenceLane) []string {
 		}
 	}
 	return reads
+}
+
+func candidatesForExpansion(candidates []compassCandidate) []map[string]any {
+	out := make([]map[string]any, 0, len(candidates))
+	for _, candidate := range candidates {
+		item := map[string]any{
+			"id":                 candidate.conceptID,
+			"title":              candidate.ranked.row.Title,
+			"node_type":          candidate.ranked.row.NodeType,
+			"score":              candidate.ranked.score,
+			"confidence":         candidate.ranked.row.Confidence,
+			"matched_terms":      append([]string{}, candidate.ranked.matchedTerms...),
+			"paths":              append([]string{}, candidate.ranked.paths...),
+			"evidence_ids":       append([]string{}, candidate.ranked.row.EvidenceIDs...),
+			"suppressed":         candidate.suppressed,
+			"suppression_reason": candidate.reason,
+		}
+		if owner := attrString(candidate.ranked.attrs, "owner"); owner != "" {
+			item["owner"] = owner
+		}
+		if domain := attrString(candidate.ranked.attrs, "domain"); domain != "" {
+			item["domain"] = domain
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func appendDiagnosticString(values []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return values
+	}
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 func coverageForFacets(facets []string, lanes []EvidenceLane, diagnostics []CoverageDiagnostic, precision bool) []CompassIntentFacet {

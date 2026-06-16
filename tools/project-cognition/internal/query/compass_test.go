@@ -69,8 +69,8 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 	if err := json.Unmarshal(data, &serialized); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
-	if _, ok := serialized["expansion_ref"]; ok {
-		t.Fatalf("serialized payload contains expansion_ref before expansion storage is wired: %s", data)
+	if _, ok := serialized["expansion_ref"]; !ok {
+		t.Fatalf("serialized payload missing expansion_ref after expansion storage was wired: %s", data)
 	}
 }
 

@@ -1,0 +1,254 @@
+package query
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+)
+
+const (
+	defaultExpansionSection             = "related_paths"
+	expansionRecommendedActionRerun     = "rerun_project_cognition_compass"
+	expansionStatusExpanded             = "expanded"
+	expansionStatusMissingExpansion     = "missing_expansion"
+	expansionStatusStaleExpansion       = "stale_expansion"
+	expansionStatusMissingSection       = "missing_section"
+	expansionCompassStateStaleExpansion = "stale_expansion"
+)
+
+var expansionIDPattern = regexp.MustCompile(`^exp-[A-Za-z0-9._-]+$`)
+
+type ExpansionBundle struct {
+	ID                       string         `json:"id"`
+	ActiveGenerationID       string         `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion int            `json:"candidate_universe_version"`
+	QueryFingerprint         string         `json:"query_fingerprint"`
+	Sections                 []string       `json:"sections"`
+	SectionPayloads          map[string]any `json:"section_payloads"`
+	CreatedAt                string         `json:"created_at"`
+}
+
+type ExpandInput struct {
+	ID      string
+	Section string
+}
+
+type ExpandPayload struct {
+	Status                   string                          `json:"status"`
+	Readiness                string                          `json:"readiness"`
+	CompassState             string                          `json:"compass_state"`
+	ID                       string                          `json:"id,omitempty"`
+	Section                  string                          `json:"section,omitempty"`
+	Data                     any                             `json:"data,omitempty"`
+	ActiveGenerationID       string                          `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion int                             `json:"candidate_universe_version,omitempty"`
+	QueryFingerprint         string                          `json:"query_fingerprint,omitempty"`
+	AvailableSections        map[string]ExpansionSectionMeta `json:"available_sections,omitempty"`
+	RecommendedNextAction    string                          `json:"recommended_next_action"`
+	Errors                   []string                        `json:"errors,omitempty"`
+	Warnings                 []string                        `json:"warnings,omitempty"`
+}
+
+func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef, error) {
+	bundlePath, err := expansionBundlePath(paths, bundle.ID)
+	if err != nil {
+		return ExpansionRef{}, err
+	}
+	if bundle.CreatedAt == "" {
+		bundle.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	if bundle.SectionPayloads == nil {
+		bundle.SectionPayloads = map[string]any{}
+	}
+	if len(bundle.Sections) == 0 {
+		bundle.Sections = sortedExpansionSections(bundle.SectionPayloads)
+	}
+	if err := os.MkdirAll(filepath.Dir(bundlePath), 0o755); err != nil {
+		return ExpansionRef{}, fmt.Errorf("create expansion bundle dir: %w", err)
+	}
+	data, err := json.MarshalIndent(bundle, "", "  ")
+	if err != nil {
+		return ExpansionRef{}, fmt.Errorf("encode expansion bundle: %w", err)
+	}
+	if err := os.WriteFile(bundlePath, append(data, '\n'), 0o644); err != nil {
+		return ExpansionRef{}, fmt.Errorf("write expansion bundle: %w", err)
+	}
+	return ExpansionRef{
+		ID:                       bundle.ID,
+		ActiveGenerationID:       bundle.ActiveGenerationID,
+		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
+		QueryFingerprint:         bundle.QueryFingerprint,
+		AvailableSections:        expansionSectionMeta(bundle.Sections, bundle.SectionPayloads),
+		StaleBehavior:            expansionRecommendedActionRerun,
+	}, nil
+}
+
+func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		return ExpandPayload{}, err
+	}
+	section := strings.TrimSpace(input.Section)
+	if section == "" {
+		section = defaultExpansionSection
+	}
+	bundlePath, err := expansionBundlePath(paths, strings.TrimSpace(input.ID))
+	if err != nil {
+		return missingExpansionPayload(status, strings.TrimSpace(input.ID), section), nil
+	}
+	data, err := os.ReadFile(bundlePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return missingExpansionPayload(status, strings.TrimSpace(input.ID), section), nil
+	}
+	if err != nil {
+		return ExpandPayload{}, fmt.Errorf("read expansion bundle: %w", err)
+	}
+	var bundle ExpansionBundle
+	if err := json.Unmarshal(data, &bundle); err != nil {
+		return ExpandPayload{}, fmt.Errorf("decode expansion bundle: %w", err)
+	}
+	available := expansionSectionMeta(bundle.Sections, bundle.SectionPayloads)
+	if expansionBundleStale(status, bundle) {
+		return staleExpansionPayload(bundle, available), nil
+	}
+	payload, ok := bundle.SectionPayloads[section]
+	if !ok {
+		return ExpandPayload{
+			Status:                   expansionStatusMissingSection,
+			Readiness:                status.Readiness,
+			CompassState:             expansionStatusMissingSection,
+			ID:                       bundle.ID,
+			Section:                  section,
+			ActiveGenerationID:       bundle.ActiveGenerationID,
+			CandidateUniverseVersion: bundle.CandidateUniverseVersion,
+			QueryFingerprint:         bundle.QueryFingerprint,
+			AvailableSections:        available,
+			RecommendedNextAction:    expansionRecommendedActionRerun,
+			Errors:                   []string{"missing_section:" + section},
+		}, nil
+	}
+	return ExpandPayload{
+		Status:                   expansionStatusExpanded,
+		Readiness:                status.Readiness,
+		CompassState:             compassStateUsableWithReview,
+		ID:                       bundle.ID,
+		Section:                  section,
+		Data:                     payload,
+		ActiveGenerationID:       bundle.ActiveGenerationID,
+		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
+		QueryFingerprint:         bundle.QueryFingerprint,
+		AvailableSections:        available,
+		RecommendedNextAction:    compassRecommendedActionUseReads,
+	}, nil
+}
+
+func expansionBundlePath(paths rt.Paths, id string) (string, error) {
+	id = strings.TrimSpace(id)
+	if !expansionIDPattern.MatchString(id) {
+		return "", fmt.Errorf("invalid expansion id %q", id)
+	}
+	dir := filepath.Join(paths.RuntimeDir, "workbench", "expansions")
+	path := filepath.Join(dir, id+".json")
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(absDir, absPath)
+	if err != nil {
+		return "", err
+	}
+	if rel == "." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("expansion path escapes runtime dir")
+	}
+	return path, nil
+}
+
+func staleExpansionPayload(bundle ExpansionBundle, available map[string]ExpansionSectionMeta) ExpandPayload {
+	return ExpandPayload{
+		Status:                   expansionStatusStaleExpansion,
+		Readiness:                rt.ReviewReadiness,
+		CompassState:             expansionCompassStateStaleExpansion,
+		ID:                       bundle.ID,
+		ActiveGenerationID:       bundle.ActiveGenerationID,
+		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
+		QueryFingerprint:         bundle.QueryFingerprint,
+		AvailableSections:        available,
+		RecommendedNextAction:    expansionRecommendedActionRerun,
+		Warnings:                 []string{"stale_expansion"},
+	}
+}
+
+func missingExpansionPayload(status rt.Status, id, section string) ExpandPayload {
+	return ExpandPayload{
+		Status:                expansionStatusMissingExpansion,
+		Readiness:             status.Readiness,
+		CompassState:          expansionStatusMissingExpansion,
+		ID:                    id,
+		Section:               section,
+		RecommendedNextAction: expansionRecommendedActionRerun,
+		Errors:                []string{"missing_expansion"},
+	}
+}
+
+func expansionBundleStale(status rt.Status, bundle ExpansionBundle) bool {
+	if strings.TrimSpace(bundle.QueryFingerprint) == "" {
+		return true
+	}
+	if bundle.ActiveGenerationID != status.ActiveGenerationID {
+		return true
+	}
+	return bundle.CandidateUniverseVersion != CandidateUniverseVersion
+}
+
+func expansionSectionMeta(sections []string, payloads map[string]any) map[string]ExpansionSectionMeta {
+	meta := map[string]ExpansionSectionMeta{}
+	for _, section := range sections {
+		if strings.TrimSpace(section) == "" {
+			continue
+		}
+		meta[section] = ExpansionSectionMeta{
+			State:          "available",
+			EstimatedItems: estimatedExpansionItems(payloads[section]),
+		}
+	}
+	return meta
+}
+
+func estimatedExpansionItems(value any) int {
+	switch typed := value.(type) {
+	case []string:
+		return len(typed)
+	case []CoverageDiagnostic:
+		return len(typed)
+	case []map[string]any:
+		return len(typed)
+	case []any:
+		return len(typed)
+	default:
+		if value == nil {
+			return 0
+		}
+		return 1
+	}
+}
+
+func sortedExpansionSections(payloads map[string]any) []string {
+	sections := make([]string, 0, len(payloads))
+	for section := range payloads {
+		sections = append(sections, section)
+	}
+	sort.Strings(sections)
+	return sections
+}
