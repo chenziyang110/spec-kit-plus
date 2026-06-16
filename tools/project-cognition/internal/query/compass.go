@@ -170,7 +170,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		if len(rows) > 0 && payload.ActiveGenerationID == "" {
 			payload.ActiveGenerationID = rows[0].GenerationID
 		}
-		candidates := compassCandidates(rows, compassCandidateTerms(input, terms, facets))
+		candidates := compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input))
 		for _, candidate := range candidates {
 			if candidate.suppressed {
 				payload.CoverageDiagnostics = append(payload.CoverageDiagnostics, CoverageDiagnostic{
@@ -228,11 +228,16 @@ func compassFacets(input CompassInput, terms []string) ([]string, string) {
 	}
 }
 
-func compassCandidates(rows []store.ConceptCandidateRow, terms []string) []compassCandidate {
+func compassCandidates(rows []store.ConceptCandidateRow, terms []string, precision bool) []compassCandidate {
 	candidates := make([]compassCandidate, 0, len(rows))
 	for _, row := range rows {
 		ranked := newRankedConceptCandidate(row)
 		ranked.score, ranked.matchedTerms, ranked.colloquialMatches = scoreConceptCandidate(ranked, terms)
+		if precision {
+			score, matched := scoreCompassPrecisionCandidate(ranked, terms)
+			ranked.score += score
+			ranked.matchedTerms = uniqueStrings(append(ranked.matchedTerms, matched...))
+		}
 		suppressed, reason := isBroadFallbackCandidate(ranked)
 		if ranked.score <= 0 {
 			continue
@@ -349,16 +354,56 @@ func coverageForFacets(facets []string, lanes []EvidenceLane, diagnostics []Cove
 func compassCandidateTerms(input CompassInput, terms, facets []string) []string {
 	values := append([]string{}, terms...)
 	values = append(values, facets...)
-	mode := normalizedCompassInputMode(input.InputMode)
-	if mode == compassInputModeQuery {
+	if !compassUsesPrecisionInput(input) {
 		return uniqueStrings(values)
 	}
-	values = append(values, termsFrom(input.Plan.NormalizedQuery, 20)...)
-	values = append(values, input.Plan.IntentFacets...)
-	values = append(values, input.Plan.RepositorySearchTerms...)
-	values = append(values, termsFrom(input.Plan.SemanticIntake.NormalizedQuery, 20)...)
-	values = append(values, input.Plan.SemanticIntake.IntentFacets...)
+	plan := NormalizePlan(input.Plan)
+	values = append(values, termsFrom(plan.NormalizedQuery, 20)...)
+	values = append(values, plan.IntentFacets...)
+	values = append(values, plan.RepositorySearchTerms...)
+	values = append(values, termsFrom(plan.SemanticIntake.NormalizedQuery, 20)...)
+	values = append(values, plan.SemanticIntake.IntentFacets...)
+	values = append(values, compassPathTerms(plan.Paths)...)
+	for _, decision := range plan.ConceptDecisions {
+		values = append(values, decision.CoveredFacets...)
+		values = append(values, decision.MatchSources...)
+		values = append(values, compassPathTerms(decision.Paths)...)
+	}
 	return uniqueStrings(values)
+}
+
+func scoreCompassPrecisionCandidate(candidate rankedConceptCandidate, terms []string) (int, []string) {
+	material := strings.ToLower(strings.Join(uniqueStrings(append(append([]string{
+		candidate.row.NodeID,
+		candidate.row.NodeType,
+		candidate.row.Title,
+		attrString(candidate.attrs, "domain"),
+		attrString(candidate.attrs, "owner"),
+	}, candidate.aliases...), candidate.paths...)), " "))
+	score := 0
+	matched := []string{}
+	for _, term := range terms {
+		if !semanticMaterialMatches(material, term) {
+			continue
+		}
+		score += 4
+		matched = appendMissingCoverage(matched, term)
+	}
+	return score, matched
+}
+
+func compassPathTerms(paths []string) []string {
+	values := []string{}
+	for _, path := range paths {
+		values = append(values, path)
+		values = append(values, termsFrom(path, 20)...)
+	}
+	return values
+}
+
+func compassUsesPrecisionInput(input CompassInput) bool {
+	mode := normalizedCompassInputMode(input.InputMode)
+	return mode == compassInputModeQueryPlan || mode == compassInputModeSemanticIntake
 }
 
 func compassMechanicalFacets(query string, terms []string) []string {

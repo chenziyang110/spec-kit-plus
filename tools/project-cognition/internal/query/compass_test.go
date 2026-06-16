@@ -163,6 +163,88 @@ func TestCompassPlainQueryModeDoesNotScoreWithStalePlanTerms(t *testing.T) {
 	}
 }
 
+func TestCompassSemanticIntakeUsesAgentOwnedFacets(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent:    "debug",
+		Query:     "切模型 failure 方块",
+		InputMode: "semantic_intake",
+		Plan: Plan{
+			SemanticIntake: SemanticIntake{
+				WorkflowIntent:      "debug",
+				NormalizedQuery:     "Investigate provider runtime override failure and desktop readability.",
+				IntentFacets:        []string{"provider runtime override", "desktop readability"},
+				NegativeConstraints: []string{"not only provider catalog metadata"},
+				AliasInterpretations: []AliasInterpretation{
+					{Alias: "切模型", Meaning: "provider runtime override"},
+					{Alias: "方块", Meaning: "desktop readability"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.FacetSource != compassFacetSourceSemanticIntake {
+		t.Fatalf("FacetSource = %q, want %q", payload.FacetSource, compassFacetSourceSemanticIntake)
+	}
+	if len(payload.IntentFacets) != 2 {
+		t.Fatalf("IntentFacets = %#v, want two semantic intake facets", payload.IntentFacets)
+	}
+	for _, want := range []string{"provider runtime override", "desktop readability"} {
+		if compassFacetMissing(payload.IntentFacets, want) {
+			t.Fatalf("IntentFacets = %#v, want %q covered", payload.IntentFacets, want)
+		}
+	}
+	if payload.CompassState != compassStateUsable {
+		t.Fatalf("CompassState = %q, want %q; facets=%#v lanes=%#v", payload.CompassState, compassStateUsable, payload.IntentFacets, payload.EvidenceLanes)
+	}
+}
+
+func TestCompassQueryPlanUsesConceptDecisionsAndPaths(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent:    "debug",
+		Query:     "runtime startup issue",
+		InputMode: "query_plan",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-compass-model-switch",
+			SelectedConcepts:    []string{"concept:GEN-compass-model-switch:N-provider-runtime"},
+			SemanticIntake: SemanticIntake{
+				IntentFacets: []string{"provider runtime override", "startup failure"},
+			},
+			ConceptDecisions: []ConceptDecision{
+				{
+					ConceptID:     "concept:GEN-compass-model-switch:N-provider-runtime",
+					Decision:      "selected",
+					CoveredFacets: []string{"provider runtime override", "startup failure"},
+					MatchSources:  []string{"semantic_intake", "alias"},
+					Confidence:    "high",
+					Paths:         []string{"src/server/ws/handler.ts"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.FacetSource != compassFacetSourceQueryPlan {
+		t.Fatalf("FacetSource = %q, want %q", payload.FacetSource, compassFacetSourceQueryPlan)
+	}
+	if !hasString(payload.MinimalLiveReads, "src/server/ws/handler.ts") {
+		t.Fatalf("MinimalLiveReads = %#v, want selected concept path", payload.MinimalLiveReads)
+	}
+	if payload.CompassState != compassStateUsable {
+		t.Fatalf("CompassState = %q, want %q; facets=%#v lanes=%#v", payload.CompassState, compassStateUsable, payload.IntentFacets, payload.EvidenceLanes)
+	}
+}
+
 func TestCompassQueryPlanModeWithCoveredFacetsIsUsable(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedCompassModelSwitchGraph(t, paths)
@@ -358,4 +440,13 @@ func compassCoveredFacetHasFirstPassRisk(facets []CompassIntentFacet) bool {
 		}
 	}
 	return false
+}
+
+func compassFacetMissing(facets []CompassIntentFacet, name string) bool {
+	for _, facet := range facets {
+		if facet.Name == name {
+			return facet.Coverage == "missing"
+		}
+	}
+	return true
 }
