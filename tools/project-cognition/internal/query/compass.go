@@ -255,6 +255,9 @@ func isBroadFallbackCandidate(candidate rankedConceptCandidate) (bool, string) {
 	if strings.EqualFold(candidate.row.NodeType, "coverage_fallback") {
 		return true, "node_type_coverage_fallback"
 	}
+	if attrBool(candidate.attrs, "coverage_fallback") {
+		return true, "attrs_coverage_fallback"
+	}
 	if provenance := attrString(candidate.attrs, "fallback_provenance"); provenance != "" {
 		return true, "fallback_provenance:" + provenance
 	}
@@ -266,11 +269,12 @@ func isBroadFallbackCandidate(candidate rankedConceptCandidate) (bool, string) {
 
 func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string) []EvidenceLane {
 	lanes := make([]EvidenceLane, 0, maxCompassLanes)
+	readBudget := map[string]bool{}
 	for _, candidate := range candidates {
 		if candidate.suppressed || candidate.ranked.score <= 0 {
 			continue
 		}
-		paths := firstPassPaths(candidate.ranked)
+		paths := firstPassPaths(candidate.ranked, readBudget)
 		if len(paths) == 0 {
 			continue
 		}
@@ -319,7 +323,7 @@ func coverageForFacets(facets []string, lanes []EvidenceLane, diagnostics []Cove
 		risk := "needs_review"
 		if len(coveredBy) > 0 {
 			coverage = "covered_for_first_pass"
-			risk = ""
+			risk = "first evidence path, not final edit scope"
 		} else if len(lanes) > 0 {
 			coverage = "partial"
 		} else if precision {
@@ -360,18 +364,25 @@ func compassMechanicalFacets(query string, terms []string) []string {
 	return uniqueStrings(facets)
 }
 
-func firstPassPaths(candidate rankedConceptCandidate) []FirstPassPath {
+func firstPassPaths(candidate rankedConceptCandidate, readBudget map[string]bool) []FirstPassPath {
 	paths := normalizePaths(candidate.paths)
-	if len(paths) > maxCompassPathsPerLane {
-		paths = paths[:maxCompassPathsPerLane]
-	}
 	out := make([]FirstPassPath, 0, len(paths))
 	for _, path := range paths {
+		if readBudget[path] {
+			continue
+		}
+		if len(readBudget) >= maxCompassReads {
+			break
+		}
 		out = append(out, FirstPassPath{
 			Path:         path,
 			Reason:       "owned_by_ranked_project_cognition_node",
 			EvidenceHint: strings.Join(candidate.row.EvidenceIDs, ","),
 		})
+		readBudget[path] = true
+		if len(out) >= maxCompassPathsPerLane {
+			break
+		}
 	}
 	return out
 }
@@ -408,7 +419,7 @@ func compassState(status rt.Status, input CompassInput, payload CompassPayload) 
 	if status.Readiness == rt.ReadyReadiness && (strings.EqualFold(mode, compassFacetSourceQueryPlan) || strings.EqualFold(mode, compassFacetSourceSemanticIntake)) && !hasUncovered {
 		return compassStateUsable
 	}
-	if status.Readiness == rt.ReadyReadiness && len(payload.EvidenceLanes) > 0 {
+	if (status.Readiness == rt.ReadyReadiness || status.Readiness == rt.ReviewReadiness) && len(payload.EvidenceLanes) > 0 {
 		return compassStateUsableWithReview
 	}
 	return compassStateNeedsExpansionBeforeFix
@@ -485,5 +496,20 @@ func attrInt(attrs map[string]any, key string) int {
 		return out
 	default:
 		return 0
+	}
+}
+
+func attrBool(attrs map[string]any, key string) bool {
+	value, ok := attrs[key]
+	if !ok {
+		return false
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	default:
+		return false
 	}
 }

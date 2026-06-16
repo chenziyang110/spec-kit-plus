@@ -2,6 +2,7 @@ package query
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -35,6 +36,9 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 	if len(payload.MinimalLiveReads) == 0 || len(payload.MinimalLiveReads) > 15 {
 		t.Fatalf("MinimalLiveReads = %#v, want compact non-empty list", payload.MinimalLiveReads)
 	}
+	if total := compassLanePathCount(payload.EvidenceLanes); total > 15 {
+		t.Fatalf("lane first_pass_paths total = %d, want <= 15: %#v", total, payload.EvidenceLanes)
+	}
 	wantReads := dedupeCompassLanePaths(payload.EvidenceLanes)
 	if !equalStrings(payload.MinimalLiveReads, wantReads) {
 		t.Fatalf("MinimalLiveReads = %#v, want lane path union %#v", payload.MinimalLiveReads, wantReads)
@@ -42,11 +46,20 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 	if compassLaneTitleContains(payload.EvidenceLanes, "Runtime Surface Index") {
 		t.Fatalf("fallback title appeared as route lane: %#v", payload.EvidenceLanes)
 	}
+	if compassLaneTitleContains(payload.EvidenceLanes, "Narrow Looking Runtime Hint") {
+		t.Fatalf("boolean fallback title appeared as route lane: %#v", payload.EvidenceLanes)
+	}
 	if !compassDiagnosticsContain(payload.CoverageDiagnostics, "broad_fallback_suppressed") {
 		t.Fatalf("CoverageDiagnostics = %#v, want broad fallback diagnostic", payload.CoverageDiagnostics)
 	}
+	if !compassDiagnosticsMessageContains(payload.CoverageDiagnostics, "Narrow Looking Runtime Hint") {
+		t.Fatalf("CoverageDiagnostics = %#v, want boolean fallback suppression diagnostic", payload.CoverageDiagnostics)
+	}
 	if payload.QueryFingerprint == "" {
 		t.Fatalf("QueryFingerprint is empty")
+	}
+	if !compassCoveredFacetHasFirstPassRisk(payload.IntentFacets) {
+		t.Fatalf("IntentFacets = %#v, want covered facet risk to guard first-pass scope", payload.IntentFacets)
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -61,6 +74,57 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 	}
 }
 
+func TestCompassReviewReadinessWithLanesStaysUsableWithReview(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Readiness = rt.ReviewReadiness
+	status.RecommendedNextAction = "review_project_cognition"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "debug",
+		Query:  "切模型 failed runtimeOverride deepseek 方块 屏幕小",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.CompassState != compassStateUsableWithReview {
+		t.Fatalf("CompassState = %q, want %q", payload.CompassState, compassStateUsableWithReview)
+	}
+	if len(payload.EvidenceLanes) == 0 {
+		t.Fatalf("EvidenceLanes is empty")
+	}
+	if payload.RecommendedNextAction == compassRecommendedActionExpandBeforeFix {
+		t.Fatalf("RecommendedNextAction = %q, want first-pass reads action", payload.RecommendedNextAction)
+	}
+}
+
+func TestIsBroadFallbackCandidateSuppressesBooleanAttr(t *testing.T) {
+	candidate := rankedConceptCandidate{
+		row: store.ConceptCandidateRow{
+			NodeType: "capability",
+			Title:    "Innocuous Runtime Hint",
+		},
+		attrs: map[string]any{"coverage_fallback": true},
+	}
+
+	suppressed, reason := isBroadFallbackCandidate(candidate)
+
+	if !suppressed {
+		t.Fatalf("suppressed = false, want true")
+	}
+	if reason != "attrs_coverage_fallback" {
+		t.Fatalf("reason = %q, want attrs_coverage_fallback", reason)
+	}
+}
+
 func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	seedReadyGraph(t, paths, store.ImportInput{
@@ -72,6 +136,7 @@ func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 			{ID: "E-ws-handler", SourceKind: "source", SourcePath: "src/server/ws/handler.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-ws"},
 			{ID: "E-fonts", SourceKind: "source", SourcePath: "desktop/src/styles/global.css", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-fonts"},
 			{ID: "E-window", SourceKind: "source", SourcePath: "desktop/src-tauri/tauri.conf.json", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-window"},
+			{ID: "E-bool-fallback", SourceKind: "source", SourcePath: "src/runtime/fallback_index.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-bool-fallback"},
 		},
 		Nodes: []store.NodeImport{
 			{
@@ -103,12 +168,20 @@ func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 					"path_count":          3000,
 				},
 			},
+			{
+				ID: "N-bool-fallback", Type: "capability", Title: "Narrow Looking Runtime Hint", Confidence: "low", EvidenceIDs: []string{"E-bool-fallback"},
+				Attrs: map[string]any{
+					"aliases":           []any{"runtimeOverride", "deepseek"},
+					"coverage_fallback": true,
+				},
+			},
 		},
 		PathIndex: []store.PathIndexImport{
 			{ID: "P-model-selector", Path: "desktop/src/components/controls/ModelSelector.tsx", NodeID: "N-provider-runtime", Relation: "owns", Confidence: "verified", EvidenceID: "E-model-selector"},
 			{ID: "P-ws-handler", Path: "src/server/ws/handler.ts", NodeID: "N-provider-runtime", Relation: "owns", Confidence: "verified", EvidenceID: "E-ws-handler"},
 			{ID: "P-fonts", Path: "desktop/src/styles/global.css", NodeID: "N-ui-readability", Relation: "owns", Confidence: "verified", EvidenceID: "E-fonts"},
 			{ID: "P-window", Path: "desktop/src-tauri/tauri.conf.json", NodeID: "N-ui-readability", Relation: "owns", Confidence: "verified", EvidenceID: "E-window"},
+			{ID: "P-bool-fallback", Path: "src/runtime/fallback_index.ts", NodeID: "N-bool-fallback", Relation: "owns", Confidence: "low", EvidenceID: "E-bool-fallback"},
 		},
 	})
 }
@@ -132,9 +205,38 @@ func compassLaneTitleContains(lanes []EvidenceLane, title string) bool {
 	return false
 }
 
+func compassLanePathCount(lanes []EvidenceLane) int {
+	count := 0
+	for _, lane := range lanes {
+		count += len(lane.FirstPassPaths)
+	}
+	return count
+}
+
 func compassDiagnosticsContain(diagnostics []CoverageDiagnostic, kind string) bool {
 	for _, diagnostic := range diagnostics {
 		if diagnostic.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func compassDiagnosticsMessageContains(diagnostics []CoverageDiagnostic, value string) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Message == "" {
+			continue
+		}
+		if diagnostic.Message == value || strings.Contains(diagnostic.Message, value) {
+			return true
+		}
+	}
+	return false
+}
+
+func compassCoveredFacetHasFirstPassRisk(facets []CompassIntentFacet) bool {
+	for _, facet := range facets {
+		if facet.Coverage == "covered_for_first_pass" && facet.Risk == "first evidence path, not final edit scope" {
 			return true
 		}
 	}
