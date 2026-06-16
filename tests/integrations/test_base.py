@@ -61,9 +61,10 @@ def _assert_canonical_cognition_intake_contract(content: str) -> None:
     ).lower()
 
     for required in (
-        "project-cognition lexicon",
+        "project-cognition compass",
         "project-cognition query",
         "--query-plan",
+        "lexicon -> semantic_intake -> query",
         "alias catalog",
         "semantic_intake",
         "workflow_intent",
@@ -80,6 +81,8 @@ def _assert_canonical_cognition_intake_contract(content: str) -> None:
         "match_sources",
         "lexicon_generation_id",
         "minimal_live_reads",
+        "first_pass_paths",
+        "coverage_diagnostics",
         "repository_search_terms",
         "project-language search terms",
         "do not search only the raw user words",

@@ -2656,7 +2656,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "explicitly remind the user to enable agent teams in claude code settings or environment" in lower
     assert "hard prerequisite for `/sp-implement-teams`" in lower
     assert "executioncontextbundle" in lower or "execution context bundle" in lower
-    assert "project-cognition lexicon --intent implement" in lower
+    assert "project-cognition compass --intent implement" in lower
     assert "project-cognition query --intent implement" in lower
     assert "--query-plan" in lower
     assert "{{specify-subcmd:" not in content
@@ -2664,6 +2664,10 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert ".specify/project-cognition/project-cognition.db" in lower
     assert "task-local bundle" in lower
     assert "minimal_live_reads" in lower
+    assert "first_pass_paths" in lower
+    assert "coverage_diagnostics" in lower
+    assert "expansion_ref" in lower
+    assert "lexicon -> semantic_intake -> query" in lower
     assert ".specify/project-cognition/slices/change.json" not in lower
     assert "project-handbook.md" in lower
     assert ".specify/project-map/*.md" not in lower

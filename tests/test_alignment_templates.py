@@ -1857,7 +1857,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
+    assert "continue with live repository evidence when workflow policy allows degraded advisory navigation" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -3089,6 +3089,13 @@ def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fie
     assert "completion-handoff protocol covering start, blocker, and final completion evidence" in content
     assert "platform guardrails" in content
     assert "status flip alone" in content
+    assert "project-cognition compass --intent implement" in content
+    assert "minimal_live_reads" in content
+    assert "first_pass_paths" in content
+    assert "coverage_diagnostics" in content
+    assert "expansion_ref" in content
+    assert "lexicon -> semantic_intake -> query" in content
+    assert "project-cognition lexicon --intent implement" not in content
 
 
 def test_implement_template_requires_explicit_join_point_validation_blocks():

@@ -354,6 +354,13 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "e2e" in lower
     assert "polish" in lower
     assert "explicit execution packet shape" in lower or "explicit execution packet" in lower
+    assert "project-cognition compass --intent implement" in lower
+    assert "minimal_live_reads" in lower
+    assert "first_pass_paths" in lower
+    assert "coverage_diagnostics" in lower
+    assert "expansion_ref" in lower
+    assert "lexicon -> semantic_intake -> query" in lower
+    assert "project-cognition lexicon --intent implement" not in lower
     assert "write set and shared surfaces" in lower
     assert "explicit verification command or acceptance check" in lower
     assert "completion-handoff protocol" in lower

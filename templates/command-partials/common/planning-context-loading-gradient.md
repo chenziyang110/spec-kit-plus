@@ -116,7 +116,7 @@ and minimal live reads after the minimum gate, not whether it may skip cognition
 Treat runtime freshness as map-quality diagnostics:
 
 - `fresh` -> use the returned task-local bundle as an advisory first pass navigation aid
-- `missing` -> if cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for a brownfield missing baseline; wait for that rebuild before continuing
+- `missing` -> if cognition freshness is `missing`, continue with live repository evidence when workflow policy allows degraded advisory navigation; recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance unless the user explicitly requested cognition repair or the workflow truly cannot proceed without a usable baseline
 - `stale` -> if cognition freshness is `stale`, treat map output as advisory and continue with live repository evidence; recommend `{{invoke:map-update}}` as external/manual maintenance
 - `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps.
   Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside baseline-kind exceptions described below, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`
