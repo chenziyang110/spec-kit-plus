@@ -39,6 +39,10 @@ judgment in an established Spec Kit Plus repository:
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
   the returned readiness state; do not widen live repository reads beyond the
   returned `route_pack` and `minimal_live_reads`.
+- Treat the task-local project cognition compass packet as the task-local
+  project navigation bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces;
+  use `.specify/project-cognition/project-cognition.db`, the compass packet,
+  and bounded live evidence instead.
 - Candidate selection must satisfy facet coverage for the active workflow. Each
   `concept_decisions` item should include `covered_facets`, `missing_facets`,
   `match_sources`, confidence, and risk. Do not trust top similarity alone:

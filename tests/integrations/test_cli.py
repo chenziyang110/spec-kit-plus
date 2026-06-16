@@ -157,8 +157,9 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
-        assert "lexicon --intent implement" in content
-        assert "query --intent implement" in content
+        assert "compass --intent implement" in content
+        assert "lexicon -> semantic_intake -> query" in content
+        assert "project-cognition query --query-plan" in content
         assert "--query-plan" in content
         assert "readiness" in content
         assert "task-local bundle" in content
@@ -223,8 +224,9 @@ class TestInitIntegrationFlag:
         assert "subagent-assisted" in debug_content
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
-        assert "lexicon --intent debug" in debug_content
-        assert "query --intent debug" in debug_content
+        assert "compass --intent debug" in debug_content
+        assert "lexicon -> semantic_intake -> query" in debug_content
+        assert "project-cognition query --query-plan" in debug_content
         assert "--query-plan" in debug_content
         assert "returned readiness" in debug_content
         assert "task-local bundle" in debug_content
@@ -237,11 +239,12 @@ class TestInitIntegrationFlag:
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "lexicon --intent implement" in fast_content
-        assert "query --intent implement" in fast_content
+        assert "compass --intent implement" in fast_content
+        assert "lexicon -> semantic_intake -> query" in fast_content
+        assert "project-cognition query --query-plan" in fast_content
         assert "--query-plan" in fast_content
         assert "returned readiness" in fast_content
-        assert "task-local bundle" in fast_content
+        assert "minimal_live_reads" in fast_content
         assert "minimal_live_reads" in fast_content
         assert ".specify/project-cognition/slices/change.json" not in fast_content
         assert "build-handbook.md" not in fast_content
@@ -256,12 +259,13 @@ class TestInitIntegrationFlag:
         assert "future senior engineer" in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
-        assert "lexicon --intent implement" in quick_content
-        assert "query --intent implement" in quick_content
+        assert "compass --intent implement" in quick_content
+        assert "lexicon -> semantic_intake -> query" in quick_content
+        assert "project-cognition query --query-plan" in quick_content
         assert "--query-plan" in quick_content
         assert "project cognition query" in quick_content
         assert "returned readiness" in quick_content
-        assert "task-local bundle" in quick_content
+        assert "minimal_live_reads" in quick_content
         assert "minimal_live_reads" in quick_content
         assert "understanding checkpoint" in quick_content
         assert "understanding_confirmed" in quick_content

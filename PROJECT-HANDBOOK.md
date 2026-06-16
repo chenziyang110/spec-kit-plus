@@ -66,6 +66,7 @@ For generated projects, use project cognition first:
 - `.specify/project-cognition/project-cognition.db` — canonical SQLite graph store
 - `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` — default brownfield navigation intake returning readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; paths are first evidence, not final edit scope
 - `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` (`lexicon -> semantic_intake -> query`) — advanced path when compass is draft-like, localized, missing coverage, or needs explicit concept decisions
+- The advanced alias catalog path carries facet coverage details: `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `candidate_universe_version`, and `active_generation_id`.
 - When shell quoting makes inline JSON brittle, use `project-cognition query --query-plan-file <path>` instead. The query plan accepts `path_hints`/`reason` as aliases for `paths`/`selection_reason`.
 
 The cognition model should help answer:
@@ -163,7 +164,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - `templates/project-map/index/atlas-index.json`: machine-readable atlas summary and next-read routes for generated projects.
 - `templates/project-map/index/modules.json`: module registry, owned roots, and module doc paths for generated projects.
 - `templates/project-map/index/relations.json`: cross-module dependencies and shared-surface expansion routes for generated projects.
-- Generated-project `.specify/project-cognition/status.json` plus the `project-cognition query` task-local bundle: freshness, module coverage, stale paths, and refresh metadata.
+- Generated-project `.specify/project-cognition/status.json` plus the `project-cognition compass` task-local packet: freshness, module coverage, stale paths, and refresh metadata.
 - `root/ARCHITECTURE.md`: cross-module architecture, contracts, dependency graph, capability cards.
 - `root/STRUCTURE.md`: directory ownership, critical file families, placement rules.
 - `root/CONVENTIONS.md`: naming, generated-surface, state, compatibility, and review conventions.

@@ -128,7 +128,7 @@ Future semantic tables such as claims, conflicts, symbols, entrypoints, tests, s
 For brownfield baselines, `alias_index` is required: every active node must have
 at least one active-generation alias row, no alias may point at a missing node,
 and no alias may reference a missing non-empty evidence id. The schema v2 alias
-catalog normalizes user input before query planning; it does not prove behavior
+catalog helps agents normalize user input before query planning; it does not prove behavior
 without live repository evidence.
 
 If validation reports schema v1, an old broad schema, or rebuild-required

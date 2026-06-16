@@ -61,7 +61,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "manual `capture-learning` hook surface" not in content
     assert "debug cognition gate" in content
     assert "pass the cognition gate before" in content
-    assert "project-cognition query --intent debug" in content
+    assert "project-cognition compass --intent debug" in content
+    assert "project-cognition query --query-plan" in content
     assert "minimal_live_reads" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
@@ -80,8 +81,10 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "derived_issue" in content
     assert "unrelated_issue" in content
     assert "contrarian candidate" in content
-    assert "cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
-    assert "cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`" in content
+    assert "if cognition freshness is `missing`, continue with live repository evidence when workflow policy allows" in content
+    assert "recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance" in content
+    assert "if cognition freshness is `stale`, treat map output as advisory" in content
+    assert "recommend `{{invoke:map-update}}` as follow-up maintenance only when the user requested cognition repair" in content
     assert "cognition freshness is `support_drift`" in content
     assert "cognition freshness is `partial_refresh`" in content
     assert "do not reflexively route to `{{invoke:map-update}}`" in content
@@ -91,7 +94,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "{{invoke:map-update}}" in content
     assert "truth ownership" in content
     assert "use the debug cognition slice to identify likely truth-owning layers" in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues" in content
+    assert "recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance" in content
     assert "task-relevant cognition coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
@@ -164,7 +167,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
     assert "use map-update for ordinary existing-baseline gaps" in content
     assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid" in content
-    assert "returned `project-cognition query` bundle and readiness as the truth source" in content
+    assert "returned `project-cognition query` bundle and readiness as the truth source" not in content
+    assert "returned project cognition compass packet as the default intake source" in content
     assert "use only returned `minimal_live_reads` when needed" in content
     assert "debug session state" in content
     assert "competing truths" in content

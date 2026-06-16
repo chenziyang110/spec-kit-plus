@@ -27,14 +27,15 @@ def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
         assert "schema v2" in content
         assert "v1" in content
         assert "rebuild" in content
-        assert "alias-first" in content
+        assert "alias_index" in content
+        assert "alias catalog" in content
 
 
 def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     content = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered = content.lower()
 
-    assert "launcher-backed project cognition query planning flow" in lowered
+    assert "default project cognition intake is `project-cognition compass" in lowered
     assert "project-cognition lexicon" in lowered
     assert "alias catalog" in lowered
     assert "semantic_intake" in lowered
@@ -60,7 +61,7 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "atlas.entry" not in content
     assert "root topic document" not in lowered
     assert "module overview document" not in lowered
-    assert "a project-cognition query is not complete when it returns json" in lowered
+    assert "a project-cognition compass intake is not complete when it returns json" in lowered
     assert "readiness drives routing" in lowered
     assert "minimal_live_reads constrains inspection" in lowered
     assert "carry forward the selected concepts" in lowered
@@ -76,7 +77,7 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
         .split()
     )
 
-    assert "a project-cognition query is not complete when it returns json" in content
+    assert "a project-cognition compass intake is not complete when it returns json" in content
     assert "concept_candidates" in content
     assert "selected_concepts" in content
     assert "rejected_concepts" in content
@@ -111,8 +112,9 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         content = _read(rel_path)
         lowered = content.lower()
 
-        assert "project-cognition lexicon --intent plan" in content
-        assert "project-cognition query --intent plan" in content
+        assert "project-cognition compass --intent plan" in content
+        assert "lexicon -> semantic_intake -> query" in content
+        assert "project-cognition query --query-plan" in content
         assert "--query-plan" in content
         assert "minimal_live_reads" in content
         assert "graph-native" not in lowered
@@ -137,7 +139,7 @@ def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
 
     for rel_path, phrases in expectations.items():
         content = _read(rel_path).lower()
-        assert "project-cognition query" in content, rel_path
+        assert "project-cognition compass" in content, rel_path
         for phrase in phrases:
             assert phrase.lower() in content, f"{rel_path} missing {phrase!r}"
 
@@ -148,8 +150,8 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
 
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "task-local project cognition query bundle" in lowered
-    assert "agent-planned `project-cognition query`" in lowered
+    assert "task-local `project-cognition compass` packet" in lowered
+    assert "advanced agent-planned `project-cognition lexicon --mode catalog`" in lowered
     assert "project-cognition lexicon" in lowered
     assert "alias catalog" in lowered
     assert "semantic_intake" in lowered
@@ -191,6 +193,7 @@ def test_runtime_docs_explain_graph_backed_project_cognition_lexicon() -> None:
         "candidate_universe_version",
         "active_generation_id",
         "project-cognition lexicon",
+        "project-cognition compass",
         "project-cognition query --query-plan",
     )
 

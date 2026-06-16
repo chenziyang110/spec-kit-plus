@@ -51,7 +51,7 @@ write early quick-task state:
 
 - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
 - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers: first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.
 - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
 - **CARRY FORWARD**: Write the selected capability, minimal reads, validation route,
   and known risk into quick-task `STATUS.md` before implementation

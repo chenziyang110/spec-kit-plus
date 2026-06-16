@@ -54,7 +54,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
-- **Project-map first**: When the project cognition query returns a usable task-local bundle, use it as the default intake surface instead of rebuilding a broad outsider map from scratch.
+- **Project-map first**: When the project cognition compass packet returns usable task-local navigation, use it as the default intake surface instead of rebuilding a broad outsider map from scratch.
 - **Map-backed minimum intake**: A ready/review cognition bundle may directly populate a minimum causal map, investigation contract, log plan, transition memo, primary candidate, and contrarian candidate.
 - **Deep intake is fallback, not the default**: Use Stage 1A and Stage 1B only when project cognition is missing, stale, ambiguous, insufficient for the failing area, or the lightweight investigation exposes competing truth owners.
 - **Stage 1A: Causal Map**: In fallback/deep mode, the first subagent builds a family-spanning causal map before contract generation begins.
@@ -498,7 +498,7 @@ The session file must always make it clear:
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
-- Treat the returned `project-cognition query` bundle and readiness as the truth source for brownfield debug runtime coverage; use only returned `minimal_live_reads` when needed.
+- Treat the returned project cognition compass packet and readiness as the default intake source for brownfield debug runtime coverage; use only returned `minimal_live_reads` when needed.
 - Before moving to `awaiting_human_verify` or `resolved`, record `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` when project cognition might be affected.
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 - Manual map maintenance may record ordinary uncertain closure, partial/low-confidence facts, known unknowns, and `minimal_live_reads` for external repair cases. After a successful existing-baseline maintenance refresh, use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only for incremental freshness finalization; `sp-map-build` owns `build-from-scan` and `{{specify-subcmd:project-cognition validate-build --format json}}`, so do not run `complete-refresh` as a rebuild finalizer.

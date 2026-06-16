@@ -45,8 +45,9 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "passive project learning layer" in content
     assert "passive project learning layer" in content
     assert "project cognition gate" in content
-    assert "project-cognition lexicon --intent implement" in content
-    assert "project-cognition query --intent implement" in content
+    assert "project-cognition compass --intent implement" in content
+    assert "lexicon -> semantic_intake -> query" in content
+    assert "project-cognition query --query-plan" in content
     assert "--query-plan" in content
     assert "query_plan" in content
     assert "concept_decisions" in content
@@ -57,8 +58,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "`needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required after the understanding checkpoint is confirmed" in content
-    assert "`needs_update`: record that `{{invoke:map-update}}` is required after the understanding checkpoint is confirmed" in content
+    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers" in content
+    assert "if project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`" in content
     assert "returned task-local bundle" in content
     assert "must_refresh_topics" not in content
     assert "review_topics" not in content
@@ -286,8 +287,13 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" not in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "it is not routine cleanup for changes this workflow just made" in content
-    assert "`needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required" in content
-    assert "schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid" in content
+    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers" in content
+    assert "schema failure" in content
+    assert "schema v1 or old broad-schema rebuild-required readiness" in content
+    assert "zero active-generation path_index rows" in content
+    assert "missing or invalid alias_index" in content
+    assert "explicit_rebuild_requested" in content
+    assert "baseline_identity_invalid" in content
     assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
 
 
@@ -333,8 +339,8 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     content = read_template("templates/commands/quick.md")
     lowered = content.lower()
 
-    assert "`needs_rebuild`: record that `{{invoke:map-scan}}`, then `{{invoke:map-build}}`, is required after the understanding checkpoint is confirmed" in lowered
-    assert "`needs_update`: record that `{{invoke:map-update}}` is required after the understanding checkpoint is confirmed" in lowered
+    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers" in lowered
+    assert "if project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`" in lowered
     assert "must_refresh_topics" not in lowered
     assert "review_topics" not in lowered
     assert "ownership, placement, workflow, integration, or verification guidance" in content

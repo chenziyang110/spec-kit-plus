@@ -359,8 +359,9 @@ class TestBuiltInSkillGeneration:
         assert "fixed heavy discovery lifecycle" in specify_body.lower()
         assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
-        assert "project-cognition lexicon --intent plan" in specify_body
-        assert "project-cognition query --intent plan" in specify_body
+        assert "project-cognition compass --intent plan" in specify_body
+        assert "lexicon -> semantic_intake -> query" in specify_body
+        assert "project-cognition query --query-plan" in specify_body
         assert "alias catalog" in specify_body.lower()
         assert "semantic_intake" in specify_body.lower()
         assert "facet coverage" in specify_body.lower()
@@ -578,8 +579,9 @@ class TestBuiltInSkillGeneration:
         assert ".planning/learnings/candidates.md" not in checklist_lower or "compatibility" in checklist_lower
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
-        assert "project-cognition lexicon --intent plan" in checklist_lower
-        assert "project-cognition query --intent plan" in checklist_lower
+        assert "project-cognition compass --intent plan" in checklist_lower
+        assert "lexicon -> semantic_intake -> query" in checklist_lower
+        assert "query --intent plan --query-plan" in checklist_lower or "query --query-plan" in checklist_lower
         assert "alias catalog" in checklist_lower
         assert "semantic_intake" in checklist_lower
         assert "facet coverage" in checklist_lower
@@ -593,7 +595,7 @@ class TestBuiltInSkillGeneration:
         assert "build-handbook.md" not in checklist_lower
         assert "touched area's owning surfaces" in checklist_lower
         assert "recommended_next_action" in checklist_lower
-        assert "`needs_update`: route through `{{invoke:map-update}}`" in checklist_body or "`needs_update`: route through `/sp-map-update`" in checklist_body
+        assert "route through the returned `recommended_next_action`" in checklist_body
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "optional" in checklist_lower

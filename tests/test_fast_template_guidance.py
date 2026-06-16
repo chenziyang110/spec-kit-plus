@@ -31,8 +31,9 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "delegated change" not in content
     assert "delegate it through" not in content
     assert "project cognition gate" in content
-    assert "project-cognition lexicon --intent implement" in content
-    assert "project-cognition query --intent implement" in content
+    assert "project-cognition compass --intent implement" in content
+    assert "lexicon -> semantic_intake -> query" in content
+    assert "project-cognition query --query-plan" in content
     assert "--query-plan" in content
     assert "query_plan" in content
     assert "concept_decisions" in content
@@ -43,7 +44,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "returned task-local bundle" in content
+    assert "default compass packet" in content
+    assert "returned `minimal_live_reads`" in content
     assert "map-update" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "shared surfaces" in content
@@ -85,7 +87,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
-    assert "returned task-local bundle" in content
+    assert "default compass packet" in content
+    assert "returned `minimal_live_reads`" in content
     assert "fast-task state or report" in content
     assert "verification route" in content
     assert "project-language search terms" in content
