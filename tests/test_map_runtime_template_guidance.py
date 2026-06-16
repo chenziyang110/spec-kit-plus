@@ -284,6 +284,16 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
             assert term in content, f"{name} missing shared cognition intake term {term}"
 
 
+def test_docs_describe_compass_default_and_advanced_query_path() -> None:
+    for path in ["README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"]:
+        content = _compact(_read(path).lower())
+        assert "project-cognition compass" in content, path
+        assert "minimal_live_reads" in content, path
+        assert "first_pass_paths" in content, path
+        assert "lexicon -> semantic_intake -> query" in content, path
+        assert "final edit scope" in content, path
+
+
 def test_cognition_workflows_preserve_direct_agent_normalization_guidance() -> None:
     required_terms = (
         "agent_normalization",

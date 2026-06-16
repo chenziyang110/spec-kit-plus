@@ -106,7 +106,7 @@ jobs:
 
           ### project-cognition runtime
 
-          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS.
+          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes the default compass/expand navigation commands plus the advanced lexicon/query planning commands used by generated workflows.
 
           **Install the prebuilt release binary**
           \`\`\`bash
