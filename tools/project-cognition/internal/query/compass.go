@@ -162,7 +162,6 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		return CompassPayload{}, err
 	}
 	candidates := []compassCandidate{}
-	candidatesComputed := false
 	if st != nil {
 		defer st.Close()
 		rows, err := st.AllActiveConceptCandidateRows(context.Background())
@@ -173,7 +172,6 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			payload.ActiveGenerationID = rows[0].GenerationID
 		}
 		candidates = compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input))
-		candidatesComputed = true
 		selectedPaths := compassSelectedPrecisionPaths(input)
 		for _, candidate := range candidates {
 			if candidate.suppressed {
@@ -194,19 +192,21 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	payload.CompassState = compassState(status, input, payload)
 	payload.RecommendedNextAction = compassRecommendedNextAction(status, payload.CompassState)
 	payload.Summary = compassSummary(payload)
-	if candidatesComputed {
+	if len(candidates) > 0 {
+		sectionPayloads := map[string]any{
+			"related_paths":   payload.MinimalLiveReads,
+			"raw_candidates":  candidatesForExpansion(candidates),
+			"coverage_gaps":   payload.CoverageDiagnostics,
+			"graph_neighbors": []map[string]any{},
+		}
 		ref, err := writeExpansionBundle(paths, ExpansionBundle{
 			ID:                       "exp-" + payload.QueryFingerprint,
 			ActiveGenerationID:       payload.ActiveGenerationID,
 			CandidateUniverseVersion: payload.CandidateUniverseVersion,
 			QueryFingerprint:         payload.QueryFingerprint,
-			Sections:                 []string{"related_paths", "raw_candidates", "coverage_gaps", "graph_neighbors"},
-			SectionPayloads: map[string]any{
-				"related_paths":   payload.MinimalLiveReads,
-				"raw_candidates":  candidatesForExpansion(candidates),
-				"coverage_gaps":   payload.CoverageDiagnostics,
-				"graph_neighbors": []map[string]any{},
-			},
+			Sections:                 expansionSectionMeta(sectionPayloads),
+			SectionPayloads:          sectionPayloads,
+			CreatedAt:                deterministicExpansionCreatedAt(payload.QueryFingerprint),
 		})
 		if err != nil {
 			payload.Warnings = appendDiagnosticString(payload.Warnings, "expansion_bundle_write_failed:"+err.Error())

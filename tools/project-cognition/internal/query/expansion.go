@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +17,7 @@ import (
 const (
 	defaultExpansionSection             = "related_paths"
 	expansionRecommendedActionRerun     = "rerun_project_cognition_compass"
-	expansionStatusExpanded             = "expanded"
+	expansionStatusOK                   = "ok"
 	expansionStatusMissingExpansion     = "missing_expansion"
 	expansionStatusStaleExpansion       = "stale_expansion"
 	expansionStatusMissingSection       = "missing_section"
@@ -27,13 +27,13 @@ const (
 var expansionIDPattern = regexp.MustCompile(`^exp-[A-Za-z0-9._-]+$`)
 
 type ExpansionBundle struct {
-	ID                       string         `json:"id"`
-	ActiveGenerationID       string         `json:"active_generation_id,omitempty"`
-	CandidateUniverseVersion int            `json:"candidate_universe_version"`
-	QueryFingerprint         string         `json:"query_fingerprint"`
-	Sections                 []string       `json:"sections"`
-	SectionPayloads          map[string]any `json:"section_payloads"`
-	CreatedAt                string         `json:"created_at"`
+	ID                       string                          `json:"id"`
+	ActiveGenerationID       string                          `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion int                             `json:"candidate_universe_version"`
+	QueryFingerprint         string                          `json:"query_fingerprint"`
+	Sections                 map[string]ExpansionSectionMeta `json:"sections"`
+	SectionPayloads          map[string]any                  `json:"section_payloads"`
+	CreatedAt                string                          `json:"created_at"`
 }
 
 type ExpandInput struct {
@@ -63,13 +63,13 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 		return ExpansionRef{}, err
 	}
 	if bundle.CreatedAt == "" {
-		bundle.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+		bundle.CreatedAt = deterministicExpansionCreatedAt(bundle.QueryFingerprint)
 	}
 	if bundle.SectionPayloads == nil {
 		bundle.SectionPayloads = map[string]any{}
 	}
 	if len(bundle.Sections) == 0 {
-		bundle.Sections = sortedExpansionSections(bundle.SectionPayloads)
+		bundle.Sections = expansionSectionMeta(bundle.SectionPayloads)
 	}
 	if err := os.MkdirAll(filepath.Dir(bundlePath), 0o755); err != nil {
 		return ExpansionRef{}, fmt.Errorf("create expansion bundle dir: %w", err)
@@ -86,7 +86,7 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 		ActiveGenerationID:       bundle.ActiveGenerationID,
 		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
 		QueryFingerprint:         bundle.QueryFingerprint,
-		AvailableSections:        expansionSectionMeta(bundle.Sections, bundle.SectionPayloads),
+		AvailableSections:        bundle.Sections,
 		StaleBehavior:            expansionRecommendedActionRerun,
 	}, nil
 }
@@ -115,7 +115,10 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		return ExpandPayload{}, fmt.Errorf("decode expansion bundle: %w", err)
 	}
-	available := expansionSectionMeta(bundle.Sections, bundle.SectionPayloads)
+	available := bundle.Sections
+	if len(available) == 0 {
+		available = expansionSectionMeta(bundle.SectionPayloads)
+	}
 	if expansionBundleStale(status, bundle) {
 		return staleExpansionPayload(bundle, available), nil
 	}
@@ -136,7 +139,7 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 		}, nil
 	}
 	return ExpandPayload{
-		Status:                   expansionStatusExpanded,
+		Status:                   expansionStatusOK,
 		Readiness:                status.Readiness,
 		CompassState:             compassStateUsableWithReview,
 		ID:                       bundle.ID,
@@ -212,15 +215,27 @@ func expansionBundleStale(status rt.Status, bundle ExpansionBundle) bool {
 	return bundle.CandidateUniverseVersion != CandidateUniverseVersion
 }
 
-func expansionSectionMeta(sections []string, payloads map[string]any) map[string]ExpansionSectionMeta {
+func deterministicExpansionCreatedAt(queryFingerprint string) string {
+	queryFingerprint = strings.TrimSpace(queryFingerprint)
+	if len(queryFingerprint) < 8 {
+		return time.Unix(0, 0).UTC().Format(time.RFC3339)
+	}
+	seconds, err := strconv.ParseInt(queryFingerprint[:8], 16, 64)
+	if err != nil {
+		return time.Unix(0, 0).UTC().Format(time.RFC3339)
+	}
+	return time.Unix(seconds, 0).UTC().Format(time.RFC3339)
+}
+
+func expansionSectionMeta(payloads map[string]any) map[string]ExpansionSectionMeta {
 	meta := map[string]ExpansionSectionMeta{}
-	for _, section := range sections {
+	for section, payload := range payloads {
 		if strings.TrimSpace(section) == "" {
 			continue
 		}
 		meta[section] = ExpansionSectionMeta{
 			State:          "available",
-			EstimatedItems: estimatedExpansionItems(payloads[section]),
+			EstimatedItems: estimatedExpansionItems(payload),
 		}
 	}
 	return meta
@@ -242,13 +257,4 @@ func estimatedExpansionItems(value any) int {
 		}
 		return 1
 	}
-}
-
-func sortedExpansionSections(payloads map[string]any) []string {
-	sections := make([]string, 0, len(payloads))
-	for section := range payloads {
-		sections = append(sections, section)
-	}
-	sort.Strings(sections)
-	return sections
 }

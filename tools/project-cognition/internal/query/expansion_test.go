@@ -1,6 +1,7 @@
 package query
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,8 +37,8 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if defaultExpanded.Status != "expanded" {
-		t.Fatalf("Status = %q, want expanded; payload=%#v", defaultExpanded.Status, defaultExpanded)
+	if defaultExpanded.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; payload=%#v", defaultExpanded.Status, defaultExpanded)
 	}
 	if defaultExpanded.Section != "related_paths" {
 		t.Fatalf("Section = %q, want related_paths", defaultExpanded.Section)
@@ -60,13 +61,103 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rawExpanded.Status != "expanded" || rawExpanded.Section != "raw_candidates" {
-		t.Fatalf("raw expansion = %#v, want expanded raw_candidates", rawExpanded)
+	if rawExpanded.Status != "ok" || rawExpanded.Section != "raw_candidates" {
+		t.Fatalf("raw expansion = %#v, want ok raw_candidates", rawExpanded)
 	}
 	rawCandidates, ok := rawExpanded.Data.([]any)
 	if !ok || len(rawCandidates) == 0 {
 		t.Fatalf("raw candidate data = %T %#v, want non-empty []any", rawExpanded.Data, rawExpanded.Data)
 	}
+}
+
+func TestCompassWritesDeterministicExpansionBundle(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	input := CompassInput{
+		Intent: "debug",
+		Query:  "切模型 failed runtimeOverride deepseek 方块 屏幕小",
+	}
+
+	first, err := Compass(paths, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ExpansionRef == nil {
+		t.Fatal("first ExpansionRef is nil")
+	}
+	bundlePath, err := expansionBundlePath(paths, first.ExpansionRef.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstBytes, err := os.ReadFile(bundlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := Compass(paths, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ExpansionRef == nil {
+		t.Fatal("second ExpansionRef is nil")
+	}
+	secondBytes, err := os.ReadFile(bundlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(firstBytes) != string(secondBytes) {
+		t.Fatalf("bundle bytes changed for identical Compass input:\nfirst=%s\nsecond=%s", firstBytes, secondBytes)
+	}
+
+	var bundle ExpansionBundle
+	if err := json.Unmarshal(firstBytes, &bundle); err != nil {
+		t.Fatal(err)
+	}
+	if bundle.CreatedAt != deterministicExpansionCreatedAt(first.QueryFingerprint) {
+		t.Fatalf("CreatedAt = %q, want deterministic value for %q", bundle.CreatedAt, first.QueryFingerprint)
+	}
+	if _, ok := bundle.Sections["related_paths"]; !ok {
+		t.Fatalf("Sections = %#v, want map metadata with related_paths", bundle.Sections)
+	}
+	if bundle.Sections["related_paths"] != first.ExpansionRef.AvailableSections["related_paths"] {
+		t.Fatalf("Sections related_paths = %#v, want ExpansionRef metadata %#v", bundle.Sections["related_paths"], first.ExpansionRef.AvailableSections["related_paths"])
+	}
+}
+
+func TestCompassDoesNotWriteExpansionForNoCandidates(t *testing.T) {
+	t.Run("empty graph", func(t *testing.T) {
+		paths := queryTestPaths(t)
+		seedGreenfieldEmptyRuntime(t, paths)
+
+		compass, err := Compass(paths, CompassInput{
+			Intent: "debug",
+			Query:  "anything",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if compass.ExpansionRef != nil {
+			t.Fatalf("ExpansionRef = %#v, want nil for ready graph with no candidate rows", compass.ExpansionRef)
+		}
+		assertNoExpansionBundles(t, paths)
+	})
+
+	t.Run("no computed candidates", func(t *testing.T) {
+		paths := queryTestPaths(t)
+		seedCompassModelSwitchGraph(t, paths)
+
+		compass, err := Compass(paths, CompassInput{
+			Intent: "debug",
+			Query:  "unmatched raw phrase",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if compass.ExpansionRef != nil {
+			t.Fatalf("ExpansionRef = %#v, want nil when candidate rows produce no scored candidates", compass.ExpansionRef)
+		}
+		assertNoExpansionBundles(t, paths)
+	})
 }
 
 func TestExpandReturnsStaleExpansionForGenerationMismatch(t *testing.T) {
@@ -159,5 +250,17 @@ func TestExpandReturnsMissingSectionWithAvailableSections(t *testing.T) {
 	}
 	if _, ok := payload.AvailableSections["related_paths"]; !ok {
 		t.Fatalf("AvailableSections = %#v, want related_paths", payload.AvailableSections)
+	}
+}
+
+func assertNoExpansionBundles(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	expansionDir := filepath.Join(paths.RuntimeDir, "workbench", "expansions")
+	matches, err := filepath.Glob(filepath.Join(expansionDir, "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("expansion bundles = %#v, want none", matches)
 	}
 }
