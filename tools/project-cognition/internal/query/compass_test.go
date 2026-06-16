@@ -245,6 +245,37 @@ func TestCompassQueryPlanUsesConceptDecisionsAndPaths(t *testing.T) {
 	}
 }
 
+func TestCompassQueryPlanFallsBackToPlanFacetsWhenSemanticIntakeFacetsEmpty(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent:    "debug",
+		Query:     "runtimeOverride",
+		InputMode: "query_plan",
+		Plan: Plan{
+			IntentFacets: []string{"runtimeOverride"},
+			SemanticIntake: SemanticIntake{
+				NormalizedQuery:     "Investigate provider runtime override without narrowing facets.",
+				NegativeConstraints: []string{"not only provider catalog metadata"},
+				AliasInterpretations: []AliasInterpretation{
+					{Alias: "切模型", Meaning: "provider runtime override"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.FacetSource != compassFacetSourceQueryPlan {
+		t.Fatalf("FacetSource = %q, want %q", payload.FacetSource, compassFacetSourceQueryPlan)
+	}
+	if len(payload.IntentFacets) != 1 || payload.IntentFacets[0].Name != "runtimeOverride" {
+		t.Fatalf("IntentFacets = %#v, want top-level query plan facet", payload.IntentFacets)
+	}
+}
+
 func TestCompassQueryPlanModeWithCoveredFacetsIsUsable(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedCompassModelSwitchGraph(t, paths)

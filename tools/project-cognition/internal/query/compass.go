@@ -217,7 +217,7 @@ func compassFacets(input CompassInput, terms []string) ([]string, string) {
 	mode := normalizedCompassInputMode(input.InputMode)
 	plan := NormalizePlan(input.Plan)
 	switch {
-	case mode == compassInputModeQueryPlan && hasSemanticIntake(plan.SemanticIntake):
+	case mode == compassInputModeQueryPlan && len(plan.SemanticIntake.IntentFacets) > 0:
 		return normalizeStrings(plan.SemanticIntake.IntentFacets), compassFacetSourceQueryPlan
 	case mode == compassInputModeQueryPlan && len(plan.IntentFacets) > 0:
 		return normalizeStrings(plan.IntentFacets), compassFacetSourceQueryPlan
