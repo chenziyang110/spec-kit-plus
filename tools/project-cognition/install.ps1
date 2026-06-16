@@ -62,6 +62,18 @@ if ($lexiconHelp -notmatch '-mode') {
     Write-Host "Expected 'project-cognition lexicon --help' to include -mode."
     exit 1
 }
+$compassHelp = & $target compass --help 2>&1
+if (($compassHelp -notmatch '-semantic-intake-file') -or ($compassHelp -notmatch '-query-plan-file')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required compass flags."
+    Write-Host "Expected 'project-cognition compass --help' to include -semantic-intake-file and -query-plan-file."
+    exit 1
+}
+$expandHelp = & $target expand --help 2>&1
+if ($expandHelp -notmatch '-section') {
+    Write-Host "Error: downloaded project-cognition binary is missing required expand section flag."
+    Write-Host "Expected 'project-cognition expand --help' to include -section."
+    exit 1
+}
 $deltaAppendHelp = & $target delta append --help 2>&1
 if (($deltaAppendHelp -notmatch '-verification') -or ($deltaAppendHelp -notmatch '-generated-surface')) {
     Write-Host "Error: downloaded project-cognition binary is missing required delta append flags."

@@ -17,6 +17,8 @@ REQUIRED_COMMANDS = (
     "build-from-scan",
     "init-empty",
     "lexicon --mode",
+    "compass --semantic-intake-file --query-plan-file",
+    "expand --section",
     "update --payload-file --verification",
     "delta append --verification --generated-surface",
 )
@@ -130,6 +132,40 @@ def _binary_supports_required_commands(binary: Path) -> bool:
 
     lexicon_output = f"{lexicon_result.stdout}\n{lexicon_result.stderr}"
     if "-mode" not in lexicon_output:
+        return False
+
+    try:
+        compass_result = subprocess.run(
+            [str(binary), "compass", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    compass_output = f"{compass_result.stdout}\n{compass_result.stderr}"
+    if "-semantic-intake-file" not in compass_output or "-query-plan-file" not in compass_output:
+        return False
+
+    try:
+        expand_result = subprocess.run(
+            [str(binary), "expand", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    expand_output = f"{expand_result.stdout}\n{expand_result.stderr}"
+    if "-section" not in expand_output:
         return False
 
     try:

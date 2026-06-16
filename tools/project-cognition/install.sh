@@ -74,6 +74,18 @@ if [[ "$lexicon_help" != *"-mode"* ]]; then
   echo "Expected 'project-cognition lexicon --help' to include -mode." >&2
   exit 1
 fi
+compass_help="$("$target" compass --help 2>&1 || true)"
+if [[ "$compass_help" != *"-semantic-intake-file"* || "$compass_help" != *"-query-plan-file"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required compass flags." >&2
+  echo "Expected 'project-cognition compass --help' to include -semantic-intake-file and -query-plan-file." >&2
+  exit 1
+fi
+expand_help="$("$target" expand --help 2>&1 || true)"
+if [[ "$expand_help" != *"-section"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required expand section flag." >&2
+  echo "Expected 'project-cognition expand --help' to include -section." >&2
+  exit 1
+fi
 delta_append_help="$("$target" delta append --help 2>&1 || true)"
 if [[ "$delta_append_help" != *"-verification"* || "$delta_append_help" != *"-generated-surface"* ]]; then
   echo "Error: downloaded project-cognition binary is missing required delta append flags." >&2

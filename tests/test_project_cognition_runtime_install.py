@@ -239,12 +239,41 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
     assert rendered == f"{binary} status --format json"
 
 
-def test_project_cognition_required_commands_include_init_empty():
+def test_project_cognition_required_commands_include_compass_and_expand():
     assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "lexicon --mode" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert (
+        "compass --semantic-intake-file --query-plan-file"
+        in project_cognition_runtime.REQUIRED_COMMANDS
+    )
+    assert "expand --section" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "update --payload-file --verification" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "delta append --verification --generated-surface" in project_cognition_runtime.REQUIRED_COMMANDS
+
+
+def test_project_cognition_binary_support_requires_compass_and_expand(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [[str(binary), "--help"]]
 
 
 def test_project_cognition_binary_support_requires_update_payload_file(monkeypatch, tmp_path: Path):
@@ -252,7 +281,10 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "expand, delta\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
@@ -282,7 +314,10 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "expand, delta\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
@@ -308,7 +343,10 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "expand, delta\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
@@ -333,14 +371,17 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
     assert project_cognition_runtime._binary_supports_required_commands(binary) is False
 
 
-def test_project_cognition_binary_support_requires_delta_append_verification_flag(
+def test_project_cognition_binary_support_requires_compass_precision_flags(
     monkeypatch, tmp_path: Path
 ):
     binary = tmp_path / "project-cognition"
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "expand, delta\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
@@ -349,6 +390,106 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
 
     class LexiconHelpResult:
         stdout = "Usage of lexicon:\n  -mode string\n"
+        stderr = ""
+
+    class CompassHelpResult:
+        stdout = "Usage of compass:\n  -semantic-intake-file string\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["lexicon", "--help"]:
+            return LexiconHelpResult()
+        if command[1:] == ["compass", "--help"]:
+            return CompassHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_expand_section_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "expand, delta\n"
+        )
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class LexiconHelpResult:
+        stdout = "Usage of lexicon:\n  -mode string\n"
+        stderr = ""
+
+    class CompassHelpResult:
+        stdout = (
+            "Usage of compass:\n  -semantic-intake-file string\n  -query-plan-file string\n"
+        )
+        stderr = ""
+
+    class ExpandHelpResult:
+        stdout = "Usage of expand:\n  -id string\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["lexicon", "--help"]:
+            return LexiconHelpResult()
+        if command[1:] == ["compass", "--help"]:
+            return CompassHelpResult()
+        if command[1:] == ["expand", "--help"]:
+            return ExpandHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_delta_append_verification_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "expand, delta\n"
+        )
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class LexiconHelpResult:
+        stdout = "Usage of lexicon:\n  -mode string\n"
+        stderr = ""
+
+    class CompassHelpResult:
+        stdout = (
+            "Usage of compass:\n  -semantic-intake-file string\n  -query-plan-file string\n"
+        )
+        stderr = ""
+
+    class ExpandHelpResult:
+        stdout = "Usage of expand:\n  -section string\n"
         stderr = ""
 
     class DeltaAppendHelpResult:
@@ -362,6 +503,10 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
             return UpdateHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
+        if command[1:] == ["compass", "--help"]:
+            return CompassHelpResult()
+        if command[1:] == ["expand", "--help"]:
+            return ExpandHelpResult()
         if command[1:] == ["delta", "append", "--help"]:
             return DeltaAppendHelpResult()
         raise AssertionError(f"unexpected command: {command}")

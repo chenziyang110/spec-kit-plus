@@ -1,7 +1,12 @@
 import json
+import os
 from pathlib import Path
 
-from specify_cli.launcher import render_project_launcher_placeholders
+from specify_cli.launcher import (
+    render_command,
+    render_project_launcher_placeholders,
+    write_project_cognition_launcher_config,
+)
 
 
 def test_project_cognition_subcommand_renders_to_direct_binary_without_config(tmp_path: Path):
@@ -44,3 +49,34 @@ def test_project_cognition_subcommand_ignores_persisted_specify_launcher(tmp_pat
     )
 
     assert rendered == "project-cognition status --format json"
+
+
+def test_project_cognition_compass_subcommand_uses_persisted_binary(tmp_path: Path):
+    binary = tmp_path / ".specify" / "bin" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_project_cognition_launcher_config(tmp_path, binary)
+
+    rendered = render_project_launcher_placeholders(
+        tmp_path,
+        '{{specify-subcmd:project-cognition compass --intent debug --query="$ARGUMENTS" --format json}}',
+    )
+
+    query_arg = '--query="$ARGUMENTS"' if os.name == "nt" else "--query=$ARGUMENTS"
+    assert rendered == render_command(
+        (str(binary), "compass", "--intent", "debug", query_arg, "--format", "json")
+    )
+
+
+def test_project_cognition_expand_subcommand_uses_persisted_binary(tmp_path: Path):
+    binary = tmp_path / ".specify" / "bin" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_project_cognition_launcher_config(tmp_path, binary)
+
+    rendered = render_project_launcher_placeholders(
+        tmp_path,
+        "{{specify-subcmd:project-cognition expand --id exp-qf-test --section raw_candidates --format json}}",
+    )
+
+    assert rendered == f"{binary} expand --id exp-qf-test --section raw_candidates --format json"
