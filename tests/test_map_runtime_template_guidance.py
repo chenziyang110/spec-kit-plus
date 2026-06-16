@@ -103,6 +103,24 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
             assert phrase not in content, f"{name} contains obsolete runtime input phrase: {phrase}"
 
 
+def test_cognition_launchers_use_double_brace_generated_forms() -> None:
+    for name in ("plan.md", "implement.md", "debug.md", "tasks.md"):
+        content = read_template(f"templates/commands/{name}")
+        raw_content = _read(f"templates/commands/{name}")
+        assert not re.search(r"(?<!\{)\{specify-subcmd:project-cognition compass", raw_content)
+        assert not re.search(r"(?<!\{)\{specify-subcmd:project-cognition query", raw_content)
+        assert "{{specify-subcmd:project-cognition compass" in content
+        assert "{{specify-subcmd:project-cognition query" in content
+
+
+def test_specify_default_intake_does_not_use_old_ready_readiness() -> None:
+    content = read_template("templates/commands/specify.md").lower()
+    assert "when cognition reports `ready`, use the returned task-local bundle" not in content
+    assert "when compass reports `query_ready`" in content
+    assert "read top-level `minimal_live_reads` first" in content
+    assert "then use lane-level `first_pass_paths`" in content
+
+
 def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
     partials = [
         "templates/command-partials/plan/shell.md",

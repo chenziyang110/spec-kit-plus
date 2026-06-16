@@ -76,7 +76,7 @@ scripts:
 ```
 
 - Prefer project cognition when it is available and fresh, but use it as navigation guidance rather than a source that can override live files or user intent.
-- When cognition reports `ready`, use the returned task-local bundle.
+- When compass reports `query_ready`, read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
 - When compass reports `review` or partial coverage, perform the returned minimal live reads, inspect `coverage_diagnostics`, and continue with explicit assumptions.
 - If freshness is `stale`, record a planning advisory, perform minimal live reads, and continue when those reads provide enough evidence.
 - If freshness is `possibly_stale`, inspect the reported changed paths and review topics, perform minimal live reads, and continue with explicit assumptions when sufficient.
