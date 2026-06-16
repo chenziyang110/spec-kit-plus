@@ -303,7 +303,7 @@ func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Ag
 		CoverageDiagnostics:      []CoverageDiagnostic{},
 		Warnings:                 input.PlanDiagnostics.Warnings,
 		RepairHints:              input.PlanDiagnostics.RepairHints,
-		Errors:                   []string{},
+		Errors:                   append([]string{}, agreement.Errors...),
 		RecommendedNextAction:    recommendedAction,
 		RecoveryAction:           recoveryAction,
 		BaselineKind:             firstNonEmpty(agreement.StatusBaselineKind, agreement.DBBaselineKind),

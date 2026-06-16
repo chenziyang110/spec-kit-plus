@@ -801,11 +801,19 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 	if payload["readiness"] != rt.NeedsRebuildReadiness {
 		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
 	}
-	for _, key := range []string{"minimal_live_reads", "evidence_lanes", "coverage_diagnostics", "errors"} {
+	for _, key := range []string{"minimal_live_reads", "evidence_lanes", "coverage_diagnostics"} {
 		values, ok := payload[key].([]any)
 		if !ok || len(values) != 0 {
 			t.Fatalf("%s = %#v, want empty array; payload = %#v", key, payload[key], payload)
 		}
+	}
+	errors, ok := payload["errors"].([]any)
+	if !ok || len(errors) == 0 {
+		t.Fatalf("errors = %#v, want non-empty array; payload = %#v", payload["errors"], payload)
+	}
+	diagnostic := strings.Join(jsonAnySliceStrings(errors), " ")
+	if !strings.Contains(diagnostic, "schema_version") || !strings.Contains(diagnostic, `expected "2"`) {
+		t.Fatalf("errors = %#v, want schema_version expected version diagnostic", payload["errors"])
 	}
 	if payload["recommended_next_action"] != "run_map_scan_build" {
 		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
@@ -2543,6 +2551,16 @@ func jsonAnySliceContains(values []any, want string) bool {
 		}
 	}
 	return false
+}
+
+func jsonAnySliceStrings(values []any) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if text, ok := value.(string); ok {
+			out = append(out, text)
+		}
+	}
+	return out
 }
 
 func jsonStringSliceHasPrefix(value any, prefix string) bool {
