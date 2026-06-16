@@ -17,27 +17,27 @@ import (
 const (
 	compassMode                             = "compass"
 	compassFacetSourceMechanical            = "mechanical_query_facets"
-	compassFacetSourceSemanticIntake        = "semantic_intake"
-	compassFacetSourceQueryPlan             = "query_plan"
+	compassFacetSourceSemanticIntake        = "semantic_intake.intent_facets"
+	compassFacetSourceQueryPlan             = "query_plan.intent_facets"
 	compassStateUsable                      = "usable"
 	compassStateUsableWithReview            = "usable_with_review"
 	compassStateNeedsSemanticIntake         = "needs_semantic_intake"
 	compassStateNeedsExpansionBeforeFix     = "needs_expansion_before_fix_claim"
 	compassStateBlocked                     = "blocked"
-	maxCompassLanes                         = 5
+	maxCompassLanes                         = 3
 	maxCompassReads                         = 15
-	maxCompassPathsPerLane                  = 5
-	broadFallbackPathThreshold              = 200
+	maxCompassPathsPerLane                  = 6
+	broadFallbackPathThreshold              = 50
 	compassRecommendedActionUseReads        = "use_compass_minimal_live_reads"
 	compassRecommendedActionExpandBeforeFix = "run_compass_expansion_before_fix"
 )
 
 type CompassInput struct {
-	Intent         string
-	Query          string
-	Mode           string
-	Plan           Plan
-	SemanticIntake SemanticIntake
+	Intent          string
+	Query           string
+	Plan            Plan
+	PlanDiagnostics PlanDiagnostics
+	InputMode       string
 }
 
 type CompassPayload struct {
@@ -53,7 +53,7 @@ type CompassPayload struct {
 	EvidenceLanes            []EvidenceLane                `json:"evidence_lanes"`
 	MinimalLiveReads         []string                      `json:"minimal_live_reads"`
 	CoverageDiagnostics      []CoverageDiagnostic          `json:"coverage_diagnostics"`
-	ExpansionRef             ExpansionRef                  `json:"expansion_ref,omitempty"`
+	ExpansionRef             *ExpansionRef                 `json:"expansion_ref,omitempty"`
 	AgentNormalization       *AgentNormalizationDiagnostic `json:"agent_normalization,omitempty"`
 	Warnings                 []string                      `json:"warnings,omitempty"`
 	RepairHints              []string                      `json:"repair_hints,omitempty"`
@@ -62,51 +62,50 @@ type CompassPayload struct {
 }
 
 type CompassIntentFacet struct {
-	Facet        string   `json:"facet"`
-	Covered      bool     `json:"covered"`
-	CoveredBy    []string `json:"covered_by,omitempty"`
-	NeedsReview  bool     `json:"needs_review,omitempty"`
-	MatchedTerms []string `json:"matched_terms,omitempty"`
+	Name     string `json:"name"`
+	Coverage string `json:"coverage"`
+	Risk     string `json:"risk,omitempty"`
 }
 
 type EvidenceLane struct {
-	ConceptID         string          `json:"concept_id"`
-	NodeID            string          `json:"node_id"`
+	ID                string          `json:"id"`
 	Title             string          `json:"title"`
-	NodeType          string          `json:"node_type,omitempty"`
-	Confidence        string          `json:"confidence,omitempty"`
-	Score             int             `json:"score,omitempty"`
-	MatchedTerms      []string        `json:"matched_terms,omitempty"`
-	BaselineKind      string          `json:"baseline_kind,omitempty"`
+	Coverage          string          `json:"coverage"`
+	Confidence        string          `json:"confidence"`
 	FirstPassPaths    []FirstPassPath `json:"first_pass_paths"`
-	VerificationHints []string        `json:"verification_hints,omitempty"`
-	FollowupSurfaces  []string        `json:"followup_surfaces,omitempty"`
-	BeforeFixClaim    []string        `json:"before_fix_claim,omitempty"`
+	VerificationHints []string        `json:"verification_hints"`
+	FollowupSurfaces  []string        `json:"followup_surfaces"`
+	BeforeFixClaim    []string        `json:"before_fix_claim"`
+	matchedTerms      []string
+	nodeType          string
 }
 
 type FirstPassPath struct {
-	Path       string `json:"path"`
-	Reason     string `json:"reason,omitempty"`
-	Confidence string `json:"confidence,omitempty"`
+	Path         string `json:"path"`
+	Reason       string `json:"reason"`
+	EvidenceHint string `json:"evidence_hint,omitempty"`
 }
 
 type CoverageDiagnostic struct {
-	Kind      string   `json:"kind"`
-	ConceptID string   `json:"concept_id,omitempty"`
-	Title     string   `json:"title,omitempty"`
-	Reason    string   `json:"reason,omitempty"`
-	Facets    []string `json:"facets,omitempty"`
+	Kind              string   `json:"kind"`
+	Severity          string   `json:"severity"`
+	Message           string   `json:"message"`
+	AffectedFacets    []string `json:"affected_facets,omitempty"`
+	RecommendedAction string   `json:"recommended_action"`
 }
 
 type ExpansionRef struct {
-	ID                string                 `json:"id,omitempty"`
-	AvailableSections []ExpansionSectionMeta `json:"available_sections,omitempty"`
+	ID                       string                          `json:"id,omitempty"`
+	ActiveGenerationID       string                          `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion int                             `json:"candidate_universe_version,omitempty"`
+	QueryFingerprint         string                          `json:"query_fingerprint,omitempty"`
+	AvailableSections        map[string]ExpansionSectionMeta `json:"available_sections,omitempty"`
+	StaleBehavior            string                          `json:"stale_behavior,omitempty"`
 }
 
 type ExpansionSectionMeta struct {
-	ID      string `json:"id,omitempty"`
-	Title   string `json:"title,omitempty"`
-	Summary string `json:"summary,omitempty"`
+	State          string `json:"state"`
+	EstimatedItems int    `json:"estimated_items"`
 }
 
 type compassCandidate struct {
@@ -139,6 +138,8 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		EvidenceLanes:            []EvidenceLane{},
 		MinimalLiveReads:         []string{},
 		CoverageDiagnostics:      []CoverageDiagnostic{},
+		Warnings:                 input.PlanDiagnostics.Warnings,
+		RepairHints:              input.PlanDiagnostics.RepairHints,
 		RecommendedNextAction:    status.RecommendedNextAction,
 		BaselineKind:             status.BaselineKind,
 	}
@@ -169,10 +170,11 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		for _, candidate := range candidates {
 			if candidate.suppressed {
 				payload.CoverageDiagnostics = append(payload.CoverageDiagnostics, CoverageDiagnostic{
-					Kind:      "broad_fallback_suppressed",
-					ConceptID: candidate.conceptID,
-					Title:     candidate.ranked.row.Title,
-					Reason:    candidate.reason,
+					Kind:              "broad_fallback_suppressed",
+					Severity:          "info",
+					Message:           "Suppressed broad fallback candidate " + candidate.ranked.row.Title + ": " + candidate.reason,
+					AffectedFacets:    facets,
+					RecommendedAction: "use_specific_evidence_lanes_before_broad_fallbacks",
 				})
 			}
 		}
@@ -190,31 +192,29 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 func compassFingerprint(input CompassInput) string {
 	normalized := strings.Join(normalizeStrings([]string{
 		strings.ToLower(strings.TrimSpace(input.Intent)),
-		strings.ToLower(strings.TrimSpace(input.Mode)),
+		strings.ToLower(strings.TrimSpace(input.InputMode)),
 		strings.ToLower(strings.TrimSpace(input.Query)),
 		strings.ToLower(strings.TrimSpace(input.Plan.NormalizedQuery)),
 		strings.Join(input.Plan.IntentFacets, "\x00"),
-		strings.ToLower(strings.TrimSpace(input.SemanticIntake.NormalizedQuery)),
-		strings.Join(input.SemanticIntake.IntentFacets, "\x00"),
+		strings.ToLower(strings.TrimSpace(input.Plan.SemanticIntake.NormalizedQuery)),
+		strings.Join(input.Plan.SemanticIntake.IntentFacets, "\x00"),
 	}), "\x00")
 	sum := sha256.Sum256([]byte(normalized))
 	return hex.EncodeToString(sum[:12])
 }
 
 func compassFacets(input CompassInput, terms []string) ([]string, string) {
-	mode := strings.TrimSpace(input.Mode)
+	mode := strings.TrimSpace(input.InputMode)
 	plan := NormalizePlan(input.Plan)
 	switch {
 	case strings.EqualFold(mode, compassFacetSourceQueryPlan) && len(plan.IntentFacets) > 0:
 		return normalizeStrings(plan.IntentFacets), compassFacetSourceQueryPlan
-	case strings.EqualFold(mode, compassFacetSourceSemanticIntake) && hasSemanticIntake(input.SemanticIntake):
-		return normalizeStrings(input.SemanticIntake.IntentFacets), compassFacetSourceSemanticIntake
+	case strings.EqualFold(mode, compassFacetSourceSemanticIntake) && hasSemanticIntake(plan.SemanticIntake):
+		return normalizeStrings(plan.SemanticIntake.IntentFacets), compassFacetSourceSemanticIntake
 	case len(plan.IntentFacets) > 0:
 		return normalizeStrings(plan.IntentFacets), compassFacetSourceQueryPlan
 	case hasSemanticIntake(plan.SemanticIntake):
 		return normalizeStrings(plan.SemanticIntake.IntentFacets), compassFacetSourceSemanticIntake
-	case hasSemanticIntake(input.SemanticIntake):
-		return normalizeStrings(input.SemanticIntake.IntentFacets), compassFacetSourceSemanticIntake
 	default:
 		return normalizeStrings(compassMechanicalFacets(input.Query, terms)), compassFacetSourceMechanical
 	}
@@ -275,17 +275,16 @@ func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string)
 			continue
 		}
 		lanes = append(lanes, EvidenceLane{
-			ConceptID:         candidate.conceptID,
-			NodeID:            candidate.ranked.row.NodeID,
+			ID:                candidate.conceptID,
 			Title:             candidate.ranked.row.Title,
-			NodeType:          candidate.ranked.row.NodeType,
+			Coverage:          "covered_for_first_pass",
 			Confidence:        candidate.ranked.row.Confidence,
-			Score:             candidate.ranked.score,
-			MatchedTerms:      candidate.ranked.matchedTerms,
 			FirstPassPaths:    paths,
 			VerificationHints: candidate.ranked.verificationHints,
 			FollowupSurfaces:  attrStrings(candidate.ranked.attrs, "followup_surfaces"),
 			BeforeFixClaim:    attrStrings(candidate.ranked.attrs, "before_fix_claim"),
+			matchedTerms:      candidate.ranked.matchedTerms,
+			nodeType:          candidate.ranked.row.NodeType,
 		})
 		if len(lanes) >= maxCompassLanes {
 			break
@@ -311,19 +310,25 @@ func coverageForFacets(facets []string, lanes []EvidenceLane, diagnostics []Cove
 	out := make([]CompassIntentFacet, 0, len(facets))
 	for _, facet := range facets {
 		coveredBy := []string{}
-		matchedTerms := []string{}
 		for _, lane := range lanes {
 			if compassLaneCoversFacet(lane, facet) {
-				coveredBy = appendMissingCoverage(coveredBy, lane.ConceptID)
-				matchedTerms = appendUniqueStrings(matchedTerms, lane.MatchedTerms...)
+				coveredBy = appendMissingCoverage(coveredBy, lane.ID)
 			}
 		}
+		coverage := "missing"
+		risk := "needs_review"
+		if len(coveredBy) > 0 {
+			coverage = "covered_for_first_pass"
+			risk = ""
+		} else if len(lanes) > 0 {
+			coverage = "partial"
+		} else if precision {
+			coverage = "needs_expansion_before_fix_claim"
+		}
 		out = append(out, CompassIntentFacet{
-			Facet:        facet,
-			Covered:      len(coveredBy) > 0,
-			CoveredBy:    coveredBy,
-			NeedsReview:  precision && len(coveredBy) == 0,
-			MatchedTerms: matchedTerms,
+			Name:     facet,
+			Coverage: coverage,
+			Risk:     risk,
 		})
 	}
 	return out
@@ -335,8 +340,8 @@ func compassCandidateTerms(input CompassInput, terms, facets []string) []string 
 	values = append(values, termsFrom(input.Plan.NormalizedQuery, 20)...)
 	values = append(values, input.Plan.IntentFacets...)
 	values = append(values, input.Plan.RepositorySearchTerms...)
-	values = append(values, termsFrom(input.SemanticIntake.NormalizedQuery, 20)...)
-	values = append(values, input.SemanticIntake.IntentFacets...)
+	values = append(values, termsFrom(input.Plan.SemanticIntake.NormalizedQuery, 20)...)
+	values = append(values, input.Plan.SemanticIntake.IntentFacets...)
 	return uniqueStrings(values)
 }
 
@@ -363,16 +368,16 @@ func firstPassPaths(candidate rankedConceptCandidate) []FirstPassPath {
 	out := make([]FirstPassPath, 0, len(paths))
 	for _, path := range paths {
 		out = append(out, FirstPassPath{
-			Path:       path,
-			Reason:     "owned_by_ranked_project_cognition_node",
-			Confidence: candidate.row.Confidence,
+			Path:         path,
+			Reason:       "owned_by_ranked_project_cognition_node",
+			EvidenceHint: strings.Join(candidate.row.EvidenceIDs, ","),
 		})
 	}
 	return out
 }
 
 func compassLaneCoversFacet(lane EvidenceLane, facet string) bool {
-	material := strings.ToLower(strings.Join(append([]string{lane.Title, lane.NodeType}, lane.MatchedTerms...), " "))
+	material := strings.ToLower(strings.Join(append([]string{lane.Title, lane.nodeType}, lane.matchedTerms...), " "))
 	if semanticMaterialMatches(material, facet) {
 		return true
 	}
@@ -399,7 +404,7 @@ func compassState(status rt.Status, input CompassInput, payload CompassPayload) 
 	if len(payload.EvidenceLanes) == 0 && hasUncovered {
 		return compassStateNeedsExpansionBeforeFix
 	}
-	mode := strings.TrimSpace(input.Mode)
+	mode := strings.TrimSpace(input.InputMode)
 	if status.Readiness == rt.ReadyReadiness && (strings.EqualFold(mode, compassFacetSourceQueryPlan) || strings.EqualFold(mode, compassFacetSourceSemanticIntake)) && !hasUncovered {
 		return compassStateUsable
 	}
@@ -411,7 +416,7 @@ func compassState(status rt.Status, input CompassInput, payload CompassPayload) 
 
 func compassHasUncoveredFacet(facets []CompassIntentFacet) bool {
 	for _, facet := range facets {
-		if !facet.Covered {
+		if facet.Coverage != "covered_for_first_pass" {
 			return true
 		}
 	}
