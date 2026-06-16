@@ -48,33 +48,54 @@ try {
     exit 1
 }
 
+function Get-NativeHelpOutput {
+    param(
+        [string]$Command,
+        [string[]]$Arguments
+    )
+
+    $hasNativeCommandPreference = Test-Path -Path Variable:PSNativeCommandUseErrorActionPreference
+    if ($hasNativeCommandPreference) {
+        $previousNativeCommandPreference = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+
+    try {
+        return (& $Command @Arguments 2>&1 | Out-String)
+    } finally {
+        if ($hasNativeCommandPreference) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativeCommandPreference
+        }
+    }
+}
+
 Write-Host "==> Verifying..."
 & $target --version
-$updateHelp = & $target update --help 2>&1
+$updateHelp = Get-NativeHelpOutput -Command $target -Arguments @("update", "--help")
 if (($updateHelp -notmatch '-payload-file') -or ($updateHelp -notmatch '-verification')) {
     Write-Host "Error: downloaded project-cognition binary is missing required update flags."
     Write-Host "Expected 'project-cognition update --help' to include -payload-file and -verification."
     exit 1
 }
-$lexiconHelp = & $target lexicon --help 2>&1
+$lexiconHelp = Get-NativeHelpOutput -Command $target -Arguments @("lexicon", "--help")
 if ($lexiconHelp -notmatch '-mode') {
     Write-Host "Error: downloaded project-cognition binary is missing required lexicon catalog mode."
     Write-Host "Expected 'project-cognition lexicon --help' to include -mode."
     exit 1
 }
-$compassHelp = & $target compass --help 2>&1
+$compassHelp = Get-NativeHelpOutput -Command $target -Arguments @("compass", "--help")
 if (($compassHelp -notmatch '-semantic-intake-file') -or ($compassHelp -notmatch '-query-plan-file')) {
     Write-Host "Error: downloaded project-cognition binary is missing required compass flags."
     Write-Host "Expected 'project-cognition compass --help' to include -semantic-intake-file and -query-plan-file."
     exit 1
 }
-$expandHelp = & $target expand --help 2>&1
+$expandHelp = Get-NativeHelpOutput -Command $target -Arguments @("expand", "--help")
 if ($expandHelp -notmatch '-section') {
     Write-Host "Error: downloaded project-cognition binary is missing required expand section flag."
     Write-Host "Expected 'project-cognition expand --help' to include -section."
     exit 1
 }
-$deltaAppendHelp = & $target delta append --help 2>&1
+$deltaAppendHelp = Get-NativeHelpOutput -Command $target -Arguments @("delta", "append", "--help")
 if (($deltaAppendHelp -notmatch '-verification') -or ($deltaAppendHelp -notmatch '-generated-surface')) {
     Write-Host "Error: downloaded project-cognition binary is missing required delta append flags."
     Write-Host "Expected 'project-cognition delta append --help' to include -verification and -generated-surface."
