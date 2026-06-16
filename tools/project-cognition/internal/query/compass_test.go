@@ -245,6 +245,106 @@ func TestCompassQueryPlanUsesConceptDecisionsAndPaths(t *testing.T) {
 	}
 }
 
+func TestCompassQueryPlanSelectedDecisionPathSelectsOnlySelectedLane(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassPrecisionDecisionPathGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent:    "debug",
+		Query:     "unmapped request",
+		InputMode: "query_plan",
+		Plan: Plan{
+			LexiconGenerationID: "GEN-compass-precision-paths",
+			SelectedConcepts:    []string{"concept:GEN-compass-precision-paths:N-selected"},
+			ConceptDecisions: []ConceptDecision{
+				{
+					ConceptID:     "concept:GEN-compass-precision-paths:N-selected",
+					Decision:      "selected",
+					CoveredFacets: []string{"unmapped desired facet"},
+					MatchSources:  []string{"agent_selected_path"},
+					Confidence:    "high",
+					Paths:         []string{"src/selected/only.ts"},
+				},
+				{
+					ConceptID:     "concept:GEN-compass-precision-paths:N-rejected",
+					Decision:      "rejected",
+					CoveredFacets: []string{"rejected-only capability"},
+					MatchSources:  []string{"agent_rejected_path"},
+					Confidence:    "high",
+					Paths:         []string{"src/rejected/only.ts"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !hasString(payload.MinimalLiveReads, "src/selected/only.ts") {
+		t.Fatalf("MinimalLiveReads = %#v, want selected decision path", payload.MinimalLiveReads)
+	}
+	if hasString(payload.MinimalLiveReads, "src/rejected/only.ts") {
+		t.Fatalf("MinimalLiveReads = %#v, want rejected decision path excluded", payload.MinimalLiveReads)
+	}
+	if compassLaneTitleContains(payload.EvidenceLanes, "Rejected Precision Owner") {
+		t.Fatalf("EvidenceLanes = %#v, want rejected decision lane excluded", payload.EvidenceLanes)
+	}
+}
+
+func TestCompassQueryPlanFingerprintIncludesPrecisionPaths(t *testing.T) {
+	base := CompassInput{
+		Intent:    "debug",
+		Query:     "runtime startup issue",
+		InputMode: "query_plan",
+		Plan: Plan{
+			LexiconGenerationID:   "GEN-compass-model-switch",
+			RepositorySearchTerms: []string{"runtimeOverride"},
+			Paths:                 []string{"src/server/ws/handler.ts"},
+			SelectedConcepts:      []string{"concept:GEN-compass-model-switch:N-provider-runtime"},
+			SemanticIntake: SemanticIntake{
+				IntentFacets: []string{"provider runtime override"},
+			},
+			ConceptDecisions: []ConceptDecision{
+				{
+					ConceptID:     "concept:GEN-compass-model-switch:N-provider-runtime",
+					Decision:      "selected",
+					CoveredFacets: []string{"provider runtime override"},
+					MatchSources:  []string{"semantic_intake", "alias"},
+					Paths:         []string{"src/server/ws/handler.ts"},
+				},
+			},
+		},
+	}
+
+	withDifferentPlanPath := base
+	withDifferentPlanPath.Plan.Paths = []string{"desktop/src/components/controls/ModelSelector.tsx"}
+	if compassFingerprint(base) == compassFingerprint(withDifferentPlanPath) {
+		t.Fatalf("fingerprints matched after plan path changed")
+	}
+
+	withDifferentDecisionPath := base
+	withDifferentDecisionPath.Plan.ConceptDecisions = []ConceptDecision{
+		{
+			ConceptID:     "concept:GEN-compass-model-switch:N-provider-runtime",
+			Decision:      "selected",
+			CoveredFacets: []string{"provider runtime override"},
+			MatchSources:  []string{"semantic_intake", "alias"},
+			Paths:         []string{"desktop/src/components/controls/ModelSelector.tsx"},
+		},
+	}
+	if compassFingerprint(base) == compassFingerprint(withDifferentDecisionPath) {
+		t.Fatalf("fingerprints matched after selected decision path changed")
+	}
+
+	plainBase := base
+	plainBase.InputMode = "query"
+	plainDifferentDecisionPath := withDifferentDecisionPath
+	plainDifferentDecisionPath.InputMode = "query"
+	if compassFingerprint(plainBase) != compassFingerprint(plainDifferentDecisionPath) {
+		t.Fatalf("plain query fingerprints differed after plan precision path changed")
+	}
+}
+
 func TestCompassQueryPlanFallsBackToPlanFacetsWhenSemanticIntakeFacetsEmpty(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedCompassModelSwitchGraph(t, paths)
@@ -412,6 +512,41 @@ func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 			{ID: "P-fonts", Path: "desktop/src/styles/global.css", NodeID: "N-ui-readability", Relation: "owns", Confidence: "verified", EvidenceID: "E-fonts"},
 			{ID: "P-window", Path: "desktop/src-tauri/tauri.conf.json", NodeID: "N-ui-readability", Relation: "owns", Confidence: "verified", EvidenceID: "E-window"},
 			{ID: "P-bool-fallback", Path: "src/runtime/fallback_index.ts", NodeID: "N-bool-fallback", Relation: "owns", Confidence: "low", EvidenceID: "E-bool-fallback"},
+		},
+	})
+}
+
+func seedCompassPrecisionDecisionPathGraph(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-compass-precision-paths",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{
+			{ID: "E-selected", SourceKind: "source", SourcePath: "src/selected/only.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-selected"},
+			{ID: "E-rejected", SourceKind: "source", SourcePath: "src/rejected/only.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-rejected"},
+		},
+		Nodes: []store.NodeImport{
+			{
+				ID: "N-selected", Type: "capability", Title: "Selected Precision Owner", Confidence: "verified", EvidenceIDs: []string{"E-selected"},
+				Attrs: map[string]any{
+					"aliases": []any{"selected precision owner"},
+					"owner":   "selected-owner",
+					"domain":  "selected-domain",
+				},
+			},
+			{
+				ID: "N-rejected", Type: "capability", Title: "Rejected Precision Owner", Confidence: "verified", EvidenceIDs: []string{"E-rejected"},
+				Attrs: map[string]any{
+					"aliases": []any{"rejected-only capability"},
+					"owner":   "rejected-owner",
+					"domain":  "rejected-domain",
+				},
+			},
+		},
+		PathIndex: []store.PathIndexImport{
+			{ID: "P-selected", Path: "src/selected/only.ts", NodeID: "N-selected", Relation: "owns", Confidence: "verified", EvidenceID: "E-selected"},
+			{ID: "P-rejected", Path: "src/rejected/only.ts", NodeID: "N-rejected", Relation: "owns", Confidence: "verified", EvidenceID: "E-rejected"},
 		},
 	})
 }

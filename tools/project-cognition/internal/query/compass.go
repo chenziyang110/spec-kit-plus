@@ -201,12 +201,26 @@ func compassFingerprint(input CompassInput) string {
 		strings.ToLower(strings.TrimSpace(input.Query)),
 	}
 	if mode == compassInputModeQueryPlan || mode == compassInputModeSemanticIntake {
+		plan := NormalizePlan(input.Plan)
 		components = append(components,
-			strings.ToLower(strings.TrimSpace(input.Plan.NormalizedQuery)),
-			strings.Join(input.Plan.IntentFacets, "\x00"),
-			strings.ToLower(strings.TrimSpace(input.Plan.SemanticIntake.NormalizedQuery)),
-			strings.Join(input.Plan.SemanticIntake.IntentFacets, "\x00"),
+			strings.ToLower(strings.TrimSpace(plan.NormalizedQuery)),
+			strings.Join(plan.IntentFacets, "\x00"),
+			strings.Join(plan.RepositorySearchTerms, "\x00"),
+			strings.Join(plan.Paths, "\x00"),
+			strings.Join(plan.PathHints, "\x00"),
+			strings.Join(plan.SelectedConcepts, "\x00"),
+			strings.ToLower(strings.TrimSpace(plan.SemanticIntake.NormalizedQuery)),
+			strings.Join(plan.SemanticIntake.IntentFacets, "\x00"),
 		)
+		for _, decision := range compassSelectedConceptDecisions(plan) {
+			components = append(components,
+				decision.ConceptID,
+				strings.ToLower(strings.TrimSpace(decision.Decision)),
+				strings.Join(decision.CoveredFacets, "\x00"),
+				strings.Join(decision.MatchSources, "\x00"),
+				strings.Join(decision.Paths, "\x00"),
+			)
+		}
 	}
 	normalized := strings.Join(normalizeStrings(components), "\x00")
 	sum := sha256.Sum256([]byte(normalized))
@@ -364,12 +378,22 @@ func compassCandidateTerms(input CompassInput, terms, facets []string) []string 
 	values = append(values, termsFrom(plan.SemanticIntake.NormalizedQuery, 20)...)
 	values = append(values, plan.SemanticIntake.IntentFacets...)
 	values = append(values, compassPathTerms(plan.Paths)...)
-	for _, decision := range plan.ConceptDecisions {
+	for _, decision := range compassSelectedConceptDecisions(plan) {
 		values = append(values, decision.CoveredFacets...)
 		values = append(values, decision.MatchSources...)
 		values = append(values, compassPathTerms(decision.Paths)...)
 	}
 	return uniqueStrings(values)
+}
+
+func compassSelectedConceptDecisions(plan Plan) []ConceptDecision {
+	out := []ConceptDecision{}
+	for _, decision := range plan.ConceptDecisions {
+		if strings.EqualFold(decision.Decision, "selected") {
+			out = append(out, decision)
+		}
+	}
+	return out
 }
 
 func scoreCompassPrecisionCandidate(candidate rankedConceptCandidate, terms []string) (int, []string) {
@@ -383,7 +407,7 @@ func scoreCompassPrecisionCandidate(candidate rankedConceptCandidate, terms []st
 	score := 0
 	matched := []string{}
 	for _, term := range terms {
-		if !semanticMaterialMatches(material, term) {
+		if !compassPrecisionTermMatches(material, term) {
 			continue
 		}
 		score += 4
@@ -392,11 +416,25 @@ func scoreCompassPrecisionCandidate(candidate rankedConceptCandidate, terms []st
 	return score, matched
 }
 
+func compassPrecisionTermMatches(material, term string) bool {
+	term = strings.ToLower(strings.TrimSpace(term))
+	if term == "" {
+		return false
+	}
+	if compassLooksLikePathTerm(term) {
+		return strings.Contains(material, term)
+	}
+	return semanticMaterialMatches(material, term)
+}
+
+func compassLooksLikePathTerm(term string) bool {
+	return strings.Contains(term, "/") || strings.Contains(term, "\\")
+}
+
 func compassPathTerms(paths []string) []string {
 	values := []string{}
 	for _, path := range paths {
 		values = append(values, path)
-		values = append(values, termsFrom(path, 20)...)
 	}
 	return values
 }
