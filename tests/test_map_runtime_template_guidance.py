@@ -285,13 +285,32 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
 
 
 def test_docs_describe_compass_default_and_advanced_query_path() -> None:
+    stale_default_query_phrases = (
+        "project cognition query bundle as its default intake",
+        "query bundle as its default intake",
+        "agent-planned task-local project cognition query bundle",
+        "task-local project cognition query bundle before broader",
+        "default generated-project route to the alias catalog",
+        "default route to the alias catalog",
+    )
+
     for path in ["README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"]:
         content = _compact(_read(path).lower())
         assert "project-cognition compass" in content, path
+        assert 'project-cognition compass --intent <intent> --query "$arguments" --format json' in content, path
         assert "minimal_live_reads" in content, path
         assert "first_pass_paths" in content, path
+        assert "project-cognition lexicon --mode catalog" in content, path
+        assert "agent-authored `semantic_intake`" in content, path
+        assert "concept_decisions" in content, path
+        assert "project-cognition query --query-plan" in content, path
         assert "lexicon -> semantic_intake -> query" in content, path
         assert "final edit scope" in content, path
+        for phrase in stale_default_query_phrases:
+            assert phrase not in content, f"{path} still contains stale default query wording: {phrase}"
+
+    handbook = _compact(_read("PROJECT-HANDBOOK.md").lower())
+    assert 'project-cognition compass --intent debug --query "$arguments" --format json' in handbook
 
 
 def test_cognition_workflows_preserve_direct_agent_normalization_guidance() -> None:
