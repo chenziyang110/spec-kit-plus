@@ -19,6 +19,9 @@ const (
 	compassFacetSourceMechanical            = "mechanical_query_facets"
 	compassFacetSourceSemanticIntake        = "semantic_intake.intent_facets"
 	compassFacetSourceQueryPlan             = "query_plan.intent_facets"
+	compassInputModeQuery                   = "query"
+	compassInputModeSemanticIntake          = "semantic_intake"
+	compassInputModeQueryPlan               = "query_plan"
 	compassStateUsable                      = "usable"
 	compassStateUsableWithReview            = "usable_with_review"
 	compassStateNeedsSemanticIntake         = "needs_semantic_intake"
@@ -48,7 +51,7 @@ type CompassPayload struct {
 	ActiveGenerationID       string                        `json:"active_generation_id,omitempty"`
 	CandidateUniverseVersion int                           `json:"candidate_universe_version"`
 	QueryFingerprint         string                        `json:"query_fingerprint"`
-	Summary                  string                        `json:"summary,omitempty"`
+	Summary                  string                        `json:"summary"`
 	IntentFacets             []CompassIntentFacet          `json:"intent_facets"`
 	EvidenceLanes            []EvidenceLane                `json:"evidence_lanes"`
 	MinimalLiveReads         []string                      `json:"minimal_live_reads"`
@@ -134,6 +137,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		ActiveGenerationID:       status.ActiveGenerationID,
 		CandidateUniverseVersion: CandidateUniverseVersion,
 		QueryFingerprint:         compassFingerprint(input),
+		Summary:                  "Compass packet is blocked until project cognition readiness is restored.",
 		IntentFacets:             []CompassIntentFacet{},
 		EvidenceLanes:            []EvidenceLane{},
 		MinimalLiveReads:         []string{},
@@ -204,16 +208,14 @@ func compassFingerprint(input CompassInput) string {
 }
 
 func compassFacets(input CompassInput, terms []string) ([]string, string) {
-	mode := strings.TrimSpace(input.InputMode)
+	mode := normalizedCompassInputMode(input.InputMode)
 	plan := NormalizePlan(input.Plan)
 	switch {
-	case strings.EqualFold(mode, compassFacetSourceQueryPlan) && len(plan.IntentFacets) > 0:
+	case mode == compassInputModeQueryPlan && hasSemanticIntake(plan.SemanticIntake):
+		return normalizeStrings(plan.SemanticIntake.IntentFacets), compassFacetSourceQueryPlan
+	case mode == compassInputModeQueryPlan && len(plan.IntentFacets) > 0:
 		return normalizeStrings(plan.IntentFacets), compassFacetSourceQueryPlan
-	case strings.EqualFold(mode, compassFacetSourceSemanticIntake) && hasSemanticIntake(plan.SemanticIntake):
-		return normalizeStrings(plan.SemanticIntake.IntentFacets), compassFacetSourceSemanticIntake
-	case len(plan.IntentFacets) > 0:
-		return normalizeStrings(plan.IntentFacets), compassFacetSourceQueryPlan
-	case hasSemanticIntake(plan.SemanticIntake):
+	case mode == compassInputModeSemanticIntake && hasSemanticIntake(plan.SemanticIntake):
 		return normalizeStrings(plan.SemanticIntake.IntentFacets), compassFacetSourceSemanticIntake
 	default:
 		return normalizeStrings(compassMechanicalFacets(input.Query, terms)), compassFacetSourceMechanical
@@ -415,14 +417,29 @@ func compassState(status rt.Status, input CompassInput, payload CompassPayload) 
 	if len(payload.EvidenceLanes) == 0 && hasUncovered {
 		return compassStateNeedsExpansionBeforeFix
 	}
-	mode := strings.TrimSpace(input.InputMode)
-	if status.Readiness == rt.ReadyReadiness && (strings.EqualFold(mode, compassFacetSourceQueryPlan) || strings.EqualFold(mode, compassFacetSourceSemanticIntake)) && !hasUncovered {
+	mode := normalizedCompassInputMode(input.InputMode)
+	if status.Readiness == rt.ReadyReadiness && (mode == compassInputModeQueryPlan || mode == compassInputModeSemanticIntake) && !hasUncovered {
 		return compassStateUsable
 	}
 	if (status.Readiness == rt.ReadyReadiness || status.Readiness == rt.ReviewReadiness) && len(payload.EvidenceLanes) > 0 {
 		return compassStateUsableWithReview
 	}
 	return compassStateNeedsExpansionBeforeFix
+}
+
+func normalizedCompassInputMode(mode string) string {
+	mode = strings.TrimSpace(mode)
+	if mode == "" {
+		return compassInputModeQuery
+	}
+	switch {
+	case strings.EqualFold(mode, compassInputModeQueryPlan):
+		return compassInputModeQueryPlan
+	case strings.EqualFold(mode, compassInputModeSemanticIntake):
+		return compassInputModeSemanticIntake
+	default:
+		return compassInputModeQuery
+	}
 }
 
 func compassHasUncoveredFacet(facets []CompassIntentFacet) bool {

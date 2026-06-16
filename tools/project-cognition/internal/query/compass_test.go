@@ -106,6 +106,91 @@ func TestCompassReviewReadinessWithLanesStaysUsableWithReview(t *testing.T) {
 	}
 }
 
+func TestCompassPlainQueryModeIgnoresPlanFacets(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "debug",
+		Query:  "runtimeOverride",
+		Plan: Plan{
+			IntentFacets: []string{"provider model switch"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.FacetSource != compassFacetSourceMechanical {
+		t.Fatalf("FacetSource = %q, want %q", payload.FacetSource, compassFacetSourceMechanical)
+	}
+	for _, facet := range payload.IntentFacets {
+		if facet.Name == "provider model switch" {
+			t.Fatalf("plain query mode used plan facet: %#v", payload.IntentFacets)
+		}
+	}
+}
+
+func TestCompassQueryPlanModeWithCoveredFacetsIsUsable(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent:    "debug",
+		Query:     "runtimeOverride",
+		InputMode: "query_plan",
+		Plan: Plan{
+			SemanticIntake: SemanticIntake{
+				IntentFacets: []string{"runtimeOverride"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.FacetSource != compassFacetSourceQueryPlan {
+		t.Fatalf("FacetSource = %q, want %q", payload.FacetSource, compassFacetSourceQueryPlan)
+	}
+	if payload.CompassState != compassStateUsable {
+		t.Fatalf("CompassState = %q, want %q; facets=%#v lanes=%#v", payload.CompassState, compassStateUsable, payload.IntentFacets, payload.EvidenceLanes)
+	}
+}
+
+func TestCompassBlockedReadinessSerializesSummary(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Readiness = rt.NeedsRebuildReadiness
+	status.RecommendedNextAction = "run_map_scan_build"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "debug",
+		Query:  "runtimeOverride",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var encoded map[string]any
+	if err := json.Unmarshal(data, &encoded); err != nil {
+		t.Fatal(err)
+	}
+	summary, ok := encoded["summary"].(string)
+	if !ok || summary == "" {
+		t.Fatalf("serialized summary = %#v in %s, want non-empty string", encoded["summary"], data)
+	}
+}
+
 func TestIsBroadFallbackCandidateSuppressesBooleanAttr(t *testing.T) {
 	candidate := rankedConceptCandidate{
 		row: store.ConceptCandidateRow{
