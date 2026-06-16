@@ -40,7 +40,7 @@ def _compact(text: str) -> str:
     return " ".join(text.split())
 
 
-def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> None:
+def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
     workflow_intents = {
         "fast.md": "implement",
         "quick.md": "implement",
@@ -53,7 +53,7 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
         "debug.md": "debug",
         "prd-scan.md": "research",
     }
-    readiness_states = ["ready", "review", "ambiguous", "needs_update", "needs_rebuild", "blocked"]
+    readiness_states = ["query_ready", "review", "needs_rebuild", "blocked", "unsupported_runtime"]
 
     obsolete_primary_input_phrases = [
         "required slices",
@@ -68,8 +68,15 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
 
     for name, intent in workflow_intents.items():
         content = read_template(f"templates/commands/{name}").lower()
-        assert "project-cognition lexicon" in content
-        assert f"project-cognition lexicon --intent {intent}" in content
+        assert "project-cognition compass" in content
+        assert f"project-cognition compass --intent {intent}" in content
+        assert "minimal_live_reads" in content
+        assert "first_pass_paths" in content
+        assert "coverage_diagnostics" in content
+        assert (
+            "lexicon -> semantic_intake -> query" in content
+            or "lexicon -> semantic_intake -> project-cognition query" in content
+        )
         assert "project-cognition query" in content
         assert f"project-cognition query --intent {intent}" in content
         assert "--query-plan" in content
@@ -82,6 +89,10 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
         assert "raw user intent plus returned map terms" not in content
         for state in readiness_states:
             assert f"`{state}`" in content, f"{name} missing readiness state {state}"
+        assert "`ambiguous`" not in content
+        assert "`needs_update`" not in content
+        assert "read top-level `minimal_live_reads` first" in content
+        assert "then use lane-level `first_pass_paths`" in content
         assert ".specify/project-cognition/graph/nodes.json" not in content
         assert ".specify/project-cognition/graph/edges.json" not in content
         assert ".specify/project-cognition/graph/claims.json" not in content
@@ -231,8 +242,11 @@ def test_shared_project_cognition_partials_include_canonical_query_plan_skeleton
 
 def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
     required_terms = (
-        "project-cognition lexicon",
-        "alias catalog",
+        "project-cognition compass",
+        "minimal_live_reads",
+        "first_pass_paths",
+        "coverage_diagnostics",
+        "lexicon -> semantic_intake -> query",
         "semantic_intake",
         "concept_decisions",
         "covered_facets",
@@ -241,15 +255,9 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
         "lexicon_generation_id",
         "project-cognition query",
         "--query-plan",
-        "minimal_live_reads",
         "repository_search_terms",
-        "project-language search terms",
-        "do not search only the raw user words",
         "agent-owned semantic normalization",
         "raw lexicon ranking is only a bootstrap",
-        "score=0",
-        "mixed-language or cjk text",
-        "extract embedded project terms",
     )
 
     for name in COGNITION_INTAKE_COMMANDS:
@@ -362,7 +370,7 @@ def test_map_build_template_targets_graph_reconstruction() -> None:
     content = _read("templates/commands/map-build.md")
 
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "{{specify-subcmd:project-cognition lexicon" in content
+    assert "{{specify-subcmd:project-cognition compass" in content
     assert "{{specify-subcmd:project-cognition query" in content
     assert "--query-plan" in content
     assert "raw graph JSON artifacts or slices as runtime truth" in content

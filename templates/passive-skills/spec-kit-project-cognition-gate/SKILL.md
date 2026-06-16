@@ -21,64 +21,20 @@ This passive skill is the brownfield advisory navigation layer, not a hard workf
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
-- Use the direct `project-cognition` query planning flow required by the active
-  workflow contract to retrieve the task-local project cognition bundle. Run
-  `project-cognition lexicon --mode catalog` first to get the project alias catalog
-  plus graph-backed project concept candidates from the active project cognition
-  graph. The alias catalog comes before narrow retrieval: use it to translate
-  user language into project language before selecting candidates. The user
-  request ranks and filters existing project concepts; it does not create
-  project concepts. Write an explicit `semantic_intake` object with
-  `workflow_intent`, `normalized_query`, `intent_facets`, `negative_constraints`,
-  `alias_interpretations`, and `open_semantic_questions`. Choose
-  task-relevant `selected_concepts`, record considered but unsafe or irrelevant
-  `rejected_concepts`, write per-concept `concept_decisions`, carry
-  `lexicon_generation_id` in the `query_plan`, and then run
-  `project-cognition query --query-plan`.
-  If the query command reports query-plan diagnostics, preserve its `warnings`,
-  `repair_hints`, normalized `query_plan`, structured `errors`, and
-  `expected_shape` so the workflow can repair the plan instead of ending on a
-  raw parser exception.
-  Agent-owned semantic normalization is mandatory. The raw lexicon ranking and
-  `agent_normalization` are only bootstrap signals for retrieving the alias
-  catalog and candidate universe; they are not route decisions. Raw lexicon ranking is only a bootstrap. Treat
-  `agent_normalization.required=true` as a non-intelligent CLI reminder to write
-  `semantic_intake` from the alias catalog (action:
-  write_semantic_intake_from_alias_catalog). If `agent_normalization` is
-  omitted, `omitted => required=false`: treat it as `required=false`; omission does not make raw lexical
-  ranking authoritative. If raw `concept_candidates` are all `score=0`, or the
-  prompt is localized, mixed-language, CJK, colloquial, symptom-first, or
-  mixed-language or CJK text, do not stop at the raw score. CJK or mixed
-  CJK/ASCII input still requires agent normalization even when positive raw
-  lexical matches exist because embedded project tokens do not translate the
-  surrounding user language. Extract embedded project terms such as command
-  names, UI labels, file stems, state names, adapter names, and skill or package
-  identifiers from the user's wording and the alias catalog. The agent still
-  owns translation; `agent_normalization` is advisory guidance, not a route
-  decision. Put those translated terms into `normalized_query`,
-  `alias_interpretations`, `intent_facets`, `expanded_queries`, and
-  `repository_search_terms`, then select or reject concepts by facet coverage.
-  Before any source search, turn the user's wording into project-language search
-  terms derived from the alias catalog, `semantic_intake`, selected candidates,
-  and returned route metadata. Write these as `repository_search_terms` in the
-  query plan or workflow notes. Include component names, state names, file names,
-  command names, UI labels, and route names when the lexicon or candidate
-  payload exposes them. Do not search only the raw user words. If the user's
-  phrase has no direct code match, use `normalized_query`,
-  `alias_interpretations`, candidate titles, candidate aliases, `matched_terms`,
-  `colloquial_matches`, returned paths, and `expanded_queries` to form the
-  first search set. Use these project-language search terms before broad
-  repository search; only widen after the translated terms and returned
-  `minimal_live_reads` fail to identify the owner.
-  Use the alias-first project cognition flow: read the schema v2
-  `alias_index`-backed alias catalog, normalize user input into project
-  vocabulary, record `alias_interpretations`, and only then call
-  `project-cognition query --query-plan`. If the runtime reports schema v1 or
-  rebuild-required readiness, do not query through the old DB; continue with
-  live repository evidence and recommend `sp-map-scan -> sp-map-build` when a
-  usable brownfield baseline is needed. Map points, code proves: the alias
-  catalog is route vocabulary, not evidence by itself.
-  Treat raw graph JSON artifacts as obsolete runtime surfaces.
+- Default project cognition intake is `project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json`.
+  Consume the packet in this order:
+  1. Read top-level `minimal_live_reads` first and use those files as the bounded first live evidence route.
+  2. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
+  3. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
+  4. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail.
+  5. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`.
+  Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
+  When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
+  Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
+  The advanced path still requires `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and facet coverage; do not trust top similarity alone.
+  If the query command reports query-plan diagnostics, preserve its `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the workflow can repair the plan instead of ending on a raw parser exception.
+  Agent-owned semantic normalization is mandatory for the advanced path. The raw lexicon ranking and `agent_normalization` are only bootstrap signals for retrieving the alias catalog and candidate universe; they are not route decisions. Raw lexicon ranking is only a bootstrap. Treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (action: write_semantic_intake_from_alias_catalog). If `agent_normalization` is omitted, `omitted => required=false`: treat it as `required=false`; omission does not make raw lexical ranking authoritative. If raw `concept_candidates` are all `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or CJK text, do not stop at the raw score. CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. Extract embedded project terms such as command names, UI labels, file stems, state names, adapter names, and skill or package identifiers from the user's wording and the alias catalog. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. Put those translated terms into `normalized_query`, `alias_interpretations`, `intent_facets`, `expanded_queries`, and `repository_search_terms`, then select or reject concepts by facet coverage.
+  Before source search, write project-language search terms derived from the alias catalog, `semantic_intake`, selected candidates, and route metadata. Write them as `repository_search_terms`; include component names, state names, file names, command names, UI labels, and route names when present. Do not search only the raw user words. Use these project-language search terms before broad repository search.
 - Treat `concept_candidates` as structured project concept candidates, not a
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
   the returned readiness state; do not widen live repository reads beyond the
@@ -93,8 +49,8 @@ judgment in an established Spec Kit Plus repository:
   existing code, implementation-path recommendations, or source-grounded
   recommendations, complete the workflow's Truth Pass with the active
   launcher-backed project cognition query planning flow and bounded live evidence.
-  Use `project-cognition lexicon --intent discussion --mode catalog` and
-  `project-cognition query --intent discussion` for discussion grounding. Record
+  Use `project-cognition compass --intent discussion --query="$ARGUMENTS" --format json` and
+  preserve `project-cognition query --intent discussion` as the advanced precision path for discussion grounding. Record
   `verified_project_facts`, `open_assumptions`, `evidence_checked`, and
   `advice_confidence`. Do not use `--intent plan` from `sp-discussion`.
 - Project cognition is project-scoped. Current project cognition proves only
@@ -114,16 +70,17 @@ judgment in an established Spec Kit Plus repository:
   to choose minimal live reads, ownership hints, consumers, state surfaces,
   verification routes, and coverage gaps. Do not treat it as authoritative
   evidence for current behavior; prove project facts from live repository files.
-- A project-cognition query is not complete when it returns JSON. It is complete
+- A project-cognition compass intake is not complete when it returns JSON. It is complete
   only when readiness is interpreted as advisory navigation, `minimal_live_reads`
-  constrains inspection, live evidence proves technical claims, and relevant
-  facts are carried into the next workflow artifact or execution state.
+  constrains inspection, lane-level `first_pass_paths` reasons are considered,
+  live evidence proves technical claims, and relevant facts are carried into the
+  next workflow artifact or execution state.
 - Extract and carry forward `selected_concepts`, `rejected_concepts`,
   `selection_reason`, `semantic_intake`, `normalized_query`, `intent_facets`,
   `negative_constraints`, `concept_decisions`, `covered_facets`,
   `missing_facets`, `match_sources`, `lexicon_generation_id`, the matched
   capability or symptom, affected nodes and subgraph, `route_pack`,
-  `minimal_live_reads`, missing coverage, evidence traces, verification routes,
+  `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, missing coverage, evidence traces, verification routes,
   ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior and `templates/project-map/**` is historical compatibility/export only.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`

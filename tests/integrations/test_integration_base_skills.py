@@ -141,7 +141,7 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "Turn Classifier" in skill_content
     assert "Question Evidence Gate" in skill_content
     assert "Cognition Advisory, Code Authority" in skill_content
-    assert "project-cognition lexicon --intent discussion" in skill_content
+    assert "project-cognition compass --intent discussion" in skill_content
     assert "project-cognition query --intent discussion" in skill_content
     assert "project-cognition query --intent plan" not in skill_content
     assert "ordinary turns append" in skill_lower

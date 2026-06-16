@@ -161,19 +161,17 @@ repository reads.
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition lexicon --intent debug --query="$ARGUMENTS" --mode catalog --format json}}
-# Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, repository_search_terms, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, or symptom-first, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts. If `agent_normalization` is omitted, treat it as `required=false`; CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. This includes mixed-language or CJK text. (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog) Derive project-language search terms from the alias catalog before reading source. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, normalized_query, and expanded_queries. Use these project-language search terms before broad repository search.
+{{specify-subcmd:project-cognition compass --intent debug --query="$ARGUMENTS" --format json}}
+# Agent: consume the compass packet in order. Read top-level `minimal_live_reads` first. Then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Treat `coverage_diagnostics` as confidence and closeout signals, not route candidates. Do not treat first-pass reads as the final edit scope. Use `project-cognition expand` only when the packet's coverage state or live evidence requires it. Preserve the advanced `lexicon -> semantic_intake -> query` flow for explicit concept decisions. Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `repository_search_terms`, and facet coverage when that precision path is needed. Agent-owned semantic normalization remains mandatory for the advanced path: `agent_normalization` and raw lexicon ranking are bootstrap signals only; if `agent_normalization` is omitted, treat it as `required=false`; omitted => required=false; use write_semantic_intake_from_alias_catalog when needed. Raw lexicon ranking is only a bootstrap; CJK or mixed CJK/ASCII input still requires agent-owned normalization even when positive raw lexical matches exist. The agent still owns translation. Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`.
 {{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}
 ```
 
 Use the returned readiness:
 
-- `ready`: continue with the returned task-local bundle.
-- `review`: perform only the returned `minimal_live_reads` before continuing.
-- `ambiguous`: ask the user to select the intended candidate.
-- `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.
-- `blocked`: stop and report the blocking runtime issue.
+- `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
+- `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers.
+- `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
 - **CARRY FORWARD**: Write the selected capability or symptom, evidence routes,
   minimal reads, competing truths, and unresolved coverage gaps into debug
   session state before making root-cause claims.
@@ -182,7 +180,7 @@ Use the returned readiness:
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Query project cognition with `{{specify-subcmd:project-cognition lexicon --intent debug --query="$ARGUMENTS" --mode catalog --format json}}`, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, then run `{{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}}` before trusting existing brownfield routing assumptions. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, or symptom-first, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts. If `agent_normalization` is omitted, treat it as `required=false`; CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. This includes mixed-language or CJK text. (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog)
+- Query project cognition with `{specify-subcmd:project-cognition compass --intent debug --query="$ARGUMENTS" --format json}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Do not treat first-pass reads as the final edit scope. Use `project-cognition expand` only when the packet's coverage state or live evidence requires it. Preserve the advanced `lexicon -> semantic_intake -> query` flow for explicit concept decisions via `{specify-subcmd:project-cognition query --intent debug --query-plan "<query_plan_json>" --format json}` with `query_plan`, `semantic_intake`, `concept_decisions`, and facet coverage
 - If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
 - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.
@@ -236,7 +234,7 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
 
 ### Default Intake: Map-Backed Minimum Intake
 
-- Use the returned project cognition task-local bundle as the default intake source when readiness is `ready` or `review`.
+- Use the returned project cognition compass packet as the default intake source when readiness is `query_ready` or `review`.
 - Write the selected capability/symptom, route pack, returned `minimal_live_reads`, competing truths, and coverage gaps into the debug session before source-level work.
 - Generate the smallest sufficient intake package:
   - primary map-backed candidate,

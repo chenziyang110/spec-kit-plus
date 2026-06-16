@@ -28,8 +28,8 @@ def _launcher_query(intent: str) -> str:
     return f'{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}'
 
 
-def _launcher_lexicon(intent: str) -> str:
-    return f'{{{{specify-subcmd:project-cognition lexicon --intent {intent} --query="$ARGUMENTS" --mode catalog --format json}}}}'
+def _launcher_compass(intent: str) -> str:
+    return f'{{{{specify-subcmd:project-cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
 
 
 def test_inline_project_cognition_update_uses_shared_partial() -> None:
@@ -132,8 +132,12 @@ def test_worker_prompts_report_inline_update_payload_evidence() -> None:
 
 
 def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
-    assert _launcher_lexicon(intent) in content
+    assert _launcher_compass(intent) in content
     assert _launcher_query(intent) in content
+    assert "minimal_live_reads" in content
+    assert "first_pass_paths" in content
+    assert "coverage_diagnostics" in content
+    assert "lexicon -> semantic_intake -> query" in content
     assert "query_plan" in content
     assert "semantic_intake" in content
     assert "facet coverage" in content
@@ -752,7 +756,7 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "product framing may begin before project cognition" in lowered
     assert "forbidden before the cognition gate" in lowered
     assert ".specify/project-cognition/status.json" in content
-    assert "project-cognition lexicon --intent discussion" in content
+    assert "project-cognition compass --intent discussion" in content
     assert "project-cognition query --intent discussion" in content
     assert "project-cognition query --intent plan" not in content
     assert "Question Evidence Gate" in content
@@ -1089,11 +1093,11 @@ def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     assert "product framing" in lowered
     assert "before the cognition gate" in lowered
     assert "technical options" in lowered
-    assert "direct `project-cognition` query planning flow" in lowered
-    assert "retrieve the task-local project cognition bundle" in lowered
-    assert "project-cognition lexicon --intent discussion" in content
+    assert "default project cognition intake" in lowered
+    assert "minimal_live_reads" in lowered
+    assert "project-cognition compass --intent discussion" in content
     assert "project-cognition query --intent discussion" in content
-    assert "project-cognition lexicon --intent plan" not in content
+    assert "project-cognition compass --intent plan" not in content
     assert "project-cognition query --intent plan" not in content
     assert "use `--intent plan` from `sp-discussion`" in content
     assert "truth pass" in lowered
@@ -1533,7 +1537,7 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
         assert "atlas.entry" not in lowered
 
     implement = _read("templates/commands/implement.md").lower()
-    assert "project-cognition lexicon --intent implement" in implement
+    assert "project-cognition compass --intent implement" in implement
     assert "project-cognition query --intent implement" in implement
     assert "query-plan" in implement
     assert "minimal_live_reads" in implement
@@ -1985,7 +1989,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "build-handbook.md" not in lowered
     assert ".specify/project-map/index/status.json" not in content
     assert "atlas.entry" not in lowered
-    assert "use `{{invoke:map-update}}` with the changed paths" in content
+    assert "follow-up `{{invoke:map-update}}` is useful for external map maintenance" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -2751,7 +2755,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
-    assert "Use `/sp-map-update` with the changed paths" in content
+    assert "follow-up `/sp-map-update` is useful for external map maintenance" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -3026,9 +3030,9 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     _assert_agent_assisted_cognition_gate(build_template, "implement")
     assert "minimal_live_reads" in build_template
     assert "project cognition runtime" in lowered_gate
-    assert "launcher-backed project cognition query planning flow" in lowered_gate
+    assert "default project cognition intake" in lowered_gate
     assert "raw" in lowered_gate
-    assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
+    assert "compass --intent <intent>" in lowered_gate
     assert "if cognition freshness is `stale`, treat map output as advisory" in shared_gate
     assert "continue with live repository evidence" in shared_gate
     assert "external/manual maintenance" in shared_gate
@@ -3257,12 +3261,13 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
     assert "project-cognition query --intent plan" in lowered
-    assert "project-cognition lexicon --intent plan" in lowered
+    assert "project-cognition compass --intent plan" in lowered
+    assert "lexicon -> semantic_intake -> query" in lowered
     assert "query-plan" in lowered
-    assert "returned readiness" in lowered
+    assert "readiness values" in lowered
     assert "minimal_live_reads" in lowered
     assert "build-handbook.md" not in lowered
-    assert "`needs_update`: route through `{{invoke:map-update}}`" in lowered
+    assert "coverage_diagnostics" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered
@@ -3408,7 +3413,9 @@ def test_specify_plan_and_clarify_treat_needs_update_as_planning_advisory():
     ]:
         lowered = _read(path).lower()
 
-        assert "`needs_update`: record a planning advisory" in lowered
+        assert "project-cognition compass --intent plan" in lowered
+        assert "minimal_live_reads" in lowered
+        assert "coverage_diagnostics" in lowered
         assert "`needs_update`: route through `{{invoke:map-update}}`" not in lowered
 
 

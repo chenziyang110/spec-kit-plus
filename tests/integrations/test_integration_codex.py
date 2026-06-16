@@ -247,7 +247,7 @@ class TestCodexAutoPromote:
         assert "Turn Classifier" in generated_discussion
         assert "Question Evidence Gate" in generated_discussion
         assert "Cognition Advisory, Code Authority" in generated_discussion
-        assert "project-cognition lexicon --intent discussion" in generated_discussion
+        assert "project-cognition compass --intent discussion" in generated_discussion
         assert "project-cognition query --intent discussion" in generated_discussion
         assert "project-cognition query --intent plan" not in generated_discussion
         assert "ui-interaction-discussion" in generated_discussion
@@ -510,7 +510,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
-    assert "lexicon --intent implement" in content.lower()
+    assert "compass --intent implement" in content.lower()
     assert "query --intent implement" in content.lower()
     assert "--query-plan" in content.lower()
     assert "minimal_live_reads" in content.lower()
@@ -888,7 +888,7 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "provisional" in scan_content
 
     assert ".specify/project-cognition/project-cognition.db" in build_content
-    assert "lexicon --intent implement" in build_content
+    assert "compass --intent implement" in build_content
     assert "query --intent implement" in build_content
     assert "alias catalog" in build_content
     assert "semantic_intake" in build_content
@@ -964,7 +964,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "codex subagent evidence collection" in content
-    assert "lexicon --intent debug" in content
+    assert "compass --intent debug" in content
     assert "query --intent debug" in content
     assert "--query-plan" in content
     assert "minimal_live_reads" in content
@@ -1135,7 +1135,7 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "do not read constitution, project-rules, or project-learnings" in content
     assert "leave `.specify/memory/learnings/index.md`" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
-    assert "lexicon --intent implement" in content
+    assert "compass --intent implement" in content
     assert "query --intent implement" in content
     assert "alias catalog" in content
     assert "semantic_intake" in content
@@ -1186,7 +1186,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".specify/memory/learnings/index.md" in content
     assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
-    assert "lexicon --intent implement" in content
+    assert "compass --intent implement" in content
     assert "query --intent implement" in content
     assert "alias catalog" in content
     assert "semantic_intake" in content
