@@ -17,6 +17,7 @@ import (
 const (
 	defaultExpansionSection             = "related_paths"
 	expansionRecommendedActionRerun     = "rerun_project_cognition_compass"
+	expansionRefStaleBehavior           = "expand must return stale_expansion if the active generation, candidate universe version, or query fingerprint no longer matches"
 	expansionStatusOK                   = "ok"
 	expansionStatusMissingExpansion     = "missing_expansion"
 	expansionStatusStaleExpansion       = "stale_expansion"
@@ -87,7 +88,7 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
 		QueryFingerprint:         bundle.QueryFingerprint,
 		AvailableSections:        bundle.Sections,
-		StaleBehavior:            expansionRecommendedActionRerun,
+		StaleBehavior:            expansionRefStaleBehavior,
 	}, nil
 }
 

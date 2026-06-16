@@ -27,6 +27,12 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if compass.ExpansionRef.ID != "exp-"+compass.QueryFingerprint {
 		t.Fatalf("ExpansionRef.ID = %q, want exp- + fingerprint %q", compass.ExpansionRef.ID, compass.QueryFingerprint)
 	}
+	if compass.ExpansionRef.StaleBehavior != expansionRefStaleBehavior {
+		t.Fatalf("StaleBehavior = %q, want %q", compass.ExpansionRef.StaleBehavior, expansionRefStaleBehavior)
+	}
+	if compass.ExpansionRef.StaleBehavior == expansionRecommendedActionRerun {
+		t.Fatalf("StaleBehavior = %q, want behavior statement distinct from rerun action", compass.ExpansionRef.StaleBehavior)
+	}
 	for _, section := range []string{"related_paths", "raw_candidates", "coverage_gaps", "graph_neighbors"} {
 		if _, ok := compass.ExpansionRef.AvailableSections[section]; !ok {
 			t.Fatalf("ExpansionRef.AvailableSections missing %q: %#v", section, compass.ExpansionRef.AvailableSections)
