@@ -276,10 +276,10 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 }
 
 func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Agreement) CompassPayload {
-	recommendedAction := firstNonEmpty(agreement.RecommendedNextAction, agreement.RecoveryAction)
 	recoveryAction := firstNonEmpty(agreement.RecoveryAction, agreement.RecommendedNextAction)
+	recommendedAction := firstNonEmpty(agreement.RecommendedNextAction, recoveryAction)
 	readiness := agreement.Readiness
-	if recommendedAction == "run_map_scan_build" || recoveryAction == "run_map_scan_build" {
+	if compassAgreementNeedsRebuild(agreement, recoveryAction) {
 		readiness = rt.NeedsRebuildReadiness
 		recoveryAction = "run_map_scan_build"
 		recommendedAction = "run_map_scan_build"
@@ -308,6 +308,18 @@ func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Ag
 		RecoveryAction:           recoveryAction,
 		BaselineKind:             firstNonEmpty(agreement.StatusBaselineKind, agreement.DBBaselineKind),
 	}
+}
+
+func compassAgreementNeedsRebuild(agreement runtimegate.Agreement, recoveryAction string) bool {
+	if recoveryAction == "run_map_scan_build" {
+		return true
+	}
+	for _, err := range agreement.Errors {
+		if strings.Contains(err, "project-cognition.db metadata schema_version") {
+			return true
+		}
+	}
+	return false
 }
 
 func firstNonEmpty(values ...string) string {

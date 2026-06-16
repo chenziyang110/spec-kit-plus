@@ -823,6 +823,62 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 	}
 }
 
+func TestCompassActiveGenerationMismatchPreservesRewriteStatusRecovery(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.ActiveGenerationID = "GEN-mismatched-status"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"compass", "--intent", "debug", "--query", "App GUI", "--format", "json"}, &stdout, &stderr, "test")
+
+	if code != 0 {
+		t.Fatalf("code = %d, want 0; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["mode"] != "compass" {
+		t.Fatalf("mode = %#v, payload = %#v", payload["mode"], payload)
+	}
+	if payload["compass_state"] != "blocked" {
+		t.Fatalf("compass_state = %#v, payload = %#v", payload["compass_state"], payload)
+	}
+	if payload["readiness"] != rt.BlockedReadiness {
+		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
+	}
+	for _, key := range []string{"minimal_live_reads", "evidence_lanes", "coverage_diagnostics"} {
+		values, ok := payload[key].([]any)
+		if !ok || len(values) != 0 {
+			t.Fatalf("%s = %#v, want empty array; payload = %#v", key, payload[key], payload)
+		}
+	}
+	errors, ok := payload["errors"].([]any)
+	if !ok || len(errors) == 0 {
+		t.Fatalf("errors = %#v, want non-empty array; payload = %#v", payload["errors"], payload)
+	}
+	diagnostic := strings.Join(jsonAnySliceStrings(errors), " ")
+	if !strings.Contains(diagnostic, "active_generation_id mismatch") || !strings.Contains(diagnostic, "GEN-mismatched-status") {
+		t.Fatalf("errors = %#v, want active_generation_id mismatch diagnostic", payload["errors"])
+	}
+	if payload["recommended_next_action"] != "run_map_scan_build" {
+		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
+	}
+	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
+	}
+}
+
 func TestExpandCommandReturnsStoredSection(t *testing.T) {
 	setupReadyMinimalCLIRuntime(t)
 
