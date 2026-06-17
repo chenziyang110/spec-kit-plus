@@ -24,6 +24,7 @@ This must not add a user-visible `sp-review` command. Review is an embedded `sp-
 - Automatically repair remaining task-layer artifacts when the repair is safe.
 - Prevent long sequential runs from executing many stale tasks without reassessment.
 - Preserve auditability when tasks or packets are automatically rewritten.
+- Preserve upstream-derived workflow state fields through a field-level write allowlist.
 - Route back to upstream workflows when review discovers goal, scope, plan, feasibility, or must-preserve conflicts.
 
 ## Non-Goals
@@ -114,7 +115,7 @@ Embedded review may modify task-layer execution artifacts:
 - `task-packets/*.json`
 - `handoff-to-implement.json`
 - `implement-tracker.md`
-- `workflow-state.md`
+- selected execution-review fields in `workflow-state.md`
 - `implementation-review/*`
 
 It may not modify upstream truth artifacts:
@@ -125,6 +126,56 @@ It may not modify upstream truth artifacts:
 - `plan.md`
 
 Review can change how the accepted work is executed. It cannot change what the accepted work is or why that work is required.
+
+## Workflow State Write Allowlist
+
+`workflow-state.md` is not a general task-layer scratchpad. It carries cross-stage truth, including lifecycle handoff decisions, scenario profile state, required evidence, authoritative files, analyze gate status, and reopen decisions. Embedded review may read those fields as binding inputs but must not rewrite them during automatic task repair.
+
+Embedded review may write only execution-review fields:
+
+- `Embedded Review Gate` or equivalent `review_gate` section
+- `review_window_policy`
+- `implementation_review` audit pointers, such as latest review id, latest repair id, snapshot paths, and review artifact paths
+- execution-review blocker rows produced by the current embedded review
+- `next_action` for the current `sp-implement` run
+- `blocked_reason` or equivalent current-run blocker summary
+- `next_command` only when stopping the current `sp-implement` run with a review decision that routes to `/sp.implement`, `/sp.debug`, `/sp.tasks`, `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`
+
+Embedded review must preserve these upstream-derived or cross-stage fields exactly unless the owning upstream workflow rewrites them:
+
+- `active_profile`
+- `required_sections`
+- `activated_gates`
+- `task_shaping_rules`
+- `required_evidence`
+- `transition_policy`
+- `final_handoff_decision`
+- `authoritative_files`
+- `allowed_artifact_writes`
+- `forbidden_actions`
+- existing `Analyze Gate` blocker bundle, attribution, cycle, and status
+- existing reopen gate or upstream remediation truth
+- source discussion or must-preserve disposition fields
+
+If review discovers that any preserved field is wrong, stale, or insufficient, it records a blocker and routes to the owning workflow. It does not repair those fields inline.
+
+## Task Identity and History Stability
+
+Automatic repair must keep task identity stable enough for trackers, worker results, packet references, dependencies, review records, and audit snapshots.
+
+Rules:
+
+- Completed task IDs are immutable. Do not renumber, reorder by ID, or rewrite completed checklist rows except to preserve their existing checked state.
+- Incomplete task IDs should remain stable when their objective remains the same. Repair may update description, dependencies, packet fields, validation, or write scope, but the task keeps its ID.
+- New tasks get append-only IDs after the highest existing numeric task ID, for example `T081` after `T080`.
+- Follow-up repair tasks for completed-work gaps use append-only IDs and should include a stable repair marker in metadata or description, such as `repair_for: T023` or `refines: T023`.
+- If a task must be split, keep the original incomplete task ID for the first or coordinating slice and allocate append-only IDs for added slices. If the original task is completed, do not split it; add follow-up repair tasks instead.
+- If a task becomes obsolete before execution, mark it as superseded in `task-index.json`, packet metadata, and review repair records rather than deleting it silently. The checklist row may stay unchecked with a superseded note, or be moved to a superseded section, but references must remain resolvable.
+- Dependency order may change, but dependency references must target stable task IDs rather than implied numeric order.
+- Every task repair that changes IDs, dependencies, packet names, or task status must update `task-index.json`, affected `task-packets/*.json`, `handoff-to-implement.json`, `implement-tracker.md`, worker-result references when present, and the corresponding review repair record.
+- `tasks.md` may remain numerically append-only after repair even when execution order is no longer pure numeric order. The dependency graph and `next_batch` fields become authoritative for execution order after repair.
+
+The implementation plan must decide whether generated task rows use only numeric append IDs or add a stable suffix convention for repair metadata. Either choice must preserve the append-only completed-history rule.
 
 ## Repair Categories
 
@@ -265,7 +316,19 @@ Generated `tasks.md` should avoid pretending all later tasks are fully known whe
 
 ### Existing Review Helpers
 
-Existing review concepts in `src/specify_cli/orchestration/review_loop.py` and `src/specify_cli/execution/review_schema.py` should be reused or extended. The design should avoid a separate vocabulary for batch review and embedded implementation review when the same finding, review round, severity, and repair-plan ideas apply.
+Existing review concepts in `src/specify_cli/orchestration/review_loop.py` and `src/specify_cli/execution/review_schema.py` should inform the implementation, but the current schema is not sufficient by itself. The existing batch review model is oriented around Codex team batch records, categories such as `simplify`, `harden`, and `spec`, and decisions such as `approved` or `fix_required`.
+
+Embedded implementation review needs a schema and runtime extension:
+
+- a general `ImplementationReviewFinding` model that covers task-layer, execution-layer, and upstream-conflict finding types
+- a `ReviewDecision` enum covering `cleared`, `repair-and-continue`, `repair-and-rerun-current-window`, `blocked-reopen-tasks`, `blocked-reopen-plan`, `blocked-reopen-clarify`, `blocked-deep-research`, and `debug-required`
+- a feature-dir scoped review record writer for `FEATURE_DIR/implementation-review/reviews.ndjson`
+- a repair record model and writer for `FEATURE_DIR/implementation-review/repairs.ndjson`
+- a snapshot writer for task-layer artifacts before automatic repair
+- packet regeneration and packet-readiness validation hooks after repair
+- an adapter from existing Codex team batch review records into the embedded review record shape when a batch review is the trigger
+
+The implementation should reuse existing finding severity, review-round, and fix-plan concepts where they fit, but must not force embedded review into Codex team state paths or the existing `approved | fix_required` decision vocabulary.
 
 ## Error Handling
 
@@ -294,6 +357,11 @@ Runtime and helper tests should verify:
 - completed tasks are preserved and fixed through follow-up repair tasks.
 - review records and repair records are written with snapshots.
 - task packet readiness is revalidated after task repair.
+- `workflow-state.md` repairs are limited to the embedded-review field allowlist.
+- upstream-derived fields such as `active_profile`, `required_evidence`, `final_handoff_decision`, and existing analyze gate state are preserved during automatic repair.
+- completed task IDs are never renumbered, and new repair/refinement tasks use append-only IDs or an explicitly stable suffix convention.
+- task-index, packets, dependencies, tracker state, and worker-result references stay consistent after task repair.
+- embedded review records use feature-dir audit storage, while Codex team batch review remains an adapter source rather than the only persistence model.
 - upstream truth conflicts block instead of auto-repairing.
 - `sp-auto` continues to route clean task packages to `sp-implement`.
 
@@ -307,6 +375,9 @@ The test suite should prove safety boundaries rather than trying to prove review
 - Join points trigger drift review before downstream work continues.
 - Safe task-layer defects are repaired automatically.
 - Completed task history is never rewritten to hide a correction.
+- Completed task IDs remain stable, and added repair work uses append-only task identity.
+- `workflow-state.md` automatic writes are limited to embedded-review execution fields.
+- The review runtime has feature-dir audit records and is not coupled only to Codex team batch review state.
 - Review audit artifacts explain why task artifacts changed.
 - Upstream truth conflicts stop implementation and name the correct re-entry workflow.
 - No public `/sp.review` command appears in user docs, routing docs, or CLI help.
