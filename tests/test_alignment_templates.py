@@ -1023,7 +1023,25 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
+    assert "Resolve discussion handoff intake before feature creation" in content
+    assert "before running `{SCRIPT}`" in content
+    assert "no arguments with exactly one unconsumed `status: handoff-ready`" in content
+    assert "If multiple unconsumed `handoff-ready` discussions exist" in content
+    assert "SOURCE_HANDOFF_MD" in content
+    assert "SOURCE_HANDOFF_JSON" in content
+    assert "SOURCE_DISCUSSION_SLUG" in content
     assert "entry_source: sp-discussion" in content
+    assert "handoff_status: handoff-ready" in content
+    assert "quality_gate.status: user_confirmed" in content
+    assert "planning_gate_status: ready" in content
+    assert "hard_unknown_count: 0" in content
+    assert "open_conflict_count: 0" in content
+    assert "Handoff Reviewer Guide" in content
+    assert "blocked_by_handoff_integrity" in content
+    assert "block before feature creation" in lowered
+    assert "If the Markdown carries protected source evidence or settled decisions that the JSON omits" in content
+    assert "Do not pass the raw handoff file path" in content
+    assert "Derive the feature description" in content
     assert "coverage_status" in content
     assert "planning_gate_status" in content
     assert "hard_unknown_count" in content
@@ -1049,6 +1067,11 @@ def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
 
     _assert_must_preserve_ledger_contract(content)
     assert "handoff-to-specify.json" in content
+    assert "Handoff Reviewer Guide" in content
+    assert "Approve only if" in content
+    assert "Request changes if" in content
+    assert "does not know Spec Kit internals" in content
+    assert "Do not ask for a bare yes/no confirmation without review criteria" in content
     assert "markdown" in lowered and "json" in lowered
     assert "id" in lowered
     assert "claim" in lowered
@@ -1089,6 +1112,9 @@ def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -
     assert "truth pass" in lowered
     assert "discussion compass" in lowered
     assert "proactive implication mapping" in lowered
+    assert "handoff Markdown path, JSON path, or discussion slug" in content
+    assert "exactly one unconsumed `handoff-ready` discussion" in content
+    assert "before feature creation" in lowered
 
 
 def test_project_cognition_gate_has_staged_discussion_gate() -> None:
@@ -1949,6 +1975,53 @@ def test_implement_template_wave_budget_contract():
     assert "launch all selected lanes in the current `parallel-subagents` wave before waiting" in lowered
     assert "whole ready parallel batch" in lowered
     assert "implement t012-t021 migrations" in lowered
+
+
+def test_tasks_and_implement_templates_embed_internal_review_loop_without_public_review_command() -> None:
+    tasks = _read("templates/commands/tasks.md")
+    task_template = _read("templates/tasks-template.md")
+    implement = _read("templates/commands/implement.md")
+    workflow_state = _read("templates/workflow-state-template.md")
+    combined = "\n".join([tasks, task_template, implement, workflow_state])
+    lowered = combined.lower()
+
+    assert "embedded implement review" in lowered
+    assert "pre-implement review" in lowered
+    assert "join-point drift review" in lowered
+    assert "review_window_policy" in combined
+    assert "auto_repair_tasks" in combined
+    assert "implementation-review/reviews.ndjson" in combined
+    assert "implementation-review/repairs.ndjson" in combined
+    assert "snapshots/" in lowered
+    assert "/sp.review" not in combined
+    assert "sp-review" not in combined
+
+
+def test_implement_template_preserves_workflow_state_review_allowlist() -> None:
+    implement = _read("templates/commands/implement.md")
+    lowered = implement.lower()
+
+    assert "workflow-state write allowlist" in lowered
+    assert "active_profile" in implement
+    assert "required_evidence" in implement
+    assert "final_handoff_decision" in implement
+    assert "analyze gate" in lowered
+    assert "must not rewrite" in lowered
+    assert "review_gate" in implement
+    assert "review_window_policy" in implement
+
+
+def test_tasks_template_requires_stable_task_identity_for_embedded_repair() -> None:
+    content = _read("templates/tasks-template.md")
+    lowered = content.lower()
+
+    assert "task identity" in lowered
+    assert "completed task ids are immutable" in lowered
+    assert "append-only" in lowered
+    assert "repair_for" in content
+    assert "task-index.json" in content
+    assert "task-packets" in content
+    assert "worker-result" in lowered
 
 
 def test_explain_template_documents_conservative_routing_contract():
@@ -4055,6 +4128,25 @@ def test_implement_execution_state_template_requires_structured_execution_contra
     assert '"open_reopen_conditions": []' in content
     assert '"open_conflict_count": 0' in content
     assert '"hard_unknown_count": 0' in content
+
+
+def test_implement_execution_state_template_includes_embedded_review_defaults() -> None:
+    payload = json.loads(_read("templates/implement-execution-state-template.json"))
+
+    assert payload["review_gate"] == {
+        "mode": "embedded",
+        "status": "pending",
+        "scope": "pre-implement",
+        "auto_repair_tasks": True,
+        "last_reviewed_batch": None,
+        "latest_review_id": None,
+        "latest_repair_id": None,
+    }
+    assert payload["review_window_policy"] == {
+        "max_completed_tasks_before_review": 5,
+        "max_unreviewed_changed_paths": 8,
+        "max_unreviewed_validation_failures": 0,
+    }
 
 
 def test_specify_template_uses_simplified_collaborative_spec_flow() -> None:
