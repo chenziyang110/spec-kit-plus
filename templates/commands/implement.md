@@ -14,6 +14,109 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+## Embedded Implement Review Loop
+
+This section is **mandatory**. `sp-implement` includes an internal review-and-repair loop. Do not expose, recommend, or route to a separate public review workflow.
+
+### Pre-Implement Review
+
+Before the first implementation task, run a pre-implement review over `tasks.md`, `task-index.json`, `task-packets/*.json`, `handoff-to-implement.json`, `workflow-state.md`, and the upstream read-only truth artifacts needed to verify coverage.
+
+The review must check:
+
+- every buildable requirement, locked planning decision, `MP-*` obligation, `CA-###` obligation, user-observable path, required evidence term, write set, dependency, join point, and packet-readiness condition still has executable coverage
+- the first executable batch is still valid from current repository evidence
+- downstream tasks do not depend on unverified assumptions from earlier unfinished work
+
+If only task-layer defects exist, repair task-layer artifacts automatically and continue. If the defect changes goal, scope, architecture, required evidence, `MP-*`, `CA-###`, feasibility, or user decision state, stop and route to `/sp.clarify`, `/sp.deep-research`, `/sp.plan`, `/sp.tasks`, or `/sp.debug` as justified.
+
+### Join-Point Drift Review
+
+After every phase, parallel batch, pipeline stage, join point, and sequential review window, run a drift review before downstream work continues.
+
+The drift review reads actual changed paths, worker handoffs, validation evidence, `implement-tracker.md`, open gaps, blockers, remaining tasks, task packets, and review records. It decides whether the remaining task package still matches implementation reality.
+
+### Sequential Review Window
+
+Do not execute a long sequential task list as one unreviewed queue. Run drift review whenever any limit is reached:
+
+```text
+max_completed_tasks_before_review = 5
+max_unreviewed_changed_paths = 8
+max_unreviewed_validation_failures = 0
+```
+
+Validation failure, stale handoff, worker concern, open gap, or missing real-entrypoint evidence triggers immediate drift review.
+
+### Review Decisions
+
+Each review must record one decision:
+
+- `cleared`
+- `repair-and-continue`
+- `repair-and-rerun-current-window`
+- `blocked-reopen-tasks`
+- `blocked-reopen-plan`
+- `blocked-reopen-clarify`
+- `blocked-deep-research`
+- `debug-required`
+
+### Safe Repair Boundary
+
+Review may repair `tasks.md`, `task-index.json`, `task-packets/*.json`, `handoff-to-implement.json`, `implement-tracker.md`, selected execution-review fields in `workflow-state.md`, and `implementation-review/*`.
+
+Review must not rewrite upstream truth artifacts or upstream-derived workflow-state fields.
+
+### Workflow-State Write Allowlist
+
+The workflow-state write allowlist for embedded review permits only:
+
+- `review_gate`
+- `review_window_policy`
+- `implementation_review`
+- current-run review blocker rows
+- `next_action`
+- `blocker_reason`
+- `blocked_reason`
+- `next_command` when stopping the current `sp-implement` run with a review decision
+
+Embedded review must not rewrite:
+
+- `active_profile`
+- `required_sections`
+- `activated_gates`
+- `task_shaping_rules`
+- `required_evidence`
+- `transition_policy`
+- `final_handoff_decision`
+- `authoritative_files`
+- `allowed_artifact_writes`
+- `forbidden_actions`
+- existing Analyze Gate truth
+- existing Reopen Contract truth
+- source discussion or must-preserve disposition fields
+
+If any protected field is wrong, stale, or insufficient, record a blocker and route to the owning upstream workflow.
+
+### Task Identity Stability
+
+- Completed task IDs are immutable and must not be renumbered.
+- Incomplete task IDs stay stable when their objective remains the same.
+- New repair and refinement tasks use append-only IDs after the highest existing numeric ID.
+- Completed-work gaps become follow-up repair tasks with `repair_for: T###` or `refines: T###`.
+- Superseded incomplete tasks remain traceable through `task-index.json`, task packets, dependencies, repair records, tracker state, and worker-result references.
+- After repair, dependency graph and `next_batch` metadata are authoritative for execution order.
+
+### Audit Artifacts
+
+Before automatic repair, snapshot changed task-layer artifacts under `FEATURE_DIR/implementation-review/snapshots/`.
+
+Record every review in `FEATURE_DIR/implementation-review/reviews.ndjson`.
+
+Record every automatic repair in `FEATURE_DIR/implementation-review/repairs.ndjson`.
+
+After repair, revalidate task-index consistency, packet readiness, dependencies, tracker state, and worker-result references before continuing.
+
 ## Orchestration Model
 
 This section is **mandatory**. Every `sp-implement` run MUST follow this model — deviation is not permitted.
@@ -413,6 +516,7 @@ until the cognition gate has passed.
 
 6. Select subagent dispatch for each ready batch before writing code:
    - **Agent routing**: When a task specifies an `agent` role, dispatch to that role's subagent type. When no agent is specified, default to a general executor lane. Do not route security-sensitive tasks to general-purpose agents when a matching specialist exists.
+   - Before selecting the first batch, the pre-implement review gate must be cleared or repaired.
    - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
    - The shared implement template is the primary source of truth for this leader-owned milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
    - Fixed runtime budget:
@@ -461,6 +565,7 @@ until the cognition gate has passed.
    - Pipeline execution is preferred when outputs flow stage-by-stage from one bounded task to the next and each stage becomes the next stage's input.
    - Every pipeline stage still needs an explicit checkpoint before downstream work continues.
    - If `classify_review_gate_policy(workload_shape)` requires review, do not cross the join point until the batch has passed worker self-check and leader acceptance.
+   - Before crossing any join point, the join-point drift review gate must be cleared or repaired.
    - If the policy recommends a peer-review lane and a read-only verification lane is available, run one peer-review lane for the high-risk batch before the leader accepts it.
    - Reserve peer-review lanes for high-risk batches such as shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces.
    - **Join Point Validation**: Every join point must name a validation target, a validation command or concrete check, and a pass condition before downstream work continues.
@@ -476,6 +581,7 @@ until the cognition gate has passed.
 7. Execute implementation following the task plan:
     - **Phase-by-phase execution**: Complete each phase before moving to the next
     - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
+   - For sequential work, do not exceed the review window limits before running drift review.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
    - **Capability-aware execution**: After selecting dispatch, execute the current ready batch through `one-subagent`, `parallel-subagents`, or `parallel-subagents` when selected by policy; otherwise record `subagent-blocked` while preserving join-point semantics.
    - **Wave discipline**: For `parallel-subagents`, the current wave is not complete until every selected lane has returned a structured handoff or has been explicitly classified as blocked, stale, or deferred.
@@ -506,6 +612,7 @@ until the cognition gate has passed.
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
    - A completed wave does not automatically complete the whole ready batch; do not cross the batch join point until every lane in the batch is accepted or explicitly blocked/deferred under the workflow contract
    - Planned validation tasks are still ready work. If the remaining tasks are executable tests, E2E checks, security verification, quickstart validation, or other scripted validation work already present in `tasks.md`, continue automatically instead of asking whether validation should start.
+   - Planned validation tasks remain executable work, but failed or missing validation triggers drift review before downstream implementation continues.
    - Do not stop to ask whether validation should start unless a manual-only check or approval step is explicitly recorded in the tracker or task plan.
    - If a manual-only check, approval gate, or verification-policy gate is reached, stop only after recording an **Actionable Blocker Resolution** entry with `owner: user | maintainer`, the exact approval question, the exact rerun command or discovery command when known, and the criteria that will make the gate complete.
    - If a verification command reports passing checks but exits nonzero due to a policy gate, classify it as `verification_policy`; do not describe tests as failing, and do not leave the next step as "approval required" without naming the approver, approval token or policy label when known, rerun command, and artifact path that proves the gate.
