@@ -2,7 +2,6 @@ import pytest
 from typer.testing import CliRunner
 from specify_cli import app
 import re
-import typer
 from specify_cli.debug.schema import CausalMapRiskTarget, DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from tests.conftest import strip_ansi

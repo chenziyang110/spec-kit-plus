@@ -31,7 +31,6 @@ from specify_cli.presets import (
     PresetError,
     PresetValidationError,
     PresetCompatibilityError,
-    VALID_PRESET_TEMPLATE_TYPES,
 )
 from specify_cli.extensions import ExtensionRegistry
 

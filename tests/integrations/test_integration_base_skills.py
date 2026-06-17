@@ -9,9 +9,7 @@ adapted for the ``sp-<name>/SKILL.md`` skills layout.
 """
 
 import os
-import re
 
-import pytest
 import yaml
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
@@ -122,6 +120,11 @@ def test_generated_specify_skill_teaches_simplified_specify_contract(tmp_path):
     assert "two or three approaches" in content or "2-3 approaches" in content
     assert "semantic term" in content
     assert "source_signal_disposition" in content
+    assert "handoff-ready" in content
+    assert "quality_gate.status: user_confirmed" in content
+    assert "planning_gate_status: ready" in content
+    assert "derive the feature description" in content
+    assert "do not pass the raw handoff" in content
     assert "discussion-log.md" in content
     assert "requirements.md" in content
     assert "open-questions.md" in content
@@ -166,6 +169,10 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "one unified" in skill_lower or "single unified" in skill_lower
     assert "handoff-to-specify.md" in skill_content
     assert "handoff-to-specify.json" in skill_content
+    assert "Handoff Reviewer Guide" in skill_content
+    assert "Approve only if" in skill_content
+    assert "Request changes if" in skill_content
+    assert "does not know Spec Kit internals" in skill_content
     assert "quality_gate" in skill_content
     assert "user confirmation" in skill_lower
     assert "Must-Preserve Ledger" in skill_content

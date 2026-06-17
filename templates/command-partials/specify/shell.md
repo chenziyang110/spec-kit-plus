@@ -6,15 +6,18 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 
 ## Context
 
-- Primary inputs: the user's request, current repository context, passive memory, project cognition only as advisory navigation, and discussion source files when a discussion handoff is supplied.
+- Primary inputs: the user's request, current repository context, passive memory, project cognition only as advisory navigation, and discussion source files when a handoff-ready discussion is supplied or uniquely discoverable.
 - Authoritative outputs: `spec.md`, `alignment.md`, `context.md`, `references.md` when useful, `workflow-state.md`, `checklists/requirements.md`, and a minimal `brainstorming/handoff-to-specify.json` compatibility handoff.
 - This command is specification-only. It is not permission to implement code.
 
 ## Process
 
 - Create or resume the feature workspace and `workflow-state.md`.
+- Before creating a feature workspace, classify arguments as either a normal feature description or a discussion handoff path/JSON path/slug. If no arguments are supplied, use exactly one unconsumed `status: handoff-ready` discussion whose `next_command` is `/sp.specify` or `sp-specify`; if there are zero or multiple candidates, stop and ask for a feature description or specific handoff.
+- For a discussion handoff, require the Markdown/JSON pair, `handoff_status: handoff-ready` or `discussion-state.md` `status: handoff-ready`, `planning_gate_status: ready`, `quality_gate.status: user_confirmed`, zero hard unknowns, zero open conflicts, a `Handoff Reviewer Guide`, and no Markdown/JSON drift in protected `MP-*`, `CA-###`, source evidence, or settled-decision coverage.
+- Derive the feature description from `handoff_goal` plus the implementation target summary. Do not pass the raw handoff path, JSON path, or slug to the create-feature script as the feature description.
 - Explore project context only enough to understand ownership, constraints, adjacent surfaces, and source evidence.
-- If invoked from `sp-discussion`, read `handoff-to-specify.md` and `.json` when present, then read the handoff-declared source files. At minimum inspect `discussion-log.md`, `requirements.md`, and `open-questions.md` when they exist; inspect `technical-options.md` and `project-context.md` when present or named.
+- If invoked from `sp-discussion`, re-read the selected `handoff-to-specify.md` and `.json`, then read the handoff-declared source files. At minimum inspect `discussion-log.md`, `requirements.md`, and `open-questions.md` when they exist; inspect `technical-options.md` and `project-context.md` when present or named.
 - If invoked from `sp-discussion`, keep the source discussion slug from `.specify/discussions/<slug>/handoff-to-specify.md`; after the feature package is written and self-reviewed, run `specify discussion mark-consumed <slug> --feature-dir "$FEATURE_DIR"` or manually write `handoff_consumption_status: consumed`, `consumed_by_feature_dir: $FEATURE_DIR`, `status: completed`, and `next_command: none`.
 - Extract every upstream capability-like signal from those sources and assign exactly one disposition: `preserved`, `in_scope`, `deferred`, `dropped`, or `clarification_blocker`.
 - Ask one high-impact question at a time when the answer can change scope, acceptance, architecture, compatibility, security, data shape, external integration, or downstream planning.

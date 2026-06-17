@@ -129,6 +129,10 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "one unified" in command_lower or "single unified" in command_lower
     assert "handoff-to-specify.md" in command_content
     assert "handoff-to-specify.json" in command_content
+    assert "Handoff Reviewer Guide" in command_content
+    assert "Approve only if" in command_content
+    assert "Request changes if" in command_content
+    assert "does not know Spec Kit internals" in command_content
     assert "quality_gate" in command_content
     assert "user confirmation" in command_lower
     assert "Must-Preserve Ledger" in command_content
@@ -457,6 +461,12 @@ class TomlIntegrationTests:
         content = parsed["prompt"]
         lowered = content.lower()
 
+        assert "handoff-ready" in content
+        assert "quality_gate.status: user_confirmed" in content
+        assert "planning_gate_status: ready" in content
+        assert "Derive the feature description" in content
+        assert "Do not pass the raw handoff" in content
+        assert "blocked_by_handoff_integrity" in content
         assert "discussion-log.md" in content
         assert "requirements.md" in content
         assert "open-questions.md" in content

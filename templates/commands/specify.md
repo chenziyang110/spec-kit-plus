@@ -29,11 +29,35 @@ scripts:
 - If it exists, read entries under `hooks.before_specify`.
 {{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
+**Resolve discussion handoff intake before feature creation**:
+- Classify the supplied arguments before running `{SCRIPT}`:
+  - normal feature description
+  - `.specify/discussions/<slug>/handoff-to-specify.md`
+  - `.specify/discussions/<slug>/handoff-to-specify.json`
+  - a discussion `<slug>` whose workspace contains the handoff pair
+  - no arguments with exactly one unconsumed `status: handoff-ready` discussion whose `next_command` is `/sp.specify` or `sp-specify`
+- If no feature description is supplied and there is no exactly-one unconsumed handoff-ready discussion, stop with: `ERROR: No feature description provided`.
+- If multiple unconsumed `handoff-ready` discussions exist, stop before creating a feature workspace and ask the user for the specific slug or handoff path.
+- When a discussion handoff is selected, treat it as the authoritative upstream input and set `SOURCE_HANDOFF_MD`, `SOURCE_HANDOFF_JSON`, and `SOURCE_DISCUSSION_SLUG`. Do not rediscover or switch to another handoff later in the run.
+- Require both `handoff-to-specify.md` and `handoff-to-specify.json` before feature creation. Missing Markdown or JSON is `blocked_by_handoff_integrity`; route back to `sp-discussion` to refresh the pair instead of reconstructing it here.
+- Parse the JSON before feature creation and require:
+  - `entry_source: sp-discussion`
+  - `handoff_status: handoff-ready` or source `discussion-state.md` `status: handoff-ready`
+  - `planning_gate_status: ready`
+  - `quality_gate.status: user_confirmed` or `quality_gate.status: user-confirmed`
+  - `hard_unknown_count: 0`
+  - `open_conflict_count: 0`
+- Check the Markdown for `Handoff Reviewer Guide`, `Quality Gate`, `Must-Preserve Ledger`, and source evidence sections before creating a feature workspace.
+- Check Markdown/JSON companion integrity for protected downstream facts: quality gate status, planning gate status, handoff status, `MP-*` IDs and claims, `CA-###` IDs and claims, hard unknowns, open conflicts, and structured `source_evidence` / settled-decision coverage. If the Markdown carries protected source evidence or settled decisions that the JSON omits, block before feature creation and return to `sp-discussion` to refresh the handoff pair.
+- If `target_project_root` is present and differs from the current repository root, do not create a feature workspace in the wrong project. Ask the user to run the target project's `sp-specify` with this handoff path, or to confirm that the current repository is the intended target.
+- Derive the feature description for `{SCRIPT}` from `handoff_goal` plus the confirmed implementation target summary. Do not pass the raw handoff file path, JSON path, or slug as the feature description.
+- Preserve the selected source handoff path and slug for `workflow-state.md`, `alignment.md`, and `brainstorming/handoff-to-specify.json`.
+
 **Set the working boundary**:
 - Treat the user request as the starting point for a specification, not permission to implement.
-- If no feature description was supplied, stop with: `ERROR: No feature description provided`.
+- If no feature description or accepted discussion handoff was supplied, stop with: `ERROR: No feature description provided`.
 - Verify the installed CLI surface with `specify --help` when command availability is uncertain; feature creation uses the generated create-feature script, not an imagined `specify create-feature` command.
-- Run `{SCRIPT}` from the repo root to create or resume the feature workspace. For generated projects this resolves to `.specify/scripts/bash/create-new-feature.sh "$ARGUMENTS"` or `.specify/scripts/powershell/create-new-feature.ps1 "$ARGUMENTS"`; Codex-generated skills should run `.specify/scripts/bash/create-new-feature.sh "$ARGUMENTS"` from the repo root for the shell variant.
+- Run `{SCRIPT}` from the repo root to create or resume the feature workspace using the normal feature description, or the handoff-derived feature description when discussion intake selected a handoff. For generated projects this resolves to `.specify/scripts/bash/create-new-feature.sh "$ARGUMENTS"` or `.specify/scripts/powershell/create-new-feature.ps1 "$ARGUMENTS"`; Codex-generated skills should run `.specify/scripts/bash/create-new-feature.sh "$ARGUMENTS"` from the repo root for the shell variant.
 - If the feature-creation script exits non-zero, stop and report the script error; do not call `specify lane register` or any invented branch command as a substitute.
 - After the script succeeds, set:
   - `FEATURE_DIR`
@@ -96,8 +120,8 @@ After the default compass packet, run the advanced `lexicon -> semantic_intake -
 
 When `sp-specify` starts from `sp-discussion`, do not trust only the handoff summary.
 
-- Read `handoff-to-specify.md` when supplied or discoverable.
-- Read `handoff-to-specify.json` when present and preserve compatibility fields such as `entry_source: sp-discussion`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`.
+- Use the `SOURCE_HANDOFF_MD`, `SOURCE_HANDOFF_JSON`, and `SOURCE_DISCUSSION_SLUG` selected by pre-feature-creation discussion handoff intake. If a handoff was supplied but intake did not run, stop and run intake before continuing.
+- Re-read `handoff-to-specify.md` and `handoff-to-specify.json` after `FEATURE_DIR` is known and preserve compatibility fields such as `entry_source: sp-discussion`, `handoff_status: handoff-ready`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`.
 - When `entry_source: sp-discussion` and `source_handoff` points under `.specify/discussions/<slug>/handoff-to-specify.md`, preserve that slug as the source discussion that must be marked consumed after this command successfully writes and self-reviews the feature specification package.
 - Coverage and planning readiness are separate. Use `coverage_status` for upstream signal mapping completeness and `planning_gate_status` for whether downstream planning may proceed.
 - Planning gate statuses include `ready`, `blocked_by_hard_unknowns`, `blocked_by_conflict`, `blocked_by_incomplete_coverage`, and `blocked_by_handoff_integrity`.

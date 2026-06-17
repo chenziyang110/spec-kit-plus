@@ -78,19 +78,7 @@
   - blocker_reason
   - blocked_reason
   - next_command
-- workflow_state_protected_fields:
-  - active_profile
-  - required_sections
-  - activated_gates
-  - task_shaping_rules
-  - required_evidence
-  - transition_policy
-  - final_handoff_decision
-  - authoritative_files
-  - allowed_artifact_writes
-  - forbidden_actions
-  - Analyze Gate
-  - Reopen Contract
+- workflow_state_protected_fields: [all upstream truth, artifact ownership, evidence, transition, gate, and reopen fields outside the review allowlist]
 
 ## Handoff Files
 

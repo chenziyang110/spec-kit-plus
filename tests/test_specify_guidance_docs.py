@@ -221,9 +221,13 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "discussion compass" in lowered
         assert "draft unified handoff pair" in lowered or "one unified handoff pair" in lowered
         assert "quality_gate" in content
+        assert "Handoff Reviewer Guide" in content
         assert "user confirmation" in lowered
         assert "mark-consumed" in lowered
         assert "handoff_consumption_status" in content or "handoff consumption" in lowered
+        assert "handoff_goal" in content
+        assert "validates" in lowered and "before feature creation" in lowered
+        assert "single unconsumed" in lowered
         assert "split-plan.md" not in content
         assert "handoffs/<candidate_id>" not in content
         assert "CAND-001" not in content
@@ -264,7 +268,11 @@ def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> N
         assert "handoff-to-specify.json" in content
         assert "single unified handoff" in lowered or "one unified handoff" in lowered
         assert "missing json" in lowered
+        assert "Handoff Reviewer Guide" in content
         assert "user confirmation" in lowered
+        assert "handoff-ready" in content
+        assert "before feature creation" in lowered
+        assert "handoff_goal" in content
         assert "split-plan.md" not in content
         assert "handoffs/CAND-001-handoff-to-specify" not in content
         assert "handoffs/CAND-002-handoff-to-specify" not in content
@@ -425,6 +433,10 @@ def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
         assert "discussion-log.md" in content
         assert "requirements.md" in content
         assert "open-questions.md" in content
+        assert "handoff-ready" in content
+        assert "handoff_goal" in content
+        assert "feature creation" in lowered
+        assert "raw path" in lowered
         assert "facts-lock" not in lowered
         assert "route-lock" not in lowered
         assert "intent-lock" not in lowered

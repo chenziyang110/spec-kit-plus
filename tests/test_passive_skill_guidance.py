@@ -31,6 +31,9 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "learning-start" in content
     assert "learning-capture" in content
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
+    assert "handoff markdown path, json path, or discussion slug" in content
+    assert "exactly one unconsumed `handoff-ready` discussion" in content
+    assert "before feature creation" in content
 
 
 def test_workflow_routing_keeps_review_embedded_in_implement() -> None:

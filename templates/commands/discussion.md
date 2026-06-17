@@ -474,7 +474,22 @@ The handoff must include:
 - `downstream_instructions`: settled decisions, assumptions to preserve, conflicts requiring return to `sp-discussion`, capability map, recommended sequence, dependencies, deferred scope, and reopen conditions
 - `ui_discussion`: `ui_discussion_status`, confirmed UI decisions, deferred UI decisions, interaction expectations, state requirements, accessibility expectations, and whether ASCII sketches are present
 - `ui_sketch_reference`: Markdown section reference for ASCII sketches when `ui_sketches_present` is true
+- `handoff_reviewer_guide`: a human-facing Markdown section named `Handoff Reviewer Guide` that tells an experienced product or engineering reviewer what decision they are being asked to make, what to review first, when to approve, and when to request changes. Write it for someone who does not know Spec Kit internals.
 - `quality_gate`: `status`, `self_reviewed_at`, `user_review_required`, `user_confirmed_at`, and `blocked_reasons`
+
+## Handoff Reviewer Guide
+
+Every draft `handoff-to-specify.md` must include a concise `Handoff Reviewer Guide` before the detailed contract sections or immediately after the Quality Gate. The guide is for an experienced reviewer who understands product and engineering trade-offs but does not know this workflow's internal rules.
+
+The guide must tell the reviewer:
+
+- Decision to make: confirm whether this draft accurately captures the intended product direction and is safe to mark `handoff-ready`, or request changes before the next stage.
+- Review order: `Handoff Goal`, `Context Boundary`, `Implementation Target`, `Source Evidence`, `Blocking Unknowns`, `Downstream Instructions`, `Must-Preserve Ledger`, and any `CA-###` consequence obligations.
+- Approve only if: the goal matches the user's intent, the target project and reference roles are correct, hard unknowns are absent, soft unknowns are safe to resolve later, non-goals/deferred scope are acceptable, and the Must-Preserve and consequence obligations cover the decisions that would cause drift if lost.
+- Request changes if: the target or evidence boundary is wrong, a hard decision is hidden as a soft unknown, a non-goal or reopen condition is missing, the handoff asks downstream workflows to prove or enforce facts outside the target project's authority, or Markdown and JSON disagree on protected IDs or quality-gate status.
+- What not to over-review: exact implementation filenames, UI copy/layout, or final field names may remain downstream soft unknowns unless the handoff claims them as verified or they are necessary to keep the scope coherent.
+
+After writing the draft pair, ask the user to review it with this guide and reply with either approval to mark `handoff-ready` or the concrete changes needed. Do not ask for a bare yes/no confirmation without review criteria.
 
 ## Must-Preserve Ledger
 
@@ -526,6 +541,7 @@ The handoff quality gate is mandatory. `sp-discussion` must not mark a handoff r
 - hard unknowns remain open
 - soft unknowns lack owner, latest resolve phase, or stop-and-reopen condition
 - Must-Preserve Ledger omits goal, scope, non-goals, key decisions, acceptance signals, path constraints, or blocking questions
+- Markdown handoff lacks a `Handoff Reviewer Guide` with approval and change-request criteria for a reviewer who does not know Spec Kit internals
 - quality gate lacks self-review status
 - user has not reviewed and confirmed the handoff
 
@@ -549,4 +565,4 @@ Do not mark the discussion `handoff-ready` until every confirmed or critical ite
 
 When the Senior Consequence Analysis Gate triggers, also write or refresh `handoff-to-specify.json` as a mandatory machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions. Markdown and JSON handoffs must agree on obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition before the discussion can become `handoff-ready`.
 
-After writing a draft handoff, ask the user to review it. Tell the user to invoke the generated integration's `sp-specify` command form with the handoff path only after the handoff self-review passes and `quality_gate.status` records user confirmation. Do not invoke it yourself.
+After writing a draft handoff, ask the user to review it using the `Handoff Reviewer Guide`. Tell the user to invoke the generated integration's `sp-specify` command form with the handoff path only after the handoff self-review passes and `quality_gate.status` records user confirmation. Do not invoke it yourself.

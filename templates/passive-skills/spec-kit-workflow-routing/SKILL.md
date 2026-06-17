@@ -77,7 +77,7 @@ standalone branch-creation command.
 - `sp-discussion` must run the Context Boundary Gate before project-specific technical options, affected-file claims, or handoff generation.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
-- A valid explicit handoff from discussion is one pair: `handoff-to-specify.md` and `handoff-to-specify.json`, with self-review and user confirmation.
+- A valid explicit handoff from discussion is one pair: `handoff-to-specify.md` and `handoff-to-specify.json`, with self-review and user confirmation. Route that pair to `sp-specify` by passing the handoff Markdown path, JSON path, or discussion slug; when exactly one unconsumed `handoff-ready` discussion exists, `sp-specify` may consume it directly. `sp-specify` must validate ready planning status, user-confirmed quality gate status, zero hard unknowns, zero open conflicts, and Markdown/JSON agreement before feature creation.
 - Use `sp-specify` for new capability, behavior, or requirement changes that are
   ready for an aligned spec package before implementation.
 - Use `sp-prd-scan -> sp-prd-build` when an existing repository needs a current-state PRD suite reverse-extracted from code, docs, tests, routes, UI/API surfaces, and project cognition evidence. Treat that pair as the canonical heavy reconstruction PRD lane, a peer workflow path to `sp-specify`, not as a pre-plan requirement, and do not automatically hand off to planning.
