@@ -200,6 +200,20 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "debug session state" in content
 
 
+def _assert_embedded_implement_review_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "embedded implement review" in lowered
+    assert "pre-implement review" in lowered
+    assert "join-point drift review" in lowered
+    assert "sequential review window" in lowered
+    assert "review_window_policy" in content
+    assert "implementation-review/reviews.ndjson" in content
+    assert "implementation-review/repairs.ndjson" in content
+    assert "/sp.review" not in content
+    assert "sp-review" not in content
+
+
 def _discussion_artifact_path(integration, project_root):
     command_path = integration.commands_dest(project_root) / integration.command_filename("discussion")
     if command_path.exists():
@@ -567,6 +581,16 @@ class MarkdownIntegrationTests:
         assert "subagent-blocked" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
         assert "must not edit implementation files directly while subagent execution is active" in lowered
+
+    def test_implement_command_embeds_internal_review_loop(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        implement_path = i.commands_dest(tmp_path) / "sp.implement.md"
+        content = implement_path.read_text(encoding="utf-8")
+
+        _assert_embedded_implement_review_contract(content)
 
     def test_runtime_commands_have_shared_subagent_dispatch_and_result_contracts(self, tmp_path):
         i = get_integration(self.KEY)

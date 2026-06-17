@@ -187,6 +187,20 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "debug session state" in content
 
 
+def _assert_embedded_implement_review_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "embedded implement review" in lowered
+    assert "pre-implement review" in lowered
+    assert "join-point drift review" in lowered
+    assert "sequential review window" in lowered
+    assert "review_window_policy" in content
+    assert "implementation-review/reviews.ndjson" in content
+    assert "implementation-review/repairs.ndjson" in content
+    assert "/sp.review" not in content
+    assert "sp-review" not in content
+
+
 
 TOML_INTEGRATION_SAMPLE_KEYS = ("gemini", "tabnine")
 
@@ -215,6 +229,19 @@ def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
         assert discussion_path.exists(), integration_key
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
         _assert_discussion_contract(parsed["prompt"])
+
+
+def test_collected_toml_integrations_embed_internal_implement_review_loop(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        implement_path = integration.commands_dest(project) / integration.command_filename("implement")
+        assert implement_path.exists(), integration_key
+        parsed = tomllib.loads(implement_path.read_text(encoding="utf-8"))
+        _assert_embedded_implement_review_contract(parsed["prompt"])
 
 
 class TomlIntegrationTests:

@@ -224,6 +224,20 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "debug session state" in content
 
 
+def _assert_embedded_implement_review_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "embedded implement review" in lowered
+    assert "pre-implement review" in lowered
+    assert "join-point drift review" in lowered
+    assert "sequential review window" in lowered
+    assert "review_window_policy" in content
+    assert "implementation-review/reviews.ndjson" in content
+    assert "implementation-review/repairs.ndjson" in content
+    assert "/sp.review" not in content
+    assert "sp-review" not in content
+
+
 
 SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe")
 
@@ -250,6 +264,18 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
         discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists(), integration_key
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+
+def test_collected_skills_integrations_embed_internal_implement_review_loop(tmp_path):
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        implement_path = integration.skills_dest(project) / "sp-implement" / "SKILL.md"
+        assert implement_path.exists(), integration_key
+        _assert_embedded_implement_review_contract(implement_path.read_text(encoding="utf-8"))
 
 
 def test_generated_planning_skills_require_inline_cognition_update_for_source_changes(tmp_path):
