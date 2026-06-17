@@ -109,6 +109,24 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 - If the active profile has a reference fidelity contract, add an explicit Fidelity Checkpoint before any implementation batch that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
 - Any task that intentionally departs from the reference object MUST name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
 
+## Embedded Implement Review Policy
+
+- `sp-implement` must run an embedded pre-implement review before the first code-writing task.
+- `sp-implement` must run join-point drift review after each parallel batch, phase, pipeline stage, and sequential review window.
+- Default review window limits: `max_completed_tasks_before_review=5`, `max_unreviewed_changed_paths=8`, `max_unreviewed_validation_failures=0`.
+- Automatic task-layer repair is allowed only when the accepted goal and plan remain valid.
+- Automatic task-layer repair may not rewrite spec, alignment, context, plan, upstream-derived profile fields, required evidence, final handoff decisions, Analyze Gate, or Reopen Contract.
+- Audit records must be written to `implementation-review/reviews.ndjson` and `implementation-review/repairs.ndjson`, with snapshots under `implementation-review/snapshots/`.
+
+### Task Identity Stability
+
+- Completed task IDs are immutable.
+- Incomplete task IDs stay stable when the objective remains the same.
+- New repair or refinement tasks use append-only IDs.
+- Follow-up repair tasks carry `repair_for: T###` or `refines: T###`.
+- Superseded incomplete tasks remain traceable through `task-index.json`, `task-packets/` metadata, repair records, dependencies, `implement-tracker.md`, and worker-result references.
+- The dependency graph and `next_batch` are authoritative after repair.
+
 ## Implementation-Readiness Task Self-Audit
 
 Before final handoff to `sp-implement`, confirm:

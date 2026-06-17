@@ -276,6 +276,7 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
     - Confirm unmapped tasks are justified as setup, polish, verification, or cross-cutting work, or remove them.
     - Confirm task dependencies and parallel batches do not contain obvious write-set conflicts.
     - If the self-audit finds task-layer defects, repair them before completing `sp-tasks`. If the defect requires missing upstream truth, escalate instead of producing speculative tasks.
+    - **Embedded Implement Review Preparation**: A clean task package still records `next_command: /sp.implement`; do not add or expose a separate public review workflow. When generating `tasks.md`, `task-index.json`, `task-packets/*.json`, or `handoff-to-implement`, prepare the embedded review contract with `embedded_review_gate: required`, `auto_repair_tasks: true`, default `review_window_policy`, reviewable join points before first code-writing and after each parallel batch, phase, pipeline stage, and sequential review window, plus packet regeneration expectations whenever task-layer repair changes dependencies, write sets, next batches, or packet metadata.
     - Validate task completeness (each user story has all needed tasks, independently testable)
     - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
     - Validate reference behavior preservation: if a preserved or redesigned reference behavior exists in the spec/plan package, at least one task, checkpoint, or explicit deferred note must account for it before task generation can complete
@@ -342,6 +343,12 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
       - reference fidelity mapping status
       - unmapped task status
       - write-set conflict status
+    - Embedded implement review preparation:
+      - embedded_review_gate: required
+      - auto_repair_tasks: true
+      - review_window_policy: max_completed_tasks_before_review=5, max_unreviewed_changed_paths=8, max_unreviewed_validation_failures=0
+      - visible_review_command: none
+      - next_command remains `{{invoke:implement}}`
     - Recommended next command: `{{invoke:implement}}` for normal completed or non-escalated task generation.
     - For escalated remediation: preserve the upstream `next_command` (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`) and stop without an analyze handoff.
     - cognition follow-up: if artifact-only task generation exposes future shared surfaces, workflow joins, or validation entry points that the current project cognition runtime does not yet encode, record that as an advisory in `workflow-state.md` or `tasks.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
