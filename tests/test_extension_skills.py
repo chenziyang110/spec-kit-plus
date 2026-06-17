@@ -609,6 +609,9 @@ class TestBuiltInSkillGeneration:
         assert "same_issue" in debug_lower
         assert "derived_issue" in debug_lower
         assert "unrelated_issue" in debug_lower
+        assert "debug understanding checkpoint" in debug_lower
+        assert "understanding_confirmed: true" in debug_lower
+        assert "wait for user confirmation" in debug_lower
         assert "contrarian candidate" in debug_lower
         assert "causal_map_completed: true" in debug_lower
         assert "investigation_contract_completed: true" in debug_lower

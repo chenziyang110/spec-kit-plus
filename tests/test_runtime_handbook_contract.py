@@ -31,6 +31,17 @@ def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
         assert "alias catalog" in content
 
 
+def test_runtime_docs_describe_debug_understanding_checkpoint() -> None:
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md"):
+        content = _read(rel_path).lower()
+
+        assert "debug understanding checkpoint" in content
+        assert "before substantive investigation" in content
+        assert "expected behavior" in content
+        assert "investigation boundary" in content
+        assert "success signal" in content
+
+
 def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     content = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered = content.lower()

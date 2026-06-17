@@ -204,6 +204,41 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "user can agree or decline" not in content
 
 
+def test_debug_template_requires_understanding_checkpoint_before_investigation() -> None:
+    content = read_template("templates/commands/debug.md").lower()
+
+    assert "## debug understanding checkpoint" in content
+    assert "symptom understood" in content
+    assert "expected behavior" in content
+    assert "investigation boundary" in content
+    assert "evidence approach" in content
+    assert "success signal" in content
+    assert "wait for user confirmation" in content
+    assert "not a fix-plan approval" in content
+    assert "not a root-cause claim" in content
+    assert "understanding_confirmed: false" in content
+    assert "understanding_confirmed: true" in content
+    assert (
+        "before reproduction commands, log review, source-code reads, test inspection, evidence collection, "
+        "instrumentation, code edits, fix work, or validation commands"
+    ) in content
+    assert "blocks evidence investigation on resume" in content
+    assert "only hand off to map maintenance after confirmation" in content
+
+
+def test_debug_session_template_tracks_understanding_checkpoint() -> None:
+    content = (PROJECT_ROOT / "templates" / "debug.md").read_text(encoding="utf-8").lower()
+
+    assert "understanding_confirmed" in content
+    assert "## debug understanding checkpoint" in content
+    assert "confirmed_symptom:" in content
+    assert "confirmed_expected_behavior:" in content
+    assert "confirmed_investigation_boundary:" in content
+    assert "confirmed_evidence_approach:" in content
+    assert "confirmed_success_signal:" in content
+    assert "confirmation_notes:" in content
+
+
 def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> None:
     content = read_template("templates/commands/debug.md").lower()
 

@@ -11,6 +11,7 @@ Template for `.planning/debug/[slug].md` — active debug session tracking.
 slug: [session slug]
 status: gathering | investigating | fixing | verifying | awaiting_human_verify | resolved
 trigger: "[verbatim user input]"
+understanding_confirmed: [true only after the user confirms the Debug Understanding Checkpoint]
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
 causal_map_completed: [true after map-backed minimum intake or the Stage 1A causal map is written]
 investigation_contract_completed: [true after map-backed minimum intake or the Stage 1B contract planner finishes]
@@ -49,6 +50,23 @@ reproduction: [how to trigger]
 reproduction_command: [command or script if available]
 started: [when it broke / always broken]
 reproduction_verified: [true once repro confirmed]
+
+## Debug Understanding Checkpoint
+<!-- OVERWRITE/REFINE before substantive investigation starts -->
+
+confirmed_symptom: [what the reporter confirmed is failing]
+confirmed_expected_behavior: [what should happen instead, or the confirmed unknown]
+confirmed_investigation_boundary:
+  in_scope:
+    - [area, workflow, command, or behavior this session will investigate]
+  out_of_scope:
+    - [nearby issue, enhancement, or unrelated behavior excluded from this session]
+confirmed_evidence_approach:
+  - [first reproduction, log, source, test, or instrumentation route to use after confirmation]
+confirmed_success_signal:
+  - [evidence that proves the session can move to fix, verification, or human verification]
+confirmation_notes:
+  - [user correction, ambiguity, or confirmation timestamp]
 
 ## Atlas Read Evidence
 

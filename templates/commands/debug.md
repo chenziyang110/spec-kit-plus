@@ -93,6 +93,7 @@ When a defect touches lifecycle, running-state, shared-state, destructive behavi
 ## Workflow Quality Requirements
 
 - Confirm project cognition freshness and valid debug session entry before deeper investigation.
+- Confirm the Debug Understanding Checkpoint before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands.
 - Keep the debug session file current as the durable source of truth for evidence, active hypothesis, candidate queue, verification outcome, and terminal status.
 - Preserve evidence gates: do not skip observer framing, bypass decisive evidence, or accept a fix without recorded verification.
 - Update durable state before compaction-risk transitions, investigation join points, long evidence synthesis, or any stop where resume will depend on more than the visible conversation.
@@ -123,10 +124,12 @@ When a defect touches lifecycle, running-state, shared-state, destructive behavi
 2. **Initialize or Resume**
    - [AGENT] Create or read the session file in `.planning/debug/[slug].md`.
    - Announce the current status, current hypothesis, and immediate next action.
+   - For a new session, write `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and wait for confirmation before substantive investigation.
+   - For a resumed session with `understanding_confirmed: false`, repair or confirm the checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
 
 3. **Run the Investigation Protocol**
    - Move through the investigation stages below, starting with the map-backed intake contract before evidence collection begins.
-   - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
+   - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `understanding_confirmed: true`, `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
    - Update the debug file before each action.
    - Append every confirmed finding to `Evidence`.
    - Append every disproven theory to `Eliminated`.
@@ -175,11 +178,30 @@ Use the returned readiness:
   minimal reads, competing truths, and unresolved coverage gaps into debug
   session state before making root-cause claims.
 
+## Debug Understanding Checkpoint
+
+`sp-debug` has one default understanding checkpoint before substantive investigation. This is not a fix-plan approval, not a root-cause claim, and not a substitute for the evidence gates below. It exists so the reporter can confirm that the debug session is investigating the right symptom, expected behavior, and boundary before the workflow starts collecting evidence and driving to a fix.
+
+After session initialization, passive memory intake, the project cognition query, and only the bounded session, memory, or project-cognition context reads needed to frame the reported problem, present one concise checkpoint:
+
+- `Symptom understood`: what you believe is failing, including the user-visible symptom or failing signal.
+- `Expected behavior`: what should happen instead, or the specific unknown that needs confirmation.
+- `Investigation boundary`: what this debug session will investigate and what is out of scope.
+- `Evidence approach`: the first reproduction, log, source, test, or instrumentation route you expect to use after confirmation.
+- `Success signal`: what evidence will prove the session can move from investigation to fix, verification, or human verification.
+
+Wait for user confirmation before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
+
+Create or update `.planning/debug/[slug].md` with `understanding_confirmed: false` before reproduction commands, log review, source-code reads, test inspection, evidence collection, subagent dispatch, instrumentation, code edits, fix work, or validation commands. Record the confirmed checkpoint in the debug session file and set `understanding_confirmed: true` before substantive investigation continues. `understanding_confirmed: false` blocks evidence investigation on resume. While it is false, only read the minimal session, memory, or project-cognition context needed to reconstruct or revise the checkpoint; you must not proceed to reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, fixing, validation, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and the debug session is updated.
+
+If project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`, record that requirement in the debug session while `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and only hand off to map maintenance after confirmation.
+
 ## Investigation Protocol
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
 - Query project cognition with `{{specify-subcmd:project-cognition compass --intent debug --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Do not treat first-pass reads as the final edit scope. Use `project-cognition expand` only when the packet's coverage state or live evidence requires it. Use the advanced `lexicon -> semantic_intake -> query` flow only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, run `project-cognition query --query-plan "<query_plan_json>"` with `query_plan`, `semantic_intake`, `concept_decisions`, and facet coverage
+- If the session records `understanding_confirmed: false`, repair or confirm the Debug Understanding Checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
 - If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, continue with live repository evidence when workflow policy allows degraded advisory navigation; recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance unless the user explicitly requested cognition repair or root-cause analysis truly cannot proceed without a usable baseline.
 - [AGENT] If cognition freshness is `stale`, treat map output as advisory, continue with live repository evidence when workflow policy allows, and recommend `{{invoke:map-update}}` as follow-up maintenance only when the user requested cognition repair or stale coverage blocks the investigation.
@@ -224,6 +246,7 @@ Canonical stage map:
 
 Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the session records all of the following:
 
+- `understanding_confirmed: true`
 - `causal_map_completed: true`
 - `investigation_contract_completed: true`
 - `log_investigation_plan_completed: true`

@@ -1119,6 +1119,9 @@ def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
     assert "request_user_input" in content
     assert "native structured question tool" in content
     assert "missing-information question" in content or "plain-text clarification" in content
+    assert "debug understanding checkpoint" in content
+    assert "understanding_confirmed: true" in content
+    assert "symptom understood" in content
 
 
 def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):

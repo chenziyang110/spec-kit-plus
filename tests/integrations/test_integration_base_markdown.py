@@ -607,6 +607,9 @@ class MarkdownIntegrationTests:
         assert "execution_surface: leader-inline | native-subagents | none" in debug_content
         assert "small focused investigation" in debug_content
         assert "subagent-assisted" in debug_content
+        assert "debug understanding checkpoint" in debug_content
+        assert "understanding_confirmed: true" in debug_content
+        assert "symptom understood" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
