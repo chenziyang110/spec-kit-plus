@@ -99,6 +99,7 @@ SNAPSHOT_ALLOWED_DIRECTORIES = frozenset(
 
 
 TASK_ID_RE = re.compile(r"^T(?P<number>\d+)$")
+SNAPSHOT_TOKEN_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 def _utc_now() -> str:
@@ -195,7 +196,8 @@ def _snapshot_name(relative_path: str, review_id: str) -> str:
     stem = source.as_posix().replace("/", "__")
     if suffix:
         stem = stem[: -len(suffix)]
-    return f"{stem}.before-{review_id}{suffix}"
+    safe_review_id = SNAPSHOT_TOKEN_RE.sub("_", review_id).strip("._-") or "review"
+    return f"{stem}.before-{safe_review_id}{suffix}"
 
 
 def _safe_snapshot_relative_path(relative_path: str) -> Path | None:
@@ -219,6 +221,7 @@ def _safe_snapshot_relative_path(relative_path: str) -> Path | None:
 def snapshot_artifacts(feature_dir: Path, *, review_id: str, relative_paths: list[str]) -> list[str]:
     output_dir = snapshots_dir(feature_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    output_root = output_dir.resolve(strict=False)
     copied: list[str] = []
     feature_root = feature_dir.resolve(strict=False)
     for relative_path in relative_paths:
@@ -233,6 +236,10 @@ def snapshot_artifacts(feature_dir: Path, *, review_id: str, relative_paths: lis
         if not source.exists() or not source.is_file():
             continue
         target = output_dir / _snapshot_name(relative_path, review_id)
+        try:
+            target.resolve(strict=False).relative_to(output_root)
+        except ValueError:
+            continue
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
         copied.append(target.relative_to(feature_dir).as_posix())

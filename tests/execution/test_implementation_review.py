@@ -130,6 +130,24 @@ def test_snapshot_artifacts_rejects_out_of_feature_and_unapproved_paths(tmp_path
     assert snapshots == ["implementation-review/snapshots/tasks.before-pre-implement-r1.md"]
 
 
+def test_snapshot_artifacts_sanitizes_review_id_destination(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
+
+    snapshots = snapshot_artifacts(
+        feature_dir,
+        review_id="../../../../../escaped",
+        relative_paths=["tasks.md"],
+    )
+
+    assert snapshots == [
+        "implementation-review/snapshots/tasks.before-escaped.md",
+    ]
+    assert (feature_dir / "implementation-review" / "snapshots" / "tasks.before-escaped.md").exists()
+    assert not (tmp_path / "specs" / "escaped.md").exists()
+
+
 def test_next_append_task_id_preserves_numeric_width() -> None:
     assert next_append_task_id([]) == "T001"
     assert next_append_task_id(["T001", "T080"]) == "T081"
