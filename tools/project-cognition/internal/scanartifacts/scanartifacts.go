@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -49,6 +50,17 @@ type Boundary struct {
 	Criticality           map[string]string
 	ClassificationReasons map[string]string
 	DecisionSource        map[string]string
+}
+
+type ScanTargets struct {
+	Present            bool
+	SelectedPaths      map[string]bool
+	SampledPaths       map[string]bool
+	InventoryOnlyPaths map[string]bool
+	ExcludedPaths      map[string]bool
+	BlockedPaths       map[string]bool
+	ValueTier          map[string]string
+	ScanDecision       map[string]string
 }
 
 type PathIndexRequirements struct {
@@ -216,10 +228,12 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 func LoadPathIndexRequirements(paths rt.Paths) (PathIndexRequirements, []string) {
 	result := newResult([]string{})
 	boundary := loadBoundary(paths, &result)
+	scanTargets := loadScanTargets(paths, &result)
 	acceptedGaps := acceptedNonblockingGapPaths(paths, boundary)
 	pkg := Package{}
 	loadNodes(paths, &pkg, &result)
 	canonicalNodePathCount, compatibilityNodePathCount := nodePathCounts(pkg.Nodes)
+	nodePaths := nodePathSet(pkg.Nodes)
 	requirements := PathIndexRequirements{
 		IncludedPaths:                 sortedKeys(boundary.IncludedPaths),
 		ExcludedPaths:                 sortedKeys(boundary.ExcludedPaths),
@@ -229,6 +243,9 @@ func LoadPathIndexRequirements(paths rt.Paths) (PathIndexRequirements, []string)
 	}
 	for path := range boundary.IncludedPaths {
 		if boundary.ExcludedPaths[path] || acceptedGaps[path] {
+			continue
+		}
+		if scanTargets.Present && !graphEligibleScanTarget(path, scanTargets, nodePaths) {
 			continue
 		}
 		requirements.IndexRequiredPaths = append(requirements.IndexRequiredPaths, path)
@@ -834,6 +851,77 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 	boundary.ClassificationReasons = boundaryDispositionMap(obj["classification_reasons"])
 	boundary.DecisionSource = boundaryDispositionMap(obj["decision_source"])
 	return boundary
+}
+
+func loadScanTargets(paths rt.Paths, result *Result) ScanTargets {
+	targets := ScanTargets{
+		SelectedPaths:      map[string]bool{},
+		SampledPaths:       map[string]bool{},
+		InventoryOnlyPaths: map[string]bool{},
+		ExcludedPaths:      map[string]bool{},
+		BlockedPaths:       map[string]bool{},
+		ValueTier:          map[string]string{},
+		ScanDecision:       map[string]string{},
+	}
+	path := filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json")
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return targets
+	} else if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-targets.json: %v", err))
+		return targets
+	}
+	raw, err := readJSONFile(path, "scan-targets.json")
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return targets
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		result.Errors = append(result.Errors, "scan-targets.json must contain a top-level JSON object")
+		return targets
+	}
+	targets.Present = true
+	targets.SelectedPaths = boundaryPathsFromValue(obj["selected_paths"])
+	targets.SampledPaths = boundaryPathsFromValue(obj["sampled_paths"])
+	targets.InventoryOnlyPaths = boundaryPathsFromValue(obj["inventory_only_paths"])
+	targets.ExcludedPaths = boundaryPathsFromValue(obj["excluded_paths"])
+	targets.BlockedPaths = boundaryPathsFromValue(obj["blocked_paths"])
+	targets.ValueTier = upperDispositionMap(obj["value_tier"])
+	targets.ScanDecision = boundaryDispositionMap(obj["scan_decision"])
+	return targets
+}
+
+func graphEligibleScanTarget(path string, targets ScanTargets, nodePaths map[string]bool) bool {
+	if targets.ExcludedPaths[path] || targets.BlockedPaths[path] || targets.InventoryOnlyPaths[path] {
+		return false
+	}
+	if !targets.SelectedPaths[path] {
+		return false
+	}
+	decision := targets.ScanDecision[path]
+	switch decision {
+	case "inventory_only", "exclude", "blocked":
+		return false
+	}
+	tier := strings.ToUpper(targets.ValueTier[path])
+	switch tier {
+	case "P0", "P1":
+		return decision == "" || decision == "scan"
+	case "P2":
+		return nodePaths[path] && (decision == "scan" || decision == "sample" || decision == "sampled" || decision == "")
+	case "":
+		return decision == "scan"
+	default:
+		return false
+	}
+}
+
+func upperDispositionMap(value any) map[string]string {
+	values := boundaryDispositionMap(value)
+	for path, item := range values {
+		values[path] = strings.ToUpper(item)
+	}
+	return values
 }
 
 func isVersionedBoundaryObject(obj map[string]any) bool {
@@ -2194,6 +2282,16 @@ func nodePathCounts(nodes []NodeRow) (int, int) {
 		}
 	}
 	return len(canonical), len(compatibility)
+}
+
+func nodePathSet(nodes []NodeRow) map[string]bool {
+	paths := map[string]bool{}
+	for _, node := range nodes {
+		for _, path := range node.Paths {
+			paths[path] = true
+		}
+	}
+	return paths
 }
 
 func intFromValue(value any) int {

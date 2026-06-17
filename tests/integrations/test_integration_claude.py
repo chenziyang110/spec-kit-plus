@@ -100,6 +100,32 @@ def test_claude_hook_infers_active_context_from_specify_features_root(tmp_path):
     assert inferred["feature_dir"] == str(feature_dir)
 
 
+def test_claude_hook_infers_map_update_active_context(tmp_path):
+    module = _load_claude_hook_dispatch_module()
+    project_root = tmp_path / "claude-hook-map-update"
+    feature_dir = project_root / "specs" / "003-map-update"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Map Update",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-map-update`",
+                "- status: `executing`",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    inferred = module._infer_active_context(project_root)
+
+    assert inferred is not None
+    assert inferred["command_name"] == "map-update"
+    assert inferred["feature_dir"] == str(feature_dir)
+
+
 def test_claude_hook_treats_custom_complete_statuses_as_terminal(tmp_path):
     module = _load_claude_hook_dispatch_module()
     project_root = tmp_path / "claude-hook-terminal-compat"

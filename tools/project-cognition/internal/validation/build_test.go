@@ -548,6 +548,38 @@ func TestValidateBuildBlocksMissingScanNodeIdentity(t *testing.T) {
 	}
 }
 
+func TestValidateBuildAllowsProvisionalWorkflowUpdateIdentities(t *testing.T) {
+	paths := validationTestPaths(t)
+	writeBuildAcceptanceInputs(t, paths)
+	writeMatchingScanPackage(t, paths)
+	seedMatchingQueryReadyDatabase(t, paths, nil, nil)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AdoptWorkflowPath(context.Background(), store.WorkflowPathAdoption{
+		UpdateID:         "update-1",
+		Path:             "src/new-feature.go",
+		Workflow:         "sp-map-update",
+		BehaviorSurfaces: []string{"new feature entrypoint"},
+		Verification:     []map[string]string{{"command": "go test ./...", "result": "passed"}},
+		Reason:           "workflow-finalize",
+	}); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyStatus(t, paths, "GEN-0001")
+
+	payload := ValidateBuild(paths)
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, errors=%#v", payload.Status, payload.Errors)
+	}
+}
+
 func TestValidateBuildBlocksUnexpectedDBNodeIdentityWithSameCount(t *testing.T) {
 	paths := validationTestPaths(t)
 	writeBuildAcceptanceInputs(t, paths)

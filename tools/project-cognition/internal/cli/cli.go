@@ -333,7 +333,14 @@ func jsonOnlyCommand(args []string, stdout io.Writer, stderr io.Writer, payload 
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	return writeJSON(stdout, payload)
+	code := writeJSON(stdout, payload)
+	if code != 0 {
+		return code
+	}
+	if payloadBlocked(payload) {
+		return 1
+	}
+	return 0
 }
 
 func buildFromScanCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -355,7 +362,27 @@ func buildFromScanCommand(args []string, stdout io.Writer, stderr io.Writer, pat
 	if err != nil {
 		return 1
 	}
+	if payloadBlocked(payload) {
+		return 1
+	}
 	return 0
+}
+
+func payloadBlocked(payload any) bool {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return false
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return false
+	}
+	return stringField(obj, "status") == "blocked" || stringField(obj, "readiness") == "blocked"
+}
+
+func stringField(obj map[string]any, key string) string {
+	value, _ := obj[key].(string)
+	return strings.TrimSpace(strings.ToLower(value))
 }
 
 func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

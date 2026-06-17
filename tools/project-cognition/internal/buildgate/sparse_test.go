@@ -54,6 +54,49 @@ func TestValidateSparsePathIndexReportsCriticalMissingPath(t *testing.T) {
 	}
 }
 
+func TestValidateSparsePathIndexUsesGraphEligibleScanTargetsDenominator(t *testing.T) {
+	paths := buildgateTestPaths(t)
+	writeBuildgateRequirements(t, paths, []string{
+		"src/app.go",
+		"src/config.go",
+		"tests/app_test.go",
+		"vendor/bundle.js",
+	}, nil, map[string]string{
+		"src/app.go":        "critical",
+		"src/config.go":     "important",
+		"tests/app_test.go": "low_risk",
+		"vendor/bundle.js":  "low_risk",
+	})
+	writeBuildgateJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json"), map[string]any{
+		"schema_version":         1,
+		"selection_policy":       "value_weighted",
+		"selected_paths":         []string{"src/app.go", "src/config.go"},
+		"sampled_paths":          []string{"tests/app_test.go"},
+		"inventory_only_paths":   []string{"vendor/bundle.js"},
+		"excluded_paths":         []string{},
+		"blocked_paths":          []string{},
+		"value_tier":             map[string]string{"src/app.go": "P0", "src/config.go": "P1", "tests/app_test.go": "P2", "vendor/bundle.js": "P3"},
+		"scan_decision":          map[string]string{"src/app.go": "scan", "src/config.go": "scan", "tests/app_test.go": "sample", "vendor/bundle.js": "inventory_only"},
+		"disposition":            map[string]string{"src/app.go": "deep_read", "src/config.go": "deep_read", "tests/app_test.go": "sampled", "vendor/bundle.js": "inventory_only"},
+		"criticality":            map[string]string{"src/app.go": "critical", "src/config.go": "important", "tests/app_test.go": "low_risk", "vendor/bundle.js": "low_risk"},
+		"classification_reasons": map[string]string{"src/app.go": "entrypoint", "src/config.go": "config", "tests/app_test.go": "sampled proof", "vendor/bundle.js": "inventory"},
+	})
+	db := buildgateTestDB(t, paths)
+	seedBuildgatePathIndex(t, db, "GEN-0001", []string{"src/app.go", "src/config.go"})
+
+	result := ValidateSparsePathIndex(paths, db, "GEN-0001")
+
+	if len(result.Errors) != 0 {
+		t.Fatalf("Errors = %#v, want graph-eligible scan targets to pass", result.Errors)
+	}
+	if result.Details["index_required_count"] != 2 {
+		t.Fatalf("index_required_count = %#v, want only selected P0/P1 paths", result.Details["index_required_count"])
+	}
+	if result.Details["path_index_to_included_ratio"] != "1.00" {
+		t.Fatalf("path_index_to_included_ratio = %#v, want 1.00", result.Details["path_index_to_included_ratio"])
+	}
+}
+
 func buildgateTestPaths(t *testing.T) rt.Paths {
 	t.Helper()
 	root := t.TempDir()

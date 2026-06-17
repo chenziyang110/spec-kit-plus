@@ -297,6 +297,9 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	kept, ignored := matcher.Filter(changed)
 	kept = normalizePaths(kept)
 	ignored = normalizePaths(ignored)
+	if err := validateChangedPaths(kept); err != nil {
+		return UpdatePayload{}, err
+	}
 	return runResolvedUpdate(paths, input, kept, ignored, nil)
 }
 
@@ -314,6 +317,9 @@ func agreementAction(agreement runtimegate.Agreement) string {
 func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, ignored []string, boundaryResult *boundary.Result) (UpdatePayload, error) {
 	changed = normalizePaths(changed)
 	ignored = normalizePaths(ignored)
+	if err := validateChangedPaths(changed); err != nil {
+		return UpdatePayload{}, err
+	}
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 
 	st, err := store.OpenExisting(paths)
@@ -326,10 +332,16 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	}
 	nodes := []map[string]any{}
 	closure := store.AffectedClosure{}
-	resultState := updateResultState(changed, nodes, input)
+	pathNodeIDs := map[string]string{}
+	adoptedPathSet := map[string]bool{}
+	resultState := updateResultState(changed, nodes, input, pathNodeIDs)
 	if st != nil {
 		defer st.Close()
 		closure, err = st.AffectedClosureForPaths(context.Background(), changed)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		pathNodeIDs, err = st.NodeIDsForExactPaths(context.Background(), changed)
 		if err != nil {
 			return UpdatePayload{}, err
 		}
@@ -345,8 +357,13 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 				}); err != nil {
 					return UpdatePayload{}, err
 				}
+				adoptedPathSet[path] = true
 			}
 			closure, err = st.AffectedClosureForPaths(context.Background(), changed)
+			if err != nil {
+				return UpdatePayload{}, err
+			}
+			pathNodeIDs, err = st.NodeIDsForExactPaths(context.Background(), changed)
 			if err != nil {
 				return UpdatePayload{}, err
 			}
@@ -355,13 +372,20 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		if err != nil {
 			return UpdatePayload{}, err
 		}
-		resultState = updateResultState(changed, nodes, input)
+		resultState = updateResultState(changed, nodes, input, pathNodeIDs)
 		if resultState == ResultReady && len(closure.NodeIDs) > 0 {
 			for _, path := range changed {
+				if adoptedPathSet[path] {
+					continue
+				}
+				nodeID := pathNodeIDs[path]
+				if nodeID == "" {
+					return UpdatePayload{}, fmt.Errorf("ready update path %s has no exact path_index node", path)
+				}
 				if _, err := st.RefreshPathCoverage(context.Background(), store.PathCoverageRefresh{
 					UpdateID:   updateID,
 					Path:       path,
-					NodeID:     closure.NodeIDs[0],
+					NodeID:     nodeID,
 					Relation:   "owns",
 					Confidence: "verified",
 					Reason:     input.Reason,
@@ -467,14 +491,26 @@ func statusUpdateFromStatus(status rt.Status) StatusUpdate {
 	}
 }
 
-func updateResultState(kept []string, nodes []map[string]any, input UpdateInput) string {
+func updateResultState(kept []string, nodes []map[string]any, input UpdateInput, pathNodeIDs map[string]string) string {
 	if len(kept) == 0 {
 		return ResultNoOp
 	}
-	if len(nodes) > 0 && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
+	if len(nodes) > 0 && allPathsMapped(kept, pathNodeIDs) && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
 		return ResultReady
 	}
 	return ResultPartialRefresh
+}
+
+func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
+	if len(paths) == 0 {
+		return false
+	}
+	for _, path := range paths {
+		if pathNodeIDs[path] == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func canAdoptWorkflowPaths(kept []string, input UpdateInput) bool {
@@ -894,6 +930,36 @@ func normalizePaths(paths []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func validateChangedPaths(paths []string) error {
+	for _, path := range paths {
+		if !validChangedPath(path) {
+			return fmt.Errorf("invalid changed path %q: expected a concrete repository-relative path", path)
+		}
+	}
+	return nil
+}
+
+func validChangedPath(path string) bool {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	path = strings.TrimPrefix(path, "./")
+	if path == "" || path == "." || filepath.IsAbs(path) || strings.HasPrefix(path, "/") || strings.Contains(path, ":") {
+		return false
+	}
+	if path == ".specify" || strings.HasPrefix(path, ".specify/") {
+		return false
+	}
+	if strings.ContainsAny(path, "*?[]{}") {
+		return false
+	}
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 func appendUnique(existing []string, values ...string) []string {

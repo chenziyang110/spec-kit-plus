@@ -33,6 +33,7 @@ WORKFLOW_COMMAND_MAP = {
     "sp-fast": "fast",
     "sp-map-scan": "map-scan",
     "sp-map-build": "map-build",
+    "sp-map-update": "map-update",
     "sp-constitution": "constitution",
     "sp-checklist": "checklist",
 }
@@ -129,6 +130,15 @@ def _project_launcher_broken(project_root: Path) -> bool:
     return shutil.which(first) is None and not Path(first).exists()
 
 
+def _source_tree_cli_command() -> list[str] | None:
+    for parent in Path(__file__).resolve().parents:
+        src_root = parent
+        if (src_root / "specify_cli" / "__init__.py").exists():
+            code = f"import sys; sys.path.insert(0, {str(src_root)!r}); from specify_cli import main; main()"
+            return [sys.executable, "-c", code]
+    return None
+
+
 def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]]:
     commands: list[list[str]] = []
     for launcher_argv in (
@@ -138,6 +148,9 @@ def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]
         if launcher_argv:
             commands.append([*launcher_argv, "hook", *args])
 
+    source_command = _source_tree_cli_command()
+    if source_command:
+        commands.append([*source_command, "hook", *args])
     commands.append([sys.executable, "-m", "specify_cli", "hook", *args])
     if shutil.which("specify"):
         commands.append(["specify", "hook", *args])

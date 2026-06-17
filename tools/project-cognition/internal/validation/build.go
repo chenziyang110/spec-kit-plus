@@ -250,7 +250,7 @@ func compareIdentityCategoryDetailed(category string, expected map[string]bool, 
 		}
 	}
 	for identity := range actual {
-		if !expected[identity] {
+		if !expected[identity] && !identityAllowedAsWorkflowUpdate(category, identity, snapshot) {
 			unexpected = append(unexpected, identity)
 		}
 	}
@@ -321,6 +321,19 @@ func identityRecommendedNextAction(repairability string) string {
 		return "repair_identity_reconciliation"
 	default:
 		return "review_project_cognition_update"
+	}
+}
+
+func identityAllowedAsWorkflowUpdate(category string, identity string, snapshot store.IdentitySnapshot) bool {
+	switch category {
+	case "evidence":
+		return snapshot.WorkflowUpdateEvidence[identity]
+	case "node":
+		return snapshot.WorkflowUpdateNodes[identity]
+	case "coverage_path":
+		return snapshot.WorkflowUpdateCoveragePaths[identity]
+	default:
+		return false
 	}
 }
 

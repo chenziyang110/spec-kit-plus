@@ -642,7 +642,7 @@ func (s *Store) AdoptWorkflowPath(ctx context.Context, adoption WorkflowPathAdop
 	if err != nil {
 		return "", fmt.Errorf("encode adopted workflow node attrs: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES(?, ?, 'workflow_update', ?, 'verified', ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, confidence=excluded.confidence, attrs_json=excluded.attrs_json, updated_at=excluded.updated_at`, nodeID, generationID, title, attrs, now, now)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES(?, ?, 'workflow_update', ?, 'partial', ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, confidence=excluded.confidence, attrs_json=excluded.attrs_json, updated_at=excluded.updated_at`, nodeID, generationID, title, attrs, now, now)
 	if err != nil {
 		return "", fmt.Errorf("upsert adopted workflow node: %w", err)
 	}
@@ -650,14 +650,14 @@ func (s *Store) AdoptWorkflowPath(ctx context.Context, adoption WorkflowPathAdop
 		UpdateID:   updateID,
 		Path:       path,
 		NodeID:     nodeID,
-		Relation:   "workflow_changed",
-		Confidence: "verified",
+		Relation:   "provisional_path",
+		Confidence: "partial",
 		Reason:     adoption.Reason,
 	})
 	if err != nil {
 		return "", err
 	}
-	if err := s.upsertWorkflowPathAliases(ctx, generationID, nodeID, path, title, adoption.Workflow, adoption.BehaviorSurfaces, coverage.EvidenceID, "verified"); err != nil {
+	if err := s.upsertWorkflowPathAliases(ctx, generationID, nodeID, path, title, adoption.Workflow, adoption.BehaviorSurfaces, coverage.EvidenceID, "partial"); err != nil {
 		return "", err
 	}
 	return nodeID, nil
@@ -1075,7 +1075,8 @@ func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string
 	}
 	out := make([]map[string]any, 0)
 	for _, path := range paths {
-		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT n.id, n.type, n.title, p.path FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id WHERE p.generation_id = ? AND (p.path = ? OR p.path LIKE ?) ORDER BY n.id LIMIT 25`, generationID, path, path+"%")
+		descendantPattern := strings.TrimRight(path, "/") + "/%"
+		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT n.id, n.type, n.title, p.path FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id WHERE p.generation_id = ? AND (p.path = ? OR p.path LIKE ?) ORDER BY n.id LIMIT 25`, generationID, path, descendantPattern)
 		if err != nil {
 			return nil, fmt.Errorf("query nodes for %s: %w", path, err)
 		}
@@ -1084,6 +1085,35 @@ func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string
 			return nil, err
 		}
 		out = append(out, nodes...)
+	}
+	return out, nil
+}
+
+func (s *Store) NodeIDsForExactPaths(ctx context.Context, paths []string) (map[string]string, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	if generationID == "" {
+		return out, nil
+	}
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		var nodeID string
+		err := s.db.QueryRowContext(ctx, `SELECT node_id FROM path_index WHERE generation_id = ? AND path = ? ORDER BY updated_at DESC, id DESC LIMIT 1`, generationID, path).Scan(&nodeID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("query node for path %s: %w", path, err)
+		}
+		if nodeID != "" {
+			out[path] = nodeID
+		}
 	}
 	return out, nil
 }

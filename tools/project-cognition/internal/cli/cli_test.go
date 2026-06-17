@@ -518,6 +518,50 @@ func TestValidateScanCommandAcceptsDownstreamCompatibilityShapes(t *testing.T) {
 	}
 }
 
+func TestValidateScanCommandReturnsNonZeroWhenBlocked(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"validate-scan", "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = %d stdout=%s stderr=%s, want non-zero for blocked validation", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("payload = %#v, want blocked status", payload)
+	}
+}
+
+func TestBuildFromScanCommandReturnsNonZeroWhenBlocked(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"build-from-scan", "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = %d stdout=%s stderr=%s, want non-zero for blocked build", code, stdout.String(), stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("payload = %#v, want blocked status", payload)
+	}
+}
+
 func TestImportScanAliasUsesBuildFromScan(t *testing.T) {
 	for _, command := range []string{"import-scan", "rebuild-from-scan"} {
 		t.Run(command, func(t *testing.T) {

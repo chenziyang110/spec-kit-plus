@@ -98,13 +98,16 @@ type MergeRecord struct {
 }
 
 type IdentitySnapshot struct {
-	Evidence      map[string]bool `json:"evidence"`
-	Nodes         map[string]bool `json:"nodes"`
-	Edges         map[string]bool `json:"edges"`
-	Observations  map[string]bool `json:"observations"`
-	CoveragePaths map[string]bool `json:"coverage_paths"`
-	Rejections    []RowDecision   `json:"rejections"`
-	MergeRecords  []MergeRecord   `json:"merge_records"`
+	Evidence                    map[string]bool `json:"evidence"`
+	Nodes                       map[string]bool `json:"nodes"`
+	Edges                       map[string]bool `json:"edges"`
+	Observations                map[string]bool `json:"observations"`
+	CoveragePaths               map[string]bool `json:"coverage_paths"`
+	WorkflowUpdateEvidence      map[string]bool `json:"workflow_update_evidence"`
+	WorkflowUpdateNodes         map[string]bool `json:"workflow_update_nodes"`
+	WorkflowUpdateCoveragePaths map[string]bool `json:"workflow_update_coverage_paths"`
+	Rejections                  []RowDecision   `json:"rejections"`
+	MergeRecords                []MergeRecord   `json:"merge_records"`
 }
 
 func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string, error) {
@@ -234,13 +237,16 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 
 func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, error) {
 	snapshot := IdentitySnapshot{
-		Evidence:      map[string]bool{},
-		Nodes:         map[string]bool{},
-		Edges:         map[string]bool{},
-		Observations:  map[string]bool{},
-		CoveragePaths: map[string]bool{},
-		Rejections:    []RowDecision{},
-		MergeRecords:  []MergeRecord{},
+		Evidence:                    map[string]bool{},
+		Nodes:                       map[string]bool{},
+		Edges:                       map[string]bool{},
+		Observations:                map[string]bool{},
+		CoveragePaths:               map[string]bool{},
+		WorkflowUpdateEvidence:      map[string]bool{},
+		WorkflowUpdateNodes:         map[string]bool{},
+		WorkflowUpdateCoveragePaths: map[string]bool{},
+		Rejections:                  []RowDecision{},
+		MergeRecords:                []MergeRecord{},
 	}
 	generationID, err := s.ActiveGenerationID(ctx)
 	if err != nil {
@@ -273,6 +279,13 @@ func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, e
 		snapshot.CoveragePaths[values[0]] = true
 	}); err != nil {
 		return snapshot, fmt.Errorf("read coverage identities: %w", err)
+	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT e.id, e.source_path, e.content_hash, n.id, p.path FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id JOIN evidence e ON e.generation_id = p.generation_id AND e.id = p.evidence_id WHERE p.generation_id = ? AND n.type = 'workflow_update' AND e.source_kind = 'workflow_update' AND p.relation = 'provisional_path' AND p.confidence IN ('weak', 'partial')`, generationID, func(values []string) {
+		snapshot.WorkflowUpdateEvidence[values[0]+"|"+values[1]+"|"+values[2]] = true
+		snapshot.WorkflowUpdateNodes[values[3]] = true
+		snapshot.WorkflowUpdateCoveragePaths[values[4]] = true
+	}); err != nil {
+		return snapshot, fmt.Errorf("read workflow update identities: %w", err)
 	}
 
 	attrsJSON := "{}"

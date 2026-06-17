@@ -13,6 +13,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
 
 func testPaths(t *testing.T) rt.Paths {
@@ -353,6 +354,44 @@ func TestRunUpdateAdoptsVerifiedUnindexedPath(t *testing.T) {
 	if len(nodes) == 0 {
 		t.Fatal("expected adopted path to be queryable")
 	}
+
+	var relation, confidence string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT relation, confidence FROM path_index WHERE path = ?`, "src/new-feature.go").Scan(&relation, &confidence); err != nil {
+		t.Fatal(err)
+	}
+	if relation != "provisional_path" {
+		t.Fatalf("relation = %q, want provisional_path", relation)
+	}
+	if confidence != "partial" {
+		t.Fatalf("confidence = %q, want partial", confidence)
+	}
+}
+
+func TestRunUpdateAdoptionPassesBuildIdentityValidation(t *testing.T) {
+	paths := testPaths(t)
+	writeUpdateMatchingScanPackage(t, paths)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/new-feature.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-quick",
+		BehaviorSurfaces: []string{"new feature entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+
+	build := validation.ValidateBuild(paths)
+	if build.Status != "ok" {
+		t.Fatalf("ValidateBuild status = %q, errors=%#v", build.Status, build.Errors)
+	}
 }
 
 func TestRunUpdatePayloadFileAcceptsVerificationEvidenceAlias(t *testing.T) {
@@ -512,6 +551,83 @@ func TestRunUpdatePayloadForIndexedPathReturnsReady(t *testing.T) {
 	}
 	if status.Freshness != rt.ReadyFreshness || status.LastUpdateOutcome != ResultReady {
 		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestRunUpdateRefreshesEachIndexedPathAgainstItsOwnNode(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntimeWithImports(t, paths,
+		[]store.EvidenceImport{
+			{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"},
+			{ID: "E-worker", SourceKind: "file", SourcePath: "src/worker.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-worker"},
+		},
+		[]store.NodeImport{
+			{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}},
+			{ID: "N-worker", Type: "capability", Title: "Worker", Confidence: "verified", EvidenceIDs: []string{"E-worker"}},
+		},
+		[]store.PathIndexImport{
+			{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"},
+			{ID: "P-worker", Path: "src/worker.go", NodeID: "N-worker", Relation: "owns", Confidence: "verified", EvidenceID: "E-worker"},
+		},
+	)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go", "src/worker.go"},
+		Reason:       "workflow-finalize",
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for path, wantNode := range map[string]string{
+		"src/app.go":    "N-app",
+		"src/worker.go": "N-worker",
+	} {
+		var gotNode string
+		if err := st.DB().QueryRowContext(context.Background(), `SELECT node_id FROM path_index WHERE path = ?`, path).Scan(&gotNode); err != nil {
+			t.Fatal(err)
+		}
+		if gotNode != wantNode {
+			t.Fatalf("path %s node_id = %q, want %q", path, gotNode, wantNode)
+		}
+	}
+}
+
+func TestRunUpdateRejectsUnsafeChangedPathsBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	_, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"../outside.go"},
+		Reason:       "workflow-finalize",
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected unsafe changed path error")
+	}
+	if !strings.Contains(err.Error(), "invalid changed path") {
+		t.Fatalf("error = %q, want invalid changed path", err.Error())
+	}
+
+	status, statusErr := rt.ReadStatus(paths)
+	if statusErr != nil {
+		t.Fatal(statusErr)
+	}
+	if status.LastUpdateID != "" {
+		t.Fatalf("LastUpdateID = %q, want no mutation", status.LastUpdateID)
 	}
 }
 
@@ -795,7 +911,16 @@ func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 
 func seedReadyRuntime(t *testing.T, paths rt.Paths) {
 	t.Helper()
-	seedRuntimeGeneration(t, paths, "GEN-db")
+	seedReadyRuntimeWithImports(t, paths,
+		[]store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
+		[]store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
+		[]store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+	)
+}
+
+func seedReadyRuntimeWithImports(t *testing.T, paths rt.Paths, evidence []store.EvidenceImport, nodes []store.NodeImport, pathIndex []store.PathIndexImport) {
+	t.Helper()
+	seedRuntimeGenerationWithImports(t, paths, "GEN-db", evidence, nodes, pathIndex)
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -810,6 +935,30 @@ func seedReadyRuntime(t *testing.T, paths rt.Paths) {
 
 func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 	t.Helper()
+	seedRuntimeGenerationWithImports(t, paths, generationID,
+		[]store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
+		[]store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
+		[]store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+	)
+}
+
+func seedRuntimeGenerationWithImports(t *testing.T, paths rt.Paths, generationID string, evidence []store.EvidenceImport, nodes []store.NodeImport, pathIndex []store.PathIndexImport) {
+	t.Helper()
+	aliases := make([]store.AliasImport, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Title == "" {
+			continue
+		}
+		aliases = append(aliases, store.AliasImport{
+			ID:              "ALIAS-" + node.ID + "-title",
+			Alias:           node.Title,
+			NormalizedAlias: strings.ToLower(node.Title),
+			TargetType:      "node",
+			TargetID:        node.ID,
+			Source:          "node_title",
+			Confidence:      node.Confidence,
+		})
+	}
 	st, err := store.Open(paths)
 	if err != nil {
 		t.Fatal(err)
@@ -818,9 +967,10 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 		GenerationID: generationID,
 		Kind:         "full",
 		SourceCommit: "abc123",
-		Evidence:     []store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
-		Nodes:        []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
-		PathIndex:    []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+		Evidence:     evidence,
+		Nodes:        nodes,
+		PathIndex:    pathIndex,
+		Aliases:      aliases,
 	})
 	if err != nil {
 		_ = st.Close()
@@ -832,6 +982,53 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 	}
 	if closeErr := st.Close(); closeErr != nil {
 		t.Fatal(closeErr)
+	}
+}
+
+func writeUpdateMatchingScanPackage(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	files := map[string]string{
+		filepath.Join(paths.RuntimeDir, "evidence", "E-app.json"):                 `{"id":"E-app","source_kind":"file","source_path":"src/app.go","commit_sha":"abc123","span":"L1-L5","extractor":"test","content_hash":"hash-app","attrs":{"language":"go"}}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"):              `{"nodes":[{"id":"N-app","type":"capability","title":"App","confidence":"verified","paths":["src/app.go"],"evidence_ids":["E-app"],"attrs":{"owner":"app"}}]}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "edges.json"):              `{"edges":[]}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "observations.json"):       `{"observations":[]}`,
+		filepath.Join(paths.RuntimeDir, "coverage.json"):                          `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-scan.md"):               `# Map Scan`,
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"):        `# Coverage Ledger`,
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"):      `{"rows":[{"path":"src/app.go","status":"covered"}],"open_gaps":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"): `# Lane 1`,
+		filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"): `{
+			"packet_id":"lane-1",
+			"family_id":"app",
+			"assigned_paths":["src/app.go"],
+			"paths_read":["src/app.go"],
+			"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+			"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-app"]}],
+			"confidence":"high",
+			"acceptance":"pass"
+		}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):             `# Map State`,
+		filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json"):   `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "control-ledger.json"):      `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"): `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"): `{"packets":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"assigned_paths":["src/app.go"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"): `{"events":[
+			{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+			{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-1.json","created_at":"2026-05-26T00:01:00Z"}
+		]}`,
+	}
+	for path, content := range files {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
