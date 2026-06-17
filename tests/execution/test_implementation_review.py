@@ -79,19 +79,55 @@ def test_snapshot_artifacts_copies_existing_task_layer_files(tmp_path: Path) -> 
     feature_dir.mkdir(parents=True)
     (feature_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
     (feature_dir / "handoff-to-implement.json").write_text('{"status": "ready"}\n', encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# State\n", encoding="utf-8")
+    (feature_dir / "task-packets").mkdir()
+    (feature_dir / "task-packets" / "T001.json").write_text('{"task_id": "T001"}\n', encoding="utf-8")
 
     snapshots = snapshot_artifacts(
         feature_dir,
         review_id="pre-implement-r1",
-        relative_paths=["tasks.md", "handoff-to-implement.json", "missing.json"],
+        relative_paths=[
+            "tasks.md",
+            "handoff-to-implement.json",
+            "workflow-state.md",
+            "task-packets/T001.json",
+            "missing.json",
+        ],
     )
 
     assert snapshots == [
         "implementation-review/snapshots/tasks.before-pre-implement-r1.md",
         "implementation-review/snapshots/handoff-to-implement.before-pre-implement-r1.json",
+        "implementation-review/snapshots/workflow-state.before-pre-implement-r1.md",
+        "implementation-review/snapshots/task-packets__T001.before-pre-implement-r1.json",
     ]
     for rel_path in snapshots:
         assert (feature_dir / rel_path).exists()
+
+
+def test_snapshot_artifacts_rejects_out_of_feature_and_unapproved_paths(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    outside = tmp_path / "specs" / "plan.md"
+    outside.write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "task-packets").mkdir()
+    (feature_dir / "task-packets" / "T001.txt").write_text("not json\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
+
+    snapshots = snapshot_artifacts(
+        feature_dir,
+        review_id="pre-implement-r1",
+        relative_paths=[
+            "../plan.md",
+            str(outside),
+            "spec.md",
+            "task-packets/T001.txt",
+            "tasks.md",
+        ],
+    )
+
+    assert snapshots == ["implementation-review/snapshots/tasks.before-pre-implement-r1.md"]
 
 
 def test_next_append_task_id_preserves_numeric_width() -> None:
@@ -130,3 +166,17 @@ def test_validate_workflow_state_review_update_allows_only_review_fields() -> No
     assert "required_evidence is protected for embedded review" in errors
     assert "final_handoff_decision is protected for embedded review" in errors
     assert "gate_status is protected for embedded review" in errors
+
+
+def test_validate_workflow_state_review_update_rejects_public_or_unknown_review_routes() -> None:
+    before = {
+        "next_command": "/sp.implement",
+    }
+
+    assert validate_workflow_state_review_update(before, {"next_command": "/sp.review"}) == [
+        "next_command has invalid embedded review route: /sp.review"
+    ]
+    assert validate_workflow_state_review_update(before, {"next_command": "sp-review"}) == [
+        "next_command has invalid embedded review route: sp-review"
+    ]
+    assert validate_workflow_state_review_update(before, {"next_command": "/sp.tasks"}) == []

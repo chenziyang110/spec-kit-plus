@@ -69,6 +69,34 @@ WORKFLOW_STATE_REVIEW_ALLOWED_KEYS = frozenset(
     }
 )
 
+WORKFLOW_STATE_REVIEW_ALLOWED_NEXT_COMMANDS = frozenset(
+    {
+        "/sp.implement",
+        "/sp.debug",
+        "/sp.tasks",
+        "/sp.plan",
+        "/sp.clarify",
+        "/sp.deep-research",
+    }
+)
+
+SNAPSHOT_ALLOWED_EXACT_PATHS = frozenset(
+    {
+        "tasks.md",
+        "task-index.json",
+        "handoff-to-implement.json",
+        "implement-tracker.md",
+        "workflow-state.md",
+    }
+)
+
+SNAPSHOT_ALLOWED_DIRECTORIES = frozenset(
+    {
+        "task-packets",
+        "worker-results",
+    }
+)
+
 
 TASK_ID_RE = re.compile(r"^T(?P<number>\d+)$")
 
@@ -170,12 +198,38 @@ def _snapshot_name(relative_path: str, review_id: str) -> str:
     return f"{stem}.before-{review_id}{suffix}"
 
 
+def _safe_snapshot_relative_path(relative_path: str) -> Path | None:
+    source = Path(relative_path)
+    if source.is_absolute():
+        return None
+    if any(part in {"", ".", ".."} for part in source.parts):
+        return None
+    normalized = source.as_posix()
+    if normalized in SNAPSHOT_ALLOWED_EXACT_PATHS:
+        return source
+    if (
+        len(source.parts) == 2
+        and source.parts[0] in SNAPSHOT_ALLOWED_DIRECTORIES
+        and source.suffix == ".json"
+    ):
+        return source
+    return None
+
+
 def snapshot_artifacts(feature_dir: Path, *, review_id: str, relative_paths: list[str]) -> list[str]:
     output_dir = snapshots_dir(feature_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     copied: list[str] = []
+    feature_root = feature_dir.resolve(strict=False)
     for relative_path in relative_paths:
-        source = feature_dir / relative_path
+        safe_relative_path = _safe_snapshot_relative_path(relative_path)
+        if safe_relative_path is None:
+            continue
+        source = (feature_dir / safe_relative_path).resolve(strict=False)
+        try:
+            source.relative_to(feature_root)
+        except ValueError:
+            continue
         if not source.exists() or not source.is_file():
             continue
         target = output_dir / _snapshot_name(relative_path, review_id)
@@ -209,4 +263,8 @@ def validate_workflow_state_review_update(
             continue
         if key not in WORKFLOW_STATE_REVIEW_ALLOWED_KEYS:
             errors.append(f"{key} is protected for embedded review")
+        elif key == "next_command":
+            next_command = after.get(key)
+            if next_command not in WORKFLOW_STATE_REVIEW_ALLOWED_NEXT_COMMANDS:
+                errors.append(f"{key} has invalid embedded review route: {next_command}")
     return errors
