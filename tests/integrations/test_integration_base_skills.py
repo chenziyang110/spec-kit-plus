@@ -704,12 +704,14 @@ class SkillsIntegrationTests:
         assert "subagent-assisted" in debug_content
         assert "debug understanding checkpoint" in debug_content
         assert "understanding_confirmed: true" in debug_content
-        assert "symptom understood" in debug_content
+        assert "debug checkpoint" in debug_content
+        assert "first evidence action" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
         assert "understanding checkpoint" in quick_content
+        assert "quick checkpoint" in quick_content
         assert "understanding_confirmed: true" in quick_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
         assert "execution_surface: native-subagents" in quick_content

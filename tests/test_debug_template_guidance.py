@@ -208,11 +208,15 @@ def test_debug_template_requires_understanding_checkpoint_before_investigation()
     content = read_template("templates/commands/debug.md").lower()
 
     assert "## debug understanding checkpoint" in content
-    assert "symptom understood" in content
+    assert "## debug checkpoint" in content
+    assert "| item | current understanding |" in content
+    assert "| symptom |" in content
     assert "expected behavior" in content
-    assert "investigation boundary" in content
-    assert "evidence approach" in content
-    assert "success signal" in content
+    assert "investigation scope" in content
+    assert "first evidence action" in content
+    assert "progress signal" in content
+    assert "concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty" in content
+    assert "unknown: [why it matters]" in content
     assert "wait for user confirmation" in content
     assert "not a fix-plan approval" in content
     assert "not a root-cause claim" in content
@@ -231,12 +235,14 @@ def test_debug_session_template_tracks_understanding_checkpoint() -> None:
 
     assert "understanding_confirmed" in content
     assert "## debug understanding checkpoint" in content
-    assert "confirmed_symptom:" in content
-    assert "confirmed_expected_behavior:" in content
-    assert "confirmed_investigation_boundary:" in content
-    assert "confirmed_evidence_approach:" in content
-    assert "confirmed_success_signal:" in content
-    assert "confirmation_notes:" in content
+    assert "checkpoint:" in content
+    assert "issue:" in content
+    assert "expected_or_target:" in content
+    assert "in_scope:" in content
+    assert "out_of_scope:" in content
+    assert "next_action:" in content
+    assert "done_or_progress_signal:" in content
+    assert "user_corrections:" in content
 
 
 def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> None:

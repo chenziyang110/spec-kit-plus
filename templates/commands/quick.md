@@ -65,13 +65,23 @@ choosing the quick-task lane shape.
 
 `sp-quick` has one default understanding checkpoint before substantive execution. This is not a full spec, not a `sp-plan` substitute, and not a detailed task-plan approval. It exists so the user can confirm that the quick-task direction is correct before the workflow runs to completion.
 
-After the constitution gate, quick workspace initialization, project cognition query, and any bounded `minimal_live_reads`, present one concise checkpoint:
+After the constitution gate, quick workspace initialization, project cognition query, and any bounded `minimal_live_reads`, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete files, commands, workflows, constraints, validation evidence, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
-- `Problem understood`: what you believe the user wants solved.
-- `Planned outcome`: what result you intend to deliver.
-- `Scope boundary`: what you will not do in this quick task.
-- `Execution approach`: how you expect to proceed.
-- `Validation`: what evidence will prove the quick task is complete.
+Use this shape:
+
+```markdown
+## Quick Checkpoint
+
+| Item | Current understanding |
+| --- | --- |
+| Issue | [the specific problem or request in the user's terms] |
+| Target outcome | [the concrete result this quick task should deliver] |
+| Scope | Include: [specific areas]. Exclude: [specific non-goals]. Escalate if: [condition that no longer fits quick]. |
+| Next action | [the first implementation, delegation, or preparation action after confirmation] |
+| Completion evidence | [tests, commands, manual checks, or other evidence required before closeout] |
+
+Reply with `confirm`/`确认` to continue, or `revise: ...`/`修改：...` with corrections.
+```
 
 Wait for user confirmation before code edits, broad repository analysis, delegation, implementation commands, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
 
@@ -231,14 +241,18 @@ cognition_facts:
 ## Understanding Checkpoint
 <!-- OVERWRITE/REFINE before substantive execution starts -->
 
-confirmed_problem: [what the user confirmed the quick task should solve]
-confirmed_outcome: [the result the user confirmed]
-confirmed_scope_boundary:
-  - [explicit non-goals, excluded files, excluded workflows, or escalation boundaries]
-confirmed_execution_approach:
-  - [the confirmed execution path]
-confirmed_validation:
-  - [the confirmed evidence required before closeout]
+checkpoint:
+  issue: [the specific problem or request the user confirmed]
+  expected_or_target: [the concrete result the user confirmed]
+  in_scope:
+    - [specific area, workflow, file family, behavior, or command included in this quick task]
+  out_of_scope:
+    - [explicit non-goal, excluded file family, excluded workflow, or escalation boundary]
+  next_action: [the confirmed implementation, delegation, or preparation action after confirmation]
+  done_or_progress_signal:
+    - [test, command, manual check, or evidence required before closeout]
+  user_corrections:
+    - [user correction, ambiguity, or confirmation timestamp]
 
 ## Execution
 <!-- OVERWRITE/REFINE as the lane or batch changes -->

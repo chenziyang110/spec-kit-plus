@@ -217,7 +217,7 @@ class CursorAgentIntegration(SkillsIntegration):
                 "- Read `.specify/memory/constitution.md` first if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
                 "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<id>-<slug>/STATUS.md` if this quick task is new.\n"
                 "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-                "- The checkpoint must cover `Problem understood`, `Planned outcome`, `Scope boundary`, `Execution approach`, and `Validation`.\n"
+                "- The user-facing checkpoint must use the Quick Checkpoint card and cover `Issue`, `Target outcome`, `Scope`, `Next action`, and `Completion evidence` with concrete details.\n"
                 "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded in `STATUS.md`.\n"
                 "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists, `understanding_confirmed: true` is recorded, and the first subagent lane is selected.\n"
                 "- After understanding is confirmed, define the smallest safe delegated lane or ready batch.\n"

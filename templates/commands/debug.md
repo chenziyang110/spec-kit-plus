@@ -182,13 +182,23 @@ Use the returned readiness:
 
 `sp-debug` has one default understanding checkpoint before substantive investigation. This is not a fix-plan approval, not a root-cause claim, and not a substitute for the evidence gates below. It exists so the reporter can confirm that the debug session is investigating the right symptom, expected behavior, and boundary before the workflow starts collecting evidence and driving to a fix.
 
-After session initialization, passive memory intake, the project cognition query, and only the bounded session, memory, or project-cognition context reads needed to frame the reported problem, present one concise checkpoint:
+After session initialization, passive memory intake, the project cognition query, and only the bounded session, memory, or project-cognition context reads needed to frame the reported problem, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
-- `Symptom understood`: what you believe is failing, including the user-visible symptom or failing signal.
-- `Expected behavior`: what should happen instead, or the specific unknown that needs confirmation.
-- `Investigation boundary`: what this debug session will investigate and what is out of scope.
-- `Evidence approach`: the first reproduction, log, source, test, or instrumentation route you expect to use after confirmation.
-- `Success signal`: what evidence will prove the session can move from investigation to fix, verification, or human verification.
+Use this shape:
+
+```markdown
+## Debug Checkpoint
+
+| Item | Current understanding |
+| --- | --- |
+| Symptom | [the failure, regression, or user-visible bad behavior being investigated] |
+| Expected behavior | [what should happen instead, or the confirmed unknown] |
+| Investigation scope | Include: [specific area or workflow]. Exclude: [nearby issue or non-goal]. Escalate if: [condition that changes the debug session boundary]. |
+| First evidence action | [the first reproduction, log, source, test, or instrumentation route after confirmation, plus why it is first] |
+| Progress signal | [evidence that is enough to move to fixing, verification, or human verification] |
+
+Reply with `confirm`/`确认` to continue, or `revise: ...`/`修改：...` with corrections.
+```
 
 Wait for user confirmation before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
 

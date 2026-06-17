@@ -1121,7 +1121,8 @@ def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
     assert "missing-information question" in content or "plain-text clarification" in content
     assert "debug understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
-    assert "symptom understood" in content
+    assert "debug checkpoint" in content
+    assert "first evidence action" in content
 
 
 def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
@@ -1225,11 +1226,10 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "managed-team" in content
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
-    assert "problem understood" in content
-    assert "planned outcome" in content
-    assert "scope boundary" in content
-    assert "execution approach" in content
-    assert "confirmed_validation" in content
+    assert "quick checkpoint" in content
+    assert "target outcome" in content
+    assert "completion evidence" in content
+    assert "done_or_progress_signal" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
     assert "dispatch to one subagent with a task contract" in content or "one-subagent" in content

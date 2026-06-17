@@ -122,11 +122,15 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
     assert "## understanding checkpoint" in content
-    assert "problem understood" in content
-    assert "planned outcome" in content
-    assert "scope boundary" in content
-    assert "execution approach" in content
-    assert "validation" in content
+    assert "## quick checkpoint" in content
+    assert "| item | current understanding |" in content
+    assert "| issue |" in content
+    assert "| target outcome |" in content
+    assert "| scope |" in content
+    assert "| next action |" in content
+    assert "| completion evidence |" in content
+    assert "concrete files, commands, workflows, constraints, validation evidence, and known uncertainty" in content
+    assert "unknown: [why it matters]" in content
     assert "wait for user confirmation" in content
     assert "revise the checkpoint" in content
     assert "not a full spec" in content
@@ -150,11 +154,14 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "intent_constraints:" in content
     assert "success_evidence:" in content
     assert "## understanding checkpoint" in content
-    assert "confirmed_problem:" in content
-    assert "confirmed_outcome:" in content
-    assert "confirmed_scope_boundary:" in content
-    assert "confirmed_execution_approach:" in content
-    assert "confirmed_validation:" in content
+    assert "checkpoint:" in content
+    assert "issue:" in content
+    assert "expected_or_target:" in content
+    assert "in_scope:" in content
+    assert "out_of_scope:" in content
+    assert "next_action:" in content
+    assert "done_or_progress_signal:" in content
+    assert "user_corrections:" in content
     assert "status.md" in content
     assert "validation route" in content
     assert "known risk" in content

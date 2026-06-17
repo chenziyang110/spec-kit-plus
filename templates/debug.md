@@ -54,19 +54,18 @@ reproduction_verified: [true once repro confirmed]
 ## Debug Understanding Checkpoint
 <!-- OVERWRITE/REFINE before substantive investigation starts -->
 
-confirmed_symptom: [what the reporter confirmed is failing]
-confirmed_expected_behavior: [what should happen instead, or the confirmed unknown]
-confirmed_investigation_boundary:
+checkpoint:
+  issue: [the symptom, regression, or failing signal the reporter confirmed]
+  expected_or_target: [what should happen instead, or the confirmed unknown]
   in_scope:
     - [area, workflow, command, or behavior this session will investigate]
   out_of_scope:
     - [nearby issue, enhancement, or unrelated behavior excluded from this session]
-confirmed_evidence_approach:
-  - [first reproduction, log, source, test, or instrumentation route to use after confirmation]
-confirmed_success_signal:
-  - [evidence that proves the session can move to fix, verification, or human verification]
-confirmation_notes:
-  - [user correction, ambiguity, or confirmation timestamp]
+  next_action: [first reproduction, log, source, test, or instrumentation route after confirmation]
+  done_or_progress_signal:
+    - [evidence that proves the session can move to fix, verification, or human verification]
+  user_corrections:
+    - [user correction, ambiguity, or confirmation timestamp]
 
 ## Atlas Read Evidence
 
