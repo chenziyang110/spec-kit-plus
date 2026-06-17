@@ -59,7 +59,7 @@ standalone branch-creation command.
 
 ## Recommendation Rules
 
-- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress.
+- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. There is no visible separate review route between `sp-tasks` and `sp-implement`; implementation review is embedded in `sp-implement`.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
@@ -99,7 +99,7 @@ standalone branch-creation command.
   `sp-research` artifacts or workflow state.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
-- Use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`.
+- Use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`. `sp-implement` owns the embedded pre-implement review, join-point drift review, bounded sequential review windows, and safe task-layer repair loop. Safe repairs may update remaining tasks, packets, handoff state, tracker state, and implementation-review audit records; product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use

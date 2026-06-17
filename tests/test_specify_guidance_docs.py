@@ -470,6 +470,24 @@ def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
     assert "`sp-analyze` remains an optional diagnostic and legacy revalidation route only when explicitly invoked or recorded in existing state" in handbook_lower
 
 
+def test_guidance_docs_describe_embedded_implement_review_without_public_review_route() -> None:
+    readme = _read("README.md")
+    handbook = _read("PROJECT-HANDBOOK.md")
+    generated_handbook = _read("templates/project-handbook-template.md")
+
+    for content in (readme, handbook, generated_handbook):
+        lowered = content.lower()
+        assert "embedded review-and-repair loop" in lowered
+        assert "pre-implement review" in lowered
+        assert "drift review" in lowered
+        assert "bounded sequential review" in lowered
+        assert "task-layer repair" in lowered
+        assert "implementation-review audit records" in lowered
+        assert "upstream truth" in lowered
+        assert "/sp.review" not in content
+        assert "sp-review" not in content
+
+
 def test_guidance_docs_teach_consequence_gate_across_workflow_mainline() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

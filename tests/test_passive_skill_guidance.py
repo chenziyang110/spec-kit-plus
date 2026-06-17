@@ -33,6 +33,21 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
 
 
+def test_workflow_routing_keeps_review_embedded_in_implement() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = content.lower()
+
+    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in lowered
+    assert "no visible separate review route" in lowered
+    assert "embedded pre-implement review" in lowered
+    assert "join-point drift review" in lowered
+    assert "bounded sequential review windows" in lowered
+    assert "safe task-layer repair loop" in lowered
+    assert "{{invoke:implement}}" in content
+    assert "/sp.review" not in content
+    assert "sp-review" not in content
+
+
 def test_workflow_routing_distinguishes_command_route_from_product_scope() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
     paragraphs = [" ".join(paragraph.split()) for paragraph in content.split("\n\n")]
