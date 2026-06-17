@@ -52,6 +52,46 @@
   - plan.md: [summary or hash when available]
   - tasks.md: [summary or hash when available]
 
+## Embedded Implement Review
+
+- review_gate:
+  - mode: [embedded]
+  - status: [pending | cleared | repaired | blocked]
+  - scope: [pre-implement | join-point-drift | sequential-window]
+  - auto_repair_tasks: [true | false]
+  - last_reviewed_batch: [batch id or none]
+  - latest_review_id: [review id or none]
+  - latest_repair_id: [repair id or none]
+- review_window_policy:
+  - max_completed_tasks_before_review: [5]
+  - max_unreviewed_changed_paths: [8]
+  - max_unreviewed_validation_failures: [0]
+- implementation_review:
+  - reviews: [implementation-review/reviews.ndjson]
+  - repairs: [implementation-review/repairs.ndjson]
+  - snapshots: [implementation-review/snapshots/]
+- workflow_state_write_allowlist:
+  - review_gate
+  - review_window_policy
+  - implementation_review
+  - next_action
+  - blocker_reason
+  - blocked_reason
+  - next_command
+- workflow_state_protected_fields:
+  - active_profile
+  - required_sections
+  - activated_gates
+  - task_shaping_rules
+  - required_evidence
+  - transition_policy
+  - final_handoff_decision
+  - authoritative_files
+  - allowed_artifact_writes
+  - forbidden_actions
+  - Analyze Gate
+  - Reopen Contract
+
 ## Handoff Files
 
 - handoff_to_specify: [path or none]

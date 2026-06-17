@@ -25,5 +25,19 @@
   },
   "consequence_obligations": [],
   "applied_consequence_obligations": [],
-  "stop_and_reopen_conditions": []
+  "stop_and_reopen_conditions": [],
+  "review_gate": {
+    "mode": "embedded",
+    "status": "pending",
+    "scope": "pre-implement",
+    "auto_repair_tasks": true,
+    "last_reviewed_batch": null,
+    "latest_review_id": null,
+    "latest_repair_id": null
+  },
+  "review_window_policy": {
+    "max_completed_tasks_before_review": 5,
+    "max_unreviewed_changed_paths": 8,
+    "max_unreviewed_validation_failures": 0
+  }
 }
