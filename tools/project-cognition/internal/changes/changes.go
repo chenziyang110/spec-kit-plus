@@ -109,7 +109,8 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		payload.Errors = []string{err.Error()}
 		return payload, nil
 	}
-	if status.Status == "blocked" || status.Readiness == rt.BlockedReadiness {
+	repairableDirty := repairableDirtyStatus(status)
+	if status.Status == "blocked" || (status.Readiness == rt.BlockedReadiness && !repairableDirty) {
 		payload.Status = "blocked"
 		payload.Readiness = rt.BlockedReadiness
 		payload.NextAction = nextBlocked
@@ -118,6 +119,9 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	}
 	payload.Status = "ok"
 	payload.Readiness = status.Readiness
+	if repairableDirty {
+		payload.Warnings = append(payload.Warnings, repairableDirtyWarnings(status)...)
+	}
 
 	if !rt.GitAvailable(paths.Root) {
 		payload.Status = "blocked"
@@ -417,6 +421,27 @@ func nodeIDsForPaths(paths rt.Paths, changedPaths []string, requireStore bool) (
 
 func runtimeRequiresStore(status rt.Status) bool {
 	return status.Readiness == rt.ReadyReadiness || status.GraphReady
+}
+
+func repairableDirtyStatus(status rt.Status) bool {
+	return status.Status == "stale" && status.Dirty && status.RecommendedNextAction == "run_map_update"
+}
+
+func repairableDirtyWarnings(status rt.Status) []string {
+	warnings := []string{"project cognition runtime is marked dirty; collecting changes for map update"}
+	for _, reason := range status.DirtyReasons {
+		reason = strings.TrimSpace(reason)
+		if reason != "" {
+			warnings = append(warnings, "dirty reason: "+reason)
+		}
+	}
+	for _, path := range status.DirtyScopePaths {
+		path = strings.TrimSpace(path)
+		if path != "" {
+			warnings = append(warnings, "dirty scope path: "+path)
+		}
+	}
+	return warnings
 }
 
 func blockedRuntimeErrors(status rt.Status) []string {

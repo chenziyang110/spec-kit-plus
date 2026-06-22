@@ -170,6 +170,51 @@ func TestRunBlockedRuntimeStatusReturnsBlockedPayload(t *testing.T) {
 	}
 }
 
+func TestRunRepairableDirtyStatusCollectsWorkingTreeChanges(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"dirty\" }\n")
+	if _, err := update.MarkDirty(paths, update.DirtyInput{
+		Reason:     "manual",
+		ScopePaths: []string{"src/app.go"},
+	}); err != nil {
+		t.Fatalf("MarkDirty: %v", err)
+	}
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", payload.Status, payload.Errors)
+	}
+	if payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+	}
+	if payload.NextAction != "affected_closure" {
+		t.Fatalf("NextAction = %q, want affected_closure", payload.NextAction)
+	}
+	if !payload.WorkingTreeDirty {
+		t.Fatal("WorkingTreeDirty = false, want true")
+	}
+	if len(payload.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	change := payload.Changes[0]
+	if change.Path != "src/app.go" || change.GitStatus != "M" {
+		t.Fatalf("change = %#v, want modified src/app.go", change)
+	}
+	if !containsString(payload.Warnings, "project cognition runtime is marked dirty; collecting changes for map update") {
+		t.Fatalf("Warnings = %#v, want dirty runtime warning", payload.Warnings)
+	}
+	if !containsString(payload.Warnings, "dirty reason: manual") {
+		t.Fatalf("Warnings = %#v, want dirty reason warning", payload.Warnings)
+	}
+	if len(payload.Errors) != 0 {
+		t.Fatalf("Errors = %#v, want none", payload.Errors)
+	}
+}
+
 func TestRunMissingBaselineEmitsWorkingTreeWarning(t *testing.T) {
 	root, paths := initChangesFixture(t)
 	status, err := rt.ReadStatus(paths)
