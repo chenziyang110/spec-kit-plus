@@ -50,6 +50,91 @@ func TestRunReportsWorkingTreeChangesWithRuntimePathKnowledge(t *testing.T) {
 	}
 }
 
+func TestRunUnsupportedLegacyStatusReturnsBlockedPayload(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify", "project-cognition"), 0o755); err != nil {
+		t.Fatalf("create runtime dir: %v", err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatalf("ResolvePaths: %v", err)
+	}
+	writeFile(t, root, ".specify/project-cognition/status.json", `{"status":"ok"}`)
+
+	payload, err := Run(paths, Input{})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.UnsupportedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.UnsupportedReadiness)
+	}
+	if payload.NextAction != "needs_rebuild" {
+		t.Fatalf("NextAction = %q, want needs_rebuild", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want legacy runtime error")
+	}
+}
+
+func TestRunGitUnavailableReturnsBlockedPayload(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatalf("create .specify: %v", err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatalf("ResolvePaths: %v", err)
+	}
+
+	payload, err := Run(paths, Input{})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.NextAction != "blocked" {
+		t.Fatalf("NextAction = %q, want blocked", payload.NextAction)
+	}
+	if !containsString(payload.Errors, "git repository unavailable") {
+		t.Fatalf("Errors = %#v, want git repository unavailable", payload.Errors)
+	}
+	if len(payload.Changes) != 0 {
+		t.Fatalf("Changes = %#v, want none", payload.Changes)
+	}
+}
+
+func TestRunMissingBaselineEmitsWorkingTreeWarning(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	status.Status = "missing"
+	status.LastRefreshGitCommit = ""
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"no-baseline\" }\n")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok", payload.Status)
+	}
+	if !containsString(payload.Warnings, "no refresh git baseline recorded; using working tree status only") {
+		t.Fatalf("Warnings = %#v, want missing baseline warning", payload.Warnings)
+	}
+}
+
 func TestRunFiltersCognitionIgnoredPaths(t *testing.T) {
 	root, paths := initChangesFixture(t)
 	writeFile(t, root, ".cognitionignore", ".specify/\nscratch/\n")
@@ -124,6 +209,51 @@ func TestRunReportsCommitRangeChanges(t *testing.T) {
 	}
 	if change.GitStatus != "M" {
 		t.Fatalf("GitStatus = %q, want M", change.GitStatus)
+	}
+}
+
+func TestRunClassifiesWorkingTreeDeleteAndRenameChanges(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, "src/zzz.go", "package app\n")
+	runGit(t, root, "add", "src/zzz.go")
+	runGit(t, root, "commit", "-m", "add rename source")
+	base := gitHead(t, root)
+	runGit(t, root, "rm", "src/app.go")
+	runGit(t, root, "mv", "src/zzz.go", "src/aaa.go")
+
+	payload, err := Run(paths, Input{Since: base, Head: base, IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok", payload.Status)
+	}
+	if len(payload.Changes) != 2 {
+		t.Fatalf("len(Changes) = %d, want 2; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	if payload.Changes[0].Path != "src/aaa.go" || payload.Changes[1].Path != "src/app.go" {
+		t.Fatalf("changes not sorted by path: %#v", payload.Changes)
+	}
+	renamed := payload.Changes[0]
+	if renamed.OldPath != "src/zzz.go" {
+		t.Fatalf("renamed OldPath = %q, want src/zzz.go", renamed.OldPath)
+	}
+	if renamed.ChangeLevel != "renamed_path" {
+		t.Fatalf("renamed ChangeLevel = %q, want renamed_path", renamed.ChangeLevel)
+	}
+	if !reflect.DeepEqual(renamed.Reason, []string{"changed path lacks active runtime path_index coverage"}) {
+		t.Fatalf("renamed Reason = %#v", renamed.Reason)
+	}
+	deleted := payload.Changes[1]
+	if deleted.ChangeLevel != "deleted_path" {
+		t.Fatalf("deleted ChangeLevel = %q, want deleted_path", deleted.ChangeLevel)
+	}
+	if !reflect.DeepEqual(deleted.Reason, []string{"path exists in active runtime path_index"}) {
+		t.Fatalf("deleted Reason = %#v", deleted.Reason)
+	}
+	if payload.Summary.Deleted != 1 || payload.Summary.Renamed != 1 {
+		t.Fatalf("summary deleted/renamed = %d/%d, want 1/1", payload.Summary.Deleted, payload.Summary.Renamed)
 	}
 }
 
@@ -462,6 +592,12 @@ func TestRunMarksUntrackedExplicitPathAsUntracked(t *testing.T) {
 	}
 	if change.Tracked {
 		t.Fatalf("Tracked = true, want false for untracked explicit path")
+	}
+	if change.GitStatus != "explicit" {
+		t.Fatalf("GitStatus = %q, want explicit", change.GitStatus)
+	}
+	if !reflect.DeepEqual(change.Sources, []string{"explicit"}) {
+		t.Fatalf("Sources = %#v, want explicit", change.Sources)
 	}
 }
 

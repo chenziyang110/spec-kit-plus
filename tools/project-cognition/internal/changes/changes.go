@@ -109,7 +109,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		payload.Errors = []string{err.Error()}
 		return payload, nil
 	}
-	payload.Status = status.Status
+	payload.Status = "ok"
 	payload.Readiness = status.Readiness
 
 	if !rt.GitAvailable(paths.Root) {
