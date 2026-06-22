@@ -181,6 +181,24 @@ func TestRunMarksUnknownNewPathAsPartialRefresh(t *testing.T) {
 	}
 }
 
+func TestRunIncludeUntrackedOnlySkipsTrackedWorkingTreeChanges(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"modified\" }\n")
+	writeFile(t, root, "src/untracked-only.go", "package app\n")
+
+	payload, err := Run(paths, Input{IncludeUntracked: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if !containsChangePath(payload.Changes, "src/untracked-only.go") {
+		t.Fatalf("Changes = %#v, want untracked path", payload.Changes)
+	}
+	if containsChangePath(payload.Changes, "src/app.go") {
+		t.Fatalf("Changes = %#v, want tracked modified path skipped", payload.Changes)
+	}
+}
+
 func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsMissing(t *testing.T) {
 	root, paths := initChangesFixture(t)
 	if err := os.Remove(paths.DatabasePath); err != nil {

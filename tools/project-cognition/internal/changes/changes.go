@@ -163,7 +163,11 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			return payload, nil
 		}
 		for _, entry := range entries {
-			if entry.Code == "??" && !input.IncludeUntracked {
+			if entry.Code == "??" {
+				if !input.IncludeUntracked {
+					continue
+				}
+			} else if !input.IncludeWorkingTree {
 				continue
 			}
 			addMerged(merged, entry, "working_tree", entry.Code != "??")
