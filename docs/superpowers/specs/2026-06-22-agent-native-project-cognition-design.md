@@ -48,7 +48,9 @@ agent intent
 
 ## Runtime Command Surface
 
-The design allows adding and changing `project-cognition` commands. The target command surface is:
+The design allows adding and changing `project-cognition` commands. The target command surface below is additive and focused on the low-level scan/build/update loop. It does not replace existing required runtime commands such as `init-empty`, `record-refresh`, `complete-refresh`, `compass`, `lexicon`, `query`, and `expand`.
+
+Low-level commands added or strengthened by this design:
 
 ```text
 project-cognition generate-ignore --format json
@@ -167,7 +169,8 @@ Publication rules:
 - `nodes[].paths` is the primary source for `path_index`.
 - `coverage.json` is boundary accounting and must not create path-index rows by itself.
 - `alias_index` is route vocabulary for agent query normalization, not behavioral proof.
-- Ignored paths and inventory-only paths must not enter evidence, path indexes, aliases, route rows, or minimal live reads unless explicitly promoted by accepted evidence.
+- Ignored paths must remain hard-excluded from evidence, path indexes, aliases, route rows, update records, and minimal live reads unless a `!` re-include or ignore-rule change brings them back into scope.
+- Inventory-only paths must stay out of graph-facing runtime truth by default, but may be promoted when scan targets explicitly promote them and accepted evidence supports the promotion.
 - Build blockers must return an executable repair packet with `next_action`, `paths_to_read`, `packets_to_rerun`, `rows_to_fix`, and `why_runtime_refused`.
 
 ## `sp-map-update`
@@ -182,6 +185,7 @@ changes
 -> agent minimal semantic refresh
 -> update
 -> validate-build
+-> complete-refresh | record-refresh when the freshness contract allows finalization
 ```
 
 `project-cognition changes --format json` should:
@@ -247,6 +251,12 @@ blocked
 
 These result states are the completion gate. `update_id`, freshness timestamps, or recorded metadata alone are not sufficient.
 
+Freshness finalization is explicit:
+
+- If `update` returns `ready` or `no_op` and `validate-build` passes, run `project-cognition complete-refresh --format json` when the runtime can finalize against the current Git baseline.
+- If the update was recorded while source changes are not yet committed, report the update as recorded and baseline finalization pending. After those source changes are committed, run `project-cognition record-refresh --reason "map-update" --format json` or `project-cognition complete-refresh --format json` to align freshness metadata without a full rebuild, unless validation reports `needs_rebuild`.
+- If `update` returns `partial_refresh`, `blocked`, or `needs_rebuild`, do not call successful-refresh finalizers. Preserve the runtime state and surface the next action.
+
 ## Rebuild Boundary
 
 `sp-map-update` must not escalate to `sp-map-scan -> sp-map-build` for ordinary uncertainty. Rebuild is reserved for:
@@ -271,6 +281,7 @@ Common output fields:
 {
   "status": "ok | review | blocked | error",
   "next_action": "no_op | affected_closure | repair_scan | rerun_scan_packet | identity_repair | rebuild_required | manual_ignore_review",
+  "result_state": "ready | no_op | partial_refresh | needs_rebuild | blocked",
   "errors": [],
   "warnings": [],
   "reason_codes": [],
@@ -280,6 +291,8 @@ Common output fields:
   "minimal_live_reads": []
 }
 ```
+
+`result_state` is required for update-style commands and omitted only for commands where no runtime refresh state is being decided. Templates must not treat `status=ok` alone as update completion.
 
 Blocked output must describe the smallest recovery action. If the runtime refuses to publish or update, it must state exactly which paths, rows, packet results, evidence references, or identity records caused the refusal.
 
