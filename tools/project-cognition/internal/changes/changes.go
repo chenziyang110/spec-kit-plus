@@ -3,7 +3,8 @@ package changes
 import (
 	"context"
 	"errors"
-	"os"
+	"fmt"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,7 +21,6 @@ const (
 	nextNeedsRebuild    = "needs_rebuild"
 	nextBlocked         = "blocked"
 
-	levelIgnored      = "ignored"
 	levelMappedChange = "mapped_change"
 	levelNewPath      = "new_path"
 	levelDeletedPath  = "deleted_path"
@@ -186,7 +186,19 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	sort.Strings(includedPaths)
 	sort.Strings(payload.IgnoredPaths)
 
-	pathNodeIDs := nodeIDsForPaths(paths, includedPaths)
+	pathNodeIDs, err := nodeIDsForPaths(paths, includedPaths)
+	if err != nil {
+		payload.Status = "blocked"
+		payload.NextAction = nextNeedsRebuild
+		payload.Changes = []Change{}
+		payload.UnknownPaths = []string{}
+		payload.Errors = []string{err.Error()}
+		payload.Summary = Summary{
+			Total:   len(includedPaths) + len(payload.IgnoredPaths),
+			Ignored: len(payload.IgnoredPaths),
+		}
+		return payload, nil
+	}
 	for _, path := range includedPaths {
 		item := merged[path]
 		nodeID := pathNodeIDs[path]
@@ -257,7 +269,7 @@ func addMerged(merged map[string]*mergedChange, entry rt.GitStatusEntry, source 
 		item.status = status
 	}
 	item.sources[source] = true
-	item.tracked = item.tracked || tracked || status != "??"
+	item.tracked = item.tracked || tracked
 }
 
 func shouldReplaceStatus(current string, next string, source string) bool {
@@ -294,23 +306,20 @@ func sortedSources(sources map[string]bool) []string {
 	return out
 }
 
-func nodeIDsForPaths(paths rt.Paths, changedPaths []string) map[string]string {
+func nodeIDsForPaths(paths rt.Paths, changedPaths []string) (map[string]string, error) {
 	if len(changedPaths) == 0 {
-		return map[string]string{}
+		return map[string]string{}, nil
 	}
 	st, err := store.OpenExisting(paths)
-	if errors.Is(err, os.ErrNotExist) {
-		return map[string]string{}
-	}
 	if err != nil {
-		return map[string]string{}
+		return nil, fmt.Errorf("runtime graph store unavailable: %w", err)
 	}
 	defer st.Close()
 	pathNodeIDs, err := st.NodeIDsForExactPaths(context.Background(), changedPaths)
 	if err != nil {
-		return map[string]string{}
+		return nil, fmt.Errorf("runtime path index lookup failed: %w", err)
 	}
-	return pathNodeIDs
+	return pathNodeIDs, nil
 }
 
 func classify(status string, known bool) string {
@@ -372,14 +381,7 @@ func pathTrackedByGit(root string, path string) bool {
 	if path == "" {
 		return false
 	}
-	entries, err := rt.GitStatusEntries(root)
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
-		if normalizePath(entry.Path) == path && entry.Code == "??" {
-			return false
-		}
-	}
-	return true
+	cmd := exec.Command("git", "ls-files", "--error-unmatch", "--", path)
+	cmd.Dir = root
+	return cmd.Run() == nil
 }

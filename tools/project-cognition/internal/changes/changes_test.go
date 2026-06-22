@@ -181,6 +181,53 @@ func TestRunMarksUnknownNewPathAsPartialRefresh(t *testing.T) {
 	}
 }
 
+func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsMissing(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	if err := os.Remove(paths.DatabasePath); err != nil {
+		t.Fatalf("remove database: %v", err)
+	}
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"missing-db\" }\n")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.NextAction != "needs_rebuild" {
+		t.Fatalf("NextAction = %q, want needs_rebuild", payload.NextAction)
+	}
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want runtime lookup error")
+	}
+	if len(payload.Changes) != 0 {
+		t.Fatalf("Changes = %#v, want none when runtime DB is unusable", payload.Changes)
+	}
+}
+
+func TestRunMarksUntrackedExplicitPathAsUntracked(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, "src/new-explicit.go", "package app\n")
+
+	payload, err := Run(paths, Input{ExplicitPaths: []string{"src/new-explicit.go"}})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if len(payload.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	change := payload.Changes[0]
+	if change.Path != "src/new-explicit.go" {
+		t.Fatalf("Path = %q, want src/new-explicit.go", change.Path)
+	}
+	if change.Tracked {
+		t.Fatalf("Tracked = true, want false for untracked explicit path")
+	}
+}
+
 func initChangesFixture(t *testing.T) (string, rt.Paths) {
 	t.Helper()
 	root := t.TempDir()
