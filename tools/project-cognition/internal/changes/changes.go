@@ -160,6 +160,15 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			return payload, nil
 		}
 		for _, entry := range entries {
+			if !includeCommittedStatusEntry(entry.Code) {
+				payload.Status = "blocked"
+				payload.Readiness = rt.BlockedReadiness
+				payload.NextAction = nextBlocked
+				payload.Changes = []Change{}
+				payload.UnknownPaths = []string{}
+				payload.Errors = []string{fmt.Sprintf("unsupported committed git status %q for %s", entry.Code, entry.Path)}
+				return payload, nil
+			}
 			addMerged(merged, entry, "committed", true)
 		}
 	}
@@ -309,6 +318,26 @@ func shouldReplaceStatus(current string, next string, source string) bool {
 		return true
 	}
 	return false
+}
+
+func includeCommittedStatusEntry(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return false
+	}
+	switch code[0] {
+	case 'A', 'M', 'D':
+		return len(code) == 1
+	case 'R':
+		for _, r := range code[1:] {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 func includeStatusEntry(code string, includeWorkingTree bool, includeUntracked bool) bool {

@@ -428,6 +428,37 @@ func TestRunBlocksUnsupportedWorkingTreeStatus(t *testing.T) {
 	}
 }
 
+func TestIncludeCommittedStatusEntryLimitsCommitRangeStatuses(t *testing.T) {
+	tests := []struct {
+		code string
+		want bool
+	}{
+		{code: "A", want: true},
+		{code: "M", want: true},
+		{code: "D", want: true},
+		{code: "R", want: true},
+		{code: "R100", want: true},
+		{code: "R075", want: true},
+		{code: "T", want: false},
+		{code: "U", want: false},
+		{code: "X", want: false},
+		{code: "B", want: false},
+		{code: "C", want: false},
+		{code: "MM", want: false},
+		{code: "Rxx", want: false},
+		{code: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			got := includeCommittedStatusEntry(tt.code)
+			if got != tt.want {
+				t.Fatalf("includeCommittedStatusEntry(%q) = %v, want %v", tt.code, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIncludeStatusEntryLimitsPhaseStatuses(t *testing.T) {
 	tests := []struct {
 		name               string
