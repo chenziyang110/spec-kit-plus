@@ -50,7 +50,7 @@ and what sits clearly outside the system boundary.]
   - `.specify/project-cognition/project-cognition.db` as the canonical graph store
   - `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` for default brownfield navigation intake, readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; these paths are first evidence, not final edit scope
   - `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` (`lexicon -> semantic_intake -> query`) for advanced escalation when compass is draft-like, localized, missing coverage, or needs explicit concept decisions
-  - `project-cognition changes --format json` - Git-native change plan for `sp-map-update`; reports included, ignored, known, unknown, and recommended next action before incremental update recording
+  - `project-cognition changes --format json` - Git-native change plan for `sp-map-update`; reports `summary.included`, `summary.ignored`, `summary.known`, `summary.unknown`, `ignored_paths`, `unknown_paths`, top-level `next_action`, and per-change `recommended_action` before incremental update recording
   - advanced alias catalog payload fields such as `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `candidate_universe_version`, and `active_generation_id`
 - **Cross-project cognition reference**: use the project cognition runtime as
   explicit-only, supplemental-only, fresh-only context with a minimal read before
@@ -166,7 +166,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - `.specify/project-cognition/project-cognition.db` - canonical SQLite graph store
 - `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` bundle - default route to readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; agents use those paths as first evidence, not final edit scope
 - `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` (`lexicon -> semantic_intake -> query`) - advanced route when compass is draft-like, localized, missing coverage, or needs explicit concept decisions
-- `project-cognition changes --format json` - Git-native change plan for `sp-map-update`; reports included, ignored, known, unknown, and recommended next action before incremental update recording
+- `project-cognition changes --format json` - Git-native change plan for `sp-map-update`; reports `summary.included`, `summary.ignored`, `summary.known`, `summary.unknown`, `ignored_paths`, `unknown_paths`, top-level `next_action`, and per-change `recommended_action` before incremental update recording
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
 - Legacy project-map artifacts - historical compatibility/export artifacts for existing projects, not the new runtime truth path
