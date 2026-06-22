@@ -275,10 +275,22 @@ func shouldReplaceStatus(current string, next string, source string) bool {
 
 func sortedSources(sources map[string]bool) []string {
 	out := make([]string, 0, len(sources))
-	for source := range sources {
-		out = append(out, source)
+	for _, source := range []string{"committed", "working_tree", "explicit"} {
+		if sources[source] {
+			out = append(out, source)
+		}
 	}
-	sort.Strings(out)
+	var unknown []string
+	for source := range sources {
+		switch source {
+		case "committed", "working_tree", "explicit":
+			continue
+		default:
+			unknown = append(unknown, source)
+		}
+	}
+	sort.Strings(unknown)
+	out = append(out, unknown...)
 	return out
 }
 

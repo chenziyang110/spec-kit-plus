@@ -126,6 +126,34 @@ func TestRunReportsCommitRangeChanges(t *testing.T) {
 	}
 }
 
+func TestRunOrdersMergedSourcesByDomainOrder(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	base := gitHead(t, root)
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"committed\" }\n")
+	runGit(t, root, "add", "src/app.go")
+	runGit(t, root, "commit", "-m", "commit app change")
+	head := gitHead(t, root)
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"working\" }\n")
+
+	payload, err := Run(paths, Input{
+		Since:              base,
+		Head:               head,
+		IncludeWorkingTree: true,
+		ExplicitPaths:      []string{"src/app.go"},
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if len(payload.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	want := []string{"committed", "working_tree", "explicit"}
+	if !reflect.DeepEqual(payload.Changes[0].Sources, want) {
+		t.Fatalf("Sources = %#v, want %#v", payload.Changes[0].Sources, want)
+	}
+}
+
 func TestRunMarksUnknownNewPathAsPartialRefresh(t *testing.T) {
 	root, paths := initChangesFixture(t)
 	writeFile(t, root, "src/new.go", "package app\n")
