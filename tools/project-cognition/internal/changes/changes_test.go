@@ -51,7 +51,7 @@ func TestRunReportsWorkingTreeChangesWithRuntimePathKnowledge(t *testing.T) {
 
 func TestRunFiltersCognitionIgnoredPaths(t *testing.T) {
 	root, paths := initChangesFixture(t)
-	writeFile(t, root, ".cognitionignore", "scratch/\n")
+	writeFile(t, root, ".cognitionignore", ".specify/\nscratch/\n")
 	runGit(t, root, "add", ".cognitionignore")
 	runGit(t, root, "commit", "-m", "ignore scratch")
 	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
@@ -64,7 +64,7 @@ func TestRunFiltersCognitionIgnoredPaths(t *testing.T) {
 		t.Fatalf("Run returned error: %v", err)
 	}
 
-	if !reflect.DeepEqual(payload.IgnoredPaths, []string{"scratch/out.log"}) {
+	if !containsString(payload.IgnoredPaths, "scratch/out.log") {
 		t.Fatalf("IgnoredPaths = %#v, want scratch/out.log", payload.IgnoredPaths)
 	}
 	if len(payload.Changes) != 0 {
@@ -72,6 +72,29 @@ func TestRunFiltersCognitionIgnoredPaths(t *testing.T) {
 	}
 	if payload.NextAction != "no_op" {
 		t.Fatalf("NextAction = %q, want no_op", payload.NextAction)
+	}
+}
+
+func TestRunAccountsRuntimeBookkeepingPathsAsIgnored(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"v2\" }\n")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if !containsString(payload.IgnoredPaths, ".specify/project-cognition/status.json") {
+		t.Fatalf("IgnoredPaths = %#v, want runtime status path accounted as ignored", payload.IgnoredPaths)
+	}
+	if containsChangePath(payload.Changes, ".specify/project-cognition/status.json") {
+		t.Fatalf("Changes = %#v, want runtime status path excluded from changes by cognition ignore", payload.Changes)
+	}
+	if containsString(payload.UnknownPaths, ".specify/project-cognition/status.json") {
+		t.Fatalf("UnknownPaths = %#v, want runtime status path excluded from unknown by cognition ignore", payload.UnknownPaths)
+	}
+	if payload.Summary.Ignored == 0 {
+		t.Fatalf("Summary.Ignored = 0, want ignored runtime status path counted")
 	}
 }
 
@@ -136,6 +159,7 @@ func initChangesFixture(t *testing.T) (string, rt.Paths) {
 	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
 		t.Fatalf("create .specify: %v", err)
 	}
+	writeFile(t, root, ".cognitionignore", ".specify/\n")
 	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"v1\" }\n")
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
@@ -245,4 +269,22 @@ func gitHead(t *testing.T, root string) string {
 		t.Fatalf("GitHead: %v", err)
 	}
 	return head
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsChangePath(changes []Change, want string) bool {
+	for _, change := range changes {
+		if change.Path == want {
+			return true
+		}
+	}
+	return false
 }

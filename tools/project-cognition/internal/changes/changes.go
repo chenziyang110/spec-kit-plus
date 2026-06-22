@@ -177,9 +177,6 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	matcher := ignore.Load(paths.Root)
 	includedPaths := make([]string, 0, len(merged))
 	for _, item := range merged {
-		if isRuntimeArtifact(item.path) {
-			continue
-		}
 		if matcher.Ignored(item.path) {
 			payload.IgnoredPaths = append(payload.IgnoredPaths, item.path)
 			continue
@@ -357,11 +354,6 @@ func normalizePath(path string) string {
 		normalized = strings.TrimPrefix(normalized, "./")
 	}
 	return strings.Trim(normalized, "/")
-}
-
-func isRuntimeArtifact(path string) bool {
-	path = normalizePath(path)
-	return path == ".specify/project-cognition" || strings.HasPrefix(path, ".specify/project-cognition/")
 }
 
 func pathTrackedByGit(root string, path string) bool {
