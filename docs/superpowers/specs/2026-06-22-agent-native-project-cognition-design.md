@@ -313,12 +313,14 @@ CLI contract tests:
 - JSON shape, exit codes, `status`, `next_action`, `errors`, and `warnings` for every command.
 - Blocked and repair outputs include actionable path and row details.
 - `changes` output is stable with dirty working trees.
+- Update-style commands expose `result_state`, and tests cover `ready`, `no_op`, `partial_refresh`, `needs_rebuild`, and `blocked` gating behavior.
 
 Template tests:
 
 - `sp-map-scan` calls `generate-ignore`, `inventory`, `extract-structure`, `packetize-scan`, and `validate-scan`.
 - `sp-map-build` calls `validate-scan`, `normalize-scan`, `build-from-scan`, and `validate-build`.
 - `sp-map-update` starts with `changes`, then uses `affected-closure`, `update`, and `validate-build`.
+- `sp-map-update` templates gate completion on `result_state` and include `complete-refresh` or `record-refresh` finalization when validation and Git freshness allow it.
 - Templates must not instruct agents to bypass runtime gates or publish DB truth directly.
 
 Regression tests:
