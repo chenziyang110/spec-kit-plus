@@ -17,6 +17,7 @@ REQUIRED_COMMANDS = (
     "build-from-scan",
     "init-empty",
     "generate-ignore",
+    "changes",
     "lexicon --mode",
     "compass --semantic-intake-file --query-plan-file",
     "expand --section",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -99,6 +100,65 @@ func TestCompleteRefreshClearsDirtyState(t *testing.T) {
 	}
 	if status.Freshness != rt.ReadyFreshness {
 		t.Fatalf("freshness = %q", status.Freshness)
+	}
+}
+
+func TestCompleteRefreshRecordsGitBaselineCommit(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	initGitRepositoryForUpdateTest(t, paths.Root)
+
+	before, err := rt.GitHead(paths.Root)
+	if err != nil {
+		t.Fatalf("GitHead before complete refresh: %v", err)
+	}
+
+	status, err := CompleteRefresh(paths, "map-update")
+	if err != nil {
+		t.Fatalf("CompleteRefresh returned error: %v", err)
+	}
+
+	if status.LastRefreshGitCommit != before {
+		t.Fatalf("LastRefreshGitCommit = %q, want %q", status.LastRefreshGitCommit, before)
+	}
+	if status.LastRefreshGitBranch == "" {
+		t.Fatal("LastRefreshGitBranch is empty")
+	}
+}
+
+func TestRecordRefreshRecordsGitBaselineCommitWhenGitExists(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	initGitRepositoryForUpdateTest(t, paths.Root)
+
+	want, err := rt.GitHead(paths.Root)
+	if err != nil {
+		t.Fatalf("GitHead before record refresh: %v", err)
+	}
+
+	status, err := RecordRefresh(paths, "map-update")
+	if err != nil {
+		t.Fatalf("RecordRefresh returned error: %v", err)
+	}
+
+	if status.LastRefreshGitCommit != want {
+		t.Fatalf("LastRefreshGitCommit = %q, want %q", status.LastRefreshGitCommit, want)
+	}
+	if status.LastRefreshGitBranch == "" {
+		t.Fatal("LastRefreshGitBranch is empty")
+	}
+}
+
+func TestRecordRefreshDoesNotFailOutsideGitRepository(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	status, err := RecordRefresh(paths, "manual")
+	if err != nil {
+		t.Fatalf("RecordRefresh returned error outside git repository: %v", err)
+	}
+	if status.LastRefreshGitCommit != "" {
+		t.Fatalf("LastRefreshGitCommit = %q, want empty outside git", status.LastRefreshGitCommit)
 	}
 }
 
@@ -1055,4 +1115,24 @@ func assertStatusActiveGeneration(t *testing.T, paths rt.Paths, want string) {
 	if status.ActiveGenerationID != want {
 		t.Fatalf("ActiveGenerationID = %q, want %q", status.ActiveGenerationID, want)
 	}
+}
+
+func initGitRepositoryForUpdateTest(t *testing.T, root string) {
+	t.Helper()
+	runUpdateGit(t, root, "init")
+	runUpdateGit(t, root, "config", "user.email", "test@example.com")
+	runUpdateGit(t, root, "config", "user.name", "Test User")
+	runUpdateGit(t, root, "add", ".")
+	runUpdateGit(t, root, "commit", "-m", "baseline")
+}
+
+func runUpdateGit(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	}
+	return string(output)
 }

@@ -461,3 +461,16 @@ def test_map_update_template_requires_changed_path_accounting() -> None:
     assert "future `project-cognition compass` and alias-catalog routing" in lowered
     assert "must not write `.cognitionignore`-excluded paths into update records" in lowered
     assert "reserved rebuild reason" in lowered
+
+
+def test_map_update_template_uses_git_native_changes_and_finalizers() -> None:
+    content = _read("templates/commands/map-update.md")
+    lowered = content.lower()
+
+    assert "project-cognition changes --format json" in content
+    assert "consume `next_action`" in lowered
+    assert "feed `changes[].path`" in lowered
+    assert "use the returned `result_state`" in lowered
+    assert "must not call `complete-refresh` when `result_state` is `partial_refresh`" in lowered
+    assert "project-cognition complete-refresh --format json" in content
+    assert "project-cognition record-refresh --reason \"map-update\" --format json" in content

@@ -16,6 +16,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
@@ -81,6 +82,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return buildFromScanCommand(args[1:], stdout, stderr, paths)
 	case "publish-runtime-metadata":
 		return publishMetadataCommand(args[1:], stdout, stderr, paths)
+	case "changes":
+		return changesCommand(args[1:], stdout, stderr, paths)
 	case "update":
 		return updateCommand(args[1:], stdout, stderr, paths)
 	case "lexicon":
@@ -108,7 +111,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -546,6 +549,32 @@ func normalizeBaselineKind(kind string) string {
 	default:
 		return strings.TrimSpace(kind)
 	}
+}
+
+func changesCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("changes", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var changed stringList
+	fs.Var(&changed, "changed-path", "Explicit changed path")
+	fs.Var(&changed, "changed-paths", "Explicit changed path")
+	since := fs.String("since", "", "Baseline commit")
+	head := fs.String("head", "", "Head commit")
+	includeWorkingTree := fs.Bool("include-working-tree", true, "Include working tree changes")
+	includeUntracked := fs.Bool("include-untracked", true, "Include untracked paths")
+	intent := fs.String("intent", "", "Agent intent")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := changes.Run(paths, changes.Input{
+		Since:              *since,
+		Head:               *head,
+		IncludeWorkingTree: *includeWorkingTree,
+		IncludeUntracked:   *includeUntracked,
+		ExplicitPaths:      changed,
+		Intent:             *intent,
+	})
+	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 
 func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

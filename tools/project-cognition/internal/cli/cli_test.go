@@ -16,6 +16,7 @@ import (
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 )
 
 func TestVersionPrintsBinaryName(t *testing.T) {
@@ -152,6 +153,99 @@ func TestPublishRuntimeMetadataPreservesGreenfieldBaseline(t *testing.T) {
 	agreement := runtimegate.Check(paths)
 	if agreement.Status != "ok" {
 		t.Fatalf("agreement = %#v", agreement)
+	}
+}
+
+func TestChangesCommandAppearsInHelp(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "changes") {
+		t.Fatalf("help does not mention changes:\n%s", stdout.String())
+	}
+}
+
+func TestChangesCommandReturnsWorkingTreeJSON(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	initCLIGit(t, root)
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"changes", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "ok" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["next_action"] != "affected_closure" {
+		t.Fatalf("next_action = %#v, payload=%#v", payload["next_action"], payload)
+	}
+	changes, ok := payload["changes"].([]any)
+	if !ok || len(changes) != 1 {
+		t.Fatalf("changes = %#v", payload["changes"])
+	}
+	change := changes[0].(map[string]any)
+	if change["path"] != "src/app.go" {
+		t.Fatalf("change = %#v", change)
+	}
+	if change["known_to_runtime"] != true {
+		t.Fatalf("known_to_runtime = %#v", change["known_to_runtime"])
+	}
+}
+
+func TestChangesCommandSupportsExplicitChangedPath(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	initCLIGit(t, root)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"changes", "--changed-path", "src/app.go", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["next_action"] != "affected_closure" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestChangesCommandReturnsBlockedPayloadForInvalidExplicitPath(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	initCLIGit(t, root)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"changes", "--changed-path", "../outside.go", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "blocked" {
+		t.Fatalf("status = %#v, payload=%#v", payload["status"], payload)
+	}
+	if payload["next_action"] != "blocked" {
+		t.Fatalf("next_action = %#v, payload=%#v", payload["next_action"], payload)
+	}
+	errors, ok := payload["errors"].([]any)
+	if !ok || !jsonAnySliceContainsSubstring(errors, "../outside.go") {
+		t.Fatalf("errors = %#v", payload["errors"])
 	}
 }
 
@@ -2397,6 +2491,28 @@ func setupReadyMinimalCLIRuntime(t *testing.T) string {
 	return root
 }
 
+func initCLIGit(t *testing.T, root string) {
+	t.Helper()
+	runGit(t, root, "init")
+	runGit(t, root, "config", "user.email", "test@example.com")
+	runGit(t, root, "config", "user.name", "Test User")
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
+		t.Fatalf("CompleteRefresh: %v", err)
+	}
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "baseline")
+}
+
 func initEmptyCLIRuntime(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -2727,6 +2843,15 @@ func jsonStringSliceContains(value any, want string) bool {
 func jsonAnySliceContains(values []any, want string) bool {
 	for _, value := range values {
 		if text, ok := value.(string); ok && text == want {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonAnySliceContainsSubstring(values []any, want string) bool {
+	for _, value := range values {
+		if text, ok := value.(string); ok && strings.Contains(text, want) {
 			return true
 		}
 	}
