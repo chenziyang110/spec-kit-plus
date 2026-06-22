@@ -242,6 +242,7 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
 def test_project_cognition_required_commands_include_compass_and_expand():
     assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "changes" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "lexicon --mode" in project_cognition_runtime.REQUIRED_COMMANDS
     assert (
         "compass --semantic-intake-file --query-plan-file"
@@ -259,7 +260,32 @@ def test_project_cognition_binary_support_requires_compass_and_expand(
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = "Commands: status, build-from-scan, init-empty, changes, update, lexicon, delta\n"
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [[str(binary), "--help"]]
+
+
+def test_project_cognition_binary_support_requires_changes(monkeypatch, tmp_path: Path):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "expand, delta\n"
+        )
         stderr = ""
 
     calls: list[list[str]] = []
@@ -282,7 +308,7 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, changes, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -315,7 +341,7 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, changes, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -344,7 +370,7 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, changes, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -379,7 +405,7 @@ def test_project_cognition_binary_support_requires_compass_precision_flags(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, changes, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -420,7 +446,7 @@ def test_project_cognition_binary_support_requires_expand_section_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, changes, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -469,7 +495,7 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, changes, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""

@@ -16,6 +16,7 @@ DEFAULT_VERSION = "latest"
 REQUIRED_COMMANDS = (
     "build-from-scan",
     "init-empty",
+    "changes",
     "lexicon --mode",
     "compass --semantic-intake-file --query-plan-file",
     "expand --section",
