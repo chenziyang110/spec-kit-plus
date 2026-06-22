@@ -217,7 +217,13 @@ func TestIncludeStatusEntryLimitsPhaseStatuses(t *testing.T) {
 		{name: "untracked without include untracked", code: "??", includeWorkingTree: true, want: false},
 		{name: "copied rejected", code: "C", includeWorkingTree: true, includeUntracked: true, want: false},
 		{name: "typechange rejected", code: "T", includeWorkingTree: true, includeUntracked: true, want: false},
-		{name: "unmerged rejected", code: "UU", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged both deleted rejected", code: "DD", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged added by us rejected", code: "AU", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged deleted by them rejected", code: "UD", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged added by them rejected", code: "UA", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged deleted by us rejected", code: "DU", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged both added rejected", code: "AA", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged both modified rejected", code: "UU", includeWorkingTree: true, includeUntracked: true, want: false},
 		{name: "unknown rejected", code: "X", includeWorkingTree: true, includeUntracked: true, want: false},
 	}
 
@@ -228,6 +234,34 @@ func TestIncludeStatusEntryLimitsPhaseStatuses(t *testing.T) {
 				t.Fatalf("includeStatusEntry(%q, %v, %v) = %v, want %v", tt.code, tt.includeWorkingTree, tt.includeUntracked, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsMissingWithNoIncludedChanges(t *testing.T) {
+	_, paths := initChangesFixture(t)
+	if err := os.Remove(paths.DatabasePath); err != nil {
+		t.Fatalf("remove database: %v", err)
+	}
+
+	payload, err := Run(paths, Input{})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.NeedsRebuildReadiness)
+	}
+	if payload.NextAction != "needs_rebuild" {
+		t.Fatalf("NextAction = %q, want needs_rebuild", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want runtime lookup error")
+	}
+	if len(payload.Changes) != 0 {
+		t.Fatalf("Changes = %#v, want none when runtime DB is missing", payload.Changes)
 	}
 }
 
@@ -310,6 +344,37 @@ func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsCorrupt(t *testing.T) {
 	}
 	if len(payload.Changes) != 0 {
 		t.Fatalf("Changes = %#v, want none when runtime DB is corrupt", payload.Changes)
+	}
+}
+
+func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsCorruptWithOnlyIgnoredChanges(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, ".cognitionignore", ".specify/\nscratch/\n")
+	writeFile(t, root, ".specify/project-cognition/project-cognition.db", "not a sqlite database")
+	writeFile(t, root, "scratch/out.log", "ignored\n")
+
+	payload, err := Run(paths, Input{IncludeUntracked: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.NeedsRebuildReadiness)
+	}
+	if payload.NextAction != "needs_rebuild" {
+		t.Fatalf("NextAction = %q, want needs_rebuild", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want runtime lookup error")
+	}
+	if len(payload.Changes) != 0 {
+		t.Fatalf("Changes = %#v, want none when only ignored paths changed", payload.Changes)
+	}
+	if !containsString(payload.IgnoredPaths, "scratch/out.log") {
+		t.Fatalf("IgnoredPaths = %#v, want ignored scratch path preserved", payload.IgnoredPaths)
 	}
 }
 

@@ -190,7 +190,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	sort.Strings(includedPaths)
 	sort.Strings(payload.IgnoredPaths)
 
-	pathNodeIDs, err := nodeIDsForPaths(paths, includedPaths)
+	pathNodeIDs, err := nodeIDsForPaths(paths, includedPaths, runtimeRequiresStore(status))
 	if err != nil {
 		payload.Status = "blocked"
 		payload.Readiness = rt.NeedsRebuildReadiness
@@ -298,6 +298,10 @@ func includeStatusEntry(code string, includeWorkingTree bool, includeUntracked b
 	if !includeWorkingTree {
 		return false
 	}
+	switch code {
+	case "DD", "AU", "UD", "UA", "DU", "AA", "UU":
+		return false
+	}
 	for _, r := range code {
 		switch r {
 		case 'M', 'A', 'D', 'R':
@@ -330,8 +334,8 @@ func sortedSources(sources map[string]bool) []string {
 	return out
 }
 
-func nodeIDsForPaths(paths rt.Paths, changedPaths []string) (map[string]string, error) {
-	if len(changedPaths) == 0 {
+func nodeIDsForPaths(paths rt.Paths, changedPaths []string, requireStore bool) (map[string]string, error) {
+	if len(changedPaths) == 0 && !requireStore {
 		return map[string]string{}, nil
 	}
 	st, err := store.OpenExisting(paths)
@@ -339,11 +343,18 @@ func nodeIDsForPaths(paths rt.Paths, changedPaths []string) (map[string]string, 
 		return nil, fmt.Errorf("runtime graph store unavailable: %w", err)
 	}
 	defer st.Close()
+	if len(changedPaths) == 0 {
+		return map[string]string{}, nil
+	}
 	pathNodeIDs, err := st.NodeIDsForExactPaths(context.Background(), changedPaths)
 	if err != nil {
 		return nil, fmt.Errorf("runtime path index lookup failed: %w", err)
 	}
 	return pathNodeIDs, nil
+}
+
+func runtimeRequiresStore(status rt.Status) bool {
+	return status.Readiness == rt.ReadyReadiness || status.GraphReady
 }
 
 func classify(status string, known bool) string {
