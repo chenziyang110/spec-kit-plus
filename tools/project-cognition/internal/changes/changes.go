@@ -201,9 +201,16 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	}
 
 	for _, path := range input.ExplicitPaths {
-		path = normalizePath(path)
-		if path == "" {
-			continue
+		originalPath := path
+		path, err = normalizeExplicitPath(paths.Root, path)
+		if err != nil {
+			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
+			payload.NextAction = nextBlocked
+			payload.Changes = []Change{}
+			payload.UnknownPaths = []string{}
+			payload.Errors = []string{fmt.Sprintf("invalid explicit path %q: expected a concrete repository-relative path", originalPath)}
+			return payload, nil
 		}
 		addMerged(merged, rt.GitStatusEntry{Code: "explicit", Path: path}, "explicit", pathTrackedByGit(paths.Root, path))
 	}
@@ -474,6 +481,46 @@ func normalizePath(path string) string {
 		normalized = strings.TrimPrefix(normalized, "./")
 	}
 	return strings.Trim(normalized, "/")
+}
+
+func normalizeExplicitPath(root string, path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", fmt.Errorf("empty explicit path")
+	}
+	if filepath.IsAbs(trimmed) || filepath.VolumeName(trimmed) != "" {
+		rel, err := filepath.Rel(root, trimmed)
+		if err != nil {
+			return "", err
+		}
+		trimmed = rel
+	}
+	normalized := normalizePath(trimmed)
+	if !validExplicitPath(normalized) {
+		return "", fmt.Errorf("invalid explicit path")
+	}
+	return normalized, nil
+}
+
+func validExplicitPath(path string) bool {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	path = strings.TrimPrefix(path, "./")
+	if path == "" || path == "." || filepath.IsAbs(path) || strings.HasPrefix(path, "/") || filepath.VolumeName(path) != "" || strings.Contains(path, ":") {
+		return false
+	}
+	if path == ".specify" || strings.HasPrefix(path, ".specify/") {
+		return false
+	}
+	if strings.ContainsAny(path, "*?[]{}") {
+		return false
+	}
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 func pathTrackedByGit(root string, path string) bool {

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -689,6 +690,66 @@ func TestRunMarksUntrackedExplicitPathAsUntracked(t *testing.T) {
 	}
 	if !reflect.DeepEqual(change.Sources, []string{"explicit"}) {
 		t.Fatalf("Sources = %#v, want explicit", change.Sources)
+	}
+}
+
+func TestRunConvertsAbsoluteExplicitPathUnderRoot(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	absolutePath := filepath.Join(root, "src", "app.go")
+
+	payload, err := Run(paths, Input{ExplicitPaths: []string{absolutePath}})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", payload.Status, payload.Errors)
+	}
+	if len(payload.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	if payload.Changes[0].Path != "src/app.go" {
+		t.Fatalf("Path = %q, want src/app.go", payload.Changes[0].Path)
+	}
+}
+
+func TestRunBlocksInvalidExplicitPaths(t *testing.T) {
+	_, paths := initChangesFixture(t)
+	outsideRoot := t.TempDir()
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "absolute outside root", path: filepath.Join(outsideRoot, "outside.go")},
+		{name: "parent traversal", path: "../outside.go"},
+		{name: "glob", path: "src/*.go"},
+		{name: "runtime path", path: ".specify/project-cognition/status.json"},
+		{name: "dot", path: "."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, err := Run(paths, Input{ExplicitPaths: []string{tt.path}})
+			if err != nil {
+				t.Fatalf("Run returned error: %v", err)
+			}
+
+			if payload.Status != "blocked" {
+				t.Fatalf("Status = %q, want blocked", payload.Status)
+			}
+			if payload.Readiness != rt.BlockedReadiness {
+				t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+			}
+			if payload.NextAction != "blocked" {
+				t.Fatalf("NextAction = %q, want blocked", payload.NextAction)
+			}
+			if len(payload.Errors) == 0 || !strings.Contains(payload.Errors[0], strconv.Quote(tt.path)) {
+				t.Fatalf("Errors = %#v, want invalid path %q", payload.Errors, tt.path)
+			}
+			if len(payload.Changes) != 0 {
+				t.Fatalf("Changes = %#v, want none", payload.Changes)
+			}
+		})
 	}
 }
 
