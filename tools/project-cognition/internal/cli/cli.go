@@ -108,7 +108,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
