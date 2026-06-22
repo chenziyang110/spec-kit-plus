@@ -143,11 +143,13 @@ When `changes` returns:
   "update_mode": "payload_file",
   "changes": [],
   "ignored_paths": [],
-  "unknown_paths": [],
+  "unknown_paths": [
+    "src/new-module.ts"
+  ],
   "unknown_path_dispositions": [
     {
       "path": "src/new-module.ts",
-      "change_level": "unknown_path",
+      "change_level": "new_path",
       "allowed_dispositions": [
         "adoptable",
         "review_only",
@@ -205,7 +207,7 @@ Field requirements:
 - `unknown_path_dispositions` must require the agent to classify each unknown path as exactly one of `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`.
 - `unknown_path_dispositions[]` item schema is:
   - `path`: repository-relative path from `unknown_paths`.
-  - `change_level`: copied from the matching `changes[].change_level`, for example `unknown_path`.
+  - `change_level`: copied from the matching `changes[].change_level`, for example `new_path` for an unindexed new file.
   - `allowed_dispositions`: planner-owned allowed values for this path. First iteration should use `["adoptable", "review_only", "ignored", "blocking_known_unknown"]`.
   - `agent_disposition`: `null` in planner output, then filled by the agent with one value from `allowed_dispositions` before update recording.
   - `required_agent_decision`: `true` when `agent_disposition` is unset and update recording must not proceed.
