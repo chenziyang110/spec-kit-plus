@@ -163,7 +163,17 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			return payload, nil
 		}
 		for _, entry := range entries {
-			if !includeStatusEntry(entry.Code, input.IncludeWorkingTree, input.IncludeUntracked) {
+			include, block := intakeStatusEntry(entry.Code, input.IncludeWorkingTree, input.IncludeUntracked)
+			if block {
+				payload.Status = "blocked"
+				payload.Readiness = rt.BlockedReadiness
+				payload.NextAction = nextBlocked
+				payload.Changes = []Change{}
+				payload.UnknownPaths = []string{}
+				payload.Errors = []string{fmt.Sprintf("unsupported git status %q for %s", entry.Code, entry.Path)}
+				return payload, nil
+			}
+			if !include {
 				continue
 			}
 			addMerged(merged, entry, "working_tree", entry.Code != "??")
@@ -291,26 +301,31 @@ func shouldReplaceStatus(current string, next string, source string) bool {
 }
 
 func includeStatusEntry(code string, includeWorkingTree bool, includeUntracked bool) bool {
+	include, _ := intakeStatusEntry(code, includeWorkingTree, includeUntracked)
+	return include
+}
+
+func intakeStatusEntry(code string, includeWorkingTree bool, includeUntracked bool) (bool, bool) {
 	code = strings.TrimSpace(code)
 	if code == "??" {
-		return includeUntracked
-	}
-	if !includeWorkingTree {
-		return false
+		return includeUntracked, false
 	}
 	switch code {
 	case "DD", "AU", "UD", "UA", "DU", "AA", "UU":
-		return false
+		return false, true
 	}
 	for _, r := range code {
 		switch r {
 		case 'M', 'A', 'D', 'R':
 			continue
 		default:
-			return false
+			return false, true
 		}
 	}
-	return code != ""
+	if code == "" {
+		return false, false
+	}
+	return includeWorkingTree, false
 }
 
 func sortedSources(sources map[string]bool) []string {

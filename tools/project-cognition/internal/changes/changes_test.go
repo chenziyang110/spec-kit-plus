@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -199,6 +200,44 @@ func TestRunIncludeUntrackedOnlySkipsTrackedWorkingTreeChanges(t *testing.T) {
 	}
 }
 
+func TestRunBlocksUnsupportedWorkingTreeStatus(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	runGit(t, root, "checkout", "-b", "left")
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"left\" }\n")
+	runGit(t, root, "add", "src/app.go")
+	runGit(t, root, "commit", "-m", "left change")
+	runGit(t, root, "checkout", "-")
+	runGit(t, root, "checkout", "-b", "right")
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"right\" }\n")
+	runGit(t, root, "add", "src/app.go")
+	runGit(t, root, "commit", "-m", "right change")
+	runGitAllowFailure(t, root, "merge", "left")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+	}
+	if payload.NextAction != "blocked" {
+		t.Fatalf("NextAction = %q, want blocked", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want unsupported status error")
+	}
+	if !strings.Contains(payload.Errors[0], "src/app.go") || !strings.Contains(payload.Errors[0], "UU") {
+		t.Fatalf("Errors = %#v, want path and UU status", payload.Errors)
+	}
+	if len(payload.Changes) != 0 {
+		t.Fatalf("Changes = %#v, want none for blocked unsupported status", payload.Changes)
+	}
+}
+
 func TestIncludeStatusEntryLimitsPhaseStatuses(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -232,6 +271,33 @@ func TestIncludeStatusEntryLimitsPhaseStatuses(t *testing.T) {
 			got := includeStatusEntry(tt.code, tt.includeWorkingTree, tt.includeUntracked)
 			if got != tt.want {
 				t.Fatalf("includeStatusEntry(%q, %v, %v) = %v, want %v", tt.code, tt.includeWorkingTree, tt.includeUntracked, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIntakeStatusEntryBlocksUnsupportedStatuses(t *testing.T) {
+	tests := []struct {
+		name               string
+		code               string
+		includeWorkingTree bool
+		includeUntracked   bool
+		wantInclude        bool
+		wantBlock          bool
+	}{
+		{name: "unrequested modified skipped", code: "M", includeUntracked: true, wantInclude: false, wantBlock: false},
+		{name: "unrequested untracked skipped", code: "??", includeWorkingTree: true, wantInclude: false, wantBlock: false},
+		{name: "unsupported copied blocks", code: "C", includeWorkingTree: true, wantInclude: false, wantBlock: true},
+		{name: "unsupported typechange blocks", code: "T", includeWorkingTree: true, wantInclude: false, wantBlock: true},
+		{name: "conflict blocks", code: "UU", includeWorkingTree: true, wantInclude: false, wantBlock: true},
+		{name: "conflict blocks even when only untracked requested", code: "AA", includeUntracked: true, wantInclude: false, wantBlock: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotInclude, gotBlock := intakeStatusEntry(tt.code, tt.includeWorkingTree, tt.includeUntracked)
+			if gotInclude != tt.wantInclude || gotBlock != tt.wantBlock {
+				t.Fatalf("intakeStatusEntry(%q, %v, %v) = (%v, %v), want (%v, %v)", tt.code, tt.includeWorkingTree, tt.includeUntracked, gotInclude, gotBlock, tt.wantInclude, tt.wantBlock)
 			}
 		})
 	}
@@ -505,6 +571,14 @@ func runGit(t *testing.T, root string, args ...string) string {
 	if err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
+	return string(output)
+}
+
+func runGitAllowFailure(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	output, _ := cmd.CombinedOutput()
 	return string(output)
 }
 
