@@ -120,7 +120,7 @@ When `changes` returns:
 
 - `no_op`: planner returns a no-op plan. If no project-related mutation exists, update is not required.
 - `affected_closure`: planner drafts an update payload from included changed paths and asks the agent to fill semantic fields.
-- `partial_refresh`: planner drafts a partial-safe payload and requires known unknowns/minimal live reads before update.
+- `partial_refresh`: planner drafts a partial-safe payload and requires unknown-path disposition before update. `known_unknowns` and `minimal_live_reads` are required only for dispositions that leave unproven or blocking uncertainty, such as `review_only` or `blocking_known_unknown`; verified `adoptable` paths do not become partial merely because they were initially unknown to `path_index`.
 - `needs_rebuild`: planner does not draft a normal update payload; it routes to `sp-map-scan -> sp-map-build`.
 - `blocked`: planner reports the blocker and recommends `mark-dirty` only when useful update data cannot be recorded.
 
@@ -144,7 +144,23 @@ When `changes` returns:
   "changes": [],
   "ignored_paths": [],
   "unknown_paths": [],
-  "unknown_path_dispositions": [],
+  "unknown_path_dispositions": [
+    {
+      "path": "src/new-module.ts",
+      "change_level": "unknown_path",
+      "allowed_dispositions": [
+        "adoptable",
+        "review_only",
+        "ignored",
+        "blocking_known_unknown"
+      ],
+      "agent_disposition": null,
+      "required_agent_decision": true,
+      "planner_reason": [
+        "path not present in active path_index"
+      ]
+    }
+  ],
   "known_paths": [],
   "delta_session_id": null,
   "delta_append_command": null,
@@ -187,6 +203,13 @@ Field requirements:
 - `ignored_paths` must never be copied into `payload_draft.changed_paths`, update records, known unknowns, graph evidence, route indexes, or minimal live reads.
 - `unknown_paths` are a top-level uncertainty/disposition queue, not automatic blocking `known_unknowns`.
 - `unknown_path_dispositions` must require the agent to classify each unknown path as exactly one of `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`.
+- `unknown_path_dispositions[]` item schema is:
+  - `path`: repository-relative path from `unknown_paths`.
+  - `change_level`: copied from the matching `changes[].change_level`, for example `unknown_path`.
+  - `allowed_dispositions`: planner-owned allowed values for this path. First iteration should use `["adoptable", "review_only", "ignored", "blocking_known_unknown"]`.
+  - `agent_disposition`: `null` in planner output, then filled by the agent with one value from `allowed_dispositions` before update recording.
+  - `required_agent_decision`: `true` when `agent_disposition` is unset and update recording must not proceed.
+  - `planner_reason`: runtime-owned explanation, usually copied from or derived from `changes[].reason`.
 - `adoptable` means a verified new path is inside the workflow-owned change scope and may enter `changed_paths`/`scope_paths` without becoming a blocking known unknown.
 - `review_only` means the path informed the agent but is not adopted into the update payload as changed coverage.
 - `ignored` means the path remains excluded and must not enter payloads, records, route indexes, evidence, aliases, or minimal live reads.
@@ -306,6 +329,7 @@ Runtime tests:
 - Repairable `mark-dirty` state still produces a draft plan.
 - Ignored paths appear only in `ignored_paths` and never in `payload_draft.changed_paths`.
 - Unknown paths appear in `unknown_path_dispositions`, not as automatic payload `known_unknowns`.
+- `unknown_path_dispositions[]` items include `path`, `change_level`, `allowed_dispositions`, `agent_disposition`, `required_agent_decision`, and `planner_reason`.
 - Unknown path disposition tests cover `adoptable`, `review_only`, `ignored`, and `blocking_known_unknown`.
 - Verified adoptable unindexed paths can still produce a ready update path and must not be blocked merely because they were initially unknown.
 - Only `blocking_known_unknown` dispositions become payload or delta known unknowns.
