@@ -211,10 +211,25 @@ func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
 	}
 	status.LastRefreshReason = reason
 	status.LastRefreshBasis = "recorded"
+	recordGitRefreshBaseline(paths, &status)
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return rt.Status{}, err
 	}
 	return status, nil
+}
+
+func recordGitRefreshBaseline(paths rt.Paths, status *rt.Status) {
+	if !rt.GitAvailable(paths.Root) {
+		status.LastRefreshGitCommit = ""
+		status.LastRefreshGitBranch = ""
+		return
+	}
+	if commit, err := rt.GitHead(paths.Root); err == nil {
+		status.LastRefreshGitCommit = commit
+	}
+	if branch, err := rt.GitBranch(paths.Root); err == nil {
+		status.LastRefreshGitBranch = branch
+	}
 }
 
 func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
@@ -245,6 +260,7 @@ func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
 		basis = "map-build"
 	}
 	status.LastRefreshBasis = basis
+	recordGitRefreshBaseline(paths, &status)
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return rt.Status{}, err
 	}

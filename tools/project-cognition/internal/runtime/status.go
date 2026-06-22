@@ -52,6 +52,8 @@ type Status struct {
 	StaleReasons                 []string `json:"stale_reasons"`
 	LastRefreshReason            string   `json:"last_refresh_reason"`
 	LastRefreshBasis             string   `json:"last_refresh_basis"`
+	LastRefreshGitCommit         string   `json:"last_refresh_git_commit,omitempty"`
+	LastRefreshGitBranch         string   `json:"last_refresh_git_branch,omitempty"`
 	LastRefreshChangedFilesBasis []string `json:"last_refresh_changed_files_basis"`
 	LastUpdateID                 string   `json:"last_update_id"`
 	LastDeltaSessionID           string   `json:"last_delta_session_id"`
