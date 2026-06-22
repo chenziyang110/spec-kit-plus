@@ -134,6 +134,41 @@ func TestRunGitDiffFailureReturnsBlockedReadiness(t *testing.T) {
 	}
 }
 
+func TestRunBlockedRuntimeStatusReturnsBlockedPayload(t *testing.T) {
+	_, paths := initChangesFixture(t)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	status.Status = "blocked"
+	status.Readiness = rt.BlockedReadiness
+	status.StaleReasons = []string{"manual block"}
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
+
+	payload, err := Run(paths, Input{})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+	}
+	if payload.NextAction != "blocked" {
+		t.Fatalf("NextAction = %q, want blocked", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want blocked runtime error")
+	}
+	if len(payload.Changes) != 0 || len(payload.UnknownPaths) != 0 {
+		t.Fatalf("Changes/UnknownPaths = %#v/%#v, want none", payload.Changes, payload.UnknownPaths)
+	}
+}
+
 func TestRunMissingBaselineEmitsWorkingTreeWarning(t *testing.T) {
 	root, paths := initChangesFixture(t)
 	status, err := rt.ReadStatus(paths)

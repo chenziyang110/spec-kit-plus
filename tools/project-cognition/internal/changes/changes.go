@@ -109,6 +109,13 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		payload.Errors = []string{err.Error()}
 		return payload, nil
 	}
+	if status.Status == "blocked" || status.Readiness == rt.BlockedReadiness {
+		payload.Status = "blocked"
+		payload.Readiness = rt.BlockedReadiness
+		payload.NextAction = nextBlocked
+		payload.Errors = blockedRuntimeErrors(status)
+		return payload, nil
+	}
 	payload.Status = "ok"
 	payload.Readiness = status.Readiness
 
@@ -374,6 +381,15 @@ func nodeIDsForPaths(paths rt.Paths, changedPaths []string, requireStore bool) (
 
 func runtimeRequiresStore(status rt.Status) bool {
 	return status.Readiness == rt.ReadyReadiness || status.GraphReady
+}
+
+func blockedRuntimeErrors(status rt.Status) []string {
+	reasons := append([]string{}, status.StaleReasons...)
+	reasons = append(reasons, status.DirtyReasons...)
+	if len(reasons) == 0 {
+		return []string{"project cognition runtime is blocked"}
+	}
+	return append([]string{"project cognition runtime is blocked"}, reasons...)
 }
 
 func classify(status string, known bool) string {
