@@ -486,6 +486,10 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
 
     assert "specify implement closeout --feature-dir <feature-dir> --format json" in readme
+    assert "implementation-summary.md" in readme
+    assert "implementation_summary" in readme
+    assert "git diff --stat" in readme
+    assert "git diff --name-status" in readme
     assert "command shape:" in readme
     assert "specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
     assert "result helper command shapes:" in readme
@@ -504,6 +508,10 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "--packet-file <packet-json>" in readme
 
     assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
+    assert "implementation-summary.md" in quickstart
+    assert "implementation_summary" in quickstart
+    assert "git diff --stat" in quickstart
+    assert "git diff --name-status" in quickstart
     assert "command shape:" in quickstart
     assert "specify eval create --recurrence-key <key> --summary" in quickstart
     assert "specify eval create --recurrence-key <key> ..." not in quickstart

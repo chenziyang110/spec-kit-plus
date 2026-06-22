@@ -3,7 +3,7 @@ description: Use when tasks.md exists and the planned work should be executed th
 workflow_contract:
   when_to_use: '`tasks.md` is ready and the feature should move from planning into tracked execution batches.'
   primary_objective: Execute the ready batches while preserving tracker state, subagent contracts, verification discipline, and resumability.
-  primary_outputs: Verified code, test, and documentation changes plus implementation-tracker and subagent-result artifacts for the active feature.
+  primary_outputs: Verified code, test, and documentation changes plus implementation-tracker, subagent-result artifacts, and `implementation-summary.md` for the active feature.
   default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or report completion only when the implementation contract is actually satisfied.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
@@ -679,13 +679,14 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
    - The completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs; project cognition can support route selection but cannot be the sole evidence for completion. Continue only when verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
-   - [AGENT] Before the final completion report, run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
+   - [AGENT] Before the final completion report, run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` so implementation session state is validated, retry-heavy patterns are auto-captured from `implement-tracker.md`, and `FEATURE_DIR/implementation-summary.md` is written.
+   - [AGENT] Treat the closeout JSON `implementation_summary` object and `FEATURE_DIR/implementation-summary.md` as the canonical user-facing answer to "what changed, how do I verify it, and what differs from the previous version." The final response must surface the summary report path and reflect its completed work, changed paths, behavior surfaces, verification evidence, baseline comparison commands, remaining human-needed checks, and unresolved gaps.
 - [AGENT] If the closeout auto-capture pass produced no captured lesson but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface to create or merge an index/detail entry.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
 - [AGENT] Before the final completion report, apply the Learning Reflex and record any reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` in `.specify/memory/learnings/INDEX.md` plus a linked detail document when durable state did not already preserve it.
    - Treat one-off findings as no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
-   - Report final status with summary of completed work, changed code paths, changed behavior surfaces, verification evidence, `project_cognition_refresh` outcome when applicable, remaining human-needed checks, and any unresolved gaps
+   - Report final status with the `implementation-summary.md` path, summary of completed work, changed code paths, changed behavior surfaces, verification evidence, baseline comparison commands such as `git status --short`, `git diff --stat HEAD`, and `git diff --name-status HEAD`, `project_cognition_refresh` outcome when applicable, remaining human-needed checks, and any unresolved gaps
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/sp.tasks` first to regenerate the task list.
 

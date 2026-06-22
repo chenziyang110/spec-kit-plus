@@ -3325,6 +3325,86 @@ def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
     assert payload["resume_audit"]["trusted_terminal_state"] is False
 
 
+def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Current Command\n\n- status: `completed`\n\n## Next Command\n\n- `/sp.implement`\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Wire demo CLI route in src/specify_cli/demo.py\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: resolved",
+                "feature: 001-demo",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: final validation",
+                "next_action: report completion",
+                "",
+                "## Open Gaps",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    (result_dir / "T001.json").write_text(
+        """
+{
+  "task_id": "T001",
+  "status": "success",
+  "changed_files": ["src/specify_cli/demo.py", "tests/test_demo.py"],
+  "validation_results": [
+    {"command": "pytest tests/test_demo.py -q", "status": "passed", "output": "1 passed"}
+  ],
+  "consumer_evidence": [
+    {
+      "kind": "real_entrypoint",
+      "entrypoint": "specify demo",
+      "producer": "demo command",
+      "transformer": "Typer command dispatch",
+      "consumer": "CLI invocation",
+      "boundary_or_executor": "CliRunner",
+      "validation": "pytest tests/test_demo.py -q"
+    }
+  ],
+  "summary": "Wired the demo CLI route and regression coverage"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["implement", "closeout", "--feature-dir", str(feature_dir), "--format", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    summary = payload["implementation_summary"]
+    assert summary["status"] == "ok"
+    assert summary["report_path"].endswith(".specify/features/001-demo/implementation-summary.md")
+    assert summary["completed_work"][0]["summary"] == "Wired the demo CLI route and regression coverage"
+    assert "src/specify_cli/demo.py" in summary["changed_paths"]["from_worker_results"]
+    assert "git diff --stat HEAD" in summary["baseline_comparison"]["commands"]
+    report_path = feature_dir / "implementation-summary.md"
+    assert report_path.is_file()
+    report = report_path.read_text(encoding="utf-8")
+    assert "## What Changed" in report
+    assert "## How To Verify" in report
+    assert "## Version Comparison" in report
+
+
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
     workspace = project / ".planning" / "quick" / "260427-004-demo-quick-task"

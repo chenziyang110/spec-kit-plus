@@ -74,3 +74,13 @@ def test_sp_implement_documents_milestone_next_step_selection() -> None:
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in _read_template()
     assert "`plan_gap`" in _read_template()
     assert "`spec_gap`" in _read_template()
+
+
+def test_sp_implement_requires_user_facing_closeout_summary() -> None:
+    content = _read_template().lower()
+
+    assert "implementation-summary.md" in content
+    assert "implementation_summary" in content
+    assert "what changed, how do i verify it, and what differs from the previous version" in content
+    assert "git diff --stat" in content
+    assert "git diff --name-status" in content

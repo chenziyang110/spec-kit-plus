@@ -367,6 +367,7 @@ Passive project learning layer:
     - Command shape: `specify learning capture-auto --command <workflow> --format json`
   - `specify implement closeout`
     - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
+    - Writes `FEATURE_DIR/implementation-summary.md` and returns `implementation_summary` with completed work, changed paths, behavior surfaces, verification evidence, and baseline comparison commands (`git status --short`, `git diff --stat HEAD`, `git diff --name-status HEAD`).
   - `specify learning aggregate --format json`
   - `specify learning promote`
     - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`

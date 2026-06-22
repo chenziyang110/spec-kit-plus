@@ -1502,6 +1502,7 @@ def implement_closeout(
     """Validate implementation closeout state and auto-capture learnings."""
     from .hooks.engine import run_quality_hook
     from .implement_audit import audit_implement_resume
+    from .implementation_summary import build_implementation_summary
 
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
@@ -1546,12 +1547,14 @@ def implement_closeout(
         command_name="implement",
         feature_dir=resolved_feature_dir,
     )
+    summary_payload = build_implementation_summary(project_root, resolved_feature_dir)
     payload = {
         "status": "ok",
         "feature_dir": str(resolved_feature_dir),
         "hook_result": hook_result.to_dict(),
         "resume_audit": resume_audit,
         "auto_capture": auto_payload,
+        "implementation_summary": summary_payload,
     }
     if output_format.lower() == "json":
         print_json(payload, indent=2)
@@ -1560,6 +1563,7 @@ def implement_closeout(
     rows = [
         ("Feature Dir", str(resolved_feature_dir)),
         ("Session State", hook_result.status),
+        ("Summary Report", str(summary_payload["report_path"])),
         ("Auto-Capture", auto_payload["status"]),
         ("Captured", str(len(auto_payload.get("captured", [])))),
     ]

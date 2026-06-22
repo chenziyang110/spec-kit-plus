@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from specify_cli.implement_audit import audit_implement_resume
+from specify_cli.implementation_summary import build_implementation_summary
 
 
 def _write_basic_feature(feature_dir: Path, *, tracker_status: str = "resolved") -> None:
@@ -271,3 +272,61 @@ def test_explicit_real_entrypoint_requirement_is_enforced_without_consumer_keywo
 
     assert payload["status"] == "fail"
     assert any("real-entrypoint consumer evidence" in finding["missing_evidence"] for finding in payload["task_findings"])
+
+
+def test_implementation_summary_records_completed_work_changes_and_verification(tmp_path: Path) -> None:
+    project = tmp_path
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    _write_basic_feature(feature_dir)
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    (result_dir / "T001.json").write_text(
+        """
+{
+  "task_id": "T001",
+  "status": "success",
+  "changed_files": [
+    "src/specify_cli/demo.py",
+    "tests/test_demo.py"
+  ],
+  "validation_results": [
+    {"command": "pytest tests/test_demo.py -q", "status": "passed", "output": "1 passed"}
+  ],
+  "consumer_evidence": [
+    {
+      "kind": "real_entrypoint",
+      "entrypoint": "specify demo",
+      "producer": "demo command",
+      "transformer": "Typer command dispatch",
+      "consumer": "CLI invocation",
+      "boundary_or_executor": "CliRunner",
+      "validation": "pytest tests/test_demo.py -q"
+    }
+  ],
+  "summary": "Added the demo command and regression coverage"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    payload = build_implementation_summary(project, feature_dir)
+
+    assert payload["status"] == "ok"
+    assert payload["report_path"].endswith(".specify/features/001-demo/implementation-summary.md")
+    assert payload["completed_work"][0]["task_id"] == "T001"
+    assert payload["completed_work"][0]["summary"] == "Added the demo command and regression coverage"
+    assert "src/specify_cli/demo.py" in payload["changed_paths"]["from_worker_results"]
+    assert payload["verification_evidence"][0]["command"] == "pytest tests/test_demo.py -q"
+    assert payload["baseline_comparison"]["commands"] == [
+        "git status --short",
+        "git diff --stat HEAD",
+        "git diff --name-status HEAD",
+    ]
+
+    report = (feature_dir / "implementation-summary.md").read_text(encoding="utf-8")
+    assert "## What Changed" in report
+    assert "## How To Verify" in report
+    assert "## Version Comparison" in report
+    assert "Added the demo command and regression coverage" in report
+    assert "src/specify_cli/demo.py" in report
+    assert "pytest tests/test_demo.py -q" in report
