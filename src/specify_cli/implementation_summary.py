@@ -181,6 +181,8 @@ def _run_git(project_root: Path, args: list[str]) -> str | None:
             ["git", *args],
             cwd=project_root,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
         )
