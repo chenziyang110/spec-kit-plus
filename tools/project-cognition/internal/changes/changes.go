@@ -163,11 +163,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			return payload, nil
 		}
 		for _, entry := range entries {
-			if entry.Code == "??" {
-				if !input.IncludeUntracked {
-					continue
-				}
-			} else if !input.IncludeWorkingTree {
+			if !includeStatusEntry(entry.Code, input.IncludeWorkingTree, input.IncludeUntracked) {
 				continue
 			}
 			addMerged(merged, entry, "working_tree", entry.Code != "??")
@@ -292,6 +288,25 @@ func shouldReplaceStatus(current string, next string, source string) bool {
 		return true
 	}
 	return false
+}
+
+func includeStatusEntry(code string, includeWorkingTree bool, includeUntracked bool) bool {
+	code = strings.TrimSpace(code)
+	if code == "??" {
+		return includeUntracked
+	}
+	if !includeWorkingTree {
+		return false
+	}
+	for _, r := range code {
+		switch r {
+		case 'M', 'A', 'D', 'R':
+			continue
+		default:
+			return false
+		}
+	}
+	return code != ""
 }
 
 func sortedSources(sources map[string]bool) []string {

@@ -199,6 +199,38 @@ func TestRunIncludeUntrackedOnlySkipsTrackedWorkingTreeChanges(t *testing.T) {
 	}
 }
 
+func TestIncludeStatusEntryLimitsPhaseStatuses(t *testing.T) {
+	tests := []struct {
+		name               string
+		code               string
+		includeWorkingTree bool
+		includeUntracked   bool
+		want               bool
+	}{
+		{name: "modified with working tree", code: "M", includeWorkingTree: true, want: true},
+		{name: "added with working tree", code: "A", includeWorkingTree: true, want: true},
+		{name: "deleted with working tree", code: "D", includeWorkingTree: true, want: true},
+		{name: "renamed with working tree", code: "R", includeWorkingTree: true, want: true},
+		{name: "index and worktree modified with working tree", code: "MM", includeWorkingTree: true, want: true},
+		{name: "untracked with include untracked", code: "??", includeUntracked: true, want: true},
+		{name: "modified without working tree", code: "M", includeUntracked: true, want: false},
+		{name: "untracked without include untracked", code: "??", includeWorkingTree: true, want: false},
+		{name: "copied rejected", code: "C", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "typechange rejected", code: "T", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unmerged rejected", code: "UU", includeWorkingTree: true, includeUntracked: true, want: false},
+		{name: "unknown rejected", code: "X", includeWorkingTree: true, includeUntracked: true, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := includeStatusEntry(tt.code, tt.includeWorkingTree, tt.includeUntracked)
+			if got != tt.want {
+				t.Fatalf("includeStatusEntry(%q, %v, %v) = %v, want %v", tt.code, tt.includeWorkingTree, tt.includeUntracked, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsMissing(t *testing.T) {
 	root, paths := initChangesFixture(t)
 	if err := os.Remove(paths.DatabasePath); err != nil {
