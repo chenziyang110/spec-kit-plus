@@ -36,8 +36,9 @@ Use `execution_surface: native-subagents`.
 
 ## Git Delta Intake
 
-- Start from Git, not memory: collect modified, added, deleted, and renamed paths from the current diff, supplied commit range, or explicit changed-path list.
-- Filter changed paths through `.cognitionignore` before querying or patching the runtime. Read root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`; both use gitignore-compatible syntax.
+- Start from Git, not memory: first run `{{specify-subcmd:project-cognition changes --format json}}` unless the caller supplied a narrower explicit changed-path list or commit range. For explicit paths, pass each path with `--changed-path`; for a commit range, pass `--since <base> --head <head>`.
+- Consume `next_action`, `changes[].path`, `ignored_paths`, `unknown_paths`, `baseline_commit`, and `head_commit` from the `changes` payload before querying or patching the runtime. Feed `changes[].path` into the update payload's `changed_paths`; keep `ignored_paths` out of update records, known unknowns, `minimal_live_reads`, graph evidence, and route indexes.
+- Filter changed paths through `.cognitionignore` before querying or patching the runtime. The `changes` helper performs the first filter pass; if the agent adds user-supplied paths later, re-check root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. Both use gitignore-compatible syntax.
 - User-supplied changed paths that match `.cognitionignore` are scope notes, not update targets. Report them as ignored unless a later `!` rule re-includes the path or the user explicitly changes the ignore rule.
 - Treat user-supplied changed paths, behavior surfaces, and corrections as authoritative scope hints unless repository evidence contradicts them.
 - Query `project-cognition.db` for each changed path before deciding update scope.
@@ -87,11 +88,12 @@ schema failure, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 project-cognition update --payload-file ".specify/project-cognition/updates/<map-update-id>.json" --reason map-update --format json
 ```
 
-Use the returned `result_state` to decide whether to finalize, report `partial_refresh`, route to rebuild, or report blocked state.
+Use the returned `result_state` as the completion gate, not `status=ok` alone. `ready` plus passing `validate-build` may call `complete-refresh`; `no_op` may call `record-refresh` when only freshness metadata needs to be updated; `partial_refresh` must preserve review data and must not call `complete-refresh`; `needs_rebuild` must route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` must report the blocker and recovery condition.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 
 - After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.
+- `sp-map-update` must not call `complete-refresh` when `result_state` is `partial_refresh`, `needs_rebuild`, or `blocked`; those states are useful recorded outcomes, not fresh completed baselines.
 - If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid` condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If `validate-build` reports `identity_reconciliation=blocked` but the blocked set is bounded and path-led, `sp-map-update` must run a focused identity-repair pass before offering rebuild. Treat missing or unexpected `coverage_path` identities, renamed paths, deleted paths, ignored paths, stale DB path rows, and path-derived evidence identities as map-update repair work when they can be explained from git delta, file existence, `.cognitionignore`, existing merge records, or explicit row decisions.
 - During the identity-repair pass, classify every blocked identity as one of: adopted with provisional path/evidence, merged to a canonical path, rejected with an explicit row decision, ignored by boundary rules, stale/deleted, or still blocked with a concrete reason. Then rerun `{{specify-subcmd:project-cognition validate-build --format json}}`.
