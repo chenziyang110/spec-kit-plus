@@ -101,11 +101,36 @@ func TestRunGitUnavailableReturnsBlockedPayload(t *testing.T) {
 	if payload.NextAction != "blocked" {
 		t.Fatalf("NextAction = %q, want blocked", payload.NextAction)
 	}
+	if payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+	}
 	if !containsString(payload.Errors, "git repository unavailable") {
 		t.Fatalf("Errors = %#v, want git repository unavailable", payload.Errors)
 	}
 	if len(payload.Changes) != 0 {
 		t.Fatalf("Changes = %#v, want none", payload.Changes)
+	}
+}
+
+func TestRunGitDiffFailureReturnsBlockedReadiness(t *testing.T) {
+	_, paths := initChangesFixture(t)
+
+	payload, err := Run(paths, Input{Since: "not-a-commit", Head: "also-not-a-commit"})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.BlockedReadiness)
+	}
+	if payload.NextAction != "blocked" {
+		t.Fatalf("NextAction = %q, want blocked", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want git diff error")
 	}
 }
 

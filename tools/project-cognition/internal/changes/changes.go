@@ -114,6 +114,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 
 	if !rt.GitAvailable(paths.Root) {
 		payload.Status = "blocked"
+		payload.Readiness = rt.BlockedReadiness
 		payload.NextAction = nextBlocked
 		payload.Errors = []string{"git repository unavailable"}
 		return payload, nil
@@ -125,6 +126,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		head, headErr = rt.GitHead(paths.Root)
 		if headErr != nil {
 			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
 			payload.NextAction = nextBlocked
 			payload.Errors = []string{"git repository unavailable"}
 			return payload, nil
@@ -145,6 +147,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		entries, err := rt.GitDiffNameStatus(paths.Root, baseline, head)
 		if err != nil {
 			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
 			payload.NextAction = nextBlocked
 			payload.Errors = []string{err.Error()}
 			return payload, nil
@@ -158,6 +161,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		entries, err := rt.GitStatusEntries(paths.Root)
 		if err != nil {
 			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
 			payload.NextAction = nextBlocked
 			payload.Errors = []string{"git repository unavailable"}
 			return payload, nil
