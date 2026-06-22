@@ -191,6 +191,13 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "workflow-appropriate slices" not in lowered
 
 
+def test_handbook_docs_include_project_cognition_changes_command() -> None:
+    for rel_path in ("PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
+        content = _read(rel_path).lower()
+
+        assert "project-cognition changes" in content
+
+
 def test_runtime_docs_explain_graph_backed_project_cognition_lexicon() -> None:
     required_phrases = (
         "alias catalog",

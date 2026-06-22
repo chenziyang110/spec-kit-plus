@@ -68,6 +68,7 @@ For generated projects, use project cognition first:
 - `.specify/project-cognition/project-cognition.db` — canonical SQLite graph store
 - `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` — default brownfield navigation intake returning readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; paths are first evidence, not final edit scope
 - `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` (`lexicon -> semantic_intake -> query`) — advanced path when compass is draft-like, localized, missing coverage, or needs explicit concept decisions
+- `project-cognition changes --format json` - Git-native change plan for `sp-map-update`; reports included, ignored, known, unknown, and recommended next action before incremental update recording
 - The advanced alias catalog path carries facet coverage details: `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `candidate_universe_version`, and `active_generation_id`.
 - When shell quoting makes inline JSON brittle, use `project-cognition query --query-plan-file <path>` instead. The query plan accepts `path_hints`/`reason` as aliases for `paths`/`selection_reason`.
 
@@ -189,6 +190,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - `.specify/project-cognition/project-cognition.db` - canonical generated-project SQLite graph store
 - `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` bundle - default generated-project route to readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; agents use those paths as first evidence, not final edit scope
 - `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` (`lexicon -> semantic_intake -> query`) - advanced route when compass needs explicit concept decisions or coverage escalation
+- `project-cognition changes --format json` - Git-native change plan for `sp-map-update`; reports included, ignored, known, unknown, and recommended next action before incremental update recording
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
 - `templates/project-map/**` is retained only for legacy compatibility review and must not be installed or required by new generated projects.

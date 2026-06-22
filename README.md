@@ -459,6 +459,8 @@ First-party hook runtime:
   - `specify hook validate-read-path --target-path <path>`
   - `specify hook validate-prompt --prompt-text "<text>"`
 - Project cognition freshness should use the public project-cognition commands:
+  - Command shape: `project-cognition changes --format json`
+    - Git-native change plan for `sp-map-update`; reports included, ignored, known, unknown, and recommended next action before incremental update recording.
   - Command shape: `project-cognition complete-refresh`
   - Command shape: `project-cognition mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
   - Historical compatibility/export surface: legacy project-map artifacts may still exist in old projects, but there is no Python runtime alias and new generated workflow guidance should not call them.
