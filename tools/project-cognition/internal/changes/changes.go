@@ -29,12 +29,12 @@ const (
 )
 
 type Input struct {
-	Since              string
-	Head               string
-	IncludeWorkingTree bool
-	IncludeUntracked   bool
-	ExplicitPaths      []string
-	Intent             string
+	Since              string   `json:"since"`
+	Head               string   `json:"head"`
+	IncludeWorkingTree bool     `json:"include_working_tree"`
+	IncludeUntracked   bool     `json:"include_untracked"`
+	ExplicitPaths      []string `json:"explicit_paths"`
+	Intent             string   `json:"intent"`
 }
 
 type Summary struct {
@@ -103,7 +103,11 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		return payload, nil
 	}
 	if err != nil {
-		return Payload{}, err
+		payload.Status = "blocked"
+		payload.Readiness = rt.NeedsRebuildReadiness
+		payload.NextAction = nextNeedsRebuild
+		payload.Errors = []string{err.Error()}
+		return payload, nil
 	}
 	payload.Status = status.Status
 	payload.Readiness = status.Readiness
@@ -189,6 +193,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	pathNodeIDs, err := nodeIDsForPaths(paths, includedPaths)
 	if err != nil {
 		payload.Status = "blocked"
+		payload.Readiness = rt.NeedsRebuildReadiness
 		payload.NextAction = nextNeedsRebuild
 		payload.Changes = []Change{}
 		payload.UnknownPaths = []string{}

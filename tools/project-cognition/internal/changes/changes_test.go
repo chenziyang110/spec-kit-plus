@@ -199,11 +199,67 @@ func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsMissing(t *testing.T) {
 	if payload.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked", payload.Status)
 	}
+	if payload.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.NeedsRebuildReadiness)
+	}
 	if len(payload.Errors) == 0 {
 		t.Fatal("Errors is empty, want runtime lookup error")
 	}
 	if len(payload.Changes) != 0 {
 		t.Fatalf("Changes = %#v, want none when runtime DB is unusable", payload.Changes)
+	}
+}
+
+func TestRunNeedsRebuildWhenStatusIsCorrupt(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, ".specify/project-cognition/status.json", "{not-json")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.NeedsRebuildReadiness)
+	}
+	if payload.NextAction != "needs_rebuild" {
+		t.Fatalf("NextAction = %q, want needs_rebuild", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want status parse error")
+	}
+	if len(payload.Warnings) != 0 || len(payload.Changes) != 0 || len(payload.IgnoredPaths) != 0 || len(payload.UnknownPaths) != 0 {
+		t.Fatalf("payload slices = warnings %#v changes %#v ignored %#v unknown %#v, want all empty", payload.Warnings, payload.Changes, payload.IgnoredPaths, payload.UnknownPaths)
+	}
+}
+
+func TestRunNeedsRebuildWhenReadyRuntimeDatabaseIsCorrupt(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, ".specify/project-cognition/project-cognition.db", "not a sqlite database")
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"corrupt-db\" }\n")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.NeedsRebuildReadiness)
+	}
+	if payload.NextAction != "needs_rebuild" {
+		t.Fatalf("NextAction = %q, want needs_rebuild", payload.NextAction)
+	}
+	if len(payload.Errors) == 0 {
+		t.Fatal("Errors is empty, want runtime lookup error")
+	}
+	if len(payload.Changes) != 0 {
+		t.Fatalf("Changes = %#v, want none when runtime DB is corrupt", payload.Changes)
 	}
 }
 
