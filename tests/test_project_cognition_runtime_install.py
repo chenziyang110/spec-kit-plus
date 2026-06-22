@@ -242,6 +242,7 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
 def test_project_cognition_required_commands_include_compass_and_expand():
     assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "generate-ignore" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "lexicon --mode" in project_cognition_runtime.REQUIRED_COMMANDS
     assert (
         "compass --semantic-intake-file --query-plan-file"
@@ -259,7 +260,7 @@ def test_project_cognition_binary_support_requires_compass_and_expand(
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = "Commands: status, build-from-scan, init-empty, generate-ignore, update, lexicon, delta\n"
         stderr = ""
 
     calls: list[list[str]] = []
@@ -282,7 +283,7 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -315,7 +316,7 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -344,7 +345,7 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -379,7 +380,7 @@ def test_project_cognition_binary_support_requires_compass_precision_flags(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -420,7 +421,7 @@ def test_project_cognition_binary_support_requires_expand_section_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -469,7 +470,7 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, update, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""

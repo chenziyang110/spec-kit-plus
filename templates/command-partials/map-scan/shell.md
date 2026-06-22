@@ -19,3 +19,15 @@ Generate a complete graph-native evidence baseline for the current codebase.
 - The resulting evidence baseline must let `sp-map-build` reconstruct the project cognition graph from live-surface evidence without inventing scan scope.
 - Maintain `.specify/project-cognition/status.json` as the baseline state surface for graph-native cognition readiness.
 - If native subagent dispatch is unavailable or a substantive scan lane cannot complete, persist `subagent_blocked` in machine-readable state and block baseline activation until recovery. `coverage-ledger.json.open_gaps[]` may use `low_risk_open_gap` only with owner, reason, evidence expectation, and revisit condition.
+
+## Ignore Configuration Gate
+
+- Before repository inventory, run:
+
+```text
+{{specify-subcmd:project-cognition generate-ignore --format json}}
+```
+
+- If the command returns `status=created`, review `.specify/project-cognition/.cognitionignore` with the user and wait for confirmation before continuing to inventory, packet dispatch, or writing `repository-universe.json`.
+- Treat commented starter suggestions as inactive. They are review prompts, not exclusions, until the user removes the comment marker.
+- Preserve root `.cognitionignore` and existing `.specify/project-cognition/.cognitionignore` content; `generate-ignore` must not overwrite an existing ignore file.

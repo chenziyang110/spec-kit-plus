@@ -23,6 +23,7 @@ Use `execution_surface: native-subagents`.
 
 ## Process
 
+- Before repository inventory, run `project-cognition generate-ignore --format json`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
 - Build a value-weighted evidence baseline before any graph reconstruction work begins.
 - First spread out the whole repository as a cheap inventory pass: enumerate paths, metadata, ignore status, Git tracking status, size, extension, directory family, and likely generated/vendor/test/doc/config/source classification without deep-reading file contents.
 - Classify every non-excluded candidate path by value tier before dispatch: `P0` core behavior and entry surfaces, `P1` supporting contracts and runtime/config surfaces, `P2` selective tests/docs/examples, and `P3` low-signal generated/vendor/assets/cache/static output.

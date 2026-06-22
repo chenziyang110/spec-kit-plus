@@ -3,8 +3,28 @@ package ignore
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestLoadAppliesBuiltInDefaultIgnores(t *testing.T) {
+	root := t.TempDir()
+
+	matcher := Load(root)
+
+	if !matcher.Ignored(".git/config") {
+		t.Fatal("expected built-in default rules to ignore .git/config")
+	}
+	if !matcher.Ignored(".specify/project-cognition/status.json") {
+		t.Fatal("expected built-in default rules to ignore project cognition runtime state")
+	}
+	if !matcher.Ignored("node_modules/pkg/index.js") {
+		t.Fatal("expected built-in default rules to ignore node_modules")
+	}
+	if matcher.Ignored("src/app.go") {
+		t.Fatal("did not expect src/app.go to be ignored by default")
+	}
+}
 
 func TestLoadMergesRootAndLocalProjectCognitionIgnores(t *testing.T) {
 	root := t.TempDir()
@@ -199,5 +219,69 @@ func TestDoubleStarSlashMatchesZeroOrMoreDirectories(t *testing.T) {
 	}
 	if matcher.Ignored("examples/app.ts") {
 		t.Fatal("did not expect non-generated example to be ignored")
+	}
+}
+
+func TestGenerateStarterIgnoreFileCommentsGitignoreSuggestions(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(`
+node_modules/
+.specify/
+secrets.local
+generated/reports/
+`), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "fixtures"), 0o755); err != nil {
+		t.Fatalf("create fixtures: %v", err)
+	}
+
+	content := GenerateStarterIgnoreFile(root)
+
+	for _, want := range []string{
+		"Project Cognition ignore rules",
+		"gitignore-compatible",
+		"# secrets.local",
+		"# generated/reports/",
+		"# fixtures/",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("starter ignore missing %q:\n%s", want, content)
+		}
+	}
+	for _, excluded := range []string{"\n# node_modules/\n", "\n# .specify/\n"} {
+		if strings.Contains(content, excluded) {
+			t.Fatalf("starter ignore should not repeat built-in default %q:\n%s", excluded, content)
+		}
+	}
+}
+
+func TestWriteStarterIgnoreFileDoesNotOverwriteExistingFile(t *testing.T) {
+	root := t.TempDir()
+	localDir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(localDir, 0o755); err != nil {
+		t.Fatalf("create local ignore dir: %v", err)
+	}
+	path := filepath.Join(localDir, ".cognitionignore")
+	if err := os.WriteFile(path, []byte("custom/\n"), 0o644); err != nil {
+		t.Fatalf("write existing .cognitionignore: %v", err)
+	}
+
+	gotPath, created, err := WriteStarterIgnoreFile(root)
+	if err != nil {
+		t.Fatalf("WriteStarterIgnoreFile returned error: %v", err)
+	}
+	if created {
+		t.Fatal("WriteStarterIgnoreFile reported created=true for an existing file")
+	}
+	if gotPath != path {
+		t.Fatalf("path = %q, want %q", gotPath, path)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read existing .cognitionignore: %v", err)
+	}
+	if string(data) != "custom/\n" {
+		t.Fatalf("existing .cognitionignore was overwritten: %q", string(data))
 	}
 }

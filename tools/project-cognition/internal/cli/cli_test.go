@@ -312,6 +312,86 @@ func TestInitEmptyCommandBlocksPartialExistingRuntime(t *testing.T) {
 	}
 }
 
+func TestGenerateIgnoreCommandWritesStarterFile(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("node_modules/\nsecrets.local\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "created" {
+		t.Fatalf("payload = %#v, want created status", payload)
+	}
+	if payload["review_required"] != true {
+		t.Fatalf("payload = %#v, want review_required=true", payload)
+	}
+	if payload["path"] != ".specify/project-cognition/.cognitionignore" {
+		t.Fatalf("payload path = %#v", payload["path"])
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".specify", "project-cognition", ".cognitionignore"))
+	if err != nil {
+		t.Fatalf("starter .cognitionignore missing: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "# secrets.local") {
+		t.Fatalf("starter content missing gitignore suggestion:\n%s", content)
+	}
+	if strings.Contains(content, "\n# node_modules/\n") {
+		t.Fatalf("starter content repeated built-in node_modules default:\n%s", content)
+	}
+}
+
+func TestGenerateIgnoreCommandDoesNotOverwriteExistingFile(t *testing.T) {
+	root := t.TempDir()
+	localDir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(localDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ignorePath := filepath.Join(localDir, ".cognitionignore")
+	if err := os.WriteFile(ignorePath, []byte("custom/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "exists" {
+		t.Fatalf("payload = %#v, want exists status", payload)
+	}
+	data, err := os.ReadFile(ignorePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "custom/\n" {
+		t.Fatalf("existing ignore file was overwritten: %q", string(data))
+	}
+}
+
 func TestBuildFromScanCommandCreatesRuntime(t *testing.T) {
 	payload := runBuildFromScanCLI(t, "build-from-scan")
 

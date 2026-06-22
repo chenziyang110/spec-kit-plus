@@ -176,6 +176,10 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     scan_shell_lowered = scan_shell.lower()
     assert ".cognitionignore" in content
     assert ".cognitionignore" in scan_shell
+    assert "project-cognition generate-ignore --format json" in content
+    assert "project-cognition generate-ignore --format json" in scan_shell
+    assert "review `.specify/project-cognition/.cognitionignore`" in scan_shell_lowered
+    assert "wait for confirmation" in scan_shell_lowered
     assert "passive learning files as read-only workflow guidance, not scan evidence" in scan_shell_lowered
     assert "`.specify/**` is workflow/runtime state, not project graph evidence" in scan_shell
     assert "must not become scan targets or graph paths" in scan_shell_lowered

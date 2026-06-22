@@ -232,6 +232,9 @@ def test_runtime_docs_explain_project_cognition_ignore_rules() -> None:
         assert "map-build" in lowered
         assert "map-update" in lowered
         assert "excluded paths must not enter project cognition graph evidence" in lowered
+        assert "generate-ignore" in content
+        assert ".specify/project-cognition/.cognitionignore" in content
+        assert "review" in lowered
 
 
 def test_runtime_docs_explain_cross_project_reference_cognition_gate() -> None:

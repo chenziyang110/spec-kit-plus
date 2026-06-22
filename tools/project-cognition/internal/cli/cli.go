@@ -17,6 +17,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -60,6 +61,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return statusCommand(args[1:], stdout, stderr, paths)
 	case "init-empty":
 		return initEmptyCommand(args[1:], stdout, stderr, paths)
+	case "generate-ignore":
+		return generateIgnoreCommand(args[1:], stdout, stderr, paths)
 	case "mark-dirty":
 		return markDirtyCommand(args[1:], stdout, stderr, paths)
 	case "clear-dirty":
@@ -105,7 +108,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -232,6 +235,35 @@ func initEmptyPaths(paths rt.Paths) rt.Paths {
 		StatusPath:   filepath.Join(runtimeDir, rt.StatusFileName),
 		DatabasePath: filepath.Join(runtimeDir, rt.DBFileName),
 	}
+}
+
+func generateIgnoreCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("generate-ignore", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	paths = initEmptyPaths(paths)
+	path, created, err := ignore.WriteStarterIgnoreFile(paths.Root)
+	if err != nil {
+		return writeErrorJSON(stdout, map[string]any{
+			"status":   "error",
+			"errors":   []string{err.Error()},
+			"warnings": []string{},
+		})
+	}
+	status := "exists"
+	if created {
+		status = "created"
+	}
+	return writeJSON(stdout, map[string]any{
+		"status":          status,
+		"path":            rt.RelativeRuntimePath(paths, path),
+		"review_required": created,
+		"errors":          []string{},
+		"warnings":        []string{},
+	})
 }
 
 func isFilesystemRoot(path string) bool {
