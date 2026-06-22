@@ -1,0 +1,248 @@
+package changes
+
+import (
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"testing"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
+)
+
+func TestRunReportsWorkingTreeChangesWithRuntimePathKnowledge(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"v2\" }\n")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	}
+	if payload.BaselineCommit == "" || payload.HeadCommit == "" {
+		t.Fatalf("commit fields missing: baseline=%q head=%q", payload.BaselineCommit, payload.HeadCommit)
+	}
+	if payload.NextAction != "affected_closure" {
+		t.Fatalf("NextAction = %q, want affected_closure", payload.NextAction)
+	}
+	if len(payload.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	change := payload.Changes[0]
+	if change.Path != "src/app.go" {
+		t.Fatalf("Path = %q, want src/app.go", change.Path)
+	}
+	if !change.KnownToRuntime || change.NodeID != "N-app" {
+		t.Fatalf("runtime knowledge = known %v node %q, want true/N-app", change.KnownToRuntime, change.NodeID)
+	}
+	if change.GitStatus != "M" {
+		t.Fatalf("GitStatus = %q, want M", change.GitStatus)
+	}
+	if change.ChangeLevel != "mapped_change" {
+		t.Fatalf("ChangeLevel = %q, want mapped_change", change.ChangeLevel)
+	}
+}
+
+func TestRunFiltersCognitionIgnoredPaths(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, ".cognitionignore", "scratch/\n")
+	runGit(t, root, "add", ".cognitionignore")
+	runGit(t, root, "commit", "-m", "ignore scratch")
+	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
+		t.Fatalf("CompleteRefresh after ignore commit: %v", err)
+	}
+	writeFile(t, root, "scratch/out.log", "generated\n")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true, IncludeUntracked: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if !reflect.DeepEqual(payload.IgnoredPaths, []string{"scratch/out.log"}) {
+		t.Fatalf("IgnoredPaths = %#v, want scratch/out.log", payload.IgnoredPaths)
+	}
+	if len(payload.Changes) != 0 {
+		t.Fatalf("Changes = %#v, want none", payload.Changes)
+	}
+	if payload.NextAction != "no_op" {
+		t.Fatalf("NextAction = %q, want no_op", payload.NextAction)
+	}
+}
+
+func TestRunReportsCommitRangeChanges(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	base := gitHead(t, root)
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"v2\" }\n")
+	runGit(t, root, "add", "src/app.go")
+	runGit(t, root, "commit", "-m", "modify app")
+	head := gitHead(t, root)
+
+	payload, err := Run(paths, Input{Since: base, Head: head})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.BaselineCommit != base || payload.HeadCommit != head {
+		t.Fatalf("commit fields = %q/%q, want %q/%q", payload.BaselineCommit, payload.HeadCommit, base, head)
+	}
+	if len(payload.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	change := payload.Changes[0]
+	if !reflect.DeepEqual(change.Sources, []string{"committed"}) {
+		t.Fatalf("Sources = %#v, want committed", change.Sources)
+	}
+	if change.GitStatus != "M" {
+		t.Fatalf("GitStatus = %q, want M", change.GitStatus)
+	}
+}
+
+func TestRunMarksUnknownNewPathAsPartialRefresh(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, "src/new.go", "package app\n")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true, IncludeUntracked: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.NextAction != "partial_refresh" {
+		t.Fatalf("NextAction = %q, want partial_refresh", payload.NextAction)
+	}
+	if len(payload.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1; changes=%#v", len(payload.Changes), payload.Changes)
+	}
+	change := payload.Changes[0]
+	if change.Path != "src/new.go" {
+		t.Fatalf("Path = %q, want src/new.go", change.Path)
+	}
+	if change.KnownToRuntime {
+		t.Fatal("KnownToRuntime = true, want false")
+	}
+	if change.ChangeLevel != "new_path" {
+		t.Fatalf("ChangeLevel = %q, want new_path", change.ChangeLevel)
+	}
+}
+
+func initChangesFixture(t *testing.T) (string, rt.Paths) {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatalf("create .specify: %v", err)
+	}
+	writeFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"v1\" }\n")
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatalf("ResolvePaths: %v", err)
+	}
+	seedRuntimePathIndex(t, paths)
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-changes"
+	status.BaselineKind = rt.BaselineKindBrownfieldFull
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
+	runGit(t, root, "init")
+	runGit(t, root, "config", "user.email", "test@example.com")
+	runGit(t, root, "config", "user.name", "Test User")
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "baseline")
+	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
+		t.Fatalf("CompleteRefresh: %v", err)
+	}
+	return root, paths
+}
+
+func seedRuntimePathIndex(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	defer st.Close()
+	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-changes",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID:          "E-app",
+			SourceKind:  "file",
+			SourcePath:  "src/app.go",
+			CommitSHA:   "abc123",
+			Extractor:   "test",
+			ContentHash: "hash-app",
+		}},
+		Nodes: []store.NodeImport{{
+			ID:          "N-app",
+			Type:        "capability",
+			Title:       "App",
+			Confidence:  "verified",
+			EvidenceIDs: []string{"E-app"},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-app",
+			Path:       "src/app.go",
+			NodeID:     "N-app",
+			Relation:   "owns",
+			Confidence: "verified",
+			EvidenceID: "E-app",
+		}},
+		Aliases: []store.AliasImport{{
+			ID:              "ALIAS-app",
+			Alias:           "App",
+			NormalizedAlias: "app",
+			TargetType:      "node",
+			TargetID:        "N-app",
+			Language:        "go",
+			Source:          "node_title",
+			Confidence:      "verified",
+			EvidenceID:      "E-app",
+		}},
+	}); err != nil {
+		t.Fatalf("ImportGeneration: %v", err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), "GEN-changes", rt.BaselineKindBrownfieldFull); err != nil {
+		t.Fatalf("PublishRuntimeMetadata: %v", err)
+	}
+}
+
+func writeFile(t *testing.T, root string, rel string, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create parent for %s: %v", rel, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+}
+
+func runGit(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	}
+	return string(output)
+}
+
+func gitHead(t *testing.T, root string) string {
+	t.Helper()
+	head, err := rt.GitHead(root)
+	if err != nil {
+		t.Fatalf("GitHead: %v", err)
+	}
+	return head
+}
