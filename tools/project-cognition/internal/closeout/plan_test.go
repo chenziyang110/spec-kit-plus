@@ -2,6 +2,7 @@ package closeout
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,8 +53,15 @@ func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
 	if len(payload.UnknownPathDispositions) != 0 {
 		t.Fatalf("UnknownPathDispositions = %#v, want none", payload.UnknownPathDispositions)
 	}
-	if !strings.Contains(payload.UpdateCommand, `project-cognition update --payload-file ".specify/project-cognition/updates/custom.json" --reason workflow-finalize --format json`) {
-		t.Fatalf("UpdateCommand = %q", payload.UpdateCommand)
+	wantArgv := []string{"project-cognition", "update", "--payload-file", ".specify/project-cognition/updates/custom.json", "--reason", "workflow-finalize", "--format", "json"}
+	if !reflect.DeepEqual(payload.UpdateArgv, wantArgv) {
+		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
+	}
+	if strings.Contains(payload.UpdateCommand, ".specify/project-cognition/updates/custom.json") {
+		t.Fatalf("UpdateCommand = %q, want display-only placeholder without concrete path", payload.UpdateCommand)
+	}
+	if payload.PayloadDraft == nil || !reflect.DeepEqual(payload.PayloadDraft.UpdateArgv, wantArgv) {
+		t.Fatalf("draft UpdateArgv = %#v", payload.PayloadDraft)
 	}
 	if !containsCloseoutString(payload.RequiredAgentFields, "verification") || !containsCloseoutString(payload.RequiredAgentFields, "behavior_surfaces") {
 		t.Fatalf("RequiredAgentFields = %#v", payload.RequiredAgentFields)
@@ -139,13 +147,19 @@ func TestRunPreservesDeltaSessionMode(t *testing.T) {
 	if payload.PayloadDraft != nil {
 		t.Fatalf("PayloadDraft = %#v, want nil in delta mode", payload.PayloadDraft)
 	}
-	if !strings.Contains(payload.DeltaAppendCommand, `project-cognition delta append --session "D-session" --event-type workflow_closeout`) {
-		t.Fatalf("DeltaAppendCommand = %q", payload.DeltaAppendCommand)
+	if payload.DeltaAppendDraft == nil {
+		t.Fatal("DeltaAppendDraft is nil")
 	}
-	if !strings.Contains(payload.UpdateCommand, `project-cognition update --delta-session "D-session" --reason workflow-finalize --format json`) {
-		t.Fatalf("UpdateCommand = %q", payload.UpdateCommand)
+	if !reflect.DeepEqual(payload.DeltaAppendDraft.ChangedPaths, []string{"src/app.go"}) {
+		t.Fatalf("DeltaAppendDraft.ChangedPaths = %#v", payload.DeltaAppendDraft.ChangedPaths)
 	}
-	if payload.RecommendedNextCommand != "append_delta_then_update" {
+	if len(payload.DeltaAppendDraft.ArgvPlaceholders) == 0 || !containsCloseoutString(payload.DeltaAppendDraft.ArgvPlaceholders, "<agent-owned passing verification evidence>") {
+		t.Fatalf("DeltaAppendDraft.ArgvPlaceholders = %#v", payload.DeltaAppendDraft.ArgvPlaceholders)
+	}
+	if !reflect.DeepEqual(payload.UpdateArgv, []string{"project-cognition", "update", "--delta-session", "D-session", "--reason", "workflow-finalize", "--format", "json"}) {
+		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
+	}
+	if payload.RecommendedNextCommand != "fill_delta_append_draft_then_update" {
 		t.Fatalf("RecommendedNextCommand = %q", payload.RecommendedNextCommand)
 	}
 }
@@ -170,6 +184,103 @@ func TestRunBlocksUnknownWorkflowName(t *testing.T) {
 	}
 	if payload.UpdateCommand != "" {
 		t.Fatalf("UpdateCommand = %q, want empty", payload.UpdateCommand)
+	}
+	assertBlockedArraysEncodeAsEmpty(t, payload)
+}
+
+func TestRunBlocksInRepoOutOfContractWorkflowNames(t *testing.T) {
+	_, paths := initCloseoutFixture(t)
+
+	for _, workflow := range []string{"sp-implement-teams", "sp-team"} {
+		t.Run(workflow, func(t *testing.T) {
+			payload, err := Run(paths, Input{
+				Workflow:           workflow,
+				IncludeWorkingTree: true,
+				IncludeUntracked:   true,
+			})
+			if err != nil {
+				t.Fatalf("Run returned error: %v", err)
+			}
+			if payload.Status != "blocked" {
+				t.Fatalf("Status = %q, want blocked", payload.Status)
+			}
+			if payload.UpdateCommand != "" || len(payload.UpdateArgv) != 0 {
+				t.Fatalf("update command fields = %q/%#v, want empty", payload.UpdateCommand, payload.UpdateArgv)
+			}
+			if len(payload.Errors) == 0 || !strings.Contains(payload.Errors[0], "unknown workflow") {
+				t.Fatalf("Errors = %#v", payload.Errors)
+			}
+			assertBlockedArraysEncodeAsEmpty(t, payload)
+		})
+	}
+}
+
+func TestRunUsesStructuredArgvForShellMetacharacters(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"meta\" }\n")
+
+	payloadPath := `.specify/project-cognition/updates/closeout"; rm -rf nope; ".json`
+	sessionID := `D-session"; rm -rf nope; "`
+
+	payload, err := Run(paths, Input{
+		Workflow:           "implement",
+		Reason:             `workflow-finalize"; rm -rf nope; "`,
+		IncludeWorkingTree: true,
+		IncludeUntracked:   true,
+		PayloadPath:        payloadPath,
+	})
+	if err != nil {
+		t.Fatalf("Run payload mode returned error: %v", err)
+	}
+	if strings.Contains(payload.UpdateCommand, payloadPath) {
+		t.Fatalf("UpdateCommand includes user-supplied payload path: %q", payload.UpdateCommand)
+	}
+	if !containsCloseoutString(payload.UpdateArgv, payloadPath) {
+		t.Fatalf("UpdateArgv = %#v, want payload path as one argv element", payload.UpdateArgv)
+	}
+
+	deltaPayload, err := Run(paths, Input{
+		Workflow:           "quick",
+		DeltaSessionID:     sessionID,
+		IncludeWorkingTree: true,
+		IncludeUntracked:   true,
+	})
+	if err != nil {
+		t.Fatalf("Run delta mode returned error: %v", err)
+	}
+	if strings.Contains(deltaPayload.UpdateCommand, sessionID) || strings.Contains(deltaPayload.DeltaAppendCommand, sessionID) {
+		t.Fatalf("display command leaked session id: update=%q delta=%q", deltaPayload.UpdateCommand, deltaPayload.DeltaAppendCommand)
+	}
+	if !containsCloseoutString(deltaPayload.UpdateArgv, sessionID) {
+		t.Fatalf("UpdateArgv = %#v, want session id as one argv element", deltaPayload.UpdateArgv)
+	}
+	if deltaPayload.DeltaAppendDraft == nil || !containsCloseoutString(deltaPayload.DeltaAppendDraft.ArgvPrefix, sessionID) {
+		t.Fatalf("DeltaAppendDraft = %#v, want session id in structured argv prefix", deltaPayload.DeltaAppendDraft)
+	}
+}
+
+func TestRunThreadsReasonAndIntentDefaults(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"reason\" }\n")
+
+	payload, err := Run(paths, Input{
+		Workflow:           "implement",
+		Reason:             "custom-closeout",
+		Intent:             "custom-intent",
+		IncludeWorkingTree: true,
+		IncludeUntracked:   true,
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if payload.PayloadDraft == nil {
+		t.Fatal("PayloadDraft is nil")
+	}
+	if payload.PayloadDraft.Reason != "custom-closeout" {
+		t.Fatalf("PayloadDraft.Reason = %q", payload.PayloadDraft.Reason)
+	}
+	if !reflect.DeepEqual(payload.UpdateArgv, []string{"project-cognition", "update", "--payload-file", ".specify/project-cognition/updates/sp-implement-closeout.json", "--reason", "custom-closeout", "--format", "json"}) {
+		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
 }
 
@@ -287,4 +398,26 @@ func containsCloseoutString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func assertBlockedArraysEncodeAsEmpty(t *testing.T, payload Payload) {
+	t.Helper()
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal payload: %v", err)
+	}
+	encoded := string(data)
+	for _, want := range []string{
+		`"update_argv":[]`,
+		`"required_agent_fields":[]`,
+		`"known_paths":[]`,
+		`"unknown_paths":[]`,
+		`"unknown_path_dispositions":[]`,
+		`"changes":[]`,
+		`"warnings":[]`,
+	} {
+		if !strings.Contains(encoded, want) {
+			t.Fatalf("blocked payload JSON = %s, want %s", encoded, want)
+		}
+	}
 }

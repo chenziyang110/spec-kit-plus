@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes"
@@ -22,36 +21,14 @@ const (
 )
 
 var knownWorkflows = map[string]struct{}{
-	"sp-analyze":         {},
-	"sp-auto":            {},
-	"sp-checklist":       {},
-	"sp-clarify":         {},
-	"sp-constitution":    {},
-	"sp-debug":           {},
-	"sp-deep-research":   {},
-	"sp-discussion":      {},
-	"sp-explain":         {},
-	"sp-fast":            {},
-	"sp-implement":       {},
-	"sp-implement-teams": {},
-	"sp-integrate":       {},
-	"sp-map-build":       {},
-	"sp-map-scan":        {},
-	"sp-map-update":      {},
-	"sp-plan":            {},
-	"sp-prd":             {},
-	"sp-prd-build":       {},
-	"sp-prd-scan":        {},
-	"sp-quick":           {},
-	"sp-research":        {},
-	"sp-specify":         {},
-	"sp-tasks":           {},
-	"sp-taskstoissues":   {},
-	"sp-team":            {},
+	"sp-implement": {},
+	"sp-quick":     {},
 }
 
 type Input struct {
 	Workflow           string   `json:"workflow"`
+	Reason             string   `json:"reason,omitempty"`
+	Intent             string   `json:"intent,omitempty"`
 	Since              string   `json:"since,omitempty"`
 	Head               string   `json:"head,omitempty"`
 	IncludeWorkingTree bool     `json:"include_working_tree"`
@@ -68,8 +45,11 @@ type Payload struct {
 	UpdateMode              string                   `json:"update_mode,omitempty"`
 	DeltaSessionID          *string                  `json:"delta_session_id,omitempty"`
 	PayloadPath             string                   `json:"payload_path,omitempty"`
+	CommandSafetyNote       string                   `json:"command_safety_note,omitempty"`
 	UpdateCommand           string                   `json:"update_command,omitempty"`
+	UpdateArgv              []string                 `json:"update_argv"`
 	DeltaAppendCommand      string                   `json:"delta_append_command,omitempty"`
+	DeltaAppendDraft        *DeltaAppendDraft        `json:"delta_append_draft,omitempty"`
 	RecommendedNextCommand  string                   `json:"recommended_next_command,omitempty"`
 	RequiredAgentFields     []string                 `json:"required_agent_fields"`
 	KnownPaths              []string                 `json:"known_paths"`
@@ -108,6 +88,18 @@ type PayloadDraft struct {
 	Boundary             BoundaryDraft        `json:"boundary"`
 	PayloadPath          string               `json:"payload_path"`
 	UpdateCommand        string               `json:"update_command"`
+	UpdateArgv           []string             `json:"update_argv"`
+}
+
+type DeltaAppendDraft struct {
+	EventType              string   `json:"event_type"`
+	OriginCommand          string   `json:"origin_command"`
+	Phase                  string   `json:"phase"`
+	ChangedPaths           []string `json:"changed_paths"`
+	RequiredAgentFields    []string `json:"required_agent_fields"`
+	RequiredEvidenceResult string   `json:"required_evidence_result"`
+	ArgvPrefix             []string `json:"argv_prefix"`
+	ArgvPlaceholders       []string `json:"argv_placeholders"`
 }
 
 type VerificationRecord struct {
@@ -126,14 +118,25 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	workflow, err := CanonicalWorkflow(input.Workflow)
 	if err != nil {
 		return Payload{
-			Status:              statusBlocked,
-			Workflow:            strings.TrimSpace(input.Workflow),
-			RequiredAgentFields: []string{},
-			KnownPaths:          []string{},
-			UnknownPaths:        []string{},
-			Errors:              []string{err.Error()},
-			Warnings:            []string{},
+			Status:                  statusBlocked,
+			Workflow:                strings.TrimSpace(input.Workflow),
+			UpdateArgv:              []string{},
+			RequiredAgentFields:     []string{},
+			KnownPaths:              []string{},
+			UnknownPaths:            []string{},
+			UnknownPathDispositions: []UnknownPathDisposition{},
+			Changes:                 []changes.Change{},
+			Warnings:                []string{},
+			Errors:                  []string{err.Error()},
 		}, nil
+	}
+	reason := closeoutReason
+	if strings.TrimSpace(input.Reason) != "" {
+		reason = strings.TrimSpace(input.Reason)
+	}
+	intent := workflow
+	if strings.TrimSpace(input.Intent) != "" {
+		intent = strings.TrimSpace(input.Intent)
 	}
 
 	changePayload, err := changes.Run(paths, changes.Input{
@@ -142,7 +145,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		IncludeWorkingTree: input.IncludeWorkingTree,
 		IncludeUntracked:   input.IncludeUntracked,
 		ExplicitPaths:      input.ExplicitPaths,
-		Intent:             workflow,
+		Intent:             intent,
 	})
 	if err != nil {
 		return Payload{}, err
@@ -152,6 +155,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		Status:                  changePayload.Status,
 		Workflow:                workflow,
 		WorkflowCanonical:       workflow,
+		UpdateArgv:              []string{},
 		RequiredAgentFields:     requiredAgentFields(changePayload.UnknownPaths),
 		KnownPaths:              knownPaths(changePayload.Changes),
 		UnknownPaths:            append([]string{}, changePayload.UnknownPaths...),
@@ -171,21 +175,26 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		sessionID := strings.TrimSpace(input.DeltaSessionID)
 		payload.UpdateMode = modeDeltaSession
 		payload.DeltaSessionID = &sessionID
-		payload.DeltaAppendCommand = deltaAppendCommand(sessionID, workflow, changedPaths)
-		payload.UpdateCommand = fmt.Sprintf("project-cognition update --delta-session %s --reason %s --format json", quoteArg(sessionID), closeoutReason)
-		payload.RecommendedNextCommand = "append_delta_then_update"
+		payload.CommandSafetyNote = "command strings are display-only; use argv arrays after filling required agent-owned evidence fields"
+		payload.DeltaAppendCommand = "display only: project-cognition delta append --session <delta_session_id> --event-type workflow_closeout ...agent evidence flags... --format json"
+		payload.DeltaAppendDraft = deltaAppendDraft(sessionID, workflow, changedPaths, payload.RequiredAgentFields)
+		payload.UpdateCommand = "display only: project-cognition update --delta-session <delta_session_id> --reason <reason> --format json"
+		payload.UpdateArgv = []string{"project-cognition", "update", "--delta-session", sessionID, "--reason", reason, "--format", "json"}
+		payload.RecommendedNextCommand = "fill_delta_append_draft_then_update"
 		return payload, nil
 	}
 
 	payloadPath := normalizePayloadPath(input.PayloadPath, workflow)
-	updateCommand := fmt.Sprintf("project-cognition update --payload-file %s --reason %s --format json", quoteArg(payloadPath), closeoutReason)
+	updateArgv := []string{"project-cognition", "update", "--payload-file", payloadPath, "--reason", reason, "--format", "json"}
 	payload.UpdateMode = modePayloadFile
 	payload.PayloadPath = payloadPath
-	payload.UpdateCommand = updateCommand
+	payload.CommandSafetyNote = "command strings are display-only; use argv arrays for execution"
+	payload.UpdateCommand = "display only: project-cognition update --payload-file <payload_path> --reason <reason> --format json"
+	payload.UpdateArgv = updateArgv
 	payload.RecommendedNextCommand = "write_payload_then_update"
 	payload.PayloadDraft = &PayloadDraft{
 		Workflow:             workflow,
-		Reason:               closeoutReason,
+		Reason:               reason,
 		ChangedPaths:         changedPaths,
 		ScopePaths:           append([]string{}, changedPaths...),
 		BehaviorSurfaces:     []string{},
@@ -202,7 +211,8 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			WorkflowOwnedPaths: []string{},
 		},
 		PayloadPath:   payloadPath,
-		UpdateCommand: updateCommand,
+		UpdateCommand: "display only: project-cognition update --payload-file <payload_path> --reason <reason> --format json",
+		UpdateArgv:    append([]string{}, updateArgv...),
 	}
 	return payload, nil
 }
@@ -294,29 +304,34 @@ func normalizePayloadPath(value string, workflow string) string {
 	return ".specify/project-cognition/updates/" + workflow + "-closeout.json"
 }
 
-func deltaAppendCommand(sessionID string, workflow string, paths []string) string {
-	parts := []string{
-		"project-cognition",
-		"delta",
-		"append",
-		"--session",
-		quoteArg(sessionID),
-		"--event-type",
-		"workflow_closeout",
-		"--origin-command",
-		quoteArg(workflow),
-		"--phase",
-		"closeout",
+func deltaAppendDraft(sessionID string, workflow string, paths []string, requiredFields []string) *DeltaAppendDraft {
+	prefix := []string{
+		"project-cognition", "delta", "append",
+		"--session", sessionID,
+		"--event-type", "workflow_closeout",
+		"--origin-command", workflow,
+		"--phase", "closeout",
 	}
 	for _, path := range paths {
-		parts = append(parts, "--changed-path", quoteArg(path))
+		prefix = append(prefix, "--changed-path", path)
 	}
-	parts = append(parts, "--format", "json")
-	return strings.Join(parts, " ")
-}
-
-func quoteArg(value string) string {
-	return strconv.Quote(value)
+	return &DeltaAppendDraft{
+		EventType:              "workflow_closeout",
+		OriginCommand:          workflow,
+		Phase:                  "closeout",
+		ChangedPaths:           append([]string{}, paths...),
+		RequiredAgentFields:    append([]string{}, requiredFields...),
+		RequiredEvidenceResult: "passed",
+		ArgvPrefix:             prefix,
+		ArgvPlaceholders: []string{
+			"--behavior-surface", "<agent-owned behavior surface>",
+			"--generated-surface", "<agent-owned generated surface if applicable>",
+			"--known-unknown", "<agent-owned known unknown if applicable>",
+			"--verification", "<agent-owned passing verification evidence>",
+			"--confidence", "<agent-owned confidence note>",
+			"--format", "json",
+		},
+	}
 }
 
 func sortedUnique(values []string) []string {
