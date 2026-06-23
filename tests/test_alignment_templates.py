@@ -34,11 +34,34 @@ def _launcher_compass(intent: str) -> str:
 
 def test_inline_project_cognition_update_uses_shared_partial() -> None:
     shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
-    assert "project-cognition update --payload-file" in shared
+    required_planner_terms = (
+        "project-cognition closeout-plan --workflow",
+        "--delta-session",
+        "update_mode=delta_session",
+        "update_mode=payload_file",
+        "unknown_path_dispositions",
+        "agent_disposition",
+        "blocking_known_unknown",
+        "update_argv",
+        "delta_append_draft.argv_prefix",
+        "display-only `update_command`",
+        "display-only `delta_append_command`",
+    )
+    for term in required_planner_terms:
+        assert term in shared, f"inline closeout partial missing {term}"
+
     assert "result_state" in shared
     assert "recorded" in shared
     assert "verification_evidence" in shared
     assert "generated_surface_notes" in shared
+
+    for path in (
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    ):
+        content = _read(path)
+        for term in required_planner_terms:
+            assert term in content, f"{path} missing {term}"
 
     common_partials = [
         "templates/command-partials/common/context-loading-gradient.md",
@@ -79,6 +102,22 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
         assert "inline-project-cognition-update.md" in content, path
         assert "project-cognition mark-dirty" not in content or "inline-project-cognition-update.md" in content, path
 
+    shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
+    for term in (
+        "project-cognition closeout-plan --workflow",
+        "--delta-session",
+        "update_mode=delta_session",
+        "update_mode=payload_file",
+        "unknown_path_dispositions",
+        "agent_disposition",
+        "blocking_known_unknown",
+        "update_argv",
+        "delta_append_draft.argv_prefix",
+        "display-only `update_command`",
+        "display-only `delta_append_command`",
+    ):
+        assert term in shared, f"inline closeout partial missing {term}"
+
 
 def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime_aliases() -> None:
     shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
@@ -93,6 +132,17 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         "confidence_notes",
     )
     for field in required_payload_fields:
+        assert field in shared, f"inline closeout partial missing {field}"
+
+    for field in (
+        "unknown_path_dispositions",
+        "agent_disposition",
+        "blocking_known_unknown",
+        "update_argv",
+        "delta_append_draft.argv_prefix",
+        "display-only `update_command`",
+        "display-only `delta_append_command`",
+    ):
         assert field in shared, f"inline closeout partial missing {field}"
 
     for path in (
@@ -2923,18 +2973,18 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "two or more safe validated packets with isolated write sets" in lowered
     assert "`subagent-blocked`" in lowered
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in lowered
-    assert "project-cognition delta append" in lowered
-    assert "project-cognition update --delta-session" in lowered
-    assert "project-cognition update --payload-file" in lowered
+    assert "project-cognition closeout-plan --workflow" in lowered
+    assert "update_mode=delta_session" in lowered
+    assert "update_mode=payload_file" in lowered
+    assert "update_argv" in lowered
     assert "clean closeout keys on `result_state`" in lowered
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in lowered
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "dirty only when inline update cannot complete" in lowered
     assert ".specify/project-map/index/status.json" not in lowered
-    assert "include `--commit-range" in lowered
-    assert "only with `--delta-session`" in lowered
-    assert "inline update is unavailable" in lowered
+    assert "delta_append_draft.argv_prefix" in lowered
+    assert "only when inline update cannot complete" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
@@ -2962,9 +3012,10 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
 
         assert "project_cognition_refresh" in content
         assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-        assert "project-cognition delta append" in content
-        assert "project-cognition update --delta-session" in content
-        assert "project-cognition update --payload-file" in content
+        assert "project-cognition closeout-plan --workflow" in content
+        assert "update_mode=delta_session" in content
+        assert "update_mode=payload_file" in content
+        assert "update_argv" in content
         assert "clean closeout keys on `result_state`" in content
         assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
         assert "project-cognition mark-dirty" in content
@@ -3003,6 +3054,12 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         assert "external map maintenance" in content, path
         assert "inline project cognition update" in content, path
         assert "sp-map-update is for manual/external maintenance" in content, path
+        if path in {
+            "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+            "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+        }:
+            assert "closeout-plan" in content, path
+            assert "unknown_path_dispositions" in content, path
 
     for path in (
         "templates/command-partials/common/context-loading-gradient.md",
@@ -3015,9 +3072,10 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         if path.endswith("context-loading-gradient.md") or path.endswith("planning-context-loading-gradient.md"):
             assert "entry-time stale or weak cognition is still an advisory navigation concern" in content
             assert "does not waive closeout ownership" in content
-        assert "verification_evidence" in content
-        assert "generated_surface_notes" in content
-        assert "failed verification evidence" in content or "failed verification cannot produce" in content
+        if "passive-skills" not in path:
+            assert "verification_evidence" in content
+            assert "generated_surface_notes" in content
+            assert "failed verification evidence" in content or "failed verification cannot produce" in content
 
     passive_gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
     assert "do not silently switch into `sp-map-update`" not in passive_gate
@@ -3458,7 +3516,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         assert "cognition follow-up" in lowered
         assert "artifact-only" in lowered
         assert "actual source/runtime changes" in lowered
-        assert '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}' in lowered
+        assert '{{specify-subcmd:project-cognition mark-dirty --reason "workflow-closeout-failed" --format json}}' in lowered
         assert "project-cognition complete-refresh" not in lowered
 
     for path in [
@@ -3469,7 +3527,8 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         lowered = _read(path).lower()
         assert "project cognition runtime" in lowered
         assert "map-update" in lowered
-        assert "project-cognition update --delta-session" in lowered
+        assert "project-cognition closeout-plan --workflow" in lowered
+        assert "update_mode=delta_session" in lowered
         assert "dirty only when inline update cannot complete" in lowered
         assert "git-baseline freshness" not in lowered
 
@@ -3484,7 +3543,7 @@ def test_planning_only_workflows_do_not_dirty_project_cognition_after_artifact_w
         lowered = _read(path).lower()
 
         assert "do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date" in lowered
-        assert '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}' in lowered
+        assert '{{specify-subcmd:project-cognition mark-dirty --reason "workflow-closeout-failed" --format json}}' in lowered
         assert "project-cognition complete-refresh" not in lowered
         assert "project-cognition validate-build --format json" not in lowered
         assert "artifact-only" in lowered

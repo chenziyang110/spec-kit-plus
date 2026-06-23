@@ -2,25 +2,47 @@
 
 Workflow-owned mutation closeout is not an external map-maintenance handoff and is not external map maintenance. It is the workflow-local form of `{{invoke:map-update}}`. If this workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, shared surfaces, or behavior-bearing docs, closeout MUST run inline project cognition update for the workflow-owned changed paths and affected surfaces before claiming clean completion.
 
-Use the current delta session when one exists:
+Call the planner first:
 
 ```text
-project-cognition delta append --session "$DELTA_SESSION_ID" --event-type workflow_closeout --changed-path "<path>" --behavior-surface "<surface>" --verification "<evidence>" --known-unknown "<unknown>" --format json
-project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json
+project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json
 ```
 
-Include `--commit-range "<base>..<head>"` only with `--delta-session` when a safe task commit boundary exists.
-
-When no delta session exists, write a payload file under `.specify/project-cognition/updates/` and call:
+When `DELTA_SESSION_ID` exists, pass it into the planner:
 
 ```text
-project-cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json
+project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --delta-session "$DELTA_SESSION_ID" --format json
 ```
 
-The payload must include `workflow`, `reason`, `changed_paths`, `scope_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, `confidence_notes`, `user_decisions`, and `boundary` when those facts exist.
+Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `ignored_paths`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_draft`, display-only `delta_append_command`, `update_argv`, display-only `update_command`, `recommended_next_command`, and `finalizer_policy`.
+
+Before running `update`, fill every required agent-owned field from live evidence from this workflow:
+
+- `verification`
+- `behavior_surfaces`
+- `generated_surfaces`
+- `state_contracts`
+- `known_unknowns`
+- `confidence_notes`
+- `user_decisions`
+- `boundary`
+
+For each `unknown_path_dispositions[]` item, set `agent_disposition` to exactly one allowed value:
+
+- `adoptable`: verified new path inside this workflow-owned scope; it may be recorded in changed/scope paths and must not become a blocking known unknown.
+- `review_only`: path informed review but is not adopted into changed coverage.
+- `ignored`: path remains excluded and must not enter payloads, records, route indexes, evidence, aliases, or minimal live reads.
+- `blocking_known_unknown`: record it as a known unknown and report partial or blocked cognition closeout.
+
+If `update_mode=delta_session`, complete `delta_append_draft.argv_prefix` with agent-owned repeatable flags such as `--behavior-surface`, `--generated-surface`, `--verification`, and accepted `--known-unknown` values from `delta_append_draft.argv_placeholders`. Then append the delta event and run `update_argv`. `delta_append_command` and `update_command` are display-only placeholders, not execution strings.
+
+If `update_mode=payload_file`, write the completed `payload_draft` to the planner's `payload_path`. Then run `update_argv`. `update_command` is a display-only placeholder, not an execution string.
+
+Completed payload drafts preserve the planner-owned `changed_paths` and `scope_paths` and add agent-owned evidence fields before recording.
+
 For compatibility with worker handoffs and delta packets, the runtime also accepts `verification_evidence` as an alias for `verification` and `generated_surface_notes` as an alias for `generated_surfaces`. Verification evidence may be an array of objects (`command`, `result`, `artifact`) or an array of command-result strings, but clean closeout still requires passing verification evidence; failed verification cannot produce a clean `ready` closeout.
 
-Clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone:
+Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone:
 
 - `ready` or `no_op`: project cognition closeout may be clean when ordinary verification also passed.
 - `partial_refresh`: useful update data was written, but the final workflow state must report partial cognition closeout and the returned `minimal_live_reads`.
@@ -28,6 +50,6 @@ Clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or fre
 - `blocked`: report the runtime or validation blocker and the exact recovery command.
 - `recorded`: legacy recorded-only output; treat it as partial or blocked, never as clean completion.
 
-Use `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}` only when inline update cannot complete: when inline update is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
+Use `{{specify-subcmd:project-cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when inline update cannot complete: when the planner or update command is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
 
-sp-map-update is for manual/external maintenance and follow-up repair. `{{invoke:map-update}}` remains the external/manual workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. It is not routine cleanup for changes this workflow just made.
+sp-map-update is for manual/external maintenance and follow-up repair. `{{invoke:map-update}}` remains the external/manual workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. It is not routine cleanup for changes this workflow just made. If `sp-map-update` already ran `project-cognition update --reason map-update` for the same changed paths, do not run a second `workflow-finalize` closeout update for those paths.
