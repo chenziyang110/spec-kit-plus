@@ -101,6 +101,12 @@ if (($deltaAppendHelp -notmatch '-verification') -or ($deltaAppendHelp -notmatch
     Write-Host "Expected 'project-cognition delta append --help' to include -verification and -generated-surface."
     exit 1
 }
+$closeoutPlanHelp = Get-NativeHelpOutput -Command $target -Arguments @("closeout-plan", "--help")
+if (($closeoutPlanHelp -notmatch '-workflow') -or ($closeoutPlanHelp -notmatch '-delta-session')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required closeout-plan flags."
+    Write-Host "Expected 'project-cognition closeout-plan --help' to include -workflow and -delta-session."
+    exit 1
+}
 
 $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($userPath -notlike "*$InstallDir*") {

@@ -18,6 +18,7 @@ REQUIRED_COMMANDS = (
     "init-empty",
     "generate-ignore",
     "changes",
+    "closeout-plan",
     "lexicon --mode",
     "compass --semantic-intake-file --query-plan-file",
     "expand --section",
@@ -184,7 +185,24 @@ def _binary_supports_required_commands(binary: Path) -> bool:
         return False
 
     delta_append_output = f"{delta_append_result.stdout}\n{delta_append_result.stderr}"
-    return "-verification" in delta_append_output and "-generated-surface" in delta_append_output
+    if "-verification" not in delta_append_output or "-generated-surface" not in delta_append_output:
+        return False
+
+    try:
+        closeout_result = subprocess.run(
+            [str(binary), "closeout-plan", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    closeout_output = f"{closeout_result.stdout}\n{closeout_result.stderr}"
+    return "-workflow" in closeout_output and "-delta-session" in closeout_output
 
 
 def _bundled_project_cognition_source() -> Path | None:

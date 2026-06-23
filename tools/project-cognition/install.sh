@@ -92,6 +92,12 @@ if [[ "$delta_append_help" != *"-verification"* || "$delta_append_help" != *"-ge
   echo "Expected 'project-cognition delta append --help' to include -verification and -generated-surface." >&2
   exit 1
 fi
+closeout_plan_help="$("$target" closeout-plan --help 2>&1 || true)"
+if [[ "$closeout_plan_help" != *"-workflow"* || "$closeout_plan_help" != *"-delta-session"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required closeout-plan flags." >&2
+  echo "Expected 'project-cognition closeout-plan --help' to include -workflow and -delta-session." >&2
+  exit 1
+fi
 
 case ":$PATH:" in
   *":$install_dir:"*) ;;
