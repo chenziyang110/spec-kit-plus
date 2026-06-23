@@ -14,9 +14,9 @@ When `DELTA_SESSION_ID` exists, pass it into the planner:
 project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --delta-session "$DELTA_SESSION_ID" --format json
 ```
 
-Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `ignored_paths`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_draft`, display-only `delta_append_command`, `update_argv`, display-only `update_command`, `recommended_next_command`, and `finalizer_policy`.
+Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_draft`, display-only `delta_append_command`, `update_argv`, display-only `update_command`, and `recommended_next_command`.
 
-Before running `update`, fill every required agent-owned field from live evidence from this workflow:
+Before running `update`, fill the fields listed in `required_agent_fields` from live evidence from this workflow. Supported agent-owned evidence fields include:
 
 - `verification`
 - `behavior_surfaces`
@@ -27,9 +27,11 @@ Before running `update`, fill every required agent-owned field from live evidenc
 - `user_decisions`
 - `boundary`
 
+Optional payload or delta fields such as `known_unknowns`, `confidence_notes`, `user_decisions`, and `boundary` are populated only when live evidence supports them; do not invent them to satisfy the shape.
+
 For each `unknown_path_dispositions[]` item, set `agent_disposition` to exactly one allowed value:
 
-- `adoptable`: verified new path inside this workflow-owned scope; it may be recorded in changed/scope paths and must not become a blocking known unknown.
+- `adoptable`: verified new path inside this workflow-owned scope; it may be recorded in changed/scope paths and verified adoptable paths do not become blocking `known_unknowns`.
 - `review_only`: path informed review but is not adopted into changed coverage.
 - `ignored`: path remains excluded and must not enter payloads, records, route indexes, evidence, aliases, or minimal live reads.
 - `blocking_known_unknown`: record it as a known unknown and report partial or blocked cognition closeout.

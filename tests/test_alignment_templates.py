@@ -32,6 +32,20 @@ def _launcher_compass(intent: str) -> str:
     return f'{{{{specify-subcmd:project-cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
 
 
+INLINE_CLOSEOUT_SURFACES = (
+    "templates/command-partials/common/inline-project-cognition-update.md",
+    "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+)
+
+
+STALE_DIRECT_CLOSEOUT_COMMANDS = (
+    'project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json',
+    'project-cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json',
+    'project-cognition delta append --session "$DELTA_SESSION_ID"',
+)
+
+
 def test_inline_project_cognition_update_uses_shared_partial() -> None:
     shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
     required_planner_terms = (
@@ -50,18 +64,21 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     for term in required_planner_terms:
         assert term in shared, f"inline closeout partial missing {term}"
 
+    assert "ignored_paths" not in shared
+    assert "finalizer_policy" not in shared
+    assert "fields listed in `required_agent_fields`" in shared
+    assert "populated only when live evidence supports them" in shared
     assert "result_state" in shared
     assert "recorded" in shared
     assert "verification_evidence" in shared
     assert "generated_surface_notes" in shared
 
-    for path in (
-        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
-    ):
+    for path in INLINE_CLOSEOUT_SURFACES[1:]:
         content = _read(path)
         for term in required_planner_terms:
             assert term in content, f"{path} missing {term}"
+        assert "fields listed in `required_agent_fields`" in content, path
+        assert "populated only when evidence supports them" in content, path
 
     common_partials = [
         "templates/command-partials/common/context-loading-gradient.md",
@@ -156,6 +173,26 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         content = _read(path)
         assert "verification" in content, f"{path} missing canonical worker verification field"
         assert "generated_surfaces" in content, f"{path} missing canonical generated_surfaces field"
+
+
+def test_inline_cognition_closeout_dispositions_and_no_stale_direct_commands() -> None:
+    for path in INLINE_CLOSEOUT_SURFACES:
+        content = _read(path)
+        lowered = content.lower()
+        for token in (
+            "adoptable",
+            "review_only",
+            "ignored",
+            "blocking_known_unknown",
+        ):
+            assert token in content, f"{path} missing disposition token {token}"
+
+        assert "verified `adoptable` paths do not become blocking `known_unknowns`" in lowered or (
+            "verified adoptable paths do not become blocking `known_unknowns`" in lowered
+        ), f"{path} missing non-blocking adoptable rule"
+
+        for stale_command in STALE_DIRECT_CLOSEOUT_COMMANDS:
+            assert stale_command not in content, f"{path} reintroduced stale direct closeout command"
 
 
 def test_worker_prompts_report_inline_update_payload_evidence() -> None:
