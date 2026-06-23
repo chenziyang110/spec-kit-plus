@@ -52,6 +52,7 @@ Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_updat
 - `blocked`: report the runtime or validation blocker and the exact recovery command.
 - `recorded`: legacy recorded-only output; treat it as partial or blocked, never as clean completion.
 
+Dirty fallback command shape: `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}`.
 Use `{{specify-subcmd:project-cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when inline update cannot complete: when the planner or update command is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
 
 sp-map-update is for manual/external maintenance and follow-up repair. `{{invoke:map-update}}` remains the external/manual workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. It is not routine cleanup for changes this workflow just made. If `sp-map-update` already ran `project-cognition update --reason map-update` for the same changed paths, do not run a second `workflow-finalize` closeout update for those paths.
