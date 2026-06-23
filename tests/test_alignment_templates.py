@@ -67,6 +67,9 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     assert "ignored_paths" not in shared
     assert "finalizer_policy" not in shared
     assert "fields listed in `required_agent_fields`" in shared
+    assert "If a field appears in `required_agent_fields`, provide live-evidence-backed content for it." in shared
+    assert "Fields not listed by `required_agent_fields`, such as `known_unknowns` and `boundary`" in shared
+    assert "`known_unknowns`, `confidence_notes`, `user_decisions`, and `boundary` are populated only" not in shared
     assert "populated only when live evidence supports them" in shared
     assert "result_state" in shared
     assert "recorded" in shared

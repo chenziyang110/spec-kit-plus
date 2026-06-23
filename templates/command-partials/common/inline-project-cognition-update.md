@@ -27,7 +27,7 @@ Before running `update`, fill the fields listed in `required_agent_fields` from 
 - `user_decisions`
 - `boundary`
 
-Optional payload or delta fields such as `known_unknowns`, `confidence_notes`, `user_decisions`, and `boundary` are populated only when live evidence supports them; do not invent them to satisfy the shape.
+If a field appears in `required_agent_fields`, provide live-evidence-backed content for it. Fields not listed by `required_agent_fields`, such as `known_unknowns` and `boundary`, are populated only when live evidence supports them; do not invent them to satisfy the shape.
 
 For each `unknown_path_dispositions[]` item, set `agent_disposition` to exactly one allowed value:
 
