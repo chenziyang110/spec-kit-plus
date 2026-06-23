@@ -81,6 +81,7 @@ function Get-CurrentBranch {
     # For non-git repos, try to find the latest feature directory.
     $latestFeature = ""
     $highest = 0
+    $latestDate = ""
     $latestTimestamp = ""
     foreach ($specsDir in (Get-FeatureSpecsRoots -RepoRoot $repoRoot)) {
         if (-not (Test-Path $specsDir)) {
@@ -95,12 +96,19 @@ function Get-CurrentBranch {
                     $latestTimestamp = $ts
                     $latestFeature = $_.Name
                 }
+            } elseif ($_.Name -match '^(\d{4}-\d{2}-\d{2})-') {
+                # Date-based branch: compare lexicographically, but prefer timestamp when present.
+                $dt = $matches[1]
+                if (-not $latestTimestamp -and (($dt -gt $latestDate) -or (($dt -eq $latestDate) -and ($_.Name -gt $latestFeature)))) {
+                    $latestDate = $dt
+                    $latestFeature = $_.Name
+                }
             } elseif ($_.Name -match '^(\d{3,})-') {
                 $num = [long]$matches[1]
                 if ($num -gt $highest) {
                     $highest = $num
-                    # Only update if no timestamp branch found yet
-                    if (-not $latestTimestamp) {
+                    # Only update if no timestamp/date branch found yet
+                    if (-not $latestTimestamp -and -not $latestDate) {
                         $latestFeature = $_.Name
                     }
                 }
@@ -151,13 +159,16 @@ function Test-FeatureBranch {
         return $true
     }
     
-    # Accept sequential prefix (3+ digits) but exclude malformed timestamps
+    # Accept date, timestamp, and legacy sequential prefixes.
+    $isDate = $Branch -match '^\d{4}-\d{2}-\d{2}-'
+
+    # Accept sequential prefix (3+ digits) but exclude date/malformed timestamp forms.
     # Malformed: 7-or-8 digit date + 6-digit time with no trailing slug (e.g. "2026031-143022" or "20260319-143022")
     $hasMalformedTimestamp = ($Branch -match '^[0-9]{7}-[0-9]{6}-') -or ($Branch -match '^(?:\d{7}|\d{8})-\d{6}$')
-    $isSequential = ($Branch -match '^[0-9]{3,}-') -and (-not $hasMalformedTimestamp)
-    if (-not $isSequential -and $Branch -notmatch '^\d{8}-\d{6}-') {
+    $isSequential = ($Branch -match '^[0-9]{3,}-') -and (-not $isDate) -and (-not $hasMalformedTimestamp)
+    if (-not $isDate -and -not $isSequential -and $Branch -notmatch '^\d{8}-\d{6}-') {
         Write-Output "ERROR: Not on a feature branch. Current branch: $Branch"
-        Write-Output "Feature branches should be named like: 001-feature-name, 1234-feature-name, or 20260319-143022-feature-name"
+        Write-Output "Feature branches should be named like: 2026-06-23-feature-name, 20260319-143022-feature-name, 001-feature-name, or 1234-feature-name"
         return $false
     }
     return $true
@@ -237,7 +248,21 @@ function Find-FeatureDirByPrefix {
 
     $prefix = ""
 
-    if ($BranchName -match '^(\d{8}-\d{6})-') {
+    if ($BranchName -match '^(\d{4}-\d{2}-\d{2})-') {
+        # Date-prefixed branches use the full branch name as the feature identity
+        # because many independent features can share the same YYYY-MM-DD prefix.
+        foreach ($specsDir in (Get-FeatureSpecsRoots -RepoRoot $RepoRoot)) {
+            if (-not (Test-Path -LiteralPath $specsDir -PathType Container)) {
+                continue
+            }
+            $exactMatch = Join-Path $specsDir $BranchName
+            if (Test-Path -LiteralPath $exactMatch -PathType Container) {
+                return $exactMatch
+            }
+        }
+
+        return (Join-Path (Join-Path $RepoRoot ".specify/features") $BranchName)
+    } elseif ($BranchName -match '^(\d{8}-\d{6})-') {
         $prefix = $matches[1]
     } elseif ($BranchName -match '^(\d{3,})-') {
         $prefix = $matches[1]

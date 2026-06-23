@@ -44,7 +44,9 @@ Do not invent, paraphrase, or "normalize" unsupported CLI names such as
 Feature creation must stay on `{{invoke:specify}}` plus the generated
 create-feature script at `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1`, not an imagined
-standalone branch-creation command.
+standalone branch-creation command. Default feature workspace names use
+`YYYY-MM-DD-<slug>`; numeric prefixes are legacy and require the script's
+explicit numeric option.
 
 ## Complementary Passive Skills
 

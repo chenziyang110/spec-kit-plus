@@ -994,7 +994,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Treat live `specify --help` output as the authoritative CLI surface.",
             "- Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.",
             "- Do not invent unsupported CLI names such as `specify create-feature`.",
-            "- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`.",
+            "- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.",
             "",
             "## Durable State",
             "",
@@ -3017,7 +3017,7 @@ def init(
     ai_skills: bool = typer.Option(False, "--ai-skills", help="Install Prompt.MD templates as agent skills (requires --ai)"),
     offline: bool = typer.Option(False, "--offline", help="Deprecated (no-op). All scaffolding now uses bundled assets.", hidden=True),
     preset: str = typer.Option(None, "--preset", help="Install a preset during initialization (by preset ID)"),
-    branch_numbering: str = typer.Option(None, "--branch-numbering", help="Branch numbering strategy: 'sequential' (001, 002, …, 1000, … — expands past 999 automatically) or 'timestamp' (YYYYMMDD-HHMMSS)"),
+    branch_numbering: str = typer.Option(None, "--branch-numbering", help="Branch prefix strategy: 'date' (YYYY-MM-DD, default), 'sequential' (001, 002, …, 1000, …), or 'timestamp' (YYYYMMDD-HHMMSS)"),
     integration: str = typer.Option(None, "--integration", help="Use the new integration system (e.g. --integration copilot). Mutually exclusive with --ai."),
     integration_options: str = typer.Option(None, "--integration-options", help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")'),
 ):
@@ -3151,7 +3151,7 @@ def init(
         console.print("[yellow]Usage:[/yellow] specify init <project> --ai <agent> --ai-skills")
         raise typer.Exit(1)
 
-    BRANCH_NUMBERING_CHOICES = {"sequential", "timestamp"}
+    BRANCH_NUMBERING_CHOICES = {"date", "sequential", "timestamp"}
     if branch_numbering and branch_numbering not in BRANCH_NUMBERING_CHOICES:
         console.print(f"[red]Error:[/red] Invalid --branch-numbering value '{branch_numbering}'. Choose from: {', '.join(sorted(BRANCH_NUMBERING_CHOICES))}")
         raise typer.Exit(1)
@@ -3403,7 +3403,7 @@ def init(
             init_opts = {
                 "ai": selected_ai,
                 "integration": resolved_integration.key,
-                "branch_numbering": branch_numbering or "sequential",
+                "branch_numbering": branch_numbering or "date",
                 "here": here,
                 "preset": preset,
                 "script": selected_script,

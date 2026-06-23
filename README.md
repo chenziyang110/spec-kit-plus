@@ -41,7 +41,9 @@ confirm newly added commands such as `testing` are present, and use
 Feature creation follows `sp-specify` plus the generated create-feature script
 at `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1`; do not assume a separate
-`specify create-feature` command family exists.
+`specify create-feature` command family exists. Generated feature workspaces
+default to `YYYY-MM-DD-<slug>` names; numeric prefixes are legacy and require
+the script's explicit `--number` / `-Number` option.
 
 ### One-time use without installing
 
@@ -235,7 +237,9 @@ before planning. Use `sp-specify` with the generated create-feature script at
 `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1`, plus the lane/runtime
 helpers that it invokes; do not look for or teach a separate branch-creation
-CLI family.
+CLI family. The generated create-feature script defaults to
+`YYYY-MM-DD-<slug>` feature workspace names; use its explicit numeric option
+only for legacy sequential prefixes.
 
 `specify` remains the public entry shell and writes `spec.md`, `alignment.md`,
 `context.md`, `workflow-state.md`, `checklists/requirements.md`, and a minimal
