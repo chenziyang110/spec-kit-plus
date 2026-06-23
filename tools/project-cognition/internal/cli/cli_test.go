@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -228,7 +229,7 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 	code := Run([]string{
 		"closeout-plan",
 		"--workflow", "implement",
-		"--payload-path", ".specify/project-cognition/updates/cli-closeout.json",
+		"--payload-path", ".specify/project-cognition/updates/cli-test.json",
 		"--format", "json",
 	}, &stdout, &stderr, "test")
 	if code != 0 {
@@ -248,9 +249,30 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 	if _, ok := payload["payload_draft"].(map[string]any); !ok {
 		t.Fatalf("payload_draft = %#v, want object", payload["payload_draft"])
 	}
-	updateArgv, ok := payload["update_argv"].([]any)
-	if !ok || len(updateArgv) == 0 {
-		t.Fatalf("update_argv = %#v, want non-empty array", payload["update_argv"])
+	updateArgvValue, ok := payload["update_argv"].([]any)
+	if !ok {
+		t.Fatalf("update_argv = %#v, want array", payload["update_argv"])
+	}
+	updateArgv := jsonAnySliceStrings(updateArgvValue)
+	wantUpdateArgv := []string{
+		"project-cognition",
+		"update",
+		"--payload-file",
+		".specify/project-cognition/updates/cli-test.json",
+		"--reason",
+		"workflow-finalize",
+		"--format",
+		"json",
+	}
+	if !reflect.DeepEqual(updateArgv, wantUpdateArgv) {
+		t.Fatalf("update_argv = %#v, want %#v", updateArgv, wantUpdateArgv)
+	}
+	updateCommand, ok := payload["update_command"].(string)
+	if !ok || !strings.Contains(updateCommand, "display only:") {
+		t.Fatalf("update_command = %#v, want display-only placeholder", payload["update_command"])
+	}
+	if strings.Contains(updateCommand, ".specify/project-cognition/updates/cli-test.json") {
+		t.Fatalf("update_command embeds concrete payload path: %q", updateCommand)
 	}
 }
 
@@ -282,12 +304,59 @@ func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
 	if payload["delta_session_id"] != "D-cli" {
 		t.Fatalf("delta_session_id = %#v, payload=%#v", payload["delta_session_id"], payload)
 	}
-	if _, ok := payload["delta_append_draft"].(map[string]any); !ok {
+	deltaAppendDraft, ok := payload["delta_append_draft"].(map[string]any)
+	if !ok {
 		t.Fatalf("delta_append_draft = %#v, want object", payload["delta_append_draft"])
 	}
-	updateArgv, ok := payload["update_argv"].([]any)
-	if !ok || len(updateArgv) == 0 {
-		t.Fatalf("update_argv = %#v, want non-empty array", payload["update_argv"])
+	updateArgvValue, ok := payload["update_argv"].([]any)
+	if !ok {
+		t.Fatalf("update_argv = %#v, want array", payload["update_argv"])
+	}
+	updateArgv := jsonAnySliceStrings(updateArgvValue)
+	wantUpdateArgv := []string{
+		"project-cognition",
+		"update",
+		"--delta-session",
+		"D-cli",
+		"--reason",
+		"workflow-finalize",
+		"--format",
+		"json",
+	}
+	if !reflect.DeepEqual(updateArgv, wantUpdateArgv) {
+		t.Fatalf("update_argv = %#v, want %#v", updateArgv, wantUpdateArgv)
+	}
+	argvPrefixValue, ok := deltaAppendDraft["argv_prefix"].([]any)
+	if !ok {
+		t.Fatalf("delta_append_draft.argv_prefix = %#v, want array", deltaAppendDraft["argv_prefix"])
+	}
+	argvPrefix := jsonAnySliceStrings(argvPrefixValue)
+	wantPrefix := []string{
+		"project-cognition",
+		"delta",
+		"append",
+		"--session",
+		"D-cli",
+		"--event-type",
+		"workflow_closeout",
+		"--origin-command",
+		"sp-quick",
+		"--phase",
+		"closeout",
+	}
+	if len(argvPrefix) < len(wantPrefix) || !reflect.DeepEqual(argvPrefix[:len(wantPrefix)], wantPrefix) {
+		t.Fatalf("delta_append_draft.argv_prefix = %#v, want prefix %#v", argvPrefix, wantPrefix)
+	}
+	argvPlaceholdersValue, ok := deltaAppendDraft["argv_placeholders"].([]any)
+	if !ok {
+		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want array", deltaAppendDraft["argv_placeholders"])
+	}
+	argvPlaceholders := jsonAnySliceStrings(argvPlaceholdersValue)
+	if !hasString(argvPlaceholders, "<agent-owned passing verification evidence>") {
+		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want verification evidence placeholder", argvPlaceholders)
+	}
+	if !hasString(argvPlaceholders, "--format") || !hasString(argvPlaceholders, "json") {
+		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want --format json", argvPlaceholders)
 	}
 }
 
