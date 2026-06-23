@@ -313,6 +313,9 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "recommend `map-update` for changed-path map maintenance" not in quickstart_lower
     assert "changed-path and localized stale cognition maintenance follow-up" not in quickstart_lower
     assert "recommend project cognition map maintenance as a follow-up" not in quickstart_lower
+    assert "workflow-appropriate slice" not in quickstart_lower
+    assert "workflow-appropriate slices" not in quickstart_lower
+    assert "task-local compass packet" in quickstart_lower
     assert "source-changing `sp-*` workflows run planner-first project cognition update for their own closeout" in quickstart_lower
     assert "source-changing `sp-*` workflow that alters navigation meaning should run planner-first project cognition update" in quickstart_lower
     assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in quickstart_lower
@@ -360,6 +363,7 @@ def test_repo_docs_route_brownfield_runtime_through_cognition_query() -> None:
         assert "project-cognition lexicon" in content
         assert "project-cognition query --query-plan" in content
         assert "returned map " + "terms" not in content
+        assert "workflow-appropriate slice" not in content
         assert "workflow-appropriate slices" not in content
 
 

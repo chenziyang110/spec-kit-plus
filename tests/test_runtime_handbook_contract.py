@@ -195,6 +195,7 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
         or "sp-map-update is for manual/external maintenance" in lowered
     )
     assert "uncertain closure is recorded by planner-first closeout or `map-update` as partial/low-confidence facts" in lowered
+    assert "workflow-appropriate slice" not in lowered
     assert "workflow-appropriate slices" not in lowered
 
 
