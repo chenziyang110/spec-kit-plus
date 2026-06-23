@@ -235,7 +235,24 @@ func TestRunBlocksUnknownWorkflowName(t *testing.T) {
 func TestRunBlocksInRepoOutOfContractWorkflowNames(t *testing.T) {
 	_, paths := initCloseoutFixture(t)
 
-	for _, workflow := range []string{"sp-implement-teams", "sp-team"} {
+	for _, workflow := range []string{
+		"sp-auto",
+		"sp-checklist",
+		"sp-constitution",
+		"sp-discussion",
+		"sp-explain",
+		"sp-integrate",
+		"sp-map-build",
+		"sp-map-scan",
+		"sp-prd",
+		"sp-prd-build",
+		"sp-prd-scan",
+		"sp-research",
+		"research",
+		"sp-taskstoissues",
+		"sp-implement-teams",
+		"sp-team",
+	} {
 		t.Run(workflow, func(t *testing.T) {
 			payload, err := Run(paths, Input{
 				Workflow:           workflow,

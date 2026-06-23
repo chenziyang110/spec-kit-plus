@@ -732,7 +732,14 @@ func deltaAppendDraft(sessionID string, workflow string, changed []string, requi
 		RequiredAgentFields:    append([]string{}, requiredFields...),
 		RequiredEvidenceResult: "passed",
 		ArgvPrefix:             prefix,
-		ArgvPlaceholders:       []string{"--verification", "<agent-owned passing verification evidence>", "--format", "json"},
+		ArgvPlaceholders: []string{
+			"--behavior-surface", "<agent-owned behavior surface>",
+			"--generated-surface", "<agent-owned generated surface if applicable>",
+			"--known-unknown", "<agent-owned known unknown if applicable>",
+			"--verification", "<agent-owned passing verification evidence>",
+			"--confidence", "<agent-owned confidence note>",
+			"--format", "json",
+		},
 	}
 }
 ```
@@ -1359,7 +1366,7 @@ Expected: fail on missing planner wording.
 In each of `README.md`, `PROJECT-HANDBOOK.md`, `templates/project-handbook-template.md`, `docs/quickstart.md`, and `docs/installation.md`, replace the direct inline closeout wording with this compact contract, adjusted only for surrounding grammar:
 
 ```markdown
-Workflow-owned mutation closeout is planner-first: source-changing `sp-*` workflows run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`, passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=payload_file`, required agent-owned fields, `unknown_path_dispositions`, and the exact update command to run after the agent fills verification and behavior evidence. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become payload or delta known unknowns. Clean closeout still gates on `result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone.
+Workflow-owned mutation closeout is planner-first: source-changing `sp-*` workflows run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`, passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=payload_file`, required agent-owned fields, `unknown_path_dispositions`, display-only command templates, and structured execution fields. Agents execute via `update_argv` after writing a completed payload, or by completing `delta_append_draft.argv_prefix` with agent-owned evidence placeholders before running `update_argv`. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become payload or delta known unknowns. Clean closeout still gates on `result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone.
 ```
 
 In `.github/workflows/release.yml`, update the project-cognition release note paragraph to:
