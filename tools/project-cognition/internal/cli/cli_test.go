@@ -167,6 +167,17 @@ func TestChangesCommandAppearsInHelp(t *testing.T) {
 	}
 }
 
+func TestRootHelpListsCloseoutPlan(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "changes, closeout-plan, update") {
+		t.Fatalf("help does not list closeout-plan after changes:\n%s", stdout.String())
+	}
+}
+
 func TestChangesCommandReturnsWorkingTreeJSON(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	initCLIGit(t, root)
@@ -203,6 +214,80 @@ func TestChangesCommandReturnsWorkingTreeJSON(t *testing.T) {
 	}
 	if change["known_to_runtime"] != true {
 		t.Fatalf("known_to_runtime = %#v", change["known_to_runtime"])
+	}
+}
+
+func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	initCLIGit(t, root)
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package main\n\nfunc App() string { return \"v2\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"closeout-plan",
+		"--workflow", "implement",
+		"--payload-path", ".specify/project-cognition/updates/cli-closeout.json",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["workflow"] != "sp-implement" {
+		t.Fatalf("workflow = %#v, payload=%#v", payload["workflow"], payload)
+	}
+	if payload["update_mode"] != "payload_file" {
+		t.Fatalf("update_mode = %#v, payload=%#v", payload["update_mode"], payload)
+	}
+	if _, ok := payload["payload_draft"].(map[string]any); !ok {
+		t.Fatalf("payload_draft = %#v, want object", payload["payload_draft"])
+	}
+	updateArgv, ok := payload["update_argv"].([]any)
+	if !ok || len(updateArgv) == 0 {
+		t.Fatalf("update_argv = %#v, want non-empty array", payload["update_argv"])
+	}
+}
+
+func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	initCLIGit(t, root)
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package main\n\nfunc App() string { return \"delta\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"closeout-plan",
+		"--workflow", "sp-quick",
+		"--delta-session", "D-cli",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["update_mode"] != "delta_session" {
+		t.Fatalf("update_mode = %#v, payload=%#v", payload["update_mode"], payload)
+	}
+	if payload["delta_session_id"] != "D-cli" {
+		t.Fatalf("delta_session_id = %#v, payload=%#v", payload["delta_session_id"], payload)
+	}
+	if _, ok := payload["delta_append_draft"].(map[string]any); !ok {
+		t.Fatalf("delta_append_draft = %#v, want object", payload["delta_append_draft"])
+	}
+	updateArgv, ok := payload["update_argv"].([]any)
+	if !ok || len(updateArgv) == 0 {
+		t.Fatalf("update_argv = %#v, want non-empty array", payload["update_argv"])
 	}
 }
 
