@@ -176,18 +176,25 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "advisory navigation" in lowered
     assert "live repository evidence" in lowered or "live evidence" in lowered
     assert "workflow-owned mutation closeout is not external map maintenance" in lowered
-    assert "run inline project cognition update" in lowered or "runs inline project cognition update" in lowered
-    assert "project-cognition update --payload-file" in lowered
+    assert "run planner-first project cognition update" in lowered or "runs planner-first project cognition update" in lowered
+    assert "project-cognition closeout-plan --workflow" in lowered
+    assert "unknown_path_dispositions" in lowered
+    assert "update_mode=delta_session" in lowered
+    assert "update_mode=payload_file" in lowered
+    assert "update_argv" in lowered
+    assert "delta_append_draft.argv_prefix" in lowered
+    assert "display-only command templates" in lowered
     assert "result_state" in lowered
     assert "verification_evidence" in lowered
     assert "generated_surface_notes" in lowered
     assert "failed verification evidence" in lowered
+    assert "status=ok" in lowered
     assert (
         "sp-map-update remains the external/manual" in lowered
         or "`sp-map-update` remains the external/manual" in lowered
         or "sp-map-update is for manual/external maintenance" in lowered
     )
-    assert "uncertain closure is recorded by inline update or `map-update` as partial/low-confidence facts" in lowered
+    assert "uncertain closure is recorded by planner-first closeout or `map-update` as partial/low-confidence facts" in lowered
     assert "workflow-appropriate slices" not in lowered
 
 

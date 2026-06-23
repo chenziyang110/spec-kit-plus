@@ -104,15 +104,23 @@ map-scan -> map-build solely because the graph has no paths. Projects with
 existing code still use map-scan -> map-build when a full first brownfield
 cognition baseline is needed for a first/missing/unusable baseline.
 
-Workflow-owned mutation closeout uses the same lower-level update engine as
-`sp-map-update`. Delta-session closeout calls
-`project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`;
-non-delta closeout writes `.specify/project-cognition/updates/<update-id>.json`
-and calls
-`project-cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json`.
-A clean closeout requires `result_state=ready` or `result_state=no_op`;
-`update_id`, `last_update_id`, freshness, and legacy `recorded-only` output are
-not enough.
+Workflow-owned mutation closeout is planner-first: source-changing `sp-*`
+workflows run
+`project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`,
+passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The
+planner returns `update_mode=delta_session` or `update_mode=payload_file`,
+`required_agent_fields`, `unknown_path_dispositions`, display-only command
+templates, and structured execution fields. Agents execute via `update_argv`
+after writing a completed payload, or by completing
+`delta_append_draft.argv_prefix` with agent-owned evidence placeholders before
+running `update_argv`. Verified `adoptable` unknown paths can be recorded
+without becoming blocking `known_unknowns`; only `blocking_known_unknown`
+dispositions become payload or delta known unknowns. Clean closeout gates on
+`result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`,
+`last_update_id`, freshness, display-only command templates, or legacy
+`recorded-only` output. `sp-map-update` remains manual/external maintenance and
+artifact-only workflows do not write cognition unless they changed
+source/runtime/template/config/test/generated-asset surfaces.
 
 ```bash
 # Linux / macOS

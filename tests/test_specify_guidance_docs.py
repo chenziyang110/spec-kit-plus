@@ -237,12 +237,19 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
 def test_readme_documents_inline_project_cognition_closeout() -> None:
     readme = _read("README.md").lower()
 
-    assert "workflow-owned mutation closeout is inline" in readme
-    assert "project-cognition update --payload-file" in readme
+    assert "workflow-owned mutation closeout is planner-first" in readme
+    assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in readme
+    assert "update_mode=delta_session" in readme
+    assert "update_mode=payload_file" in readme
+    assert "unknown_path_dispositions" in readme
+    assert "update_argv" in readme
+    assert "delta_append_draft.argv_prefix" in readme
+    assert "display-only command templates" in readme
     assert "result_state" in readme
     assert "verification_evidence" in readme
     assert "generated_surface_notes" in readme
     assert "failed verification evidence" in readme
+    assert "status=ok" in readme
     assert "update_id" in readme
     assert "recorded-only" in readme
     assert (
@@ -294,7 +301,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "support drift is not runtime-truth staleness" in readme.lower()
     assert "`partial_refresh`" in readme
     assert "`support_drift`" in readme
-    assert "workflow-owned mutation closeout is inline" in readme.lower()
+    assert "workflow-owned mutation closeout is planner-first" in readme.lower()
     assert (
         "sp-map-update remains the external/manual maintenance workflow" in readme.lower()
         or "`sp-map-update` remains the external/manual maintenance workflow" in readme.lower()
@@ -306,12 +313,21 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "recommend `map-update` for changed-path map maintenance" not in quickstart_lower
     assert "changed-path and localized stale cognition maintenance follow-up" not in quickstart_lower
     assert "recommend project cognition map maintenance as a follow-up" not in quickstart_lower
-    assert "source-changing `sp-*` workflows run inline project cognition update for their own closeout" in quickstart_lower
-    assert "source-changing `sp-*` workflow that alters navigation meaning should run inline project cognition update" in quickstart_lower
-    assert "project-cognition update --payload-file" in quickstart_lower
+    assert "source-changing `sp-*` workflows run planner-first project cognition update for their own closeout" in quickstart_lower
+    assert "source-changing `sp-*` workflow that alters navigation meaning should run planner-first project cognition update" in quickstart_lower
+    assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in quickstart_lower
+    assert "unknown_path_dispositions" in quickstart_lower
+    assert "update_mode=delta_session" in quickstart_lower
+    assert "update_mode=payload_file" in quickstart_lower
+    assert "update_argv" in quickstart_lower
+    assert "delta_append_draft.argv_prefix" in quickstart_lower
     assert "result_state" in quickstart_lower
     installation_lower = _read("docs/installation.md").lower()
-    assert "project-cognition update --payload-file" in installation_lower
+    assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in installation_lower
+    assert "unknown_path_dispositions" in installation_lower
+    assert "update_mode=delta_session" in installation_lower
+    assert "update_mode=payload_file" in installation_lower
+    assert "update_argv" in installation_lower
     assert "result_state" in installation_lower
     assert "`map-scan` followed by `map-build` only when the baseline is first/missing/unusable, schema failure" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
