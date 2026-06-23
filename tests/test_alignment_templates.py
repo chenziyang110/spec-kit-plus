@@ -3092,7 +3092,10 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         content = _read(path).lower()
         assert "workflow-owned mutation closeout" in content, path
         assert "external map maintenance" in content, path
-        assert "inline project cognition update" in content, path
+        assert (
+            "inline project cognition update" in content
+            or "planner-first" in content
+        ), path
         assert "sp-map-update is for manual/external maintenance" in content, path
         if path in {
             "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",

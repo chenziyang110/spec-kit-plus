@@ -280,11 +280,14 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     content = read_template("templates/commands/quick.md").lower()
 
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition delta append" in content
-    assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --payload-file" in content
+    assert "project-cognition closeout-plan --workflow" in content
+    assert "update_mode=delta_session" in content
+    assert "update_mode=payload_file" in content
+    assert "update_argv" in content
+    assert "delta_append_draft.argv_prefix" in content
+    assert "unknown_path_dispositions" in content
     assert "clean closeout keys on `result_state`" in content
-    assert "not `update_id`, `last_update_id`, or freshness alone" in content
+    assert "not `status=ok`, `update_id`, `last_update_id`, or freshness alone" in content
     assert "legacy recorded-only output" in content
     assert "project_cognition_refresh" in content
     assert "changed_code_paths" in content
@@ -301,7 +304,7 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "missing or invalid alias_index" in content
     assert "explicit_rebuild_requested" in content
     assert "baseline_identity_invalid" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
+    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:
