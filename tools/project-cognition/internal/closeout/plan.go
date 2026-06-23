@@ -21,8 +21,17 @@ const (
 )
 
 var knownWorkflows = map[string]struct{}{
-	"sp-implement": {},
-	"sp-quick":     {},
+	"sp-implement":     {},
+	"sp-debug":         {},
+	"sp-fast":          {},
+	"sp-quick":         {},
+	"sp-analyze":       {},
+	"sp-specify":       {},
+	"sp-clarify":       {},
+	"sp-plan":          {},
+	"sp-tasks":         {},
+	"sp-deep-research": {},
+	"sp-map-update":    {},
 }
 
 type Input struct {

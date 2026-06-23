@@ -20,10 +20,10 @@ The target closeout shape is:
 ```text
 workflow changed repository surfaces
 -> project-cognition closeout-plan --workflow <workflow-or-alias> --format json
--> planner returns canonical workflow, update_mode, required agent fields, and either delta-session commands or a payload draft
+-> planner returns canonical workflow, update_mode, required agent fields, and either a delta append draft or a payload draft
 -> agent fills semantic evidence and verification fields
--> if update_mode=delta_session: run delta_append_command, then update_command
--> if update_mode=payload_file: write payload_draft to payload_path, then update_command
+-> if update_mode=delta_session: complete delta_append_draft argv with agent evidence, append the delta event, then execute update_argv
+-> if update_mode=payload_file: write payload_draft to payload_path, then execute update_argv
 -> result_state drives clean closeout, partial closeout, rebuild routing, blocked reporting, or mark-dirty fallback
 ```
 
@@ -186,7 +186,17 @@ When `changes` returns:
     "behavior_surfaces"
   ],
   "recommended_next_command": "write_payload_then_update",
-  "update_command": "project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json",
+  "update_command": "display only: project-cognition update --payload-file <payload_path> --reason <reason> --format json",
+  "update_argv": [
+    "project-cognition",
+    "update",
+    "--payload-file",
+    ".specify/project-cognition/updates/<update-id>.json",
+    "--reason",
+    "workflow-finalize",
+    "--format",
+    "json"
+  ],
   "finalizer_policy": {
     "ready": "clean_closeout_after_verification",
     "no_op": "clean_closeout_when_no_project_mutation",
@@ -221,8 +231,10 @@ Field requirements:
 
 Mode-specific fields:
 
-- `update_mode=delta_session` must provide `delta_session_id`, `delta_append_command`, and `update_command`. `delta_append_command` should be the planner-approved `project-cognition delta append ... --format json` command template with repeatable flags for changed paths, behavior surfaces, generated surfaces, verification, and accepted known unknowns after agent disposition. `update_command` must use `project-cognition update --delta-session "<id>" --reason workflow-finalize --format json`.
-- `update_mode=payload_file` must provide `payload_path`, `payload_draft`, and `update_command`. `update_command` must use `project-cognition update --payload-file "<payload_path>" --reason workflow-finalize --format json`.
+- `update_command` and `delta_append_command` are display-only templates/placeholders, not execution strings. They must not interpolate user-controlled paths, session IDs, reasons, or evidence.
+- `update_mode=delta_session` must provide `delta_session_id`, display-only `delta_append_command` and `update_command`, structured `update_argv`, and `delta_append_draft`. Agents/consumers execute by completing `delta_append_draft.argv_prefix` with the agent-owned evidence placeholders from `delta_append_draft.argv_placeholders`, then running `update_argv`.
+- `update_mode=payload_file` must provide `payload_path`, `payload_draft`, display-only `update_command`, and structured `update_argv`. Agents/consumers execute `update_argv` after writing the completed payload file.
+- `recommended_next_command` for delta may be `fill_delta_append_draft_then_update` when the delta event still requires agent-owned evidence before update.
 
 ## Shared Partial Update
 
@@ -236,7 +248,7 @@ Update `templates/command-partials/common/inline-project-cognition-update.md` so
    project-cognition closeout-plan --workflow <active-workflow> [--delta-session "$DELTA_SESSION_ID"] --format json
    ```
 
-4. Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `ignored_paths`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_command`, `recommended_next_command`, and `finalizer_policy`.
+4. Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `ignored_paths`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_draft`, display-only `delta_append_command`, `update_argv`, display-only `update_command`, `recommended_next_command`, and `finalizer_policy`.
 5. Fill missing agent-owned fields with live evidence from the completed workflow:
    - `verification`
    - `behavior_surfaces`
@@ -247,8 +259,8 @@ Update `templates/command-partials/common/inline-project-cognition-update.md` so
    - `user_decisions`
    - `boundary`
 6. Classify every `unknown_path_dispositions` item before recording the update. Adoptable verified new paths may be recorded; ignored and review-only paths must stay out of changed coverage; only `blocking_known_unknown` items become payload or delta known unknowns.
-7. If `update_mode=delta_session`, run the planner's `delta_append_command` after filling the agent-owned repeatable flags, then run the planner's `update_command`.
-8. If `update_mode=payload_file`, write the payload file at the planner's `payload_path`, then run the planner's `update_command`.
+7. If `update_mode=delta_session`, complete `delta_append_draft.argv_prefix` with the required agent-owned evidence placeholders, append the delta event, then run `update_argv`.
+8. If `update_mode=payload_file`, write the payload file at the planner's `payload_path`, then run `update_argv`.
 9. Gate completion on `result_state`, not on `status=ok`, `update_id`, `last_update_id`, or freshness alone.
 10. Use `mark-dirty` only when planner/update cannot record useful update data, cannot identify workflow-owned scope, or workflow verification is not trustworthy.
 
@@ -306,7 +318,7 @@ Recommended `next_action` values:
 no_op
 draft_update
 fill_required_agent_fields
-append_delta_then_update
+fill_delta_append_draft_then_update
 write_payload_then_update
 route_map_scan_build
 mark_dirty_fallback
@@ -338,15 +350,15 @@ Runtime tests:
 - `needs_rebuild` and legacy runtime states do not draft normal update payloads.
 - `blocked` states include actionable recovery fields.
 - Planner output is stable when no changes exist.
-- Active delta-session input produces `update_mode=delta_session`, `delta_append_command`, and a delta-session `update_command`.
-- No active delta session produces `update_mode=payload_file`, `payload_path`, `payload_draft`, and a payload-file `update_command`.
+- Active delta-session input produces `update_mode=delta_session`, `delta_append_draft`, display-only `delta_append_command`, structured `update_argv`, and display-only `update_command`.
+- No active delta session produces `update_mode=payload_file`, `payload_path`, `payload_draft`, structured `update_argv`, and display-only `update_command`.
 - Workflow aliases such as `implement`, `sp-implement`, and `/sp.implement` normalize to canonical `sp-implement` in output, payload drafts, and records.
 
 CLI tests:
 
 - Root help lists `closeout-plan`.
 - `closeout-plan --format json` emits `payload_draft`, `required_agent_fields`, `recommended_next_command`, and `finalizer_policy`.
-- `closeout-plan --delta-session <id> --format json` emits `update_mode=delta_session`, `delta_append_command`, and `update_command`.
+- `closeout-plan --delta-session <id> --format json` emits `update_mode=delta_session`, `delta_append_draft`, display-only `delta_append_command`, structured `update_argv`, and display-only `update_command`.
 - Invalid explicit paths return blocked JSON, not partial payloads.
 - Runtime compatibility checks require `closeout-plan` after release.
 

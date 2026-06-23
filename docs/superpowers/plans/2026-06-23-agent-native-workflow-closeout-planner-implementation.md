@@ -91,8 +91,9 @@ func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
 	if len(payload.UnknownPathDispositions) != 0 {
 		t.Fatalf("UnknownPathDispositions = %#v, want none", payload.UnknownPathDispositions)
 	}
-	if !strings.Contains(payload.UpdateCommand, `project-cognition update --payload-file ".specify/project-cognition/updates/custom.json" --reason workflow-finalize --format json`) {
-		t.Fatalf("UpdateCommand = %q", payload.UpdateCommand)
+	wantArgv := []string{"project-cognition", "update", "--payload-file", ".specify/project-cognition/updates/custom.json", "--reason", "workflow-finalize", "--format", "json"}
+	if !reflect.DeepEqual(payload.UpdateArgv, wantArgv) {
+		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
 	if !containsCloseoutString(payload.RequiredAgentFields, "verification") || !containsCloseoutString(payload.RequiredAgentFields, "behavior_surfaces") {
 		t.Fatalf("RequiredAgentFields = %#v", payload.RequiredAgentFields)
@@ -178,13 +179,13 @@ func TestRunPreservesDeltaSessionMode(t *testing.T) {
 	if payload.PayloadDraft != nil {
 		t.Fatalf("PayloadDraft = %#v, want nil in delta mode", payload.PayloadDraft)
 	}
-	if !strings.Contains(payload.DeltaAppendCommand, `project-cognition delta append --session "D-session" --event-type workflow_closeout`) {
-		t.Fatalf("DeltaAppendCommand = %q", payload.DeltaAppendCommand)
+	if payload.DeltaAppendDraft == nil {
+		t.Fatal("DeltaAppendDraft is nil")
 	}
-	if !strings.Contains(payload.UpdateCommand, `project-cognition update --delta-session "D-session" --reason workflow-finalize --format json`) {
-		t.Fatalf("UpdateCommand = %q", payload.UpdateCommand)
+	if !reflect.DeepEqual(payload.UpdateArgv, []string{"project-cognition", "update", "--delta-session", "D-session", "--reason", "workflow-finalize", "--format", "json"}) {
+		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
-	if payload.RecommendedNextCommand != "append_delta_then_update" {
+	if payload.RecommendedNextCommand != "fill_delta_append_draft_then_update" {
 		t.Fatalf("RecommendedNextCommand = %q", payload.RecommendedNextCommand)
 	}
 }
@@ -381,7 +382,7 @@ const (
 	NextNoOp               = "no_op"
 	NextDraftUpdate        = "draft_update"
 	NextFillAgentFields    = "fill_required_agent_fields"
-	NextAppendDeltaUpdate  = "append_delta_then_update"
+	NextAppendDeltaUpdate  = "fill_delta_append_draft_then_update"
 	NextWritePayloadUpdate = "write_payload_then_update"
 	NextRouteMapScanBuild  = "route_map_scan_build"
 	NextMarkDirtyFallback  = "mark_dirty_fallback"
@@ -441,11 +442,13 @@ type Payload struct {
 	KnownPaths              []string                 `json:"known_paths"`
 	DeltaSessionID          *string                  `json:"delta_session_id"`
 	DeltaAppendCommand      string                   `json:"delta_append_command"`
+	DeltaAppendDraft        *DeltaAppendDraft        `json:"delta_append_draft"`
 	PayloadPath             string                   `json:"payload_path,omitempty"`
 	PayloadDraft            *PayloadDraft            `json:"payload_draft"`
 	RequiredAgentFields     []string                 `json:"required_agent_fields"`
 	RecommendedNextCommand  string                   `json:"recommended_next_command"`
 	UpdateCommand           string                   `json:"update_command"`
+	UpdateArgv              []string                 `json:"update_argv"`
 	FinalizerPolicy         map[string]string        `json:"finalizer_policy"`
 	Warnings                []string                 `json:"warnings"`
 	Errors                  []string                 `json:"errors"`
@@ -473,6 +476,17 @@ type PayloadDraft struct {
 	ConfidenceNotes   []string       `json:"confidence_notes"`
 	UserDecisions     []string       `json:"user_decisions"`
 	Boundary          map[string]any `json:"boundary"`
+}
+
+type DeltaAppendDraft struct {
+	EventType              string   `json:"event_type"`
+	OriginCommand          string   `json:"origin_command"`
+	Phase                  string   `json:"phase"`
+	ChangedPaths           []string `json:"changed_paths"`
+	RequiredAgentFields    []string `json:"required_agent_fields"`
+	RequiredEvidenceResult string   `json:"required_evidence_result"`
+	ArgvPrefix             []string `json:"argv_prefix"`
+	ArgvPlaceholders       []string `json:"argv_placeholders"`
 }
 
 func Run(paths rt.Paths, input Input) (Payload, error) {
@@ -550,9 +564,11 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		sessionID := strings.TrimSpace(input.DeltaSessionID)
 		payload.UpdateMode = UpdateModeDeltaSession
 		payload.DeltaSessionID = &sessionID
-		payload.DeltaAppendCommand = deltaAppendCommand(sessionID, changed)
-		payload.UpdateCommand = fmt.Sprintf("project-cognition update --delta-session %s --reason %s --format json", quoteArg(sessionID), quoteArg(reason))
-		payload.RecommendedNextCommand = NextAppendDeltaUpdate
+		payload.DeltaAppendCommand = "display only: project-cognition delta append --session <delta_session_id> --event-type workflow_closeout ...agent evidence flags... --format json"
+		payload.DeltaAppendDraft = deltaAppendDraft(sessionID, workflow, changed, payload.RequiredAgentFields)
+		payload.UpdateCommand = "display only: project-cognition update --delta-session <delta_session_id> --reason <reason> --format json"
+		payload.UpdateArgv = []string{"project-cognition", "update", "--delta-session", sessionID, "--reason", reason, "--format", "json"}
+		payload.RecommendedNextCommand = "fill_delta_append_draft_then_update"
 	} else {
 		payload.UpdateMode = UpdateModePayloadFile
 		payload.PayloadPath = payloadPath(input.PayloadPath, workflow, changePayload.HeadCommit)
@@ -570,7 +586,8 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			UserDecisions:     []string{},
 			Boundary:          map[string]any{},
 		}
-		payload.UpdateCommand = fmt.Sprintf("project-cognition update --payload-file %s --reason %s --format json", quoteArg(payload.PayloadPath), quoteArg(reason))
+		payload.UpdateCommand = "display only: project-cognition update --payload-file <payload_path> --reason <reason> --format json"
+		payload.UpdateArgv = []string{"project-cognition", "update", "--payload-file", payload.PayloadPath, "--reason", reason, "--format", "json"}
 		payload.RecommendedNextCommand = NextWritePayloadUpdate
 	}
 
@@ -702,21 +719,21 @@ func payloadPath(explicit string, workflow string, head string) string {
 	return filepath.ToSlash(filepath.Join(".specify", "project-cognition", "updates", name))
 }
 
-func deltaAppendCommand(sessionID string, changed []string) string {
-	parts := []string{
-		"project-cognition delta append",
-		"--session " + quoteArg(sessionID),
-		"--event-type workflow_closeout",
-	}
+func deltaAppendDraft(sessionID string, workflow string, changed []string, requiredFields []string) *DeltaAppendDraft {
+	prefix := []string{"project-cognition", "delta", "append", "--session", sessionID, "--event-type", "workflow_closeout", "--origin-command", workflow, "--phase", "closeout"}
 	for _, path := range changed {
-		parts = append(parts, "--changed-path "+quoteArg(path))
+		prefix = append(prefix, "--changed-path", path)
 	}
-	parts = append(parts, "--format json")
-	return strings.Join(parts, " ")
-}
-
-func quoteArg(value string) string {
-	return fmt.Sprintf("%q", value)
+	return &DeltaAppendDraft{
+		EventType:              "workflow_closeout",
+		OriginCommand:          workflow,
+		Phase:                  "closeout",
+		ChangedPaths:           append([]string{}, changed...),
+		RequiredAgentFields:    append([]string{}, requiredFields...),
+		RequiredEvidenceResult: "passed",
+		ArgvPrefix:             prefix,
+		ArgvPlaceholders:       []string{"--verification", "<agent-owned passing verification evidence>", "--format", "json"},
+	}
 }
 ```
 
@@ -806,8 +823,9 @@ func TestCloseoutPlanCommandEmitsPayloadDraft(t *testing.T) {
 	if result["payload_draft"] == nil {
 		t.Fatalf("payload = %#v, want payload_draft", result)
 	}
-	if !strings.Contains(result["update_command"].(string), "project-cognition update --payload-file") {
-		t.Fatalf("update_command = %#v", result["update_command"])
+	updateArgv, ok := result["update_argv"].([]any)
+	if !ok || len(updateArgv) == 0 {
+		t.Fatalf("update_argv = %#v", result["update_argv"])
 	}
 }
 
@@ -839,11 +857,12 @@ func TestCloseoutPlanCommandEmitsDeltaSessionMode(t *testing.T) {
 	if result["delta_session_id"] != "D-cli" {
 		t.Fatalf("delta_session_id = %#v", result["delta_session_id"])
 	}
-	if !strings.Contains(result["delta_append_command"].(string), `project-cognition delta append --session "D-cli"`) {
-		t.Fatalf("delta_append_command = %#v", result["delta_append_command"])
+	if result["delta_append_draft"] == nil {
+		t.Fatalf("delta_append_draft = %#v", result["delta_append_draft"])
 	}
-	if !strings.Contains(result["update_command"].(string), `project-cognition update --delta-session "D-cli"`) {
-		t.Fatalf("update_command = %#v", result["update_command"])
+	updateArgv, ok := result["update_argv"].([]any)
+	if !ok || len(updateArgv) == 0 {
+		t.Fatalf("update_argv = %#v", result["update_argv"])
 	}
 }
 ```
@@ -1215,7 +1234,7 @@ When `DELTA_SESSION_ID` exists, pass it into the planner:
 project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --delta-session "$DELTA_SESSION_ID" --format json
 ```
 
-Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `ignored_paths`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_command`, `recommended_next_command`, `update_command`, and `finalizer_policy`.
+Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `ignored_paths`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_draft`, display-only `delta_append_command`, `update_argv`, display-only `update_command`, `recommended_next_command`, and `finalizer_policy`.
 
 Before running `update`, fill every required agent-owned field from live evidence from this workflow:
 
@@ -1235,9 +1254,9 @@ For each `unknown_path_dispositions[]` item, set `agent_disposition` to exactly 
 - `ignored`: path remains excluded and must not enter payloads, records, route indexes, evidence, aliases, or minimal live reads.
 - `blocking_known_unknown`: record it as a known unknown and report partial or blocked cognition closeout.
 
-If `update_mode=delta_session`, run the planner's `delta_append_command` after adding agent-owned repeatable flags such as `--behavior-surface`, `--generated-surface`, `--verification`, and accepted `--known-unknown` values. Then run the planner's `update_command`.
+If `update_mode=delta_session`, complete `delta_append_draft.argv_prefix` with agent-owned repeatable flags such as `--behavior-surface`, `--generated-surface`, `--verification`, and accepted `--known-unknown` values from `delta_append_draft.argv_placeholders`. Then append the delta event and run `update_argv`. `delta_append_command` and `update_command` are display-only placeholders, not execution strings.
 
-If `update_mode=payload_file`, write the completed `payload_draft` to the planner's `payload_path`. Then run the planner's `update_command`.
+If `update_mode=payload_file`, write the completed `payload_draft` to the planner's `payload_path`. Then run `update_argv`. `update_command` is a display-only placeholder, not an execution string.
 
 For compatibility with worker handoffs and delta packets, the runtime also accepts `verification_evidence` as an alias for `verification` and `generated_surface_notes` as an alias for `generated_surfaces`. Verification evidence may be an array of objects (`command`, `result`, `artifact`) or an array of command-result strings, but clean closeout still requires passing verification evidence; failed verification cannot produce a clean `ready` closeout.
 
@@ -1260,7 +1279,7 @@ In `templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md`, replace 
 
 ```markdown
 - Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, closeout must run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json` before recording inline project cognition update data.
-- When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Follow `update_mode=delta_session` by appending the workflow closeout delta event, then running the planner's delta-session `update_command`. Follow `update_mode=payload_file` by writing the completed `payload_draft`, then running the planner's payload-file `update_command`.
+- When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with agent-owned evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`; `recommended_next_command` may be `fill_delta_append_draft_then_update` while evidence is still missing. Follow `update_mode=payload_file` by writing the completed `payload_draft`, then running structured `update_argv`. `update_command` and `delta_append_command` are display-only placeholders, not execution strings.
 - Before update recording, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns.
 - Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone; `recorded` is legacy recorded-only partial/blocked output. Use `project-cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when planner/update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy.
 ```

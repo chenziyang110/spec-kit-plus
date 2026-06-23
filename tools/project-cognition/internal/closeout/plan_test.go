@@ -68,6 +68,50 @@ func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
 	}
 }
 
+func TestRunAcceptsFirstIterationWorkflowAllowlist(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"allowlist\" }\n")
+
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{input: "implement", want: "sp-implement"},
+		{input: "debug", want: "sp-debug"},
+		{input: "/sp.fast", want: "sp-fast"},
+		{input: "sp-quick", want: "sp-quick"},
+		{input: "analyze", want: "sp-analyze"},
+		{input: "/sp.specify", want: "sp-specify"},
+		{input: "clarify", want: "sp-clarify"},
+		{input: "sp-plan", want: "sp-plan"},
+		{input: "/sp.tasks", want: "sp-tasks"},
+		{input: "deep-research", want: "sp-deep-research"},
+		{input: "/sp.map-update", want: "sp-map-update"},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.want, func(t *testing.T) {
+			payload, err := Run(paths, Input{
+				Workflow:           tt.input,
+				IncludeWorkingTree: true,
+				IncludeUntracked:   true,
+			})
+			if err != nil {
+				t.Fatalf("Run returned error: %v", err)
+			}
+			if payload.Status != "ok" {
+				t.Fatalf("Status = %q, errors=%#v", payload.Status, payload.Errors)
+			}
+			if payload.Workflow != tt.want || payload.WorkflowCanonical != tt.want {
+				t.Fatalf("workflow fields = %q/%q, want %q", payload.Workflow, payload.WorkflowCanonical, tt.want)
+			}
+			if payload.PayloadDraft == nil || payload.PayloadDraft.Workflow != tt.want {
+				t.Fatalf("PayloadDraft.Workflow = %#v, want %q", payload.PayloadDraft, tt.want)
+			}
+		})
+	}
+}
+
 func TestRunQueuesUnknownPathDispositionWithoutBlockingKnownUnknown(t *testing.T) {
 	root, paths := initCloseoutFixture(t)
 	writeCloseoutFile(t, root, "src/new-feature.go", "package app\n\nfunc NewFeature() string { return \"new\" }\n")
