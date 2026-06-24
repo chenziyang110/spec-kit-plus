@@ -46,6 +46,7 @@ import {
 import { SharedHookClient } from "../hooks/shared-hook-client.js";
 import { buildNativeHookContext } from "./native-hook/context.js";
 import { outcomeToCodexJson } from "./native-hook/outcome.js";
+import { handleSessionStart } from "./native-hook/session-start.js";
 import { handlePreToolUse } from "./native-hook/tool-use.js";
 import {
   buildNativeHookEvent,
@@ -2494,44 +2495,51 @@ export async function dispatchCodexNativeHook(
   }
 
   if (hookEventName === "SessionStart" || hookEventName === "UserPromptSubmit") {
-    const additionalContextBase = hookEventName === "SessionStart"
-      ? await buildSessionStartContext(cwd, canonicalSessionId || nativeSessionId)
-      : (buildAdditionalContextMessage(readPromptText(payload), skillState, cwd, payload) ?? triageAdditionalContext);
     if (hookEventName === "SessionStart") {
-      const sharedCompactionArgs = await buildSharedCompactionArgs(cwd, payload, "build");
-      if (sharedCompactionArgs) {
-        sharedCompactionPayload = invokeSharedQualityHook(sharedCompactionArgs, { cwd });
-      }
-    }
-    const additionalContext = hookEventName === "UserPromptSubmit"
-      ? appendSharedHookContext(appendSharedHookContext(additionalContextBase, sharedPromptGuardPayload), sharedWorkflowPolicyPayload)
-      : appendSharedHookContext(additionalContextBase, sharedCompactionPayload);
-    if (hookEventName === "UserPromptSubmit" && sharedPromptGuardOutput) {
-      outputJson = sharedPromptGuardOutput;
-      if (additionalContext) {
-        const currentAdditionalContext = (() => {
-          const current = outputJson?.hookSpecificOutput;
-          if (!current || typeof current !== "object") return "";
-          return typeof (current as Record<string, unknown>).additionalContext === "string"
-            ? String((current as Record<string, unknown>).additionalContext)
-            : "";
-        })();
+      outputJson = await handleSessionStart({
+        cwd,
+        payload,
+        canonicalSessionId,
+        nativeSessionId,
+        buildSessionStartContext,
+        buildSharedCompactionArgs,
+        invokeSharedQualityHook,
+        appendSharedHookContext,
+      });
+    } else {
+      const additionalContextBase =
+        buildAdditionalContextMessage(readPromptText(payload), skillState, cwd, payload) ?? triageAdditionalContext;
+      const additionalContext = appendSharedHookContext(
+        appendSharedHookContext(additionalContextBase, sharedPromptGuardPayload),
+        sharedWorkflowPolicyPayload,
+      );
+      if (sharedPromptGuardOutput) {
+        outputJson = sharedPromptGuardOutput;
+        if (additionalContext) {
+          const currentAdditionalContext = (() => {
+            const current = outputJson?.hookSpecificOutput;
+            if (!current || typeof current !== "object") return "";
+            return typeof (current as Record<string, unknown>).additionalContext === "string"
+              ? String((current as Record<string, unknown>).additionalContext)
+              : "";
+          })();
+          outputJson = {
+            ...outputJson,
+            hookSpecificOutput: {
+              ...(outputJson.hookSpecificOutput as Record<string, unknown> | undefined ?? {}),
+              hookEventName,
+              additionalContext: [currentAdditionalContext, additionalContext].filter(Boolean).join(" "),
+            },
+          };
+        }
+      } else if (additionalContext) {
         outputJson = {
-          ...outputJson,
           hookSpecificOutput: {
-            ...(outputJson.hookSpecificOutput as Record<string, unknown> | undefined ?? {}),
             hookEventName,
-            additionalContext: [currentAdditionalContext, additionalContext].filter(Boolean).join(" "),
+            additionalContext,
           },
         };
-      } 
-    } else if (additionalContext) {
-      outputJson = {
-        hookSpecificOutput: {
-          hookEventName,
-          additionalContext,
-        },
-      };
+      }
     }
   } else if (hookEventName === "PreToolUse") {
     outputJson = outcomeToCodexJson(
