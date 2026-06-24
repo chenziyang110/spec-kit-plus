@@ -43,6 +43,7 @@ import {
   buildNativePostToolUseOutput,
   detectMcpTransportFailure,
 } from "./codex-native-pre-post.js";
+import { SharedHookClient } from "../hooks/shared-hook-client.js";
 import { buildNativeHookContext } from "./native-hook/context.js";
 import { outcomeToCodexJson } from "./native-hook/outcome.js";
 import { handlePreToolUse } from "./native-hook/tool-use.js";
@@ -825,6 +826,15 @@ function readPromptText(payload: CodexHookPayload): string {
     if (value) return value;
   }
   return "";
+}
+
+function invokeSharedPromptGuard(cwd: string, prompt: string): SharedQualityHookPayload | null {
+  const client = new SharedHookClient({ cwd });
+  const result = client.invoke(["validate-prompt", "--prompt-stdin"], {
+    eventName: "UserPromptSubmit",
+    stdinText: prompt,
+  });
+  return result.status === "ok" || result.status === "blocked" ? result.payload : null;
 }
 
 function sanitizePayloadForHookContext(
@@ -2359,10 +2369,7 @@ export async function dispatchCodexNativeHook(
   if (hookEventName === "UserPromptSubmit") {
     const prompt = readPromptText(payload);
     if (prompt) {
-      sharedPromptGuardPayload = invokeSharedQualityHook(
-        ["validate-prompt", "--prompt-text", prompt],
-        { cwd },
-      );
+      sharedPromptGuardPayload = invokeSharedPromptGuard(cwd, prompt);
       if (sharedPromptGuardPayload) {
         sharedPromptGuardOutput = sharedHookBlockOutput("UserPromptSubmit", sharedPromptGuardPayload);
       }
