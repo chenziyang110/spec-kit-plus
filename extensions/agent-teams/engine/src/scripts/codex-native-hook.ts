@@ -47,6 +47,7 @@ import { SharedHookClient } from "../hooks/shared-hook-client.js";
 import { buildNativeHookContext } from "./native-hook/context.js";
 import { outcomeToCodexJson } from "./native-hook/outcome.js";
 import { handleSessionStart } from "./native-hook/session-start.js";
+import { mergeStopSharedOutputs } from "./native-hook/stop.js";
 import { handlePreToolUse } from "./native-hook/tool-use.js";
 import { handleUserPromptSubmit } from "./native-hook/user-prompt.js";
 import {
@@ -2364,7 +2365,6 @@ export async function dispatchCodexNativeHook(
   let sharedPromptGuardOutput: Record<string, unknown> | null = null;
   let sharedPromptGuardPayload: SharedQualityHookPayload | null = null;
   let sharedWorkflowPolicyPayload: SharedQualityHookPayload | null = null;
-  let sharedStopMonitorPayload: SharedQualityHookPayload | null = null;
   let sharedLearningSignalPayload: SharedQualityHookPayload | null = null;
   let sharedCompactionPayload: SharedQualityHookPayload | null = null;
 
@@ -2547,25 +2547,20 @@ export async function dispatchCodexNativeHook(
     }
     outputJson = await suppressRepeatedPostToolUseAdvisory(outputJson, cwd, stateDir, payload, sessionIdForState);
   } else if (hookEventName === "Stop") {
-    outputJson = await buildStopHookOutput(payload, cwd, stateDir);
-    const sharedStopMonitorArgs = buildSharedStopMonitorArgs(payload);
-    if (sharedStopMonitorArgs) {
-      sharedStopMonitorPayload = invokeSharedQualityHook(sharedStopMonitorArgs, { cwd });
-      outputJson = mergeSharedStopMonitorOutput(outputJson, sharedStopMonitorPayload);
-    }
-    const sharedCompactionArgs = await buildSharedCompactionArgs(cwd, payload, "build");
-    if (sharedCompactionArgs) {
-      sharedCompactionPayload = invokeSharedQualityHook(sharedCompactionArgs, { cwd });
-      const mergedContext = appendSharedHookContext(readHookSpecificAdditionalContext(outputJson) || null, sharedCompactionPayload);
-      if (mergedContext) {
-        outputJson = withHookSpecificAdditionalContext(outputJson, "Stop", mergedContext);
-      }
-    }
-    const sharedLearningSignalArgs = await buildSharedLearningSignalArgs(cwd, payload);
-    if (sharedLearningSignalArgs) {
-      sharedLearningSignalPayload = invokeSharedQualityHook(sharedLearningSignalArgs, { cwd });
-      outputJson = mergeSharedLearningSignalOutput(outputJson, "Stop", sharedLearningSignalPayload);
-    }
+    outputJson = await mergeStopSharedOutputs({
+      cwd,
+      payload,
+      baseOutput: await buildStopHookOutput(payload, cwd, stateDir),
+      buildSharedStopMonitorArgs,
+      invokeSharedQualityHook,
+      mergeSharedStopMonitorOutput,
+      buildSharedCompactionArgs,
+      appendSharedHookContext,
+      readHookSpecificAdditionalContext,
+      withHookSpecificAdditionalContext,
+      buildSharedLearningSignalArgs,
+      mergeSharedLearningSignalOutput,
+    });
   }
 
   return {
