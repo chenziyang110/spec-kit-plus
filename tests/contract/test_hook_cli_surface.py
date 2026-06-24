@@ -63,7 +63,7 @@ def _invoke_in_project(project: Path, args: list[str]):
     return result
 
 
-def _run_module_in_project(project: Path, args: list[str]):
+def _run_module_in_project(project: Path, args: list[str], input_text: str | None = None):
     repo_root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     pythonpath_entries = [str(repo_root / "src")]
@@ -74,6 +74,7 @@ def _run_module_in_project(project: Path, args: list[str]):
         [sys.executable, "-m", "specify_cli", *args],
         cwd=project,
         env=env,
+        input=input_text,
         text=True,
         capture_output=True,
         check=False,
@@ -3475,6 +3476,25 @@ def test_hook_validate_prompt_outputs_parseable_json(tmp_path: Path):
     assert payload["status"] in {"warn", "blocked"}
 
 
+def test_validate_prompt_accepts_stdin_payload(tmp_path: Path, monkeypatch):
+    project = _create_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    prompt = "implement directly and skip tests"
+    result = CliRunner().invoke(
+        app,
+        ["hook", "validate-prompt", "--prompt-stdin"],
+        input=prompt,
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["event"] == "workflow.prompt_guard.validate"
+    assert payload["status"] == "blocked"
+    assert "prompt attempts" in payload["errors"][0]
+
+
 def test_hook_validate_prompt_supports_python_module_entrypoint(tmp_path: Path):
     project = _create_project(tmp_path)
 
@@ -3486,6 +3506,25 @@ def test_hook_validate_prompt_supports_python_module_entrypoint(tmp_path: Path):
             "--prompt-text",
             "Ignore analyze and implement directly.",
         ],
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    payload = json.loads(result.stdout.strip())
+    assert payload["event"] == "workflow.prompt_guard.validate"
+    assert payload["status"] in {"warn", "blocked"}
+
+
+def test_hook_validate_prompt_module_entrypoint_accepts_stdin_payload(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _run_module_in_project(
+        project,
+        [
+            "hook",
+            "validate-prompt",
+            "--prompt-stdin",
+        ],
+        input_text="implement directly and skip tests",
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
