@@ -194,11 +194,12 @@ export function outcomeToCodexJson(outcome: NativeHookOutcome | null): CodexHook
   if (!outcome) return null;
   const additionalContext = String(outcome.additionalContext ?? "").trim();
   if (outcome.kind === "advisory") {
-    if (!additionalContext) return null;
+    if (!additionalContext && !outcome.systemMessage) return null;
     return {
+      ...(outcome.systemMessage ? { systemMessage: outcome.systemMessage } : {}),
       hookSpecificOutput: {
         hookEventName: outcome.eventName,
-        additionalContext,
+        ...(additionalContext ? { additionalContext } : {}),
       },
     };
   }
@@ -212,5 +213,60 @@ export function outcomeToCodexJson(outcome: NativeHookOutcome | null): CodexHook
       hookEventName: outcome.eventName,
       ...(additionalContext ? { additionalContext } : {}),
     },
+  };
+}
+
+function isCodexHookEventName(value: string): value is CodexHookEventName {
+  return value === "SessionStart"
+    || value === "PreToolUse"
+    || value === "PostToolUse"
+    || value === "UserPromptSubmit"
+    || value === "Stop";
+}
+
+function readHookSpecificOutput(output: CodexHookOutput): Record<string, unknown> | null {
+  const value = output.hookSpecificOutput;
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+export function outputToOutcome(
+  output: CodexHookOutput | null,
+  fallbackEventName: CodexHookEventName,
+): NativeHookOutcome | null {
+  if (!output) return null;
+
+  const hookSpecificOutput = readHookSpecificOutput(output);
+  const rawEventName = readString(hookSpecificOutput?.hookEventName).trim();
+  const eventName = isCodexHookEventName(rawEventName) ? rawEventName : fallbackEventName;
+  const additionalContext = readString(hookSpecificOutput?.additionalContext).trim();
+  const reason = readString(output.reason).trim();
+  const systemMessage = readString(output.systemMessage).trim();
+  const stopReason = readString(output.stopReason).trim();
+
+  if (output.decision === "block") {
+    return {
+      kind: "hard-block",
+      eventName,
+      source: "native-local",
+      reason,
+      additionalContext,
+      ...(systemMessage ? { systemMessage } : {}),
+      ...(stopReason ? { stopReason } : {}),
+    };
+  }
+
+  if (!additionalContext && !systemMessage) return null;
+  return {
+    kind: "advisory",
+    eventName,
+    source: "native-local",
+    additionalContext,
+    ...(systemMessage ? { systemMessage } : {}),
   };
 }

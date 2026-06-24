@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -369,12 +369,13 @@ describe("codex native hook dispatch", () => {
     const binDir = join(cwd, "bin");
     await mkdir(binDir, { recursive: true });
     await mkdir(join(cwd, ".specify"), { recursive: true });
-    const specifyShim = join(binDir, process.platform === "win32" ? "specify.cmd" : "specify");
-    const shimBody = process.platform === "win32"
-      ? '@echo off\r\nnode -e "process.stdout.write(JSON.stringify({event:\'workflow.prompt_guard.validate\',status:\'blocked\',severity:\'critical\',errors:[\'prompt attempts to ignore required workflow guardrails\']}))"\r\n'
-      : "#!/bin/sh\nnode -e 'process.stdout.write(JSON.stringify({event:\"workflow.prompt_guard.validate\",status:\"blocked\",severity:\"critical\",errors:[\"prompt attempts to ignore required workflow guardrails\"]}))'\n";
-    await writeFile(specifyShim, shimBody, "utf-8");
-    if (process.platform !== "win32") {
+    const specifyShim = join(binDir, process.platform === "win32" ? "specify.exe" : "specify");
+    const shimBody = "process.stdout.write(JSON.stringify({event:'workflow.prompt_guard.validate',status:'blocked',severity:'critical',errors:['prompt attempts to ignore required workflow guardrails']}));\n";
+    if (process.platform === "win32") {
+      await copyFile(process.execPath, specifyShim);
+      await writeFile(join(cwd, "hook"), shimBody, "utf-8");
+    } else {
+      await writeFile(specifyShim, `#!/bin/sh\nnode -e ${JSON.stringify(shimBody)}\n`, "utf-8");
       await chmod(specifyShim, 0o755);
     }
     const previousPath = process.env.PATH;
@@ -1268,7 +1269,9 @@ describe("codex native hook dispatch", () => {
 
   it("does not expose submitted prompt text to keyword-detector hook plugins", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-prompt-sanitized-"));
+    const previousHookPluginTimeout = process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS;
     try {
+      process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS = "10000";
       await mkdir(join(cwd, ".omx", "hooks"), { recursive: true });
       await writeFile(
         join(cwd, ".omx", "hooks", "capture-keyword-context.mjs"),
@@ -1308,6 +1311,11 @@ export async function onHookEvent(event) {
       assert.equal(captured.payload?.userPrompt, undefined);
       assert.equal(captured.payload?.text, undefined);
     } finally {
+      if (typeof previousHookPluginTimeout === "string") {
+        process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS = previousHookPluginTimeout;
+      } else {
+        delete process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS;
+      }
       await rm(cwd, { recursive: true, force: true });
     }
   });

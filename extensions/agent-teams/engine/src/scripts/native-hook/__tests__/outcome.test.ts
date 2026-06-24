@@ -108,6 +108,22 @@ describe("native hook outcomes", () => {
     });
   });
 
+  it("renders advisory systemMessage without converting it to a block", () => {
+    const output = outcomeToCodexJson({
+      ...advisory("PreToolUse", "native-local", ""),
+      systemMessage:
+        "Destructive Bash command detected (`rm -rf dist`). Confirm the target before running it.",
+    });
+
+    assert.deepEqual(output, {
+      systemMessage:
+        "Destructive Bash command detected (`rm -rf dist`). Confirm the target before running it.",
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+      },
+    });
+  });
+
   it("returns null for null outcome Codex JSON", () => {
     assert.equal(outcomeToCodexJson(null), null);
   });

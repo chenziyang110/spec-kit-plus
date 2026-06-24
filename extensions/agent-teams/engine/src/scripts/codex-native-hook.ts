@@ -41,9 +41,11 @@ import {
 } from "./notify-hook/auto-nudge.js";
 import {
   buildNativePostToolUseOutput,
-  buildNativePreToolUseOutput,
   detectMcpTransportFailure,
 } from "./codex-native-pre-post.js";
+import { buildNativeHookContext } from "./native-hook/context.js";
+import { outcomeToCodexJson } from "./native-hook/outcome.js";
+import { handlePreToolUse } from "./native-hook/tool-use.js";
 import {
   buildNativeHookEvent,
 } from "../hooks/extensibility/events.js";
@@ -2525,7 +2527,9 @@ export async function dispatchCodexNativeHook(
       };
     }
   } else if (hookEventName === "PreToolUse") {
-    outputJson = buildNativePreToolUseOutput(payload);
+    outputJson = outcomeToCodexJson(
+      handlePreToolUse(buildNativeHookContext(payload, { defaultCwd: cwd })),
+    );
   } else if (hookEventName === "PostToolUse") {
     if (detectMcpTransportFailure(payload)) {
       await markTeamTransportFailure(cwd, payload);
