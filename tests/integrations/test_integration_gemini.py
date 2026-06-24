@@ -709,11 +709,110 @@ class TestGeminiIntegration:
 
         monkeypatch.setattr(module.subprocess, "run", fake_run)
 
+        result = module._invoke_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        )
+
+        assert result.status == "timeout"
+        assert result.payload is None
+        assert result.timeout_seconds > 0
         assert module._run_shared_hook(
             tmp_path,
             ["validate-prompt", "--prompt-stdin"],
             stdin_text="secret prompt",
         ) is None
+
+    def test_gemini_shared_hook_client_maps_blocked_payload(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-c", "print('blocked')"]],
+        )
+
+        def fake_run(command, **kwargs):
+            assert kwargs["input"] == "secret prompt"
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps(
+                    {
+                        "status": "blocked",
+                        "errors": ["configured launcher used"],
+                        "warnings": [],
+                        "actions": [],
+                    }
+                ),
+                stderr="",
+            )
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        )
+
+        assert result.status == "blocked"
+        assert result.payload["status"] == "blocked"
+        assert result.attempted_plan
+
+    def test_gemini_shared_hook_client_redacts_invalid_output(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-c", "print('secret prompt')"]],
+        )
+
+        def fake_run(command, **kwargs):
+            assert kwargs["input"] == "secret prompt"
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="invalid output containing secret prompt",
+                stderr="",
+            )
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        )
+
+        assert result.status == "invalid-output"
+        assert "secret prompt" not in result.stdout_preview
+        assert "[REDACTED_PROMPT]" in result.stdout_preview
+        assert module._run_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        ) is None
+
+    def test_gemini_shared_hook_client_maps_unavailable(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-m", "missing_specify_hook"]],
+        )
+
+        def fake_run(command, **kwargs):
+            raise OSError("missing command")
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(tmp_path, ["validate-prompt", "--prompt-stdin"])
+
+        assert result.status == "unavailable"
+        assert result.payload is None
+        assert result.attempted_plans
+        assert module._run_shared_hook(tmp_path, ["validate-prompt", "--prompt-stdin"]) is None
 
     def test_gemini_hook_dispatch_blocks_when_project_launcher_is_invalid(self, tmp_path):
         integration = get_integration("gemini")
