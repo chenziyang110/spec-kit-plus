@@ -57,6 +57,7 @@ LEARNING_SIGNAL_FIELDS = {
     "route_changes": "--route-changes",
     "scope_changes": "--scope-changes",
 }
+SHARED_HOOK_TIMEOUT_SECONDS = 5.0
 
 
 def _read_stdin_payload() -> dict[str, Any]:
@@ -159,7 +160,13 @@ def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]
     return commands
 
 
-def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | None:
+def _run_shared_hook(
+    project_root: Path,
+    args: list[str],
+    *,
+    stdin_text: str | None = None,
+    timeout_seconds: float = SHARED_HOOK_TIMEOUT_SECONDS,
+) -> dict[str, Any] | None:
     if _project_launcher_broken(project_root):
         return {
             "status": "blocked",
@@ -180,13 +187,15 @@ def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | No
             result = subprocess.run(
                 command,
                 cwd=project_root,
+                input=stdin_text,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 capture_output=True,
                 check=False,
+                timeout=timeout_seconds,
             )
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             continue
         if result.returncode != 0:
             continue
@@ -748,7 +757,11 @@ def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> d
     if not prompt:
         return None
     context = _infer_active_context(project_root)
-    shared = _run_shared_hook(project_root, ["validate-prompt", "--prompt-text", prompt])
+    shared = _run_shared_hook(
+        project_root,
+        ["validate-prompt", "--prompt-stdin"],
+        stdin_text=prompt,
+    )
     output = _shared_to_claude_output(hook_event_name="UserPromptSubmit", shared_payload=shared)
     if output:
         return output

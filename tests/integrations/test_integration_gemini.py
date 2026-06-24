@@ -639,6 +639,7 @@ class TestGeminiIntegration:
         integration.setup(tmp_path, manifest, script_type="sh")
 
         seen_args = tmp_path / "seen-args.json"
+        seen_stdin = tmp_path / "seen-stdin.txt"
         fake_specify = tmp_path / "fake_specify.py"
         fake_specify.write_text(
             "\n".join(
@@ -646,7 +647,8 @@ class TestGeminiIntegration:
                     "import json",
                     "import sys",
                     "from pathlib import Path",
-                    "Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding='utf-8')",
+                    "Path(sys.argv[1]).write_text(json.dumps(sys.argv[3:]), encoding='utf-8')",
+                    "Path(sys.argv[2]).write_text(sys.stdin.read(), encoding='utf-8')",
                     "print(json.dumps({'status': 'blocked', 'errors': ['configured launcher used'], 'warnings': [], 'actions': []}))",
                 ]
             )
@@ -660,7 +662,7 @@ class TestGeminiIntegration:
                 {
                     "specify_launcher": {
                         "command": "configured fake specify",
-                        "argv": [sys.executable, str(fake_specify), str(seen_args)],
+                        "argv": [sys.executable, str(fake_specify), str(seen_args), str(seen_stdin)],
                     }
                 }
             ),
@@ -688,9 +690,30 @@ class TestGeminiIntegration:
         assert json.loads(seen_args.read_text(encoding="utf-8")) == [
             "hook",
             "validate-prompt",
-            "--prompt-text",
-            "continue",
+            "--prompt-stdin",
         ]
+        assert seen_stdin.read_text(encoding="utf-8") == "continue"
+
+    def test_gemini_shared_hook_timeout_fails_open(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-c", "print('never')"]],
+        )
+
+        def fake_run(command, **kwargs):
+            assert kwargs["input"] == "secret prompt"
+            assert kwargs["timeout"] > 0
+            raise subprocess.TimeoutExpired(command, timeout=kwargs["timeout"])
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        assert module._run_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        ) is None
 
     def test_gemini_hook_dispatch_blocks_when_project_launcher_is_invalid(self, tmp_path):
         integration = get_integration("gemini")

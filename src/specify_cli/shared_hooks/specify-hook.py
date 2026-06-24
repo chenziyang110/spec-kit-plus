@@ -9,6 +9,9 @@ import sys
 from pathlib import Path
 
 
+NATIVE_HOOK_DISPATCH_TIMEOUT_SECONDS = 30.0
+
+
 def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -36,15 +39,24 @@ def main() -> int:
         )
         return 2
 
-    result = subprocess.run(
-        [sys.executable, str(dispatch_script), route],
-        cwd=project_root,
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-        check=False,
-        env=os.environ.copy(),
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, str(dispatch_script), route],
+            cwd=project_root,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            check=False,
+            env=os.environ.copy(),
+            timeout=NATIVE_HOOK_DISPATCH_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"Native hook dispatch for '{integration_key}:{route}' timed out after "
+            f"{NATIVE_HOOK_DISPATCH_TIMEOUT_SECONDS:g}s; continuing without hook output.",
+            file=sys.stderr,
+        )
+        return 0
     return int(result.returncode)
 
 
