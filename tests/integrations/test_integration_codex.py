@@ -84,6 +84,87 @@ def test_codex_install_inventory_tracks_core_skills_and_team_assets(tmp_path):
         assert rel_path in manifest.files
 
 
+def test_codex_setup_removes_misplaced_claude_hook_artifacts(tmp_path):
+    from specify_cli.integrations import get_integration
+    from specify_cli.integrations.manifest import IntegrationManifest
+    from specify_cli.launcher import render_claude_hook_launcher
+
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.parent.mkdir(parents=True)
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PostToolUse": [
+                        {
+                            "matcher": "Bash|Edit|Write|MultiEdit|Task",
+                            "hooks": [
+                                render_claude_hook_launcher("post-tool-session-state")
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    hooks_dir = tmp_path / ".codex" / "hooks"
+    hooks_dir.mkdir()
+    (hooks_dir / "claude-hook-dispatch.py").write_text("print('stale')\n", encoding="utf-8")
+    (hooks_dir / "README.md").write_text("# Claude Hook Assets\n", encoding="utf-8")
+
+    integration = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    assert not hooks_path.exists()
+    assert not (hooks_dir / "claude-hook-dispatch.py").exists()
+    assert not hooks_dir.exists()
+
+
+def test_codex_setup_strips_misplaced_claude_hooks_without_removing_custom_hooks(tmp_path):
+    from specify_cli.integrations import get_integration
+    from specify_cli.integrations.manifest import IntegrationManifest
+    from specify_cli.launcher import render_claude_hook_launcher
+
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.parent.mkdir(parents=True)
+    custom_hook = {
+        "type": "command",
+        "command": "node ./custom-codex-hook.mjs",
+    }
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PostToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                render_claude_hook_launcher("post-tool-session-state"),
+                                custom_hook,
+                            ],
+                        }
+                    ]
+                },
+                "custom": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    integration = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+    integration.setup(tmp_path, manifest)
+
+    repaired = json.loads(hooks_path.read_text(encoding="utf-8"))
+    assert repaired["custom"] is True
+    assert repaired["hooks"]["PostToolUse"][0]["hooks"] == [custom_hook]
+    assert "specify-hook claude" not in json.dumps(repaired)
+
+
 def test_codex_uninstall_removes_team_assets_and_restores_existing_configs(tmp_path):
     from specify_cli.codex_team import install_codex_team_assets
     from specify_cli.integrations import get_integration

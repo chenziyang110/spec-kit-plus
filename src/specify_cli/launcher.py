@@ -13,6 +13,8 @@ import shlex
 import subprocess
 from typing import Any, TYPE_CHECKING
 
+from .hook_artifacts import contains_claude_managed_hook_entries
+
 if TYPE_CHECKING:
     from specify_cli.integrations.manifest import IntegrationManifest
 
@@ -532,6 +534,17 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 "code": "stale-review-learning-command-surface",
                 "summary": "Generated learning guidance still references unsupported `review-learning` helper options.",
                 "repair": "Run `specify integration repair` so generated workflow and passive-skill assets refresh to the current helper command surface.",
+            }
+        )
+
+    codex_hooks = project_root / ".codex" / "hooks.json"
+    codex_hooks_payload = _load_config(codex_hooks)
+    if isinstance(codex_hooks_payload, dict) and contains_claude_managed_hook_entries(codex_hooks_payload):
+        issues.append(
+            {
+                "code": "codex-claude-hook-artifact",
+                "summary": "Codex native hook configuration contains misplaced Claude managed hook commands.",
+                "repair": "Run `specify integration repair` for this Codex project so `.codex/hooks.json` stops invoking `specify-hook claude` routes.",
             }
         )
 

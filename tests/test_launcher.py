@@ -424,6 +424,32 @@ def test_diagnose_project_runtime_compatibility_accepts_current_claude_node_laun
     assert not any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
 
 
+def test_diagnose_project_runtime_compatibility_reports_codex_claude_hook_artifacts(tmp_path):
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.parent.mkdir(parents=True)
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PostToolUse": [
+                        {
+                            "matcher": "Bash|Edit|Write|MultiEdit|Task",
+                            "hooks": [
+                                render_claude_hook_launcher("post-tool-session-state")
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "codex-claude-hook-artifact" for issue in issues)
+
+
 def test_resolve_hook_runtime_spec_prefers_runtime_command_env(monkeypatch, tmp_path):
     monkeypatch.setenv("SPECIFY_HOOK_RUNTIME_COMMAND", "python-custom -X utf8")
 

@@ -1,4 +1,5 @@
 import subprocess
+import tomllib
 from pathlib import Path
 
 
@@ -9,6 +10,14 @@ def test_wheel_force_include_bundles_passive_skills() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"templates/passive-skills" = "specify_cli/core_pack/passive-skills"' in pyproject
+
+
+def test_cli_dependency_metadata_pins_pydantic_graph_base_node_api() -> None:
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    dependencies = pyproject["project"]["dependencies"]
+
+    assert "pydantic-graph<2" in dependencies
 
 
 def test_wheel_force_include_bundles_command_partials_and_prd_templates() -> None:
