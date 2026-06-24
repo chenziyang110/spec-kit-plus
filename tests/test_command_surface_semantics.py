@@ -529,19 +529,29 @@ def test_discussion_workflow_uses_recommendation_first_decision_progression() ->
     readme = read_template("README.md").lower()
     quickstart = read_template("docs/quickstart.md").lower()
     installation = read_template("docs/installation.md").lower()
+    handbook = read_template("PROJECT-HANDBOOK.md").lower()
     handbook_template = read_template("templates/project-handbook-template.md").lower()
 
     assert "recommendation-first decision progression" in command
     assert "recommendation-first decision progression" in shell
+    assert "recommendation-first is not questionless" in command
+    assert "recommendation-first is not questionless" in shell
     assert "do not run `sp-discussion` as a permission-first loop" in command
     assert "do not end a turn with a bare open question" in command
+    assert "one explicit primary decision question" in command
+    assert "one explicit primary decision question" in shell
     assert "after recording a user-confirmed decision" in command
     assert "next useful decision with a recommended default" in command
     assert "decision_advancement_mode: recommendation-first" in state_template
     assert "recommendation-first decision progression" in readme
+    assert "recommendation-first is not questionless" in readme
     assert "recommendation-first decision progression" in quickstart
+    assert "recommendation-first is not questionless" in quickstart
     assert "recommendation-first decision progression" in installation
+    assert "recommendation-first is not questionless" in installation
+    assert "recommendation-first is not questionless" in handbook
     assert "recommendation-first decision progression" in handbook_template
+    assert "recommendation-first is not questionless" in handbook_template
 
 
 def test_discussion_helper_uses_active_python_interpreter() -> None:

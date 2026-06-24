@@ -18,6 +18,8 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Complete a Truth Pass before source-grounded technical advice, affected-surface claims, implementation-path recommendations, or testing strategy claims tied to existing code; record `verified_project_facts`, `open_assumptions`, `evidence_checked`, and `advice_confidence`.
 - Use a Boss-Friendly Advisor Response for substantive turns: lead with plain-language judgment, then evidence, risk, recommendation, and next discussion paths.
 - Use Recommendation-First Decision Progression: when evidence and user intent support a safe default, state the recommended choice directly, give the reason, and move to the next useful decision instead of ending on a bare "should we?" question.
+- Recommendation-first is not questionless: when the discussion remains active and the next safe step depends on user judgment, end the user-visible reply with one explicit primary decision question that includes the recommended default and meaningful override options.
+- Use one stable `response_format_id` from the Fixed Response Format Contract for every user-visible reply; use the section labels in the listed order so discussion outputs do not drift across turns or agents.
 - Maintain a Discussion Compass in `discussion-state.md` so long conversations preserve what is being solved, what is confirmed, what changed, what remains undecided, the current recommendation, and the next useful decision.
 - Apply the Anti-Toothpaste Protocol: show the broader decision map, recommend a next path, and ask only the highest-impact question when user judgment is needed.
 - Classify each user turn before asking a question.

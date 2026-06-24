@@ -342,6 +342,11 @@ class TestCodexAutoPromote:
         assert "primary question" in generated_lower
         assert "optional follow-up" in generated_lower
         assert "recommended option" in generated_lower
+        assert "fixed response format contract" in generated_lower
+        assert "response_format_id" in generated_discussion
+        assert "discussion.context-intake" in generated_discussion
+        assert "discussion.handoff-user-review" in generated_discussion
+        assert "recommendation-first is not questionless" in generated_lower
         assert "draft handoff package can be produced" in generated_lower
         assert "complete handoff package can be produced" not in generated_lower
         assert "confirmed unified handoff pair" not in generated_lower
@@ -353,6 +358,8 @@ class TestCodexAutoPromote:
             in state_template
         )
         assert "question_pack_mode: single-question | adaptive-pack | none" in state_template
+        assert "response_format_id:" in state_template
+        assert "discussion.evidence-conflict" in state_template
         assert "primary_question:" in state_template
         assert "optional_followups:" in state_template
         assert "recommendation_required_for_choices: true" in state_template

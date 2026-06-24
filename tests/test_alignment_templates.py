@@ -924,6 +924,51 @@ def test_discussion_anti_toothpaste_protocol_maps_adjacent_decisions() -> None:
     assert "ask only the highest-impact question" in lowered
 
 
+def test_discussion_response_formats_are_fixed_for_all_stages() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    state = _read("templates/discussion-state-template.md")
+    combined = "\n".join([content, shell, state])
+    lowered = combined.lower()
+
+    assert "## Fixed Response Format Contract" in content
+    assert "response_format_id" in combined
+    assert "use the section labels in the listed order" in lowered
+    assert "recommendation-first is not questionless" in lowered
+    assert "one explicit primary decision question" in lowered
+
+    required_formats = (
+        "discussion.context-intake",
+        "discussion.product-framing",
+        "discussion.context-grounding",
+        "discussion.question-loop",
+        "discussion.technical-options",
+        "discussion.ui-interaction",
+        "discussion.handoff-assessment",
+        "discussion.handoff-draft",
+        "discussion.handoff-self-review",
+        "discussion.handoff-user-review",
+        "discussion.handoff-ready",
+        "discussion.resume",
+        "discussion.blocked",
+        "discussion.evidence-conflict",
+    )
+    for response_format in required_formats:
+        assert response_format in content
+        assert response_format in state
+
+    required_sections = (
+        "Where We Are",
+        "Judgment",
+        "Evidence",
+        "Recommendation",
+        "Primary Decision Question",
+        "State Update",
+    )
+    for section in required_sections:
+        assert section in content
+
+
 def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -> None:
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")

@@ -126,6 +126,11 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "primary question" in command_lower
     assert "optional follow-up" in command_lower
     assert "recommended option" in command_lower
+    assert "fixed response format contract" in command_lower
+    assert "response_format_id" in command_content
+    assert "discussion.context-intake" in command_content
+    assert "discussion.handoff-user-review" in command_content
+    assert "recommendation-first is not questionless" in command_lower
     assert "one unified" in command_lower or "single unified" in command_lower
     assert "handoff-to-specify.md" in command_content
     assert "handoff-to-specify.json" in command_content
