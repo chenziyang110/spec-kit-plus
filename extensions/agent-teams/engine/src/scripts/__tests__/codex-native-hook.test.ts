@@ -356,6 +356,28 @@ describe("codex native hook dispatch", () => {
     );
   });
 
+  it("treats non-object CLI stdin JSON as an empty payload", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-non-object-stdin-"));
+    try {
+      for (const input of ["null", "[]"]) {
+        const stdout = execFileSync(
+          process.execPath,
+          [resolve(dirname(fileURLToPath(import.meta.url)), "..", "codex-native-hook.js")],
+          {
+            cwd,
+            input,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+
+        assert.equal(stdout.trim(), "");
+      }
+    } finally {
+      await rmWithRetries(cwd);
+    }
+  });
+
   it("maps Codex events onto OMX logical surfaces", () => {
     assert.equal(mapCodexHookEventToOmxEvent("SessionStart"), "session-start");
     assert.equal(mapCodexHookEventToOmxEvent("UserPromptSubmit"), "keyword-detector");
