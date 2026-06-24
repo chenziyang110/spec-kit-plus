@@ -3,6 +3,7 @@ import { chmod, copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   appendSharedHookContext,
@@ -47,7 +48,18 @@ afterEach(async () => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (!dir) continue;
-    await rm(dir, { recursive: true, force: true });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        await rm(dir, { recursive: true, force: true });
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (process.platform !== "win32" || (code !== "EBUSY" && code !== "EPERM") || attempt === 4) {
+          throw error;
+        }
+        await delay(50 * (attempt + 1));
+      }
+    }
   }
 });
 
