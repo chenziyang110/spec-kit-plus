@@ -146,6 +146,27 @@ When `sp-specify` starts from `sp-discussion`, do not trust only the handoff sum
 - Preserve the disposition ledger in both `alignment.md` and the minimal compatibility `brainstorming/handoff-to-specify.json`.
 - If Markdown and JSON mismatch on user-confirmed scope, quality gate, or must-preserve identity, record the mismatch and route back to refresh the handoff instead of silently repairing it.
 
+### Discussion Decision Digest
+
+When the source is `sp-discussion`, build a `Discussion Decision Digest`. This is not just a source-file-read checklist; it is the decision-intent layer that prevents `sp-specify` from flattening discussion value into generic requirements.
+
+Derive the digest from `handoff-to-specify.md`, `handoff-to-specify.json`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, and the `Handoff Reviewer Guide`.
+
+The digest must include:
+
+- `locked_direction`: selected direction, source, rationale, and downstream artifact mapping.
+- `rejected_alternatives`: option, rejection reason, source, and reopen condition when the alternative could reappear downstream.
+- `accepted_tradeoffs`: accepted tradeoff, accepted risk, user confirmation or source, latest allowed resolve phase, and reopen condition.
+- `experience_commitments`: UI/TUI shell, key flows, user-visible states, accessibility or copy constraints, `ui_discussion` status, and `ui_sketch_reference` when present.
+- `review_criteria_carried_forward`: approval and change-request criteria from the `Handoff Reviewer Guide` that must still shape `sp-specify` artifact review.
+- `must_not_dilute`: decisions downstream workflows must not simplify away, such as turning an approved TUI route into documentation-only support, a guided confirmation into a bare prompt, or a real operation into a manual copy step.
+
+Treat every `must_not_dilute` item as a must not dilute constraint: if `sp-specify` cannot preserve it in requirements, acceptance proof, or planning context, block and return to `sp-discussion`.
+
+Write the digest into `alignment.md#Discussion Decision Digest`, summarize it in `spec.md#Decision Capture`, carry planning-relevant items into `context.md#Discussion Decision Carry-Forward`, and mirror it in `brainstorming/handoff-to-specify.json` as `discussion_decision_digest`.
+
+Planning readiness is incomplete when the selected direction, rejected alternatives that matter, accepted tradeoffs, UI/TUI experience commitments, or carried-forward review criteria appear in the discussion sources but have no digest entry and no artifact mapping.
+
 ## Clarification Loop
 
 - The user's text is the starting point, not the finished requirement package. Analyze the whole feature first and produce a planning-ready requirement package, not a surface summary.
@@ -246,6 +267,7 @@ Write the specification package after context intake, necessary clarification, s
 - `spec.md` must capture the product requirement in planning-ready form with confirmed scope, scenarios, capability decomposition, requirements, acceptance proof, decision capture, and risks.
 - `alignment.md` must capture current understanding, confirmed facts, assumptions, open questions, `Semantic Term Decisions`, `Upstream Intent Disposition`, `Out-Of-Scope Conflicts`, must-preserve coverage, and readiness decision.
 - `context.md` must capture planning context, repository context, reuse notes, integration boundaries, product constraints, change propagation, locked decisions, canonical references, open questions, and deferred ideas.
+- When the source is `sp-discussion`, `spec.md`, `alignment.md`, and `context.md` must preserve the `Discussion Decision Digest`: selected direction, rejected alternatives, accepted tradeoffs, experience commitments, review criteria carried forward, and must-not-dilute constraints.
 - `references.md` is optional and should be written when external docs, repository examples, issue links, discussion artifacts, or user-provided references materially shaped the spec.
 - `workflow-state.md` must record current stage, review state, source-file sweep status, source-signal disposition status, final handoff decision, and next command.
 - `checklists/requirements.md` must exist for first-release compatibility and must validate the written spec, not resurrect legacy state machinery.
@@ -257,6 +279,7 @@ Write the specification package after context intake, necessary clarification, s
   - `source_handoff_json`
   - `source_files_read`
   - `source_signal_disposition`
+  - `discussion_decision_digest`
   - `must_preserve`
   - `coverage_status`
   - `planning_gate_status`

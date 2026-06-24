@@ -49,6 +49,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Write `handoff-to-specify.md` and `handoff-to-specify.json` together as a draft pair; both files are mandatory, and the pair becomes handoff-ready only after self-review and user confirmation.
 - Do not write separate split planning artifacts or candidate-specific handoff files.
 - When explicit handoff is requested, include `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger.
+- When a handoff becomes `handoff-ready`, use the fixed ready response shape with `Handoff Ready`, `Locked Direction`, `Carry Forward`, `Readiness`, `Package`, `Next Step`, and `State Update`; do not close with only file paths, status counters, or a next command. Keep the `Ready Summary Quality` check internal instead of showing it as a primary heading.
 - Do not mark handoff ready if role objects, target path context, evidence provenance, self-review status, user confirmation, or blocking unknown handling is missing.
 - Preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` for the downstream fidelity gate.
 - For UI-facing work, preserve `ui_discussion_status`; confirmed UI decisions; deferred UI unknowns; and Markdown-carried ASCII sketches with JSON fields `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`.

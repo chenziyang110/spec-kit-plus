@@ -181,6 +181,21 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "quality_gate" in skill_content
     assert "user confirmation" in skill_lower
     assert "Must-Preserve Ledger" in skill_content
+    assert "discussion_decision_digest" in skill_content
+    assert "locked_direction" in skill_content
+    assert "rejected_alternatives" in skill_content
+    assert "accepted_tradeoffs" in skill_content
+    assert "experience_commitments" in skill_content
+    assert "review_criteria_carried_forward" in skill_content
+    assert "must_not_dilute" in skill_content
+    assert "Handoff Ready" in skill_content
+    assert "Locked Direction" in skill_content
+    assert "Carry Forward" in skill_content
+    assert "Readiness" in skill_content
+    assert "Package" in skill_content
+    assert "Next Step" in skill_content
+    assert "must not close with only file paths, status counters, or a next command" in skill_lower
+    assert "keep the `ready summary quality` check internal" in skill_lower
     assert "coverage_status" in skill_content
     assert "planning_gate_status" in skill_content
     assert (
@@ -561,6 +576,10 @@ class SkillsIntegrationTests:
         assert "requirements.md" in content
         assert "open-questions.md" in content
         assert "source_signal_disposition" in content
+        assert "Discussion Decision Digest" in content
+        assert "discussion_decision_digest" in content
+        assert "review_criteria_carried_forward" in content
+        assert "must_not_dilute" in content
         assert "source_files_read" in content
         assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered

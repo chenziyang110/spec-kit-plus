@@ -222,6 +222,15 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "draft unified handoff pair" in lowered or "one unified handoff pair" in lowered
         assert "quality_gate" in content
         assert "Handoff Reviewer Guide" in content
+        assert "spec-kit-discussion-handoff-review" in content
+        assert "ready summary quality" in lowered
+        assert "paths and counters" in lowered
+        assert "Discussion Decision Digest" in content
+        assert "selected direction" in lowered
+        assert "rejected alternatives" in lowered
+        assert "accepted tradeoffs" in lowered
+        assert "experience commitments" in lowered
+        assert "review criteria" in lowered
         assert "user confirmation" in lowered
         assert "mark-consumed" in lowered
         assert "handoff_consumption_status" in content or "handoff consumption" in lowered
@@ -276,6 +285,9 @@ def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> N
         assert "single unified handoff" in lowered or "one unified handoff" in lowered
         assert "missing json" in lowered
         assert "Handoff Reviewer Guide" in content
+        assert "spec-kit-discussion-handoff-review" in content
+        assert "ready summary quality" in lowered
+        assert "paths and counters" in lowered
         assert "user confirmation" in lowered
         assert "handoff-ready" in content
         assert "before feature creation" in lowered

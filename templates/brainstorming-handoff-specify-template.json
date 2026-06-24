@@ -119,6 +119,14 @@
       "clarification_blocker"
     ]
   },
+  "discussion_decision_digest": {
+    "locked_direction": [],
+    "rejected_alternatives": [],
+    "accepted_tradeoffs": [],
+    "experience_commitments": [],
+    "review_criteria_carried_forward": [],
+    "must_not_dilute": []
+  },
   "must_preserve": [],
   "conflicts": [],
   "coverage_status": "not_started",

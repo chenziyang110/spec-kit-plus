@@ -142,6 +142,17 @@ Do not replace a confirmed capability operation with manual copy steps, static t
 
 ## Decision Capture *(mandatory)*
 
+### Discussion Decision Digest
+
+Use this section when `entry_source: sp-discussion`.
+
+- **Selected Direction**: [Locked Direction from the discussion handoff, including source and rationale]
+- **Rejected Alternatives**: [Alternative] -> [why rejected] -> [reopen condition if it could reappear]
+- **Accepted Tradeoffs**: [Tradeoff accepted] -> [risk accepted] -> [confirmation or source]
+- **Experience Commitments**: [UI/TUI shell, key flow shape, user-visible states, accessibility/copy constraints, and sketch reference when present]
+- **Review Criteria Carry-Forward**: [Criteria from the Handoff Reviewer Guide that this spec must still satisfy]
+- **Must Not Dilute**: [Decision or operation downstream must not simplify away]
+
 ### Locked Decisions
 
 - [Decision confirmed strongly enough that planners must preserve it]

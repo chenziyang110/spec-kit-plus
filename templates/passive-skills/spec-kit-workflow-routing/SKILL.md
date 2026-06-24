@@ -58,6 +58,11 @@ explicit numeric option.
   Once the active workflow is selected, that complementary skill defines the
   workflow-specific learning-start and learning-capture behavior instead of leaving
   those triggers implicit.
+- `spec-kit-discussion-handoff-review` owns review discipline for
+  `sp-discussion` handoff packages. Use it when checking whether
+  `handoff-to-specify.md` plus `handoff-to-specify.json` can become or remain
+  `handoff-ready`, or when a ready closeout summary needs review-quality
+  context instead of only file paths and counters.
 
 ## Recommendation Rules
 
@@ -80,6 +85,11 @@ explicit numeric option.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
 - A valid explicit handoff from discussion is one pair: `handoff-to-specify.md` and `handoff-to-specify.json`, with self-review and user confirmation. Route that pair to `sp-specify` by passing the handoff Markdown path, JSON path, or discussion slug; when exactly one unconsumed `handoff-ready` discussion exists, `sp-specify` may consume it directly. `sp-specify` must validate ready planning status, user-confirmed quality gate status, zero hard unknowns, zero open conflicts, and Markdown/JSON agreement before feature creation.
+- When asked to review a discussion handoff, apply
+  `spec-kit-discussion-handoff-review`: return `approve-handoff-ready`,
+  `request-changes`, or `block-handoff`, apply the ready summary quality check,
+  and keep final closeout as a concise handoff card rather than a minimal
+  "files updated, next command" summary.
 - Use `sp-specify` for new capability, behavior, or requirement changes that are
   ready for an aligned spec package before implementation.
 - Use `sp-prd-scan -> sp-prd-build` when an existing repository needs a current-state PRD suite reverse-extracted from code, docs, tests, routes, UI/API surfaces, and project cognition evidence. Treat that pair as the canonical heavy reconstruction PRD lane, a peer workflow path to `sp-specify`, not as a pre-plan requirement, and do not automatically hand off to planning.

@@ -963,10 +963,58 @@ def test_discussion_response_formats_are_fixed_for_all_stages() -> None:
         "Evidence",
         "Recommendation",
         "Primary Decision Question",
+        "Handoff Ready",
+        "Locked Direction",
+        "Carry Forward",
+        "Readiness",
+        "Package",
+        "Next Step",
         "State Update",
     )
     for section in required_sections:
         assert section in content
+
+    assert (
+        "Handoff Ready -> Locked Direction -> Carry Forward -> Readiness -> Package -> Next Step -> State Update"
+    ) in content
+    assert "must not close with only file paths, status counters, or a next command" in lowered
+    assert "keep the `ready summary quality` check internal" in lowered
+
+
+def test_discussion_handoff_review_passive_skill_sets_review_standard() -> None:
+    content = _read("templates/passive-skills/spec-kit-discussion-handoff-review/SKILL.md")
+    lowered = content.lower()
+
+    assert "name: spec-kit-discussion-handoff-review" in content
+    assert "handoff-to-specify.md" in content
+    assert "handoff-to-specify.json" in content
+    assert "discussion-state.md" in content
+    assert "requirements.md" in content
+    assert "technical-options.md" in content
+    assert "project-context.md" in content
+    assert "open-questions.md" in content
+    assert "Review Verdict" in content
+    assert "What This Means" in content
+    assert "Evidence Read" in content
+    assert "Readiness Checks" in content
+    assert "Carry-Forward Coverage" in content
+    assert "Blocking Issues" in content
+    assert "Required Changes" in content
+    assert "Next Action" in content
+    assert "approve-handoff-ready" in content
+    assert "request-changes" in content
+    assert "block-handoff" in content
+    assert "hard_unknown_count = 0" in content
+    assert "open_conflict_count = 0" in content
+    assert "Markdown/JSON" in content
+    assert "Handoff Reviewer Guide" in content
+    assert "Must-Preserve Ledger" in content
+    assert "quality_gate.status" in content
+    assert "planning_gate_status" in content
+    assert "coverage_status" in content
+    assert "ready summary quality" in lowered
+    assert "do not review implementation code" in lowered
+    assert "do not answer with only" in lowered
 
 
 def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -> None:
@@ -1196,6 +1244,29 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "handoff_consumption_status" in content
 
 
+def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert "Discussion Decision Digest" in content
+    assert "locked_direction" in content
+    assert "rejected_alternatives" in content
+    assert "accepted_tradeoffs" in content
+    assert "experience_commitments" in content
+    assert "must_not_dilute" in content
+    assert "review_criteria_carried_forward" in content
+    assert "technical-options.md" in content
+    assert "ui_discussion" in content
+    assert "ui_sketch_reference" in content
+    assert "Handoff Reviewer Guide" in content
+    assert "selected direction" in lowered
+    assert "rejected alternatives" in lowered
+    assert "accepted trade" in lowered
+    assert "review criteria" in lowered
+    assert "must not dilute" in lowered
+    assert "not just a source-file-read checklist" in lowered
+
+
 def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
     content = _read("templates/commands/discussion.md")
     lowered = content.lower()
@@ -1216,6 +1287,22 @@ def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
     assert "latest_resolve_phase" in content
     assert "stop_and_reopen_condition" in content
     assert "do not silently" in lowered
+
+
+def test_discussion_handoff_exports_decision_digest_for_specify() -> None:
+    content = _read("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "discussion_decision_digest" in content
+    assert "locked_direction" in content
+    assert "rejected_alternatives" in content
+    assert "accepted_tradeoffs" in content
+    assert "experience_commitments" in content
+    assert "review_criteria_carried_forward" in content
+    assert "must_not_dilute" in content
+    assert "technical-options.md" in content
+    assert "Handoff Reviewer Guide" in content
+    assert "must not let downstream workflows rediscover or flatten" in lowered
 
 
 def test_specify_discussion_handoff_has_coverage_and_planning_gate_split() -> None:
@@ -4340,6 +4427,49 @@ def test_specify_artifact_templates_use_semantic_traceability_surfaces() -> None
     assert "brainstorming/journal.ndjson" not in combined
     assert "stage-manifest.json" not in combined
     assert "`compiled_from`" not in combined
+
+
+def test_specify_artifact_templates_preserve_discussion_decision_digest() -> None:
+    spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    handoff = json.loads(_read("templates/brainstorming-handoff-specify-template.json"))
+    combined = "\n".join([spec, alignment, context])
+    lowered = combined.lower()
+
+    assert "Discussion Decision Digest" in alignment
+    assert "Locked Direction" in alignment
+    assert "Rejected Alternatives" in alignment
+    assert "Accepted Tradeoffs" in alignment
+    assert "Experience Commitments" in alignment
+    assert "Review Criteria Carry-Forward" in alignment
+    assert "Must Not Dilute" in alignment
+
+    assert "Discussion Decision Digest" in spec
+    assert "Selected Direction" in spec
+    assert "Rejected Alternatives" in spec
+    assert "Accepted Tradeoffs" in spec
+    assert "Experience Commitments" in spec
+    assert "Review Criteria Carry-Forward" in spec
+
+    assert "Discussion Decision Carry-Forward" in context
+    assert "Experience Commitments" in context
+    assert "Must Not Dilute" in context
+
+    assert "selected direction" in lowered
+    assert "rejected alternatives" in lowered
+    assert "accepted tradeoffs" in lowered
+    assert "review criteria" in lowered
+    assert "ui/tui" in lowered or "ui" in lowered
+
+    digest = handoff.get("discussion_decision_digest")
+    assert isinstance(digest, dict)
+    assert digest.get("locked_direction") == []
+    assert digest.get("rejected_alternatives") == []
+    assert digest.get("accepted_tradeoffs") == []
+    assert digest.get("experience_commitments") == []
+    assert digest.get("review_criteria_carried_forward") == []
+    assert digest.get("must_not_dilute") == []
 
 
 def test_agent_file_template_keeps_project_specific_context_only():

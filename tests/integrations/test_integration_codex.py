@@ -347,6 +347,21 @@ class TestCodexAutoPromote:
         assert "discussion.context-intake" in generated_discussion
         assert "discussion.handoff-user-review" in generated_discussion
         assert "recommendation-first is not questionless" in generated_lower
+        assert "discussion_decision_digest" in generated_discussion
+        assert "locked_direction" in generated_discussion
+        assert "rejected_alternatives" in generated_discussion
+        assert "accepted_tradeoffs" in generated_discussion
+        assert "experience_commitments" in generated_discussion
+        assert "review_criteria_carried_forward" in generated_discussion
+        assert "must_not_dilute" in generated_discussion
+        assert "Handoff Ready" in generated_discussion
+        assert "Locked Direction" in generated_discussion
+        assert "Carry Forward" in generated_discussion
+        assert "Readiness" in generated_discussion
+        assert "Package" in generated_discussion
+        assert "Next Step" in generated_discussion
+        assert "must not close with only file paths, status counters, or a next command" in generated_lower
+        assert "keep the `ready summary quality` check internal" in generated_lower
         assert "draft handoff package can be produced" in generated_lower
         assert "complete handoff package can be produced" not in generated_lower
         assert "confirmed unified handoff pair" not in generated_lower
@@ -1124,6 +1139,10 @@ def test_codex_generated_specify_skill_mentions_source_sweep_and_reopen(tmp_path
     integration.setup(target, manifest)
     content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "source_signal_disposition" in content
+    assert "discussion decision digest" in content
+    assert "discussion_decision_digest" in content
+    assert "review_criteria_carried_forward" in content
+    assert "must_not_dilute" in content
     assert "source_files_read" in content
     assert "discussion-log.md" in content
     assert "requirements.md" in content

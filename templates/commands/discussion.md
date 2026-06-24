@@ -235,6 +235,12 @@ Shared section meanings:
 - Judgment: the owner-readable answer or decision-level meaning.
 - Evidence: verified facts, checked files or commands, user-confirmed facts, or explicit assumptions.
 - Recommendation: the advised default and why it is the default.
+- Handoff Ready: a concise title plus one owner-readable sentence saying the handoff can move to `sp-specify`.
+- Locked Direction: the selected product or technical direction, target boundary, and the one-line reason it is the locked direction.
+- Carry Forward: the few decisions, constraints, `MP-###` obligations, and reopen conditions downstream must preserve.
+- Readiness: quality gate status, self-review, user confirmation, Markdown/JSON agreement, hard unknown count, open conflict count, coverage status, and planning gate status.
+- Package: the handoff Markdown path, JSON path, state path, and any source artifact paths worth opening next.
+- Next Step: the exact downstream command or consumption path, plus when to return to `sp-discussion`.
 - Primary Decision Question: one required user-owned answer with recommended default and alternatives.
 - State Update: durable artifact writes, state fields refreshed, open-question changes, or `ordinary event only`.
 
@@ -249,10 +255,10 @@ Response format matrix:
 | `discussion.technical-options` | Implementation strategy affects requirements and 2-3 options must be compared. | Judgment -> Evidence -> Options -> Recommendation -> Risk And Validation -> Primary Decision Question -> State Update |
 | `discussion.ui-interaction` | UI, interaction, screen, layout, state, accessibility, copy, or workflow feedback decisions matter. | Experience Judgment -> Screen And Flow Map -> Recommended Interaction Direction -> States And Accessibility -> Primary Decision Question -> State Update |
 | `discussion.handoff-assessment` | User explicitly asks to hand off, continue to next stage, or check readiness. | Readiness Judgment -> Evidence -> Missing Or Ready Items -> Recommendation -> Primary Decision Question -> State Update |
-| `discussion.handoff-draft` | Drafting or refreshing `handoff-to-specify.md` and `.json`. | Draft Status -> Handoff Reviewer Guide -> Must-Review Items -> Blocking Items -> Primary Decision Question -> State Update |
-| `discussion.handoff-self-review` | Checking the draft handoff before asking the user to approve it. | Self-Review Result -> Issues Found -> Required Fixes -> Recommendation -> State Update |
-| `discussion.handoff-user-review` | Asking the user to approve a draft handoff or request changes. | Review Request -> Approve Only If -> Request Changes If -> Primary Decision Question -> State Update |
-| `discussion.handoff-ready` | User confirmed the handoff and quality gate is ready. | Ready Status -> Handoff Path -> Next Command -> State Update |
+| `discussion.handoff-draft` | Drafting or refreshing `handoff-to-specify.md` and `.json`. | Draft Ready For Review -> Locked Direction -> Review Focus -> Carry Forward -> Open Items -> Primary Decision Question -> State Update |
+| `discussion.handoff-self-review` | Checking the draft handoff before asking the user to approve it. | Review Verdict -> What This Means -> Readiness Checks -> Carry-Forward Coverage -> Required Changes -> Next Step -> State Update |
+| `discussion.handoff-user-review` | Asking the user to approve a draft handoff or request changes. | Review Request -> Locked Direction -> What To Check -> Approve If -> Request Changes If -> Primary Decision Question -> State Update |
+| `discussion.handoff-ready` | User confirmed the handoff and quality gate is ready. | Handoff Ready -> Locked Direction -> Carry Forward -> Readiness -> Package -> Next Step -> State Update |
 | `discussion.resume` | Resuming an incomplete discussion from durable state. | Where We Are -> Last Confirmed Decisions -> Open Decisions -> Recommendation -> Primary Decision Question -> State Update |
 | `discussion.blocked` | The discussion cannot safely continue without user, maintainer, or external-system input. | Blocker -> Evidence Checked -> Needed Decision -> Primary Decision Question -> State Update |
 | `discussion.evidence-conflict` | Live evidence, user claim, project cognition, or source artifacts disagree and user judgment is needed. | Conflict -> Evidence A -> Evidence B -> Recommendation -> Primary Decision Question -> State Update |
@@ -261,6 +267,8 @@ Format rules:
 
 - `Primary Decision Question` is required for every active reply that waits for user input.
 - `discussion.handoff-ready` may omit `Primary Decision Question` because it is a terminal handoff state, but it must not introduce new scope.
+- `discussion.handoff-ready` must not close with only file paths, status counters, or a next command. It must summarize the handoff goal, selected direction, target boundary, Must-Preserve coverage, blocking unknown/conflict counts, quality gate state, Markdown/JSON agreement, and exact downstream consumption path.
+- Keep the `Ready Summary Quality` check internal. Do not use it as a primary user-visible `handoff-ready` heading; the visible layout should read as a concise handoff card, not an audit form.
 - `discussion.context-grounding`, `discussion.technical-options`, and `discussion.evidence-conflict` must distinguish verified facts from assumptions.
 - `discussion.handoff-draft`, `discussion.handoff-self-review`, and `discussion.handoff-user-review` must not ask a bare yes/no question; they must ask the user to approve according to the reviewer guide, list concrete changes, or report required fixes before user review.
 - If a turn only appends a compact ordinary event and continues work without waiting, set `question_pack_mode: none`, keep `primary_question: none`, and explain the continued action in `State Update`.
@@ -519,6 +527,7 @@ The handoff must include:
 - `source_evidence`: structured evidence entries with `source_type`, `evidence_status`, `source`, `claim`, optional `project_cognition_route`, optional `live_code_evidence`, optional `needs_refresh`, and optional `notes`. Project cognition route entries are advisory unless paired with live code, test, script, config, docs, external source, explicit assumption, or user confirmation evidence.
 - `blocking_unknowns`: hard unknowns that block readiness and soft unknowns with owner, latest resolve phase, and stop-and-reopen condition
 - `downstream_instructions`: settled decisions, assumptions to preserve, conflicts requiring return to `sp-discussion`, capability map, recommended sequence, dependencies, deferred scope, and reopen conditions
+- `discussion_decision_digest`: the compact decision-intent layer that `sp-specify` must consume instead of flattening the discussion into generic requirements. Include `locked_direction`, `rejected_alternatives`, `accepted_tradeoffs`, `experience_commitments`, `review_criteria_carried_forward`, and `must_not_dilute`. Source each item from `requirements.md`, `technical-options.md`, `project-context.md`, the `Handoff Reviewer Guide`, or explicit user confirmation. This digest must not let downstream workflows rediscover or flatten the selected direction, rejected alternatives, accepted tradeoffs, UI/TUI experience commitments, review criteria, or forbidden simplifications.
 - `ui_discussion`: `ui_discussion_status`, confirmed UI decisions, deferred UI decisions, interaction expectations, state requirements, accessibility expectations, and whether ASCII sketches are present
 - `ui_sketch_reference`: Markdown section reference for ASCII sketches when `ui_sketches_present` is true
 - `handoff_reviewer_guide`: a human-facing Markdown section named `Handoff Reviewer Guide` that tells an experienced product or engineering reviewer what decision they are being asked to make, what to review first, when to approve, and when to request changes. Write it for someone who does not know Spec Kit internals.

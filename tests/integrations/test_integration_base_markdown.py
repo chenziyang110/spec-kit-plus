@@ -154,6 +154,21 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "quality_gate" in command_content
     assert "user confirmation" in command_lower
     assert "Must-Preserve Ledger" in command_content
+    assert "discussion_decision_digest" in command_content
+    assert "locked_direction" in command_content
+    assert "rejected_alternatives" in command_content
+    assert "accepted_tradeoffs" in command_content
+    assert "experience_commitments" in command_content
+    assert "review_criteria_carried_forward" in command_content
+    assert "must_not_dilute" in command_content
+    assert "Handoff Ready" in command_content
+    assert "Locked Direction" in command_content
+    assert "Carry Forward" in command_content
+    assert "Readiness" in command_content
+    assert "Package" in command_content
+    assert "Next Step" in command_content
+    assert "must not close with only file paths, status counters, or a next command" in command_lower
+    assert "keep the `ready summary quality` check internal" in command_lower
     assert "coverage_status" in command_content
     assert "planning_gate_status" in command_content
     assert (
@@ -457,6 +472,10 @@ class MarkdownIntegrationTests:
         assert "open-questions.md" in content
         assert "source_signal_disposition" in content
         assert "source_files_read" in content
+        assert "Discussion Decision Digest" in content
+        assert "discussion_decision_digest" in content
+        assert "review_criteria_carried_forward" in content
+        assert "must_not_dilute" in content
         assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content

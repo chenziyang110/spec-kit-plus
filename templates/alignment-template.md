@@ -53,6 +53,51 @@ Reason: [why this is excluded from the current version]
 User Confirmation: [confirmed by user on DATE | missing]
 Reopen Trigger: [what should reopen the item]
 
+## Discussion Decision Digest
+
+Use this section when `entry_source: sp-discussion`. Every row should name the source and artifact mapping so downstream workflows preserve the decision intent, not only the final requirement text.
+
+### Locked Direction
+
+- selected direction: [decision]
+  source: [handoff / requirements.md / technical-options.md / user confirmation]
+  rationale: [why this direction won]
+  artifact mapping: [spec.md/context.md anchor]
+
+### Rejected Alternatives
+
+- rejected alternative: [option]
+  source: [technical-options.md or handoff item]
+  reason: [why it was rejected]
+  reopen condition: [what would make this alternative valid again]
+
+### Accepted Tradeoffs
+
+- accepted tradeoff: [tradeoff]
+  accepted risk: [risk]
+  source: [user confirmation or discussion artifact]
+  latest resolve phase: [specify | plan | tasks | implement]
+  reopen condition: [condition]
+
+### Experience Commitments
+
+- experience commitment: [UI/TUI shell, key flow, state, accessibility/copy, or sketch reference]
+  source: [ui_discussion / requirements.md / technical-options.md / handoff]
+  artifact mapping: [spec.md scenario, requirement, or context.md planning note]
+
+### Review Criteria Carry-Forward
+
+- criterion: [approval or change-request criterion from the Handoff Reviewer Guide]
+  source: [handoff-to-specify.md#Handoff Reviewer Guide]
+  artifact mapping: [spec review, acceptance proof, or readiness decision]
+
+### Must Not Dilute
+
+- constraint: [decision downstream must not simplify away]
+  source: [discussion artifact or user confirmation]
+  blocked simplification: [what cannot be substituted]
+  reopen condition: [what requires returning upstream]
+
 ## Must-Preserve Coverage
 
 - Coverage Status: [coverage_status]
