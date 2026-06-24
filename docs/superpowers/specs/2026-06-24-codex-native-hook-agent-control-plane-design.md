@@ -63,6 +63,8 @@ The hook currently writes or updates runtime state in several event paths. Some 
 
 Shared `specify hook ...` calls are valuable because they keep workflow policy centralized, but they are currently invoked through synchronous process spawning from event logic. Calls should be centralized so the agent can reason about performance cost, failure behavior, and per-event budgets.
 
+The current path also passes sensitive prompt text through process arguments and has no explicit timeout. Both issues should be fixed in the shared hook client design before implementation planning.
+
 ### Stop Is High Impact
 
 Stop has the highest leverage and the highest risk. A correct Stop block prevents abandoned active work. A stale Stop block traps the agent in unnecessary continuation. Stop needs the strictest state freshness and de-duplication model.
@@ -148,6 +150,34 @@ Introduce `NativeHookContext` with stable fields:
 
 The first pass can populate only the fields currently needed. The key is that handlers read from the snapshot instead of re-parsing payload shape.
 
+### Services And Effects Boundary
+
+Context should describe the event. It should not hide side effects. Event handlers should receive a separate `NativeHookServices` object for reads, writes, process execution, shared hook calls, and plugin/event dispatch.
+
+The services boundary should cover current side effects explicitly:
+
+- session reconciliation and session state writes
+- runtime state reads and writes
+- HUD reconciliation
+- hook plugin dispatch
+- `.omx/` local git exclude updates
+- team transport-failure writes
+- compaction artifact writes
+- learning signal writes
+- Stop repeat-signature persistence
+
+Handlers may request effects through services, but should not directly reach for global filesystem or process helpers unless the helper is part of the service implementation. This keeps extraction from recreating hidden global side effects under new filenames.
+
+`NativeHookEffects` should record effect metadata for tests and diagnostics:
+
+- `kind`
+- `eventName`
+- `source`
+- `target`
+- `status`
+- `durationMs`
+- `errorClass`, when applicable
+
 ### Shared Hook Client
 
 Move all `specify hook ...` invocation into a `SharedHookClient`.
@@ -156,11 +186,39 @@ The client should:
 
 - expose named methods such as `validatePrompt`, `validateReadPath`, `workflowPolicy`, `buildCompaction`, and `signalLearning`
 - dedupe identical calls within one native event
-- report `unavailable` distinctly from `ok`
+- return a typed result contract: `ok`, `blocked`, `unavailable`, `timeout`, or `invalid-output`
 - preserve current fail-open behavior where existing tests require it
 - make future replacement with in-process or long-lived execution possible
 
 The first pass should not change the process-spawn mechanism. It should only centralize it.
+
+The result contract should distinguish runtime failures from policy success:
+
+```ts
+type SharedHookClientResult =
+  | { status: "ok"; payload: SharedQualityHookPayload; durationMs: number }
+  | { status: "blocked"; payload: SharedQualityHookPayload; durationMs: number }
+  | { status: "unavailable"; reason: string; attemptedPlans: string[]; durationMs: number }
+  | { status: "timeout"; timeoutMs: number; attemptedPlan: string; durationMs: number }
+  | { status: "invalid-output"; stdoutPreview: string; attemptedPlan: string; durationMs: number };
+```
+
+Shared hook timeout budgets should be explicit. Initial budgets:
+
+- `SessionStart`: 1500 ms total shared-hook budget
+- `UserPromptSubmit`: 1500 ms total shared-hook budget
+- `PreToolUse`: 750 ms total shared-hook budget
+- `PostToolUse`: 1500 ms total shared-hook budget
+- `Stop`: 5000 ms total shared-hook budget, still below the managed Codex `Stop` timeout
+
+These budgets are design targets for the optimized client. During behavior-preserving extraction, timeout behavior may be introduced behind a compatibility shim if needed, but the API should expose timeouts from the start.
+
+Sensitive input must not be passed through argv in the long-term client. The migration path is:
+
+1. Add stdin-capable shared hook invocation in `specify hook` for payload-bearing checks such as prompt validation.
+2. Have `SharedHookClient.validatePrompt` pass prompt text through stdin or a short-lived private payload file rather than process args.
+3. Keep argv-only compatibility as fallback during migration.
+4. Never include full prompt text in effect logs, timeout diagnostics, or error previews.
 
 ### Outcome Model
 
@@ -195,6 +253,39 @@ Advisory-only output remains:
   }
 }
 ```
+
+Outcome metadata should carry:
+
+- `kind`
+- `eventName`
+- `source`, for example `native-local`, `shared-hook`, `triage`, `compaction`, or `learning`
+- `reason`
+- `additionalContext`
+- `stopReason`, for Stop-only continuation blocks
+- `systemMessage`, when Codex should continue with a specific instruction
+- `repeatSignature`, when an outcome must be de-duplicated
+- `effectRefs`, linking to `NativeHookEffects`
+
+### Outcome Merge And Precedence
+
+Handlers may produce multiple outcomes. Merge rules must be deterministic:
+
+1. Preserve malformed JSON handling as the outermost hard block.
+2. `hard-block` wins over every other outcome.
+3. `repair-block` wins over `review-block`, `continue-block`, and advisories.
+4. `continue-block` wins over `review-block` during `Stop`.
+5. `review-block` wins over advisories.
+6. Advisories merge in source order after de-duplication.
+
+When two blocking outcomes of the same precedence exist, keep the first local/native block as the primary `reason` and append later contexts with source attribution. Shared hook blocks should not erase a local Stop `stopReason`; they may add context and recovery instructions.
+
+Stop-specific merge rules:
+
+- `stopReason` belongs to the primary `continue-block`.
+- `systemMessage` belongs to the primary Stop block unless a later hard block supersedes it.
+- `repeatSignature` is computed from the primary Stop obligation and canonical session id.
+- compaction, learning, and context-monitor results are advisory unless their shared hook result is a hard or repair block.
+- repeated Stop blocks with the same signature should suppress duplicate output when the native payload indicates Stop hook re-entry.
 
 ## Event Responsibilities
 
@@ -322,7 +413,7 @@ Minimum verification before claiming the refactor is complete:
 
 ```text
 cd extensions/agent-teams/engine
-npm test -- src/scripts/__tests__/codex-native-hook.test.ts src/config/__tests__/codex-hooks.test.ts src/cli/__tests__/setup-hooks-shared-ownership.test.ts
+npm run test:native-hooks
 ```
 
 Python-side compatibility checks:
