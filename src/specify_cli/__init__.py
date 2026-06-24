@@ -5034,17 +5034,24 @@ def hook_validate_read_path_command(
 
 @hook_app.command("validate-prompt")
 def hook_validate_prompt_command(
-    prompt_text: str = typer.Option(..., "--prompt-text", help="Prompt text to validate"),
+    prompt_text: str | None = typer.Option(None, "--prompt-text", help="Prompt text to validate"),
+    prompt_stdin: bool = typer.Option(False, "--prompt-stdin", help="Read prompt text from stdin"),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate prompt text for explicit workflow-bypass or override language."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _validate_hook_output_format(output_format)
+    if prompt_stdin:
+        resolved_prompt_text = sys.stdin.read()
+    else:
+        resolved_prompt_text = prompt_text or ""
+    if not resolved_prompt_text.strip():
+        raise typer.BadParameter("prompt text is required; pass --prompt-text or --prompt-stdin")
     _run_hook_and_print(
         project_root,
         "workflow.prompt_guard.validate",
-        {"prompt_text": prompt_text},
+        {"prompt_text": resolved_prompt_text},
     )
 
 
