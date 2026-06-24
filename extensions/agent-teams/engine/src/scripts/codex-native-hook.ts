@@ -48,6 +48,7 @@ import { buildNativeHookContext } from "./native-hook/context.js";
 import { outcomeToCodexJson } from "./native-hook/outcome.js";
 import { handleSessionStart } from "./native-hook/session-start.js";
 import { handlePreToolUse } from "./native-hook/tool-use.js";
+import { handleUserPromptSubmit } from "./native-hook/user-prompt.js";
 import {
   buildNativeHookEvent,
 } from "../hooks/extensibility/events.js";
@@ -2507,39 +2508,20 @@ export async function dispatchCodexNativeHook(
         appendSharedHookContext,
       });
     } else {
-      const additionalContextBase =
-        buildAdditionalContextMessage(readPromptText(payload), skillState, cwd, payload) ?? triageAdditionalContext;
-      const additionalContext = appendSharedHookContext(
-        appendSharedHookContext(additionalContextBase, sharedPromptGuardPayload),
+      outputJson = handleUserPromptSubmit({
+        cwd,
+        payload,
+        hookEventName,
+        prompt: readPromptText(payload),
+        skillState,
+        triageAdditionalContext,
+        sharedPromptGuardOutput,
+        sharedPromptGuardPayload,
         sharedWorkflowPolicyPayload,
-      );
-      if (sharedPromptGuardOutput) {
-        outputJson = sharedPromptGuardOutput;
-        if (additionalContext) {
-          const currentAdditionalContext = (() => {
-            const current = outputJson?.hookSpecificOutput;
-            if (!current || typeof current !== "object") return "";
-            return typeof (current as Record<string, unknown>).additionalContext === "string"
-              ? String((current as Record<string, unknown>).additionalContext)
-              : "";
-          })();
-          outputJson = {
-            ...outputJson,
-            hookSpecificOutput: {
-              ...(outputJson.hookSpecificOutput as Record<string, unknown> | undefined ?? {}),
-              hookEventName,
-              additionalContext: [currentAdditionalContext, additionalContext].filter(Boolean).join(" "),
-            },
-          };
-        }
-      } else if (additionalContext) {
-        outputJson = {
-          hookSpecificOutput: {
-            hookEventName,
-            additionalContext,
-          },
-        };
-      }
+        buildAdditionalContextMessage,
+        appendSharedHookContext,
+        readHookSpecificAdditionalContext,
+      });
     }
   } else if (hookEventName === "PreToolUse") {
     outputJson = outcomeToCodexJson(
