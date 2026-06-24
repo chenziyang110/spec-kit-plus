@@ -1,13 +1,47 @@
 import assert from "node:assert/strict";
-import { rm } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 
 import {
   appendSharedHookContext,
+  invokeSharedQualityHook,
   sharedHookBlockOutput,
 } from "../specify-quality-adapter.js";
 
 const tempDirs: string[] = [];
+
+async function createTempDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+
+function envWithPath(pathDir: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PATH: pathDir,
+    Path: pathDir,
+    SPECIFY_HOOK_EXECUTABLE: undefined,
+    ...extra,
+  };
+}
+
+async function createSpecifyPathShim(stdout: string): Promise<string> {
+  const binDir = await createTempDir("specify-quality-shim-");
+  if (process.platform === "win32") {
+    await copyFile(process.execPath, join(binDir, "specify.exe"));
+    await writeFile(join(binDir, "hook"), `console.log(${JSON.stringify(stdout)});\n`, "utf-8");
+    return binDir;
+  }
+
+  const quoted = stdout.replace(/'/g, "'\\''");
+  const shimPath = join(binDir, "specify");
+  await writeFile(shimPath, `#!/bin/sh\nprintf '%s\\n' '${quoted}'\n`, "utf-8");
+  await chmod(shimPath, 0o755);
+  return binDir;
+}
 
 afterEach(async () => {
   while (tempDirs.length > 0) {
@@ -18,6 +52,47 @@ afterEach(async () => {
 });
 
 describe("specify quality adapter", () => {
+  it("invokes shared quality hook through SharedHookClient PATH fallback plans", async () => {
+    const payload = {
+      event: "workflow.prompt_guard.validate",
+      status: "ok",
+      warnings: ["payload came from shared hook shim"],
+    };
+    const binDir = await createSpecifyPathShim(JSON.stringify(payload));
+
+    const result = invokeSharedQualityHook(["validate-prompt"], {
+      cwd: binDir,
+      env: envWithPath(binDir),
+    });
+
+    assert.equal(result?.event, payload.event);
+    assert.equal(result?.status, "ok");
+    assert.deepEqual(result?.warnings, payload.warnings);
+  });
+
+  it("fails open when shared quality hook plans are unavailable", async () => {
+    const emptyPathDir = await createTempDir("specify-quality-empty-path-");
+    const missingExecutable = join(emptyPathDir, "missing-specify-hook");
+
+    const result = invokeSharedQualityHook(["validate-prompt"], {
+      cwd: emptyPathDir,
+      env: envWithPath(emptyPathDir, { SPECIFY_HOOK_EXECUTABLE: missingExecutable }),
+    });
+
+    assert.equal(result, null);
+  });
+
+  it("fails open when shared quality hook output is invalid", async () => {
+    const binDir = await createSpecifyPathShim("not json");
+
+    const result = invokeSharedQualityHook(["validate-prompt"], {
+      cwd: binDir,
+      env: envWithPath(binDir),
+    });
+
+    assert.equal(result, null);
+  });
+
   it("converts blocked shared hook payloads into native block output", () => {
     const output = sharedHookBlockOutput("UserPromptSubmit", {
       event: "workflow.prompt_guard.validate",
