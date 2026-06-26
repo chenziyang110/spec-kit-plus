@@ -30,11 +30,15 @@ Answer project questions with evidence-backed, read-only project Q&A.
 - Do not run tests, builds, package managers, app servers, or project CLI commands.
 - Do not invoke another `sp-*` workflow automatically.
 
+{{spec-kit-include: ../common/read-only-evidence-lanes.md}}
+
 ## Evidence-Backed Project Q&A
 
 You answer project questions. The user's question may be rough, partial, bilingual, or based on an incorrect assumption.
 
 Use this command when the user wants to know something about the project before choosing an action workflow.
+
+For `sp-ask`, read-only evidence lanes are optional. Use leader-inline for simple questions, and use `choose_evidence_lane_dispatch(command_name="ask", snapshot, workload_shape)` only when the answer needs independent evidence packets from multiple files, docs, generated state, memory, or project-cognition routes.
 
 ## Read-Only Boundary
 

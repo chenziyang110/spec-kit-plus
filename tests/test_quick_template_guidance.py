@@ -135,9 +135,12 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     assert "| stop condition |" in content
     assert "where it appears, why it matters" in content
     assert "concrete ordered sequence" in content
-    assert "numbered lines inside the table cell using `<br>` separators" in content
+    assert "plain text for terminal output" in content
+    assert "do not use html tags or inline line-break markup" in content
+    assert "semicolon-separated numbered clauses" in content
     assert "do not reuse the placeholder text as content" in content
-    assert "1. [task-specific first step]<br>2." in content
+    assert "1. [task-specific first step]; 2." in content
+    assert "<br>" not in content
     assert "task-specific verification or closeout step" in content
     assert "locate the source of the behavior" not in content
     assert "will change:" in content

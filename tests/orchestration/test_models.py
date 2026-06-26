@@ -6,6 +6,7 @@ from specify_cli.orchestration.models import (
     Batch,
     CapabilitySnapshot,
     DispatchShape,
+    EvidenceLaneDecision,
     ExecutionSurface,
     ExecutionDecision,
     ExecutionModel,
@@ -79,6 +80,51 @@ def test_execution_decision_has_canonical_fields_defaults_and_values():
         "capability_degraded",
         "blocked_reason",
     ]
+
+
+def test_evidence_lane_decision_has_read_only_contract_defaults():
+    decision = EvidenceLaneDecision(
+        command_name="ask",
+        dispatch_shape="leader-inline",
+        reason="read-only-evidence-leader-inline-no-safe-lane",
+    )
+    field_names = [item.name for item in fields(EvidenceLaneDecision)]
+
+    assert decision.command_name == "ask"
+    assert decision.dispatch_shape == "leader-inline"
+    assert decision.execution_surface == "leader-inline"
+    assert decision.workflow_status == "ready"
+    assert decision.blocked_reason is None
+    assert decision.capability_degraded is False
+    assert decision.lane_mode == "read-only-evidence"
+    assert decision.structured_result == "evidence_packet"
+    assert "file-read" in decision.allowed_operations
+    assert "project-cognition" in decision.allowed_operations
+    assert "file-write" in decision.forbidden_operations
+    assert "tests" in decision.forbidden_operations
+    assert "project-cli" in decision.forbidden_operations
+    assert field_names == [
+        "command_name",
+        "dispatch_shape",
+        "reason",
+        "created_at",
+        "execution_surface",
+        "workflow_status",
+        "blocked_reason",
+        "capability_degraded",
+        "lane_mode",
+        "structured_result",
+        "allowed_operations",
+        "forbidden_operations",
+    ]
+
+
+def test_orchestration_exports_evidence_lane_policy_api():
+    import specify_cli.orchestration as orchestration
+
+    assert orchestration.EvidenceLaneDecision is EvidenceLaneDecision
+    assert callable(orchestration.choose_evidence_lane_dispatch)
+    assert callable(orchestration.choose_subagent_dispatch)
 
 
 def test_utc_now_returns_parseable_utc_timestamp():

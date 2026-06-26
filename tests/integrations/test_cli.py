@@ -203,12 +203,19 @@ class TestInitIntegrationFlag:
 
         skills_dir = project / ".claude" / "skills"
         assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
-        for skill_name in ("sp-specify", "sp-explain"):
+        for skill_name in ("sp-explain",):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "execution_model: subagent-mandatory" in content
             assert "dispatch_shape: one-subagent | parallel-subagents" in content
             assert "execution_surface: native-subagents" in content
             assert "specify team" not in content
+        specify_content = (skills_dir / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "choose_evidence_lane_dispatch" in specify_content
+        assert "lane_mode: read-only-evidence" in specify_content
+        assert "structured_result: evidence_packet" in specify_content
+        assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in specify_content
+        assert "execution_surface: leader-inline | native-subagents | none" in specify_content
+        assert "specify team" not in specify_content
         for skill_name in ("sp-plan", "sp-tasks"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "execution_model: adaptive" in content

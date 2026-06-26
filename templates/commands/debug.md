@@ -186,7 +186,7 @@ Use the returned readiness:
 
 After session initialization, passive memory intake, the project cognition query, and only the bounded session, memory, or project-cognition context reads needed to frame the reported problem, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
-Use this shape. The row labels should be localized to the user's language when practical; keep the meaning of the canonical fields. The checkpoint should make the investigation feel controlled: `Symptom` must explain the failure in user-visible terms, and `Investigation plan` must name the ordered evidence path before any fix is attempted. Format multi-step plans as numbered lines inside the table cell using `<br>` separators. Do not reuse the placeholder text as content; replace each bracketed item with session-specific evidence steps.
+Use this shape. The row labels should be localized to the user's language when practical; keep the meaning of the canonical fields. The checkpoint should make the investigation feel controlled: `Symptom` must explain the failure in user-visible terms, and `Investigation plan` must name the ordered evidence path before any fix is attempted. Keep the checkpoint plain text for terminal output: do not use HTML tags or inline line-break markup. Format multi-step plans as semicolon-separated numbered clauses inside the table cell; if the plan is too long to read cleanly, put a short summary in the cell and add a normal Markdown numbered list immediately below the table. Do not reuse the placeholder text as content; replace each bracketed item with session-specific evidence steps.
 
 ```markdown
 ## Debug Checkpoint
@@ -199,7 +199,7 @@ Use this shape. The row labels should be localized to the user's language when p
 | Known evidence | [project cognition route, existing logs, prior verification output, relevant reports, or other evidence already available] |
 | Investigation boundary | Include: [specific area, workflow, command, state loop, or behavior]. Exclude: [nearby issue or non-goal]. Escalate if: [condition that changes the debug session boundary]. |
 | Candidate focus | [primary suspected truth owner, competing explanation, or candidate family to test first without claiming root cause] |
-| Investigation plan | 1. [session-specific first evidence step]<br>2. [session-specific second evidence step]<br>3. [session-specific third evidence step]<br>4. [session-specific boundary or alternative check, if needed]<br>5. [session-specific fix-gate or blocked-state decision] |
+| Investigation plan | 1. [session-specific first evidence step]; 2. [session-specific second evidence step]; 3. [session-specific third evidence step]; 4. [session-specific boundary or alternative check, if needed]; 5. [session-specific fix-gate or blocked-state decision] |
 | First evidence action | [the first reproduction, log, source, test, or instrumentation route after confirmation, plus why it is first] |
 | Fix gate | [what must be proven before code changes are allowed] |
 | Progress signal | [evidence that is enough to move to fixing, verification, human verification, or a blocked state] |

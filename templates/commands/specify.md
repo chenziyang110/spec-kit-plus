@@ -24,6 +24,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
 
+{{spec-kit-include: ../command-partials/common/read-only-evidence-lanes.md}}
+
 ## Pre-Execution Checks
 
 **Check for extension hooks before specification**:
@@ -372,7 +374,7 @@ After the completion report, check whether `.specify/extensions.yml` exists.
 - Avoid implementation design except where a dependency, constraint, boundary, or planning risk must be named.
 - Keep generated artifacts concise, reviewable, and useful to `/sp.plan`.
 - Do not treat product minimization as the default strategy. Scope reduction requires user confirmation before it can shape `spec.md`.
-- Before dispatching independent review or evidence work, use `choose_subagent_dispatch(command_name="specify", snapshot, workload_shape)` and record `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, and `execution_surface: native-subagents` when a validated isolated lane exists. Use `one-subagent` or `parallel-subagents` only for isolated review/evidence lanes, never for source edits.
+- Before dispatching independent review or evidence work, use `choose_evidence_lane_dispatch(command_name="specify", snapshot, workload_shape)` and record `lane_mode: read-only-evidence`, `dispatch_shape: one-subagent | parallel-subagents`, and `execution_surface: native-subagents` when a validated isolated read-only lane exists. Use delegated lanes only for isolated review/evidence packets, never for source edits or artifact writes.
 - Record impacted surfaces and change-propagation expectations, major affected surfaces, verification entry points and minimum evidence expectations, and known unknowns or stale evidence boundaries that could change planning safety.
 - Route to `/sp.clarify` when planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria.
 - Do not recommend `/sp.plan` until the written artifacts pass self-review and user review has been requested.

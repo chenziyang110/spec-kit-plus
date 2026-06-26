@@ -95,6 +95,7 @@ class IntegrationBase(ABC):
     SUBAGENT_DISCOVERY_TRIGGERS = (
         "## mandatory subagent execution",
         "choose_subagent_dispatch",
+        "choose_evidence_lane_dispatch",
         "execution_model: subagent-mandatory",
         "execution model: `subagents-first`",
         "dispatch_shape: one-subagent",

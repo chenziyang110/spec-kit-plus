@@ -135,7 +135,7 @@ Do not skip the Understanding Checkpoint. The accepted discussion handoff prepar
 
 After the constitution gate, quick workspace initialization, project cognition query, and any bounded `minimal_live_reads`, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete files, commands, workflows, constraints, validation evidence, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
-Use this shape. The row labels should be localized to the user's language when practical; keep the meaning of the canonical fields. The checkpoint should give the user confidence to approve or correct the work: `Issue` must explain the bad behavior, where it appears, why it matters, and what the user is not asking for; `Implementation plan` must be a concrete ordered sequence, not a vague promise to investigate. Format multi-step plans as numbered lines inside the table cell using `<br>` separators. Do not reuse the placeholder text as content; replace each bracketed item with task-specific steps.
+Use this shape. The row labels should be localized to the user's language when practical; keep the meaning of the canonical fields. The checkpoint should give the user confidence to approve or correct the work: `Issue` must explain the bad behavior, where it appears, why it matters, and what the user is not asking for; `Implementation plan` must be a concrete ordered sequence, not a vague promise to investigate. Keep the checkpoint plain text for terminal output: do not use HTML tags or inline line-break markup. Format multi-step plans as semicolon-separated numbered clauses inside the table cell; if the plan is too long to read cleanly, put a short summary in the cell and add a normal Markdown numbered list immediately below the table. Do not reuse the placeholder text as content; replace each bracketed item with task-specific steps.
 
 ```markdown
 ## Quick Checkpoint
@@ -147,7 +147,7 @@ Use this shape. The row labels should be localized to the user's language when p
 | Boundaries | Will change: [specific areas, files, commands, workflows, or behavior]. Will not change: [specific non-goals]. Escalate if: [condition that no longer fits quick]. |
 | Known facts / assumptions | [repository evidence, handoff facts, minimal reads, explicit user constraints, and any safe assumption being made while unknowns remain] |
 | Affected surfaces | [implementation, docs, tests, generated assets, state files, CLI/API surfaces, or consumers expected to be touched or checked] |
-| Implementation plan | 1. [task-specific first step]<br>2. [task-specific second step]<br>3. [task-specific third step]<br>4. [task-specific fourth step, if needed]<br>5. [task-specific verification or closeout step] |
+| Implementation plan | 1. [task-specific first step]; 2. [task-specific second step]; 3. [task-specific third step]; 4. [task-specific fourth step, if needed]; 5. [task-specific verification or closeout step] |
 | Next action | [the first implementation, delegation, or preparation action after confirmation] |
 | Validation evidence | [tests, commands, manual checks, changed-surface sweep, or other evidence required before closeout] |
 | Stop condition | [the exact discovery or risk that will stop quick execution and require a user decision or escalation] |

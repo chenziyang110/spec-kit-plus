@@ -682,7 +682,19 @@ class TestCodexAutoPromote:
         assert "adaptive reply contract" in generated_lower
         assert "reply_shape_id" in generated_discussion
         assert "discussion.context-intake" in generated_discussion
+        assert "discussion.release-closeout-board" in generated_discussion
+        assert "discussion.handoff-assessment-preview" in generated_discussion
         assert "discussion.handoff-user-review" in generated_discussion
+        assert "release closeout board" in generated_lower
+        assert "safe default next action" in generated_lower
+        assert "next-step content rule" in generated_lower
+        assert "first-pass content" in generated_lower
+        assert "pre-handoff readiness preview" in generated_lower
+        assert "proposed handoff goal" in generated_lower
+        assert "do not write or claim `handoff-assessment.md`" in generated_lower
+        assert "draft handoff review card" in generated_lower
+        assert "Scope To Approve" in generated_discussion
+        assert "Your Review Decision" in generated_discussion
         assert "recommendation-first is not questionless" in generated_lower
         assert "discussion_decision_digest" in generated_discussion
         assert "discussion_requirement_contract" in generated_discussion
@@ -722,6 +734,10 @@ class TestCodexAutoPromote:
         )
         assert "question_pack_mode: single-question | adaptive-pack | none" in state_template
         assert "reply_shape_id:" in state_template
+        assert "release-closeout-board" in state_template
+        assert "handoff-assessment-preview" in state_template
+        assert "assessment-preview" in state_template
+        assert "draft-review-card" in state_template
         assert "discussion.evidence-conflict" in state_template
         assert "primary_question:" in state_template
         assert "optional_followups:" in state_template
@@ -1060,7 +1076,12 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify",):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
+        assert (
+            "execution_model: subagent-mandatory" in content
+            or "execution model: `subagents-first`" in content
+            or "lane_mode: read-only-evidence" in content
+        )
+        assert "choose_evidence_lane_dispatch" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content
@@ -1449,6 +1470,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "execution_surface: none" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
+    assert "<br>" not in content
+    assert "plain text for terminal output" in content
     assert "symptom-to-surface-routing" not in content
     assert "system-topology-for-debug" not in content
     assert "observer framing" in content
@@ -1696,6 +1719,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
     assert "quick checkpoint" in content
+    assert "<br>" not in content
+    assert "plain text for terminal output" in content
     assert "target outcome" in content
     assert "known facts / assumptions" in content
     assert "implementation plan" in content

@@ -17,10 +17,10 @@
 
 ## Session Routing
 
-- current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | ui-interaction-discussion | handoff-assessment | handoff-draft | handoff-self-review | handoff-user-review | handoff-ready
+- current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | release-closeout-board | ui-interaction-discussion | handoff-assessment-preview | handoff-assessment | handoff-draft | handoff-self-review | handoff-user-review | handoff-ready
 - current_topic: [Short topic label]
-- reply_shape_id: discussion.context-intake | discussion.product-framing | discussion.context-grounding | discussion.question-loop | discussion.technical-options | discussion.ui-interaction | discussion.handoff-assessment | discussion.handoff-draft | discussion.handoff-self-review | discussion.handoff-user-review | discussion.handoff-ready | discussion.resume | discussion.blocked | discussion.evidence-conflict
-- visible_reply_mode: short | standard | complex | handoff-card | blocked
+- reply_shape_id: discussion.context-intake | discussion.product-framing | discussion.context-grounding | discussion.question-loop | discussion.technical-options | discussion.release-closeout-board | discussion.ui-interaction | discussion.handoff-assessment-preview | discussion.handoff-assessment | discussion.handoff-draft | discussion.handoff-self-review | discussion.handoff-user-review | discussion.handoff-ready | discussion.resume | discussion.blocked | discussion.evidence-conflict
+- visible_reply_mode: short | standard | complex | work-board | assessment-preview | draft-review-card | handoff-card | blocked
 - backstage_state_visibility: hidden | summarized | surfaced
 - question_pack_mode: single-question | adaptive-pack | none
 - decision_advancement_mode: recommendation-first

@@ -124,6 +124,8 @@ def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
     assert "stale or localization-sensitive results are examples" in shell.lower()
     assert "live evidence is authoritative" in lowered
     assert "classify the question before answering" in lowered
+    _assert_read_only_evidence_lane_contract(combined, "ask")
+    assert "read-only evidence lanes are optional" in lowered
     for classifier in (
         "`fact`",
         "`how_to`",
@@ -157,6 +159,30 @@ def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
         "`history`: explain prior decisions from project files, templates, docs, generated state, "
         "memory, or project cognition."
     ) in shell
+
+
+def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None:
+    partial = _read("templates/command-partials/common/read-only-evidence-lanes.md")
+    discussion_shell = _read("templates/command-partials/discussion/shell.md")
+    discussion = "\n".join([
+        _read("templates/commands/discussion.md"),
+        discussion_shell,
+    ])
+    specify = _read("templates/commands/specify.md")
+    specify_raw = _read_project_file("templates/commands/specify.md")
+
+    _assert_read_only_evidence_lane_contract(partial, "<workflow>")
+    _assert_read_only_evidence_lane_contract(discussion, "discussion")
+    _assert_read_only_evidence_lane_contract(specify, "specify")
+    assert "{{spec-kit-include: ../command-partials/common/read-only-evidence-lanes.md}}" in specify_raw
+    assert "{{spec-kit-include: ../common/read-only-evidence-lanes.md}}" in _read_project_file(
+        "templates/command-partials/discussion/shell.md"
+    )
+    assert "{{spec-kit-include: ../common/read-only-evidence-lanes.md}}" in _read_project_file(
+        "templates/command-partials/ask/shell.md"
+    )
+    assert "leader owns product judgment" in discussion.lower()
+    assert "never for source edits or artifact writes" in specify.lower()
 
 
 def test_workflow_routing_recommends_ask_before_discussion_for_read_only_questions() -> None:
@@ -548,6 +574,21 @@ def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
     assert "parallel-subagents" in lowered
     assert "subagent-blocked" in lowered
     assert "native-subagents" in lowered
+
+
+def _assert_read_only_evidence_lane_contract(text: str, command_name: str) -> None:
+    assert f'choose_evidence_lane_dispatch(command_name="{command_name}"' in text
+    lowered = text.lower()
+    assert "lane_mode: read-only-evidence" in lowered
+    assert "structured_result: evidence_packet" in lowered
+    assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in lowered
+    assert "execution_surface: leader-inline | native-subagents | none" in lowered
+    assert "file reads" in lowered
+    assert "project cognition" in lowered
+    assert "forbidden delegated operations" in lowered
+    assert "file writes" in lowered
+    assert "project cli commands" in lowered
+    assert "parent workflow owns judgment" in lowered
 
 
 def _assert_adaptive_plan_tasks_contract(text: str, command_name: str) -> None:
@@ -1046,7 +1087,9 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
         "discussion.context-grounding",
         "discussion.question-loop",
         "discussion.technical-options",
+        "discussion.release-closeout-board",
         "discussion.ui-interaction",
+        "discussion.handoff-assessment-preview",
         "discussion.handoff-assessment",
         "discussion.handoff-draft",
         "discussion.handoff-self-review",
@@ -1066,6 +1109,19 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
         "usable draft",
         "default next step",
         "override path",
+        "frontstage reply gate",
+        "Next-Step Content Rule",
+        "status receipt",
+        "executable work board",
+        "default next action",
+        "first-pass content",
+        "handoff assessment preview",
+        "Draft Handoff Review",
+        "Recommended Route",
+        "Scope To Approve",
+        "Excluded Scope",
+        "Readiness Checks",
+        "Your Review Decision",
         "Handoff Ready",
         "Locked Direction",
         "Carry Forward",
@@ -1078,6 +1134,105 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
 
     assert "must not close with only file paths, status counters, or a next command" in lowered
     assert "keep the `ready summary quality` check internal" in lowered
+
+
+def test_discussion_default_next_step_must_include_concrete_content() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    combined = "\n".join([content, shell])
+    lowered = combined.lower()
+
+    assert "next-step content rule" in lowered
+    assert "do not end with only a promise to do the next step" in lowered
+    assert "include the first-pass content in the same visible reply" in lowered
+    assert "not just a future action sentence" in lowered
+    assert "field-by-field review" in lowered
+    assert "responsibility audit table" in lowered
+    assert "keep / merge / downgrade / delete / defer" in lowered
+    assert "product framing" in lowered
+    assert "technical options" in lowered
+    assert "release closeout board" in lowered
+    assert "handoff assessment" in lowered
+    assert "blocked only when" in lowered
+    assert "concrete content for the recommended next step" in shell.lower()
+
+
+def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    state = _read("templates/discussion-state-template.md")
+    combined = "\n".join([content, shell, state])
+    lowered = combined.lower()
+
+    assert "discussion.handoff-assessment-preview" in content
+    assert "discussion.handoff-assessment-preview" in shell
+    assert "discussion.handoff-assessment-preview" in state
+    assert "handoff-assessment-preview" in state
+    assert "assessment-preview" in state
+    assert "pre-handoff readiness preview" in lowered
+    assert "user has not explicitly requested handoff" in lowered
+    assert "do not write or claim `handoff-assessment.md`" in lowered
+    assert "do not write `handoff-assessment.md`" in lowered
+    assert "do not write a draft handoff pair" in lowered
+    assert "likely verdict" in lowered
+    assert "proposed handoff goal" in lowered
+    assert "recommended consumer" in lowered
+    assert "proposed package scope" in lowered
+    assert "excluded scope" in lowered
+    assert "readiness checks" in lowered
+    assert "blocking readiness checklist" in lowered
+    assert "do not end with only \"next i recommend handoff assessment\"" in lowered
+    assert "list of updated discussion artifacts" in lowered
+    assert "without writing or claiming `handoff-assessment.md`" in lowered
+
+
+def test_discussion_release_closeout_board_defaults_to_next_safe_action() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    state = _read("templates/discussion-state-template.md")
+    combined = "\n".join([content, shell, state])
+    lowered = combined.lower()
+
+    assert "release-closeout-board" in content
+    assert "release-closeout-board" in shell
+    assert "release-closeout-board" in state
+    assert "direction is locked" in lowered
+    assert "release closeout board" in lowered
+    assert "operator-ready" in lowered
+    assert "p0/p1/p2" in lowered
+    assert "do not ask the user to say next" in lowered
+    assert "safe default next action" in lowered
+    assert "state receipt" in lowered
+    assert "status receipt" in lowered
+    assert "file paths, status fields, oq ids, persistence notes, or updated-artifact lists" in lowered
+
+
+def test_discussion_handoff_user_review_uses_draft_review_card() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    state = _read("templates/discussion-state-template.md")
+    combined = "\n".join([content, shell, state])
+    lowered = combined.lower()
+
+    assert "draft handoff review card" in lowered
+    assert "discussion.handoff-user-review" in content
+    assert "discussion.handoff-user-review" in state
+    assert "draft-review-card" in state
+    for card_label in (
+        "Draft Handoff Review",
+        "Recommended Route",
+        "Scope To Approve",
+        "Excluded Scope",
+        "Readiness Checks",
+        "Package",
+        "Your Review Decision",
+    ):
+        assert card_label in content
+    assert "do not present the draft review as a path receipt" in lowered
+    assert "do not lead with artifact-write narration" in lowered
+    assert "unrelated prompt" in lowered
+    assert "must not be treated as approval" in lowered
+    assert "draft handoff review card" in shell.lower()
 
 
 def test_discussion_handoff_review_passive_skill_sets_review_standard() -> None:
@@ -1112,6 +1267,12 @@ def test_discussion_handoff_review_passive_skill_sets_review_standard() -> None:
     assert "planning_gate_status" in content
     assert "coverage_status" in content
     assert "ready summary quality" in lowered
+    assert "draft user review summary quality check" in lowered
+    assert "draft handoff review card" in lowered
+    assert "scope to approve" in lowered
+    assert "excluded scope" in lowered
+    assert "unrelated prompt" in lowered
+    assert "is not approval" in lowered
     assert "do not review implementation code" in lowered
     assert "do not answer with only" in lowered
 
@@ -1123,15 +1284,20 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     content_lower = content.lower()
     shell_lower = shell.lower()
     state_lower = state.lower()
-    ui_section = content_lower.split("## optional ui and interaction discussion", 1)[1]
-    ui_section = ui_section.split("## handoff assessment", 1)[0]
+    ui_match = re.search(
+        r"## optional ui and interaction discussion(?P<section>.*?)(?=\n## )",
+        content_lower,
+        re.S,
+    )
+    assert ui_match is not None
+    ui_section = ui_match.group("section")
 
     assert "ui-interaction-discussion" in content
     assert "after functional discussion is stable" in content_lower
     assert "no explicit handoff request is active" in content_lower
     assert "handoff-assessment.md` first" in content
     assert "only when no explicit handoff request is active" in content_lower
-    assert "handoff-assessment.md` first" in content.split("6. `ui-interaction-discussion`", 1)[1]
+    assert "handoff-assessment.md` first" in content.split("`ui-interaction-discussion`", 1)[1]
     assert "optional ui and interaction discussion" in content_lower
     assert "ui decisions are blocking readiness" in content_lower
     assert ui_section.index("handoff-assessment.md` first") < ui_section.index("return to `ui-interaction-discussion`")
@@ -1378,7 +1544,6 @@ def test_quick_consumes_unified_discussion_handoff_through_checkpoint() -> None:
 
 def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -> None:
     content = _read("templates/commands/specify.md")
-    lowered = content.lower()
 
     assert "Discussion Decision Digest" in content
     assert "locked_direction" in content
@@ -1684,13 +1849,14 @@ def test_specify_template_uses_alignment_first_contract():
     assert "scope reduction requires user confirmation" in lowered
     assert "first-release scope" not in lowered
     assert "mvp scope" not in lowered
-    assert 'choose_subagent_dispatch(command_name="specify"' in content
-    assert "execution_model: subagent-mandatory" in lowered
+    assert 'choose_evidence_lane_dispatch(command_name="specify"' in content
+    assert "lane_mode: read-only-evidence" in lowered
     assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
     assert "execution_surface: native-subagents" in lowered
     assert "one-subagent" in lowered
     assert "parallel-subagents" in lowered
     assert "native-subagents" in lowered
+    assert "never for source edits or artifact writes" in lowered
     assert "targeted repository evidence" in lowered
     assert "user-supplied references, examples, or linked material" in lowered
     assert "high-impact ambiguity scan" in lowered

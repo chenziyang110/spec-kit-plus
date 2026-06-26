@@ -16,12 +16,12 @@ MANDATORY_COMMANDS = (
     "map-scan",
     "quick",
     "research",
-    "specify",
     "taskstoissues",
 )
 
 ADAPTIVE_COMMANDS = ("plan", "tasks")
 COMPLEXITY_BASED_COMMANDS = ("debug",)
+READ_ONLY_EVIDENCE_LANE_COMMANDS = ("specify",)
 TEAM_COMMANDS = ("implement-teams", "team")
 
 
@@ -56,6 +56,18 @@ def test_debug_uses_complexity_based_execution_instead_of_mandatory_subagents() 
     assert "execution_surface: leader-inline | native-subagents | none" in content
     assert "subagent-blocked" in content
     assert "execution_model: subagent-mandatory" not in content
+
+
+def test_read_only_evidence_lane_commands_use_evidence_dispatch() -> None:
+    for command_name in READ_ONLY_EVIDENCE_LANE_COMMANDS:
+        content = _read_command(command_name).lower()
+
+        assert "choose_evidence_lane_dispatch" in content, command_name
+        assert "lane_mode: read-only-evidence" in content, command_name
+        assert "dispatch_shape: one-subagent | parallel-subagents" in content, command_name
+        assert "execution_surface: native-subagents" in content, command_name
+        assert "never for source edits or artifact writes" in content, command_name
+        assert "execution_model: subagent-mandatory" not in content, command_name
 
 
 def test_team_commands_keep_team_surface_separate() -> None:

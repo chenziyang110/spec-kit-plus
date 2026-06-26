@@ -225,9 +225,12 @@ def test_debug_template_requires_understanding_checkpoint_before_investigation()
     assert "progress signal" in content
     assert "where it appears, why it matters" in content
     assert "ordered evidence path" in content
-    assert "numbered lines inside the table cell using `<br>` separators" in content
+    assert "plain text for terminal output" in content
+    assert "do not use html tags or inline line-break markup" in content
+    assert "semicolon-separated numbered clauses" in content
     assert "do not reuse the placeholder text as content" in content
-    assert "1. [session-specific first evidence step]<br>2." in content
+    assert "1. [session-specific first evidence step]; 2." in content
+    assert "<br>" not in content
     assert "session-specific fix-gate or blocked-state decision" in content
     assert "establish the repro or failing signal" not in content
     assert "concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty" in content

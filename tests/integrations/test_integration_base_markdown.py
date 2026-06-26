@@ -743,6 +743,8 @@ class MarkdownIntegrationTests:
         assert "understanding_confirmed: true" in debug_content
         assert "debug checkpoint" in debug_content
         assert "first evidence action" in debug_content
+        assert "<br>" not in debug_content
+        assert "plain text for terminal output" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
@@ -750,6 +752,8 @@ class MarkdownIntegrationTests:
         assert "understanding checkpoint" in quick_content
         assert "quick checkpoint" in quick_content
         assert "understanding_confirmed: true" in quick_content
+        assert "<br>" not in quick_content
+        assert "plain text for terminal output" in quick_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
         assert "execution_surface: native-subagents" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content

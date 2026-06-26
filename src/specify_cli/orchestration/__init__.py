@@ -7,6 +7,7 @@ from .models import (
     Batch,
     CapabilitySnapshot,
     DispatchShape,
+    EvidenceLaneDecision,
     ExecutionMode,
     ExecutionModel,
     ExecutionSurface,
@@ -22,6 +23,7 @@ from .models import (
     utc_now,
     utc_now_iso,
 )
+from .policy import choose_evidence_lane_dispatch, choose_subagent_dispatch
 from .state_store import (
     batch_path,
     decision_path,
@@ -40,6 +42,7 @@ __all__ = [
     "CapabilitySnapshot",
     "DelegationSurfaceDescriptor",
     "DispatchShape",
+    "EvidenceLaneDecision",
     "ExecutionMode",
     "ExecutionModel",
     "ExecutionSurface",
@@ -65,6 +68,8 @@ __all__ = [
     "replay_events",
     "session_path",
     "task_path",
+    "choose_evidence_lane_dispatch",
+    "choose_subagent_dispatch",
     "utc_now",
     "utc_now_iso",
     "write_json",

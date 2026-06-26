@@ -139,6 +139,26 @@ If the closeout says only that files were updated, counters are zero, and the
 next step is review or `sp-specify`, return `request-changes` for an incomplete
 ready summary.
 
+## Draft User Review Summary Quality Check
+
+A draft handoff user-review reply is valid only when it uses a concise draft handoff review card.
+It must include:
+
+- Draft Handoff Review: the decision being requested
+- Recommended Route: the recommended downstream consumer and why
+- Scope To Approve: the exact scope the user would approve
+- Excluded Scope: work explicitly outside the draft
+- Readiness Checks: self-review, hard unknown/conflict, and Markdown/JSON
+  agreement status
+- Package: the handoff Markdown and JSON paths
+- Your Review Decision: approve as handoff-ready or request concrete changes
+
+If the draft review says only that files were written, lists paths, and asks for
+approval, return `request-changes` for an incomplete user-review summary.
+An unrelated prompt, codebase explanation request, new target root, or new
+product question is not approval and must leave the handoff in draft/user-review
+state.
+
 ## Boundaries
 
 - Do not review implementation code, tests, or architecture beyond the evidence
