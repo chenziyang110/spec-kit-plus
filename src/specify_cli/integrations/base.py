@@ -378,6 +378,7 @@ class IntegrationBase(ABC):
             "- Do not render the textual fallback block when the native tool is available.",
             "- Do not self-authorize textual fallback because the question seems simple, short, or easy to phrase manually.",
             "- Treat the template's textual question format as fallback-only guidance; use it to shape the question content, but do not render the textual block unless the native tool is unavailable in the current runtime or the tool call fails.",
+            "- Keep native-tool availability, runtime mode, and fallback mechanics backstage. Do not tell the user that a structured question tool is unavailable, that the current runtime/mode lacks a tool, or that a fallback is being used; ask the user-facing question directly when a question is genuinely required.",
             "- Ask only the minimum number of questions required by this workflow's existing contract.",
             "- Keep the user-visible question text in the user's current language and keep option labels short.",
             "- Do not emit both a native tool question and the textual fallback block in the same turn. The user should see the active question exactly once.",

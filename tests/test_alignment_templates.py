@@ -1517,6 +1517,14 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "source_files_read" in content
     assert "capability-like" in lowered
     assert "not only the handoff summary" in lowered
+    assert "Confirmed discussion handoff default continuation" in content
+    assert "quality_gate.status: user_confirmed` is already a user-reviewed upstream contract" in content
+    assert "Do not add another pre-artifact approval gate" in content
+    assert "accepted-from-confirmed-handoff" in content
+    assert "write the draft spec package" in lowered
+    assert "The user review gate after artifact writing remains mandatory" in content
+    assert "Ask before writing artifacts only when" in content
+    assert "do not ask the user to reply `1`, `2`, or `3`" in lowered
     assert "specify discussion mark-consumed" in content
     assert "consumed_by_feature_dir" in content
     assert "handoff_consumption_status" in content

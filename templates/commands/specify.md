@@ -61,6 +61,14 @@ scripts:
 - Preserve the selected source handoff path and slug for `workflow-state.md`, `alignment.md`, and `brainstorming/handoff-to-specify.json`.
 - Treat `handoff-to-specify.*` as compatibility filenames for the unified `discussion_requirement_contract`. Do not require or generate a second consumer-specific discussion handoff.
 
+**Confirmed discussion handoff default continuation**:
+- A `handoff-ready` discussion with `quality_gate.status: user_confirmed` is already a user-reviewed upstream contract. Do not add another pre-artifact approval gate merely to re-approve the same recommended approach or section shape.
+- When the handoff and source files support exactly one recommended approach, and that approach preserves the confirmed scope, does not narrow the product intent, does not defer or drop an upstream capability signal, does not waive a risk, and does not contradict explicit user input, record `approach_comparison_status: accepted-from-confirmed-handoff` and continue.
+- When the proposed spec section shape is a direct projection of the confirmed handoff, has no requested changes, preserves every Must-Preserve item, and leaves no unresolved planning-critical ambiguity, record `section_approval_status: accepted-from-confirmed-handoff` and write the draft spec package.
+- The user review gate after artifact writing remains mandatory. That is where the user reviews the produced `spec.md`, `alignment.md`, `context.md`, checklist, and compatibility handoff JSON.
+- Ask before writing artifacts only when the decision would reduce scope, drop or defer user-requested capability, select between materially different valid approaches, resolve an out-of-scope conflict, accept unresolved risk, change the target project boundary, or rely on missing/conflicting evidence.
+- Do not ask the user to reply `1`, `2`, or `3` when the only pending action is accepting one safe recommended approach or section shape from the confirmed handoff.
+
 **Set the working boundary**:
 - Treat the user request as the starting point for a specification, not permission to implement.
 - If no feature description or accepted discussion handoff was supplied, stop with: `ERROR: No feature description provided`.

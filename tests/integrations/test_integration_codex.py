@@ -1209,6 +1209,9 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
         assert "do not invoke the native structured question tool" in lower
         assert "do not render the textual fallback block" in lower
         assert "do not self-authorize textual fallback" in lower
+        assert "keep native-tool availability, runtime mode, and fallback mechanics backstage" in lower
+        assert "do not tell the user that a structured question tool is unavailable" in lower
+        assert "ask the user-facing question directly" in lower
         assert "recommended option first" in lower
         assert "fall back immediately" in lower or "fall back to the" in lower
 
