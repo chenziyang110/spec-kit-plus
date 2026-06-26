@@ -14,6 +14,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/implement-teams/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 User-facing workflow skill:
 
 ```text

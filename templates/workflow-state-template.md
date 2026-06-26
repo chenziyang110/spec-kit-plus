@@ -26,6 +26,22 @@
 - source_files_read: [none | discussion source files read | repo context read]
 - source_signal_disposition_status: [not-applicable | incomplete | complete]
 
+## Semantic Audit State
+
+- semantic_audit_status: [not-needed | input-draft | audit-recorded | claim-candidate | claim-ready | blocked]
+- semantic_audit_input_path: [<WORKFLOW_STATE_DIR>/semantic-audit-input.json | none]
+- semantic_audit_output_path: [<WORKFLOW_STATE_DIR>/semantic-audit-output.json | none]
+- semantic_audit_resume_status: [fresh | missing | stale | needs-rerun]
+- semantic_audit_resume_validation: [not-run | fresh | missing-file | route-changed | active-claim-changed | claim-ref-mismatch | verification-ref-mismatch | needs-rerun]
+- semantic_audit_route_fingerprint: [stable fingerprint of selected_candidate_ids plus active_claim_type | none]
+- semantic_audit_generated_resume_smoke: [not-run | passed | failed | not-applicable]
+- semantic_audit_stale_reasons: [none | missing-file | route-changed | active-claim-changed | claim-ref-mismatch | verification-ref-mismatch]
+- active_claim_type: [none | root_cause_claim | fixed_claim | completed_claim | release_safe]
+- selected_candidate_ids: [none | selected candidate ids from route_decision]
+- claim_readiness_status: [not-evaluated | claim_blocked | claim_candidate | claim_ready]
+- claim_authorization_refs: [none | workflow authorization refs recorded in workflow_authorization or claim_authorizations]
+- claim_verification_refs: [none | verification evidence refs recorded in claim_readiness.claim_verification_refs]
+
 ## Unknown Handling
 
 - hard_unknown_count: [0]

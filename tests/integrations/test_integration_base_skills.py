@@ -148,7 +148,11 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "project-cognition query --query-plan" in skill_content
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in skill_content
     assert "project-cognition query --intent plan" not in skill_content
-    assert "ordinary turns append" in skill_lower
+    assert "ordinary turns do not write local files by default" in skill_lower
+    assert "deferred persistence" in skill_lower
+    assert "compaction preserve" in skill_lower
+    assert "user-triggered save" in skill_lower
+    assert "five-turn" in skill_lower
     assert "semantic checkpoints" in skill_lower
     assert "draft pair" in skill_lower
     assert "truth pass" in skill_lower
@@ -172,6 +176,12 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "discussion.handoff-user-review" in skill_content
     assert "recommendation-first is not questionless" in skill_lower
     assert "one unified" in skill_lower or "single unified" in skill_lower
+    assert "discussion_requirement_contract" in skill_content
+    assert "Agent-Facing Requirement Contract" in skill_content
+    assert "consumer_eligibility" in skill_content
+    assert "recommended_consumer" in skill_content
+    assert "quick_task_candidate" in skill_content
+    assert "Do not describe current execution or implementation progress" in skill_content
     assert "handoff-to-specify.md" in skill_content
     assert "handoff-to-specify.json" in skill_content
     assert "Handoff Reviewer Guide" in skill_content
@@ -763,6 +773,11 @@ class SkillsIntegrationTests:
         assert "understanding_confirmed: true" in debug_content
         assert "debug checkpoint" in debug_content
         assert "first evidence action" in debug_content
+        assert "resolve discussion handoff intake before quick-task execution" in quick_content
+        assert "discussion_requirement_contract" in quick_content
+        assert "consumer_eligibility.sp-quick.status" in quick_content
+        assert "quick_task_candidate" in quick_content
+        assert "do not skip the understanding checkpoint" in quick_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content

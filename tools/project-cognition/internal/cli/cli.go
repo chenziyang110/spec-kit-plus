@@ -93,6 +93,12 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return lexiconCommand(args[1:], stdout, stderr, paths)
 	case "query":
 		return queryCommand(args[1:], stdout, stderr, paths)
+	case "semantic-intake":
+		return semanticIntakeCommand(args[1:], stdout, stderr, paths)
+	case "semantic-audit":
+		return semanticAuditCommand(args[1:], stdout, stderr, paths)
+	case "semantic-audit-resume":
+		return semanticAuditResumeCommand(args[1:], stdout, stderr, paths)
 	case "compass":
 		return compassCommand(args[1:], stdout, stderr, paths)
 	case "expand":
@@ -114,7 +120,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -737,6 +743,200 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 	}
 	payload, err := query.Run(paths, query.QueryInput{Intent: *intent, Query: *text, ExpandedQuery: *expanded, Paths: pathHints, Plan: plan, PlanDiagnostics: diagnostics})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func semanticIntakeCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("semantic-intake", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Semantic intake JSON input file")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	var data []byte
+	var err error
+	if strings.TrimSpace(*inputFile) != "" {
+		data, err = os.ReadFile(*inputFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-intake input: %v\n", err)
+			return 1
+		}
+	} else {
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-intake stdin: %v\n", err)
+			return 1
+		}
+	}
+	request, err := query.ParseSemanticIntakeRequest(data)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	payload, err := query.RunSemanticIntake(paths, request)
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func semanticAuditCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("semantic-audit", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Semantic audit JSON input file")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	var data []byte
+	var err error
+	if strings.TrimSpace(*inputFile) != "" {
+		data, err = os.ReadFile(*inputFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit input: %v\n", err)
+			return 1
+		}
+	} else {
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit stdin: %v\n", err)
+			return 1
+		}
+	}
+	request, err := query.ParseSemanticAuditRequest(data)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	payload, err := query.BuildSemanticAudit(request)
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func semanticAuditResumeCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("semantic-audit-resume", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Semantic audit resume validation JSON input file")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	var data []byte
+	var err error
+	baseDir := "."
+	if strings.TrimSpace(*inputFile) != "" {
+		data, err = os.ReadFile(*inputFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit-resume input: %v\n", err)
+			return 1
+		}
+		baseDir = filepath.Dir(*inputFile)
+	} else {
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit-resume stdin: %v\n", err)
+			return 1
+		}
+	}
+	request, missingFileValidation, err := parseSemanticAuditResumeCLIRequest(data, baseDir)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	if missingFileValidation != nil {
+		return writeJSON(stdout, *missingFileValidation)
+	}
+	payload, err := query.ValidateSemanticAuditResume(request)
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func parseSemanticAuditResumeCLIRequest(data []byte, baseDir string) (query.SemanticAuditResumeRequest, *query.SemanticAuditResumeValidation, error) {
+	if request, err := query.ParseSemanticAuditResumeRequest(data); err == nil {
+		return request, nil, nil
+	}
+	var envelope struct {
+		Version            int                            `json:"version"`
+		WorkflowState      query.SemanticAuditResumeState `json:"workflow_state"`
+		SemanticAuditState query.SemanticAuditResumeState `json:"semantic_audit_state"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return query.SemanticAuditResumeRequest{}, nil, fmt.Errorf("parse semantic-audit-resume request: %w", err)
+	}
+	state := envelope.SemanticAuditState
+	if state.SemanticAuditInputPath == "" && envelope.WorkflowState.SemanticAuditInputPath != "" {
+		state = envelope.WorkflowState
+	}
+	inputPath, err := resolveSemanticAuditResumePath(baseDir, state.SemanticAuditInputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	outputPath, err := resolveSemanticAuditResumePath(baseDir, state.SemanticAuditOutputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	inputData, err := os.ReadFile(inputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	outputData, err := os.ReadFile(outputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	auditInput, err := query.ParseSemanticAuditRequest(inputData)
+	if err != nil {
+		return query.SemanticAuditResumeRequest{}, nil, err
+	}
+	auditOutput, err := parseSemanticAuditOutputArtifact(outputData)
+	if err != nil {
+		return query.SemanticAuditResumeRequest{}, nil, err
+	}
+	version := envelope.Version
+	if version == 0 {
+		version = 1
+	}
+	return query.SemanticAuditResumeRequest{
+		Version:             version,
+		SemanticAuditInput:  auditInput,
+		SemanticAuditOutput: auditOutput,
+		SemanticAuditState:  state,
+	}, nil, nil
+}
+
+func resolveSemanticAuditResumePath(baseDir string, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.EqualFold(value, "none") {
+		return "", fmt.Errorf("semantic-audit-resume path is required")
+	}
+	if filepath.IsAbs(value) {
+		return value, nil
+	}
+	if strings.TrimSpace(baseDir) == "" {
+		baseDir = "."
+	}
+	return filepath.Join(baseDir, filepath.FromSlash(value)), nil
+}
+
+func parseSemanticAuditOutputArtifact(data []byte) (query.SemanticAuditArtifact, error) {
+	var artifact query.SemanticAuditArtifact
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		return query.SemanticAuditArtifact{}, fmt.Errorf("parse semantic-audit output: %w", err)
+	}
+	if artifact.ArtifactType != "" {
+		return artifact, nil
+	}
+	var wrapped struct {
+		SemanticAuditOutput query.SemanticAuditArtifact `json:"semantic_audit_output"`
+	}
+	if err := json.Unmarshal(data, &wrapped); err != nil {
+		return query.SemanticAuditArtifact{}, fmt.Errorf("parse semantic-audit output: %w", err)
+	}
+	if wrapped.SemanticAuditOutput.ArtifactType == "" {
+		return query.SemanticAuditArtifact{}, fmt.Errorf("parse semantic-audit output: artifact_type is required")
+	}
+	return wrapped.SemanticAuditOutput, nil
 }
 
 func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

@@ -47,8 +47,12 @@
 - latest_event_checkpoint: [discussion-log.md event timestamp or none]
 - last_compaction_checkpoint: [ISO-8601 timestamp or none]
 - compact_summary_status: current | stale | missing
-- ordinary_turn_write_policy: append compact event only
+- ordinary_turn_write_policy: deferred-checkpoint
 - structured_refresh_policy: semantic-checkpoint-only
+- save_trigger_policy: semantic-checkpoint | user-triggered-save | five-turn-cadence | compaction-risk | durable-lifecycle-transition
+- unsaved_turn_count: 0
+- pending_context_summary: []
+- compaction_preserve_items: []
 
 ## Context Boundary
 
@@ -152,7 +156,11 @@
 
 - handoff_to_specify: none
 - handoff_to_specify_json: none
+- handoff_kind: discussion_requirement_contract | legacy_specify_handoff | none
 - handoff_goal: none
+- consumer_eligibility: sp-specify=blocked; sp-quick=blocked
+- recommended_consumer: continue-discussion | sp-specify | sp-quick
+- quick_task_candidate_status: not-evaluated | ready | blocked | requires-spec-first
 - quality_gate_status: draft | self_review_passed | user_confirmed | blocked
 - handoff_requested_by_user: false
 - next_command: none

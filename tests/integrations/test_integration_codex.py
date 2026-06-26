@@ -1,7 +1,11 @@
 """Tests for CodexIntegration."""
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from .test_base import (
     _assert_canonical_cognition_intake_contract,
@@ -11,6 +15,8 @@ from .test_integration_base_skills import (
     _assert_compact_managed_context,
     _extract_generated_cognition_policy,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 STALE_COGNITION_ADDENDUM_PHRASES = (
     "for blocked, stale, missing, or incomplete references",
@@ -45,6 +51,30 @@ def _assert_stable_subagent_contract(content: str) -> None:
     assert "validated `workertaskpacket`" in lower
     assert "structured handoff" in lower
     assert "`sp-teams` only" in lower
+
+
+def _run_semantic_audit_resume_fixture(resume_path: Path) -> dict[str, object]:
+    result = subprocess.run(
+        [
+            "go",
+            "run",
+            ".",
+            "semantic-audit-resume",
+            "--input",
+            str(resume_path),
+            "--format",
+            "json",
+        ],
+        cwd=REPO_ROOT / "tools" / "project-cognition",
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        errors="replace",
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
 
 
 def test_codex_integration_metadata():
@@ -295,6 +325,241 @@ class TestCodexAutoPromote:
             )
         )
 
+    def test_codex_init_generates_semantic_resume_smoke_contract(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "codex-semantic-resume-smoke"
+        result = runner.invoke(
+            app,
+            ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        )
+
+        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+        generated_skill = (target / ".codex" / "skills" / "sp-debug" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        generated_command_template = (
+            target / ".specify" / "templates" / "commands" / "debug.md"
+        ).read_text(encoding="utf-8")
+        generated_workflow_state = (
+            target / ".specify" / "templates" / "workflow-state-template.md"
+        ).read_text(encoding="utf-8")
+        resume_examples = (
+            target / ".specify" / "templates" / "examples" / "semantic-audit-resume" / "scenarios.md"
+        )
+        resume_validation = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "resume-validation.json"
+        )
+        route_changed_validation = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "resume-validation-route-changed.json"
+        )
+        active_claim_validation = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "resume-validation-active-claim-changed.json"
+        )
+        missing_file_validation = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "resume-validation-missing-file.json"
+        )
+        claim_ref_validation = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "resume-validation-claim-ref-mismatch.json"
+        )
+        verification_ref_validation = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "resume-validation-verification-ref-mismatch.json"
+        )
+        audit_input = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "semantic-audit-input.json"
+        )
+        audit_output = (
+            target
+            / ".specify"
+            / "templates"
+            / "examples"
+            / "semantic-audit-resume"
+            / "semantic-audit-output.json"
+        )
+        generated_contract = "\n".join([generated_skill, generated_command_template])
+        generated_contract_lower = generated_contract.lower()
+
+        assert "generated resume smoke" in generated_contract
+        assert "semantic-audit-input.json.semantic_audit_input.route_decision" in generated_contract
+        assert (
+            "semantic-audit-output.json.workflow_authorization and "
+            "semantic-audit-output.json.claim_readiness"
+        ) in generated_contract
+        assert "Stale-state detection remains prompt-only in v1.3.6" in generated_contract
+        assert "semantic-audit-resume" in generated_contract
+        assert "optional runtime validator" in generated_contract
+        assert "resume-validation.json" in generated_contract
+        assert "resume-validation-route-changed.json" in generated_contract
+        assert "resume-validation-active-claim-changed.json" in generated_contract
+        assert "resume-validation-missing-file.json" in generated_contract
+        assert "resume-validation-claim-ref-mismatch.json" in generated_contract
+        assert "resume-validation-verification-ref-mismatch.json" in generated_contract
+        assert "prefer the optional runtime validator" in generated_contract_lower
+        assert "ephemeral resume-validation.json" in generated_contract_lower
+        assert "if the validator returns fresh" in generated_contract_lower
+        assert "if the validator is unavailable" in generated_contract_lower
+        assert "real downstream resume smoke" in generated_contract_lower
+        assert "workflow-local semantic-audit-input.json" in generated_contract_lower
+        assert "workflow-local semantic-audit-output.json" in generated_contract_lower
+        assert "Prompt fallback remains valid" in generated_contract
+        assert "does not authorize source edits, final claims, or P3/P4 permission" in generated_contract
+        assert "Fingerprint mismatches are route-changed" in generated_contract
+        assert ".specify/templates/examples/semantic-audit-resume/scenarios.md" in generated_contract
+        assert "keep claim_ready false" in generated_contract
+
+        assert "semantic_audit_generated_resume_smoke:" in generated_workflow_state
+        assert "semantic_audit_stale_reasons:" in generated_workflow_state
+        assert "active-claim-changed" in generated_workflow_state
+
+        assert resume_examples.exists()
+        resume_examples_text = resume_examples.read_text(encoding="utf-8")
+        assert "Semantic Audit Resume Examples" in resume_examples_text
+        assert "verification-ref-mismatch" in resume_examples_text
+        assert "resume-validation.json" in resume_examples_text
+
+        assert resume_validation.exists()
+        assert route_changed_validation.exists()
+        assert active_claim_validation.exists()
+        assert missing_file_validation.exists()
+        assert claim_ref_validation.exists()
+        assert verification_ref_validation.exists()
+        assert audit_input.exists()
+        assert audit_output.exists()
+        resume_validation_payload = json.loads(resume_validation.read_text(encoding="utf-8"))
+        resume_validation_state = resume_validation_payload["workflow_state"]
+        assert resume_validation_state["semantic_audit_input_path"] == "semantic-audit-input.json"
+        assert resume_validation_state["semantic_audit_output_path"] == "semantic-audit-output.json"
+        assert resume_validation_state["selected_candidate_ids"] == ["environment-settings-page"]
+        assert resume_validation_state["claim_authorization_refs"] == [
+            "workflow:debug#root-cause-reviewed"
+        ]
+
+    def test_codex_downstream_state_runs_semantic_resume_validator(self, tmp_path):
+        if shutil.which("go") is None:
+            pytest.skip("Go toolchain unavailable")
+
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "codex-semantic-resume-runtime-smoke"
+        result = runner.invoke(
+            app,
+            ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        )
+
+        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+        examples_dir = target / ".specify" / "templates" / "examples" / "semantic-audit-resume"
+        workflow_state_dir = target / ".planning" / "debug" / "h5-env"
+        workflow_state_dir.mkdir(parents=True)
+        (workflow_state_dir / "semantic-audit-input.json").write_text(
+            (examples_dir / "semantic-audit-input.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (workflow_state_dir / "semantic-audit-output.json").write_text(
+            (examples_dir / "semantic-audit-output.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        fresh_resume = workflow_state_dir / "resume-validation.json"
+        fresh_resume.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "workflow_state": {
+                        "semantic_audit_input_path": "semantic-audit-input.json",
+                        "semantic_audit_output_path": "semantic-audit-output.json",
+                        "semantic_audit_route_fingerprint": "semantic-audit-route:v1:bab591a662cd55d2",
+                        "active_claim_type": "root_cause_claim",
+                        "selected_candidate_ids": ["environment-settings-page"],
+                        "claim_readiness_status": "claim_ready",
+                        "claim_authorization_refs": ["workflow:debug#root-cause-reviewed"],
+                        "claim_verification_refs": ["test:EnvironmentSettings.test.tsx#passed"],
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        fresh_payload = _run_semantic_audit_resume_fixture(fresh_resume)
+        assert fresh_payload["validator"] == "semantic-audit-resume"
+        assert fresh_payload["semantic_audit_generated_resume_smoke"] == "passed"
+        assert fresh_payload["semantic_audit_resume_status"] == "fresh"
+        assert fresh_payload["semantic_audit_stale_reasons"] == ["none"]
+        assert fresh_payload["can_reuse_persisted_claim_readiness"] is True
+        assert fresh_payload["grants_permission"] is False
+        assert (
+            fresh_payload["boundary"]
+            == "comparison_only_no_source_edit_or_claim_authorization"
+        )
+
+        stale_resume = workflow_state_dir / "resume-validation-route-changed.json"
+        stale_resume.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "workflow_state": {
+                        "semantic_audit_input_path": "semantic-audit-input.json",
+                        "semantic_audit_output_path": "semantic-audit-output.json",
+                        "semantic_audit_route_fingerprint": "semantic-audit-route:v1:2ed3dba77fe9af12",
+                        "active_claim_type": "root_cause_claim",
+                        "selected_candidate_ids": ["env-config"],
+                        "claim_readiness_status": "claim_ready",
+                        "claim_authorization_refs": ["workflow:debug#root-cause-reviewed"],
+                        "claim_verification_refs": ["test:EnvironmentSettings.test.tsx#passed"],
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        stale_payload = _run_semantic_audit_resume_fixture(stale_resume)
+        assert stale_payload["validator"] == "semantic-audit-resume"
+        assert stale_payload["semantic_audit_generated_resume_smoke"] == "failed"
+        assert stale_payload["semantic_audit_resume_status"] == "needs-rerun"
+        assert "route-changed" in stale_payload["semantic_audit_stale_reasons"]
+        assert stale_payload["can_reuse_persisted_claim_readiness"] is False
+        assert stale_payload["grants_permission"] is False
+
     def test_codex_init_installs_lightweight_discussion_recovery_contract(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -336,7 +601,11 @@ class TestCodexAutoPromote:
         assert "senior ui and interaction designer" in generated_lower
         assert "ascii sketches" in generated_lower
         assert "ui_sketches_present" in generated_discussion
-        assert "ordinary turns append" in generated_lower
+        assert "ordinary turns do not write local files by default" in generated_lower
+        assert "deferred persistence" in generated_lower
+        assert "compaction preserve" in generated_lower
+        assert "user-triggered save" in generated_lower
+        assert "five-turn" in generated_lower
         assert "semantic checkpoints" in generated_lower
         assert "adaptive question pack" in generated_lower
         assert "primary question" in generated_lower
@@ -348,6 +617,12 @@ class TestCodexAutoPromote:
         assert "discussion.handoff-user-review" in generated_discussion
         assert "recommendation-first is not questionless" in generated_lower
         assert "discussion_decision_digest" in generated_discussion
+        assert "discussion_requirement_contract" in generated_discussion
+        assert "Agent-Facing Requirement Contract" in generated_discussion
+        assert "consumer_eligibility" in generated_discussion
+        assert "recommended_consumer" in generated_discussion
+        assert "quick_task_candidate" in generated_discussion
+        assert "Do not describe current execution or implementation progress" in generated_discussion
         assert "locked_direction" in generated_discussion
         assert "rejected_alternatives" in generated_discussion
         assert "accepted_tradeoffs" in generated_discussion
@@ -367,6 +642,11 @@ class TestCodexAutoPromote:
         assert "confirmed unified handoff pair" not in generated_lower
 
         assert "latest_event_checkpoint:" in state_template
+        assert "ordinary_turn_write_policy: deferred-checkpoint" in state_template
+        assert "save_trigger_policy:" in state_template
+        assert "unsaved_turn_count:" in state_template
+        assert "pending_context_summary:" in state_template
+        assert "compaction_preserve_items:" in state_template
         assert "latest_cognition_readiness:" in state_template
         assert (
             "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred"
@@ -379,6 +659,10 @@ class TestCodexAutoPromote:
         assert "optional_followups:" in state_template
         assert "recommendation_required_for_choices: true" in state_template
         assert "handoff-to-specify.md draft after explicit user request and boundary lock" in state_template
+        assert "handoff_kind: discussion_requirement_contract" in state_template
+        assert "consumer_eligibility:" in state_template
+        assert "recommended_consumer:" in state_template
+        assert "quick_task_candidate_status:" in state_template
 
         source_contract = handoff_template["source_evidence_contract"]
         assert source_contract["required_fields"] == [
@@ -837,6 +1121,11 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
     quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "--discuss" in quick_content
     assert "multiple unfinished quick tasks exist" in quick_content
+    assert "resolve discussion handoff intake before quick-task execution" in quick_content
+    assert "discussion_requirement_contract" in quick_content
+    assert "consumer_eligibility.sp-quick.status" in quick_content
+    assert "quick_task_candidate" in quick_content
+    assert "do not skip the understanding checkpoint" in quick_content
 
 
 def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):

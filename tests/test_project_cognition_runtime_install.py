@@ -245,6 +245,8 @@ def test_project_cognition_required_commands_include_compass_and_expand():
     assert "generate-ignore" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "changes" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "closeout-plan" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "semantic-intake --input" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "semantic-audit-resume --input" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "lexicon --mode" in project_cognition_runtime.REQUIRED_COMMANDS
     assert (
         "compass --semantic-intake-file --query-plan-file"
@@ -262,9 +264,17 @@ def test_project_cognition_install_scripts_verify_closeout_plan_flags():
     assert "closeout-plan --help" in shell_script
     assert "-workflow" in shell_script
     assert "-delta-session" in shell_script
+    assert "semantic-intake --help" in shell_script
+    assert "semantic-intake binary is missing required input flag" in shell_script
+    assert "semantic-audit-resume --help" in shell_script
+    assert "semantic-audit-resume binary is missing required input flag" in shell_script
     assert '@("closeout-plan", "--help")' in powershell_script
     assert "-workflow" in powershell_script
     assert "-delta-session" in powershell_script
+    assert '@("semantic-intake", "--help")' in powershell_script
+    assert "semantic-intake binary is missing required input flag" in powershell_script
+    assert '@("semantic-audit-resume", "--help")' in powershell_script
+    assert "semantic-audit-resume binary is missing required input flag" in powershell_script
 
 
 def test_project_cognition_binary_support_requires_compass_and_expand(
@@ -325,7 +335,7 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -358,7 +368,7 @@ def test_project_cognition_binary_support_requires_closeout_plan_root_command(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -385,7 +395,7 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -414,13 +424,21 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
         stderr = ""
 
     class LexiconHelpResult:
@@ -432,6 +450,10 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
         raise AssertionError(f"unexpected command: {command}")
@@ -439,6 +461,49 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
     monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
 
     assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_semantic_intake_input_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, "
+            "semantic-intake, semantic-audit-resume, lexicon, compass, expand, delta, closeout-plan\n"
+        )
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -format string\n"
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [
+        [str(binary), "--help"],
+        [str(binary), "update", "--help"],
+        [str(binary), "semantic-intake", "--help"],
+    ]
 
 
 def test_project_cognition_binary_support_requires_compass_precision_flags(
@@ -449,13 +514,21 @@ def test_project_cognition_binary_support_requires_compass_precision_flags(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
         stderr = ""
 
     class LexiconHelpResult:
@@ -471,6 +544,10 @@ def test_project_cognition_binary_support_requires_compass_precision_flags(
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
         if command[1:] == ["compass", "--help"]:
@@ -490,13 +567,21 @@ def test_project_cognition_binary_support_requires_expand_section_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
         stderr = ""
 
     class LexiconHelpResult:
@@ -518,6 +603,10 @@ def test_project_cognition_binary_support_requires_expand_section_flag(
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
         if command[1:] == ["compass", "--help"]:
@@ -539,13 +628,21 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
         stderr = ""
 
     class LexiconHelpResult:
@@ -571,6 +668,10 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
         if command[1:] == ["compass", "--help"]:
@@ -594,13 +695,21 @@ def test_project_cognition_binary_support_requires_closeout_plan_delta_session_f
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, generate-ignore, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
         stderr = ""
 
     class LexiconHelpResult:
@@ -635,6 +744,10 @@ def test_project_cognition_binary_support_requires_closeout_plan_delta_session_f
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
         if command[1:] == ["compass", "--help"]:
@@ -653,6 +766,8 @@ def test_project_cognition_binary_support_requires_closeout_plan_delta_session_f
     assert calls == [
         [str(binary), "--help"],
         [str(binary), "update", "--help"],
+        [str(binary), "semantic-intake", "--help"],
+        [str(binary), "semantic-audit-resume", "--help"],
         [str(binary), "lexicon", "--help"],
         [str(binary), "compass", "--help"],
         [str(binary), "expand", "--help"],

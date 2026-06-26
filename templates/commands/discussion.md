@@ -11,6 +11,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Role
 
 You are a senior product-engineering advisor: a senior technical expert and senior product manager working with the user to shape an idea before formal specification.
@@ -242,7 +244,7 @@ Shared section meanings:
 - Package: the handoff Markdown path, JSON path, state path, and any source artifact paths worth opening next.
 - Next Step: the exact downstream command or consumption path, plus when to return to `sp-discussion`.
 - Primary Decision Question: one required user-owned answer with recommended default and alternatives.
-- State Update: durable artifact writes, state fields refreshed, open-question changes, or `ordinary event only`.
+- State Update: durable artifact writes, state fields refreshed, open-question changes, deferred persistence status, unsaved turn count, and any `Compaction Preserve` summary that must survive context compression.
 
 Response format matrix:
 
@@ -271,7 +273,8 @@ Format rules:
 - Keep the `Ready Summary Quality` check internal. Do not use it as a primary user-visible `handoff-ready` heading; the visible layout should read as a concise handoff card, not an audit form.
 - `discussion.context-grounding`, `discussion.technical-options`, and `discussion.evidence-conflict` must distinguish verified facts from assumptions.
 - `discussion.handoff-draft`, `discussion.handoff-self-review`, and `discussion.handoff-user-review` must not ask a bare yes/no question; they must ask the user to approve according to the reviewer guide, list concrete changes, or report required fixes before user review.
-- If a turn only appends a compact ordinary event and continues work without waiting, set `question_pack_mode: none`, keep `primary_question: none`, and explain the continued action in `State Update`.
+- If a turn is an ordinary discussion turn and no save trigger fires, do not write local files. Set `question_pack_mode` normally for the reply, keep the current pending summary in context, increment `unsaved_turn_count` conceptually, and explain the deferred persistence status in `State Update`.
+- `State Update` must include `Compaction Preserve` whenever the reply contains user thinking, decisions, requirement points, feature points, constraints, or trade-offs that should not be compressed away or reinterpreted before the next checkpoint.
 
 
 ## Discussion Flow
@@ -387,9 +390,21 @@ If the idea is clearly greenfield or does not depend on existing project structu
 
 ## Lightweight Recovery Log
 
-Ordinary turns append a compact event to `discussion-log.md`. The event is not a transcript. It records only durable meaning: event kind, user input summary, agent conclusion, evidence used, open question delta, and whether a semantic checkpoint is required.
+Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and flush it to `discussion-log.md` only when a save trigger fires.
 
-Do not refresh all structured files on ordinary turns. The event log exists to survive context compaction while keeping normal discussion lightweight.
+Save triggers are:
+
+- semantic checkpoint
+- user-triggered save, such as "save this point", "record the current discussion", or "this is decided"
+- five-turn cadence: five ordinary turns have accumulated since the last persisted discussion event
+- context compaction risk is high
+- handoff assessment, handoff drafting, resume repair, or another durable lifecycle transition needs the pending summary
+
+When a save trigger fires, append one batched compact event to `discussion-log.md`. The event is not a transcript. It records only durable meaning: covered turn count, event kind, user input summary, agent conclusion, confirmed decisions, pending requirement or feature points, evidence used, open question delta, save trigger, and whether a semantic checkpoint is required.
+
+Do not refresh all structured files on ordinary turns. The batched event log exists to survive context compaction while keeping normal discussion lightweight.
+
+Every ordinary reply that does not persist files must report `Not persisted this turn` in `State Update` and include a `Compaction Preserve` sentence when there is active meaning to preserve. The preserve sentence must explicitly protect user thinking, decisions, confirmed requirement points, confirmed feature points, constraints, trade-offs, and reopen conditions from being dropped, flattened, or reinterpreted during context compression.
 
 ## Semantic Checkpoints
 
@@ -402,6 +417,8 @@ Refresh structured files only at semantic checkpoints:
 - evidence conflict is found
 - truth pass status changes
 - the discussion compass becomes stale or a recommendation changes
+- user-triggered save confirms the current discussion point should become durable
+- five-turn deferred persistence cadence fires after five ordinary unsaved turns
 - the user asks for handoff or next-stage continuation
 - context compaction risk is high
 - an old discussion is resumed and compact state is missing or stale
@@ -505,7 +522,7 @@ Before any final option selection or `sp-specify` handoff, perform a maintainer-
 - Must not mark the discussion `handoff-ready` when the gate triggers and no concrete Affected Object Map, State-Behavior Matrix, Dependency Impact Table, or Recovery And Validation Contract exists.
 
 
-## Handoff To sp-specify
+## Unified Discussion Handoff
 
 Handoff is explicit-user-request only and follows handoff assessment.
 
@@ -514,20 +531,46 @@ Write exactly one current handoff pair:
 - `.specify/discussions/<slug>/handoff-to-specify.md`
 - `.specify/discussions/<slug>/handoff-to-specify.json`
 
+These filenames are compatibility names for the unified discussion handoff. Do not write a second quick-specific pair such as `handoff-to-quick.md` or `handoff-to-quick.json`. The same handoff is a `discussion_requirement_contract` that may be consumed by `sp-specify` or `sp-quick` when that consumer's gate passes.
+
 Both files are mandatory. Missing Markdown is invalid because the user-reviewable source is absent. Missing JSON is invalid because downstream workflows need structured boundary, review, and Must-Preserve status. Do not reconstruct a missing JSON companion during handoff; refresh the handoff in `sp-discussion` instead.
 
-The handoff Markdown and JSON must agree on `handoff_goal`, `discussion_slug`, context boundary fields, implementation target fields, quality gate status, Must-Preserve IDs, Senior Consequence Analysis status, and open blockers.
+The handoff Markdown and JSON must agree on `handoff_kind`, `handoff_goal`, `discussion_slug`, `consumer_eligibility`, `recommended_consumer`, context boundary fields, implementation target fields, quality gate status, Must-Preserve IDs, Senior Consequence Analysis status, and open blockers.
+
+## Agent-Facing Requirement Contract
+
+The unified handoff is primarily for downstream agents, not a transcript. Write the main handoff body as a requirement definition contract:
+
+You are the Agent owning the requirement definition. Discuss only the target need, constraints, success criteria, design direction, and optimal solution approach. Do not describe current execution or implementation progress.
+
+The agent-facing contract must include:
+
+- `handoff_kind`: `discussion_requirement_contract`
+- `agent_requirement_contract.target_need`: the target need in product-owner language
+- `agent_requirement_contract.constraints`: hard constraints, non-goals, forbidden drift, compatibility boundaries, and relevant project rules
+- `agent_requirement_contract.success_criteria`: observable success criteria and acceptance signals
+- `agent_requirement_contract.design_direction`: selected product, UX, workflow, or technical design direction without implementation progress narration
+- `agent_requirement_contract.optimal_solution_approach`: the recommended approach and why it best preserves the user's intent
+- `agent_requirement_contract.scope`: `in`, `out`, and `deferred` scope
+- `consumer_eligibility`: independent readiness verdicts for `sp-specify` and `sp-quick`
+- `recommended_consumer`: `sp-specify`, `sp-quick`, or `continue-discussion`
+- `quick_task_candidate`: bounded quick-task scope, excluded scope, expected changed surfaces, validation route, consequence model, whether `requires_spec_first`, and a Quick Checkpoint seed
+
+Do not put current execution status, artifact write progress, "I checked X" narration, or workflow bookkeeping in the agent-facing contract unless it is evidence, a source file reference, or a readiness gate field. Keep recovery and audit details in `discussion-state.md`, `discussion-log.md`, or reviewer-only sections.
 
 The handoff must include:
 
-- `handoff_goal`: one concrete statement of what is being handed to `sp-specify`
+- `handoff_goal`: one concrete statement of what is being handed downstream
+- `consumer_eligibility`: readiness for `sp-specify` and `sp-quick`, each with status and reason
+- `recommended_consumer`: the recommended next consumer or `continue-discussion`
+- `quick_task_candidate`: quick-task boundedness, excluded scope, changed surfaces, validation route, consequence model, `requires_spec_first`, and Quick Checkpoint seed
 - `context_boundary`: `current_project_root`, `current_project_roles`, `target_project_root`, `target_project_roles`, `reference_projects`, `external_systems`, `path_status`, `boundary_confidence`, and `boundary_unknowns`
 - role objects in `current_project_roles` and `target_project_roles`, each with `role`, `scope`, `evidence_source`, and `notes`
 - `implementation_target`: actual project to change, target root path when local, target paths or modules, target paths still to verify, target project cognition status, and the statement that current project cognition cannot prove another project's implementation facts
 - `source_evidence`: structured evidence entries with `source_type`, `evidence_status`, `source`, `claim`, optional `project_cognition_route`, optional `live_code_evidence`, optional `needs_refresh`, and optional `notes`. Project cognition route entries are advisory unless paired with live code, test, script, config, docs, external source, explicit assumption, or user confirmation evidence.
 - `blocking_unknowns`: hard unknowns that block readiness and soft unknowns with owner, latest resolve phase, and stop-and-reopen condition
 - `downstream_instructions`: settled decisions, assumptions to preserve, conflicts requiring return to `sp-discussion`, capability map, recommended sequence, dependencies, deferred scope, and reopen conditions
-- `discussion_decision_digest`: the compact decision-intent layer that `sp-specify` must consume instead of flattening the discussion into generic requirements. Include `locked_direction`, `rejected_alternatives`, `accepted_tradeoffs`, `experience_commitments`, `review_criteria_carried_forward`, and `must_not_dilute`. Source each item from `requirements.md`, `technical-options.md`, `project-context.md`, the `Handoff Reviewer Guide`, or explicit user confirmation. This digest must not let downstream workflows rediscover or flatten the selected direction, rejected alternatives, accepted tradeoffs, UI/TUI experience commitments, review criteria, or forbidden simplifications.
+- `discussion_decision_digest`: the compact decision-intent layer that downstream consumers must preserve instead of flattening the discussion into generic requirements. Include `locked_direction`, `rejected_alternatives`, `accepted_tradeoffs`, `experience_commitments`, `review_criteria_carried_forward`, and `must_not_dilute`. Source each item from `requirements.md`, `technical-options.md`, `project-context.md`, the `Handoff Reviewer Guide`, or explicit user confirmation. This digest must not let downstream workflows rediscover or flatten the selected direction, rejected alternatives, accepted tradeoffs, UI/TUI experience commitments, review criteria, or forbidden simplifications.
 - `ui_discussion`: `ui_discussion_status`, confirmed UI decisions, deferred UI decisions, interaction expectations, state requirements, accessibility expectations, and whether ASCII sketches are present
 - `ui_sketch_reference`: Markdown section reference for ASCII sketches when `ui_sketches_present` is true
 - `handoff_reviewer_guide`: a human-facing Markdown section named `Handoff Reviewer Guide` that tells an experienced product or engineering reviewer what decision they are being asked to make, what to review first, when to approve, and when to request changes. Write it for someone who does not know Spec Kit internals.
@@ -545,7 +588,7 @@ The guide must tell the reviewer:
 - Request changes if: the target or evidence boundary is wrong, a hard decision is hidden as a soft unknown, a non-goal or reopen condition is missing, the handoff asks downstream workflows to prove or enforce facts outside the target project's authority, or Markdown and JSON disagree on protected IDs or quality-gate status.
 - What not to over-review: exact implementation filenames, UI copy/layout, or final field names may remain downstream soft unknowns unless the handoff claims them as verified or they are necessary to keep the scope coherent.
 
-After writing the draft pair, ask the user to review it with this guide and reply with either approval to mark `handoff-ready` or the concrete changes needed. Do not ask for a bare yes/no confirmation without review criteria.
+After writing the draft pair, ask the user to review it with this guide and reply with either approval to mark `handoff-ready` or the concrete changes needed. If both consumers are eligible, ask the user to confirm the recommended consumer or choose the other eligible consumer. Do not ask for a bare yes/no confirmation without review criteria.
 
 ## Must-Preserve Ledger
 
@@ -605,7 +648,7 @@ Before user confirmation, the handoff can exist only as a draft. Do not recommen
 
 ## Handoff JSON Companion
 
-When `handoff-to-specify.md` is written, also write `.specify/discussions/<slug>/handoff-to-specify.json` with the same ledger item IDs and key fields.
+When `handoff-to-specify.md` is written, also write `.specify/discussions/<slug>/handoff-to-specify.json` with the same ledger item IDs and key fields. These remain compatibility names for the single unified discussion handoff.
 
 The Markdown and JSON forms must agree on every ledger item's `id`, `type`, `claim`, `blocking_level`, `owner`, `latest_resolve_phase`, and `status`.
 
@@ -621,4 +664,4 @@ Do not mark the discussion `handoff-ready` until every confirmed or critical ite
 
 When the Senior Consequence Analysis Gate triggers, also write or refresh `handoff-to-specify.json` as a mandatory machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions. Markdown and JSON handoffs must agree on obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition before the discussion can become `handoff-ready`.
 
-After writing a draft handoff, ask the user to review it using the `Handoff Reviewer Guide`. Tell the user to invoke the generated integration's `sp-specify` command form with the handoff path only after the handoff self-review passes and `quality_gate.status` records user confirmation. Do not invoke it yourself.
+After writing a draft handoff, ask the user to review it using the `Handoff Reviewer Guide`. Tell the user to invoke the generated integration's `sp-specify` or `sp-quick` command form with the same handoff path only after the handoff self-review passes, `quality_gate.status` records user confirmation, and that consumer's `consumer_eligibility` status is ready. Do not invoke it yourself.

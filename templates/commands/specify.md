@@ -22,6 +22,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Pre-Execution Checks
 
 **Check for extension hooks before specification**:
@@ -34,6 +36,7 @@ scripts:
   - normal feature description
   - `.specify/discussions/<slug>/handoff-to-specify.md`
   - `.specify/discussions/<slug>/handoff-to-specify.json`
+  - `.specify/discussions/<slug>/handoff.md` or `.specify/discussions/<slug>/handoff.json` when a generated project has adopted neutral filenames
   - a discussion `<slug>` whose workspace contains the handoff pair
   - no arguments with exactly one unconsumed `status: handoff-ready` discussion whose `next_command` is `/sp.specify` or `sp-specify`
 - If no feature description is supplied and there is no exactly-one unconsumed handoff-ready discussion, stop with: `ERROR: No feature description provided`.
@@ -42,6 +45,8 @@ scripts:
 - Require both `handoff-to-specify.md` and `handoff-to-specify.json` before feature creation. Missing Markdown or JSON is `blocked_by_handoff_integrity`; route back to `sp-discussion` to refresh the pair instead of reconstructing it here.
 - Parse the JSON before feature creation and require:
   - `entry_source: sp-discussion`
+  - `handoff_kind: discussion_requirement_contract` when present; legacy discussion handoffs without this field may continue only if all other gates pass
+  - `consumer_eligibility.sp-specify.status: ready` when `consumer_eligibility` is present
   - `handoff_status: handoff-ready` or source `discussion-state.md` `status: handoff-ready`
   - `planning_gate_status: ready`
   - `quality_gate.status: user_confirmed` or `quality_gate.status: user-confirmed`
@@ -52,6 +57,7 @@ scripts:
 - If `target_project_root` is present and differs from the current repository root, do not create a feature workspace in the wrong project. Ask the user to run the target project's `sp-specify` with this handoff path, or to confirm that the current repository is the intended target.
 - Derive the feature description for `{SCRIPT}` from `handoff_goal` plus the confirmed implementation target summary. Do not pass the raw handoff file path, JSON path, or slug as the feature description.
 - Preserve the selected source handoff path and slug for `workflow-state.md`, `alignment.md`, and `brainstorming/handoff-to-specify.json`.
+- Treat `handoff-to-specify.*` as compatibility filenames for the unified `discussion_requirement_contract`. Do not require or generate a second consumer-specific discussion handoff.
 
 **Set the working boundary**:
 - Treat the user request as the starting point for a specification, not permission to implement.
@@ -121,6 +127,8 @@ After the default compass packet, run the advanced `lexicon -> semantic_intake -
 When `sp-specify` starts from `sp-discussion`, do not trust only the handoff summary.
 
 - Use the `SOURCE_HANDOFF_MD`, `SOURCE_HANDOFF_JSON`, and `SOURCE_DISCUSSION_SLUG` selected by pre-feature-creation discussion handoff intake. If a handoff was supplied but intake did not run, stop and run intake before continuing.
+- Read the agent-facing requirement contract first: `agent_requirement_contract.target_need`, `constraints`, `success_criteria`, `design_direction`, `optimal_solution_approach`, and `scope`.
+- Confirm `consumer_eligibility.sp-specify.status` is `ready` when present; if it is blocked, route back to `sp-discussion` instead of forcing feature creation.
 - Re-read `handoff-to-specify.md` and `handoff-to-specify.json` after `FEATURE_DIR` is known and preserve compatibility fields such as `entry_source: sp-discussion`, `handoff_status: handoff-ready`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`.
 - When `entry_source: sp-discussion` and `source_handoff` points under `.specify/discussions/<slug>/handoff-to-specify.md`, preserve that slug as the source discussion that must be marked consumed after this command successfully writes and self-reviews the feature specification package.
 - Coverage and planning readiness are separate. Use `coverage_status` for upstream signal mapping completeness and `planning_gate_status` for whether downstream planning may proceed.

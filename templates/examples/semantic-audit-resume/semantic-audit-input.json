@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "work_contract": {
+    "id": "wc-h5-env-page",
+    "raw_request": "H5 environment settings page access throws",
+    "normalized_goal": "Investigate H5 access exception on the environment settings page",
+    "workflow_intent": "debug",
+    "extracted_facets": [
+      "H5 web surface",
+      "environment settings page",
+      "access exception"
+    ],
+    "semantic_intake_ref": "semantic_intake_output",
+    "selected_concept_ids": [
+      "environment-settings-page"
+    ],
+    "rejected_concept_ids": [
+      "workflow-environment"
+    ],
+    "permission_decision": {
+      "current_level": "P2",
+      "maximum_without_live_evidence": "P2",
+      "blocked_actions": [
+        "change",
+        "fixed_claim",
+        "completed_claim",
+        "release_safe"
+      ]
+    },
+    "learning_contract": {
+      "memory_level": "M1",
+      "promotion_requires": [
+        "live_source_evidence",
+        "verified_behavior"
+      ]
+    }
+  },
+  "semantic_intake_input": {
+    "version": 1,
+    "raw_request": "H5 environment settings page access throws",
+    "agent_facets": {
+      "surface": {
+        "required": [
+          "H5 web",
+          "environment settings page"
+        ]
+      },
+      "behavior": {
+        "required": [
+          "access exception"
+        ]
+      }
+    }
+  },
+  "semantic_intake_output": {
+    "version": 1,
+    "readiness": "query_ready",
+    "candidate_universe": {
+      "primary_candidates": [
+        {
+          "id": "environment-settings-page",
+          "labels": [
+            "Environment Settings Page"
+          ],
+          "surface_type": "ui_page",
+          "score": 9,
+          "evidence_rank": "E2",
+          "owner_hints": {
+            "primary_paths": [
+              "desktop/src/pages/EnvironmentSettings.tsx"
+            ],
+            "verification_paths": [
+              "desktop/src/pages/EnvironmentSettings.test.tsx"
+            ]
+          },
+          "basis": [
+            "page access facet matches UI page surface"
+          ]
+        }
+      ],
+      "contrast_candidates": [
+        {
+          "id": "env-config",
+          "labels": [
+            ".env",
+            "environment variables"
+          ],
+          "surface_type": "config_surface",
+          "score": 4,
+          "evidence_rank": "E2",
+          "contrast_reason": "matches environment wording but not page access"
+        }
+      ],
+      "rejected_candidates": [
+        {
+          "id": "workflow-environment",
+          "labels": [
+            "workflow environment"
+          ],
+          "surface_type": "workflow_surface",
+          "false_match_type": "workflow-shadow",
+          "rejection_reason": "workflow runtime environment is not a user-facing H5 page"
+        }
+      ]
+    },
+    "permission_hint": {
+      "maximum_without_live_evidence": "P2",
+      "blocked_actions": [
+        "change",
+        "fixed_claim",
+        "completed_claim",
+        "release_safe"
+      ]
+    }
+  },
+  "route_decision": {
+    "selected_candidate_ids": [
+      "environment-settings-page"
+    ],
+    "contrast_candidate_ids": [
+      "env-config"
+    ],
+    "rejected_candidate_ids": [
+      "workflow-environment"
+    ],
+    "selection_reason": "H5 page access dominates generic environment config wording"
+  },
+  "permission_decision": {
+    "requested_level": "P2",
+    "evidence_level": "semantic_intake_only",
+    "requested_actions": [
+      "targeted_inspect"
+    ]
+  }
+}

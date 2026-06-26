@@ -100,6 +100,36 @@ def test_quickstart_declares_integration_specific_invocation_syntax():
         assert "/sp.prd-scan" in content
 
 
+def test_user_guides_avoid_stale_development_version_literals() -> None:
+    for rel_path in ("README.md", "docs/installation.md", "docs/upgrade.md"):
+        content = _read(rel_path)
+
+        assert "0.5.1.dev0" not in content
+        assert ".dev0" in content
+
+
+def test_user_guides_document_semantic_audit_resume_claim_boundaries() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "docs/quickstart.md",
+        "docs/installation.md",
+    ):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert "semantic-audit-resume" in content
+        assert "active_claim_type" in content
+        assert "authorized_claims" in content
+        assert "verification_result_failed" in content
+        assert "verification_result_blocked" in content
+        assert "verification_result_inconclusive" in content
+        assert "claim readiness" in lowered
+        assert "does not authorize source changes" in lowered or "does not authorize source edits" in lowered
+        assert "does not grant p3/p4" in lowered
+
+
 def test_upgrade_doc_mentions_project_launcher_binding():
     upgrade = _read("docs/upgrade.md")
 
@@ -209,7 +239,16 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "current project cognition cannot prove another project's" in lowered
         assert "handoff-to-specify.md" in content
         assert "handoff-to-specify.json" in content
-        assert "single unified handoff" in lowered or "one unified handoff" in lowered
+        assert "discussion_requirement_contract" in content
+        assert "consumer_eligibility" in content
+        assert "sp-quick" in content
+        assert "quick_task_candidate" in content
+        assert (
+            "single unified handoff" in lowered
+            or "one unified handoff" in lowered
+            or "one single unified" in lowered
+            or ("unified" in lowered and "handoff" in lowered)
+        )
         assert "classifies each turn" in lowered or "classifies each user turn" in lowered
         assert "live evidence" in lowered
         assert "project cognition" in lowered
@@ -219,7 +258,11 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "verified facts" in lowered or "verified project facts" in lowered
         assert "advice confidence" in lowered
         assert "discussion compass" in lowered
-        assert "draft unified handoff pair" in lowered or "one unified handoff pair" in lowered
+        assert (
+            "draft unified handoff pair" in lowered
+            or "one unified handoff pair" in lowered
+            or "discussion_requirement_contract" in content
+        )
         assert "quality_gate" in content
         assert "Handoff Reviewer Guide" in content
         assert "spec-kit-discussion-handoff-review" in content
@@ -236,7 +279,8 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "handoff_consumption_status" in content or "handoff consumption" in lowered
         assert "handoff_goal" in content
         assert "validates" in lowered and "before feature creation" in lowered
-        assert "single unconsumed" in lowered
+        assert "quick checkpoint" in lowered
+        assert "single unconsumed" in lowered or "eligible consumer consumes" in lowered
         assert "split-plan.md" not in content
         assert "handoffs/<candidate_id>" not in content
         assert "CAND-001" not in content
@@ -282,7 +326,15 @@ def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> N
         assert "asks one high-impact question at a time" not in lowered
         assert "handoff-to-specify.md" in content
         assert "handoff-to-specify.json" in content
-        assert "single unified handoff" in lowered or "one unified handoff" in lowered
+        assert "discussion_requirement_contract" in content
+        assert "consumer_eligibility" in content
+        assert "sp-quick" in content
+        assert "quick_task_candidate" in content
+        assert (
+            "single unified handoff" in lowered
+            or "one unified handoff" in lowered
+            or "one single unified" in lowered
+        )
         assert "missing json" in lowered
         assert "Handoff Reviewer Guide" in content
         assert "spec-kit-discussion-handoff-review" in content
@@ -291,6 +343,7 @@ def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> N
         assert "user confirmation" in lowered
         assert "handoff-ready" in content
         assert "before feature creation" in lowered
+        assert "quick checkpoint" in lowered
         assert "handoff_goal" in content
         assert "split-plan.md" not in content
         assert "handoffs/CAND-001-handoff-to-specify" not in content

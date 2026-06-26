@@ -19,6 +19,8 @@ This summary is routing metadata only. The full workflow contract is the frontma
 - Stable freshness state: `.specify/prd/status.json`.
 - Default handoff: `/sp-prd-build`.
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Objective
 
 [AGENT] Produce a reconstruction-grade scan package that lets `sp-prd-build` compile a PRD suite without rereading the repository.

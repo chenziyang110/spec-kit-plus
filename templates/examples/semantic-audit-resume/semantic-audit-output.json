@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "artifact_type": "semantic_routing_audit",
+  "route_decision": {
+    "selected_candidate_ids": [
+      "environment-settings-page"
+    ],
+    "contrast_candidate_ids": [
+      "env-config"
+    ],
+    "rejected_candidate_ids": [
+      "workflow-environment"
+    ],
+    "selected_candidates": [],
+    "contrast_candidates": [],
+    "rejected_candidates": [],
+    "selection_reason": "H5 page access dominates generic environment config wording"
+  },
+  "workflow_authorization": {
+    "workflow_intent": "debug",
+    "status": "authorized",
+    "authorized_claims": [
+      "root_cause_claim"
+    ],
+    "authorization_ref": "workflow:debug#root-cause-reviewed",
+    "claim_authorizations": [
+      {
+        "claim_type": "root_cause_claim",
+        "status": "authorized",
+        "authorization_ref": "workflow:debug#root-cause-reviewed",
+        "verification_evidence_refs": [
+          "test:EnvironmentSettings.test.tsx#passed"
+        ],
+        "reason": "debug workflow reviewed bounded source evidence and matching verification"
+      }
+    ],
+    "reason": "debug workflow reviewed bounded source evidence and matching verification"
+  },
+  "claim_readiness": {
+    "inspect_status": "inspect_ready",
+    "inspect_ready": true,
+    "change_status": "change_blocked",
+    "change_ready": false,
+    "claim_status": "claim_ready",
+    "claim_type": "root_cause_claim",
+    "claim_ready": true,
+    "verification_satisfied": true,
+    "promotion_blocked": false,
+    "blocked_by": [],
+    "claim_verification_refs": [
+      "test:EnvironmentSettings.test.tsx#passed"
+    ],
+    "evidence_trail": [
+      "read:desktop/src/pages/EnvironmentSettings.tsx#route-guard",
+      "test:EnvironmentSettings.test.tsx#passed",
+      "workflow:debug#root-cause-reviewed"
+    ],
+    "reason": "bounded evidence, matching verification, and workflow authorization are aligned"
+  }
+}

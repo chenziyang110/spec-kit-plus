@@ -33,6 +33,36 @@ DIRECT_HOOK_DISPATCH_MARKERS = (
     "claude-hook-dispatch.py",
     "gemini-hook-dispatch.py",
 )
+GENERATED_GUIDANCE_ROOTS = (
+    ".codex/skills",
+    ".claude/commands",
+    ".gemini/commands",
+    ".github/agents",
+    ".cursor/skills",
+    ".qwen/commands",
+    ".opencode/command",
+    ".windsurf/workflows",
+    ".junie/commands",
+    ".kilocode/workflows",
+    ".augment/commands",
+    ".roo/commands",
+    ".codebuddy/commands",
+    ".qoder/commands",
+    ".kiro/prompts",
+    ".agents/commands",
+    ".shai/commands",
+    ".tabnine/agent/commands",
+    ".kimi/skills",
+    ".pi/prompts",
+    ".iflow/commands",
+    ".forge/commands",
+    ".bob/commands",
+    ".trae/skills",
+    ".agents/skills",
+    ".vibe/skills",
+)
+GENERATED_GUIDANCE_SUFFIXES = {".md", ".toml"}
+SOURCE_BOUND_UVX_SPECIFY_RE = re.compile(r"uvx\s+--from\s+git\+\S+\s+specify")
 
 
 @dataclass(frozen=True)
@@ -313,6 +343,34 @@ def load_project_cognition_launcher(project_root: Path) -> SpecifyLauncherSpec |
     return _normalize_launcher_payload(payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY))
 
 
+def _normalize_command_text(command: str) -> str:
+    return " ".join(command.split())
+
+
+def _stale_source_bound_specify_launchers(text: str, launcher: SpecifyLauncherSpec | None) -> list[str]:
+    if launcher is None:
+        return []
+    expected = _normalize_command_text(launcher.command)
+    stale: list[str] = []
+    for match in SOURCE_BOUND_UVX_SPECIFY_RE.finditer(text):
+        command = _normalize_command_text(match.group(0))
+        if command != expected and command not in stale:
+            stale.append(command)
+    return stale
+
+
+def _generated_guidance_files(project_root: Path) -> list[Path]:
+    files: list[Path] = []
+    for rel_root in GENERATED_GUIDANCE_ROOTS:
+        root = project_root / rel_root
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_file() and path.suffix.lower() in GENERATED_GUIDANCE_SUFFIXES:
+                files.append(path)
+    return files
+
+
 def project_specify_subcommand(
     project_root: Path,
     args: list[str] | tuple[str, ...],
@@ -464,6 +522,22 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "code": "broken-project-launcher",
                     "summary": "Persisted project launcher is configured but unavailable.",
                     "repair": "Repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project.",
+                }
+            )
+        stale_launcher_files: list[str] = []
+        for path in _generated_guidance_files(project_root):
+            text = _read_text_if_exists(path)
+            if _stale_source_bound_specify_launchers(text, launcher):
+                stale_launcher_files.append(path.relative_to(project_root).as_posix())
+        if stale_launcher_files:
+            preview = ", ".join(stale_launcher_files[:5])
+            if len(stale_launcher_files) > 5:
+                preview += f", +{len(stale_launcher_files) - 5} more"
+            issues.append(
+                {
+                    "code": "stale-generated-specify-launcher",
+                    "summary": f"Generated workflow guidance embeds an older source-bound `specify` launcher than `.specify/config.json`: {preview}.",
+                    "repair": "Run `specify integration repair` from the current trusted launcher, or re-run `specify init --here --force` with the active integration options, so generated commands are re-rendered from `.specify/config.json`.",
                 }
             )
 

@@ -27,7 +27,8 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Use an Adaptive Question Pack: ask one required primary question, and optionally add up to two same-topic follow-ups only when the topic is local and low risk.
 - Fall back to exactly one question for boundary gaps, evidence conflicts, cross-project targets, handoff readiness, destructive or lifecycle consequences, security or data-risk consequences, and major product trade-offs.
 - Put a recommended option and short reason on multiple-choice questions.
-- Append compact ordinary-turn events to `discussion-log.md`.
+- Use deferred persistence: ordinary turns do not write local files by default; flush one batched compact event to `discussion-log.md` only at a semantic checkpoint, user-triggered save, five-turn cadence, high compaction risk, or durable lifecycle transition.
+- In ordinary unsaved replies, report `Not persisted this turn` in `State Update` and include `Compaction Preserve` for user thinking, decisions, requirement points, feature points, constraints, trade-offs, and reopen conditions that must not be lost or reinterpreted during compression.
 - Refresh `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only at semantic checkpoints.
 - If the user asks to transfer functionality into another project, lock `target_project_root` immediately before technicalizing.
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.

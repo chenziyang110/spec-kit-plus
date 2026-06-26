@@ -77,6 +77,18 @@ if (($updateHelp -notmatch '-payload-file') -or ($updateHelp -notmatch '-verific
     Write-Host "Expected 'project-cognition update --help' to include -payload-file and -verification."
     exit 1
 }
+$semanticIntakeHelp = Get-NativeHelpOutput -Command $target -Arguments @("semantic-intake", "--help")
+if ($semanticIntakeHelp -notmatch '-input') {
+    Write-Host "Error: downloaded project-cognition semantic-intake binary is missing required input flag."
+    Write-Host "Expected 'project-cognition semantic-intake --help' to include -input."
+    exit 1
+}
+$semanticAuditResumeHelp = Get-NativeHelpOutput -Command $target -Arguments @("semantic-audit-resume", "--help")
+if ($semanticAuditResumeHelp -notmatch '-input') {
+    Write-Host "Error: downloaded project-cognition semantic-audit-resume binary is missing required input flag."
+    Write-Host "Expected 'project-cognition semantic-audit-resume --help' to include -input."
+    exit 1
+}
 $lexiconHelp = Get-NativeHelpOutput -Command $target -Arguments @("lexicon", "--help")
 if ($lexiconHelp -notmatch '-mode') {
     Write-Host "Error: downloaded project-cognition binary is missing required lexicon catalog mode."

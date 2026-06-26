@@ -7,6 +7,8 @@ workflow_contract:
   default_handoff: Return to the blocked workflow once the affected query scope is green or yellow.
 ---
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Objective
 
 Refresh the existing query-backed project cognition baseline incrementally from diff-driven evidence or explicit user corrections.

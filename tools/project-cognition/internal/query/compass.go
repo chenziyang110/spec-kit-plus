@@ -246,7 +246,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		payload.MinimalLiveReads = minimalReadsFromLanes(payload.EvidenceLanes)
 	}
 	payload.IntentFacets = coverageForFacets(facets, payload.EvidenceLanes, payload.CoverageDiagnostics, true)
-	payload.AgentNormalization = compassAgentNormalization(status, payload.EvidenceLanes, payload.CoverageDiagnostics, input.Query)
+	payload.AgentNormalization = compassAgentNormalization(status, input, payload)
 	payload.CompassState = compassState(status, input, payload)
 	payload.RecommendedNextAction = compassRecommendedNextAction(status, payload.CompassState)
 	payload.Summary = compassSummary(payload)
@@ -810,17 +810,25 @@ func compassRecommendedNextAction(status rt.Status, state string) string {
 	}
 }
 
-func compassAgentNormalization(status rt.Status, lanes []EvidenceLane, diagnostics []CoverageDiagnostic, query string) *AgentNormalizationDiagnostic {
-	if len(lanes) > 0 || !agentNormalizationCatalogUsable(status) {
+func compassAgentNormalization(status rt.Status, input CompassInput, payload CompassPayload) *AgentNormalizationDiagnostic {
+	if !agentNormalizationCatalogUsable(status) {
 		return nil
 	}
 	triggers := []string{}
-	if queryHasCJKOrMixedCJKASCII(query) {
-		triggers = append(triggers, "cjk_or_mixed_language_query")
+	mode := normalizedCompassInputMode(input.InputMode)
+	if mode == compassInputModeQuery && payload.FacetSource == compassFacetSourceMechanical && queryHasCJKOrMixedCJKASCII(input.Query) {
+		if len(payload.EvidenceLanes) == 0 || compassMechanicalFacetsNeedSemanticIntake(payload.IntentFacets) {
+			triggers = append(triggers, "cjk_or_mixed_language_query")
+		}
+		if compassMechanicalFacetsNeedSemanticIntake(payload.IntentFacets) {
+			triggers = appendMissingCoverage(triggers, "partial_cjk_mechanical_facets")
+		}
 	}
-	for _, diagnostic := range diagnostics {
-		if diagnostic.Kind == "broad_fallback_suppressed" {
-			triggers = appendMissingCoverage(triggers, "only_broad_fallback_matched")
+	if mode == compassInputModeQuery && len(payload.EvidenceLanes) == 0 {
+		for _, diagnostic := range payload.CoverageDiagnostics {
+			if diagnostic.Kind == "broad_fallback_suppressed" {
+				triggers = appendMissingCoverage(triggers, "only_broad_fallback_matched")
+			}
 		}
 	}
 	if len(triggers) == 0 {
@@ -831,8 +839,20 @@ func compassAgentNormalization(status rt.Status, lanes []EvidenceLane, diagnosti
 		Reason:   "raw_terms_need_project_vocabulary_normalization",
 		Triggers: triggers,
 		Action:   "write_semantic_intake_from_alias_catalog",
-		Reminder: "Translate user language into project vocabulary before fixing when compact evidence lanes are absent.",
+		Reminder: "Translate user language into project vocabulary before fixing when compact evidence lanes are absent or mechanical CJK facets remain weak.",
 	}
+}
+
+func compassMechanicalFacetsNeedSemanticIntake(facets []CompassIntentFacet) bool {
+	for _, facet := range facets {
+		if facet.Coverage == "covered_for_first_pass" {
+			continue
+		}
+		if queryHasCJKOrMixedCJKASCII(facet.Name) && len([]rune(facet.Name)) >= 4 {
+			return true
+		}
+	}
+	return false
 }
 
 func compassSummary(payload CompassPayload) string {

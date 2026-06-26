@@ -11,6 +11,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Complexity-Based Debug Execution
 
 `sp-debug` is leader-owned and evidence-first. Choose the execution path from the shape of the investigation, then record the decision in the debug session file.

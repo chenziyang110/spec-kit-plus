@@ -93,6 +93,16 @@ def _assert_canonical_cognition_intake_contract(content: str) -> None:
         "expected_shape",
         "readiness",
         "task-local bundle",
+        "semantic_work_contract_begin",
+        "workcontract v1",
+        "semantic-intake",
+        "permissiondecision",
+        "maximum_without_live_evidence",
+        "learningcontract",
+        "single unified entrypoint",
+        "do not choose debug, implement, plan, or research from the user's raw words",
+        "do not claim root cause, fixed, complete, or release-safe",
+        "semantic_work_contract_end",
     ):
         assert required in normalized
 

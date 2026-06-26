@@ -19,6 +19,8 @@ REQUIRED_COMMANDS = (
     "generate-ignore",
     "changes",
     "closeout-plan",
+    "semantic-intake --input",
+    "semantic-audit-resume --input",
     "lexicon --mode",
     "compass --semantic-intake-file --query-plan-file",
     "expand --section",
@@ -118,6 +120,40 @@ def _binary_supports_required_commands(binary: Path) -> bool:
 
     update_output = f"{update_result.stdout}\n{update_result.stderr}"
     if "-payload-file" not in update_output or "-verification" not in update_output:
+        return False
+
+    try:
+        semantic_intake_result = subprocess.run(
+            [str(binary), "semantic-intake", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    semantic_intake_output = f"{semantic_intake_result.stdout}\n{semantic_intake_result.stderr}"
+    if "-input" not in semantic_intake_output:
+        return False
+
+    try:
+        semantic_audit_resume_result = subprocess.run(
+            [str(binary), "semantic-audit-resume", "--help"],
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    semantic_audit_resume_output = f"{semantic_audit_resume_result.stdout}\n{semantic_audit_resume_result.stderr}"
+    if "-input" not in semantic_audit_resume_output:
         return False
 
     try:

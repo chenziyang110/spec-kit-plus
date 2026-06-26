@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "handoff_kind": "discussion_requirement_contract",
   "status": "pending",
   "stage": "consequence-risk",
   "entry_source": null,
@@ -14,6 +15,45 @@
   "stage_scope_boundary": null,
   "reopen_condition": null,
   "handoff_goal": null,
+  "agent_requirement_contract": {
+    "writing_rule": "You are the Agent owning the requirement definition. Discuss only the target need, constraints, success criteria, design direction, and optimal solution approach. Do not describe current execution or implementation progress.",
+    "target_need": null,
+    "constraints": [],
+    "success_criteria": [],
+    "design_direction": [],
+    "optimal_solution_approach": [],
+    "scope": {
+      "in": [],
+      "out": [],
+      "deferred": []
+    }
+  },
+  "consumer_eligibility": {
+    "sp-specify": {
+      "status": "blocked",
+      "reason": "Planning readiness has not been reviewed."
+    },
+    "sp-quick": {
+      "status": "blocked",
+      "reason": "Quick-task boundedness has not been reviewed."
+    }
+  },
+  "recommended_consumer": "continue-discussion",
+  "quick_task_candidate": {
+    "bounded_scope": [],
+    "excluded_scope": [],
+    "expected_changed_surfaces": [],
+    "validation_route": [],
+    "consequence_model": "unknown",
+    "requires_spec_first": true,
+    "quick_checkpoint_seed": {
+      "issue": null,
+      "target_outcome": null,
+      "scope": null,
+      "next_action": null,
+      "completion_evidence": []
+    }
+  },
   "context_boundary": {
     "current_project_root": null,
     "current_project_roles": [],

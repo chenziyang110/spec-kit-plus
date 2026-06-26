@@ -14,6 +14,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Embedded Implement Review Loop
 
 This section is **mandatory**. `sp-implement` includes an internal review-and-repair loop. Do not expose, recommend, or route to a separate public review workflow.

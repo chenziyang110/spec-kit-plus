@@ -68,6 +68,18 @@ if [[ "$update_help" != *"-payload-file"* || "$update_help" != *"-verification"*
   echo "Expected 'project-cognition update --help' to include -payload-file and -verification." >&2
   exit 1
 fi
+semantic_intake_help="$("$target" semantic-intake --help 2>&1 || true)"
+if [[ "$semantic_intake_help" != *"-input"* ]]; then
+  echo "Error: downloaded project-cognition semantic-intake binary is missing required input flag." >&2
+  echo "Expected 'project-cognition semantic-intake --help' to include -input." >&2
+  exit 1
+fi
+semantic_audit_resume_help="$("$target" semantic-audit-resume --help 2>&1 || true)"
+if [[ "$semantic_audit_resume_help" != *"-input"* ]]; then
+  echo "Error: downloaded project-cognition semantic-audit-resume binary is missing required input flag." >&2
+  echo "Expected 'project-cognition semantic-audit-resume --help' to include -input." >&2
+  exit 1
+fi
 lexicon_help="$("$target" lexicon --help 2>&1 || true)"
 if [[ "$lexicon_help" != *"-mode"* ]]; then
   echo "Error: downloaded project-cognition binary is missing required lexicon catalog mode." >&2

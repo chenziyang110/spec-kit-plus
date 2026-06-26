@@ -11,6 +11,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Execution Mode
 
 {{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}

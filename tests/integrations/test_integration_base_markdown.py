@@ -121,7 +121,11 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "semantic_intake" in command_content
     assert "facet coverage" in command_lower
     assert "project-cognition query --intent plan" not in command_content
-    assert "ordinary turns append" in command_lower
+    assert "ordinary turns do not write local files by default" in command_lower
+    assert "deferred persistence" in command_lower
+    assert "compaction preserve" in command_lower
+    assert "user-triggered save" in command_lower
+    assert "five-turn" in command_lower
     assert "semantic checkpoints" in command_lower
     assert "draft pair" in command_lower
     assert "truth pass" in command_lower
@@ -145,6 +149,12 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "discussion.handoff-user-review" in command_content
     assert "recommendation-first is not questionless" in command_lower
     assert "one unified" in command_lower or "single unified" in command_lower
+    assert "discussion_requirement_contract" in command_content
+    assert "Agent-Facing Requirement Contract" in command_content
+    assert "consumer_eligibility" in command_content
+    assert "recommended_consumer" in command_content
+    assert "quick_task_candidate" in command_content
+    assert "Do not describe current execution or implementation progress" in command_content
     assert "handoff-to-specify.md" in command_content
     assert "handoff-to-specify.json" in command_content
     assert "Handoff Reviewer Guide" in command_content

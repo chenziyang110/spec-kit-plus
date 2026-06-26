@@ -9,6 +9,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/map-build/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.

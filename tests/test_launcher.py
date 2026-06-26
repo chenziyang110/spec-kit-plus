@@ -215,6 +215,40 @@ def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path
     assert "<agent>" not in broken["repair"]
 
 
+def test_diagnose_project_runtime_compatibility_reports_stale_generated_skill_launcher(tmp_path):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@new456 specify",
+                    "argv": [
+                        "uvx",
+                        "--from",
+                        "git+https://github.com/chenziyang110/spec-kit-plus.git@new456",
+                        "specify",
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    skill_path = tmp_path / ".codex" / "skills" / "sp-debug" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "Run `uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@old123 specify learning start --command debug --format json`.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-generated-specify-launcher" for issue in issues)
+    stale = next(issue for issue in issues if issue["code"] == "stale-generated-specify-launcher")
+    assert ".codex/skills/sp-debug/SKILL.md" in stale["summary"]
+    assert "integration repair" in stale["repair"]
+
+
 def test_runtime_diagnostics_warn_when_learning_index_missing(tmp_path):
     project = tmp_path
     skill_dir = project / ".specify" / "templates" / "passive-skills" / "spec-kit-project-learning"

@@ -25,6 +25,8 @@ agent_scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+
 {{spec-kit-include: ../command-partials/common/adaptive-execution.md}}
 
 ## Pre-Execution Checks

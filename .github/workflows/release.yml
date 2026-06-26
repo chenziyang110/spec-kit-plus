@@ -106,14 +106,14 @@ jobs:
 
           ### project-cognition runtime
 
-          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes the default compass/expand navigation commands, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout.
+          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
 
           **Install the prebuilt release binary**
           \`\`\`bash
           # Linux / macOS
-          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash
+          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | PROJECT_COGNITION_VERSION=${VERSION} bash
           # Windows (PowerShell)
-          irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
+          $env:PROJECT_COGNITION_VERSION="${VERSION}"; irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
           \`\`\`
 
           **Go users can also install from source**
@@ -175,6 +175,28 @@ jobs:
           echo ""
           echo "=== Built release tool binaries ==="
           ls -lh dist/release-tools/
+
+      - name: Smoke-test project-cognition release binary
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          chmod +x ./dist/release-tools/project-cognition-linux-amd64
+          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "semantic-intake"
+          ./dist/release-tools/project-cognition-linux-amd64 semantic-intake --help 2>&1 | grep -q -- "-input"
+          ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --help 2>&1 | grep -q -- "-input"
+          ./dist/release-tools/project-cognition-linux-amd64 compass --help 2>&1 | grep -q -- "-semantic-intake-file"
+          ./dist/release-tools/project-cognition-linux-amd64 compass --help 2>&1 | grep -q -- "-query-plan-file"
+          ./dist/release-tools/project-cognition-linux-amd64 expand --help 2>&1 | grep -q -- "-section"
+          ./dist/release-tools/project-cognition-linux-amd64 delta append --help 2>&1 | grep -q -- "-verification"
+          ./dist/release-tools/project-cognition-linux-amd64 delta append --help 2>&1 | grep -q -- "-generated-surface"
+          ./dist/release-tools/project-cognition-linux-amd64 closeout-plan --help 2>&1 | grep -q -- "-workflow"
+          ./dist/release-tools/project-cognition-linux-amd64 closeout-plan --help 2>&1 | grep -q -- "-delta-session"
+          tmpdir="$(mktemp -d)"
+          cp templates/examples/semantic-audit-resume/semantic-audit-input.json "$tmpdir/"
+          cp templates/examples/semantic-audit-resume/semantic-audit-output.json "$tmpdir/"
+          cp templates/examples/semantic-audit-resume/resume-validation.json "$tmpdir/"
+          cp templates/examples/semantic-audit-resume/resume-validation-route-changed.json "$tmpdir/"
+          ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --input "$tmpdir/resume-validation.json" --format json | grep -q '"semantic_audit_resume_status":"fresh"'
+          ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --input "$tmpdir/resume-validation-route-changed.json" --format json | grep -q '"semantic_audit_resume_status":"needs-rerun"'
 
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'

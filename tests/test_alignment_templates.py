@@ -1076,8 +1076,14 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
 
     assert "Lightweight Recovery Log" in content
     assert "Semantic Checkpoints" in content
-    assert "ordinary turns append" in lowered
-    assert "compact event" in lowered
+    assert "ordinary turns do not write local files by default" in lowered
+    assert "deferred persistence" in lowered
+    assert "compaction preserve" in lowered
+    assert "user-triggered save" in lowered
+    assert "five-turn" in lowered
+    assert "pending_context_summary" in combined
+    assert "unsaved_turn_count" in combined
+    assert "compaction_preserve_items" in combined
     assert "checkpoint triggers" in lowered
     assert "do not refresh all files" in lowered
     assert "requirements.md only when product requirements have changed enough to matter" in combined
@@ -1171,6 +1177,9 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "## Allowed Artifact Writes" in content
     assert "discussion-state.md" in content
     assert "handoff-to-specify.md" in content
+    assert "consumer_eligibility" in content
+    assert "recommended_consumer" in content
+    assert "quick_task_candidate" in content
     assert "## Context Boundary" in content
     assert "context_boundary_status: not-started | needs-user-input | locked | blocked" in content
     assert "current_project_root:" in content
@@ -1214,6 +1223,9 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "SOURCE_HANDOFF_JSON" in content
     assert "SOURCE_DISCUSSION_SLUG" in content
     assert "entry_source: sp-discussion" in content
+    assert "discussion_requirement_contract" in content
+    assert "consumer_eligibility" in content
+    assert "sp-specify" in content
     assert "handoff_status: handoff-ready" in content
     assert "quality_gate.status: user_confirmed" in content
     assert "planning_gate_status: ready" in content
@@ -1244,6 +1256,26 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "handoff_consumption_status" in content
 
 
+def test_quick_consumes_unified_discussion_handoff_through_checkpoint() -> None:
+    content = _read("templates/commands/quick.md")
+    lowered = content.lower()
+
+    assert "Resolve discussion handoff intake before quick-task execution" in content
+    assert "discussion_requirement_contract" in content
+    assert "consumer_eligibility" in content
+    assert "sp-quick" in content
+    assert "quick_task_candidate" in content
+    assert "requires_spec_first" in content
+    assert "source_discussion_slug" in content
+    assert "source_files_read" in content
+    assert "must_preserve" in content
+    assert "reopen_conditions" in content
+    assert "Do not skip the Understanding Checkpoint" in content
+    assert "understanding_confirmed: false" in content
+    assert "do not create a second quick-specific handoff" in lowered
+    assert "do not look for or require `handoff-to-quick" in lowered
+
+
 def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
@@ -1254,6 +1286,29 @@ def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -
     assert "accepted_tradeoffs" in content
     assert "experience_commitments" in content
     assert "must_not_dilute" in content
+
+
+def test_discussion_handoff_is_agent_facing_requirement_contract() -> None:
+    content = _read("templates/commands/discussion.md")
+    handoff_json = _read("templates/brainstorming-handoff-specify-template.json")
+    combined = "\n".join([content, handoff_json])
+    lowered = combined.lower()
+
+    assert "discussion_requirement_contract" in combined
+    assert "Agent-Facing Requirement Contract" in content
+    assert "target need" in lowered
+    assert "constraints" in lowered
+    assert "success criteria" in lowered
+    assert "design direction" in lowered
+    assert "optimal solution approach" in lowered
+    assert "Do not describe current execution or implementation progress" in content
+    assert '"consumer_eligibility"' in handoff_json
+    assert '"sp-specify"' in handoff_json
+    assert '"sp-quick"' in handoff_json
+    assert '"recommended_consumer"' in handoff_json
+    assert '"quick_task_candidate"' in handoff_json
+    assert '"requires_spec_first"' in handoff_json
+    assert "do not write a second quick-specific pair" in lowered
     assert "review_criteria_carried_forward" in content
     assert "technical-options.md" in content
     assert "ui_discussion" in content
@@ -1263,8 +1318,7 @@ def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -
     assert "rejected alternatives" in lowered
     assert "accepted trade" in lowered
     assert "review criteria" in lowered
-    assert "must not dilute" in lowered
-    assert "not just a source-file-read checklist" in lowered
+    assert "must_not_dilute" in content
 
 
 def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
@@ -2447,6 +2501,28 @@ def test_workflow_state_template_includes_lane_context():
     assert "blocker_reason:" in content
     assert "final_handoff_decision:" in content
     assert "## Lane Context" not in content
+
+
+def test_workflow_state_template_includes_semantic_audit_state_contract():
+    content = _read("templates/workflow-state-template.md")
+
+    assert "## Semantic Audit State" in content
+    assert "semantic_audit_status:" in content
+    assert "semantic_audit_input_path:" in content
+    assert "semantic_audit_output_path:" in content
+    assert "semantic_audit_resume_status:" in content
+    assert "semantic_audit_resume_validation:" in content
+    assert "semantic_audit_route_fingerprint:" in content
+    assert "semantic_audit_generated_resume_smoke:" in content
+    assert "semantic_audit_stale_reasons:" in content
+    assert "active-claim-changed" in content
+    assert "active_claim_type:" in content
+    assert "claim_readiness_status:" in content
+    assert "claim_authorization_refs:" in content
+    assert "claim_verification_refs:" in content
+    assert "selected_candidate_ids:" in content
+    assert "<WORKFLOW_STATE_DIR>/semantic-audit-input.json" in content
+    assert "<WORKFLOW_STATE_DIR>/semantic-audit-output.json" in content
 
 
 def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:

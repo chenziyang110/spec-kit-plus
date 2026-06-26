@@ -106,6 +106,35 @@ func TestCompassReviewReadinessWithLanesStaysUsableWithReview(t *testing.T) {
 	}
 }
 
+func TestCompassCJKMechanicalPartialFacetsRequireSemanticIntakeEvenWithLanes(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "debug",
+		Query:  "我在H5访问环境变量页面会出错 runtimeOverride",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(payload.EvidenceLanes) == 0 {
+		t.Fatalf("EvidenceLanes is empty, test needs a weak but non-empty first pass")
+	}
+	if payload.AgentNormalization == nil || !payload.AgentNormalization.Required {
+		t.Fatalf("AgentNormalization = %#v, want required semantic intake", payload.AgentNormalization)
+	}
+	if !hasString(payload.AgentNormalization.Triggers, "partial_cjk_mechanical_facets") {
+		t.Fatalf("AgentNormalization.Triggers = %#v, want partial CJK facet trigger", payload.AgentNormalization.Triggers)
+	}
+	if payload.CompassState != compassStateNeedsSemanticIntake {
+		t.Fatalf("CompassState = %q, want %q", payload.CompassState, compassStateNeedsSemanticIntake)
+	}
+	if payload.RecommendedNextAction != "write_semantic_intake_from_alias_catalog" {
+		t.Fatalf("RecommendedNextAction = %q, want semantic intake action", payload.RecommendedNextAction)
+	}
+}
+
 func TestCompassPlainQueryModeIgnoresPlanFacets(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedCompassModelSwitchGraph(t, paths)

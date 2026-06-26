@@ -1,6 +1,10 @@
+import json
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -64,6 +68,151 @@ def test_deep_research_golden_examples_are_bundled_with_templates() -> None:
     assert "PH-001" in docs_only
     assert "SPK-001" in spike_required
     assert "research-spikes/" in spike_required
+
+
+def test_semantic_audit_resume_examples_are_bundled_with_templates() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    examples_dir = REPO_ROOT / "templates" / "examples" / "semantic-audit-resume"
+    scenarios = examples_dir / "scenarios.md"
+    resume_validation = examples_dir / "resume-validation.json"
+    route_changed_validation = examples_dir / "resume-validation-route-changed.json"
+    active_claim_validation = examples_dir / "resume-validation-active-claim-changed.json"
+    missing_file_validation = examples_dir / "resume-validation-missing-file.json"
+    claim_ref_validation = examples_dir / "resume-validation-claim-ref-mismatch.json"
+    verification_ref_validation = examples_dir / "resume-validation-verification-ref-mismatch.json"
+    audit_input = examples_dir / "semantic-audit-input.json"
+    audit_output = examples_dir / "semantic-audit-output.json"
+
+    assert '"templates/examples" = "specify_cli/core_pack/templates/examples"' in pyproject
+    assert scenarios.exists()
+    assert resume_validation.exists()
+    assert route_changed_validation.exists()
+    assert active_claim_validation.exists()
+    assert missing_file_validation.exists()
+    assert claim_ref_validation.exists()
+    assert verification_ref_validation.exists()
+    assert audit_input.exists()
+    assert audit_output.exists()
+
+    content = scenarios.read_text(encoding="utf-8")
+    assert "Semantic Audit Resume Examples" in content
+    assert "fresh" in content
+    assert "missing-file" in content
+    assert "route-changed" in content
+    assert "active-claim-changed" in content
+    assert "claim-ref-mismatch" in content
+    assert "verification-ref-mismatch" in content
+    assert "resume-validation.json" in content
+    assert "resume-validation-route-changed.json" in content
+    assert "resume-validation-active-claim-changed.json" in content
+    assert "resume-validation-missing-file.json" in content
+    assert "resume-validation-claim-ref-mismatch.json" in content
+    assert "resume-validation-verification-ref-mismatch.json" in content
+
+    payload = json.loads(resume_validation.read_text(encoding="utf-8"))
+    state = payload["workflow_state"]
+    assert state["semantic_audit_input_path"] == "semantic-audit-input.json"
+    assert state["semantic_audit_output_path"] == "semantic-audit-output.json"
+    assert state["semantic_audit_route_fingerprint"] == "semantic-audit-route:v1:bab591a662cd55d2"
+    assert state["active_claim_type"] == "root_cause_claim"
+    assert state["selected_candidate_ids"] == ["environment-settings-page"]
+    assert state["claim_authorization_refs"] == ["workflow:debug#root-cause-reviewed"]
+    assert state["claim_verification_refs"] == ["test:EnvironmentSettings.test.tsx#passed"]
+
+
+def test_semantic_audit_resume_validator_examples_execute_when_go_is_available() -> None:
+    if shutil.which("go") is None:
+        pytest.skip("Go toolchain unavailable")
+
+    examples_dir = REPO_ROOT / "templates" / "examples" / "semantic-audit-resume"
+    runtime_dir = REPO_ROOT / "tools" / "project-cognition"
+
+    fresh = subprocess.run(
+        ["go", "run", ".", "semantic-audit-resume", "--input", str(examples_dir / "resume-validation.json"), "--format", "json"],
+        cwd=runtime_dir,
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        errors="replace",
+        text=True,
+        timeout=60,
+    )
+    assert fresh.returncode == 0, fresh.stderr
+    fresh_payload = json.loads(fresh.stdout)
+    assert fresh_payload["semantic_audit_generated_resume_smoke"] == "passed"
+    assert fresh_payload["semantic_audit_resume_status"] == "fresh"
+    assert fresh_payload["can_reuse_persisted_claim_readiness"] is True
+    assert fresh_payload["grants_permission"] is False
+
+    route_changed = subprocess.run(
+        [
+            "go",
+            "run",
+            ".",
+            "semantic-audit-resume",
+            "--input",
+            str(examples_dir / "resume-validation-route-changed.json"),
+            "--format",
+            "json",
+        ],
+        cwd=runtime_dir,
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        errors="replace",
+        text=True,
+        timeout=60,
+    )
+    assert route_changed.returncode == 0, route_changed.stderr
+    route_changed_payload = json.loads(route_changed.stdout)
+    assert route_changed_payload["semantic_audit_generated_resume_smoke"] == "failed"
+    assert route_changed_payload["semantic_audit_resume_status"] == "needs-rerun"
+    assert route_changed_payload["semantic_audit_stale_reasons"] == ["route-changed"]
+    assert route_changed_payload["can_reuse_persisted_claim_readiness"] is False
+    assert route_changed_payload["grants_permission"] is False
+
+    stale_fixtures = {
+        "resume-validation-active-claim-changed.json": [
+            "active-claim-changed",
+            "route-changed",
+        ],
+        "resume-validation-missing-file.json": [
+            "missing-file",
+        ],
+        "resume-validation-claim-ref-mismatch.json": [
+            "claim-ref-mismatch",
+        ],
+        "resume-validation-verification-ref-mismatch.json": [
+            "verification-ref-mismatch",
+        ],
+    }
+    for fixture, expected_reasons in stale_fixtures.items():
+        result = subprocess.run(
+            [
+                "go",
+                "run",
+                ".",
+                "semantic-audit-resume",
+                "--input",
+                str(examples_dir / fixture),
+                "--format",
+                "json",
+            ],
+            cwd=runtime_dir,
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["semantic_audit_generated_resume_smoke"] == "failed"
+        assert payload["semantic_audit_resume_status"] == "needs-rerun"
+        assert payload["semantic_audit_stale_reasons"] == expected_reasons
+        assert payload["can_reuse_persisted_claim_readiness"] is False
+        assert payload["grants_permission"] is False
 
 
 def test_wheel_force_include_bundles_workflow_state_template() -> None:
