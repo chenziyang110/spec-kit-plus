@@ -18,8 +18,8 @@ def test_release_workflow_uploads_project_cognition_binaries():
     assert "templates/examples/semantic-audit-resume" in content
     assert "./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --input" in content
     assert "resume-validation-route-changed.json" in content
-    assert "grep -q '\"semantic_audit_resume_status\":\"fresh\"'" in content
-    assert "grep -q '\"semantic_audit_resume_status\":\"needs-rerun\"'" in content
+    assert "grep -q '\"semantic_audit_resume_status\": \"fresh\"'" in content
+    assert "grep -q '\"semantic_audit_resume_status\": \"needs-rerun\"'" in content
     assert "grep -q -- \"-input\"" in content
     assert "PROJECT_COGNITION_VERSION=${VERSION}" in content
     assert "gh release create" in content
