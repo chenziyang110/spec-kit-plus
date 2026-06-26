@@ -15,6 +15,26 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
 
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
     assert (target / ".cursor" / "skills" / "sp-plan" / "SKILL.md").exists()
+    ask_path = target / ".cursor" / "skills" / "sp-ask" / "SKILL.md"
+    assert ask_path.exists()
+    ask_content = ask_path.read_text(encoding="utf-8")
+    ask_lower = ask_content.lower()
+
+    assert "project-cognition" in ask_content
+    assert "compass --intent ask" in ask_content
+    assert "query --intent ask" in ask_content
+    assert "Evidence-Backed Project Q&A" in ask_content
+    assert "project cognition provides advisory navigation" in ask_lower
+    assert "live evidence is authoritative" in ask_lower
+    assert "Do not create `.specify/ask/`" in ask_content
+    assert "Do not write handoff" in ask_content
+    assert "Do not edit source files" in ask_content
+    assert "Do not run tests" in ask_content
+    assert "Do not run builds" in ask_content
+    assert "Do not run package managers" in ask_content
+    assert "Do not execute project CLI commands" in ask_content
+    assert "discussion-state.md" not in ask_content
+    assert "handoff-to-specify" not in ask_content
     assert (target / ".cursor" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
 
 
@@ -38,6 +58,11 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert ".specify/memory/constitution.md" in content
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
+    assert "quick checkpoint" in content
+    assert "known facts / assumptions" in content
+    assert "implementation plan" in content
+    assert "validation evidence" in content
+    assert "stop condition" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
     assert "cursor leader gate" in content

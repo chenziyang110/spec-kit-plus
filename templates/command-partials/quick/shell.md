@@ -16,4 +16,4 @@ Before the lightweight path starts substantive execution, make the agent's under
 - The leader owns `STATUS.md`, lane selection, join points, validation, and final summary state.
 - Quick mode is the resumable middle lane between `sp-fast` and the full specification workflow.
 - Continue in quick only when any `CA-###` consequence obligations are bounded in `STATUS.md` with affected objects, lifecycle states, dependency impact, recovery/validation proof, coverage gaps, and stop-and-reopen conditions.
-- Before substantive execution, present one Understanding Checkpoint covering the understood problem, planned outcome, scope boundary, execution approach, and validation evidence; wait for user confirmation and record it in quick `STATUS.md`.
+- Before substantive execution, present one Understanding Checkpoint covering the understood problem, planned outcome, scope boundary, known facts and assumptions, affected surfaces, a concrete ordered implementation plan, validation evidence, and the stop condition that would require escalation; wait for user confirmation and record it in quick `STATUS.md`.

@@ -325,6 +325,65 @@ class TestCodexAutoPromote:
             )
         )
 
+    def test_codex_init_generates_sp_ask_read_only_qa_contract(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "codex-ask-contract"
+        result = runner.invoke(
+            app,
+            ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        )
+
+        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+        skill_path = target / ".codex" / "skills" / "sp-ask" / "SKILL.md"
+        template_path = target / ".specify" / "templates" / "commands" / "ask.md"
+        partial_path = target / ".specify" / "templates" / "command-partials" / "ask" / "shell.md"
+        assert skill_path.exists()
+        assert template_path.exists()
+        assert partial_path.exists()
+
+        skill_content = skill_path.read_text(encoding="utf-8")
+        template_content = template_path.read_text(encoding="utf-8")
+        partial_content = partial_path.read_text(encoding="utf-8")
+        skill_lower = skill_content.lower()
+        partial_lower = partial_content.lower()
+
+        assert "Evidence-Backed Project Q&A" in skill_content
+        assert "project cognition provides advisory navigation" in skill_lower
+        assert "live evidence is authoritative" in skill_lower
+        assert "compass --intent ask" in skill_content
+        assert "query --intent ask" in skill_content
+        assert "Do not create `.specify/ask/`" in skill_content
+        assert "Do not write handoff" in skill_content
+        assert "Do not edit source files" in skill_content
+        assert "Do not run tests" in skill_content
+        assert "Do not run builds" in skill_content
+        assert "Do not run package managers" in skill_content
+        assert "Do not execute project CLI commands" in skill_content
+        assert "discussion-state.md" not in skill_content
+        assert "handoff-to-specify" not in skill_content
+
+        assert "# sp-ask" in template_content
+        assert "{{spec-kit-include: ../command-partials/ask/shell.md}}" in template_content
+
+        assert "Evidence-Backed Project Q&A" in partial_content
+        assert "project-cognition compass --intent ask" in partial_content
+        assert "project-cognition query --intent ask" in partial_content
+        assert "project cognition as advisory navigation" in partial_lower
+        assert "live evidence is authoritative" in partial_lower
+        assert "Do not create `.specify/ask/`" in partial_content
+        assert "Do not write handoff" in partial_content
+        assert "Do not edit source files" in partial_content
+        assert "Do not run tests" in partial_content
+        assert "Do not run builds" in partial_content
+        assert "Do not run package managers" in partial_content
+        assert "Do not execute project CLI commands" in partial_content
+        assert "discussion-state.md" not in partial_content
+        assert "handoff-to-specify" not in partial_content
+
     def test_codex_init_generates_semantic_resume_smoke_contract(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -611,8 +670,17 @@ class TestCodexAutoPromote:
         assert "primary question" in generated_lower
         assert "optional follow-up" in generated_lower
         assert "recommended option" in generated_lower
-        assert "fixed response format contract" in generated_lower
-        assert "response_format_id" in generated_discussion
+        assert "high-throughput collaborative brief" in generated_lower
+        assert "frontstage / backstage separation" in generated_lower
+        assert "visible conversation" in generated_lower
+        assert "state accounting backstage" in generated_lower
+        assert "continue by default" in generated_lower
+        assert "do not ask for continuation" in generated_lower
+        assert "do not persist every turn" in generated_lower
+        assert "checkpoint persistence" in generated_lower
+        assert "surface file paths and state updates only" in generated_lower
+        assert "adaptive reply contract" in generated_lower
+        assert "reply_shape_id" in generated_discussion
         assert "discussion.context-intake" in generated_discussion
         assert "discussion.handoff-user-review" in generated_discussion
         assert "recommendation-first is not questionless" in generated_lower
@@ -653,7 +721,7 @@ class TestCodexAutoPromote:
             in state_template
         )
         assert "question_pack_mode: single-question | adaptive-pack | none" in state_template
-        assert "response_format_id:" in state_template
+        assert "reply_shape_id:" in state_template
         assert "discussion.evidence-conflict" in state_template
         assert "primary_question:" in state_template
         assert "optional_followups:" in state_template
@@ -794,6 +862,11 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     assert "always-on" in routing
     assert "project cognition and project memory" in routing
     assert "red flags" in routing
+    assert "high-throughput senior product-engineering advisor" in routing
+    assert "frontstage / backstage separation" in routing
+    assert "does not persist every turn" in routing
+    assert "continues by default" in routing
+    assert "does not ask for continuation" in routing
 
     assert "native subagents" in subagent
     assert "validated `workertaskpacket`" in subagent
@@ -1624,7 +1697,10 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "understanding_confirmed: true" in content
     assert "quick checkpoint" in content
     assert "target outcome" in content
-    assert "completion evidence" in content
+    assert "known facts / assumptions" in content
+    assert "implementation plan" in content
+    assert "validation evidence" in content
+    assert "stop condition" in content
     assert "done_or_progress_signal" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content

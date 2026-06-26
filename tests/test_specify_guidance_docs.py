@@ -181,6 +181,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "Support skills" in readme
     assert "Codex-only runtime" in readme
     assert "`auto`" in readme
+    assert "`ask`" in readme
     assert "`discussion`" in readme
     assert "`clarify`" in readme
     assert "`deep-research`" in readme
@@ -199,8 +200,28 @@ def test_guidance_docs_explain_skill_groups():
     assert "`discussion`" in quickstart
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
     assert "`constitution`, `specify`, `plan`, `tasks`, `implement`" in skill_map
-    assert "`map-scan`, `map-build`, `map-update`, `auto`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
+    assert "`map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
     assert "/sp-" not in skill_map
+
+
+def test_guidance_docs_explain_ask_read_only_evidence_backed_project_qa() -> None:
+    for rel_path in (
+        "README.md",
+        "docs/quickstart.md",
+        "docs/installation.md",
+        "PROJECT-HANDBOOK.md",
+    ):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert "ask" in lowered or "sp-ask" in lowered
+        assert "evidence-backed project q&a" in lowered
+        assert "read-only" in lowered
+        assert "project cognition" in lowered
+        assert "live evidence" in lowered
+        assert "sp-discussion" in content
+        assert "source edits" in lowered or "source edits" in content
+        assert "no `specify ask`" in lowered or "no `specify ask` typer helper" in lowered
 
 
 def test_guidance_docs_position_discussion_before_specify() -> None:
@@ -254,6 +275,15 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "project cognition" in lowered
         assert "advisory navigation" in lowered
         assert "semantic checkpoints" in lowered
+        assert "high-throughput" in lowered
+        assert "frontstage" in lowered
+        assert "backstage" in lowered
+        assert "checkpoint persistence" in lowered
+        assert "continue by default" in lowered
+        assert "do not ask for continuation" in lowered
+        assert "do not persist every turn" in lowered
+        assert "visible conversation" in lowered
+        assert "state accounting backstage" in lowered
         assert "senior product-engineering advisor" in lowered
         assert "verified facts" in lowered or "verified project facts" in lowered
         assert "advice confidence" in lowered

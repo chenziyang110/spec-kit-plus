@@ -71,8 +71,9 @@ explicit numeric option.
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
 - `sp-quick` performs one Understanding Checkpoint before substantive execution:
-  confirm the understood problem, intended outcome, scope boundary, execution
-  approach, and validation evidence before code edits, broad repo analysis,
+  confirm the understood problem, intended outcome, boundaries, known facts and
+  assumptions, affected surfaces, concrete implementation plan, validation
+  evidence, and stop condition before code edits, broad repo analysis,
   delegation, or validation commands continue.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
@@ -80,7 +81,12 @@ explicit numeric option.
   recommended/default answer should auto-accept that answer and continue; if the
   answer is not safe to assume, report the blocker and a self-unblock
   recommendation instead of waiting silently.
-- Use `sp-discussion` before `sp-specify` when the request is a rough idea, not-yet-ready requirement, unsettled product direction, or depends on unclear project boundaries. `sp-discussion` is the senior product-engineering advisor route: it performs a Truth Pass before project-specific technical advice, gives decision-ready judgment with evidence and risk, maintains a Discussion Compass for long conversations, and applies proactive implication mapping so adjacent implications are surfaced without one-point-at-a-time follow-up loops.
+- Use `sp-ask` before `sp-discussion` when the user wants a read-only project
+  question answered with evidence from live files, templates, docs, generated
+  state, memory, or project cognition before choosing an action workflow.
+  `sp-ask` reads project evidence and answers; it does not write state, create
+  handoffs, run tests, run builds, or edit files.
+- Use `sp-discussion` before `sp-specify` when the request is a rough idea, not-yet-ready requirement, unsettled product direction, or depends on unclear project boundaries. `sp-discussion` is the high-throughput senior product-engineering advisor route: the visible conversation gives the recommended direction, plain-language reason, usable draft or next design step, default next step, and override path, while frontstage / backstage separation keeps state accounting backstage. It uses checkpoint persistence, does not persist every turn, continues by default, does not ask for continuation when a safe default exists, performs a Truth Pass before project-specific technical advice, maintains a Discussion Compass, and applies proactive implication mapping so adjacent implications are surfaced without one-point-at-a-time follow-up loops.
 - `sp-discussion` must run the Context Boundary Gate before project-specific technical options, affected-file claims, or handoff generation.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
@@ -166,6 +172,7 @@ state, or artifact handoffs. Use projected invocation placeholders when telling 
 user what to type:
 
 - New capability alignment: `{{invoke:specify}}`
+- Read-only project Q&A: `{{invoke:ask}}`
 - Pre-spec discussion: `{{invoke:discussion}}`
 - Existing-project PRD extraction: `{{invoke:prd-scan}} -> {{invoke:prd-build}}`
 - Planning handoff: `{{invoke:plan}}`

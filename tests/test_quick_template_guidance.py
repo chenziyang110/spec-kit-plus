@@ -126,9 +126,22 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     assert "| item | current understanding |" in content
     assert "| issue |" in content
     assert "| target outcome |" in content
-    assert "| scope |" in content
+    assert "| boundaries |" in content
+    assert "| known facts / assumptions |" in content
+    assert "| affected surfaces |" in content
+    assert "| implementation plan |" in content
     assert "| next action |" in content
-    assert "| completion evidence |" in content
+    assert "| validation evidence |" in content
+    assert "| stop condition |" in content
+    assert "where it appears, why it matters" in content
+    assert "concrete ordered sequence" in content
+    assert "numbered lines inside the table cell using `<br>` separators" in content
+    assert "do not reuse the placeholder text as content" in content
+    assert "1. [task-specific first step]<br>2." in content
+    assert "task-specific verification or closeout step" in content
+    assert "locate the source of the behavior" not in content
+    assert "will change:" in content
+    assert "will not change:" in content
     assert "concrete files, commands, workflows, constraints, validation evidence, and known uncertainty" in content
     assert "unknown: [why it matters]" in content
     assert "wait for user confirmation" in content
@@ -156,10 +169,22 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "## understanding checkpoint" in content
     assert "checkpoint:" in content
     assert "issue:" in content
+    assert "issue_detail:" in content
     assert "expected_or_target:" in content
+    assert "known_facts:" in content
+    assert "unknowns_or_risks:" in content
+    assert "will_change:" in content
+    assert "will_not_change:" in content
     assert "in_scope:" in content
     assert "out_of_scope:" in content
+    assert "affected_surfaces:" in content
+    assert "execution_approach:" in content
+    assert "implementation_plan:" in content
+    assert "task-specific ordered step" in content
+    assert "locate source behavior" not in content
     assert "next_action:" in content
+    assert "validation_evidence:" in content
+    assert "stop_condition:" in content
     assert "done_or_progress_signal:" in content
     assert "user_corrections:" in content
     assert "status.md" in content

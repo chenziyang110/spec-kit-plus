@@ -12,6 +12,7 @@ from .models import CapabilitySnapshot
 FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
     {
         "specify",
+        "ask",
         "clarify",
         "explain",
         "debug",

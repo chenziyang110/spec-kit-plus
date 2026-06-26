@@ -104,6 +104,99 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         assert "inline-project-cognition-update.md" in _read_project_file(path), path
 
 
+def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
+    command = _read("templates/commands/ask.md")
+    shell = _read("templates/command-partials/ask/shell.md")
+    combined = "\n".join([command, shell])
+    lowered = combined.lower()
+
+    assert "# sp-ask" in command
+    assert "Evidence-Backed Project Q&A" in shell
+    assert "read-only answer with conclusion, evidence, uncertainty, and next step" in command
+    assert "no project files, state, or handoff artifacts are written" in command
+    assert "do not invoke it automatically" in command
+    assert _launcher_compass("ask") in shell
+    assert _launcher_query("ask") in shell
+    assert "project-cognition query --intent ask --query-plan-file <path> --format json" in shell
+    assert "project-cognition lexicon --intent ask --mode catalog --format json" in shell
+    assert "only after you build a semantic intake or query plan" in shell
+    assert "compass output or live evidence is ambiguous or has incomplete coverage" in shell
+    assert "stale or localization-sensitive results are examples" in shell.lower()
+    assert "live evidence is authoritative" in lowered
+    assert "classify the question before answering" in lowered
+    for classifier in (
+        "`fact`",
+        "`how_to`",
+        "`why`",
+        "`difference`",
+        "`impact`",
+        "`status`",
+        "`recommendation`",
+        "`concept`",
+        "`history`",
+        "`boundary`",
+    ):
+        assert classifier in combined
+    for forbidden in (
+        "Do not edit source files",
+        "Do not create `.specify/ask/`",
+        "Do not write handoff files",
+        "Do not run tests",
+        "Do not run builds",
+        "Do not run package managers",
+        "Do not launch apps or servers",
+        "Do not execute project CLI commands",
+        "Do not invoke another `sp-*` workflow automatically",
+    ):
+        assert forbidden in shell
+    assert "commits that are already available locally" not in lowered
+    assert "git log" not in lowered
+    assert "git show" not in lowered
+    assert "commit history" not in lowered
+    assert (
+        "`history`: explain prior decisions from project files, templates, docs, generated state, "
+        "memory, or project cognition."
+    ) in shell
+
+
+def test_workflow_routing_recommends_ask_before_discussion_for_read_only_questions() -> None:
+    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = routing.lower()
+
+    assert "Use `sp-ask` before `sp-discussion`" in routing
+    assert "{{invoke:ask}}" in routing
+    assert "read-only project" in lowered
+    assert "evidence from live files, templates, docs, generated" in routing
+    assert "memory, or project cognition" in routing
+    assert "does not write state, create" in routing
+    assert "handoffs, run tests, run builds, or edit files" in routing
+
+
+def test_project_cognition_gate_has_ask_specific_read_only_navigation() -> None:
+    gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
+    lowered = gate.lower()
+
+    assert "For `sp-ask`" in gate
+    assert 'project-cognition compass --intent ask --query="$ARGUMENTS" --format json' in gate
+    assert "project-cognition query --intent ask" in gate
+    assert "semantic\n  intake or query plan" in gate
+    assert "compass output or live evidence is ambiguous" in gate
+    assert "or has incomplete coverage" in gate
+    assert "Stale or localization-sensitive cases are examples" in gate
+    assert "still require that ambiguity or incomplete-coverage reason" in gate
+    assert "live evidence" in lowered and "authoritative" in lowered
+    assert "read-only" in lowered
+    for forbidden in (
+        "do not run tests",
+        "run builds",
+        "execute project CLI commands",
+        "write files",
+        "create handoffs",
+        "create ask\n  state",
+    ):
+        assert forbidden in gate
+
+
 def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract() -> None:
     commands = [
         "templates/commands/fast.md",
@@ -793,7 +886,7 @@ def _assert_discussion_advisor_upgrade_contract(content: str) -> None:
     assert "next_discussion_paths" in content
     assert "Anti-Toothpaste Protocol" in content
     assert "show the map" in lowered
-    assert "ask only the highest-impact question" in lowered
+    assert "ask only when user judgment is genuinely required" in lowered
     assert "do not recommend implementation work before the relevant truth pass" in lowered
 
 
@@ -921,23 +1014,33 @@ def test_discussion_anti_toothpaste_protocol_maps_adjacent_decisions() -> None:
     assert "recommended order for the next discussion steps" in lowered
     assert 'the rule is not "ask many questions."' in lowered
     assert "show the map" in lowered
-    assert "ask only the highest-impact question" in lowered
+    assert "ask only when user judgment is genuinely required" in lowered
 
 
-def test_discussion_response_formats_are_fixed_for_all_stages() -> None:
+def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")
     state = _read("templates/discussion-state-template.md")
     combined = "\n".join([content, shell, state])
     lowered = combined.lower()
 
-    assert "## Fixed Response Format Contract" in content
-    assert "response_format_id" in combined
-    assert "use the section labels in the listed order" in lowered
+    assert "## Adaptive Reply Contract" in content
+    assert "reply_shape_id" in combined
+    assert "fixed response format contract" not in lowered
+    assert "use the section labels in the listed order" not in lowered
+    assert "high-throughput collaborative brief" in lowered
+    assert "frontstage / backstage separation" in lowered
+    assert "visible conversation" in lowered
+    assert "state accounting backstage" in lowered
+    assert "continue by default" in lowered
+    assert "do not ask for continuation" in lowered
+    assert "do not persist every turn" in lowered
+    assert "checkpoint persistence" in lowered
+    assert "surface file paths and state updates only" in lowered
     assert "recommendation-first is not questionless" in lowered
-    assert "one explicit primary decision question" in lowered
+    assert "ask only when user judgment is genuinely required" in lowered
 
-    required_formats = (
+    required_shapes = (
         "discussion.context-intake",
         "discussion.product-framing",
         "discussion.context-grounding",
@@ -953,30 +1056,26 @@ def test_discussion_response_formats_are_fixed_for_all_stages() -> None:
         "discussion.blocked",
         "discussion.evidence-conflict",
     )
-    for response_format in required_formats:
-        assert response_format in content
-        assert response_format in state
+    for reply_shape in required_shapes:
+        assert reply_shape in content
+        assert reply_shape in state
 
-    required_sections = (
-        "Where We Are",
-        "Judgment",
-        "Evidence",
-        "Recommendation",
-        "Primary Decision Question",
+    required_visible_parts = (
+        "recommended direction",
+        "plain-language reason",
+        "usable draft",
+        "default next step",
+        "override path",
         "Handoff Ready",
         "Locked Direction",
         "Carry Forward",
         "Readiness",
         "Package",
         "Next Step",
-        "State Update",
     )
-    for section in required_sections:
-        assert section in content
+    for visible_part in required_visible_parts:
+        assert visible_part in content
 
-    assert (
-        "Handoff Ready -> Locked Direction -> Carry Forward -> Readiness -> Package -> Next Step -> State Update"
-    ) in content
     assert "must not close with only file paths, status counters, or a next command" in lowered
     assert "keep the `ready summary quality` check internal" in lowered
 
@@ -1136,7 +1235,8 @@ def test_discussion_shell_partial_summarizes_boundary_and_single_handoff_contrac
     assert "handoffs/<candidate_id>" not in content
     assert "split-plan.md" not in content
     assert "truth pass" in lowered
-    assert "boss-friendly advisor response" in lowered
+    assert "high-throughput collaborative brief" in lowered
+    assert "frontstage / backstage separation" in lowered
     assert "discussion compass" in lowered
     assert "anti-toothpaste" in lowered
     assert "verified_project_facts" in content
@@ -1385,6 +1485,14 @@ def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -
     assert "{{invoke:discussion}}" in content
     assert "{{invoke:specify}}" in content
     assert "senior product-engineering advisor" in lowered
+    assert "high-throughput senior product-engineering advisor" in lowered
+    assert "visible conversation" in lowered
+    assert "frontstage / backstage separation" in lowered
+    assert "state accounting backstage" in lowered
+    assert "checkpoint persistence" in lowered
+    assert "does not persist every turn" in lowered
+    assert "continues by default" in lowered
+    assert "does not ask for continuation" in lowered
     assert "truth pass" in lowered
     assert "discussion compass" in lowered
     assert "proactive implication mapping" in lowered

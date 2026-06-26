@@ -133,18 +133,26 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "open_assumptions" in command_content
     assert "evidence_checked" in command_content
     assert "advice_confidence" in command_content
-    assert "boss-friendly advisor response" in command_lower
+    assert "high-throughput collaborative brief" in command_lower
+    assert "frontstage / backstage separation" in command_lower
+    assert "visible conversation" in command_lower
+    assert "state accounting backstage" in command_lower
+    assert "continue by default" in command_lower
+    assert "do not ask for continuation" in command_lower
+    assert "do not persist every turn" in command_lower
+    assert "checkpoint persistence" in command_lower
+    assert "surface file paths and state updates only" in command_lower
     assert "discussion compass" in command_lower
     assert "anti-toothpaste" in command_lower
-    assert "ask only the highest-impact question" in command_lower
+    assert "ask only when user judgment is genuinely required" in command_lower
     assert "Context Boundary Gate" in command_content
     assert "target project root" in command_lower
     assert "adaptive question pack" in command_lower
     assert "primary question" in command_lower
     assert "optional follow-up" in command_lower
     assert "recommended option" in command_lower
-    assert "fixed response format contract" in command_lower
-    assert "response_format_id" in command_content
+    assert "adaptive reply contract" in command_lower
+    assert "reply_shape_id" in command_content
     assert "discussion.context-intake" in command_content
     assert "discussion.handoff-user-review" in command_content
     assert "recommendation-first is not questionless" in command_lower
@@ -194,6 +202,28 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "split-plan.md" not in command_content
     assert "handoffs/<candidate_id>" not in command_content
     assert "CAND-001" not in command_content
+
+
+def _assert_ask_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-ask" in content
+    assert "Evidence-Backed Project Q&A" in content
+    assert "project-cognition compass --intent ask" in content
+    assert "project-cognition query --intent ask" in content
+    assert "project cognition provides advisory navigation" in lowered
+    assert "live evidence is authoritative" in lowered
+    assert "do not create `.specify/ask/`" in lowered
+    assert "do not write handoff" in lowered
+    assert "do not edit source files" in lowered
+    assert "do not run tests" in lowered
+    assert "do not run builds" in lowered
+    assert "do not run package managers" in lowered
+    assert "do not execute project cli" in lowered
+    assert "answer first" in lowered
+    assert "next step" in lowered
+    assert "discussion-state.md" not in content
+    assert "handoff-to-specify" not in content
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -287,6 +317,25 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
         discussion_path = _discussion_artifact_path(integration, project)
         assert discussion_path.exists(), integration_key
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+
+def test_collected_markdown_integrations_preserve_ask_contract(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, MarkdownIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        if integration_key == "generic":
+            commands_dir = ".generic/commands"
+            integration.setup(project, manifest, parsed_options={"commands_dir": commands_dir})
+            ask_path = project / commands_dir / integration.command_filename("ask")
+        else:
+            integration.setup(project, manifest)
+            ask_path = integration.commands_dest(project) / integration.command_filename("ask")
+        assert ask_path.exists(), integration_key
+        _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
 
 
 class MarkdownIntegrationTests:
@@ -420,6 +469,12 @@ class MarkdownIntegrationTests:
         routing_md = i.commands_dest(tmp_path) / i.command_filename("spec-kit-workflow-routing")
         if routing_md.exists():
             surfaces.append(routing_md)
+            routing_content = routing_md.read_text(encoding="utf-8").lower()
+            assert "high-throughput senior product-engineering advisor" in routing_content
+            assert "frontstage / backstage separation" in routing_content
+            assert "does not persist every turn" in routing_content
+            assert "continues by default" in routing_content
+            assert "does not ask for continuation" in routing_content
 
         for path in surfaces:
             content = path.read_text(encoding="utf-8").lower()
@@ -462,6 +517,15 @@ class MarkdownIntegrationTests:
         discussion_path = i.commands_dest(tmp_path) / i.command_filename("discussion")
         assert discussion_path.exists()
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+    def test_ask_command_preserves_read_only_qa_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        ask_path = i.commands_dest(tmp_path) / i.command_filename("ask")
+        assert ask_path.exists()
+        _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
 
     def test_specify_command_reads_discussion_sources_for_signal_disposition(self, tmp_path):
         i = get_integration(self.KEY)

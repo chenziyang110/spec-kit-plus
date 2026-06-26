@@ -1613,6 +1613,26 @@ func TestCompassCommandEmitsCompactPacket(t *testing.T) {
 	}
 }
 
+func TestCompassCommandAcceptsAskIntent(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"compass", "--intent", "ask", "--query", "Where is project cognition documented?", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["mode"] != "compass" {
+		t.Fatalf("mode = %#v, payload = %#v", payload["mode"], payload)
+	}
+	if _, ok := payload["minimal_live_reads"].([]any); !ok {
+		t.Fatalf("minimal_live_reads = %#v, want array", payload["minimal_live_reads"])
+	}
+}
+
 func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	paths, err := rt.ResolvePaths(root)
@@ -1895,6 +1915,46 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 	if decisions, ok := queryPlanPayload["concept_decisions"].([]any); !ok || len(decisions) == 0 {
 		t.Fatalf("query_plan.concept_decisions = %#v, want non-empty decisions", queryPlanPayload["concept_decisions"])
+	}
+}
+
+func TestQueryCommandAcceptsAskIntentQueryPlan(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"lexicon_generation_id": status.ActiveGenerationID,
+		"selected_concepts":     []string{conceptID},
+		"concept_decisions": []map[string]any{{
+			"concept_id":       conceptID,
+			"decision":         "selected",
+			"selection_reason": "The ask answer needs the app surface as live evidence.",
+			"confidence":       "high",
+			"paths":            []string{"src/app.go"},
+		}},
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "ask", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["readiness"] != "query_ready" {
+		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
+	}
+	if !jsonStringSliceContains(payload["minimal_live_reads"], "src/app.go") {
+		t.Fatalf("minimal_live_reads = %#v, want src/app.go", payload["minimal_live_reads"])
 	}
 }
 

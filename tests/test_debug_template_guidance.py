@@ -215,9 +215,21 @@ def test_debug_template_requires_understanding_checkpoint_before_investigation()
     assert "| item | current understanding |" in content
     assert "| symptom |" in content
     assert "expected behavior" in content
-    assert "investigation scope" in content
+    assert "reproduction / failing signal" in content
+    assert "known evidence" in content
+    assert "investigation boundary" in content
+    assert "candidate focus" in content
+    assert "investigation plan" in content
     assert "first evidence action" in content
+    assert "fix gate" in content
     assert "progress signal" in content
+    assert "where it appears, why it matters" in content
+    assert "ordered evidence path" in content
+    assert "numbered lines inside the table cell using `<br>` separators" in content
+    assert "do not reuse the placeholder text as content" in content
+    assert "1. [session-specific first evidence step]<br>2." in content
+    assert "session-specific fix-gate or blocked-state decision" in content
+    assert "establish the repro or failing signal" not in content
     assert "concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty" in content
     assert "unknown: [why it matters]" in content
     assert "wait for user confirmation" in content
@@ -240,10 +252,18 @@ def test_debug_session_template_tracks_understanding_checkpoint() -> None:
     assert "## debug understanding checkpoint" in content
     assert "checkpoint:" in content
     assert "issue:" in content
+    assert "issue_detail:" in content
     assert "expected_or_target:" in content
+    assert "reproduction_or_failing_signal:" in content
+    assert "known_evidence:" in content
     assert "in_scope:" in content
     assert "out_of_scope:" in content
+    assert "candidate_focus:" in content
+    assert "investigation_plan:" in content
+    assert "session-specific ordered evidence step" in content
+    assert "ordered evidence step, such as" not in content
     assert "next_action:" in content
+    assert "fix_gate:" in content
     assert "done_or_progress_signal:" in content
     assert "user_corrections:" in content
 

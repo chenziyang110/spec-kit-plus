@@ -288,6 +288,40 @@ def test_command_templates_do_not_declare_unused_script_frontmatter() -> None:
             assert "{AGENT_SCRIPT}" in body, f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
 
 
+def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
+    command = read_template("templates/commands/ask.md")
+    shell = read_template("templates/command-partials/ask/shell.md")
+    cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
+    combined = "\n".join([command, shell, cognition_gate])
+    lowered = combined.lower()
+
+    assert "read-only" in lowered
+    assert "do not create `.specify/ask/`" in lowered
+    assert "do not write handoff files" in lowered
+    assert "do not run tests" in lowered
+    assert "do not run builds" in lowered
+    assert "do not run package managers" in lowered
+    assert "do not launch apps or servers" in lowered
+    assert "do not execute project cli commands" in lowered
+    assert "do not invoke another `sp-*` workflow automatically" in lowered
+    assert "allowed operations are narrow file reads, `rg`" in lowered
+    assert "project-cognition compass --intent ask" in combined
+    assert "specify ask" not in lowered
+    assert "commits that are already available locally" not in lowered
+    assert "commit history" not in lowered
+    assert "git log" not in lowered
+    assert "git show" not in lowered
+    assert "only after you build a semantic intake or query plan" in lowered
+    assert "compass output or live evidence is ambiguous or has incomplete coverage" in lowered
+    assert "stale or localization-sensitive results are examples" in lowered
+    assert 'project-cognition query --intent ask --query-plan "<query_plan_json>" --format json' in combined
+    assert "project-cognition query --intent ask --query-plan-file <path> --format json" in combined
+    assert "only after the agent builds a semantic\n  intake or query plan" in combined
+    assert "compass output or live evidence is ambiguous\n  or has incomplete coverage" in combined
+    assert "Stale or localization-sensitive cases are examples" in combined
+    assert "still require that ambiguity or incomplete-coverage reason" in combined
+
+
 def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(tmp_path: Path):
     target = tmp_path / "codex-specify-entrypoint"
     env = os.environ.copy()
@@ -538,20 +572,22 @@ def test_discussion_workflow_uses_recommendation_first_decision_progression() ->
     assert "recommendation-first is not questionless" in shell
     assert "do not run `sp-discussion` as a permission-first loop" in command
     assert "do not end a turn with a bare open question" in command
-    assert "one explicit primary decision question" in command
-    assert "one explicit primary decision question" in shell
+    assert "ask only when user judgment is genuinely required" in command
+    assert "ask only when user judgment is genuinely required" in shell
+    assert "continue by default" in command
+    assert "continue by default" in shell
+    assert "do not ask for continuation" in command
+    assert "do not ask for continuation" in shell
     assert "after recording a user-confirmed decision" in command
     assert "next useful decision with a recommended default" in command
     assert "decision_advancement_mode: recommendation-first" in state_template
-    assert "recommendation-first decision progression" in readme
-    assert "recommendation-first is not questionless" in readme
-    assert "recommendation-first decision progression" in quickstart
-    assert "recommendation-first is not questionless" in quickstart
-    assert "recommendation-first decision progression" in installation
-    assert "recommendation-first is not questionless" in installation
-    assert "recommendation-first is not questionless" in handbook
-    assert "recommendation-first decision progression" in handbook_template
-    assert "recommendation-first is not questionless" in handbook_template
+    for content in (readme, quickstart, installation, handbook, handbook_template):
+        assert "continue by default" in content
+        assert "do not ask for continuation" in content
+        assert (
+            "ask only when user judgment is genuinely required" in content
+            or "asks only when user judgment is genuinely required" in content
+        )
 
 
 def test_discussion_helper_uses_active_python_interpreter() -> None:

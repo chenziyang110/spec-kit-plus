@@ -56,14 +56,23 @@ reproduction_verified: [true once repro confirmed]
 
 checkpoint:
   issue: [the symptom, regression, or failing signal the reporter confirmed]
+  issue_detail: [where it appears, why it matters, and the nearby issue this session is not debugging]
   expected_or_target: [what should happen instead, or the confirmed unknown]
+  reproduction_or_failing_signal: [known repro command, manual sequence, failing test, log/error text, or confirmed unknown]
+  known_evidence:
+    - [project cognition route, existing log, prior verification output, report, or artifact already available]
   in_scope:
-    - [area, workflow, command, or behavior this session will investigate]
+    - [area, workflow, command, state loop, or behavior this session will investigate]
   out_of_scope:
     - [nearby issue, enhancement, or unrelated behavior excluded from this session]
+  candidate_focus:
+    - [primary suspected truth owner, competing explanation, or candidate family to test first without claiming root cause]
+  investigation_plan:
+    - [session-specific ordered evidence step]
   next_action: [first reproduction, log, source, test, or instrumentation route after confirmation]
+  fix_gate: [what must be proven before code changes are allowed]
   done_or_progress_signal:
-    - [evidence that proves the session can move to fix, verification, or human verification]
+    - [evidence that proves the session can move to fix, verification, human verification, or blocked state]
   user_corrections:
     - [user correction, ambiguity, or confirmation timestamp]
 

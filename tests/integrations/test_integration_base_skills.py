@@ -160,18 +160,26 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "open_assumptions" in skill_content
     assert "evidence_checked" in skill_content
     assert "advice_confidence" in skill_content
-    assert "boss-friendly advisor response" in skill_lower
+    assert "high-throughput collaborative brief" in skill_lower
+    assert "frontstage / backstage separation" in skill_lower
+    assert "visible conversation" in skill_lower
+    assert "state accounting backstage" in skill_lower
+    assert "continue by default" in skill_lower
+    assert "do not ask for continuation" in skill_lower
+    assert "do not persist every turn" in skill_lower
+    assert "checkpoint persistence" in skill_lower
+    assert "surface file paths and state updates only" in skill_lower
     assert "discussion compass" in skill_lower
     assert "anti-toothpaste" in skill_lower
-    assert "ask only the highest-impact question" in skill_lower
+    assert "ask only when user judgment is genuinely required" in skill_lower
     assert "Context Boundary Gate" in skill_content
     assert "target project root" in skill_lower
     assert "adaptive question pack" in skill_lower
     assert "primary question" in skill_lower
     assert "optional follow-up" in skill_lower
     assert "recommended option" in skill_lower
-    assert "fixed response format contract" in skill_lower
-    assert "response_format_id" in skill_content
+    assert "adaptive reply contract" in skill_lower
+    assert "reply_shape_id" in skill_content
     assert "discussion.context-intake" in skill_content
     assert "discussion.handoff-user-review" in skill_content
     assert "recommendation-first is not questionless" in skill_lower
@@ -221,6 +229,28 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "split-plan.md" not in skill_content
     assert "handoffs/<candidate_id>" not in skill_content
     assert "CAND-001" not in skill_content
+
+
+def _assert_ask_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-ask" in content
+    assert "Evidence-Backed Project Q&A" in content
+    assert "project-cognition compass --intent ask" in content
+    assert "project-cognition query --intent ask" in content
+    assert "project cognition provides advisory navigation" in lowered
+    assert "live evidence is authoritative" in lowered
+    assert "do not create `.specify/ask/`" in lowered
+    assert "do not write handoff" in lowered
+    assert "do not edit source files" in lowered
+    assert "do not run tests" in lowered
+    assert "do not run builds" in lowered
+    assert "do not run package managers" in lowered
+    assert "do not execute project cli" in lowered
+    assert "answer first" in lowered
+    assert "next step" in lowered
+    assert "discussion-state.md" not in content
+    assert "handoff-to-specify" not in content
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -301,6 +331,21 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
         discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists(), integration_key
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
+
+def test_collected_skills_integrations_preserve_ask_contract(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        ask_path = integration.skills_dest(project) / "sp-ask" / "SKILL.md"
+        assert ask_path.exists(), integration_key
+        _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
 
 
 def test_collected_skills_integrations_embed_internal_implement_review_loop(tmp_path):
@@ -570,6 +615,15 @@ class SkillsIntegrationTests:
         assert discussion_path.exists()
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
+    def test_ask_skill_preserves_read_only_qa_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        ask_path = i.skills_dest(tmp_path) / "sp-ask" / "SKILL.md"
+        assert ask_path.exists()
+        _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
+
     def test_specify_skill_preserves_discussion_fidelity_contract(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -690,6 +744,12 @@ class SkillsIntegrationTests:
         routing_skill = i.skills_dest(tmp_path) / "spec-kit-workflow-routing" / "SKILL.md"
         if routing_skill.exists():
             surfaces.append(routing_skill)
+            routing_content = routing_skill.read_text(encoding="utf-8").lower()
+            assert "high-throughput senior product-engineering advisor" in routing_content
+            assert "frontstage / backstage separation" in routing_content
+            assert "does not persist every turn" in routing_content
+            assert "continues by default" in routing_content
+            assert "does not ask for continuation" in routing_content
 
         for path in surfaces:
             content = path.read_text(encoding="utf-8").lower()

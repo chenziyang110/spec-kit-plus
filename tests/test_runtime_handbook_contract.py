@@ -38,7 +38,9 @@ def test_runtime_docs_describe_debug_understanding_checkpoint() -> None:
         assert "debug understanding checkpoint" in content
         assert "before substantive investigation" in content
         assert "expected behavior" in content
-        assert "investigation scope" in content
+        assert "investigation boundary" in content
+        assert "ordered investigation plan" in content
+        assert "fix gate" in content
         assert "progress signal" in content
 
 

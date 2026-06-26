@@ -39,6 +39,15 @@ judgment in an established Spec Kit Plus repository:
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
   the returned readiness state; do not widen live repository reads beyond the
   returned `route_pack` and `minimal_live_reads`.
+- For `sp-ask`, use `project-cognition compass --intent ask --query="$ARGUMENTS" --format json`
+  as the default advisory navigation command. Use
+  `project-cognition query --intent ask` only after the agent builds a semantic
+  intake or query plan because the compass output or live evidence is ambiguous
+  or has incomplete coverage. Stale or localization-sensitive cases are examples
+  that still require that ambiguity or incomplete-coverage reason. Live evidence
+  is authoritative. The ask route is read-only: do not run tests, run builds,
+  execute project CLI commands, write files, create handoffs, or create ask
+  state.
 - Treat the task-local project cognition compass packet as the task-local
   project navigation bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces;
   use `.specify/project-cognition/project-cognition.db`, the compass packet,

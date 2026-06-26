@@ -16,19 +16,21 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Run the Context Boundary Gate before project-specific technical options, affected-file claims, implementation-path claims, or handoff generation.
 - Use project cognition as advisory navigation only when current-project facts matter; use `--intent discussion`, read returned `minimal_live_reads`, and prove technical claims from live repository files.
 - Complete a Truth Pass before source-grounded technical advice, affected-surface claims, implementation-path recommendations, or testing strategy claims tied to existing code; record `verified_project_facts`, `open_assumptions`, `evidence_checked`, and `advice_confidence`.
-- Use a Boss-Friendly Advisor Response for substantive turns: lead with plain-language judgment, then evidence, risk, recommendation, and next discussion paths.
-- Use Recommendation-First Decision Progression: when evidence and user intent support a safe default, state the recommended choice directly, give the reason, and move to the next useful decision instead of ending on a bare "should we?" question.
-- Recommendation-first is not questionless: when the discussion remains active and the next safe step depends on user judgment, end the user-visible reply with one explicit primary decision question that includes the recommended default and meaningful override options.
-- Use one stable `response_format_id` from the Fixed Response Format Contract for every user-visible reply; use the section labels in the listed order so discussion outputs do not drift across turns or agents.
+- Use a high-throughput collaborative brief for substantive turns: lead with the recommended direction, a plain-language reason, enough concrete detail to be useful, and the next useful move.
+- Apply frontstage / backstage separation. Frontstage is the visible conversation; backstage is state accounting backstage for open questions, decisions, Must-Preserve items, evidence, dirty artifacts, flush reasons, and handoff readiness.
+- Use Recommendation-First Decision Progression: when evidence and user intent support a safe default, continue by default, state the recommended choice directly, give the reason, and move to the next useful decision instead of ending on a bare "should we?" question.
+- Recommendation-first is not questionless: ask only when user judgment is genuinely required and no safe default exists. The question must include the recommended default and meaningful override options.
+- Track an internal `reply_shape_id` from the Adaptive Reply Contract at semantic checkpoints; treat it as bookkeeping, not mandatory visible headings.
 - Maintain a Discussion Compass in `discussion-state.md` so long conversations preserve what is being solved, what is confirmed, what changed, what remains undecided, the current recommendation, and the next useful decision.
-- Apply the Anti-Toothpaste Protocol: show the broader decision map, recommend a next path, and ask only the highest-impact question when user judgment is needed.
+- Apply the Anti-Toothpaste Protocol: show the broader decision map, recommend a next path, and ask only when user judgment is genuinely required and no safe default exists.
 - Classify each user turn before asking a question.
 - Run the Question Evidence Gate before asking the user; answer repository-discoverable facts from live evidence.
 - Use an Adaptive Question Pack: ask one required primary question, and optionally add up to two same-topic follow-ups only when the topic is local and low risk.
 - Fall back to exactly one question for boundary gaps, evidence conflicts, cross-project targets, handoff readiness, destructive or lifecycle consequences, security or data-risk consequences, and major product trade-offs.
 - Put a recommended option and short reason on multiple-choice questions.
-- Use deferred persistence: ordinary turns do not write local files by default; flush one batched compact event to `discussion-log.md` only at a semantic checkpoint, user-triggered save, five-turn cadence, high compaction risk, or durable lifecycle transition.
-- In ordinary unsaved replies, report `Not persisted this turn` in `State Update` and include `Compaction Preserve` for user thinking, decisions, requirement points, feature points, constraints, trade-offs, and reopen conditions that must not be lost or reinterpreted during compression.
+- Use checkpoint persistence: do not persist every turn. Ordinary turns do not write local files by default; flush one batched compact event to `discussion-log.md` only at a semantic checkpoint, user-triggered save, five-turn cadence, high compaction risk, or durable lifecycle transition.
+- Keep ordinary persistence details backstage. Surface file paths and state updates only when the user needs review, recovery, verification, state visibility, or a durable lifecycle handoff.
+- Do not ask for continuation, permission to proceed, or agreement with a reversible safe recommendation. Continue by default and include the override path when one exists.
 - Refresh `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only at semantic checkpoints.
 - If the user asks to transfer functionality into another project, lock `target_project_root` immediately before technicalizing.
 - When the user explicitly asks to hand off or continue the next stage, write `handoff-assessment.md` first.
@@ -50,7 +52,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Write `handoff-to-specify.md` and `handoff-to-specify.json` together as a draft pair; both files are mandatory, and the pair becomes handoff-ready only after self-review and user confirmation.
 - Do not write separate split planning artifacts or candidate-specific handoff files.
 - When explicit handoff is requested, include `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger.
-- When a handoff becomes `handoff-ready`, use the fixed ready response shape with `Handoff Ready`, `Locked Direction`, `Carry Forward`, `Readiness`, `Package`, `Next Step`, and `State Update`; do not close with only file paths, status counters, or a next command. Keep the `Ready Summary Quality` check internal instead of showing it as a primary heading.
+- When a handoff becomes `handoff-ready`, use a concise visible card with `Handoff Ready`, `Locked Direction`, `Carry Forward`, `Readiness`, `Package`, and `Next Step`; do not close with only file paths, status counters, or a next command. Keep the `Ready Summary Quality` check internal instead of showing it as a primary heading.
 - Do not mark handoff ready if role objects, target path context, evidence provenance, self-review status, user confirmation, or blocking unknown handling is missing.
 - Preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` for the downstream fidelity gate.
 - For UI-facing work, preserve `ui_discussion_status`; confirmed UI decisions; deferred UI unknowns; and Markdown-carried ASCII sketches with JSON fields `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`.
