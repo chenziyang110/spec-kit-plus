@@ -639,6 +639,7 @@ class TestGeminiIntegration:
         integration.setup(tmp_path, manifest, script_type="sh")
 
         seen_args = tmp_path / "seen-args.json"
+        seen_stdin = tmp_path / "seen-stdin.txt"
         fake_specify = tmp_path / "fake_specify.py"
         fake_specify.write_text(
             "\n".join(
@@ -646,7 +647,8 @@ class TestGeminiIntegration:
                     "import json",
                     "import sys",
                     "from pathlib import Path",
-                    "Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding='utf-8')",
+                    "Path(sys.argv[1]).write_text(json.dumps(sys.argv[3:]), encoding='utf-8')",
+                    "Path(sys.argv[2]).write_text(sys.stdin.read(), encoding='utf-8')",
                     "print(json.dumps({'status': 'blocked', 'errors': ['configured launcher used'], 'warnings': [], 'actions': []}))",
                 ]
             )
@@ -660,7 +662,7 @@ class TestGeminiIntegration:
                 {
                     "specify_launcher": {
                         "command": "configured fake specify",
-                        "argv": [sys.executable, str(fake_specify), str(seen_args)],
+                        "argv": [sys.executable, str(fake_specify), str(seen_args), str(seen_stdin)],
                     }
                 }
             ),
@@ -688,9 +690,129 @@ class TestGeminiIntegration:
         assert json.loads(seen_args.read_text(encoding="utf-8")) == [
             "hook",
             "validate-prompt",
-            "--prompt-text",
-            "continue",
+            "--prompt-stdin",
         ]
+        assert seen_stdin.read_text(encoding="utf-8") == "continue"
+
+    def test_gemini_shared_hook_timeout_fails_open(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-c", "print('never')"]],
+        )
+
+        def fake_run(command, **kwargs):
+            assert kwargs["input"] == "secret prompt"
+            assert kwargs["timeout"] > 0
+            raise subprocess.TimeoutExpired(command, timeout=kwargs["timeout"])
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        )
+
+        assert result.status == "timeout"
+        assert result.payload is None
+        assert result.timeout_seconds > 0
+        assert module._run_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        ) is None
+
+    def test_gemini_shared_hook_client_maps_blocked_payload(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-c", "print('blocked')"]],
+        )
+
+        def fake_run(command, **kwargs):
+            assert kwargs["input"] == "secret prompt"
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps(
+                    {
+                        "status": "blocked",
+                        "errors": ["configured launcher used"],
+                        "warnings": [],
+                        "actions": [],
+                    }
+                ),
+                stderr="",
+            )
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        )
+
+        assert result.status == "blocked"
+        assert result.payload["status"] == "blocked"
+        assert result.attempted_plan
+
+    def test_gemini_shared_hook_client_redacts_invalid_output(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-c", "print('secret prompt')"]],
+        )
+
+        def fake_run(command, **kwargs):
+            assert kwargs["input"] == "secret prompt"
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="invalid output containing secret prompt",
+                stderr="",
+            )
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        )
+
+        assert result.status == "invalid-output"
+        assert "secret prompt" not in result.stdout_preview
+        assert "[REDACTED_PROMPT]" in result.stdout_preview
+        assert module._run_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+        ) is None
+
+    def test_gemini_shared_hook_client_maps_unavailable(self, tmp_path, monkeypatch):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [[sys.executable, "-m", "missing_specify_hook"]],
+        )
+
+        def fake_run(command, **kwargs):
+            raise OSError("missing command")
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(tmp_path, ["validate-prompt", "--prompt-stdin"])
+
+        assert result.status == "unavailable"
+        assert result.payload is None
+        assert result.attempted_plans
+        assert module._run_shared_hook(tmp_path, ["validate-prompt", "--prompt-stdin"]) is None
 
     def test_gemini_hook_dispatch_blocks_when_project_launcher_is_invalid(self, tmp_path):
         integration = get_integration("gemini")

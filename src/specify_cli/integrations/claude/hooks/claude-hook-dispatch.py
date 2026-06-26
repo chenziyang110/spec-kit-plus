@@ -17,7 +17,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, NamedTuple
 
 
 WORKFLOW_COMMAND_MAP = {
@@ -57,6 +57,20 @@ LEARNING_SIGNAL_FIELDS = {
     "route_changes": "--route-changes",
     "scope_changes": "--scope-changes",
 }
+SHARED_HOOK_TIMEOUT_SECONDS = 5.0
+SHARED_HOOK_PAYLOAD_STATUSES = {"ok", "warn", "blocked", "repaired", "repairable-block"}
+SHARED_HOOK_BLOCKING_PAYLOAD_STATUSES = {"blocked", "repairable-block"}
+SharedHookClientStatus = Literal["ok", "blocked", "unavailable", "timeout", "invalid-output"]
+
+
+class SharedHookResult(NamedTuple):
+    status: SharedHookClientStatus
+    payload: dict[str, Any] | None = None
+    reason: str = ""
+    attempted_plans: tuple[str, ...] = ()
+    attempted_plan: str = ""
+    stdout_preview: str = ""
+    timeout_seconds: float | None = None
 
 
 def _read_stdin_payload() -> dict[str, Any]:
@@ -159,32 +173,122 @@ def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]
     return commands
 
 
-def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | None:
+def _project_launcher_block_payload() -> dict[str, Any]:
+    return {
+        "status": "blocked",
+        "errors": ["project launcher is configured but unavailable"],
+        "warnings": [],
+        "actions": [
+            "repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project",
+        ],
+    }
+
+
+def _redacted_invocation_preview(command: list[str]) -> str:
+    redacted: list[str] = []
+    index = 0
+    while index < len(command):
+        item = str(command[index])
+        if item == "--prompt-text":
+            redacted.append(item)
+            if index + 1 < len(command):
+                redacted.append("[REDACTED_PROMPT]")
+                index += 2
+                continue
+        elif item.startswith("--prompt-text="):
+            redacted.append("--prompt-text=[REDACTED_PROMPT]")
+            index += 1
+            continue
+        redacted.append(item)
+        index += 1
+    return " ".join(redacted)
+
+
+def _sensitive_hook_values(args: list[str], stdin_text: str | None) -> list[str]:
+    values: list[str] = []
+    if stdin_text:
+        values.append(stdin_text)
+    index = 0
+    while index < len(args):
+        item = str(args[index])
+        if item == "--prompt-text" and index + 1 < len(args):
+            values.append(str(args[index + 1]))
+            index += 2
+            continue
+        if item.startswith("--prompt-text="):
+            values.append(item.split("=", 1)[1])
+        index += 1
+    return [value for value in values if value]
+
+
+def _redact_sensitive_text(text: str, sensitive_values: list[str]) -> str:
+    redacted = text
+    for value in sorted(set(sensitive_values), key=len, reverse=True):
+        if value:
+            redacted = redacted.replace(value, "[REDACTED_PROMPT]")
+    return redacted
+
+
+def _stdout_preview(stdout: str, sensitive_values: list[str]) -> str:
+    preview = stdout.strip().replace("\r\n", "\n")
+    if len(preview) > 500:
+        preview = f"{preview[:500]}..."
+    return _redact_sensitive_text(preview, sensitive_values)
+
+
+def _shared_result_status(payload: dict[str, Any]) -> SharedHookClientStatus | None:
+    status = str(payload.get("status") or "").strip().lower()
+    if status not in SHARED_HOOK_PAYLOAD_STATUSES:
+        return None
+    if status in SHARED_HOOK_BLOCKING_PAYLOAD_STATUSES:
+        return "blocked"
+    return "ok"
+
+
+def _invoke_shared_hook(
+    project_root: Path,
+    args: list[str],
+    *,
+    stdin_text: str | None = None,
+    timeout_seconds: float = SHARED_HOOK_TIMEOUT_SECONDS,
+) -> SharedHookResult:
     if _project_launcher_broken(project_root):
-        return {
-            "status": "blocked",
-            "errors": ["project launcher is configured but unavailable"],
-            "warnings": [],
-            "actions": [
-                "repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project",
-            ],
-        }
+        return SharedHookResult(
+            status="blocked",
+            payload=_project_launcher_block_payload(),
+            reason="project launcher is configured but unavailable",
+        )
 
     seen: set[tuple[str, ...]] = set()
+    attempted_plans: list[str] = []
+    invalid_result: SharedHookResult | None = None
+    sensitive_values = _sensitive_hook_values(args, stdin_text)
     for command in _shared_hook_commands(project_root, args):
         key = tuple(command)
         if key in seen:
             continue
         seen.add(key)
+        attempted_plan = _redacted_invocation_preview(command)
+        attempted_plans.append(attempted_plan)
         try:
             result = subprocess.run(
                 command,
                 cwd=project_root,
+                input=stdin_text,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 capture_output=True,
                 check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            return SharedHookResult(
+                status="timeout",
+                reason="shared hook invocation timed out",
+                attempted_plans=tuple(attempted_plans),
+                attempted_plan=attempted_plan,
+                timeout_seconds=timeout_seconds,
             )
         except OSError:
             continue
@@ -196,9 +300,66 @@ def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | No
         try:
             payload = json.loads(stdout)
         except json.JSONDecodeError:
+            if invalid_result is None:
+                invalid_result = SharedHookResult(
+                    status="invalid-output",
+                    reason="shared hook returned invalid JSON",
+                    attempted_plans=tuple(attempted_plans),
+                    attempted_plan=attempted_plan,
+                    stdout_preview=_stdout_preview(stdout, sensitive_values),
+                )
             continue
-        if isinstance(payload, dict):
-            return payload
+        if not isinstance(payload, dict):
+            if invalid_result is None:
+                invalid_result = SharedHookResult(
+                    status="invalid-output",
+                    reason="shared hook returned a non-object JSON payload",
+                    attempted_plans=tuple(attempted_plans),
+                    attempted_plan=attempted_plan,
+                    stdout_preview=_stdout_preview(stdout, sensitive_values),
+                )
+            continue
+        result_status = _shared_result_status(payload)
+        if not result_status:
+            if invalid_result is None:
+                invalid_result = SharedHookResult(
+                    status="invalid-output",
+                    reason="shared hook returned an unknown status",
+                    attempted_plans=tuple(attempted_plans),
+                    attempted_plan=attempted_plan,
+                    stdout_preview=_stdout_preview(stdout, sensitive_values),
+                )
+            continue
+        return SharedHookResult(
+            status=result_status,
+            payload=payload,
+            attempted_plans=tuple(attempted_plans),
+            attempted_plan=attempted_plan,
+        )
+    if invalid_result:
+        return invalid_result._replace(attempted_plans=tuple(attempted_plans))
+    return SharedHookResult(
+        status="unavailable",
+        reason="no shared hook invocation plan produced valid JSON output",
+        attempted_plans=tuple(attempted_plans),
+    )
+
+
+def _run_shared_hook(
+    project_root: Path,
+    args: list[str],
+    *,
+    stdin_text: str | None = None,
+    timeout_seconds: float = SHARED_HOOK_TIMEOUT_SECONDS,
+) -> dict[str, Any] | None:
+    result = _invoke_shared_hook(
+        project_root,
+        args,
+        stdin_text=stdin_text,
+        timeout_seconds=timeout_seconds,
+    )
+    if result.status in {"ok", "blocked"}:
+        return result.payload
     return None
 
 
@@ -748,7 +909,11 @@ def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> d
     if not prompt:
         return None
     context = _infer_active_context(project_root)
-    shared = _run_shared_hook(project_root, ["validate-prompt", "--prompt-text", prompt])
+    shared = _run_shared_hook(
+        project_root,
+        ["validate-prompt", "--prompt-stdin"],
+        stdin_text=prompt,
+    )
     output = _shared_to_claude_output(hook_event_name="UserPromptSubmit", shared_payload=shared)
     if output:
         return output
