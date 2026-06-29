@@ -71,6 +71,12 @@ function Get-NativeHelpOutput {
 
 Write-Host "==> Verifying..."
 & $target --version
+$rootHelp = Get-NativeHelpOutput -Command $target -Arguments @("--help")
+if ($rootHelp -notmatch 'scan-set') {
+    Write-Host "Error: downloaded project-cognition binary is missing required scan-set command."
+    Write-Host "Expected 'project-cognition --help' to include scan-set."
+    exit 1
+}
 $updateHelp = Get-NativeHelpOutput -Command $target -Arguments @("update", "--help")
 if (($updateHelp -notmatch '-payload-file') -or ($updateHelp -notmatch '-verification')) {
     Write-Host "Error: downloaded project-cognition binary is missing required update flags."

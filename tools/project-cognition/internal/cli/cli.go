@@ -24,6 +24,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanset"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
@@ -65,6 +66,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return initEmptyCommand(args[1:], stdout, stderr, paths)
 	case "generate-ignore":
 		return generateIgnoreCommand(args[1:], stdout, stderr, paths)
+	case "scan-set":
+		return scanSetCommand(args[1:], stdout, stderr, paths)
 	case "mark-dirty":
 		return markDirtyCommand(args[1:], stdout, stderr, paths)
 	case "clear-dirty":
@@ -120,7 +123,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -276,6 +279,30 @@ func generateIgnoreCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 		"errors":          []string{},
 		"warnings":        []string{},
 	})
+}
+
+func scanSetCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-set", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var scopes stringList
+	fs.Var(&scopes, "scope", "Repository-relative file or directory scope")
+	fs.Var(&scopes, "path", "Repository-relative file or directory scope")
+	out := fs.String("out", scanset.DefaultOutputPath, "Repository-relative output file")
+	maxBytes := fs.Int64("max-bytes", 0, "Skip files larger than this many bytes when greater than zero")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := scanset.Resolve(paths, scanset.Input{
+		Scopes:   scopes,
+		Out:      *out,
+		MaxBytes: *maxBytes,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	return writeCompactJSON(stdout, payload)
 }
 
 func isFilesystemRoot(path string) bool {
@@ -1293,6 +1320,15 @@ func writeCommandResult(stdout io.Writer, stderr io.Writer, paths rt.Paths, payl
 func writeJSON(w io.Writer, payload any) int {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		fmt.Fprintf(os.Stderr, "project-cognition: encode json: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func writeCompactJSON(w io.Writer, payload any) int {
+	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(payload); err != nil {
 		fmt.Fprintf(os.Stderr, "project-cognition: encode json: %v\n", err)
 		return 1

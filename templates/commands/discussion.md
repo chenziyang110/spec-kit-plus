@@ -58,7 +58,7 @@ Required files:
 - `handoff-to-specify.md` as a draft only after explicit user request, boundary lock, and a bounded unified scope; ready only after self-review and user confirmation
 - `handoff-to-specify.json` as a draft companion only after explicit user request, boundary lock, and a bounded unified scope; ready only after self-review and user confirmation
 
-Do not create separate split planning artifacts or candidate-specific handoff files. Complex directions stay inside the single handoff through `capability_map`, `recommended_sequence`, `dependencies`, `deferred_scope`, and `reopen_conditions`, or remain in `continue-discussion` until the user confirms a unified scope.
+Do not create separate split planning artifacts or candidate-specific handoff files. Complex directions stay inside the single handoff through `capability_map`, `dependencies`, `deferred_scope`, `planning_constraints`, and `reopen_conditions`, or remain in `continue-discussion` until the user confirms a unified scope. Do not fill discussion handoffs with an ordered execution sequence.
 
 Use `templates/discussion-state-template.md` when initializing `discussion-state.md`.
 
@@ -124,22 +124,26 @@ Do not recommend implementation work before the relevant Truth Pass is complete.
 
 Answer like a senior product-engineering advisor, not a support chatbot. For substantive turns, start with the decision-level meaning in plain language, then provide technical evidence.
 
-Scale this response shape to the turn:
+Use the unified frontstage reply contract instead of fixed visible headings. Scale the content to the turn:
 
-Judgment:
-The decision-level answer in plain language.
+- Put the decision-level meaning or recommended direction first.
+- Ground the reason in verified project truth, user-confirmed intent, or clearly named assumptions.
+- Mention risk or trade-off only when it changes the decision.
+- Include the useful draft, comparison, checklist, decision board, evidence plan, or review summary the user needs now.
+- State the default next move and the override path when alternatives matter.
+- Ask one concrete user-owned question only when no safe default exists.
 
-Evidence:
-What is known from project truth, user-confirmed intent, or explicit assumptions.
+The agent controls heading names, ordering, paragraph vs. bullet density, and whether labels are useful at all. Do not expose a canned response format to the user.
 
-Risk:
-What can go wrong if the obvious or premature path is chosen.
+## Discussion Responsibility Boundary
 
-Recommendation:
-The advised direction, including when not to choose it.
+`sp-discussion` owns product and technical decision shaping before formal specification. It confirms the goal, context boundary, scope, non-goals, constraints, source-of-truth evidence, major trade-offs, user-owned decisions, and handoff readiness.
 
-Next discussion paths:
-The most useful adjacent decisions or checks to consider next.
+`sp-discussion` does not own implementation planning. Do not split the work into P0/P1/P2, migration phases, release batches, sprints, task packets, or ordered implementation steps. Those belong to `sp-plan`, `sp-tasks`, or `sp-implement` after the discussion handoff is approved.
+
+When sequencing risk matters, record it as requirement-level planning input only: dependencies to preserve, constraints that downstream planning must respect, blocked decisions, evidence gaps, and stop-and-reopen conditions. Do not turn those notes into a plan-stage rollout.
+
+When the user rejects "fallback", "backup plan", "dual stack", "old implementation fallback", or similar language, treat that as a product/runtime requirement: no parallel old-backend operation, no old-stack cutover fallback, and no alternate product path unless the user later reopens that decision. Do not convert that rejection into a new discussion question about database snapshots, restore mechanics, rollback scripts, or other data-safety mechanisms. Those are downstream planning and implementation safety constraints, not product fallback options. If the user explicitly forbids data-safety mechanisms too, record the contradiction as a hard safety blocker or risk waiver for downstream resolution instead of negotiating a fallback plan in `sp-discussion`.
 
 The first sentence should be understandable to a non-technical owner. Technical detail follows only after the decision-level judgment is clear.
 
@@ -193,14 +197,7 @@ When the current evidence, user-stated preference, and risk profile support a cl
 
 Recommendation-first is not questionless, but it is high-throughput. If the discussion has a safe default, continue by default: give the recommended direction, include the useful draft or next design step, and say how the user can override it. Ask only when user judgment is genuinely required and no safe default exists. The question must carry the recommended default and meaningful override choices; it must not be a bare permission question.
 
-Use this shape when a decision is ready:
-
-- Recommended decision: the default choice to record.
-- Why: the project-grounded reason or product-risk reason.
-- Override path: the meaningful alternative if the user disagrees.
-- Default next step: what the agent will do next when the user does not object.
-- User-owned question: one concrete decision to answer now only when no safe default exists.
-- Next recommended decision: the next adjacent choice, with its recommended default when enough context exists and it does not displace the primary question.
+When a decision is ready, the visible answer should contain the default decision, why it is the right default, the meaningful override path, the default next step, and at most one user-owned question when no safe default exists. Treat those as content requirements, not required headings.
 
 Do not end a turn with a bare open question such as "Should we do X?" when the discussion already has enough evidence to recommend X or recommend against X. Instead say "Recommended: do X because Y; the alternative is Z if you prefer trade-off W."
 
@@ -228,7 +225,7 @@ Multiple-choice questions must include a recommended option and a short reason. 
 
 ## Adaptive Reply Contract
 
-Use a high-throughput collaborative brief instead of a rigid canned layout. The visible conversation should feel like a senior product-engineering partner: natural, concise, and forward-moving. The workflow may still record an internal `reply_shape_id` in `discussion-state.md` at semantic checkpoints, but that shape is bookkeeping, not a required set of user-visible headings.
+Use one high-throughput collaborative brief for all discussion stages. The visible conversation should feel like a senior product-engineering partner: natural, concise, and forward-moving. Do not choose among named answer templates, fixed cards, or mandatory section-label sets. The agent controls heading names, ordering, level of detail, and whether the reply is prose, bullets, or a small table.
 
 ### Frontstage / Backstage Separation
 
@@ -239,36 +236,40 @@ Keep frontstage and backstage separate.
 
 Discussion replies should answer the user's real need first. Do not lead with file paths, OQ IDs, counters, persistence status, or workflow bookkeeping unless the user specifically needs those facts.
 
-### Reply Shapes
+### Unified Frontstage Contract
 
-Choose the shortest shape that completes the turn:
+Every substantive frontstage reply uses the same contract. Include the parts that matter for the turn, in the order that makes the answer easiest to use:
 
-- `discussion.context-intake`: boundary setup before project-specific technical claims.
-- `discussion.product-framing`: goal, user, scenario, scope, non-goals, success signals, or trade-offs.
-- `discussion.context-grounding`: current-project facts, affected surfaces, implementation path, compatibility, test strategy, or evidence-backed technical advice.
-- `discussion.question-loop`: one genuinely blocking product, boundary, trade-off, or evidence-conflict question.
-- `discussion.technical-options`: 2-3 implementation or product options must be compared.
-- `discussion.release-closeout-board`: direction is locked and the remaining discussion work is an operator-ready release, readiness, or execution closeout board rather than new scope or handoff.
-- `discussion.ui-interaction`: UI, interaction, screen, layout, state, accessibility, copy, or workflow feedback decisions matter.
-- `discussion.handoff-assessment-preview`: discussion content appears mature enough to recommend handoff assessment, but the user has not explicitly requested handoff, next-stage continuation, or readiness checking.
-- `discussion.handoff-assessment`: user explicitly asks to hand off, continue to next stage, or check readiness.
-- `discussion.handoff-draft`: drafting or refreshing `handoff-to-specify.md` and `.json`.
-- `discussion.handoff-self-review`: checking the draft handoff before asking the user to approve it.
-- `discussion.handoff-user-review`: presenting a draft handoff review card and asking the user to approve the draft handoff or request changes.
-- `discussion.handoff-ready`: user confirmed the handoff and quality gate is ready.
-- `discussion.resume`: resuming an incomplete discussion from durable state.
-- `discussion.blocked`: the discussion cannot safely continue without user, maintainer, or external-system input.
-- `discussion.evidence-conflict`: live evidence, user claim, project cognition, or source artifacts disagree and user judgment is needed.
+- recommended direction or decision-level meaning
+- plain-language reason tied to user intent, verified evidence, or explicit assumption
+- concrete content now, such as a draft, option comparison, decision board, readiness checklist, evidence plan, or review summary
+- risk or trade-off only when it changes the decision
+- default next step or safe default next action
+- override path when a meaningful alternative exists
+- one real question only when user judgment is genuinely required and no safe default exists
 
-These shapes guide depth, not headings. A short turn may be one or two paragraphs. A complex turn may use bullets or a small table. Handoff-ready may use clear labels because the user must review a package.
+No visible section title is mandatory. Do not make the agent select a reply template before answering. Internal lifecycle state may still record where the discussion is, but frontstage output is governed by this single contract.
+
+When a lifecycle state needs specialized content, adapt the same contract:
+
+- Context intake covers the boundary being locked and the next safe evidence or framing move.
+- Product framing covers goal, users, scenario, scope, non-goals, success signals, constraints, and trade-offs.
+- Context grounding covers verified current-project facts, affected surfaces, implementation path, compatibility, test strategy, or evidence-backed technical advice.
+- Technical options compare 2-3 requirement-level paths with recommendation, evidence status, trade-offs, verification expectations, data-safety constraints, stop-and-reopen conditions, and scope-adjustment path when relevant.
+- Readiness summary covers the locked direction, why the topic is not yet ready for handoff or downstream execution, blocked decisions, evidence gaps, planning inputs to preserve, the next safe discussion action, and override path.
+- UI interaction discussion covers the user journey, screen or component responsibilities, states, accessibility, responsive behavior, and copy expectations that affect the requirement.
+- Pre-handoff readiness covers the likely verdict, proposed handoff goal, recommended consumer, package scope, excluded scope, readiness checks, default next action, and override path without writing or claiming `handoff-assessment.md`.
+- Draft handoff review covers the decision requested, recommended route, scope to approve, excluded scope, readiness checks, package paths, and allowed approval or change-request responses without becoming a path receipt.
+- Handoff-ready closeout covers the handoff goal, selected direction, target boundary, Must-Preserve coverage, hard unknown and conflict counts, quality gate state, Markdown/JSON agreement, and exact downstream consumption path.
+- Blocked or evidence-conflict replies state the blocker, the smallest useful partial draft/checklist/evidence plan, and the user-owned decision or external condition required to continue.
 
 ### Frontstage Reply Gate
 
-Before sending an ordinary non-handoff-ready reply, run this frontstage reply gate. The visible answer must include:
+Before sending a substantive reply, run this frontstage reply gate. The visible answer must include:
 
 - the recommended direction or decision-level meaning first
 - a plain-language reason tied to user intent, verified evidence, or explicit assumption
-- enough concrete judgment, draft text, option comparison, or executable work board for the user to act on
+- enough concrete judgment, draft text, option comparison, readiness checklist, or decision board for the user to act on
 - the default next step or safe default next action when the workflow can continue without user judgment
 - an override path when a meaningful alternative exists
 
@@ -282,7 +283,7 @@ Examples:
 
 - If the next step is product framing, include the first framing draft, assumptions, and the one user-owned decision if needed.
 - If the next step is technical options, include the first option board with recommendation, trade-offs, and evidence status.
-- If the next step is a release closeout board, include the concrete board and the first P0/P1/P2 ordering.
+- If the next step is a readiness summary, include the concrete readiness checklist, blocked decisions, evidence gaps, and downstream planning inputs.
 - If the next step is handoff assessment, include the handoff assessment preview, assessment verdict draft, or blocking readiness checklist.
 - If the next step is a field-by-field review, include the first responsibility audit table in the same reply with recommendations such as keep / merge / downgrade / delete / defer.
 
@@ -300,31 +301,13 @@ Stop short only when continuing would require user judgment, missing boundary ev
 - Do not ask the user to say next when a safe default next action exists.
 - Do not close with only a next-step label. Produce the concrete first pass of that next step in the same reply whenever safe.
 
-### User-Visible Parts
+### User-Visible Control
 
-Use these parts naturally; do not force all of them into every reply:
+Do not force visible headings such as `Judgment`, `Evidence`, `Options`, `Primary Decision Question`, `State Update`, or handoff-card labels. Use headings only when they help a complex answer scan better, and choose labels that fit the specific turn.
 
-- recommended direction
-- plain-language reason
-- usable draft
-- risk or trade-off only when it changes the decision
-- default next step
-- default next action
-- executable work board
-- override path
-- one real question only when blocked
+Do not lead with artifact-write narration such as "I wrote these files" when the user needs a decision. Lead with what the user should understand or decide, then include paths only when review, recovery, verification, or lifecycle handoff needs them.
 
-For ordinary discussion, avoid visible headings such as `Judgment`, `Evidence`, `Options`, `Primary Decision Question`, or `State Update`. Use labels only when they make a complex answer easier to scan.
-
-For release closeout board replies, use `discussion.release-closeout-board` when the direction is locked and the remaining work is readiness, release, or execution closeout. The reply should state the locked direction in plain language, why the topic is not yet release-ready or handoff-ready, the concrete P0/P1/P2 or equivalent executable work board, the safe default next action, and the override path. This is the right shape for an operator-ready v1 closeout: it should move from "what is the stage?" to "here is the release closeout board and the next P0 action" without waiting for another permission turn.
-
-For handoff assessment preview replies, use `discussion.handoff-assessment-preview` when the discussion has enough shape that the recommended lifecycle step is handoff assessment, but the user has not explicitly asked to hand off, continue to the next stage, or check readiness. This is a pre-handoff readiness preview, not an artifact-writing stage: do not write or claim `handoff-assessment.md`, do not write a draft handoff pair, and do not lead with updated-file narration. The visible reply should state where the discussion is, the recommended direction, the plain-language reason, a first-pass assessment preview with likely verdict (`ready-for-specify` or `continue-discussion`), proposed handoff goal, recommended consumer, proposed package scope, excluded scope, readiness checks, default next action, and override path. If blockers remain, include the blocking readiness checklist. If no blockers remain, say that an explicit handoff request is the lifecycle trigger for writing `handoff-assessment.md` and the draft handoff package.
-
-For draft handoff review replies, use a concise visible card because the user is reviewing a draft package. Use these labels: Draft Handoff Review, Recommended Route, Scope To Approve, Excluded Scope, Readiness Checks, Package, and Your Review Decision. Do not present the draft review as a path receipt. Do not lead with artifact-write narration such as "I wrote these files"; lead with what decision the user is being asked to make and why the recommended route is the right one. Paths belong in Package after the decision-level summary.
-
-For handoff-ready replies, keep the visible card concise but complete: Handoff Ready, Locked Direction, Carry Forward, Readiness, Package, and Next Step are acceptable because the user is reviewing a deliverable. The card must not close with only file paths, status counters, or a next command. It must summarize the handoff goal, selected direction, target boundary, Must-Preserve coverage, blocking unknown/conflict counts, quality gate state, Markdown/JSON agreement, and exact downstream consumption path.
-
-Keep the `Ready Summary Quality` check internal. Do not use it as a primary user-visible heading; the visible layout should read as a concise handoff card, not an audit form.
+Keep ready-summary quality checks internal. The visible layout should read like a concise, useful advisor reply, not an audit form.
 
 
 ## Discussion Flow
@@ -351,13 +334,13 @@ Keep the `Ready Summary Quality` check internal. Do not use it as a primary user
 
 5. `technical-options`
    - Present 2-3 implementation paths only when strategy affects requirements, the Context Boundary Gate is resolved, and the Truth Pass has established the relevant current-project facts or explicit assumptions.
-   - Use the Boss-Friendly Advisor Response shape: include recommendation, evidence, trade-offs, risks, verification approach, rollback, recovery, or user-confirmed scope-adjustment path, and required evidence.
+   - Use the unified frontstage contract: include recommendation, evidence, trade-offs, risks, verification expectations, data-safety constraints, stop-and-reopen conditions, or user-confirmed scope-adjustment path, and required evidence when those details affect the decision.
 
-6. `release-closeout-board`
-   - Use when direction is locked, the user is no longer choosing core scope, and the useful next discussion product is a readiness or release closeout board.
-   - State the operator-ready bar, the current release or readiness blockers, and the P0/P1/P2 sequence in ordinary language before any state fields or artifact paths.
-   - Default to the next safe P0 action when no user-owned decision blocks the work. Do not ask the user to say next just to begin evidence lookup, board refinement, or another reversible discussion action.
-   - Keep source edits, test fixes, release execution, and package publishing out of `sp-discussion`; route them as recommended downstream execution only when the user explicitly leaves discussion.
+6. `readiness-summary`
+   - Use when direction is locked, the user is no longer choosing core scope, and the useful next discussion product is a readiness summary rather than a plan.
+   - State the handoff or downstream-readiness bar, current blockers, blocked user decisions, evidence gaps, and planning inputs to preserve before any state fields or artifact paths.
+   - Default to the next safe discussion action when no user-owned decision blocks the work. Do not ask the user to say next just to begin evidence lookup, boundary refinement, or another reversible discussion action.
+   - Do not create P0/P1/P2 sequences, migration phases, release batches, task packets, or ordered implementation steps. Keep source edits, test fixes, release execution, and package publishing out of `sp-discussion`; route them as recommended downstream execution only when the user explicitly leaves discussion.
 
 7. `ui-interaction-discussion`
    - Enter only after functional discussion is stable and the matured requirement includes UI-facing scope such as screens, components, layout, navigation, visual hierarchy, interaction states, user-facing copy, accessibility, or workflow feedback.
@@ -366,7 +349,7 @@ Keep the `Ready Summary Quality` check internal. Do not use it as a primary user
    - Act as a senior UI and interaction designer with 15 years of practical project experience. Guide the user through primary screens, user journey, information hierarchy, component responsibilities, key interactions, loading, empty, success, warning, error, disabled, permission, responsive, density, accessibility, keyboard, focus, and copy expectations when relevant.
    - Use natural language first. ASCII sketches are allowed when they clarify rough screen structure, layout grouping, state transitions, or flow relationships for downstream implementers.
 
-8. `handoff-assessment-preview`
+8. `handoff-preview`
    - Use when the discussion has reached a semantic checkpoint where the next useful lifecycle step would be handoff assessment, but the user has not explicitly requested handoff, next-stage continuation, or readiness checking.
    - Do not write `handoff-assessment.md` or handoff draft files in this preview stage.
    - Give the assessment preview in the same visible reply: likely verdict, proposed handoff goal, recommended consumer, proposed package scope, excluded scope, readiness checks, blocking checklist if any, default next action, and override path.
@@ -379,15 +362,15 @@ Keep the `Ready Summary Quality` check internal. Do not use it as a primary user
 10. `handoff-draft`
    - Write Markdown and JSON together only after explicit user request and a bounded unified scope.
    - The draft handoff is a contract, not a prose summary, and is not handoff-ready until self-review and user confirmation.
-   - After writing and self-reviewing the draft pair, switch the visible reply to `discussion.handoff-user-review`; do not end in `handoff-draft` with a write-status report.
+   - After writing and self-reviewing the draft pair, ask for user review with the unified frontstage contract; do not end in `handoff-draft` with a write-status report.
 
 11. `handoff-self-review`
    - Check placeholders, contradictions, missing goal, missing target path, unresolved hard unknowns, weak evidence provenance, Markdown/JSON drift, Must-Preserve coverage, and consequence obligations.
 
-12. `handoff-user-review`
+12. `handoff-review`
    - Ask the user to review the handoff.
    - User confirmation is required before `handoff-ready`.
-   - Use the draft handoff review card. Summarize the handoff goal, recommended consumer, scope being approved, excluded scope, review checks, package paths, and the exact approval or change-request response expected.
+   - Summarize the handoff goal, recommended consumer, scope being approved, excluded scope, review checks, package paths, and the exact approval or change-request response expected. The agent chooses the visible labels.
    - If the user's next message is an unrelated prompt, codebase explanation request, new target root, or new product question, it must not be treated as approval. Classify it as a new turn, preserve the draft in user-review state, and answer or route the new request according to the normal classifier.
 
 13. `handoff-ready`
@@ -512,7 +495,7 @@ When implementation strategy affects the requirement, present 2-3 options before
 
 Scope reduction requires user confirmation. Do not present a smaller validation build, MVP-style slice, pilot, prototype, or first-story release as the default recommendation unless the user explicitly asked for that shape, the request already defines that delivery boundary, or a named constraint makes reduced scope a decision the user must confirm.
 
-For each option, include product behavior enabled, impacted modules or files, complexity, migration or compatibility concerns, testing strategy, risks, rollback, recovery, or user-confirmed scope-adjustment path, and recommendation rationale.
+For each option, include product behavior enabled, impacted modules or files, complexity, compatibility or transition constraints, testing expectations, risks, data-safety constraints, stop-and-reopen conditions, or user-confirmed scope-adjustment path, and recommendation rationale.
 
 Each option must distinguish evidence-backed facts from assumptions. If an option depends on an unverified claim, mark it as assumption-backed, name the evidence needed, and avoid presenting it as the recommended implementation path until the evidence is checked or the user accepts the assumption explicitly.
 
@@ -565,7 +548,7 @@ Assessment outcomes:
 - `ready-for-specify`: the mature discussion describes one coherent handoff boundary with locked context and a bounded unified scope. Write the unified draft `handoff-to-specify.md` and `handoff-to-specify.json` pair.
 - `continue-discussion`: the discussion is missing clarity, boundary facts, evidence provenance, scope confirmation, or a coherent unified scope. Return to the question loop.
 
-Do not use `split-required`. Do not write separate split planning artifacts. Broad work must be represented inside the single handoff through a capability map, recommended sequence, dependencies, deferred scope, and reopen conditions, or stay in discussion until the scope is coherent.
+Do not use `split-required`. Do not write separate split planning artifacts. Broad work must be represented inside the single handoff through a capability map, dependencies, deferred scope, planning constraints, and reopen conditions, or stay in discussion until the scope is coherent. Do not turn broad work into a plan-stage execution sequence inside `sp-discussion`.
 
 
 
@@ -604,6 +587,38 @@ Both files are mandatory. Missing Markdown is invalid because the user-reviewabl
 
 The handoff Markdown and JSON must agree on `handoff_kind`, `handoff_goal`, `discussion_slug`, `consumer_eligibility`, `recommended_consumer`, context boundary fields, implementation target fields, quality gate status, Must-Preserve IDs, Senior Consequence Analysis status, and open blockers.
 
+### Handoff Request-Changes Repair
+
+When a handoff review returns `request-changes`, or a downstream consumer reports `blocked_by_handoff_integrity`, the repair belongs to `sp-discussion`. Do not ask `sp-specify`, `sp-quick`, or another consumer to reconstruct, infer, or silently patch the handoff pair.
+
+Refresh `handoff-to-specify.md` and `handoff-to-specify.json` together from the current discussion source files, then run handoff self-review again before asking the user to approve `handoff-ready`. Keep the discussion in draft/user-review state until the refreshed pair passes self-review and the user confirms it.
+
+The refreshed JSON companion must include the downstream consumption fields needed by `sp-specify` and `sp-quick`:
+
+- `version`
+- `status`
+- `entry_source: sp-discussion`
+- `discussion_slug`
+- `source_handoff`
+- `source_handoff_json`
+- `source_files_read`
+- `handoff_status`
+- `planning_gate_status`
+- `coverage_status`
+- `hard_unknown_count`
+- `open_conflict_count`
+- `quality_gate`
+- `consumer_eligibility`
+- `recommended_consumer`
+- `source_evidence`
+- `blocking_unknowns`
+- `downstream_instructions`
+- `discussion_decision_digest`
+
+Synchronize every protected fact carried in Markdown into JSON, especially source evidence, Must-Preserve IDs and claims, `CA-###` obligations, hard/soft unknown status, open conflict status, quality gate status, planning gate status, and coverage status. If Markdown has evidence entries that JSON omits, or JSON has stale draft status while Markdown claims readiness, keep the handoff blocked and refresh the pair in `sp-discussion`.
+
+Soft unknowns that remain open must be carried forward explicitly with owner, latest resolve phase, and stop-and-reopen condition, or marked as waived/non-blocking assumptions with why they do not change scope, acceptance, planning readiness, or downstream implementation authority.
+
 ## Agent-Facing Requirement Contract
 
 The unified handoff is primarily for downstream agents, not a transcript. Write the main handoff body as a requirement definition contract:
@@ -636,7 +651,7 @@ The handoff must include:
 - `implementation_target`: actual project to change, target root path when local, target paths or modules, target paths still to verify, target project cognition status, and the statement that current project cognition cannot prove another project's implementation facts
 - `source_evidence`: structured evidence entries with `source_type`, `evidence_status`, `source`, `claim`, optional `project_cognition_route`, optional `live_code_evidence`, optional `needs_refresh`, and optional `notes`. Project cognition route entries are advisory unless paired with live code, test, script, config, docs, external source, explicit assumption, or user confirmation evidence.
 - `blocking_unknowns`: hard unknowns that block readiness and soft unknowns with owner, latest resolve phase, and stop-and-reopen condition
-- `downstream_instructions`: settled decisions, assumptions to preserve, conflicts requiring return to `sp-discussion`, capability map, recommended sequence, dependencies, deferred scope, and reopen conditions
+- `downstream_instructions`: settled decisions, assumptions to preserve, conflicts requiring return to `sp-discussion`, capability map, dependencies, planning constraints, deferred scope, and reopen conditions. Do not include an ordered implementation sequence; sequencing belongs to `sp-plan`.
 - `discussion_decision_digest`: the compact decision-intent layer that downstream consumers must preserve instead of flattening the discussion into generic requirements. Include `locked_direction`, `rejected_alternatives`, `accepted_tradeoffs`, `experience_commitments`, `review_criteria_carried_forward`, and `must_not_dilute`. Source each item from `requirements.md`, `technical-options.md`, `project-context.md`, the `Handoff Reviewer Guide`, or explicit user confirmation. This digest must not let downstream workflows rediscover or flatten the selected direction, rejected alternatives, accepted tradeoffs, UI/TUI experience commitments, review criteria, or forbidden simplifications.
 - `ui_discussion`: `ui_discussion_status`, confirmed UI decisions, deferred UI decisions, interaction expectations, state requirements, accessibility expectations, and whether ASCII sketches are present
 - `ui_sketch_reference`: Markdown section reference for ASCII sketches when `ui_sketches_present` is true
@@ -657,17 +672,9 @@ The guide must tell the reviewer:
 
 After writing the draft pair, ask the user to review it with this guide and reply with either approval to mark `handoff-ready` or the concrete changes needed. If both consumers are eligible, ask the user to confirm the recommended consumer or choose the other eligible consumer. Do not ask for a bare yes/no confirmation without review criteria.
 
-The visible request for review must use the draft handoff review card:
+The visible request for review uses the unified frontstage contract. It must cover the decision being requested, recommended consumer and reason, scope the user would approve, explicitly excluded work, self-review and readiness checks, Markdown/JSON paths, and the allowed responses such as approve as handoff-ready or request concrete changes. The agent chooses the heading names and layout.
 
-- Draft Handoff Review: the decision being requested in one sentence.
-- Recommended Route: the recommended consumer and why.
-- Scope To Approve: the exact scope the user would approve.
-- Excluded Scope: explicitly out-of-scope work that must not slip into the next consumer.
-- Readiness Checks: self-review status, hard unknown/conflict status, and Markdown/JSON agreement at a summary level.
-- Package: Markdown and JSON paths, plus assessment path when useful.
-- Your Review Decision: the allowed responses, such as approve as handoff-ready or request concrete changes.
-
-Do not collapse this card into a file list, artifact-write log, or approval keyword. The user needs enough context to decide without rereading every artifact.
+Do not collapse the review request into a file list, artifact-write log, or approval keyword. The user needs enough context to decide without rereading every artifact.
 
 ## Must-Preserve Ledger
 
@@ -743,4 +750,4 @@ Do not mark the discussion `handoff-ready` until every confirmed or critical ite
 
 When the Senior Consequence Analysis Gate triggers, also write or refresh `handoff-to-specify.json` as a mandatory machine-readable mirror of triggered gate status, consequence analysis, `CA-###` obligations, coverage gaps, and stop-and-reopen conditions. Markdown and JSON handoffs must agree on obligation IDs, claims, blocking level, owner, latest resolve phase, status, and stop-and-reopen condition before the discussion can become `handoff-ready`.
 
-After writing a draft handoff, ask the user to review it using the draft handoff review card and the `Handoff Reviewer Guide`. Tell the user to invoke the generated integration's `sp-specify` or `sp-quick` command form with the same handoff path only after the handoff self-review passes, `quality_gate.status` records user confirmation, and that consumer's `consumer_eligibility` status is ready. Do not invoke it yourself.
+After writing a draft handoff, ask the user to review it with the unified frontstage contract and the `Handoff Reviewer Guide`. Tell the user to invoke the generated integration's `sp-specify` or `sp-quick` command form with the same handoff path only after the handoff self-review passes, `quality_gate.status` records user confirmation, and that consumer's `consumer_eligibility` status is ready. Do not invoke it yourself.

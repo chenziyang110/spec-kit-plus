@@ -26,8 +26,9 @@ Use `execution_surface: native-subagents`.
 ## Process
 
 - Before repository inventory, run `project-cognition generate-ignore --format json`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
+- After the ignore gate is clear, run `project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json` and use the returned file list as the candidate scan set. The agent may choose scan intent and concrete `--scope` values, but `project-cognition scan-set` decides the initial included file list through deterministic runtime rules; do not let the agent freely decide which files to omit.
 - Build a value-weighted evidence baseline before any graph reconstruction work begins.
-- First spread out the whole repository as a cheap inventory pass: enumerate paths, metadata, ignore status, Git tracking status, size, extension, directory family, and likely generated/vendor/test/doc/config/source classification without deep-reading file contents.
+- First spread out the resolved scan set as a cheap inventory pass: enumerate paths, metadata, runtime exclusion status, Git tracking status, size, extension, directory family, and likely generated/vendor/test/doc/config/source classification without deep-reading file contents.
 - Classify every non-excluded candidate path by value tier before dispatch: `P0` core behavior and entry surfaces, `P1` supporting contracts and runtime/config surfaces, `P2` selective tests/docs/examples, and `P3` low-signal generated/vendor/assets/cache/static output.
 - Deep-scan `P0` and `P1` first. Use `P2` selectively when it proves behavior, verification, or public contracts. Keep `P3` as inventory-only or excluded unless the user explicitly asks for that surface or it is the only evidence for a critical behavior.
 - Write `.specify/project-cognition/workbench/scan-targets.json` after classification and before dispatch. It is the leader-owned execution target list derived from `repository-universe.json`.
@@ -37,12 +38,15 @@ Use `execution_surface: native-subagents`.
 
 ## Value-Weighted Repository Inventory
 
-`sp-map-scan` must inventory all candidate paths, but it must not deep-read all
-files by default. The first pass is a path-level accounting pass, not a content
-scan.
+`sp-map-scan` must inventory all candidate paths from the runtime-resolved scan
+set, but it must not deep-read all files by default. The first pass is a
+path-level accounting pass, not a content scan.
 
 Write `.specify/project-cognition/workbench/repository-universe.json` with one
-row per candidate path after `.cognitionignore` filtering. Each included or
+row per candidate path from `.specify/project-cognition/tmp/scan-files.json`.
+Runtime-excluded paths may be recorded only in boundary accounting when the
+runtime exposes them through a debug/explain path; the default agent-facing
+scan-set handoff intentionally contains only included files. Each included or
 ambiguous row should record:
 
 - `path`: repository-relative path
@@ -240,8 +244,8 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Each `result_handoff_path` must point to `.specify/project-cognition/workbench/worker-results/<packet-id>.json`.
 - Every `scan-packets/<lane-id>.md` file must have exactly one matching `worker-results/<lane-id>.json` handoff, and worker results without a matching scan packet are invalid.
 - Worker result handoffs are the machine-checkable evidence surface for packet acceptance.
-- Prefer `rg --files` for inventory discovery before escalating to deeper reads.
-- Filter `rg --files`, Git-tracked file lists, and any user-provided scan hints through `.cognitionignore` before writing `.specify/project-cognition/workbench/repository-universe.json`.
+- Use `project-cognition scan-set` for inventory discovery before escalating to deeper reads. `rg --files` may support diagnostics, but it must not replace the runtime-resolved scan set.
+- Treat Git-tracked file lists and user-provided scan hints as metadata or `scan-set --scope` inputs; they must not become scan targets until `project-cognition scan-set` returns them in `.specify/project-cognition/tmp/scan-files.json`.
 - Raw inventory notes or raw chat summaries are not sufficient.
 - Idle subagent output is not an accepted scan result.
 - The leader must wait for every dispatched scan lane to return a structured handoff before closing the scan stage.
@@ -250,7 +254,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 
 ## Canonical Boundary Contract
 
-- `.specify/project-cognition/workbench/repository-universe.json` is the canonical boundary artifact.
+- `.specify/project-cognition/workbench/repository-universe.json` is the canonical boundary artifact derived from the runtime-resolved scan set.
 - It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `criticality`, `value_tier`, `scan_decision`, `path_kind`, `classification_reasons`, and `decision_source`.
 - Every candidate path must receive exactly one disposition: `deep_read`, `sampled`, `inventory_only`, `excluded`, or `blocked`.
 - Disposition is separate from criticality; value tier adds another classification axis. Value tier remains `P0`, `P1`, `P2`, or `P3`; criticality remains `critical`, `important`, or `low_risk`.
@@ -282,8 +286,8 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 `sp-map-scan` must:
 
 - enumerate project-internal evidence comprehensively as value-weighted repository inventory, then scan evidence selectively by value
-- generate a full project-relevant inventory across nested directories and Git-tracked files
-- write `.specify/project-cognition/workbench/repository-universe.json` with `included_paths` and `excluded_paths`; every `.cognitionignore` match belongs in `excluded_paths` with the matched rule or a human-readable reason
+- generate a full project-relevant inventory from the runtime-resolved scan set across nested directories, then add Git tracking status and directory metadata during classification
+- write `.specify/project-cognition/workbench/repository-universe.json` with `included_paths` and any available `excluded_paths`; default `scan-set` output is intentionally minimal and does not require per-path exclusion details unless an explicit explain/debug mode was used
 - write `.specify/project-cognition/workbench/scan-targets.json` with the value-weighted execution target set
 - classify project-relevant repository surfaces
 - gather evidence first from high-value committed source, runtime entrypoints, tests that prove behavior, scripts, configs, docs that define behavior, templates, generated-surface sources, and `.git` history
@@ -295,7 +299,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - every project-relevant row is categorized with value tiers and coverage classes such as `P0`, `P1`, `P2`, `P3`, `inventory`, `sampled`, `deep-read`, `critical`, `important`, and `low-risk`
 - `unknown` is a scan failure
 - maintain `excluded_from_deep_read` reasoning for `vendor-cache-build-output` and similar excluded roots
-- Git-tracked files remain the primary inventory boundary unless the scan explicitly records why untracked evidence matters.
+- The runtime-resolved scan set is the primary inventory boundary; Git-tracked files and Git tracking status are classification metadata unless the scan explicitly records why untracked evidence matters.
 - `.cognitionignore`-excluded paths must not appear in coverage rows, evidence rows, provisional nodes, provisional edges, observations, or scan packets unless a later `!` rule re-includes the path.
 
 ## Coverage Classification

@@ -152,9 +152,30 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "optional follow-up" in command_lower
     assert "recommended option" in command_lower
     assert "adaptive reply contract" in command_lower
-    assert "reply_shape_id" in command_content
-    assert "discussion.context-intake" in command_content
-    assert "discussion.handoff-user-review" in command_content
+    assert "reply_shape_id" not in command_content
+    assert "unified frontstage contract" in command_lower
+    assert "do not choose among named answer templates" in command_lower
+    assert "agent controls heading names" in command_lower
+    assert "discussion responsibility boundary" in command_lower
+    assert "does not own implementation planning" in command_lower
+    assert "do not split the work into p0/p1/p2" in command_lower
+    assert "migration phases" in command_lower
+    assert "task packets" in command_lower
+    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in command_lower
+    assert "no parallel old-backend operation" in command_lower
+    assert "no old-stack cutover fallback" in command_lower
+    assert "no alternate product path" in command_lower
+    assert "database snapshots" in command_lower
+    assert "data-safety mechanisms" in command_lower
+    assert "downstream planning and implementation safety constraints" in command_lower
+    assert "handoff request-changes repair" in command_lower
+    assert "blocked_by_handoff_integrity" in command_content
+    assert "the repair belongs to `sp-discussion`" in command_lower
+    assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in command_lower
+    assert "source_handoff_json" in command_content
+    assert "source_files_read" in command_content
+    assert "handoff_status" in command_content
+    assert "handoff-review" in command_content
     assert "recommendation-first is not questionless" in command_lower
     assert "one unified" in command_lower or "single unified" in command_lower
     assert "discussion_requirement_contract" in command_content
@@ -179,14 +200,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "experience_commitments" in command_content
     assert "review_criteria_carried_forward" in command_content
     assert "must_not_dilute" in command_content
-    assert "Handoff Ready" in command_content
-    assert "Locked Direction" in command_content
-    assert "Carry Forward" in command_content
-    assert "Readiness" in command_content
-    assert "Package" in command_content
-    assert "Next Step" in command_content
-    assert "must not close with only file paths, status counters, or a next command" in command_lower
-    assert "keep the `ready summary quality` check internal" in command_lower
+    assert "handoff-ready closeout" in command_lower
+    assert "selected direction" in command_lower
+    assert "target boundary" in command_lower
+    assert "Must-Preserve coverage" in command_content
+    assert "package paths" in command_lower
+    assert "next consumption path" in command_lower
+    assert "do not close with only file paths, status counters, or a next command" in command_lower
+    assert "keep ready-summary quality checks internal" in command_lower
     assert "coverage_status" in command_content
     assert "planning_gate_status" in command_content
     assert (

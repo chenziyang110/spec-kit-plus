@@ -62,6 +62,12 @@ install -m 0755 "$tmp" "$target"
 
 echo "==> Verifying..."
 "$target" --version
+root_help="$("$target" --help 2>&1 || true)"
+if [[ "$root_help" != *"scan-set"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required scan-set command." >&2
+  echo "Expected 'project-cognition --help' to include scan-set." >&2
+  exit 1
+fi
 update_help="$("$target" update --help 2>&1 || true)"
 if [[ "$update_help" != *"-payload-file"* || "$update_help" != *"-verification"* ]]; then
   echo "Error: downloaded project-cognition binary is missing required update flags." >&2

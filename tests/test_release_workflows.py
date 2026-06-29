@@ -13,6 +13,7 @@ def test_release_workflow_uploads_project_cognition_binaries():
     assert '-o "../../dist/release-tools/${tool}-${goos}-${goarch}${ext}" .' in content
     assert "dist/release-tools/*" in content
     assert "Smoke-test project-cognition release binary" in content
+    assert './dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-set"' in content
     assert "./dist/release-tools/project-cognition-linux-amd64 semantic-intake --help" in content
     assert "./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --help" in content
     assert "templates/examples/semantic-audit-resume" in content
@@ -24,6 +25,7 @@ def test_release_workflow_uploads_project_cognition_binaries():
     assert "PROJECT_COGNITION_VERSION=${VERSION}" in content
     assert "gh release create" in content
     assert r"standalone \`project-cognition\` binary" in content
+    assert r"\`scan-set\`" in content
     assert r"prefer \`PROJECT_COGNITION_BIN\`" in content
     assert r"\`semantic-audit-resume\`" in content
     assert "semantic-audit-resume example matrix" in content

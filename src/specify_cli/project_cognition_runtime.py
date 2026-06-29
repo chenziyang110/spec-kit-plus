@@ -17,6 +17,7 @@ REQUIRED_COMMANDS = (
     "build-from-scan",
     "init-empty",
     "generate-ignore",
+    "scan-set",
     "changes",
     "closeout-plan",
     "semantic-intake --input",

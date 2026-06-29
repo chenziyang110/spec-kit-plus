@@ -178,6 +178,10 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert ".cognitionignore" in scan_shell
     assert "project-cognition generate-ignore --format json" in content
     assert "project-cognition generate-ignore --format json" in scan_shell
+    assert "project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json" in content
+    assert "project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json" in scan_shell
+    assert "default stdout is compact json" in scan_shell_lowered
+    assert "handoff file is a temporary agent-facing scan-set containing only `files`" in scan_shell_lowered
     assert "review `.specify/project-cognition/.cognitionignore`" in scan_shell_lowered
     assert "wait for confirmation" in scan_shell_lowered
     assert "passive learning files as read-only workflow guidance, not scan evidence" in scan_shell_lowered
@@ -346,8 +350,11 @@ def test_map_scan_template_requires_canonical_boundary_contract() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()
 
+    assert "runtime-resolved scan set" in lowered
+    assert "do not let the agent freely decide which files to omit" in lowered
     assert "canonical boundary artifact" in lowered
     assert "`.specify/project-cognition/workbench/repository-universe.json`" in content
+    assert ".specify/project-cognition/tmp/scan-files.json" in content
     assert "`schema_version`" in content
     assert "`candidate_universe`" in content
     assert "`decision_source`" in content

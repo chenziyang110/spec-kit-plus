@@ -680,21 +680,40 @@ class TestCodexAutoPromote:
         assert "checkpoint persistence" in generated_lower
         assert "surface file paths and state updates only" in generated_lower
         assert "adaptive reply contract" in generated_lower
-        assert "reply_shape_id" in generated_discussion
-        assert "discussion.context-intake" in generated_discussion
-        assert "discussion.release-closeout-board" in generated_discussion
-        assert "discussion.handoff-assessment-preview" in generated_discussion
-        assert "discussion.handoff-user-review" in generated_discussion
-        assert "release closeout board" in generated_lower
-        assert "safe default next action" in generated_lower
+        assert "reply_shape_id" not in generated_discussion
+        assert "unified frontstage contract" in generated_lower
+        assert "do not choose among named answer templates" in generated_lower
+        assert "agent controls heading names" in generated_lower
+        assert "readiness-summary" in generated_discussion
+        assert "handoff-preview" in generated_discussion
+        assert "handoff-review" in generated_discussion
+        assert "discussion responsibility boundary" in generated_lower
+        assert "does not own implementation planning" in generated_lower
+        assert "do not split the work into p0/p1/p2" in generated_lower
+        assert "migration phases" in generated_lower
+        assert "task packets" in generated_lower
+        assert "no parallel old-backend operation" in generated_lower
+        assert "no old-stack cutover fallback" in generated_lower
+        assert "no alternate product path" in generated_lower
+        assert "database snapshots" in generated_lower
+        assert "data-safety mechanisms" in generated_lower
+        assert "downstream planning and implementation safety constraints" in generated_lower
+        assert "handoff request-changes repair" in generated_lower
+        assert "blocked_by_handoff_integrity" in generated_discussion
+        assert "the repair belongs to `sp-discussion`" in generated_lower
+        assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in generated_lower
+        assert "source_handoff_json" in generated_discussion
+        assert "source_files_read" in generated_discussion
+        assert "handoff_status" in generated_discussion
+        assert "safe default discussion action" in generated_lower
         assert "next-step content rule" in generated_lower
         assert "first-pass content" in generated_lower
-        assert "pre-handoff readiness preview" in generated_lower
+        assert "pre-handoff readiness" in generated_lower
         assert "proposed handoff goal" in generated_lower
-        assert "do not write or claim `handoff-assessment.md`" in generated_lower
-        assert "draft handoff review card" in generated_lower
-        assert "Scope To Approve" in generated_discussion
-        assert "Your Review Decision" in generated_discussion
+        assert "without writing or claiming `handoff-assessment.md`" in generated_lower
+        assert "decision requested" in generated_lower
+        assert "scope to approve" in generated_lower
+        assert "allowed approval" in generated_lower
         assert "recommendation-first is not questionless" in generated_lower
         assert "discussion_decision_digest" in generated_discussion
         assert "discussion_requirement_contract" in generated_discussion
@@ -709,14 +728,14 @@ class TestCodexAutoPromote:
         assert "experience_commitments" in generated_discussion
         assert "review_criteria_carried_forward" in generated_discussion
         assert "must_not_dilute" in generated_discussion
-        assert "Handoff Ready" in generated_discussion
-        assert "Locked Direction" in generated_discussion
-        assert "Carry Forward" in generated_discussion
-        assert "Readiness" in generated_discussion
-        assert "Package" in generated_discussion
-        assert "Next Step" in generated_discussion
-        assert "must not close with only file paths, status counters, or a next command" in generated_lower
-        assert "keep the `ready summary quality` check internal" in generated_lower
+        assert "handoff-ready closeout" in generated_lower
+        assert "selected direction" in generated_lower
+        assert "target boundary" in generated_lower
+        assert "Must-Preserve coverage" in generated_discussion
+        assert "package paths" in generated_lower
+        assert "next consumption path" in generated_lower
+        assert "do not close with only file paths, status counters, or a next command" in generated_lower
+        assert "keep ready-summary quality checks internal" in generated_lower
         assert "draft handoff package can be produced" in generated_lower
         assert "complete handoff package can be produced" not in generated_lower
         assert "confirmed unified handoff pair" not in generated_lower
@@ -733,12 +752,12 @@ class TestCodexAutoPromote:
             in state_template
         )
         assert "question_pack_mode: single-question | adaptive-pack | none" in state_template
-        assert "reply_shape_id:" in state_template
-        assert "release-closeout-board" in state_template
-        assert "handoff-assessment-preview" in state_template
-        assert "assessment-preview" in state_template
-        assert "draft-review-card" in state_template
-        assert "discussion.evidence-conflict" in state_template
+        assert "reply_shape_id:" not in state_template
+        assert "frontstage_reply_contract: unified" in state_template
+        assert "readiness-summary" in state_template
+        assert "handoff-preview" in state_template
+        assert "handoff-review" in state_template
+        assert "review-summary" in state_template
         assert "primary_question:" in state_template
         assert "optional_followups:" in state_template
         assert "recommendation_required_for_choices: true" in state_template

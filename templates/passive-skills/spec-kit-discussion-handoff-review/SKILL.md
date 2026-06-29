@@ -96,8 +96,8 @@ Approve only if all required checks pass:
 - The Markdown handoff includes a `Handoff Reviewer Guide` with approval and
   change-request criteria for reviewers who do not know Spec Kit internals.
 - The Markdown handoff includes a `Must-Preserve Ledger`.
-- The ready summary quality check passes without needing `Ready Summary Quality`
-  as a user-visible heading.
+- The ready summary quality check passes without needing a user-visible audit
+  heading or fixed card label.
 
 ## Carry-Forward Coverage
 
@@ -119,7 +119,7 @@ Each `MP-###` item must include `id`, `type`, `claim`, `source`,
 `downstream_requirement`, `blocking_level`, `owner`, `latest_resolve_phase`,
 `status`, and required deferred or superseded fields when applicable.
 
-## Internal Ready Summary Quality Check
+## Internal Ready Closeout Check
 
 A final `handoff-ready` user summary is valid only when it gives enough context
 for the user or a later agent to trust the transition without rereading the
@@ -141,17 +141,16 @@ ready summary.
 
 ## Draft User Review Summary Quality Check
 
-A draft handoff user-review reply is valid only when it uses a concise draft handoff review card.
-It must include:
+A draft handoff user-review reply is valid only when it uses the unified frontstage contract.
+The agent chooses the visible headings and layout, but the reply must include:
 
-- Draft Handoff Review: the decision being requested
-- Recommended Route: the recommended downstream consumer and why
-- Scope To Approve: the exact scope the user would approve
-- Excluded Scope: work explicitly outside the draft
-- Readiness Checks: self-review, hard unknown/conflict, and Markdown/JSON
-  agreement status
-- Package: the handoff Markdown and JSON paths
-- Your Review Decision: approve as handoff-ready or request concrete changes
+- the decision being requested
+- the recommended downstream consumer and why
+- the exact scope the user would approve
+- work explicitly outside the draft
+- self-review, hard unknown/conflict, and Markdown/JSON agreement status
+- the handoff Markdown and JSON paths
+- allowed responses: approve as handoff-ready or request concrete changes
 
 If the draft review says only that files were written, lists paths, and asks for
 approval, return `request-changes` for an incomplete user-review summary.
@@ -175,6 +174,9 @@ state.
 - For `approve-handoff-ready`, name the handoff paths and the exact downstream
   invocation or consumption path, but do not invoke `sp-specify` automatically.
 - For `request-changes`, list the smallest concrete edits needed and keep the
-  discussion in draft/user-review state.
+  discussion in draft/user-review state. Route the fix back to `sp-discussion`
+  to refresh `handoff-to-specify.md` and `handoff-to-specify.json` together;
+  downstream consumers must block instead of reconstructing or patching the
+  handoff pair.
 - For `block-handoff`, name the blocker, the missing evidence or file, and the
   first safe recovery step inside `sp-discussion`.

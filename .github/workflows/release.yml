@@ -106,7 +106,7 @@ jobs:
 
           ### project-cognition runtime
 
-          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
+          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes \`scan-set\` for compact agent-facing scan file-list resolution, the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
 
           **Install the prebuilt release binary**
           \`\`\`bash
@@ -180,6 +180,7 @@ jobs:
         if: steps.check_release.outputs.exists == 'false'
         run: |
           chmod +x ./dist/release-tools/project-cognition-linux-amd64
+          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-set"
           ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "semantic-intake"
           ./dist/release-tools/project-cognition-linux-amd64 semantic-intake --help 2>&1 | grep -q -- "-input"
           ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --help 2>&1 | grep -q -- "-input"

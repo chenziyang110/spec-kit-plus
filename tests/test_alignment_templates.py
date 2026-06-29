@@ -1028,11 +1028,13 @@ def test_discussion_uses_boss_friendly_advisor_response_and_compass() -> None:
 
     assert "## Boss-Friendly Advisor Response" in content
     assert "the first sentence should be understandable to a non-technical owner" in lowered
-    assert "judgment:" in lowered
-    assert "evidence:" in lowered
-    assert "risk:" in lowered
-    assert "recommendation:" in lowered
-    assert "next discussion paths:" in lowered
+    assert "use the unified frontstage reply contract instead of fixed visible headings" in lowered
+    assert "put the decision-level meaning or recommended direction first" in lowered
+    assert "ground the reason in verified project truth" in lowered
+    assert "mention risk or trade-off only when it changes the decision" in lowered
+    assert "state the default next move and the override path" in lowered
+    assert "do not expose a canned response format to the user" in lowered
+    assert "judgment:" not in lowered
     assert "## Discussion Compass" in content
     assert "what are we solving now" in lowered
     assert "what has been confirmed" in lowered
@@ -1066,9 +1068,14 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
     lowered = combined.lower()
 
     assert "## Adaptive Reply Contract" in content
-    assert "reply_shape_id" in combined
+    assert "frontstage_reply_contract: unified" in state
+    assert "reply_shape_id" not in combined
     assert "fixed response format contract" not in lowered
     assert "use the section labels in the listed order" not in lowered
+    assert "do not choose among named answer templates" in lowered
+    assert "fixed cards" in lowered
+    assert "agent controls heading names" in lowered
+    assert "no visible section title is mandatory" in lowered
     assert "high-throughput collaborative brief" in lowered
     assert "frontstage / backstage separation" in lowered
     assert "visible conversation" in lowered
@@ -1081,27 +1088,28 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
     assert "recommendation-first is not questionless" in lowered
     assert "ask only when user judgment is genuinely required" in lowered
 
-    required_shapes = (
-        "discussion.context-intake",
-        "discussion.product-framing",
-        "discussion.context-grounding",
-        "discussion.question-loop",
-        "discussion.technical-options",
-        "discussion.release-closeout-board",
-        "discussion.ui-interaction",
-        "discussion.handoff-assessment-preview",
-        "discussion.handoff-assessment",
-        "discussion.handoff-draft",
-        "discussion.handoff-self-review",
-        "discussion.handoff-user-review",
-        "discussion.handoff-ready",
-        "discussion.resume",
-        "discussion.blocked",
-        "discussion.evidence-conflict",
+    required_lifecycle_coverage = (
+        "context intake covers",
+        "product framing covers",
+        "context grounding covers",
+        "technical options compare",
+        "readiness summary covers",
+        "ui interaction discussion covers",
+        "pre-handoff readiness covers",
+        "draft handoff review covers",
+        "handoff-ready closeout covers",
+        "blocked or evidence-conflict replies",
     )
-    for reply_shape in required_shapes:
-        assert reply_shape in content
-        assert reply_shape in state
+    for item in required_lifecycle_coverage:
+        assert item in lowered
+
+    for state_term in (
+        "readiness-summary",
+        "handoff-preview",
+        "handoff-review",
+        "review-summary",
+    ):
+        assert state_term in state
 
     required_visible_parts = (
         "recommended direction",
@@ -1112,28 +1120,51 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
         "frontstage reply gate",
         "Next-Step Content Rule",
         "status receipt",
-        "executable work board",
+        "readiness checklist",
         "default next action",
         "first-pass content",
         "handoff assessment preview",
-        "Draft Handoff Review",
-        "Recommended Route",
-        "Scope To Approve",
+        "decision requested",
+        "recommended route",
+        "scope to approve",
         "Excluded Scope",
-        "Readiness Checks",
-        "Your Review Decision",
-        "Handoff Ready",
-        "Locked Direction",
-        "Carry Forward",
-        "Readiness",
-        "Package",
-        "Next Step",
+        "readiness checks",
+        "allowed approval",
+        "handoff-ready closeout",
+        "target boundary",
+        "must-preserve coverage",
+        "quality gate state",
+        "downstream consumption path",
     )
     for visible_part in required_visible_parts:
-        assert visible_part in content
+        assert visible_part.lower() in lowered
 
-    assert "must not close with only file paths, status counters, or a next command" in lowered
-    assert "keep the `ready summary quality` check internal" in lowered
+    assert "do not close with only file paths, status counters, or a next command" in lowered
+    assert "keep ready-summary quality checks internal" in lowered
+    assert "discussion responsibility boundary" in lowered
+    assert "does not own implementation planning" in lowered
+    assert "do not split the work into p0/p1/p2" in lowered
+    assert "migration phases" in lowered
+    assert "task packets" in lowered
+    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in lowered
+    assert "no parallel old-backend operation" in lowered
+    assert "no old-stack cutover fallback" in lowered
+    assert "no alternate product path" in lowered
+    assert "do not convert that rejection into a new discussion question" in lowered
+    assert "database snapshots" in lowered
+    assert "data-safety mechanisms" in lowered
+    assert "downstream planning and implementation safety constraints" in lowered
+    assert "handoff request-changes repair" in lowered
+    assert "blocked_by_handoff_integrity" in lowered
+    assert "the repair belongs to `sp-discussion`" in lowered
+    assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in lowered
+    assert "do not ask `sp-specify`, `sp-quick`, or another consumer to reconstruct" in lowered
+    assert "source_handoff_json" in content
+    assert "source_files_read" in content
+    assert "handoff_status" in content
+    assert "planning_gate_status" in content
+    assert "coverage_status" in content
+    assert "soft unknowns that remain open must be carried forward explicitly" in lowered
 
 
 def test_discussion_default_next_step_must_include_concrete_content() -> None:
@@ -1151,7 +1182,7 @@ def test_discussion_default_next_step_must_include_concrete_content() -> None:
     assert "keep / merge / downgrade / delete / defer" in lowered
     assert "product framing" in lowered
     assert "technical options" in lowered
-    assert "release closeout board" in lowered
+    assert "readiness checklist" in lowered
     assert "handoff assessment" in lowered
     assert "blocked only when" in lowered
     assert "concrete content for the recommended next step" in shell.lower()
@@ -1164,16 +1195,13 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
     combined = "\n".join([content, shell, state])
     lowered = combined.lower()
 
-    assert "discussion.handoff-assessment-preview" in content
-    assert "discussion.handoff-assessment-preview" in shell
-    assert "discussion.handoff-assessment-preview" in state
-    assert "handoff-assessment-preview" in state
-    assert "assessment-preview" in state
-    assert "pre-handoff readiness preview" in lowered
+    assert "handoff-preview" in content
+    assert "handoff-preview" in state
+    assert "pre-handoff readiness" in lowered
     assert "user has not explicitly requested handoff" in lowered
-    assert "do not write or claim `handoff-assessment.md`" in lowered
+    assert "without writing or claiming `handoff-assessment.md`" in lowered
     assert "do not write `handoff-assessment.md`" in lowered
-    assert "do not write a draft handoff pair" in lowered
+    assert "handoff draft files" in lowered
     assert "likely verdict" in lowered
     assert "proposed handoff goal" in lowered
     assert "recommended consumer" in lowered
@@ -1186,22 +1214,26 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
     assert "without writing or claiming `handoff-assessment.md`" in lowered
 
 
-def test_discussion_release_closeout_board_defaults_to_next_safe_action() -> None:
+def test_discussion_readiness_summary_does_not_plan_execution_phases() -> None:
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")
     state = _read("templates/discussion-state-template.md")
     combined = "\n".join([content, shell, state])
     lowered = combined.lower()
 
-    assert "release-closeout-board" in content
-    assert "release-closeout-board" in shell
-    assert "release-closeout-board" in state
+    assert "readiness-summary" in content
+    assert "readiness summary" in shell
+    assert "readiness-summary" in state
     assert "direction is locked" in lowered
-    assert "release closeout board" in lowered
-    assert "operator-ready" in lowered
-    assert "p0/p1/p2" in lowered
+    assert "handoff or downstream-readiness bar" in lowered
+    assert "blocked user decisions" in lowered
+    assert "evidence gaps" in lowered
+    assert "planning inputs to preserve" in lowered
+    assert "do not create p0/p1/p2 sequences" in lowered
+    assert "migration phases" in lowered
+    assert "task packets" in lowered
     assert "do not ask the user to say next" in lowered
-    assert "safe default next action" in lowered
+    assert "safe default discussion action" in lowered
     assert "state receipt" in lowered
     assert "status receipt" in lowered
     assert "file paths, status fields, oq ids, persistence notes, or updated-artifact lists" in lowered
@@ -1214,25 +1246,25 @@ def test_discussion_handoff_user_review_uses_draft_review_card() -> None:
     combined = "\n".join([content, shell, state])
     lowered = combined.lower()
 
-    assert "draft handoff review card" in lowered
-    assert "discussion.handoff-user-review" in content
-    assert "discussion.handoff-user-review" in state
-    assert "draft-review-card" in state
-    for card_label in (
-        "Draft Handoff Review",
-        "Recommended Route",
-        "Scope To Approve",
-        "Excluded Scope",
-        "Readiness Checks",
-        "Package",
-        "Your Review Decision",
+    assert "handoff-review" in content
+    assert "handoff-review" in state
+    for required_content in (
+        "decision requested",
+        "recommended route",
+        "scope to approve",
+        "excluded scope",
+        "readiness checks",
+        "package paths",
+        "approval/change-request responses",
     ):
-        assert card_label in content
-    assert "do not present the draft review as a path receipt" in lowered
+        assert required_content in lowered
+    assert "agent chooses visible labels" in lowered
+    assert "do not present draft handoff review as a path receipt" in lowered
     assert "do not lead with artifact-write narration" in lowered
     assert "unrelated prompt" in lowered
     assert "must not be treated as approval" in lowered
-    assert "draft handoff review card" in shell.lower()
+    assert "do not use mandatory visible headings or fixed card labels" in lowered
+    assert "draft handoff review card" not in lowered
 
 
 def test_discussion_handoff_review_passive_skill_sets_review_standard() -> None:
@@ -1266,15 +1298,22 @@ def test_discussion_handoff_review_passive_skill_sets_review_standard() -> None:
     assert "quality_gate.status" in content
     assert "planning_gate_status" in content
     assert "coverage_status" in content
-    assert "ready summary quality" in lowered
+    assert "internal ready closeout check" in lowered
     assert "draft user review summary quality check" in lowered
-    assert "draft handoff review card" in lowered
-    assert "scope to approve" in lowered
-    assert "excluded scope" in lowered
+    assert "unified frontstage contract" in lowered
+    assert "agent chooses the visible headings and layout" in lowered
+    assert "the decision being requested" in lowered
+    assert "the recommended downstream consumer and why" in lowered
+    assert "the exact scope the user would approve" in lowered
+    assert "exact scope the user would approve" in lowered
+    assert "work explicitly outside the draft" in lowered
+    assert "allowed responses: approve as handoff-ready or request concrete changes" in lowered
     assert "unrelated prompt" in lowered
     assert "is not approval" in lowered
     assert "do not review implementation code" in lowered
     assert "do not answer with only" in lowered
+    assert "route the fix back to `sp-discussion`" in lowered
+    assert "downstream consumers must block instead of reconstructing or patching" in lowered
 
 
 def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -> None:

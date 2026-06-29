@@ -169,6 +169,66 @@ func TestChangesCommandAppearsInHelp(t *testing.T) {
 	}
 }
 
+func TestRootHelpListsScanSet(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, mark-dirty") {
+		t.Fatalf("help does not list scan-set after generate-ignore:\n%s", stdout.String())
+	}
+}
+
+func TestScanSetCommandWritesCompactAgentFacingOutput(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify", "project-cognition"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "vendor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "vendor", "lib.go"), []byte("package vendor\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan-set", "--scope", "src", "--scope", "vendor", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	got := strings.TrimSpace(stdout.String())
+	want := `{"files":".specify/project-cognition/tmp/scan-files.json","count":1}`
+	if got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if strings.Contains(stdout.String(), "\n  ") {
+		t.Fatalf("stdout should be compact JSON, got:\n%s", stdout.String())
+	}
+	raw, err := os.ReadFile(filepath.Join(root, ".specify", "project-cognition", "tmp", "scan-files.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotFile, wantFile := strings.TrimSpace(string(raw)), `{"files":["src/app.go"]}`; gotFile != wantFile {
+		t.Fatalf("scan file = %q, want %q", gotFile, wantFile)
+	}
+}
+
 func TestRootHelpListsCloseoutPlan(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"--help"}, &stdout, &stderr, "test")

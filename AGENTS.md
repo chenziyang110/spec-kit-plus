@@ -14,6 +14,12 @@ For AI CLI workflows in this repository:
 - Use `sp-teams` for Codex only when execution needs durable team state, explicit join-point tracking, or lifecycle control beyond one in-session subagent burst.
 - Choose the lightest path that preserves correctness: direct execution for trivial/tightly coupled work, subagents for bounded parallel work, and `sp-teams` for durable team execution.
 
+## Agent-Facing Output Cost Control
+
+- Any runtime output, temporary artifact, manifest, handoff file, or generated intermediate content meant primarily for agent consumption must be as short as practical without reducing correctness, safety, or task quality.
+- Prefer compact structured data with only fields the next agent step needs. Omit explanatory prose, duplicated data, timestamps, hashes, version metadata, exclusion details, and other audit/debug fields unless they are required for the active workflow.
+- Put expanded diagnostics behind explicit debug, verbose, explain, or human-readable modes instead of including them in default agent-facing output.
+
 ## Project Memory
 
 - Generated projects use `.specify/memory/project-rules.md` for local rules and `.specify/memory/learnings/INDEX.md` plus linked detail documents as the first-read reusable learning layer. `.specify/memory/project-learnings.md` remains a compatibility summary; new durable lessons should write the index/detail memory first.
@@ -552,6 +558,8 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 - `tools/project-cognition/install.sh` and `tools/project-cognition/install.ps1` must download the matching prebuilt release binary by default and verify it with `project-cognition --version`.
 - `specify init` must best-effort auto-download/cache the prebuilt binary, then persist the resolved executable in `.specify/config.json` under `project_cognition_launcher` so generated command templates invoke the pinned binary path instead of relying only on PATH.
 - If init cannot download the binary, it must not fail project initialization; it should leave generated commands usable via `PROJECT_COGNITION_BIN` or `project-cognition` on PATH and print a clear install warning.
+- Project-cognition outputs intended for agent consumption should default to minimal stdout and compact temporary files that contain only the next-step data needed, such as a file list path and count or the file list itself. Detailed exclusion reasons, scan explanations, and audit metadata belong behind explicit explain/debug modes.
+- `project-cognition scan-set` is the runtime-owned scan-set resolution contract for agent-facing file-list handoffs; do not replace it with prompt-only guidance that asks agents to freely decide which files to skip.
 - When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/project_cognition_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass, then publish and verify the release assets in the same workstream.
 
 ### Project Cognition Schema v2 Maintenance

@@ -179,9 +179,30 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "optional follow-up" in skill_lower
     assert "recommended option" in skill_lower
     assert "adaptive reply contract" in skill_lower
-    assert "reply_shape_id" in skill_content
-    assert "discussion.context-intake" in skill_content
-    assert "discussion.handoff-user-review" in skill_content
+    assert "reply_shape_id" not in skill_content
+    assert "unified frontstage contract" in skill_lower
+    assert "do not choose among named answer templates" in skill_lower
+    assert "agent controls heading names" in skill_lower
+    assert "discussion responsibility boundary" in skill_lower
+    assert "does not own implementation planning" in skill_lower
+    assert "do not split the work into p0/p1/p2" in skill_lower
+    assert "migration phases" in skill_lower
+    assert "task packets" in skill_lower
+    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in skill_lower
+    assert "no parallel old-backend operation" in skill_lower
+    assert "no old-stack cutover fallback" in skill_lower
+    assert "no alternate product path" in skill_lower
+    assert "database snapshots" in skill_lower
+    assert "data-safety mechanisms" in skill_lower
+    assert "downstream planning and implementation safety constraints" in skill_lower
+    assert "handoff request-changes repair" in skill_lower
+    assert "blocked_by_handoff_integrity" in skill_content
+    assert "the repair belongs to `sp-discussion`" in skill_lower
+    assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in skill_lower
+    assert "source_handoff_json" in skill_content
+    assert "source_files_read" in skill_content
+    assert "handoff_status" in skill_content
+    assert "handoff-review" in skill_content
     assert "recommendation-first is not questionless" in skill_lower
     assert "one unified" in skill_lower or "single unified" in skill_lower
     assert "discussion_requirement_contract" in skill_content
@@ -206,14 +227,14 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "experience_commitments" in skill_content
     assert "review_criteria_carried_forward" in skill_content
     assert "must_not_dilute" in skill_content
-    assert "Handoff Ready" in skill_content
-    assert "Locked Direction" in skill_content
-    assert "Carry Forward" in skill_content
-    assert "Readiness" in skill_content
-    assert "Package" in skill_content
-    assert "Next Step" in skill_content
-    assert "must not close with only file paths, status counters, or a next command" in skill_lower
-    assert "keep the `ready summary quality` check internal" in skill_lower
+    assert "handoff-ready closeout" in skill_lower
+    assert "selected direction" in skill_lower
+    assert "target boundary" in skill_lower
+    assert "Must-Preserve coverage" in skill_content
+    assert "package paths" in skill_lower
+    assert "next consumption path" in skill_lower
+    assert "do not close with only file paths, status counters, or a next command" in skill_lower
+    assert "keep ready-summary quality checks internal" in skill_lower
     assert "coverage_status" in skill_content
     assert "planning_gate_status" in skill_content
     assert (
