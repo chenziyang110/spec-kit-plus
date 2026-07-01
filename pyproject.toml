@@ -14,7 +14,7 @@ dependencies = [
     "pathspec>=1.1.1",
     "json5>=0.14.0",
     "pydantic-ai",
-    "pydantic-graph<2",
+    "pydantic-graph<3",
 ]
 
 [project.scripts]
