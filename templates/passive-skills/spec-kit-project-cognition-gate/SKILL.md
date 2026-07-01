@@ -48,6 +48,15 @@ judgment in an established Spec Kit Plus repository:
   is authoritative. The ask route is read-only: do not run tests, run builds,
   execute project CLI commands, write files, create handoffs, or create ask
   state.
+- For same-topic `sp-ask` follow-ups in the same chat, reuse the previous target
+  project root, evidence set, compass or query packet, semantic intake, and
+  proven facts when they still cover the new question; read only delta evidence
+  and rerun compass when the topic, target, boundary, or evidence family changes.
+- For localized, mixed-language, CJK, colloquial, or project-slang ask queries,
+  normalize terms through the alias catalog and write project-language search
+  terms before source search. For cross-boundary questions, include the protocol
+  view: client fields or callsites, interface URLs or payload/schema names, and
+  whether backend/server/runtime code exists in the repository.
 - Treat the task-local project cognition compass packet as the task-local
   project navigation bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces;
   use `.specify/project-cognition/project-cognition.db`, the compass packet,
@@ -187,6 +196,7 @@ judgment in an established Spec Kit Plus repository:
 - Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
 - Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, closeout must run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json` before recording inline project cognition update data.
 - When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`. Follow `update_mode=payload_file` by writing the completed `payload_draft`, then running structured `update_argv`. The display-only `update_command` and display-only `delta_append_command` placeholders are not execution strings.
+- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If the working tree contains unrelated dirty/untracked paths and the workflow uses explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item.
 - Before update recording, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns.
 - Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone; `recorded` is legacy recorded-only partial/blocked output. Use `project-cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when planner/update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy.
 - `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is external map maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.

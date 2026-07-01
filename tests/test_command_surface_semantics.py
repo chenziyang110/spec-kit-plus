@@ -320,6 +320,16 @@ def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
     assert "compass output or live evidence is ambiguous\n  or has incomplete coverage" in combined
     assert "Stale or localization-sensitive cases are examples" in combined
     assert "still require that ambiguity or incomplete-coverage reason" in combined
+    assert "same-topic follow-up" in lowered
+    assert "reuse the previous evidence set" in lowered
+    assert "one-sentence evidence route" in lowered
+    assert "localized, mixed-language, cjk, colloquial, or project-slang" in lowered
+    assert "project-language search terms" in lowered
+    assert "proven from live evidence" in lowered
+    assert "inferred from live evidence" in lowered
+    assert "client fields or callsites" in lowered
+    assert "interface urls or payload/schema names" in lowered
+    assert "whether backend/server/runtime code exists" in lowered
 
 
 def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(tmp_path: Path):
@@ -525,7 +535,12 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "git diff --stat" in readme
     assert "git diff --name-status" in readme
     assert "command shape:" in readme
+    assert "specify result path --command implement --feature-dir <feature-dir> --task-id <task-id>" in readme
     assert "specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
+    assert "specify result path --command debug --session-slug <session-slug> --lane-id <lane-id>" in readme
+    assert "specify result path --command <workflow> --request-id <request-id>" in readme
+    assert "sp-teams submit-result --request-id <request-id> --result-file <path>" in readme
+    assert "specify result path` emits json directly and does not accept `--format`" in readme
     assert "result helper command shapes:" in readme
     assert "specify quick status <id>" in readme
     assert "quick-task helper command shapes:" in readme
@@ -542,6 +557,8 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "--packet-file <packet-json>" in readme
 
     assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
+    assert "codex runtime-managed result paths require the dispatch request id" in quickstart
+    assert "specify result path` emits json directly and does not accept `--format`" in quickstart
     assert "implementation-summary.md" in quickstart
     assert "implementation_summary" in quickstart
     assert "git diff --stat" in quickstart

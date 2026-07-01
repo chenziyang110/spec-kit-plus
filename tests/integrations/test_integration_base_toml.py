@@ -231,6 +231,16 @@ def _assert_ask_contract(content: str) -> None:
     assert "do not execute project cli" in lowered
     assert "answer first" in lowered
     assert "next step" in lowered
+    assert "same-topic follow-up" in lowered
+    assert "reuse the previous evidence set" in lowered
+    assert "one-sentence evidence route" in lowered
+    assert "localized, mixed-language, cjk, colloquial, or project-slang" in lowered
+    assert "project-language search terms" in lowered
+    assert "proven from live evidence" in lowered
+    assert "inferred from live evidence" in lowered
+    assert "client fields or callsites" in lowered
+    assert "interface urls or payload/schema names" in lowered
+    assert "whether backend/server/runtime code exists" in lowered
     assert "discussion-state.md" not in content
     assert "handoff-to-specify" not in content
 

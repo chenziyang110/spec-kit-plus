@@ -361,8 +361,8 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		if err != nil {
 			return UpdatePayload{}, err
 		}
-		if len(closure.NodeIDs) == 0 && canAdoptWorkflowPaths(changed, input) {
-			for _, path := range changed {
+		if canAdoptWorkflowPaths(changed, input) {
+			for _, path := range unmappedPaths(changed, pathNodeIDs) {
 				if _, err := st.AdoptWorkflowPath(context.Background(), store.WorkflowPathAdoption{
 					UpdateID:         updateID,
 					Path:             path,
@@ -529,6 +529,16 @@ func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
 	return true
 }
 
+func unmappedPaths(paths []string, pathNodeIDs map[string]string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if pathNodeIDs[path] == "" {
+			out = append(out, path)
+		}
+	}
+	return out
+}
+
 func canAdoptWorkflowPaths(kept []string, input UpdateInput) bool {
 	return len(kept) > 0 && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0
 }
@@ -667,7 +677,24 @@ func blockingKnownUnknowns(values []string) []string {
 
 func isNonBlockingBoundaryWarning(value string) bool {
 	lower := strings.ToLower(value)
-	return strings.Contains(lower, "auto-commit")
+	return strings.Contains(lower, "auto-commit") || isNonBlockingCloseoutScopeNote(lower)
+}
+
+func isNonBlockingCloseoutScopeNote(lower string) bool {
+	hasExplicitScope := strings.Contains(lower, "explicit path") ||
+		strings.Contains(lower, "workflow-owned") ||
+		strings.Contains(lower, "workflow owned") ||
+		strings.Contains(lower, "explicitly scoped") ||
+		strings.Contains(lower, "显式路径") ||
+		strings.Contains(lower, "工作流拥有")
+	hasUnrelatedDirtyWorkspace := (strings.Contains(lower, "unrelated") &&
+		(strings.Contains(lower, "dirty") || strings.Contains(lower, "working tree") || strings.Contains(lower, "workspace"))) ||
+		(strings.Contains(lower, "无关") && (strings.Contains(lower, "脏") || strings.Contains(lower, "工作区")))
+	hasDisabledBroadScan := strings.Contains(lower, "include-working-tree=false") ||
+		strings.Contains(lower, "include_working_tree=false") ||
+		strings.Contains(lower, "include-untracked=false") ||
+		strings.Contains(lower, "include_untracked=false")
+	return hasExplicitScope && (hasUnrelatedDirtyWorkspace || hasDisabledBroadScan)
 }
 
 func loadPayloadFile(path string) (PayloadFileInput, error) {

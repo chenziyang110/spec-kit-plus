@@ -427,6 +427,73 @@ func TestRunUpdateAdoptsVerifiedUnindexedPath(t *testing.T) {
 	}
 }
 
+func TestRunUpdateAdoptsVerifiedUnindexedPathInMixedWorkflowCloseout(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/app.go", "src/new-feature.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"application entrypoint", "new feature entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
+		t.Fatalf("AdoptedPaths = %#v, want new-feature adoption", payload.AdoptedPaths)
+	}
+	if len(payload.ReviewPaths) != 0 {
+		t.Fatalf("ReviewPaths = %#v, want none", payload.ReviewPaths)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	nodes, err := st.NodesForPaths(context.Background(), []string{"src/app.go", "src/new-feature.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) < 2 {
+		t.Fatalf("NodesForPaths returned %#v, want indexed and adopted nodes", nodes)
+	}
+}
+
+func TestRunUpdateTreatsExcludedUnrelatedDirtyWorkspaceNoteAsNonBlocking(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/app.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"application entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+		KnownUnknowns: []string{
+			"unrelated dirty workspace paths excluded by explicit workflow-owned paths; include-working-tree=false include-untracked=false",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsText(payload.KnownUnknowns, "unrelated dirty workspace paths excluded") {
+		t.Fatalf("KnownUnknowns = %#v, want retained non-blocking scope note", payload.KnownUnknowns)
+	}
+}
+
 func TestRunUpdateAdoptionPassesBuildIdentityValidation(t *testing.T) {
 	paths := testPaths(t)
 	writeUpdateMatchingScanPackage(t, paths)

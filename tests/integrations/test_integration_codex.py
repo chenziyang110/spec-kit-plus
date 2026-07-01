@@ -1028,6 +1028,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
+    assert "specify result path --command implement --request-id <request-id>" in content
+    assert "active runtime-managed result channel for that request id" in content.lower()
+    assert "does not accept `--format`" in content.lower()
     assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content

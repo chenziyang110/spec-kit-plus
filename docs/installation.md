@@ -128,6 +128,11 @@ dispositions become payload or delta known unknowns. Clean closeout gates on
 `recorded-only` output. `sp-map-update` remains manual/external maintenance and
 artifact-only workflows do not write cognition unless they changed
 source/runtime/template/config/test/generated-asset surfaces.
+Closeout agents should use `known_unknowns` only for blockers that make the
+cognition update unsafe to trust. If unrelated dirty or untracked working-tree
+paths were excluded by explicit workflow-owned paths, record that as
+`confidence_notes` or `boundary.initial_dirty_paths`, not as blocking
+`known_unknowns`.
 
 ```bash
 # Linux / macOS
@@ -179,7 +184,10 @@ traceability for ambiguous terms such as "capability", "real", "usable", or
 Use the canonical `ask` workflow for read-only evidence-backed project Q&A when
 you need a direct answer from project files, templates, docs, state, or memory
 before choosing an action workflow. Project cognition guides the search; live
-evidence proves the answer. `sp-ask` is independent from `sp-discussion`, creates
+evidence proves the answer. Same-topic follow-ups reuse the prior evidence set
+when it still applies, localized or project-slang terms are normalized into
+project vocabulary, and complex answers separate proven facts from
+evidence-derived inferences. `sp-ask` is independent from `sp-discussion`, creates
 no ask state or handoff, makes no source edits, and does not run tests, builds,
 package managers, or project CLI commands by default. There is no `specify ask`
 Typer helper in v1.

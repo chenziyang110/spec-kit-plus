@@ -13,13 +13,17 @@ Answer project questions with evidence-backed, read-only project Q&A.
 ## Process
 
 - Classify the user's question.
+- Detect whether the question is a same-topic follow-up in the current chat. If it is, reuse the previous evidence set, compass or query output, target project root, and proven facts already visible in the conversation; read only delta evidence needed for the new point. Rerun compass or rebuild intake when the topic, target project, evidence surface, or confidence changes.
+- For non-trivial questions, give the user a one-sentence evidence route before live reads, such as the two or three surfaces you will check. Keep it short and do not turn it into a plan artifact.
 - Use project cognition to find the smallest likely evidence set.
-- Read only the live evidence needed to prove the answer.
+- Normalize localized, mixed-language, CJK, colloquial, or project-slang terms into project vocabulary before source search. Use the alias catalog, candidate concepts, returned paths, and live hits to build project-language search terms; do not search only the raw user words.
+- Read only the live evidence needed to prove the answer, adding protocol or interface evidence when the question crosses client/server, package/installer/runtime, API, plugin, or integration boundaries.
 - Answer directly, then recommend another workflow only when the user needs action.
 
 ## Output Contract
 
 - Provide a read-only answer with conclusion, evidence, uncertainty, and next step when useful.
+- For complex answers, separate proven facts, inferences, and unknowns. Proven facts must be backed by live evidence; inferences must name the evidence they are derived from and what was not found.
 - State when the available evidence cannot prove the answer.
 - Keep the response natural and concise for simple questions, with short sections only when complexity requires them.
 
@@ -76,6 +80,15 @@ When shell quoting makes inline JSON brittle, write the planned object to a file
 
 Use `project-cognition lexicon --intent ask --mode catalog --format json` only when you need vocabulary candidates before writing the query plan.
 
+For localized, mixed-language, CJK, colloquial, or project-slang questions, agent-owned semantic normalization is mandatory before broad source search. Extract embedded project terms such as command names, UI labels, file stems, state names, adapter names, package names, extension names, and route names. Write `alias_interpretations`, `normalized_query`, `intent_facets`, `expanded_queries`, and `repository_search_terms` from the alias catalog and live hints before deciding what to read.
+
+Same-topic follow-up mode:
+
+- Use when the current user question is a direct continuation of the prior `sp-ask` answer in the same chat.
+- Reuse the previous target project root, evidence set, compass or query packet, semantic intake, and proven facts when they still cover the new question.
+- Read only delta evidence for new claims, missing surfaces, changed terminology, or unresolved uncertainty.
+- Rerun `project-cognition compass --intent ask` when the follow-up changes topic, target project root, evidence family, or boundary, or when the prior evidence is not available in the conversation.
+
 ## Question Classifier
 
 Classify the question before answering:
@@ -99,6 +112,7 @@ Classify the question before answering:
 - If the evidence conflicts, say which source wins and why.
 - If the answer cannot be proven from available evidence, say that directly.
 - If the user's question names a downstream project path, first establish the target project root before making claims about that project.
+- For cross-boundary questions, check the relevant protocol view instead of only implementation files: client fields or callsites, interface URLs or payload/schema names, and whether backend/server/runtime code exists in the repository. If one side is absent, label downstream requirements as inferred rather than proven.
 
 ## Answer Shape
 
@@ -107,9 +121,10 @@ Answer naturally. Use only as much structure as the question needs.
 Default shape:
 
 1. Answer first.
-2. Evidence.
-3. Uncertainty or caveat.
-4. Next step only when useful.
+2. Proven from live evidence.
+3. Inferred from live evidence, when useful.
+4. Unknowns or caveats.
+5. Next step only when useful.
 
 For simple questions, one short paragraph is enough. For complex questions, use short sections with human-readable names, not rigid audit labels.
 

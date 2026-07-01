@@ -70,6 +70,7 @@ class CursorAgentIntegration(SkillsIntegration):
             "- Entry advisory is not closeout ownership: stale or weak cognition at entry may remain advisory, but workflow-owned mutation closeout must run inline project cognition update for changes this workflow made.\n"
             "- Inline project cognition update uses `project-cognition delta append` plus `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json` when no delta session exists.\n"
             "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
+            "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
             "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
             "- `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made.\n"
             "- Do not treat map output as evidence by itself; verify technical claims from live code, tests, scripts, configuration, or authoritative docs.\n"
@@ -258,6 +259,8 @@ class CursorAgentIntegration(SkillsIntegration):
             "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+            "- For filesystem handoffs, use `specify result path` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
+            "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
         )

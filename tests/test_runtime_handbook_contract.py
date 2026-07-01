@@ -190,6 +190,8 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "verification_evidence" in lowered
     assert "generated_surface_notes" in lowered
     assert "failed verification evidence" in lowered
+    assert "known_unknowns` only for blockers" in lowered
+    assert "confidence_notes` or `boundary.initial_dirty_paths" in lowered
     assert "status=ok" in lowered
     assert (
         "sp-map-update remains the external/manual" in lowered

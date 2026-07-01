@@ -213,12 +213,16 @@ def test_guidance_docs_explain_ask_read_only_evidence_backed_project_qa() -> Non
     ):
         content = _read(rel_path)
         lowered = content.lower()
+        normalized = re.sub(r"\s+", " ", lowered)
 
         assert "ask" in lowered or "sp-ask" in lowered
         assert "evidence-backed project q&a" in lowered
         assert "read-only" in lowered
         assert "project cognition" in lowered
         assert "live evidence" in lowered
+        assert "same-topic follow-ups reuse the prior evidence set" in normalized
+        assert "project-slang terms are normalized into project vocabulary" in normalized
+        assert "proven facts from evidence-derived inferences" in normalized
         assert "sp-discussion" in content
         assert "source edits" in lowered or "source edits" in content
         assert "no `specify ask`" in lowered or "no `specify ask` typer helper" in lowered
@@ -296,8 +300,12 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "quality_gate" in content
         assert "Handoff Reviewer Guide" in content
         assert "spec-kit-discussion-handoff-review" in content
-        assert "ready summary quality" in lowered
-        assert "paths and counters" in lowered
+        assert "ready summary quality" in lowered or "ready-summary quality" in lowered
+        assert (
+            "paths and counters" in lowered
+            or "updated paths and counters" in lowered
+            or "file paths and state updates" in lowered
+        )
         assert "Discussion Decision Digest" in content
         assert "selected direction" in lowered
         assert "rejected alternatives" in lowered
@@ -332,6 +340,8 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     assert "verification_evidence" in readme
     assert "generated_surface_notes" in readme
     assert "failed verification evidence" in readme
+    assert "known_unknowns` only for blockers" in readme
+    assert "confidence_notes` or `boundary.initial_dirty_paths" in readme
     assert "status=ok" in readme
     assert "update_id" in readme
     assert "recorded-only" in readme
@@ -420,6 +430,8 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "update_argv" in quickstart_lower
     assert "delta_append_draft.argv_prefix" in quickstart_lower
     assert "result_state" in quickstart_lower
+    assert "known_unknowns` only for blockers" in quickstart_lower
+    assert "confidence_notes` or `boundary.initial_dirty_paths" in quickstart_lower
     installation_lower = _read("docs/installation.md").lower()
     assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in installation_lower
     assert "unknown_path_dispositions" in installation_lower
@@ -427,6 +439,8 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "update_mode=payload_file" in installation_lower
     assert "update_argv" in installation_lower
     assert "result_state" in installation_lower
+    assert "known_unknowns` only for blockers" in installation_lower
+    assert "confidence_notes` or `boundary.initial_dirty_paths" in installation_lower
     assert "`map-scan` followed by `map-build` only when the baseline is first/missing/unusable, schema failure" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance

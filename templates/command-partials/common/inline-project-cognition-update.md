@@ -28,6 +28,7 @@ Before running `update`, fill the fields listed in `required_agent_fields` from 
 - `boundary`
 
 If a field appears in `required_agent_fields`, provide live-evidence-backed content for it. Fields not listed by `required_agent_fields`, such as `known_unknowns` and `boundary`, are populated only when live evidence supports them; do not invent them to satisfy the shape.
+Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If the working tree contains unrelated dirty/untracked paths and the workflow uses explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item.
 
 For each `unknown_path_dispositions[]` item, set `agent_disposition` to exactly one allowed value:
 

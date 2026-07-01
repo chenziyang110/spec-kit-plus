@@ -3907,16 +3907,23 @@ def _resolve_result_context(
         if not resolved_workspace.is_absolute():
             resolved_workspace = (project_root / resolved_workspace).resolve()
 
+    if integration_key == "codex":
+        if not request_id:
+            console.print(
+                "[red]Error:[/red] Codex result handoff paths are runtime-managed; "
+                "pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-file <path>`."
+            )
+            raise typer.Exit(1)
+        return {
+            "request_id": request_id,
+            "feature_dir": None,
+            "task_id": None,
+            "quick_workspace": None,
+            "debug_session_slug": None,
+            "lane_id": None,
+        }
+
     if normalized_command == "implement":
-        if integration_key == "codex" and request_id:
-            return {
-                "request_id": request_id,
-                "feature_dir": None,
-                "task_id": None,
-                "quick_workspace": None,
-                "debug_session_slug": None,
-                "lane_id": None,
-            }
         if resolved_feature_dir is None or not task_id:
             console.print("[red]Error:[/red] --feature-dir and --task-id are required for implement result handoff.")
             raise typer.Exit(1)
@@ -4726,17 +4733,21 @@ def result_path_command(
         session_slug=session_slug,
         lane_id=lane_id,
     )
-    path = build_result_handoff_path(
-        project_root,
-        command_name=command_name,
-        integration_key=integration_key,
-        request_id=context["request_id"],
-        feature_dir=context["feature_dir"],
-        task_id=context["task_id"],
-        quick_workspace=context["quick_workspace"],
-        debug_session_slug=context["debug_session_slug"],
-        lane_id=context["lane_id"],
-    )
+    try:
+        path = build_result_handoff_path(
+            project_root,
+            command_name=command_name,
+            integration_key=integration_key,
+            request_id=context["request_id"],
+            feature_dir=context["feature_dir"],
+            task_id=context["task_id"],
+            quick_workspace=context["quick_workspace"],
+            debug_session_slug=context["debug_session_slug"],
+            lane_id=context["lane_id"],
+        )
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
     print_json(
         {
             "command": command_name,

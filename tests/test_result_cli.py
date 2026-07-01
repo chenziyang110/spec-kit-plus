@@ -130,3 +130,47 @@ def test_result_submit_rejects_codex_projects_and_redirects_to_team_surface(tmp_
 
     assert result.exit_code != 0
     assert "sp-teams submit-result" in result.output
+
+
+def test_result_path_for_codex_requires_request_id_without_traceback(tmp_path: Path):
+    project = _create_project(tmp_path, integration="codex")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "result",
+            "path",
+            "--command",
+            "implement",
+            "--feature-dir",
+            "specs/001-feature",
+            "--task-id",
+            "T001",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Codex result handoff paths are runtime-managed" in result.output
+    assert "--request-id <id>" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_result_path_for_codex_request_id_uses_runtime_managed_path(tmp_path: Path):
+    project = _create_project(tmp_path, integration="codex")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "result",
+            "path",
+            "--command",
+            "implement",
+            "--request-id",
+            "req-t001",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["integration"] == "codex"
+    assert payload["path"].replace("\\", "/").endswith(".specify/teams/state/results/req-t001.json")

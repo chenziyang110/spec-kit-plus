@@ -490,6 +490,7 @@ class IntegrationBase(ABC):
             "- Git-baseline freshness only changes after source/runtime/template/config/test/generated-asset changes are recorded; planning-only artifact edits do not require `project-cognition complete-refresh`, and manual override/fallback belongs only to an explicit map-maintenance recovery path.\n"
             "- Inline project cognition update uses `project-cognition delta append` followed by `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json` when no delta session exists.\n"
             "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
+            "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
             "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
             "- Use `project-cognition mark-dirty --reason \"<reason>\" --format json` only when inline update cannot complete.\n"
             "- `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made; run `/sp-map-scan` followed by `/sp-map-build` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
@@ -593,6 +594,7 @@ class IntegrationBase(ABC):
             "- Mutation closeout is separate from entry routing: entry stale may continue, but workflow-owned mutation closeout is not an external map-maintenance handoff. If the workflow changes source/runtime truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other project-related behavior surfaces, final state must run inline project cognition update from changed paths, affected surfaces, and verification evidence.\n"
             "- Inline project cognition update uses `project-cognition delta append` followed by `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json` when no delta session exists.\n"
             "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
+            "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
             "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
             "- Use `project-cognition mark-dirty --reason \"<reason>\" --format json` only when inline update cannot complete. Dirty only when inline update cannot complete.\n"
             "- `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is not routine cleanup for changes this workflow just made.\n"
@@ -852,12 +854,26 @@ class IntegrationBase(ABC):
             command_name=command_name,
             snapshot=snapshot,
         )
+        if "<request-id>" in descriptor.result_handoff_hint:
+            result_cli_guidance = (
+                "- Runtime-managed result paths require a dispatch request id; compute the path with "
+                f"`specify result path --command {command_name} --request-id <request-id>` and report final completion "
+                "through the active runtime-managed result channel for that request id.\n"
+                "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
+            )
+        else:
+            result_cli_guidance = (
+                "- For filesystem handoffs, use `specify result path` with the concrete workflow identifiers "
+                "such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
+                "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
+            )
         addendum = (
             "\n"
             f"## {agent_name} Subagent Result Contract\n\n"
             "- Worker result contract: preserve the shared `WorkerTaskResult` semantics even when the runtime calls lanes subagents.\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+            f"{result_cli_guidance}"
             "- Normalize subagent-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
             "- Keep `reported_status` when normalization occurs so runtime-specific subagent language can be reconciled with canonical orchestration state.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"

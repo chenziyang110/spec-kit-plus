@@ -71,6 +71,8 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     assert "Fields not listed by `required_agent_fields`, such as `known_unknowns` and `boundary`" in shared
     assert "`known_unknowns`, `confidence_notes`, `user_decisions`, and `boundary` are populated only" not in shared
     assert "populated only when live evidence supports them" in shared
+    assert "Use `known_unknowns` only for blockers that make the cognition update unsafe to trust" in shared
+    assert "record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item" in shared
     assert "result_state" in shared
     assert "recorded" in shared
     assert "verification_evidence" in shared
@@ -82,6 +84,19 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
             assert term in content, f"{path} missing {term}"
         assert "fields listed in `required_agent_fields`" in content, path
         assert "populated only when evidence supports them" in content, path
+        assert "Use `known_unknowns` only for blockers that make the cognition update unsafe to trust" in content, path
+
+    for path in (
+        "templates/worker-prompts/implementer.md",
+        "templates/worker-prompts/quick-worker.md",
+        "templates/worker-prompts/debug-investigator.md",
+        "templates/worker-prompts/debug-thinker.md",
+        "templates/worker-prompts/code-quality-reviewer.md",
+        "templates/worker-prompts/spec-reviewer.md",
+    ):
+        content = _read(path)
+        assert "Use `known_unknowns` only for blockers that make the update unsafe to trust" in content, path
+        assert "excluded unrelated dirty workspace paths in `confidence_notes`" in content, path
 
     common_partials = [
         "templates/command-partials/common/context-loading-gradient.md",
@@ -3472,7 +3487,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/templates/worker-prompts/code-quality-reviewer.md" in content
     assert "runtime-managed result channel" in lowered
     assert "feature_dir/worker-results/<task-id>.json" in lowered
-    assert "{{specify-subcmd:result submit" in lowered
+    assert '{{specify-subcmd:result path --command implement --feature-dir "$feature_dir" --task-id <task-id>}}' in lowered
+    assert '{{specify-subcmd:result submit --command implement --feature-dir "$feature_dir" --task-id <task-id> --result-file <path>}}' in lowered
+    assert "{{specify-subcmd:result path --command implement --request-id <request-id>}}" in lowered
+    assert "active runtime-managed result channel for that request id" in lowered
+    assert "does not accept `--format`" in lowered
     assert "reported_status" in lowered
     assert "idle subagent is not an accepted result" in lowered
     assert "must wait for and consume the structured handoff before closing the join point" in lowered
