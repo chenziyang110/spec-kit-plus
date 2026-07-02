@@ -2,6 +2,14 @@
 
 You are running `sp-design`. This is a design-system workflow, not an implementation workflow.
 
+## Objective
+
+Produce, refine, synthesize, or audit the project's root `DESIGN.md` design-system contract so downstream UI work has a stable visual and interaction system before implementation starts.
+
+## Process
+
+Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep the work design-only unless the user explicitly starts a downstream implementation workflow after reviewing the design output.
+
 ## Workflow Phase Lock
 
 - Create or resume `.specify/design/design-state.md` before substantial design synthesis.
@@ -61,6 +69,10 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 - Do not copy external brand names, protected visual identity, proprietary token names, or third-party file text into the final design system.
 - Normalize approved direction into `spec-kit-design-v1` YAML front matter plus readable Markdown guidance.
 
+## Output Contract
+
+The workflow output is a root `DESIGN.md` contract plus supporting `.specify/design/*` state, references, options, and review artifacts when relevant.
+
 ## Required DESIGN.md Shape
 
 `DESIGN.md` must contain:
@@ -92,3 +104,9 @@ Before closeout:
 ## Closeout
 
 Close with the design-system status, changed files, lint result, and exactly one recommended next command.
+
+## Guardrails
+
+- Do not edit source code, tests, CSS/theme implementation files, UI components, feature specs, plan artifacts, or task artifacts from this command.
+- Do not clone protected brands or copy third-party design files into `DESIGN.md`; synthesize project-owned design principles and tokens.
+- Do not let downstream workflows treat an unaudited or contradictory `DESIGN.md` as locked input.

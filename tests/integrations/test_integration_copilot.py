@@ -68,6 +68,7 @@ class TestCopilotIntegration:
 
         expected.extend(
             [
+                "DESIGN.md",
                 ".vscode/settings.json",
                 ".specify/config.json",
                 ".specify/integration.json",
