@@ -12,7 +12,14 @@ import yaml
 FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.DOTALL)
 TOKEN_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z0-9]+)*$")
 TOKEN_REF_RE = re.compile(r"\{([a-z][a-z0-9]*)\.([a-z][a-z0-9]*(?:\.[a-z0-9]+)*)\}")
-REQUIRED_SECTIONS = ("Product Feel", "Platforms", "Component Rules", "Anti-Patterns", "UI QA Checklist")
+REQUIRED_SECTIONS = (
+    "Product Feel",
+    "Platforms",
+    "Component Rules",
+    "Anti-Patterns",
+    "Design Change Policy",
+    "UI QA Checklist",
+)
 REQUIRED_TOKEN_CATEGORIES = ("color", "spacing", "radius", "typography")
 REQUIRED_ACCESSIBILITY_KEYS = ("contrast_intent", "focus_visible", "keyboard_navigation")
 SUPPORTED_EXPORT_FORMATS = {"json", "tailwind"}

@@ -14,7 +14,7 @@ TUI, or CLI output quality affects the outcome.
 ## Design System Gate
 
 - Before substantive UI work, look for `DESIGN.md` or an equivalent committed
-  design-system source. Treat `design.md` as the expected design contract name
+  design-system source. Treat `DESIGN.md` as the expected design contract name
   when documenting or testing this gate.
 - If `DESIGN.md` is present, implementation must follow it for layout,
   component usage, color, typography, motion, density, interaction states,

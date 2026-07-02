@@ -137,6 +137,7 @@ def test_ui_design_passive_skill_requires_design_md_before_ui_work() -> None:
     content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
     lowered = content.lower()
 
+    assert "DESIGN.md" in content
     assert "design.md" in lowered
     assert "sp-design" in content
     assert "web" in lowered

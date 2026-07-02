@@ -81,6 +81,10 @@ Use the tokens.
 
 No unrelated styling.
 
+## Design Change Policy
+
+Update this file through `sp-design`.
+
 ## UI QA Checklist
 
 Capture screenshots.
@@ -120,6 +124,18 @@ def test_lint_design_file_reports_missing_required_markdown_section(tmp_path: Pa
     diagnostics = lint_design_file(design_file)
 
     assert any(d.code == "missing-section" and "Anti-Patterns" in d.message for d in diagnostics)
+
+
+def test_lint_design_file_reports_missing_design_change_policy(tmp_path: Path) -> None:
+    design_file = tmp_path / "DESIGN.md"
+    design_file.write_text(
+        VALID_DESIGN.replace("## Design Change Policy\n\nUpdate this file through `sp-design`.\n\n", ""),
+        encoding="utf-8",
+    )
+
+    diagnostics = lint_design_file(design_file)
+
+    assert any(d.code == "missing-section" and "Design Change Policy" in d.message for d in diagnostics)
 
 
 def test_lint_design_file_reports_unknown_token_reference(tmp_path: Path) -> None:
