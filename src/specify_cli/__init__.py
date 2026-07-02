@@ -2536,6 +2536,16 @@ def _install_shared_infra(
     if templates_src.is_dir():
         dest_templates = project_path / ".specify" / "templates"
         dest_templates.mkdir(parents=True, exist_ok=True)
+
+        design_template_src = templates_src / "design-template.md"
+        design_file_dst = project_path / "DESIGN.md"
+        if design_template_src.exists():
+            if design_file_dst.exists() and not overwrite_existing:
+                skipped_files.append(str(design_file_dst.relative_to(project_path)))
+            else:
+                shutil.copy2(design_template_src, design_file_dst)
+                manifest.record_existing("DESIGN.md")
+
         for src_path in templates_src.rglob("*"):
             if src_path.is_dir():
                 continue
