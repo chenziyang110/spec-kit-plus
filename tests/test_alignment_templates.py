@@ -1396,12 +1396,22 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "Lightweight Recovery Log" in content
     assert "Semantic Checkpoints" in content
     assert "ordinary turns do not write local files by default" in lowered
+    assert "a user reply is not itself a save trigger" in lowered
+    assert "hidden counters" in lowered
+    assert "per-user-reply or per-tool-use discussion writes" in lowered
     assert "deferred persistence" in lowered
     assert "compaction preserve" in lowered
     assert "user-triggered save" in lowered
     assert "five-turn" in lowered
+    assert "semantic checkpoint is a durable meaning change" in lowered
     assert "pending_context_summary" in combined
     assert "unsaved_turn_count" in combined
+    assert "memory-only between save triggers" in lowered
+    assert "suppress local writes until save trigger" in lowered
+    assert "hooks may remind on resume or compaction" in lowered
+    assert "pending truth-pass state" in lowered
+    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in lowered
+    assert "persist them to `open-questions.md` only when they materially change" in lowered
     assert "compaction_preserve_items" in combined
     assert "checkpoint triggers" in lowered
     assert "do not refresh all files" in lowered

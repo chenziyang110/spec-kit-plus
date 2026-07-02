@@ -118,10 +118,17 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "ascii sketches" in command_lower
     assert "ui_sketches_present" in command_content
     assert "ordinary turns do not write local files by default" in command_lower
+    assert "a user reply is not itself a save trigger" in command_lower
+    assert "hidden counters" in command_lower
+    assert "per-user-reply or per-tool-use discussion writes" in command_lower
     assert "deferred persistence" in command_lower
     assert "compaction preserve" in command_lower
     assert "user-triggered save" in command_lower
     assert "five-turn" in command_lower
+    assert "semantic checkpoint is a durable meaning change" in command_lower
+    assert "pending truth-pass state" in command_lower
+    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in command_lower
+    assert "persist them to `open-questions.md` only when they materially change" in command_lower
     assert "semantic checkpoints" in command_lower
     assert "draft pair" in command_lower
     assert "Context Boundary Gate" in command_content

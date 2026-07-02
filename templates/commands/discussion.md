@@ -162,7 +162,7 @@ The compass answers:
 - what is the current recommended direction?
 - what is the next useful decision?
 
-Refresh the compass in `discussion-state.md` at semantic checkpoints. In normal replies, include a short `Where we are` section when it helps orientation, especially after several turns on the same topic, a topic change, a confirmed product decision, a newly proven project fact, a changed recommendation, a handoff-readiness discussion, or when the user signals that context is becoming hard to track.
+Maintain the compass in active-conversation memory during ordinary turns, then refresh it in `discussion-state.md` only at semantic checkpoints or save triggers. In normal replies, include a short `Where we are` section when it helps orientation, especially after several turns on the same topic, a topic change, a confirmed product decision, a newly proven project fact, a changed recommendation, a handoff-readiness discussion, or when the user signals that context is becoming hard to track.
 
 Track compass fields as `discussion_compass_status`, `current_decision_frame`, `confirmed_decisions`, `changed_recommendations`, and `next_discussion_paths`.
 
@@ -218,7 +218,7 @@ You may add up to two optional follow-up questions when all of these are true:
 
 Use exactly one question, with no optional follow-ups, when the turn involves boundary ambiguity, evidence conflict, cross-project target selection, handoff readiness, destructive or lifecycle consequence, security or data-risk consequence, or a major product trade-off.
 
-Optional follow-ups are skippable. If the user answers only the primary question, continue normally and keep unanswered optional follow-ups as soft unknowns in `open-questions.md`.
+Optional follow-ups are skippable. If the user answers only the primary question, continue normally and keep unanswered optional follow-ups as soft unknowns in active memory; persist them to `open-questions.md` only when they materially change at a semantic checkpoint or save trigger.
 
 Multiple-choice questions must include a recommended option and a short reason. Put the recommended option first when practical; otherwise mark it clearly with `Recommended`.
 
@@ -232,7 +232,7 @@ Use one high-throughput collaborative brief for all discussion stages. The visib
 Keep frontstage and backstage separate.
 
 - Frontstage is the visible conversation. It should usually include the recommended direction, a plain-language reason, a usable draft or next design step, the default next step, and an override path if the user wants a different direction.
-- Backstage is state accounting backstage. It tracks open questions, stable decisions, Must-Preserve items, evidence, dirty artifacts, flush reasons, and handoff readiness. Do not surface backstage details unless they change the user's decision, the user asks for state, a save or handoff needs review, or recovery is needed.
+- Backstage is state accounting backstage. It tracks open questions, stable decisions, Must-Preserve items, evidence, dirty artifacts, flush reasons, and handoff readiness. Backstage tracking is memory-first between save triggers: do not write local files, counters, dirty markers, or receipts merely because the user replied. Do not surface backstage details unless they change the user's decision, the user asks for state, a save or handoff needs review, or recovery is needed.
 
 Discussion replies should answer the user's real need first. Do not lead with file paths, OQ IDs, counters, persistence status, or workflow bookkeeping unless the user specifically needs those facts.
 
@@ -325,12 +325,12 @@ Keep ready-summary quality checks internal. The visible layout should read like 
    - Enter only after relevant boundaries are locked.
    - Use current project cognition only for current project facts.
    - Complete the Truth Pass before source-grounded recommendations, affected-surface claims, or project-specific implementation options.
-   - For an external target, confirm `target_project_root` first. If target cognition is stale or missing, record target evidence status instead of treating current project cognition as proof.
+   - For an external target, confirm `target_project_root` first. If target cognition is stale or missing, keep target evidence status as pending context and persist it at the next semantic checkpoint instead of treating current project cognition as proof.
 
 4. `question-loop`
    - Use an Adaptive Question Pack: one required primary question, plus up to two optional same-topic follow-ups only when the topic is local and low risk.
    - Apply the Anti-Toothpaste Protocol before asking: show the decision map, recommend a next path, and ask only when user judgment is genuinely required and no safe default exists.
-   - Track hard and soft unknowns in `open-questions.md`.
+   - Track hard and soft unknowns in active memory during ordinary turns; persist them to `open-questions.md` only when they materially change at a semantic checkpoint or save trigger.
 
 5. `technical-options`
    - Present 2-3 implementation paths only when strategy affects requirements, the Context Boundary Gate is resolved, and the Truth Pass has established the relevant current-project facts or explicit assumptions.
@@ -345,7 +345,7 @@ Keep ready-summary quality checks internal. The visible layout should read like 
 7. `ui-interaction-discussion`
    - Enter only after functional discussion is stable and the matured requirement includes UI-facing scope such as screens, components, layout, navigation, visual hierarchy, interaction states, user-facing copy, accessibility, or workflow feedback.
    - Offer the stage as an optional UI and interaction discussion only when no explicit handoff request is active. If an explicit handoff request is active, run `handoff-assessment.md` first and return to this stage only when UI decisions block readiness or the user reopens UI discussion.
-   - If the user skips it, record `ui_discussion_status: skipped` or `deferred` and continue when other handoff gates are satisfied.
+   - If the user skips it, treat `ui_discussion_status: skipped` or `deferred` as a semantic checkpoint field and persist it with the next checkpoint refresh, then continue when other handoff gates are satisfied.
    - Act as a senior UI and interaction designer with 15 years of practical project experience. Guide the user through primary screens, user journey, information hierarchy, component responsibilities, key interactions, loading, empty, success, warning, error, disabled, permission, responsive, density, accessibility, keyboard, focus, and copy expectations when relevant.
    - Use natural language first. ASCII sketches are allowed when they clarify rough screen structure, layout grouping, state transitions, or flow relationships for downstream implementers.
 
@@ -434,11 +434,19 @@ Readiness handling:
 - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers.
 - `readiness=blocked`: report project cognition as unavailable or degraded, continue with product framing or bounded live evidence when safe, and recommend a map maintenance workflow only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
 
-If the idea is clearly greenfield or does not depend on existing project structure, record the stand-down reason in `project-context.md` and avoid existing-code placement claims.
+If the idea is clearly greenfield or does not depend on existing project structure, keep the stand-down reason as pending project context and persist it to `project-context.md` only at the next semantic checkpoint; avoid existing-code placement claims.
 
 ## Lightweight Recovery Log
 
 Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and flush it to `discussion-log.md` only when a save trigger fires.
+
+Before any local write in an ordinary discussion turn, run the persistence gate:
+
+- If no save trigger has fired, do not write `discussion-state.md`, `discussion-log.md`, structured files, hidden counters, dirty-artifact markers, or state receipts just to record that turn.
+- Keep `unsaved_turn_count`, pending decisions, pending open-question deltas, and compaction-preserve notes in active-conversation memory until the next save trigger.
+- Update persisted counters and pending summaries only inside the batched save event or semantic-checkpoint refresh.
+- A user reply is not itself a save trigger. A reply becomes durable only when it changes a checkpoint-level decision, boundary, evidence status, recommendation, handoff readiness, or the configured cadence/compaction/lifecycle trigger fires.
+- Native hooks may remind the agent about resume or compaction at session start/stop, but must not create per-user-reply or per-tool-use discussion writes. Do not use `UserPromptSubmit`, `PostToolUse`, or similar hook events as a hidden persistence loop for `sp-discussion`.
 
 Save triggers are:
 
@@ -458,15 +466,15 @@ When there is active meaning to preserve, keep a pending backstage Compaction Pr
 
 ## Semantic Checkpoints
 
-Refresh structured files only at semantic checkpoints:
+Refresh structured files only at semantic checkpoints. A semantic checkpoint is a durable meaning change that affects the discussion's future course; it is not every user response, acknowledgement, minor preference, or answer to a low-risk follow-up.
 
-- user confirms a goal, non-goal, scope boundary, or important product decision
+- user confirms a goal, non-goal, scope boundary, or important product decision that changes the discussion compass, target boundary, recommendation, handoff readiness, blocking unknowns, or downstream contract
 - discussion stage changes, such as product framing to technical options
 - project evidence materially changes the understanding of the request
 - a code fact was proven and must survive compaction
 - evidence conflict is found
 - truth pass status changes
-- the discussion compass becomes stale or a recommendation changes
+- the discussion compass becomes stale or a recommendation changes materially
 - user-triggered save confirms the current discussion point should become durable
 - five-turn deferred persistence cadence fires after five ordinary unsaved turns
 - the user asks for handoff or next-stage continuation
@@ -523,11 +531,13 @@ user accepts, set `ui_discussion_status: accepted` and guide the discussion as a
 senior UI and interaction designer with 15 years of practical UI delivery
 experience. Ask only high-impact UI questions. Provide opinionated
 recommendations when the user benefits from design judgment, and preserve
-confirmed UI decisions in `requirements.md`, `technical-options.md`,
-`open-questions.md`, and the unified handoff pair. When the UI pass is complete,
-set `ui_discussion_status: completed`.
+confirmed UI decisions in active memory until the next semantic checkpoint or
+save trigger, then persist them to `requirements.md`, `technical-options.md`,
+`open-questions.md`, and the unified handoff pair when those artifacts are
+refreshed. When the UI pass is complete, set `ui_discussion_status: completed`
+at the next semantic checkpoint.
 
-If the user skips, set `ui_discussion_status: skipped` or `deferred`. Skipping the UI pass is not a blocking gate unless the feature cannot be specified without a UI decision. Preserve deferred UI decisions in `open-questions.md` and in the handoff's blocking or soft unknowns.
+If the user skips, treat `ui_discussion_status: skipped` or `deferred` as a semantic checkpoint field. Skipping the UI pass is not a blocking gate unless the feature cannot be specified without a UI decision. Preserve deferred UI decisions in active memory until the next semantic checkpoint or handoff refresh, then persist them to `open-questions.md` and the handoff's blocking or soft unknowns when applicable.
 
 ASCII sketches are allowed as optional text guidance. Use them to show rough layout, grouping, or flow, not pixel-perfect design. Markdown is the primary carrier for sketches because it preserves multi-line readability. JSON must not duplicate raw multi-line sketches; use `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference` to point back to the Markdown section.
 

@@ -149,10 +149,17 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in skill_content
     assert "project-cognition query --intent plan" not in skill_content
     assert "ordinary turns do not write local files by default" in skill_lower
+    assert "a user reply is not itself a save trigger" in skill_lower
+    assert "hidden counters" in skill_lower
+    assert "per-user-reply or per-tool-use discussion writes" in skill_lower
     assert "deferred persistence" in skill_lower
     assert "compaction preserve" in skill_lower
     assert "user-triggered save" in skill_lower
     assert "five-turn" in skill_lower
+    assert "semantic checkpoint is a durable meaning change" in skill_lower
+    assert "pending truth-pass state" in skill_lower
+    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in skill_lower
+    assert "persist them to `open-questions.md` only when they materially change" in skill_lower
     assert "semantic checkpoints" in skill_lower
     assert "draft pair" in skill_lower
     assert "truth pass" in skill_lower
