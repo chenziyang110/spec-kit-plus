@@ -302,6 +302,8 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
    - Deviation Review join points before downstream work continues when an implementation may intentionally diverge from the reference contract
    - Task completion criteria that carry required evidence from the active profile instead of relying only on generic behavior validation
    - User-Observable Path Coverage section for every UI/TUI/CLI/API/runtime-visible behavior, including task packet fields `consumer_surfaces` and `required_evidence: real_entrypoint_evidence` where required
+   - Design Quality Coverage section for user-visible surfaces with surface name, design source, required states, platform coverage, evidence required, and task IDs that implement and verify the surface
+   - UI tasks should cover default, hover, focus, disabled, loading, empty, error, and success states when relevant, responsive layout or platform adaptation, accessibility checks, screenshots, terminal samples, recordings, or manual review artifacts, and no-color or narrow-terminal modes for TUI/CLI
    - Analyze Remediation Mapping section when regenerating tasks after a blocked `sp-analyze` gate
    - Parallel execution examples per story
     - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution

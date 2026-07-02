@@ -663,6 +663,12 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - Verify all required tasks are completed
    - Check that implemented features match the original specification, accepted behavior, and any independent test criteria captured in `tasks.md`
    - Validate that tests pass and coverage meets requirements
+   - Before closing UI tasks, read `DESIGN.md`, `Design System Adoption`, and `Design Quality Coverage`.
+   - Do not close UI tasks with only `tests passed` unless the accepted task package explicitly says tests are sufficient evidence. Usual evidence:
+     - Web: Playwright screenshots, viewport checks, accessibility checks, and visual review notes.
+     - Mobile or desktop: screenshots or recordings, platform-state coverage, and accessibility checks where available.
+     - TUI or CLI: representative output, narrow-width output, no-color output, error and empty states, and readability checks.
+   - If `DESIGN.md` is missing, contradictory, or insufficient, record a blocker and route back to `sp-design`, `sp-plan`, or `sp-specify` according to ownership.
    - Confirm the implementation follows the technical plan
    - Confirm final exit evidence matches `active_profile` and `required_evidence` from `workflow-state.md` when present.
    - For `Standard Delivery`, behavior validation and regression proof are the lighter default unless stronger required evidence was explicitly activated.

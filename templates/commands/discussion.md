@@ -541,6 +541,15 @@ If the user skips, treat `ui_discussion_status: skipped` or `deferred` as a sema
 
 ASCII sketches are allowed as optional text guidance. Use them to show rough layout, grouping, or flow, not pixel-perfect design. Markdown is the primary carrier for sketches because it preserves multi-line readability. JSON must not duplicate raw multi-line sketches; use `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference` to point back to the Markdown section.
 
+When UI-facing signals appear, record design intent and experience commitments in durable discussion state and handoff material:
+
+- `experience_commitments`
+- `design_system_requirements`
+- `design_system_status`
+- `design_risk_level`
+
+For new product UI, redesign or rebrand, core workflow experience, multi-platform design decisions, and high-visibility customer-facing surfaces, recommend `sp-design`. For small UI work, continue only when the design-system gap is recorded as a soft risk.
+
 
 ## Handoff Assessment
 

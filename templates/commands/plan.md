@@ -140,6 +140,20 @@ agent_scripts:
 - If the active profile is `Standard Delivery`, keep the standard planning artifact contract and only add profile-driven constraints when `workflow-state.md` explicitly records them.
 - If `workflow-state.md` presents any other `active_profile` in first release, stop and tell the operator to repair or re-run upstream scenario profile routing state before planning; do not silently reinterpret unsupported profiles as a new planning mode.
 
+## Design System Adoption
+
+For UI-facing features, convert `DESIGN.md` into implementation constraints:
+
+- design-system source and status
+- token strategy
+- component reuse and extension policy
+- platform adaptation strategy
+- accessibility requirements
+- screenshot or output evidence strategy
+- forbidden styling drift
+
+Name where implementers may use judgment and where the design system is binding.
+
 ## Operational Consequence Design
 
 Before `sp-tasks`, convert every triggered `CA-###` consequence obligation into concrete operational design.

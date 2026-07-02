@@ -106,6 +106,13 @@ scripts:
 ## Project Context Intake
 
 - Explore project context just enough to understand ownership, constraints, adjacent surfaces, reusable patterns, compatibility boundaries, and likely verification routes.
+- **UI Design System Intake**:
+  - If the feature has user-interface scope, read `DESIGN.md` when present.
+  - Capture Experience Requirements in `spec.md`.
+  - Capture design-system readiness in `alignment.md` with `design_system_status`.
+  - Capture relevant design references and gaps in `context.md`.
+  - Treat missing or insufficient design system as a strong blocker for new product UI, redesign or rebrand, core workflow experience, multi-platform design decisions, and high-visibility customer-facing surfaces.
+  - Treat missing design system as a soft risk for small internal form changes, narrow copy or state improvements, already-covered component variants, and low-risk CLI/TUI wording refinements.
 - Check whether `.specify/project-cognition/status.json` exists before trusting project cognition output.
 - Run or emulate:
 

@@ -47,6 +47,9 @@
 - hard_unknown_count: [0]
 - soft_unknown_count: [0]
 - next_unknown_to_resolve: [field or none]
+- design-system carry-forward: [status and risk fields below]
+- design_system_status: [not-applicable | ready | soft-risk | blocked]
+- design_risk_level: [none | low | medium | high]
 
 ## Reopen Contract
 

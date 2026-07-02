@@ -343,6 +343,13 @@ def test_design_command_declares_design_system_workflow_contract() -> None:
     assert "{{spec-kit-include: ../command-partials/design/shell.md}}" in raw
 
 
+def test_templates_include_design_quality_sections() -> None:
+    assert "## Experience Requirements" in read_template("templates/spec-template.md")
+    assert "## Design System Adoption" in read_template("templates/plan-template.md")
+    assert "Design Quality Coverage" in read_template("templates/tasks-template.md")
+    assert "design-system" in read_template("templates/workflow-state-template.md").lower()
+
+
 def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(tmp_path: Path):
     target = tmp_path / "codex-specify-entrypoint"
     env = os.environ.copy()

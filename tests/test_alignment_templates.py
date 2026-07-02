@@ -75,6 +75,43 @@ def test_design_library_contains_owned_second_created_presets() -> None:
         assert "do not copy external brand expression" in lowered
 
 
+def test_discussion_carries_ui_design_intent_to_handoff() -> None:
+    content = _read("templates/commands/discussion.md")
+
+    assert "experience_commitments" in content
+    assert "design_system_requirements" in content
+    assert "design_system_status" in content
+    assert "design_risk_level" in content
+    assert "sp-design" in content
+
+
+def test_specify_reads_design_md_for_ui_features() -> None:
+    content = _read("templates/commands/specify.md")
+
+    assert "DESIGN.md" in content
+    assert "Experience Requirements" in content
+    assert "design-system readiness" in content
+    assert "design_system_status" in content
+    assert "strong blocker" in content.lower()
+    assert "soft risk" in content.lower()
+
+
+def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
+    plan = _read("templates/commands/plan.md")
+    tasks = _read("templates/commands/tasks.md")
+    implement = _read("templates/commands/implement.md")
+
+    assert "Design System Adoption" in plan
+    assert "token strategy" in plan.lower()
+    assert "Design Quality Coverage" in tasks
+    assert "required states" in tasks.lower()
+    assert "DESIGN.md" in implement
+    assert "Playwright screenshots" in implement
+    assert "representative output" in implement
+    assert "tests passed" in implement
+    assert "sp-design" in implement
+
+
 def _launcher_query(intent: str) -> str:
     return f'{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}'
 

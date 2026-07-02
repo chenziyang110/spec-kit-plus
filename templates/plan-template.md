@@ -111,6 +111,16 @@
 - [Profile obligation that MUST change implementation shape, task sequencing, validation evidence, or completion criteria]
 - [Reference fidelity contract, required evidence, or deviation rule that downstream tasks and implementation MUST preserve]
 
+## Design System Adoption
+
+- Source and status:
+- Token strategy:
+- Component reuse and extension policy:
+- Platform adaptation strategy:
+- Accessibility requirements:
+- Evidence strategy:
+- Forbidden styling drift:
+
 ## Technical Context
 
 <!--

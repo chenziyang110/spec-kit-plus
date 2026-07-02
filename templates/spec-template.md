@@ -34,6 +34,14 @@
 - [Deferred enhancement, broader ideal-shape item, or later release work]
 - [Reopen trigger for each deferred item]
 
+## Experience Requirements
+
+- Design-system source:
+- Design-system status:
+- Required platforms:
+- Experience commitments:
+- Design risks:
+
 ## Must-Preserve Discussion Inputs
 
 - **Source**: [Discussion handoff path when `entry_source: sp-discussion`]

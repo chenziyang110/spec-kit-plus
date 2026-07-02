@@ -56,6 +56,11 @@ description: "Task list template for feature implementation"
 - Synthetic component, reducer, helper, or hand-built state tests may support implementation, but they do not satisfy `real_entrypoint_evidence` by themselves.
 - Any task listed here must carry `consumer_surfaces` and `required_evidence` including `real_entrypoint_evidence` in its task packet fields.
 
+## Design Quality Coverage
+
+| Surface | Design Source | Required States | Platform Coverage | Evidence Required | Task IDs |
+|---------|---------------|-----------------|-------------------|-------------------|----------|
+
 ## Implementation Target Boundary
 
 - **Target root**: [copy from plan-contract.json / plan.md]
