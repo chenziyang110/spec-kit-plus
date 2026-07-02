@@ -227,6 +227,21 @@ def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
     ) in shell
 
 
+def test_design_workflow_is_not_an_implementation_workflow() -> None:
+    content = _read("templates/commands/design.md") + "\n" + _read("templates/command-partials/design/shell.md")
+    lowered = content.lower()
+
+    assert "active_command: sp-design" in content
+    assert "phase_mode: design-only" in content
+    assert "allowed writes" in lowered
+    assert "forbidden writes" in lowered
+    assert "source code" in lowered
+    assert "css or theme implementation files" in lowered
+    assert "ask the user to approve a direction" in lowered
+    assert "specify design lint" in lowered
+    assert "write the project's own `design.md`" in lowered
+
+
 def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None:
     partial = _read("templates/command-partials/common/read-only-evidence-lanes.md")
     discussion_shell = _read("templates/command-partials/discussion/shell.md")

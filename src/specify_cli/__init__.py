@@ -3025,6 +3025,7 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
+    "design": "Use when a project needs a DESIGN.md design-system contract, design-system synthesis, UI style refinement, or design readiness audit before UI work proceeds.",
     "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",

@@ -291,6 +291,16 @@ def _assert_ask_contract(content: str) -> None:
     assert "handoff-to-specify" not in content
 
 
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
+
+
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
     advisory_index = content.find("project cognition advisory gate")
     assert advisory_index != -1
@@ -396,6 +406,18 @@ def test_collected_skills_integrations_embed_internal_implement_review_loop(tmp_
         implement_path = integration.skills_dest(project) / "sp-implement" / "SKILL.md"
         assert implement_path.exists(), integration_key
         _assert_embedded_implement_review_contract(implement_path.read_text(encoding="utf-8"))
+
+
+def test_collected_skills_integrations_generate_design_workflow(tmp_path):
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = integration.skills_dest(project) / "sp-design" / "SKILL.md"
+        assert design_path.exists(), integration_key
+        _assert_design_contract(design_path.read_text(encoding="utf-8"))
 
 
 def test_generated_planning_skills_require_inline_cognition_update_for_source_changes(tmp_path):
@@ -1225,6 +1247,7 @@ class SkillsIntegrationTests:
         skills_prefix = i.config["folder"].rstrip("/") + "/" + i.config.get("commands_subdir", "skills")
 
         files = []
+        files.append("DESIGN.md")
         # Skill files
         for cmd in self._skill_commands():
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")

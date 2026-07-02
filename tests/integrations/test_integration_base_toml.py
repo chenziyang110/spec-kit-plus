@@ -252,6 +252,16 @@ def _assert_ask_contract(content: str) -> None:
     assert "handoff-to-specify" not in content
 
 
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
+
+
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
     advisory_index = content.find("project cognition advisory gate")
     assert advisory_index != -1
@@ -361,6 +371,19 @@ def test_collected_toml_integrations_embed_internal_implement_review_loop(tmp_pa
         assert implement_path.exists(), integration_key
         parsed = tomllib.loads(implement_path.read_text(encoding="utf-8"))
         _assert_embedded_implement_review_contract(parsed["prompt"])
+
+
+def test_collected_toml_integrations_generate_design_workflow(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = integration.commands_dest(project) / integration.command_filename("design")
+        assert design_path.exists(), integration_key
+        parsed = tomllib.loads(design_path.read_text(encoding="utf-8"))
+        _assert_design_contract(parsed["prompt"])
 
 
 class TomlIntegrationTests:
@@ -1043,6 +1066,7 @@ class TomlIntegrationTests:
         i = get_integration(self.KEY)
         cmd_dir = i.registrar_config["dir"]
         files = []
+        files.append("DESIGN.md")
 
         # Command files (.toml)
         for stem in self._command_stems():
