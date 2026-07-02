@@ -29,6 +29,7 @@ and what sits clearly outside the system boundary.]
   in `source_signal_disposition` instead of trusting only the handoff summary.
   `alignment.md` records `Semantic Term Decisions`, `Upstream Intent Disposition`,
   and `Out-Of-Scope Conflicts`.
+- **UI design system**: Generated projects include a root `DESIGN.md` as the design-system contract. UI-facing workflows read it before specification, planning, task generation, and implementation. Use `sp-design` to create, synthesize, refine, or audit the design system; use `specify design lint` to check structural readiness; use `specify design export --format json|tailwind` when implementation needs token exports; use `specify design import SOURCE_REFERENCE` to create reference summaries for synthesis without overwriting `DESIGN.md`.
 - **User-confirmed product scope**: Generated workflows preserve the user's confirmed product scope. Workflow routing may choose the lightest safe command
   surface, but it must not convert the user's product intent into a smaller MVP
   or first-story release. Scope reduction requires user confirmation, including

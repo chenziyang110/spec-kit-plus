@@ -19,6 +19,18 @@ def _paragraphs_with(content: str, marker: str) -> list[str]:
     return [paragraph for paragraph in content.split("\n\n") if marker in paragraph]
 
 
+def test_docs_describe_design_workflow_and_design_md() -> None:
+    readme = _read("README.md")
+    handbook = _read("PROJECT-HANDBOOK.md")
+    template = _read("templates/project-handbook-template.md")
+
+    for content in (readme, handbook, template):
+        assert "sp-design" in content
+        assert "DESIGN.md" in content
+        assert "design-system" in content.lower()
+        assert "specify design lint" in content
+
+
 def test_quickstart_teaches_specify_to_plan_mainline():
     quickstart = _read("docs/quickstart.md")
 
