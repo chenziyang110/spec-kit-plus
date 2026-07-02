@@ -21,6 +21,10 @@
     "constraints": [],
     "success_criteria": [],
     "design_direction": [],
+    "experience_commitments": [],
+    "design_system_requirements": [],
+    "design_system_status": "unknown",
+    "design_risk_level": "none",
     "optimal_solution_approach": [],
     "scope": {
       "in": [],
@@ -164,6 +168,9 @@
     "rejected_alternatives": [],
     "accepted_tradeoffs": [],
     "experience_commitments": [],
+    "design_system_requirements": [],
+    "design_system_status": "unknown",
+    "design_risk_level": "none",
     "review_criteria_carried_forward": [],
     "must_not_dilute": []
   },

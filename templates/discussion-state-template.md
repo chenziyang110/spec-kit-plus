@@ -31,6 +31,13 @@
 - readiness_note: [why the discussion is or is not ready for explicit handoff]
 - ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred
 
+## Design Carry-Forward
+
+- experience_commitments: []
+- design_system_requirements: []
+- design_system_status: [unknown | ready | soft-risk | blocked | not-applicable]
+- design_risk_level: [none | low | medium | high]
+
 ## Advisor Contract
 
 - truth_pass_status: not-needed | needed | in-progress | complete | blocked

@@ -96,6 +96,36 @@ def test_specify_reads_design_md_for_ui_features() -> None:
     assert "soft risk" in content.lower()
 
 
+def test_discussion_design_carry_forward_artifacts_are_modeled() -> None:
+    command = _read("templates/commands/discussion.md")
+    state = _read("templates/discussion-state-template.md")
+    handoff = _read("templates/brainstorming-handoff-specify-template.json")
+
+    for field in (
+        "experience_commitments",
+        "design_system_requirements",
+        "design_system_status",
+        "design_risk_level",
+    ):
+        assert field in command
+        assert field in state
+        assert field in handoff
+
+
+def test_specify_design_readiness_has_alignment_and_context_slots() -> None:
+    command = _read("templates/commands/specify.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+
+    assert "design-system readiness" in command
+    assert "design_system_status" in alignment
+    assert "design_risk_level" in alignment
+    assert "Design System Readiness" in alignment
+    assert "Design References and Gaps" in context
+    assert "design_system_requirements" in context
+    assert "design references" in context.lower()
+
+
 def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
     plan = _read("templates/commands/plan.md")
     tasks = _read("templates/commands/tasks.md")
