@@ -2,6 +2,8 @@ import json
 import re
 from pathlib import Path
 
+import yaml
+
 from .template_utils import read_template
 
 
@@ -22,6 +24,55 @@ def _read(path: str) -> str:
 
 def _read_project_file(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
+
+
+def _design_system_from_front_matter(content: str) -> dict:
+    assert content.startswith("---\n")
+    front_matter = content.split("---", 2)[1]
+    parsed = yaml.safe_load(front_matter)
+    assert isinstance(parsed, dict)
+    design_system = parsed.get("design_system")
+    assert isinstance(design_system, dict)
+    return design_system
+
+
+def test_design_template_declares_v1_schema_and_required_guidance() -> None:
+    content = _read("templates/design-template.md")
+    design_system = _design_system_from_front_matter(content)
+
+    assert "design_system:" in content
+    assert "schema: spec-kit-design-v1" in content
+    assert design_system["schema"] == "spec-kit-design-v1"
+    assert set((design_system.get("tokens") or {})) >= {"color", "spacing", "radius", "typography"}
+    assert set((design_system.get("components") or {})) >= {"button", "input", "card"}
+    assert "tokens:" in content
+    assert "components:" in content
+    assert "accessibility:" in content
+    assert "## Anti-Patterns" in content
+    assert "## UI QA Checklist" in content
+    assert "{color." in content
+
+
+def test_design_library_contains_owned_second_created_presets() -> None:
+    presets = [
+        "workbench-precision",
+        "developer-tool-sharp",
+        "data-dense-ops",
+        "consumer-mobile-polished",
+    ]
+
+    for preset in presets:
+        content = _read(f"templates/design-library/{preset}.md")
+        lowered = content.lower()
+        design_system = _design_system_from_front_matter(content)
+
+        assert "schema: spec-kit-design-v1" in content
+        assert design_system["schema"] == "spec-kit-design-v1"
+        assert set((design_system.get("tokens") or {})) >= {"color", "spacing", "radius", "typography"}
+        assert set((design_system.get("components") or {})) >= {"button", "input", "card"}
+        assert "spec kit plus owned" in lowered
+        assert "second-created" in lowered
+        assert "do not copy external brand expression" in lowered
 
 
 def _launcher_query(intent: str) -> str:
