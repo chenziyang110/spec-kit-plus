@@ -8,6 +8,20 @@ This skill guides creation of distinctive, production-grade frontend interfaces 
 
 The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
 
+## Spec Kit Plus Design-System Priority
+
+In a Spec Kit Plus project, frontend-design is subordinate to DESIGN.md. Before
+choosing a bold aesthetic direction, check whether `DESIGN.md` or an equivalent
+committed design-system source governs the UI. Follow that source for tokens,
+components, layout density, interaction states, accessibility, motion, and
+evidence expectations.
+
+Do not invent unrelated bold aesthetics when the project already has a design
+system or when the request is to implement an existing product surface. If no
+design system exists and the work is high-visibility, new product UI, a redesign
+or rebrand, or a core workflow experience, recommend `sp-design` before
+implementation rather than treating visual style as an implementation detail.
+
 ## Design Thinking
 
 Before coding, understand the context and commit to a BOLD aesthetic direction:
