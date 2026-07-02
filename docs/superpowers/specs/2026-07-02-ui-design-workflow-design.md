@@ -155,6 +155,87 @@ Recommended sections:
 The file should be compact enough for agents to read routinely, but concrete
 enough to constrain implementation choices.
 
+## DESIGN.md v1 Schema
+
+`DESIGN.md` v1 should be Markdown with YAML front matter. The YAML front matter
+is the machine-readable contract for lint and export. The Markdown body is the
+human-readable rationale and agent guidance.
+
+Minimum front matter shape:
+
+```yaml
+---
+design_system:
+  schema: spec-kit-design-v1
+  name: project-design-system
+  version: 1
+  platforms:
+    - web
+    - mobile
+    - desktop
+    - tui
+    - cli
+  tokens:
+    color:
+      surface.canvas:
+        value: "#ffffff"
+        usage: primary app background
+      text.primary:
+        value: "#111827"
+        usage: primary text
+    spacing:
+      scale.4:
+        value: "16px"
+        usage: default section gap
+    radius:
+      control:
+        value: "6px"
+        usage: buttons, inputs, compact cards
+    typography:
+      body.family:
+        value: "system-ui"
+        usage: default interface text
+  components:
+    button:
+      required_states:
+        - default
+        - hover
+        - focus
+        - disabled
+        - loading
+      token_refs:
+        background: "{color.surface.canvas}"
+        text: "{color.text.primary}"
+  accessibility:
+    contrast_intent: WCAG AA for ordinary text where platform allows
+    focus_visible: required
+    keyboard_navigation: required
+---
+```
+
+V1 parser boundary:
+
+- Parse only YAML front matter for lint and export.
+- Treat Markdown sections as guidance, not as normative token data.
+- Require `design_system.schema: spec-kit-design-v1`.
+- Require token categories to be maps of `name -> {value, usage}`.
+- Require token names to be dot-separated ASCII identifiers under their category.
+- Validate token references with the `{category.token.name}` syntax.
+- Validate references only inside machine-readable front matter fields such as
+  `components.*.token_refs`.
+- Allow unknown front matter keys so future schema versions can extend the file
+  without breaking v1 readers.
+
+Export rules:
+
+- `specify design export --format json` emits the normalized
+  `design_system.tokens` tree plus component token references.
+- `specify design export --format tailwind` maps supported token categories to
+  Tailwind theme fields: colors, spacing, borderRadius, fontFamily, fontSize,
+  boxShadow, and animation where present.
+- Unsupported token categories remain in the JSON export and are reported as
+  skipped for Tailwind export rather than causing export failure.
+
 ## Built-In Design Library
 
 Spec Kit Plus should include a built-in design library under
@@ -450,6 +531,7 @@ Implementation should update:
 - `templates/commands/design.md`
 - `templates/command-partials/design/shell.md`
 - `templates/passive-skills/spec-kit-ui-design/SKILL.md`
+- `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`
 - `templates/passive-skills/frontend-design/SKILL.md`
 - `templates/passive-skills/webapp-testing/SKILL.md`
 - `templates/commands/discussion.md`
@@ -483,6 +565,8 @@ Template and packaging tests:
 
 Workflow semantics tests:
 
+- `spec-kit-workflow-routing` recommends or routes high-risk UI/design work to
+  `sp-design`.
 - `sp-discussion` records UI/design intent and routes high-risk UI work to
   `sp-design`.
 - `sp-specify` reads and preserves `DESIGN.md` for UI features.
