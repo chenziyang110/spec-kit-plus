@@ -83,6 +83,13 @@ from specify_cli.codex_team.runtime_bridge import (
     submit_runtime_result,
 )
 from specify_cli.cli_output import print_json
+from specify_cli.design import (
+    DesignDiagnostic,
+    DesignLintError,
+    export_design_system,
+    import_design_reference,
+    lint_design_file,
+)
 from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 from specify_cli.execution import (
     build_result_handoff_path,
@@ -497,6 +504,89 @@ lane_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(lane_app, name="lane")
+
+design_app = typer.Typer(
+    name="design",
+    help="Lint, export, and import Spec Kit Plus DESIGN.md assets",
+    add_completion=False,
+)
+app.add_typer(design_app, name="design")
+
+
+def _diagnostics_payload(diagnostics: list[DesignDiagnostic]) -> dict[str, Any]:
+    return {
+        "ok": not diagnostics,
+        "diagnostics": [
+            {"level": d.level, "code": d.code, "message": d.message, "path": d.path}
+            for d in diagnostics
+        ],
+    }
+
+
+def _display_path(path: Path) -> str:
+    return path.as_posix()
+
+
+@design_app.command("lint")
+def design_lint(
+    path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+) -> None:
+    output_format = output_format.lower()
+    if output_format not in {"text", "json"}:
+        console.print(f"[red]Error:[/red] unsupported output format: {output_format}")
+        raise typer.Exit(2)
+
+    diagnostics = lint_design_file(path)
+    if output_format == "json":
+        print_json(_diagnostics_payload(diagnostics))
+        if diagnostics:
+            raise typer.Exit(1)
+        return
+
+    if not diagnostics:
+        console.print(f"{_display_path(path)} is valid")
+        return
+
+    for diagnostic in diagnostics:
+        console.print(f"{diagnostic.code}: {diagnostic.message}")
+    raise typer.Exit(1)
+
+
+@design_app.command("export")
+def design_export(
+    path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json or tailwind"),
+    out: Optional[Path] = typer.Option(None, "--out", help="Write rendered design system to a file"),
+) -> None:
+    output_format = output_format.lower()
+    if output_format not in {"json", "tailwind"}:
+        print("Error: --format must be json or tailwind")
+        raise typer.Exit(2)
+
+    try:
+        rendered = export_design_system(path, export_format=output_format)
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(rendered, encoding="utf-8")
+        print(f"Wrote {_display_path(out)}")
+        return
+
+    print(rendered, end="")
+
+
+@design_app.command("import")
+def design_import(
+    source: str = typer.Argument(..., help="Design reference source URL or path"),
+    notes: str = typer.Option("", "--notes", help="Notes to store with the imported reference"),
+    out_dir: Path = typer.Option(Path(".specify/design"), "--out-dir", help="Directory for design references"),
+) -> None:
+    out_path = import_design_reference(source, out_dir=out_dir, notes=notes)
+    print(f"Wrote {_display_path(out_path)}")
 
 def show_banner():
     """Display the ASCII art banner."""
