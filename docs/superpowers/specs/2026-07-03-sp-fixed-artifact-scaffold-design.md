@@ -19,7 +19,7 @@ Agents still own semantic work:
 - Requirements, decisions, task decomposition, trade-offs, evidence interpretation, risk conclusions, readiness verdicts, and user-facing explanation.
 - Any value that would require understanding intent, choosing scope, approving readiness, or resolving ambiguity.
 
-Scripts must not fabricate `ready`, `approved`, `user_confirmed`, or equivalent state. Those fields may be initialized only to draft, pending, blocked, or empty values unless the caller supplies already-approved structured input.
+Scripts must not fabricate `ready`, `approved`, `user_confirmed`, or equivalent state. First-rollout scaffolds must initialize readiness and approval fields only to draft, pending, blocked, false, or empty values. A later builder may copy an approved state only when it receives a validated approval source path or id and the validator proves the source artifact already carries that approved state.
 
 ## Non-Goals
 
@@ -36,14 +36,15 @@ Two surfaces are needed:
 
 1. `artifact audit-fixed-cost`
    - Read-only.
-   - Scans `sp-*` workflow artifact contracts and known templates.
+   - Reads a deterministic artifact scaffold registry instead of relying on prompt scraping.
    - Reports fixed-content candidates, estimated savings, scriptability, quality risk, and recommendation.
 
 2. `artifact scaffold`
    - Writes deterministic artifact skeletons.
    - Copies a template or builds a JSON envelope for a named `kind`.
    - Accepts a compact variables payload.
-   - Emits compact JSON containing the written path, skipped/created status, estimated saved tokens, and `agent_fill_required` fields.
+   - Resolves `--out` through a kind-specific path safety contract.
+   - Emits compact JSON containing the written path, skipped/created status, estimated saved tokens, `agent_fill_required`, and stable `fill_targets`.
 
 Example command shapes:
 
@@ -54,6 +55,41 @@ specify artifact scaffold --kind plan-contract --out <FEATURE_DIR>/plan-contract
 ```
 
 The command names can be adjusted during implementation to fit existing Typer organization, but the behavior should remain split between read-only audit and artifact generation.
+
+## Artifact Registry
+
+The audit command must be registry-driven. It may cross-check command prompts, partials, package data, and tests for drift, but the source of truth for scaffold candidates is a deterministic registry checked into the repository.
+
+Each registry entry should include:
+
+- `kind`: stable scaffold id, such as `quick-status`.
+- `workflow`: owning `sp-*` workflow.
+- `artifact`: human-readable artifact name.
+- `source_template`: packaged Markdown template path or JSON builder id.
+- `prompt_refs`: command template or partial files whose instructions should refer to this scaffold.
+- `allowed_output_paths`: kind-specific relative path patterns.
+- `fixed_anchors`: Markdown anchors, JSON Pointers, or generated-region ids for fixed content.
+- `semantic_placeholders`: fields or anchors the agent must fill.
+- `fill_targets`: exact Markdown anchors or JSON Pointers returned to the agent after scaffold creation.
+- `validator`: schema or validator function for the generated skeleton.
+- `downstream_consumers`: workflows, hooks, or runtime helpers that consume the artifact.
+- `package_targets`: package-data or generated-project install surfaces that must include the template/helper.
+- `risk`: scriptability and quality-risk metadata.
+
+This keeps the audit deterministic and makes drift testable when an artifact contract is spread across command templates, partials, packaged templates, and release packaging.
+
+## Path Safety
+
+`artifact scaffold --out` must be safe by construction:
+
+- Resolve output paths relative to the active project root.
+- Reject absolute paths for generated-project artifacts unless a future implementation explicitly models trusted project roots.
+- Reject `..` traversal and any normalized path outside the active project root.
+- Enforce each `kind`'s `allowed_output_paths` registry patterns, such as `.planning/quick/*/STATUS.md` for `quick-status`.
+- Reject symlink escapes by resolving parent directories before write and ensuring the final resolved target remains inside the active project root and inside the allowed kind root.
+- Create missing parent directories only when the resolved parent remains within the allowed kind root.
+
+Path checks must run before any file or directory is created.
 
 ## Template Storage
 
@@ -76,7 +112,12 @@ Each candidate produces a compact record:
   "scriptability": "high",
   "quality_risk": "low",
   "recommendation": "scaffold",
-  "agent_fill_required": ["current_focus", "scope_boundary", "validation_plan"]
+  "agent_fill_required": ["current_focus", "scope_boundary", "validation_plan"],
+  "fill_targets": {
+    "current_focus": {"type": "markdown_anchor", "anchor": "agent-fill:current_focus"},
+    "scope_boundary": {"type": "markdown_anchor", "anchor": "agent-fill:scope_boundary"},
+    "validation_plan": {"type": "markdown_anchor", "anchor": "agent-fill:validation_plan"}
+  }
 }
 ```
 
@@ -110,18 +151,22 @@ For a scaffolded artifact:
 1. The workflow gathers the minimum semantic facts needed to select the scaffold kind and fill safe variables.
 2. The agent calls `artifact scaffold`.
 3. The script writes only fixed structure and supplied safe variables.
-4. The script returns compact JSON with `agent_fill_required`.
-5. The agent edits or appends only semantic sections and values.
+4. The script returns compact JSON with `agent_fill_required` and `fill_targets`.
+5. The agent edits or appends only semantic sections and values at the returned anchors or JSON Pointers.
 6. Existing self-review, validation hooks, and downstream consumers remain authoritative.
 
 For JSON builders, the agent should pass compact structured input rather than prose. The builder fills the fixed envelope and validates required shape.
 
+Scaffold templates must be append/edit-targetable. Markdown scaffolds should include stable low-noise anchors for semantic insertion points. JSON scaffolds should expose JSON Pointers for semantic fields. If an agent must read the full scaffold to discover where to write semantic content, that scaffold should be downgraded or rejected because it erases the intended savings.
+
 ## Error Handling
 
-- Do not overwrite existing artifacts unless the command receives an explicit force flag.
-- Return `blocked_existing_file` when a target exists and force is absent.
+- Default behavior is create-only. Do not overwrite existing artifacts.
+- Return `blocked_existing_file` when a target already exists.
+- First rollout should avoid a generic `--force` flag. If a later implementation adds force behavior, it must use scaffold metadata or hashes to prove that only untouched generated fixed regions are being refreshed; it must not destroy agent-filled semantic content.
 - Return `invalid_vars` when caller input cannot satisfy the fixed scaffold's required variables.
 - Return `unsafe_status` when caller input tries to set approval or readiness states that should only come from confirmed workflow gates.
+- Return `unsafe_path` when `--out` is absolute, traverses outside the project root, violates the kind's allowed output path, or resolves through a symlink escape.
 - Return `unknown_kind` for unregistered scaffold types.
 
 All default stdout should be compact JSON. Expanded diagnostics belong behind a debug or explain flag.
@@ -135,6 +180,7 @@ Every scaffold change must include before/after evidence:
 - Agent-authored semantic size that remains.
 - Estimated saved tokens per run.
 - Whether the agent must read back the generated content.
+- Whether returned `fill_targets` let the agent write semantic content without full scaffold reread.
 - Quality-risk classification.
 
 A scaffold should not ship when the saved tokens are marginal or when the generated artifact increases downstream reading cost enough to erase savings.
@@ -144,8 +190,11 @@ A scaffold should not ship when the saved tokens are marginal or when the genera
 Required tests:
 
 - Audit tests for fixed-ratio calculation, recommendation labels, and skip behavior.
-- Scaffold tests for each `kind`: created path, safe defaults, no-overwrite behavior, compact stdout, and `agent_fill_required`.
-- JSON builder tests for schema shape and rejection of unsafe readiness or approval states.
+- Registry tests for required fields, prompt/template/package references, allowed output path patterns, downstream consumers, and risk metadata.
+- Scaffold tests for each `kind`: created path, safe defaults, no-overwrite behavior, compact stdout, `agent_fill_required`, and stable `fill_targets`.
+- Path safety tests for absolute paths, traversal, outside-root normalization, disallowed kind paths, and symlink escapes.
+- Overwrite-protection tests proving existing semantic content is not destroyed and first-rollout scaffolds are create-only.
+- JSON builder tests for schema shape and rejection of unsafe readiness or approval states without validated approval source proof.
 - Integration tests proving generated assets are available after `specify init`.
 - Workflow-template regression tests proving command guidance still names the same artifacts, quality gates, and downstream consumers.
 - Packaging tests for any new templates, shared scripts, or Python modules.
