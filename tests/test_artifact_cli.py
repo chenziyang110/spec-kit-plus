@@ -37,6 +37,18 @@ def test_artifact_audit_requires_specify_project(tmp_path: Path) -> None:
     assert "Not a Spec Kit Plus project" in result.output
 
 
+def test_artifact_audit_rejects_specify_file_marker(tmp_path: Path) -> None:
+    (tmp_path / ".specify").write_text("not a directory\n", encoding="utf-8")
+
+    result = _run_in_project(
+        tmp_path,
+        ["artifact", "audit-fixed-cost", "--format", "json"],
+    )
+
+    assert result.exit_code != 0
+    assert "Not a Spec Kit Plus project" in result.output
+
+
 def test_artifact_audit_emits_compact_json(tmp_path: Path) -> None:
     project = tmp_path / "project"
     (project / ".specify").mkdir(parents=True)

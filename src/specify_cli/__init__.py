@@ -189,7 +189,7 @@ TAGLINE = "Spec Kit Plus - Spec-Driven Development Toolkit"
 
 def _require_spec_kit_plus_project(project_root: Path) -> Path:
     specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
+    if not specify_dir.is_dir():
         console.print("[red]Error:[/red] Not a Spec Kit Plus project (no .specify/ directory)")
         console.print("Run this command from a Spec Kit Plus project root")
         raise typer.Exit(1)
