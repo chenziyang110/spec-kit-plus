@@ -472,6 +472,13 @@ result_app = typer.Typer(
 )
 app.add_typer(result_app, name="result")
 
+artifact_app = typer.Typer(
+    name="artifact",
+    help="Audit and scaffold fixed workflow artifacts",
+    add_completion=False,
+)
+app.add_typer(artifact_app, name="artifact")
+
 hook_app = typer.Typer(
     name="hook",
     help="Run first-party workflow quality hooks, including cognition baseline refresh finalizers",
@@ -4679,6 +4686,59 @@ def team_result_template(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     console.print(f"Wrote result template for [cyan]{request_id}[/cyan] to [cyan]{output_path}[/cyan].")
+
+
+@artifact_app.command("audit-fixed-cost")
+def artifact_audit_fixed_cost_command(
+    output_format: str = typer.Option("json", "--format", help="Output format: json"),
+):
+    """Report fixed artifact scaffold candidates and estimated token savings."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    if output_format.lower() != "json":
+        console.print("[red]Error:[/red] only --format json is supported for artifact audit")
+        raise typer.Exit(1)
+
+    from specify_cli.artifacts import audit_fixed_cost
+
+    print_json(audit_fixed_cost())
+
+
+@artifact_app.command("scaffold")
+def artifact_scaffold_command(
+    kind: str = typer.Option(..., "--kind", help="Artifact scaffold kind"),
+    out_path: str = typer.Option(..., "--out", help="Project-relative artifact output path"),
+    vars_json: str = typer.Option("{}", "--vars", help="Compact JSON variables for the scaffold"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json"),
+):
+    """Create a fixed workflow artifact scaffold at a safe project-relative path."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    if output_format.lower() != "json":
+        console.print("[red]Error:[/red] only --format json is supported for artifact scaffold")
+        raise typer.Exit(1)
+    try:
+        variables = json.loads(vars_json)
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Error:[/red] invalid --vars JSON: {exc}")
+        raise typer.Exit(1) from exc
+    if not isinstance(variables, dict):
+        console.print("[red]Error:[/red] --vars must decode to a JSON object")
+        raise typer.Exit(1)
+
+    from specify_cli.artifacts import ArtifactScaffoldError, scaffold_artifact
+
+    try:
+        payload = scaffold_artifact(
+            project_root,
+            kind=kind,
+            out_path=out_path,
+            variables=variables,
+        )
+    except ArtifactScaffoldError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    print_json(payload)
 
 
 @teams_app.command("api")
