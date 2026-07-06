@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import errno
 import json
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from pathlib import PurePosixPath, PureWindowsPath
@@ -42,11 +44,8 @@ def scaffold_artifact(
     rendered = _render_template(template, values)
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with target.open("x", encoding="utf-8", newline="") as handle:
-            handle.write(rendered)
-    except FileExistsError as exc:
-        raise ArtifactScaffoldError("blocked_existing_file: target already exists") from exc
+    _reject_symlink_escape(root, target, allowed_roots)
+    _write_create_only(target, rendered)
 
     audit = artifact_kind.audit_record()
     return {
@@ -177,9 +176,63 @@ def _render_template(template: Path, variables: Mapping[str, Any]) -> str:
 
     rendered = template.read_text(encoding="utf-8")
     for key in ("id", "slug", "title", "trigger"):
-        value = variables.get(key, "")
-        rendered = rendered.replace("{{" + key + "}}", str(value))
+        value = _sanitize_markdown_yaml_scalar(key, variables.get(key, ""))
+        rendered = rendered.replace("{{" + key + "}}", value)
     return rendered
+
+
+def _sanitize_markdown_yaml_scalar(key: str, value: Any) -> str:
+    text = "" if value is None else str(value)
+    if (
+        "\r" in text
+        or "\n" in text
+        or "---" in text
+        or "..." in text
+        or any(ord(char) < 32 or ord(char) == 127 for char in text)
+    ):
+        raise ArtifactScaffoldError(f"unsafe_variable: {key} contains unsafe content")
+
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _write_create_only(target: Path, content: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if os.name != "nt" and nofollow:
+        fd: int | None = None
+        try:
+            fd = os.open(target, flags | nofollow)
+            buffer = memoryview(content.encode("utf-8"))
+            while buffer:
+                written = os.write(fd, buffer)
+                if written == 0:
+                    raise OSError("failed to write scaffold content")
+                buffer = buffer[written:]
+        except FileExistsError as exc:
+            raise ArtifactScaffoldError("blocked_existing_file: target already exists") from exc
+        except OSError as exc:
+            if exc.errno in {errno.ELOOP}:
+                raise ArtifactScaffoldError(
+                    "unsafe_path: target path uses unsafe symlink"
+                ) from exc
+            raise
+        finally:
+            if fd is not None:
+                os.close(fd)
+        return
+
+    if target.exists() or target.is_symlink():
+        raise ArtifactScaffoldError("blocked_existing_file: target already exists")
+
+    try:
+        with target.open("x", encoding="utf-8", newline="") as handle:
+            handle.write(content)
+    except FileExistsError as exc:
+        raise ArtifactScaffoldError("blocked_existing_file: target already exists") from exc
+    except OSError as exc:
+        if exc.errno in {errno.ELOOP}:
+            raise ArtifactScaffoldError("unsafe_path: target path uses unsafe symlink") from exc
+        raise
 
 
 def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:

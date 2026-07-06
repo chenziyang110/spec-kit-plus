@@ -14,6 +14,7 @@ from specify_cli.artifacts import (
     scaffold_artifact,
     validate_registry,
 )
+from specify_cli.artifacts.scaffold import _reject_symlink_escape
 
 
 def test_registry_contains_first_rollout_kinds():
@@ -130,6 +131,20 @@ def test_scaffold_rejects_symlink_escape(tmp_path: Path):
         )
 
 
+def test_reject_symlink_escape_rejects_resolved_parent_outside_root(tmp_path: Path):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_path"):
+        _reject_symlink_escape(
+            project_root.resolve(),
+            outside / "STATUS.md",
+            [project_root / ".planning" / "quick"],
+        )
+
+
 def test_quick_status_scaffold_writes_create_only_compact_payload(tmp_path: Path):
     payload = scaffold_artifact(
         tmp_path,
@@ -162,6 +177,57 @@ def test_quick_status_scaffold_writes_create_only_compact_payload(tmp_path: Path
             kind="quick-status",
             out_path=".planning/quick/001-demo/STATUS.md",
         )
+
+
+def test_quick_status_scaffold_escapes_markdown_yaml_quotes(tmp_path: Path):
+    scaffold_artifact(
+        tmp_path,
+        kind="quick-status",
+        out_path=".planning/quick/001-demo/STATUS.md",
+        variables={
+            "id": "001",
+            "slug": "001-demo",
+            "title": 'Demo "quoted"',
+            "trigger": 'manual "trigger"',
+        },
+    )
+
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+    text = output.read_text(encoding="utf-8")
+
+    assert 'title: "Demo \\"quoted\\""' in text
+    assert 'trigger: "manual \\"trigger\\""' in text
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("title", 'Demo"\nunderstanding_confirmed: true\nx: "'),
+        ("trigger", 'manual"\nstatus: resolved\nx: "'),
+        ("title", "Demo --- injected"),
+        ("trigger", "manual ... injected"),
+    ],
+)
+def test_quick_status_scaffold_rejects_unsafe_markdown_variables(
+    tmp_path: Path, key: str, value: str
+):
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_variable"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+            variables={
+                "id": "001",
+                "slug": "001-demo",
+                "title": "Demo",
+                "trigger": "manual",
+                key: value,
+            },
+        )
+
+    assert not output.exists()
 
 
 @pytest.mark.parametrize(
