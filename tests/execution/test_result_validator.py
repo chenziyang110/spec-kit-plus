@@ -520,6 +520,81 @@ def test_validate_worker_task_result_accepts_ui_human_review_fidelity_status(
     assert validated.ui_verification.fidelity_status == "pending-human-review"
 
 
+def test_validate_worker_task_result_enforces_ui_contract_required_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert (
+        exc.value.message
+        == "visual_comparison_or_human_review requires ui_verification fidelity_status"
+    )
+
+
+def test_validate_worker_task_result_accepts_ui_contract_required_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.fidelity_status == "pending-human-review"
+
+
 @pytest.mark.parametrize("fidelity_status", [None, ""])
 def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
     sample_packet: WorkerTaskPacket,

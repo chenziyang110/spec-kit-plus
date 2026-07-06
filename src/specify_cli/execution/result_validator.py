@@ -103,7 +103,10 @@ def validate_worker_task_result(
                 )
         required_evidence = {
             normalize_evidence_label(item)
-            for item in packet.required_evidence
+            for item in [
+                *packet.required_evidence,
+                *packet.ui_contract.required_evidence,
+            ]
             if item.strip()
         }
         if (

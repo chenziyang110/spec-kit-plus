@@ -80,6 +80,37 @@ def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
     assert result.ui_verification.fidelity_status == "pending-human-review"
 
 
+def test_normalize_worker_task_result_payload_accepts_camel_case_ui_fields() -> None:
+    result = normalize_worker_task_result_payload(
+        {
+            "taskId": "T106",
+            "status": "success",
+            "summary": "validated UI fidelity",
+            "uiEvidence": [
+                {
+                    "kind": "screenshot",
+                    "path": "artifacts/ui/mobile-390.png",
+                    "viewport": "390",
+                }
+            ],
+            "uiVerification": {
+                "fidelityStatus": "pending-human-review",
+                "visualComparison": "unavailable",
+            },
+        }
+    )
+
+    assert result.ui_evidence == [
+        {
+            "kind": "screenshot",
+            "path": "artifacts/ui/mobile-390.png",
+            "viewport": "390",
+        }
+    ]
+    assert result.ui_verification.fidelity_status == "pending-human-review"
+    assert result.ui_verification.visual_comparison == "unavailable"
+
+
 def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success() -> None:
     result = normalize_worker_task_result_payload(
         {
