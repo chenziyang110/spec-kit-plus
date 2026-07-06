@@ -7,6 +7,7 @@ from specify_cli.orchestration.models import (
     CapabilitySnapshot,
     DispatchShape,
     EvidenceLaneDecision,
+    EvidenceLaneMode,
     ExecutionSurface,
     ExecutionDecision,
     ExecutionModel,
@@ -117,6 +118,33 @@ def test_evidence_lane_decision_has_read_only_contract_defaults():
         "allowed_operations",
         "forbidden_operations",
     ]
+
+
+def test_evidence_lane_mode_includes_writable_ui_reference_artifact_contract():
+    assert "read-only-evidence" in get_args(EvidenceLaneMode)
+    assert "ui-reference-artifact" in get_args(EvidenceLaneMode)
+
+
+def test_ui_reference_lane_decision_defaults_to_narrow_artifact_write_contract():
+    decision = EvidenceLaneDecision(
+        command_name="specify",
+        dispatch_shape="one-subagent",
+        reason="ui-reference-artifact-one-subagent",
+        execution_surface="native-subagents",
+        lane_mode="ui-reference-artifact",
+    )
+
+    assert decision.lane_mode == "ui-reference-artifact"
+    assert decision.structured_result == "ui_reference_artifacts"
+    assert "file-read" in decision.allowed_operations
+    assert "ui-reference-notes-write" in decision.allowed_operations
+    assert "ui-brief-write" in decision.allowed_operations
+    assert "ui-target-html-write" in decision.allowed_operations
+    assert "source-code-write" in decision.forbidden_operations
+    assert "test-write" in decision.forbidden_operations
+    assert "app-server" in decision.forbidden_operations
+    assert "package-managers" in decision.forbidden_operations
+    assert "file-write" not in decision.allowed_operations
 
 
 def test_orchestration_exports_evidence_lane_policy_api():

@@ -4,6 +4,7 @@ from specify_cli.orchestration.models import CapabilitySnapshot
 from specify_cli.orchestration.policy import (
     choose_evidence_lane_dispatch,
     choose_subagent_dispatch,
+    choose_ui_reference_lane_dispatch,
     classify_batch_execution_policy,
     classify_review_gate_policy,
 )
@@ -299,6 +300,91 @@ def test_optional_evidence_lane_degrades_to_leader_inline_without_native_subagen
     assert decision.reason == "read-only-evidence-native-unavailable-leader-inline"
     assert decision.execution_surface == "leader-inline"
     assert decision.capability_degraded is True
+
+
+def test_ui_reference_lane_routes_to_one_subagent_when_contract_ready() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 1,
+            "ui_reference_contract_ready": True,
+            "ui_reference_required": True,
+            "fidelity_mode": "approximate",
+        },
+    )
+
+    assert decision.command_name == "specify"
+    assert decision.dispatch_shape == "one-subagent"
+    assert decision.reason == "ui-reference-artifact-one-subagent"
+    assert decision.execution_surface == "native-subagents"
+    assert decision.workflow_status == "ready"
+    assert decision.lane_mode == "ui-reference-artifact"
+    assert decision.structured_result == "ui_reference_artifacts"
+
+
+def test_ui_reference_lane_blocks_approximate_when_native_subagents_unavailable() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 1,
+            "ui_reference_contract_ready": True,
+            "ui_reference_required": True,
+            "fidelity_mode": "approximate",
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "ui-reference-artifact-subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "UI reference artifact lane requires native subagents for approximate fidelity"
+
+
+def test_ui_reference_lane_allows_inspiration_inline_soft_risk_without_native_subagents() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 1,
+            "ui_reference_contract_ready": True,
+            "ui_reference_required": True,
+            "fidelity_mode": "inspiration",
+        },
+    )
+
+    assert decision.dispatch_shape == "leader-inline"
+    assert decision.reason == "ui-reference-artifact-inspiration-inline-soft-risk"
+    assert decision.execution_surface == "leader-inline"
+    assert decision.workflow_status == "ready"
+    assert decision.capability_degraded is True
+    assert decision.lane_mode == "ui-reference-artifact"
+
+
+def test_ui_reference_lane_uses_parallel_subagents_for_multiple_safe_lanes() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 3,
+            "ui_reference_contract_ready": True,
+            "ui_reference_required": True,
+            "fidelity_mode": "high",
+        },
+    )
+
+    assert decision.dispatch_shape == "parallel-subagents"
+    assert decision.reason == "ui-reference-artifact-parallel-subagents"
+    assert decision.execution_surface == "native-subagents"
 
 
 def test_lightweight_safe_is_derived_from_risk_keys_when_omitted() -> None:
