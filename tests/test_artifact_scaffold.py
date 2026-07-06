@@ -79,11 +79,15 @@ def test_audit_reports_fixed_savings_and_registry_metadata():
     assert quick_status["fixed_bytes"] > 1000
     assert quick_status["estimated_token_savings"] == quick_status["fixed_bytes"] // 4
     assert quick_status["quality_risk"] == "low"
+    assert quick_status["scriptability"] == "template-copy-with-anchor-fill"
+    assert quick_status["agent_fill_required"] == ["current_focus"]
     assert quick_status["fill_targets"]["current_focus"]["type"] == "markdown_anchor"
 
     plan_contract = candidates["plan-contract"]
     assert plan_contract["recommendation"] == "builder"
     assert plan_contract["fixed_bytes"] > 500
+    assert plan_contract["scriptability"] == "json-builder"
+    assert "route" in plan_contract["agent_fill_required"]
     assert plan_contract["downstream_consumers"] == ["sp-tasks", "sp-analyze"]
 
 
@@ -285,6 +289,66 @@ def test_quick_status_scaffold_writes_create_only_compact_payload(tmp_path: Path
         )
 
 
+def test_quick_status_scaffold_rejects_project_template_with_unsafe_readiness(
+    tmp_path: Path,
+):
+    local_template = (
+        tmp_path / ".specify" / "templates" / "artifacts" / "quick-status.md"
+    )
+    local_template.parent.mkdir(parents=True)
+    local_template.write_text(
+        """---
+status: ready
+understanding_confirmed: true
+---
+
+## Current Focus
+<!-- agent-fill:current_focus -->
+""",
+        encoding="utf-8",
+    )
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+        )
+
+    assert not output.exists()
+
+
+def test_quick_status_scaffold_rejects_project_template_missing_registered_anchor(
+    tmp_path: Path,
+):
+    local_template = (
+        tmp_path / ".specify" / "templates" / "artifacts" / "quick-status.md"
+    )
+    local_template.parent.mkdir(parents=True)
+    local_template.write_text(
+        """---
+status: gathering
+understanding_confirmed: false
+---
+
+## Current Focus
+<!-- agent-fill:current_focus -->
+""",
+        encoding="utf-8",
+    )
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+
+    with pytest.raises(ArtifactScaffoldError, match="invalid_template"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+        )
+
+    assert not output.exists()
+
+
 def test_quick_status_scaffold_escapes_markdown_yaml_quotes(tmp_path: Path):
     scaffold_artifact(
         tmp_path,
@@ -446,6 +510,71 @@ def test_plan_contract_scaffold_writes_safe_json_skeleton(tmp_path: Path):
     assert "ignored" not in data
     assert data["handoff_to_tasks_ready"] is False
     assert payload["fill_targets"]["route"]["pointer"] == "/route"
+
+
+def test_plan_contract_scaffold_rejects_project_template_with_unsafe_readiness(
+    tmp_path: Path,
+):
+    local_template = tmp_path / ".specify" / "templates" / "plan-contract-template.json"
+    local_template.parent.mkdir(parents=True)
+    local_template.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "route": None,
+                "intent": None,
+                "complexity_level": None,
+                "must_preserve": [],
+                "acceptance_obligations": [],
+                "allowed_optimization_scope": [],
+                "handoff_to_tasks_ready": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+        )
+
+    assert not output.exists()
+
+
+def test_plan_contract_scaffold_rejects_project_template_missing_fill_target(
+    tmp_path: Path,
+):
+    local_template = tmp_path / ".specify" / "templates" / "plan-contract-template.json"
+    local_template.parent.mkdir(parents=True)
+    local_template.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status": "pending",
+                "intent": None,
+                "complexity_level": None,
+                "must_preserve": [],
+                "acceptance_obligations": [],
+                "allowed_optimization_scope": [],
+                "handoff_to_tasks_ready": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+
+    with pytest.raises(ArtifactScaffoldError, match="invalid_template"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+        )
+
+    assert not output.exists()
 
 
 def test_plan_contract_scaffold_supports_nested_allowed_specs_plan_path(tmp_path: Path):

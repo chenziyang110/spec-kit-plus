@@ -43,6 +43,7 @@ def scaffold_artifact(
 
     template = _locate_template(root, artifact_kind.source_template)
     rendered = _render_template(template, values, artifact_kind)
+    _validate_rendered_template(rendered, artifact_kind)
 
     directory_handles = _ensure_safe_parent_directory(root, target)
     try:
@@ -193,6 +194,74 @@ def _render_template(
         value = _sanitize_markdown_yaml_scalar(key, variables.get(key, ""))
         rendered = rendered.replace("{{" + key + "}}", value)
     return rendered
+
+
+def _validate_rendered_template(content: str, artifact_kind: ArtifactKind) -> None:
+    if artifact_kind.validator == "markdown-anchors":
+        _validate_markdown_status_defaults(content)
+        _validate_markdown_anchors(content, artifact_kind)
+        return
+
+    if artifact_kind.validator == "json":
+        _validate_json_rendered_template(content, artifact_kind)
+        return
+
+    raise ArtifactScaffoldError(
+        f"invalid_template: unsupported validator {artifact_kind.validator}"
+    )
+
+
+def _validate_markdown_anchors(content: str, artifact_kind: ArtifactKind) -> None:
+    missing: list[str] = []
+    for target in artifact_kind.fill_targets.values():
+        if target.get("type") != "markdown_anchor":
+            continue
+        anchor = target.get("anchor")
+        if anchor and f"<!-- {anchor} -->" not in content:
+            missing.append(anchor)
+
+    if missing:
+        raise ArtifactScaffoldError(
+            f"invalid_template: missing markdown anchors: {', '.join(sorted(missing))}"
+        )
+
+
+def _validate_markdown_status_defaults(content: str) -> None:
+    for line in content.splitlines():
+        stripped = line.strip()
+        if ":" not in stripped or stripped.startswith("#"):
+            continue
+        key, raw_value = stripped.split(":", 1)
+        key = key.strip()
+        if not key:
+            continue
+        _reject_unsafe_status_value(key, _clean_markdown_status_scalar(raw_value))
+
+
+def _clean_markdown_status_scalar(raw_value: str) -> str:
+    value = raw_value.split("#", 1)[0].strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1].strip()
+    return value
+
+
+def _validate_json_rendered_template(
+    content: str, artifact_kind: ArtifactKind
+) -> None:
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ArtifactScaffoldError("invalid_template: JSON scaffold is invalid") from exc
+    if not isinstance(payload, dict):
+        raise ArtifactScaffoldError("invalid_template: JSON scaffold must be an object")
+
+    missing_targets = sorted(_json_fill_target_keys(artifact_kind) - payload.keys())
+    if missing_targets:
+        raise ArtifactScaffoldError(
+            f"invalid_template: missing JSON fill targets: {', '.join(missing_targets)}"
+        )
+
+    _reject_unsafe_status(payload)
 
 
 def _json_fill_target_keys(artifact_kind: ArtifactKind) -> set[str]:
