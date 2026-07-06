@@ -224,6 +224,50 @@ def test_scaffold_blocks_parent_swap_before_create_only_open(
     assert not (project_root / ".planning" / "quick" / "STATUS.md").exists()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX openat race coverage")
+def test_scaffold_blocks_posix_parent_swap_before_openat_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target = project_root / ".planning" / "quick" / "001-demo" / "STATUS.md"
+    target_parent = target.parent
+    moved_parent = tmp_path / "moved-parent"
+    original_os_open = os.open
+    attempted_swap = False
+
+    def racing_open(
+        path: str | Path,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal attempted_swap
+        if path == "STATUS.md" and dir_fd is not None and not attempted_swap:
+            attempted_swap = True
+            target_parent.rename(moved_parent)
+            target_parent.symlink_to(outside, target_is_directory=True)
+        if dir_fd is None:
+            return original_os_open(path, flags, mode)
+        return original_os_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", racing_open)
+
+    with pytest.raises(ArtifactScaffoldError, match="parent changed"):
+        scaffold_artifact(
+            project_root,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+        )
+
+    assert attempted_swap
+    assert not (outside / "STATUS.md").exists()
+    assert not (moved_parent / "STATUS.md").exists()
+
+
 def _create_directory_link(link: Path, target: Path) -> bool:
     try:
         link.symlink_to(target, target_is_directory=True)
@@ -386,13 +430,36 @@ def test_quick_status_scaffold_escapes_markdown_yaml_quotes(tmp_path: Path):
     assert 'trigger: "manual \\"trigger\\""' in text
 
 
+def test_quick_status_scaffold_escapes_multiline_trigger_without_injection(
+    tmp_path: Path,
+):
+    scaffold_artifact(
+        tmp_path,
+        kind="quick-status",
+        out_path=".planning/quick/001-demo/STATUS.md",
+        variables={
+            "id": "001",
+            "slug": "001-demo",
+            "title": "Demo",
+            "trigger": 'manual"\nstatus: resolved\nx: "---"\n...',
+        },
+    )
+
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+    text = output.read_text(encoding="utf-8")
+
+    assert "status: gathering" in text
+    assert "understanding_confirmed: false" in text
+    assert "\nstatus: resolved\n" not in text
+    assert '\\nstatus: resolved\\nx: \\"---\\"\\n...' in text
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     [
         ("title", 'Demo"\nunderstanding_confirmed: true\nx: "'),
-        ("trigger", 'manual"\nstatus: resolved\nx: "'),
         ("title", "Demo --- injected"),
-        ("trigger", "manual ... injected"),
+        ("title", "Demo ... injected"),
     ],
 )
 def test_quick_status_scaffold_rejects_unsafe_markdown_variables(

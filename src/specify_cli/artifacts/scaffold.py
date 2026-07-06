@@ -331,16 +331,24 @@ def _json_fill_target_keys(artifact_kind: ArtifactKind) -> set[str]:
 
 def _sanitize_markdown_yaml_scalar(key: str, value: Any) -> str:
     text = "" if value is None else str(value)
+    allow_multiline = key == "trigger"
     if (
-        "\r" in text
-        or "\n" in text
-        or "---" in text
-        or "..." in text
-        or any(ord(char) < 32 or ord(char) == 127 for char in text)
+        (not allow_multiline and ("\r" in text or "\n" in text))
+        or (not allow_multiline and ("---" in text or "..." in text))
+        or any(
+            (ord(char) < 32 and char not in {"\r", "\n", "\t"}) or ord(char) == 127
+            for char in text
+        )
     ):
         raise ArtifactScaffoldError(f"unsafe_variable: {key} contains unsafe content")
 
-    return text.replace("\\", "\\\\").replace('"', '\\"')
+    return (
+        text.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+    )
 
 
 def _ensure_safe_parent_directory(project_root: Path, target: Path) -> list[int]:
@@ -394,29 +402,9 @@ def _write_create_only(
 ) -> None:
     _reject_unsafe_existing_components(project_root, target)
     _reject_symlink_escape(project_root, target, allowed_roots)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     nofollow = getattr(os, "O_NOFOLLOW", 0)
-    if os.name != "nt" and nofollow:
-        fd: int | None = None
-        try:
-            fd = os.open(target, flags | nofollow)
-            buffer = memoryview(content.encode("utf-8"))
-            while buffer:
-                written = os.write(fd, buffer)
-                if written == 0:
-                    raise OSError("failed to write scaffold content")
-                buffer = buffer[written:]
-        except FileExistsError as exc:
-            raise ArtifactScaffoldError("blocked_existing_file: target already exists") from exc
-        except OSError as exc:
-            if exc.errno in {errno.ELOOP}:
-                raise ArtifactScaffoldError(
-                    "unsafe_path: target path uses unsafe symlink"
-                ) from exc
-            raise
-        finally:
-            if fd is not None:
-                os.close(fd)
+    if os.name != "nt" and nofollow and os.open in os.supports_dir_fd:
+        _write_create_only_posix(project_root, target, content, allowed_roots)
         return
 
     directory_handles = _hold_windows_directory_handles(project_root, target)
@@ -438,6 +426,122 @@ def _write_create_only(
         raise
     finally:
         _close_windows_directory_handles(directory_handles)
+
+
+def _write_create_only_posix(
+    project_root: Path, target: Path, content: str, allowed_roots: list[Path]
+) -> None:
+    parent_handles = _open_posix_parent_directory_handles(project_root, target)
+    parent_fd = parent_handles[-1]
+    fd: int | None = None
+    created = False
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+
+    try:
+        _validate_posix_parent_fd_matches_path(parent_fd, target)
+        _reject_symlink_escape(project_root, target, allowed_roots)
+        fd = os.open(target.name, flags, 0o666, dir_fd=parent_fd)
+        created = True
+        _validate_posix_parent_fd_matches_path(parent_fd, target)
+
+        buffer = memoryview(content.encode("utf-8"))
+        while buffer:
+            written = os.write(fd, buffer)
+            if written == 0:
+                raise OSError("failed to write scaffold content")
+            buffer = buffer[written:]
+        _validate_posix_parent_fd_matches_path(parent_fd, target)
+    except ArtifactScaffoldError:
+        if fd is not None:
+            os.close(fd)
+            fd = None
+        if created:
+            _unlink_posix_created_file(parent_fd, target.name)
+        raise
+    except FileExistsError as exc:
+        raise ArtifactScaffoldError("blocked_existing_file: target already exists") from exc
+    except OSError as exc:
+        if created:
+            _unlink_posix_created_file(parent_fd, target.name)
+        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise ArtifactScaffoldError("unsafe_path: target path uses unsafe symlink") from exc
+        raise
+    finally:
+        if fd is not None:
+            os.close(fd)
+        _close_posix_directory_handles(parent_handles)
+
+
+def _open_posix_parent_directory_handles(project_root: Path, target: Path) -> list[int]:
+    root = project_root.resolve()
+    parent = target.parent
+    try:
+        relative_parts = parent.relative_to(root).parts
+    except ValueError as exc:
+        raise ArtifactScaffoldError("unsafe_path: output path escapes project root") from exc
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    handles: list[int] = []
+    current_fd: int | None = None
+    try:
+        current_fd = os.open(root, flags)
+        handles.append(current_fd)
+        for part in relative_parts:
+            current_fd = os.open(part, flags, dir_fd=current_fd)
+            handles.append(current_fd)
+    except OSError as exc:
+        _close_posix_directory_handles(handles)
+        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise ArtifactScaffoldError(
+                "unsafe_path: output path uses unsafe symlink"
+            ) from exc
+        raise
+
+    return handles
+
+
+def _validate_posix_parent_fd_matches_path(parent_fd: int, target: Path) -> None:
+    try:
+        fd_stat = os.fstat(parent_fd)
+        path_stat = target.parent.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise ArtifactScaffoldError(
+            "unsafe_path: output path parent changed during write"
+        ) from exc
+
+    if not stat.S_ISDIR(path_stat.st_mode) or (
+        fd_stat.st_dev,
+        fd_stat.st_ino,
+    ) != (
+        path_stat.st_dev,
+        path_stat.st_ino,
+    ):
+        raise ArtifactScaffoldError(
+            "unsafe_path: output path parent changed during write"
+        )
+
+
+def _unlink_posix_created_file(parent_fd: int, name: str) -> None:
+    try:
+        os.unlink(name, dir_fd=parent_fd)
+    except FileNotFoundError:
+        return
+
+
+def _close_posix_directory_handles(handles: list[int]) -> None:
+    for handle in reversed(handles):
+        os.close(handle)
 
 
 def _reject_written_path_escape(
