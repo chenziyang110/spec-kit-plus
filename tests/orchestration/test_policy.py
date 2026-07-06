@@ -385,6 +385,8 @@ def test_ui_reference_lane_uses_parallel_subagents_for_multiple_safe_lanes() -> 
     assert decision.dispatch_shape == "parallel-subagents"
     assert decision.reason == "ui-reference-artifact-parallel-subagents"
     assert decision.execution_surface == "native-subagents"
+    assert decision.lane_mode == "ui-reference-artifact"
+    assert decision.structured_result == "ui_reference_artifacts"
 
 
 def test_lightweight_safe_is_derived_from_risk_keys_when_omitted() -> None:

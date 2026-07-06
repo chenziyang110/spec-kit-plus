@@ -140,11 +140,18 @@ def test_ui_reference_lane_decision_defaults_to_narrow_artifact_write_contract()
     assert "ui-reference-notes-write" in decision.allowed_operations
     assert "ui-brief-write" in decision.allowed_operations
     assert "ui-target-html-write" in decision.allowed_operations
+    allowed_writes = {operation for operation in decision.allowed_operations if operation.endswith("-write")}
+    assert allowed_writes == {
+        "ui-reference-notes-write",
+        "ui-brief-write",
+        "ui-target-html-write",
+    }
     assert "source-code-write" in decision.forbidden_operations
     assert "test-write" in decision.forbidden_operations
     assert "app-server" in decision.forbidden_operations
     assert "package-managers" in decision.forbidden_operations
     assert "file-write" not in decision.allowed_operations
+    assert set(decision.allowed_operations).isdisjoint(decision.forbidden_operations)
 
 
 def test_orchestration_exports_evidence_lane_policy_api():
