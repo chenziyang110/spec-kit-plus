@@ -231,7 +231,7 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
       - Add required states and evidence to task packet fields.
       - For `approximate` and `high`, include `required_evidence: [reference_source_evidence, ui_fidelity_criteria, real_entrypoint_ui_evidence, visual_comparison_or_human_review]`.
       - For `high`, also include `deviation_log`.
-      - Treat those UI evidence labels as packet shorthand for the canonical Reference-Implementation evidence terms: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
+      - Treat those UI-specific labels as task-packet aliases only. Persisted `workflow-state.md` and `Reference-Implementation` `required_evidence` MUST remain canonical: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
     - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
     - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
     - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes

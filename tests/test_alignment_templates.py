@@ -223,8 +223,19 @@ def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
     assert "visual_comparison_or_human_review" in plan_command
     assert "UI Implementation Contract" in tasks_template
     assert "ui_contract" in tasks_template
+    assert "packet shorthand" in tasks_template.lower() or "shorthand aliases" in tasks_template.lower()
+    assert "reference source evidence" in tasks_template.lower()
+    assert "fidelity criteria" in tasks_template.lower()
+    assert "verification entry points" in tasks_template.lower()
+    assert "difference inventory" in tasks_template.lower()
+    assert "accepted deviations" in tasks_template.lower()
     assert "ui_fidelity_mode" in tasks_command
     assert "required_evidence" in tasks_command
+    assert "reference source evidence" in tasks_command.lower()
+    assert "fidelity criteria" in tasks_command.lower()
+    assert "verification entry points" in tasks_command.lower()
+    assert "difference inventory" in tasks_command.lower()
+    assert "accepted deviations" in tasks_command.lower()
     assert "ui_verification" in implement
     assert "pending-human-review" in implement
     assert "ui_contract" in worker_prompt

@@ -69,7 +69,7 @@ description: "Task list template for feature implementation"
 - Every UI-bearing task derived from `ui-brief.md` must include `ui_contract` packet fields.
 - If fidelity is `approximate` or `high`, include `required_evidence` with `reference_source_evidence`, `ui_fidelity_criteria`, `real_entrypoint_ui_evidence`, and `visual_comparison_or_human_review`.
 - If fidelity is `high`, include `deviation_log`.
-- Persisted evidence should still map back to canonical Reference-Implementation terms: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
+- In task packets only, `reference_source_evidence`, `ui_fidelity_criteria`, `real_entrypoint_ui_evidence`, `visual_comparison_or_human_review`, and `deviation_log` are UI packet shorthand aliases. Persisted `workflow-state.md` and `Reference-Implementation` `required_evidence` MUST remain canonical: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
 - Do not pass raw "make it like this" wording to a worker without the compiled UI contract.
 
 ## Implementation Target Boundary
