@@ -520,11 +520,18 @@ def test_validate_worker_task_result_accepts_ui_human_review_fidelity_status(
     assert validated.ui_verification.fidelity_status == "pending-human-review"
 
 
+@pytest.mark.parametrize("fidelity_status", [None, ""])
 def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
     sample_packet: WorkerTaskPacket,
+    fidelity_status: str | None,
 ) -> None:
     sample_packet.required_evidence = ["visual_comparison_or_human_review"]
     sample_packet.ui_contract.fidelity_level = "approximate"
+    ui_verification = (
+        UIVerification(fidelity_status=fidelity_status)
+        if fidelity_status is not None
+        else UIVerification()
+    )
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -546,6 +553,7 @@ def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
                 ".specify/project-cognition/project-cognition.db",
             ],
         ),
+        ui_verification=ui_verification,
     )
 
     with pytest.raises(PacketValidationError) as exc:
