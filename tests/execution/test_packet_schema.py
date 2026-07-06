@@ -6,12 +6,14 @@ from specify_cli.execution.packet_schema import (
     MustPreserveObligation,
     PacketReference,
     PacketScope,
+    UIContract,
     WorkerTaskPacket,
     worker_task_packet_from_json,
     worker_task_packet_payload,
 )
 from specify_cli.execution.result_schema import (
     RuleAcknowledgement,
+    UIVerification,
     ValidationResult,
     WorkerTaskResult,
     worker_task_result_from_json,
@@ -89,6 +91,65 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
     assert packet.platform_guardrails == ["supported_platforms: windows, linux"]
     assert packet.consequence_obligations[0].obligation_id == "CA-001"
     assert packet.consequence_obligations[0].affected_objects == ["team", "worker"]
+
+
+def test_worker_task_packet_captures_ui_contract_and_result_verification() -> None:
+    packet = WorkerTaskPacket(
+        feature_id="001-feature",
+        task_id="T021",
+        story_id="US1",
+        objective="Implement exception panel UI",
+        intent=ExecutionIntent(outcome="Implement UI from ui-brief.md"),
+        scope=PacketScope(write_scope=["src/app/exceptions/page.tsx"]),
+        context_bundle=[],
+        required_references=[
+            PacketReference(path="DESIGN.md", reason="root design contract"),
+            PacketReference(path="specs/001-feature/ui-brief.md", reason="feature UI contract"),
+        ],
+        hard_rules=["Follow ui_contract"],
+        forbidden_drift=["Do not replace dense table with cards"],
+        validation_gates=["npm test -- exceptions"],
+        done_criteria=["UI evidence returned"],
+        handoff_requirements=["return ui_evidence and ui_verification"],
+        ui_contract=UIContract(
+            design_sources=["DESIGN.md", "specs/001-feature/ui-brief.md"],
+            reference_notes="specs/001-feature/ui-reference-notes.md",
+            visual_target="specs/001-feature/ui-target.html",
+            fidelity_level="approximate",
+            must_preserve=["three-column layout", "compact table density"],
+            may_adapt=["icons", "minor spacing"],
+            must_not=["copy third-party source", "turn table into cards"],
+            required_states=["loading", "empty", "error"],
+            required_evidence=["desktop screenshot", "mobile screenshot"],
+        ),
+    )
+
+    payload = worker_task_packet_payload(packet)
+    round_tripped = worker_task_packet_from_json(json.dumps(payload))
+
+    assert round_tripped.ui_contract.fidelity_level == "approximate"
+    assert "compact table density" in round_tripped.ui_contract.must_preserve
+    assert "desktop screenshot" in round_tripped.ui_contract.required_evidence
+
+    result = WorkerTaskResult(
+        task_id="T021",
+        status="success",
+        ui_evidence=[
+            {"kind": "screenshot", "path": "artifacts/ui/desktop-1440.png", "viewport": "1440"}
+        ],
+        ui_verification=UIVerification(
+            contract_check="pass",
+            runtime_evidence="pass",
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+            reviewer="agent",
+        ),
+    )
+    result_payload = worker_task_result_payload(result)
+    parsed_result = worker_task_result_from_json(json.dumps(result_payload))
+
+    assert parsed_result.ui_evidence[0]["kind"] == "screenshot"
+    assert parsed_result.ui_verification.fidelity_status == "pending-human-review"
 
 
 def test_worker_task_result_requires_validation_records() -> None:

@@ -13,6 +13,10 @@ _PLACEHOLDER_OUTPUTS = {
     "NOT RUN",
     "NOT RUN - REPLACE WITH ACTUAL COMMAND OUTPUT AFTER EXECUTION",
 }
+_MISSING_UI_FIDELITY_STATUSES = {
+    "",
+    "not_applicable",
+}
 
 
 def _normalize_command(value: str) -> str:
@@ -119,6 +123,13 @@ def validate_worker_task_result(
             raise PacketValidationError("DP3", "worker result is missing acceptance evidence")
         if "manual_evidence" in required_evidence and not result.manual_evidence:
             raise PacketValidationError("DP3", "worker result is missing manual evidence")
+        if "visual_comparison_or_human_review" in required_evidence:
+            fidelity_status = normalize_evidence_label(result.ui_verification.fidelity_status)
+            if fidelity_status in _MISSING_UI_FIDELITY_STATUSES:
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review requires ui_verification fidelity_status",
+                )
         if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
             if not result.must_preserve_evidence:
                 raise PacketValidationError("DP3", "worker result is missing must-preserve evidence")
