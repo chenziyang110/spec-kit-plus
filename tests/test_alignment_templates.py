@@ -5178,8 +5178,10 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
 
     notes = _read("templates/ui-reference-notes-template.md")
     brief = _read("templates/ui-brief-template.md")
+    specify = _read("templates/commands/specify.md")
     target = _read("templates/ui-target-template.html")
     target_lower = target.lower()
+    specify_lower = specify.lower()
 
     assert _h2_headings(notes) == [
         "## Reference Inputs",
@@ -5232,3 +5234,11 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     assert "http://" not in target_lower
     assert "https://" not in target_lower
     assert "cdn" not in target_lower
+    assert "static HTML/CSS only" in specify
+    assert "no `<script>`" in specify
+    assert "no inline event handlers" in specify
+    assert "onclick" in specify_lower
+    assert "no JS-driven behavior" in specify
+    assert "no external CSS/JS" in specify
+    assert "no CDN" in specify
+    assert "no remote runtime dependencies" in specify
