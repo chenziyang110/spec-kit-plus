@@ -286,7 +286,7 @@ Use a simple row per term:
 - If the user requests changes, update the working understanding before writing final artifacts.
 
 **UI reference input handling**:
-- Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, and "make it like this" language as UI reference input.
+- Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, and matching-language such as "make it like this" as UI reference input.
 - Ask the user which fidelity mode applies when not already explicit: `approximate` (default), `high`, or `inspiration`.
 - Use `choose_ui_reference_lane_dispatch(command_name="specify", snapshot, workload_shape)` and record `lane_mode: ui-reference-artifact`.
 - For `approximate` and `high`, native subagents are required unless the user explicitly approves inline fallback; if unavailable, block with the missing capability instead of guessing.

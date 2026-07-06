@@ -138,6 +138,7 @@ def test_specify_ui_reference_input_uses_writable_subagent_lane() -> None:
     assert "ui-brief.md" in combined
     assert "ui-target.html" in combined
     assert "approximate" in combined
+    assert "matching-language" in combined
     assert "Reference-Implementation" in combined
     assert "Fidelity Requirements" in combined
     assert "read-only evidence lane" in combined

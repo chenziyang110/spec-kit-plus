@@ -26,7 +26,7 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 
 ## UI Reference Input
 
-- Detect screenshots, HTML/CSS mockups, Tailwind/shadcn/React/Vue/Svelte snippets, Figma exports, reference URLs, existing product pages, or wording such as "make it like this", "basically the same", "copy this layout", or "use this as the design".
+- Detect screenshots, HTML/CSS mockups, Tailwind/shadcn/React/Vue/Svelte snippets, Figma exports, reference URLs, existing product pages, or matching-language such as "make it like this", "basically the same", "copy this layout", or "use this as the design".
 - When UI reference input exists, ask for the fidelity mode unless the user already stated it:
   - `approximate` by default: preserve layout, density, hierarchy, visual rhythm, component structure, and primary interactions.
   - `high`: require visual comparison and deviation notes.
