@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from .evidence import has_real_entrypoint_consumer_evidence, normalize_evidence_label
+from .evidence import (
+    has_any_evidence,
+    has_real_entrypoint_consumer_evidence,
+    normalize_evidence_label,
+)
 from .packet_schema import WorkerTaskPacket
 from .packet_validator import PacketValidationError
 from .result_schema import WorkerTaskResult
@@ -17,6 +21,38 @@ _MISSING_UI_FIDELITY_STATUSES = {
     "",
     "not_applicable",
 }
+_FAILED_UI_STATUSES = {
+    "failed",
+    "fail",
+    "failure",
+}
+_PASSING_UI_FIDELITY_STATUSES = {
+    "pass",
+    "passed",
+    "success",
+    "approved",
+}
+_UNAVAILABLE_VISUAL_COMPARISON_STATUSES = {
+    "unavailable",
+    "not_available",
+    "not_applicable",
+    "not_run",
+    "none",
+    "",
+}
+_AUTOMATED_REVIEWERS = {
+    "",
+    "agent",
+    "automation",
+    "automated",
+}
+_UI_EVIDENCE_REQUIRED_FIDELITY_LEVELS = {
+    "approximate",
+    "high",
+}
+_EVIDENCE_LABEL_ALIASES = {
+    "real_entrypoint_ui_evidence": "real_entrypoint_evidence",
+}
 
 
 def _normalize_command(value: str) -> str:
@@ -26,6 +62,25 @@ def _normalize_command(value: str) -> str:
 def _validation_output_is_placeholder(output: str) -> bool:
     normalized = output.strip()
     return normalized.upper() in _PLACEHOLDER_OUTPUTS
+
+
+def _normalize_required_evidence_label(value: str) -> str:
+    normalized = normalize_evidence_label(value)
+    return _EVIDENCE_LABEL_ALIASES.get(normalized, normalized)
+
+
+def _requires_ui_evidence(packet: WorkerTaskPacket, required_evidence: set[str]) -> bool:
+    fidelity_level = normalize_evidence_label(packet.ui_contract.fidelity_level)
+    if fidelity_level in _UI_EVIDENCE_REQUIRED_FIDELITY_LEVELS:
+        return True
+    return any(
+        "screenshot" in item or "capture" in item or item == "ui_evidence"
+        for item in required_evidence
+    )
+
+
+def _has_human_ui_approval(result: WorkerTaskResult) -> bool:
+    return normalize_evidence_label(result.ui_verification.reviewer) not in _AUTOMATED_REVIEWERS
 
 
 def validate_worker_task_result(
@@ -102,7 +157,7 @@ def validate_worker_task_result(
                     f"worker result is missing validation output for gate: {command}",
                 )
         required_evidence = {
-            normalize_evidence_label(item)
+            _normalize_required_evidence_label(item)
             for item in [
                 *packet.required_evidence,
                 *packet.ui_contract.required_evidence,
@@ -128,11 +183,37 @@ def validate_worker_task_result(
             raise PacketValidationError("DP3", "worker result is missing manual evidence")
         if "visual_comparison_or_human_review" in required_evidence:
             fidelity_status = normalize_evidence_label(result.ui_verification.fidelity_status)
+            visual_comparison = normalize_evidence_label(
+                result.ui_verification.visual_comparison
+            )
             if fidelity_status in _MISSING_UI_FIDELITY_STATUSES:
                 raise PacketValidationError(
                     "DP3",
                     "visual_comparison_or_human_review requires ui_verification fidelity_status",
                 )
+            if fidelity_status in _FAILED_UI_STATUSES:
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review has failed ui fidelity status",
+                )
+            if visual_comparison in _FAILED_UI_STATUSES:
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review has failed visual comparison",
+                )
+            if (
+                fidelity_status in _PASSING_UI_FIDELITY_STATUSES
+                and visual_comparison in _UNAVAILABLE_VISUAL_COMPARISON_STATUSES
+                and not _has_human_ui_approval(result)
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review cannot claim fidelity pass without visual comparison or human approval",
+                )
+        if _requires_ui_evidence(packet, required_evidence) and not has_any_evidence(
+            result.ui_evidence
+        ):
+            raise PacketValidationError("DP3", "worker result is missing ui evidence")
         if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
             if not result.must_preserve_evidence:
                 raise PacketValidationError("DP3", "worker result is missing must-preserve evidence")
