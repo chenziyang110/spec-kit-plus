@@ -290,7 +290,7 @@ def test_compile_worker_task_packet_extracts_ui_contract(tmp_path: Path) -> None
                 "| design_sources | [DESIGN.md, specs/001-ui-feature/ui-brief.md] |",
                 "| reference_notes | specs/001-ui-feature/ui-reference-notes.md |",
                 "| visual_target | specs/001-ui-feature/ui-target.html |",
-                "| fidelity_level | approximate |",
+                "| ui_fidelity_mode | approximate |",
                 "| must_preserve | [three-column layout, compact table density] |",
                 "| may_adapt | [icons, minor spacing] |",
                 "| must_not | [copy third-party source, turn table into cards] |",
@@ -315,6 +315,11 @@ def test_compile_worker_task_packet_extracts_ui_contract(tmp_path: Path) -> None
     assert "three-column layout" in packet.ui_contract.must_preserve
     assert "turn table into cards" in packet.ui_contract.must_not
     assert "visual_comparison_or_human_review" in packet.required_evidence
+    reference_paths = [reference.path for reference in packet.required_references]
+    assert reference_paths.count("DESIGN.md") == 1
+    assert "specs/001-ui-feature/ui-brief.md" in reference_paths
+    assert "specs/001-ui-feature/ui-reference-notes.md" in reference_paths
+    assert "specs/001-ui-feature/ui-target.html" in reference_paths
 
 
 def test_compile_worker_task_packet_accepts_materialized_task_input(

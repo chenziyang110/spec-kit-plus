@@ -184,6 +184,23 @@ def _ui_contract_for_task(task_detail: str) -> UIContract:
     section = _section_body(task_detail, "UI Implementation Contract")
     if not section:
         return UIContract()
+    fidelity_level = next(
+        iter(
+            _task_detail_table_field_values(
+                task_detail, "UI Implementation Contract", "fidelity_level"
+            )
+        ),
+        "",
+    )
+    if not fidelity_level:
+        fidelity_level = next(
+            iter(
+                _task_detail_table_field_values(
+                    task_detail, "UI Implementation Contract", "ui_fidelity_mode"
+                )
+            ),
+            "none",
+        )
     return UIContract(
         design_sources=_task_detail_table_field_values(
             task_detail, "UI Implementation Contract", "design_sources"
@@ -204,14 +221,7 @@ def _ui_contract_for_task(task_detail: str) -> UIContract:
             ),
             "",
         ),
-        fidelity_level=next(
-            iter(
-                _task_detail_table_field_values(
-                    task_detail, "UI Implementation Contract", "fidelity_level"
-                )
-            ),
-            "none",
-        ),
+        fidelity_level=fidelity_level,
         must_preserve=_task_detail_table_field_values(
             task_detail, "UI Implementation Contract", "must_preserve"
         ),
