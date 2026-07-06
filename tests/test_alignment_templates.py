@@ -155,6 +155,9 @@ def test_feature_ui_brief_artifacts_are_carried_by_spec_package_templates() -> N
     alignment = _read("templates/alignment-template.md")
     context = _read("templates/context-template.md")
     state = _read("templates/workflow-state-template.md")
+    required_evidence_line = next(
+        line for line in state.splitlines() if line.startswith("- required_evidence:")
+    )
 
     assert "UI Reference Processing" in spec
     assert "ui-reference-notes.md" in spec
@@ -168,7 +171,24 @@ def test_feature_ui_brief_artifacts_are_carried_by_spec_package_templates() -> N
     assert "UI Reference Inputs" in context
     assert "ui_reference_lane_mode" in state
     assert "ui_fidelity_mode" in state
+    assert "reference source evidence" in state
+    assert "fidelity criteria" in state
+    assert "verification entry points" in state
+    assert "difference inventory" in state
+    assert "accepted deviations" in state
+    assert "reference source evidence" in required_evidence_line
+    assert "fidelity criteria" in required_evidence_line
+    assert "verification entry points" in required_evidence_line
+    assert "difference inventory" in required_evidence_line
+    assert "accepted deviations" in required_evidence_line
+    assert "ui_fidelity_criteria" not in required_evidence_line
+    assert "real_entrypoint_ui_evidence" not in required_evidence_line
+    assert "visual_comparison_or_human_review" not in required_evidence_line
+    assert "deviation_log" not in required_evidence_line
+    assert "ui_fidelity_criteria" in state
+    assert "real_entrypoint_ui_evidence" in state
     assert "visual_comparison_or_human_review" in state
+    assert "deviation_log" in state
 
 
 def test_plan_tasks_implement_preserve_design_quality_chain() -> None:

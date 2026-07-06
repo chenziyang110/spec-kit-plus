@@ -61,8 +61,8 @@
 - ui_target: [path or none]
 - ui_reference_ownership: [user-owned | project-owned | third-party | unknown | mixed | none]
 - visual_verification_requirement: [none | agent-visual-comparison | visual-comparison-or-human-review | pending-human-review]
-- required_evidence: [none | reference_source_evidence, ui_fidelity_criteria, real_entrypoint_ui_evidence, visual_comparison_or_human_review, deviation_log]
-- required_evidence_mapping: [reference_source_evidence -> Reference-Implementation reference source evidence; ui_fidelity_criteria -> fidelity criteria; real_entrypoint_ui_evidence -> verification entry points; visual_comparison_or_human_review -> verification entry points plus accepted deviations when human review is pending; deviation_log -> difference inventory / accepted deviations for high fidelity]
+- required_evidence: [none | reference source evidence, fidelity criteria, verification entry points, difference inventory, accepted deviations]
+- ui_required_evidence_aliases: [reference_source_evidence -> reference source evidence; ui_fidelity_criteria -> fidelity criteria; real_entrypoint_ui_evidence -> verification entry points / real_entrypoint_evidence when needed; visual_comparison_or_human_review -> verification entry points plus accepted deviations when human review is pending; deviation_log -> difference inventory / accepted deviations artifact]
 
 ## Reopen Contract
 
