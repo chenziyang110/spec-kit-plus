@@ -95,6 +95,10 @@ def _has_ui_review_artifact(result: WorkerTaskResult) -> bool:
     return has_any_evidence(result.ui_evidence) or has_any_evidence(result.manual_evidence)
 
 
+def _has_manual_ui_approval_artifact(result: WorkerTaskResult) -> bool:
+    return has_any_evidence(result.manual_evidence)
+
+
 def validate_worker_task_result(
     result: WorkerTaskResult,
     packet: WorkerTaskPacket,
@@ -229,11 +233,11 @@ def validate_worker_task_result(
             if (
                 fidelity_status in _PASSING_UI_FIDELITY_STATUSES
                 and visual_comparison in _UNAVAILABLE_VISUAL_COMPARISON_STATUSES
-                and not _has_ui_review_artifact(result)
+                and not _has_manual_ui_approval_artifact(result)
             ):
                 raise PacketValidationError(
                     "DP3",
-                    "visual_comparison_or_human_review requires review evidence for human approval",
+                    "visual_comparison_or_human_review requires manual evidence for human approval",
                 )
         if requires_visual_review:
             if (
