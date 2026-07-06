@@ -133,6 +133,8 @@ def test_specify_ui_reference_input_uses_writable_subagent_lane() -> None:
 
     assert "UI Reference Input" in combined
     assert "choose_ui_reference_lane_dispatch" in combined
+    assert "follow the decision from `choose_ui_reference_lane_dispatch`" in combined
+    assert "gated `leader-inline` fallback with explicit user approval recorded" in combined
     assert "lane_mode: ui-reference-artifact" in combined
     assert "ui-reference-notes.md" in combined
     assert "ui-brief.md" in combined
