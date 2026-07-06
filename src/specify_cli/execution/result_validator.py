@@ -19,7 +19,10 @@ _PLACEHOLDER_OUTPUTS = {
 }
 _MISSING_UI_FIDELITY_STATUSES = {
     "",
+    "none",
     "not_applicable",
+    "not_run",
+    "unavailable",
 }
 _FAILED_UI_STATUSES = {
     "failed",

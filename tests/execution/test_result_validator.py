@@ -800,7 +800,7 @@ def test_validate_worker_task_result_rejects_agent_reviewer_claiming_ui_pass_wit
     assert "human approval" in exc.value.message
 
 
-@pytest.mark.parametrize("fidelity_status", [None, ""])
+@pytest.mark.parametrize("fidelity_status", [None, "", "not-run", "unavailable", "none"])
 def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
     sample_packet: WorkerTaskPacket,
     fidelity_status: str | None,
@@ -834,6 +834,12 @@ def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
             ],
         ),
         ui_verification=ui_verification,
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
     )
 
     with pytest.raises(PacketValidationError) as exc:
