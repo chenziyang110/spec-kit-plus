@@ -284,6 +284,13 @@ Use the returned readiness:
 
 7. **Stop and report**:
     - write `FEATURE_DIR/plan/plan-contract.json` or `FEATURE_DIR/plan-contract.json` as the machine-readable planning contract
+      - Before writing semantic planning fields into `plan-contract.json`, create the fixed JSON envelope with:
+
+        ```text
+        {{specify-subcmd:artifact scaffold --kind plan-contract --out "<project-relative-feature-dir>/plan-contract.json" --vars "{}" --format json}}
+        ```
+
+      - `--out` must be project-relative. Prerequisite helpers may emit `FEATURE_DIR` as an absolute path; do not pass absolute `FEATURE_DIR` to `artifact scaffold`. Convert it to a project-relative output path first, then write semantic planning values through the returned JSON Pointer `fill_targets`.
     - branch
     - plan path
     - alignment status

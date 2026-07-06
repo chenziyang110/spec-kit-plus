@@ -47,6 +47,16 @@ def test_plan_command_requires_persisted_delegated_planning_lane_handoffs() -> N
     )
 
 
+def test_plan_command_scaffolds_plan_contract_with_project_relative_path() -> None:
+    content = _read("templates/commands/plan.md").lower()
+
+    assert "artifact scaffold --kind plan-contract" in content
+    assert "project-relative" in content
+    assert "do not pass absolute `feature_dir`" in content
+    assert "convert it to a project-relative output path" in content
+    assert "plan-contract.json" in content
+
+
 def test_research_template_and_plan_template_are_linked() -> None:
     research_template = _read("templates/research-template.md")
     plan_template = _read("templates/plan-template.md")
