@@ -164,14 +164,59 @@ def test_quick_status_scaffold_writes_create_only_compact_payload(tmp_path: Path
         )
 
 
-def test_plan_contract_scaffold_rejects_unsafe_status_variables(tmp_path: Path):
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {"status": "ready"},
+        {"handoff_to_tasks_ready": True},
+        {"ready": True},
+        {"approved": True},
+        {"user_confirmed": True},
+        {"understanding_confirmed": True},
+        {"planning_gate_status": "approved"},
+    ],
+)
+def test_plan_contract_scaffold_rejects_unsafe_status_variables(
+    tmp_path: Path, variables: dict[str, object]
+):
     with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
         scaffold_artifact(
             tmp_path,
             kind="plan-contract",
             out_path="specs/001-demo/plan-contract.json",
-            variables={"status": "ready"},
+            variables=variables,
         )
+
+
+def test_plan_contract_scaffold_allows_safe_status_variables(tmp_path: Path):
+    scaffold_artifact(
+        tmp_path,
+        kind="plan-contract",
+        out_path="specs/001-demo/plan-contract.json",
+        variables={"status": "pending", "handoff_to_tasks_ready": False},
+    )
+
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+    data = json.loads(output.read_text(encoding="utf-8"))
+
+    assert data["status"] == "pending"
+    assert data["handoff_to_tasks_ready"] is False
+
+
+def test_quick_status_scaffold_does_not_replace_status_like_markdown_variables(
+    tmp_path: Path,
+):
+    scaffold_artifact(
+        tmp_path,
+        kind="quick-status",
+        out_path=".planning/quick/001-demo/STATUS.md",
+        variables={"understanding_confirmed": False},
+    )
+
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+    text = output.read_text(encoding="utf-8")
+
+    assert "understanding_confirmed: false" in text
 
 
 def test_plan_contract_scaffold_writes_safe_json_skeleton(tmp_path: Path):

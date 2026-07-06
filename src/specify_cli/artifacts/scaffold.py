@@ -183,11 +183,18 @@ def _render_template(template: Path, variables: Mapping[str, Any]) -> str:
 
 
 def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:
-    unsafe_keys = {"status", "ready", "approved", "user_confirmed", "user-confirmed"}
-    unsafe_values = {"ready", "approved", "user_confirmed", "user-confirmed", "true"}
+    unsafe_values = {
+        "approved",
+        "confirmed",
+        "ready",
+        "true",
+        "user-confirmed",
+        "user_confirmed",
+    }
 
     for key, value in variables.items():
-        if key not in unsafe_keys:
+        normalized_key = str(key).lower().replace("-", "_")
+        if not _is_readiness_sensitive_key(normalized_key):
             continue
         if value is True:
             raise ArtifactScaffoldError(
@@ -197,3 +204,13 @@ def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:
             raise ArtifactScaffoldError(
                 "unsafe_status: scaffold variables cannot assert readiness"
             )
+
+
+def _is_readiness_sensitive_key(key: str) -> bool:
+    return (
+        key == "status"
+        or "ready" in key
+        or "approved" in key
+        or "confirmed" in key
+        or key.endswith("_status")
+    )
