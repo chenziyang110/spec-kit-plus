@@ -705,6 +705,11 @@ class SkillsIntegrationTests:
         assert "review_criteria_carried_forward" in content
         assert "must_not_dilute" in content
         assert "source_files_read" in content
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in content
         assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
