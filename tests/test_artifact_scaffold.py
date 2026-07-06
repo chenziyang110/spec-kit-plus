@@ -1,10 +1,17 @@
+import json
+import os
 from dataclasses import replace
+from pathlib import Path
+
+import pytest
 
 from specify_cli.artifacts.registry import _validate_allowed_output_path_pattern
 from specify_cli.artifacts import (
     ARTIFACT_REGISTRY,
+    ArtifactScaffoldError,
     audit_fixed_cost,
     get_artifact_kind,
+    scaffold_artifact,
     validate_registry,
 )
 
@@ -76,3 +83,126 @@ def test_audit_reports_fixed_savings_and_registry_metadata():
     assert plan_contract["recommendation"] == "builder"
     assert plan_contract["fixed_bytes"] > 500
     assert plan_contract["downstream_consumers"] == ["sp-tasks", "sp-analyze"]
+
+
+def test_scaffold_rejects_absolute_output_path(tmp_path: Path):
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_path"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path=str(tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"),
+        )
+
+
+def test_scaffold_rejects_traversal_output_path(tmp_path: Path):
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_path"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/../../escape.md",
+        )
+
+
+def test_scaffold_rejects_disallowed_kind_path(tmp_path: Path):
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_path"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path="specs/001-demo/STATUS.md",
+        )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink escape check is non-Windows only")
+def test_scaffold_rejects_symlink_escape(tmp_path: Path):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    quick_root = project_root / ".planning" / "quick"
+    quick_root.mkdir(parents=True)
+    (quick_root / "001-demo").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_path"):
+        scaffold_artifact(
+            project_root,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+        )
+
+
+def test_quick_status_scaffold_writes_create_only_compact_payload(tmp_path: Path):
+    payload = scaffold_artifact(
+        tmp_path,
+        kind="quick-status",
+        out_path=".planning/quick/001-demo/STATUS.md",
+        variables={
+            "id": "001",
+            "slug": "001-demo",
+            "title": "Demo",
+            "trigger": "manual",
+        },
+    )
+
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+    text = output.read_text(encoding="utf-8")
+
+    assert payload["status"] == "created"
+    assert payload["kind"] == "quick-status"
+    assert payload["path"] == ".planning/quick/001-demo/STATUS.md"
+    assert payload["estimated_token_savings"] > 0
+    assert payload["agent_fill_required"]
+    assert payload["fill_targets"]["current_focus"]["anchor"] == "agent-fill:current_focus"
+    assert "understanding_confirmed: false" in text
+    assert "status: gathering" in text
+    assert "<!-- agent-fill:current_focus -->" in text
+
+    with pytest.raises(ArtifactScaffoldError, match="blocked_existing_file"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+        )
+
+
+def test_plan_contract_scaffold_rejects_unsafe_status_variables(tmp_path: Path):
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+            variables={"status": "ready"},
+        )
+
+
+def test_plan_contract_scaffold_writes_safe_json_skeleton(tmp_path: Path):
+    payload = scaffold_artifact(
+        tmp_path,
+        kind="plan-contract",
+        out_path="specs/001-demo/plan-contract.json",
+        variables={"route": "quick", "ignored": "value"},
+    )
+
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+    data = json.loads(output.read_text(encoding="utf-8"))
+
+    assert payload["status"] == "created"
+    assert payload["path"] == "specs/001-demo/plan-contract.json"
+    assert data["status"] == "pending"
+    assert data["route"] == "quick"
+    assert "ignored" not in data
+    assert data["handoff_to_tasks_ready"] is False
+    assert payload["fill_targets"]["route"]["pointer"] == "/route"
+
+
+def test_plan_contract_scaffold_supports_nested_allowed_specs_plan_path(tmp_path: Path):
+    scaffold_artifact(
+        tmp_path,
+        kind="plan-contract",
+        out_path="specs/001-demo/plan/plan-contract.json",
+    )
+
+    output = tmp_path / "specs" / "001-demo" / "plan" / "plan-contract.json"
+    data = json.loads(output.read_text(encoding="utf-8"))
+
+    assert data["status"] == "pending"
+    assert data["handoff_to_tasks_ready"] is False

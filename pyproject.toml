@@ -72,6 +72,7 @@ packages = ["src/specify_cli"]
 "templates/passive-skills" = "specify_cli/core_pack/passive-skills"
 "templates/prd" = "specify_cli/core_pack/templates/prd"
 "templates/worker-prompts" = "specify_cli/core_pack/worker-prompts"
+"templates/artifacts" = "specify_cli/core_pack/templates/artifacts"
 "src/specify_cli/shared_hooks" = "specify_cli/core_pack/shared_hooks"
 "scripts/bash" = "specify_cli/core_pack/scripts/bash"
 "scripts/powershell" = "specify_cli/core_pack/scripts/powershell"
