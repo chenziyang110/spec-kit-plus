@@ -38,6 +38,15 @@ _PASSING_UI_FIDELITY_STATUSES = {
 _PENDING_HUMAN_REVIEW_STATUSES = {
     "pending_human_review",
 }
+_PASSING_VISUAL_COMPARISON_STATUSES = {
+    "pass",
+    "passed",
+    "success",
+    "approved",
+    "match",
+    "matched",
+    "matches",
+}
 _UNAVAILABLE_VISUAL_COMPARISON_STATUSES = {
     "unavailable",
     "not_available",
@@ -53,6 +62,16 @@ _HUMAN_UI_REVIEWERS = {
     "manual",
     "manual_review",
     "manual_reviewer",
+}
+_UI_REVIEW_ARTIFACT_LABELS = {
+    "approval_request",
+    "human_approval",
+    "human_review",
+    "manual_approval",
+    "manual_review",
+    "pending_human_review",
+    "pending_review",
+    "review_tracking",
 }
 _UI_EVIDENCE_REQUIRED_FIDELITY_LEVELS = {
     "approximate",
@@ -92,7 +111,20 @@ def _has_human_ui_approval(result: WorkerTaskResult) -> bool:
 
 
 def _has_ui_review_artifact(result: WorkerTaskResult) -> bool:
-    return has_any_evidence(result.ui_evidence) or has_any_evidence(result.manual_evidence)
+    if has_any_evidence(result.manual_evidence):
+        return True
+    if not isinstance(result.ui_evidence, list):
+        return False
+    for item in result.ui_evidence:
+        if not isinstance(item, dict):
+            continue
+        labels = (
+            normalize_evidence_label(str(item.get("kind", ""))),
+            normalize_evidence_label(str(item.get("type", ""))),
+        )
+        if any(label in _UI_REVIEW_ARTIFACT_LABELS for label in labels):
+            return True
+    return False
 
 
 def _has_manual_ui_approval_artifact(result: WorkerTaskResult) -> bool:
@@ -214,10 +246,26 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review has failed ui fidelity status",
                 )
+            if fidelity_status not in (
+                _PASSING_UI_FIDELITY_STATUSES | _PENDING_HUMAN_REVIEW_STATUSES
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review has unknown ui fidelity status",
+                )
             if visual_comparison in _FAILED_UI_STATUSES:
                 raise PacketValidationError(
                     "DP3",
                     "visual_comparison_or_human_review has failed visual comparison",
+                )
+            if visual_comparison not in (
+                _PASSING_VISUAL_COMPARISON_STATUSES
+                | _UNAVAILABLE_VISUAL_COMPARISON_STATUSES
+                | _PENDING_HUMAN_REVIEW_STATUSES
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review has unknown visual comparison status",
                 )
             if requires_ui_evidence and not has_any_evidence(result.ui_evidence):
                 raise PacketValidationError("DP3", "worker result is missing ui evidence")

@@ -228,10 +228,8 @@ class EvidenceLaneDecision:
         if self.lane_mode == "ui-reference-artifact":
             if self.structured_result == "evidence_packet":
                 object.__setattr__(self, "structured_result", "ui_reference_artifacts")
-            if self.allowed_operations == READ_ONLY_EVIDENCE_ALLOWED_OPERATIONS:
-                object.__setattr__(self, "allowed_operations", UI_REFERENCE_ALLOWED_OPERATIONS)
-            if self.forbidden_operations == READ_ONLY_EVIDENCE_FORBIDDEN_OPERATIONS:
-                object.__setattr__(self, "forbidden_operations", UI_REFERENCE_FORBIDDEN_OPERATIONS)
+            object.__setattr__(self, "allowed_operations", UI_REFERENCE_ALLOWED_OPERATIONS)
+            object.__setattr__(self, "forbidden_operations", UI_REFERENCE_FORBIDDEN_OPERATIONS)
         object.__setattr__(
             self,
             "dispatch_shape",

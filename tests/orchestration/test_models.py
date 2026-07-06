@@ -14,6 +14,8 @@ from specify_cli.orchestration.models import (
     Lane,
     ReviewGatePolicy,
     Session,
+    UI_REFERENCE_ALLOWED_OPERATIONS,
+    UI_REFERENCE_FORBIDDEN_OPERATIONS,
     WorkflowStatus,
     should_attempt_one_subagent,
     utc_now,
@@ -152,6 +154,24 @@ def test_ui_reference_lane_decision_defaults_to_narrow_artifact_write_contract()
     assert "package-managers" in decision.forbidden_operations
     assert "file-write" not in decision.allowed_operations
     assert set(decision.allowed_operations).isdisjoint(decision.forbidden_operations)
+
+
+def test_ui_reference_lane_decision_forces_canonical_permissions():
+    decision = EvidenceLaneDecision(
+        command_name="specify",
+        dispatch_shape="one-subagent",
+        reason="ui-reference-artifact-one-subagent",
+        execution_surface="native-subagents",
+        lane_mode="ui-reference-artifact",
+        allowed_operations=("source-code-write",),
+        forbidden_operations=(),
+    )
+
+    assert decision.structured_result == "ui_reference_artifacts"
+    assert decision.allowed_operations == UI_REFERENCE_ALLOWED_OPERATIONS
+    assert decision.forbidden_operations == UI_REFERENCE_FORBIDDEN_OPERATIONS
+    assert "source-code-write" not in decision.allowed_operations
+    assert "source-code-write" in decision.forbidden_operations
 
 
 def test_orchestration_exports_evidence_lane_policy_api():
