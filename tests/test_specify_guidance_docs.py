@@ -29,6 +29,11 @@ def test_docs_describe_design_workflow_and_design_md() -> None:
         assert "DESIGN.md" in content
         assert "design-system" in content.lower()
         assert "specify design lint" in content
+        assert "ui-brief.md" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-reference-artifact" in content
+        assert "approximate" in content
+        assert "pending-human-review" in content
 
 
 def test_quickstart_teaches_specify_to_plan_mainline():
