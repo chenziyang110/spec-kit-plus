@@ -216,6 +216,8 @@ def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
     tasks_command = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
     worker_prompt = _read("templates/worker-prompts/implementer.md")
+    tasks_template_lower = tasks_template.lower()
+    tasks_command_lower = tasks_command.lower()
 
     assert "Feature UI Brief Adoption" in plan_template
     assert "ui-brief.md" in plan_command
@@ -223,19 +225,24 @@ def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
     assert "visual_comparison_or_human_review" in plan_command
     assert "UI Implementation Contract" in tasks_template
     assert "ui_contract" in tasks_template
-    assert "packet shorthand" in tasks_template.lower() or "shorthand aliases" in tasks_template.lower()
-    assert "reference source evidence" in tasks_template.lower()
-    assert "fidelity criteria" in tasks_template.lower()
-    assert "verification entry points" in tasks_template.lower()
-    assert "difference inventory" in tasks_template.lower()
-    assert "accepted deviations" in tasks_template.lower()
+    assert "packet shorthand" in tasks_template_lower or "shorthand aliases" in tasks_template_lower
+    assert "reference source evidence" in tasks_template_lower
+    assert "fidelity criteria" in tasks_template_lower
+    assert "verification entry points" in tasks_template_lower
+    assert "difference inventory" in tasks_template_lower
+    assert "accepted deviations" in tasks_template_lower
     assert "ui_fidelity_mode" in tasks_command
     assert "required_evidence" in tasks_command
-    assert "reference source evidence" in tasks_command.lower()
-    assert "fidelity criteria" in tasks_command.lower()
-    assert "verification entry points" in tasks_command.lower()
-    assert "difference inventory" in tasks_command.lower()
-    assert "accepted deviations" in tasks_command.lower()
+    assert (
+        "packet shorthand" in tasks_command_lower
+        or "shorthand aliases" in tasks_command_lower
+        or "task-packet aliases only" in tasks_command_lower
+    )
+    assert "reference source evidence" in tasks_command_lower
+    assert "fidelity criteria" in tasks_command_lower
+    assert "verification entry points" in tasks_command_lower
+    assert "difference inventory" in tasks_command_lower
+    assert "accepted deviations" in tasks_command_lower
     assert "ui_verification" in implement
     assert "pending-human-review" in implement
     assert "ui_contract" in worker_prompt
