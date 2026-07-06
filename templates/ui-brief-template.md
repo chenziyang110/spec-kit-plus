@@ -84,7 +84,7 @@
 
 - Reinterpret the layout into a different pattern.
 - Replace dense tables or workbench views with cards unless explicitly allowed.
-- Add decorative gradients, hero sections, or unrelated visual treatment.
+- Add decorative gradients, unrelated hero sections, or visual treatment not present in the reference or brief.
 - Copy third-party source code or protected brand expression.
 - Treat ui-target.html as production source.
 

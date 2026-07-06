@@ -5066,11 +5066,15 @@ def test_implement_template_requires_structured_execution_contract_from_tasks() 
 
 
 def test_ui_reference_artifact_templates_define_strict_formats() -> None:
+    def _h2_headings(markdown: str) -> list[str]:
+        return [line.strip() for line in markdown.splitlines() if line.startswith("## ")]
+
     notes = _read("templates/ui-reference-notes-template.md")
     brief = _read("templates/ui-brief-template.md")
     target = _read("templates/ui-target-template.html")
+    target_lower = target.lower()
 
-    for heading in (
+    assert _h2_headings(notes) == [
         "## Reference Inputs",
         "## Fidelity Mode",
         "## Ownership And Reuse Constraints",
@@ -5084,10 +5088,9 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
         "## Must Preserve Candidates",
         "## Adaptation Candidates",
         "## Risks And Gaps",
-    ):
-        assert heading in notes
+    ]
 
-    for heading in (
+    assert _h2_headings(brief) == [
         "## Source Design System",
         "## Reference Inputs",
         "## Fidelity Contract",
@@ -5102,10 +5105,9 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
         "## Must Not",
         "## Required Evidence",
         "## Worker Contract",
-    ):
-        assert heading in brief
+    ]
 
-    assert "<!doctype html>" in target.lower()
+    assert "<!doctype html>" in target_lower
     assert 'data-ui-target="' in target
     assert 'data-fidelity="approximate"' in target
     assert 'data-viewport="desktop-1440"' in target
@@ -5114,5 +5116,12 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     assert 'data-state="error"' in target
     assert "No external dependencies" in target
     assert "not production code" in target
-    assert "https://" not in target
-    assert "cdn" not in target.lower()
+    assert "<script" not in target_lower
+    assert "<link" not in target_lower
+    assert "@import" not in target_lower
+    assert "src=" not in target_lower
+    assert "href=" not in target_lower
+    assert "url(" not in target_lower
+    assert "http://" not in target_lower
+    assert "https://" not in target_lower
+    assert "cdn" not in target_lower
