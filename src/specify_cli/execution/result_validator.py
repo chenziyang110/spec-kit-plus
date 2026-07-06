@@ -35,6 +35,9 @@ _PASSING_UI_FIDELITY_STATUSES = {
     "success",
     "approved",
 }
+_PENDING_HUMAN_REVIEW_STATUSES = {
+    "pending_human_review",
+}
 _UNAVAILABLE_VISUAL_COMPARISON_STATUSES = {
     "unavailable",
     "not_available",
@@ -86,6 +89,10 @@ def _requires_ui_evidence(packet: WorkerTaskPacket, required_evidence: set[str])
 
 def _has_human_ui_approval(result: WorkerTaskResult) -> bool:
     return normalize_evidence_label(result.ui_verification.reviewer) in _HUMAN_UI_REVIEWERS
+
+
+def _has_ui_review_artifact(result: WorkerTaskResult) -> bool:
+    return has_any_evidence(result.ui_evidence) or has_any_evidence(result.manual_evidence)
 
 
 def validate_worker_task_result(
@@ -205,6 +212,18 @@ def validate_worker_task_result(
                 raise PacketValidationError(
                     "DP3",
                     "visual_comparison_or_human_review has failed visual comparison",
+                )
+            if _requires_ui_evidence(packet, required_evidence) and not has_any_evidence(
+                result.ui_evidence
+            ):
+                raise PacketValidationError("DP3", "worker result is missing ui evidence")
+            if (
+                fidelity_status in _PENDING_HUMAN_REVIEW_STATUSES
+                and not _has_ui_review_artifact(result)
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review pending human review requires review evidence",
                 )
             if (
                 fidelity_status in _PASSING_UI_FIDELITY_STATUSES
