@@ -44,11 +44,13 @@ def scaffold_artifact(
     template = _locate_template(root, artifact_kind.source_template)
     rendered = _render_template(template, values, artifact_kind)
 
-    _reject_unsafe_existing_components(root, target)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_escape(root, target, allowed_roots)
-    _write_create_only(root, target, rendered, allowed_roots)
-    _reject_written_path_escape(root, target, allowed_roots)
+    directory_handles = _ensure_safe_parent_directory(root, target)
+    try:
+        _reject_symlink_escape(root, target, allowed_roots)
+        _write_create_only(root, target, rendered, allowed_roots)
+        _reject_written_path_escape(root, target, allowed_roots)
+    finally:
+        _close_windows_directory_handles(directory_handles)
 
     audit = artifact_kind.audit_record()
     return {
@@ -221,6 +223,52 @@ def _sanitize_markdown_yaml_scalar(key: str, value: Any) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _ensure_safe_parent_directory(project_root: Path, target: Path) -> list[int]:
+    root = project_root.resolve()
+    parent = target.parent
+    try:
+        relative_parts = parent.relative_to(root).parts
+    except ValueError as exc:
+        raise ArtifactScaffoldError("unsafe_path: output path escapes project root") from exc
+
+    handles: list[int] = []
+    current = root
+    try:
+        _validate_safe_directory_component(current)
+        if os.name == "nt":
+            handles.append(_open_windows_directory_handle(current))
+            _validate_safe_directory_component(current)
+
+        for part in relative_parts:
+            current = current / part
+            if current.exists() or current.is_symlink():
+                _validate_safe_directory_component(current)
+            else:
+                try:
+                    current.mkdir()
+                except FileExistsError:
+                    pass
+                _validate_safe_directory_component(current)
+
+            if os.name == "nt":
+                handles.append(_open_windows_directory_handle(current))
+                _validate_safe_directory_component(current)
+    except Exception:
+        _close_windows_directory_handles(handles)
+        raise
+
+    return handles
+
+
+def _validate_safe_directory_component(path: Path) -> None:
+    if _is_reparse_like_path(path):
+        raise ArtifactScaffoldError(
+            "unsafe_path: output path uses unsafe symlink or reparse point"
+        )
+    if not path.is_dir():
+        raise ArtifactScaffoldError("unsafe_path: output path parent is not a directory")
+
+
 def _write_create_only(
     project_root: Path, target: Path, content: str, allowed_roots: list[Path]
 ) -> None:
@@ -325,21 +373,6 @@ def _hold_windows_directory_handles(project_root: Path, target: Path) -> list[in
     if os.name != "nt":
         return []
 
-    import ctypes
-    from ctypes import wintypes
-
-    create_file = ctypes.windll.kernel32.CreateFileW
-    create_file.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.HANDLE,
-    ]
-    create_file.restype = wintypes.HANDLE
-
     handles: list[int] = []
     current = project_root.resolve()
     parent = target.parent
@@ -360,18 +393,7 @@ def _hold_windows_directory_handles(project_root: Path, target: Path) -> list[in
                 raise ArtifactScaffoldError(
                     "unsafe_path: output path uses unsafe symlink or reparse point"
                 )
-            handle = create_file(
-                str(path),
-                0,
-                0x00000001 | 0x00000002,
-                None,
-                3,
-                0x02000000,
-                None,
-            )
-            if handle == wintypes.HANDLE(-1).value:
-                raise ctypes.WinError()
-            handles.append(int(handle))
+            handles.append(_open_windows_directory_handle(path))
             if _is_reparse_like_path(path):
                 raise ArtifactScaffoldError(
                     "unsafe_path: output path uses unsafe symlink or reparse point"
@@ -381,6 +403,36 @@ def _hold_windows_directory_handles(project_root: Path, target: Path) -> list[in
         raise
 
     return handles
+
+
+def _open_windows_directory_handle(path: Path) -> int:
+    import ctypes
+    from ctypes import wintypes
+
+    create_file = ctypes.windll.kernel32.CreateFileW
+    create_file.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create_file.restype = wintypes.HANDLE
+
+    handle = create_file(
+        str(path),
+        0x00000001,
+        0x00000001 | 0x00000002,
+        None,
+        3,
+        0x02000000,
+        None,
+    )
+    if handle == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError()
+    return int(handle)
 
 
 def _close_windows_directory_handles(handles: list[int]) -> None:

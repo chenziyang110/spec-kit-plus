@@ -135,6 +135,48 @@ def test_scaffold_rejects_symlink_escape(tmp_path: Path):
     assert not (outside / "STATUS.md").exists()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction race coverage")
+def test_scaffold_rejects_ancestor_swap_before_parent_mkdir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    quick_root = project_root / ".planning" / "quick"
+    quick_root.mkdir(parents=True)
+    target_parent = quick_root / "001-demo"
+    original_mkdir = Path.mkdir
+    attempted_swap = False
+
+    def racing_mkdir(self: Path, *args: object, **kwargs: object) -> None:
+        nonlocal attempted_swap
+        if self == target_parent and not attempted_swap:
+            attempted_swap = True
+            try:
+                quick_root.rmdir()
+            except OSError:
+                pass
+            if not quick_root.exists() and not _create_directory_link(quick_root, outside):
+                pytest.skip("directory junction creation is not available")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", racing_mkdir)
+
+    try:
+        scaffold_artifact(
+            project_root,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+        )
+    except ArtifactScaffoldError as exc:
+        assert "unsafe_path" in str(exc)
+
+    assert attempted_swap
+    assert not (outside / "001-demo").exists()
+    assert not (outside / "STATUS.md").exists()
+
+
 def _create_directory_link(link: Path, target: Path) -> bool:
     try:
         link.symlink_to(target, target_is_directory=True)
