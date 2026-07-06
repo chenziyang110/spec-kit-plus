@@ -413,7 +413,13 @@ def choose_ui_reference_lane_dispatch(
     safe_lanes = _get_shape_int(shape, _SAFE_UI_REFERENCE_LANE_COUNT_KEYS) or 0
     contract_ready = _get_shape_flag(shape, _UI_REFERENCE_CONTRACT_READY_KEYS, default=False)
     required = _any_shape_flag(shape, _UI_REFERENCE_REQUIRED_KEYS)
-    fidelity_mode = str(shape.get("fidelity_mode", "approximate")).strip().lower() or "approximate"
+    fidelity_value = shape.get("fidelity_mode", "approximate")
+    fidelity_candidate = fidelity_value.strip().lower() if isinstance(fidelity_value, str) else ""
+    fidelity_mode = (
+        fidelity_candidate
+        if fidelity_candidate in {"approximate", "high", "inspiration"}
+        else "approximate"
+    )
     inline_fallback_approved = _get_shape_flag(
         shape,
         ("inline_fallback_approved", "user_approved_inline_fallback"),
@@ -443,18 +449,18 @@ def choose_ui_reference_lane_dispatch(
             lane_mode="ui-reference-artifact",
         )
 
-    if fidelity_mode == "inspiration" and not native_available:
-        return _leader_inline("ui-reference-artifact-inspiration-inline-soft-risk", capability_degraded=True)
-
     if safe_lanes < 1:
-        if required and (strict_fidelity and not inline_fallback_approved):
+        if required and not inline_fallback_approved:
             return _blocked(f"UI reference artifact lane requires a safe lane for {fidelity_mode} fidelity")
         return _leader_inline("ui-reference-artifact-leader-inline-no-safe-lane")
 
     if not contract_ready:
-        if required and (strict_fidelity and not inline_fallback_approved):
+        if required and not inline_fallback_approved:
             return _blocked("UI reference artifact lane contract is not ready")
         return _leader_inline("ui-reference-artifact-leader-inline-contract-missing")
+
+    if fidelity_mode == "inspiration" and not native_available:
+        return _leader_inline("ui-reference-artifact-inspiration-inline-soft-risk", capability_degraded=True)
 
     if not native_available:
         if strict_fidelity and not inline_fallback_approved:

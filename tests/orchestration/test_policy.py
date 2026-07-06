@@ -368,6 +368,90 @@ def test_ui_reference_lane_allows_inspiration_inline_soft_risk_without_native_su
     assert decision.lane_mode == "ui-reference-artifact"
 
 
+def test_ui_reference_lane_blocks_inspiration_without_safe_lane_before_inline_soft_risk() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 0,
+            "ui_reference_contract_ready": True,
+            "ui_reference_required": True,
+            "fidelity_mode": "inspiration",
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "ui-reference-artifact-subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "UI reference artifact lane requires a safe lane for inspiration fidelity"
+
+
+def test_ui_reference_lane_blocks_inspiration_without_contract_before_inline_soft_risk() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 1,
+            "ui_reference_contract_ready": False,
+            "ui_reference_required": True,
+            "fidelity_mode": "inspiration",
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "ui-reference-artifact-subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "UI reference artifact lane contract is not ready"
+
+
+def test_ui_reference_lane_treats_unknown_fidelity_as_strict_when_native_subagents_unavailable() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 1,
+            "ui_reference_contract_ready": True,
+            "ui_reference_required": True,
+            "fidelity_mode": "pixel-perfect",
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "ui-reference-artifact-subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "UI reference artifact lane requires native subagents for approximate fidelity"
+
+
+def test_ui_reference_lane_treats_none_fidelity_as_approximate_when_native_subagents_unavailable() -> None:
+    snapshot = CapabilitySnapshot(integration_key="generic", native_subagents=False)
+
+    decision = choose_ui_reference_lane_dispatch(
+        command_name="specify",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_ui_reference_lanes": 1,
+            "ui_reference_contract_ready": True,
+            "ui_reference_required": True,
+            "fidelity_mode": None,
+        },
+    )
+
+    assert decision.dispatch_shape == "subagent-blocked"
+    assert decision.reason == "ui-reference-artifact-subagent-blocked"
+    assert decision.execution_surface == "none"
+    assert decision.workflow_status == "blocked"
+    assert decision.blocked_reason == "UI reference artifact lane requires native subagents for approximate fidelity"
+
+
 def test_ui_reference_lane_uses_parallel_subagents_for_multiple_safe_lanes() -> None:
     snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
 
