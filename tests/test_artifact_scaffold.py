@@ -349,6 +349,23 @@ understanding_confirmed: false
     assert not output.exists()
 
 
+@pytest.mark.parametrize("status", ["resolved", "complete", "yes", "on", "1"])
+def test_quick_status_scaffold_rejects_project_template_terminal_status_defaults(
+    tmp_path: Path, status: str
+):
+    _write_project_quick_status_template(tmp_path, status=status)
+    output = tmp_path / ".planning" / "quick" / "001-demo" / "STATUS.md"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="quick-status",
+            out_path=".planning/quick/001-demo/STATUS.md",
+        )
+
+    assert not output.exists()
+
+
 def test_quick_status_scaffold_escapes_markdown_yaml_quotes(tmp_path: Path):
     scaffold_artifact(
         tmp_path,
@@ -577,6 +594,42 @@ def test_plan_contract_scaffold_rejects_project_template_missing_fill_target(
     assert not output.exists()
 
 
+@pytest.mark.parametrize("status", ["resolved", "complete", "yes", "on", "1"])
+def test_plan_contract_scaffold_rejects_project_template_terminal_status_defaults(
+    tmp_path: Path, status: str
+):
+    _write_project_plan_contract_template(tmp_path, status=status)
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+        )
+
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("ready_value", [True, 1, "yes", "on", "1"])
+def test_plan_contract_scaffold_rejects_project_template_truthy_readiness_defaults(
+    tmp_path: Path, ready_value: object
+):
+    _write_project_plan_contract_template(
+        tmp_path, handoff_to_tasks_ready=ready_value
+    )
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+        )
+
+    assert not output.exists()
+
+
 def test_plan_contract_scaffold_supports_nested_allowed_specs_plan_path(tmp_path: Path):
     scaffold_artifact(
         tmp_path,
@@ -589,3 +642,51 @@ def test_plan_contract_scaffold_supports_nested_allowed_specs_plan_path(tmp_path
 
     assert data["status"] == "pending"
     assert data["handoff_to_tasks_ready"] is False
+
+
+def _write_project_quick_status_template(
+    project_root: Path,
+    *,
+    status: str = "gathering",
+    understanding_confirmed: str = "false",
+) -> None:
+    local_template = (
+        project_root / ".specify" / "templates" / "artifacts" / "quick-status.md"
+    )
+    local_template.parent.mkdir(parents=True)
+    anchors = "\n".join(
+        f"## {name}\n<!-- {target['anchor']} -->\n"
+        for name, target in get_artifact_kind("quick-status").fill_targets.items()
+    )
+    local_template.write_text(
+        f"""---
+status: {status}
+understanding_confirmed: {understanding_confirmed}
+---
+
+{anchors}
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_project_plan_contract_template(
+    project_root: Path, **overrides: object
+) -> None:
+    local_template = (
+        project_root / ".specify" / "templates" / "plan-contract-template.json"
+    )
+    local_template.parent.mkdir(parents=True)
+    payload = {
+        "version": 1,
+        "status": "pending",
+        "route": None,
+        "intent": None,
+        "complexity_level": None,
+        "must_preserve": [],
+        "acceptance_obligations": [],
+        "allowed_optimization_scope": [],
+        "handoff_to_tasks_ready": False,
+    }
+    payload.update(overrides)
+    local_template.write_text(json.dumps(payload), encoding="utf-8")

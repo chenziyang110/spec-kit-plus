@@ -198,7 +198,7 @@ def _render_template(
 
 def _validate_rendered_template(content: str, artifact_kind: ArtifactKind) -> None:
     if artifact_kind.validator == "markdown-anchors":
-        _validate_markdown_status_defaults(content)
+        _validate_markdown_status_defaults(content, artifact_kind)
         _validate_markdown_anchors(content, artifact_kind)
         return
 
@@ -226,7 +226,16 @@ def _validate_markdown_anchors(content: str, artifact_kind: ArtifactKind) -> Non
         )
 
 
-def _validate_markdown_status_defaults(content: str) -> None:
+def _validate_markdown_status_defaults(
+    content: str, artifact_kind: ArtifactKind
+) -> None:
+    if artifact_kind.kind == "quick-status":
+        frontmatter = _markdown_frontmatter_scalars(content)
+        _require_markdown_default(frontmatter, "status", "gathering")
+        _require_markdown_default(
+            frontmatter, "understanding_confirmed", "false"
+        )
+
     for line in content.splitlines():
         stripped = line.strip()
         if ":" not in stripped or stripped.startswith("#"):
@@ -236,6 +245,35 @@ def _validate_markdown_status_defaults(content: str) -> None:
         if not key:
             continue
         _reject_unsafe_status_value(key, _clean_markdown_status_scalar(raw_value))
+
+
+def _markdown_frontmatter_scalars(content: str) -> dict[str, str]:
+    lines = content.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+
+    scalars: dict[str, str] = {}
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            return scalars
+        if not stripped or stripped.startswith("#") or ":" not in stripped:
+            continue
+        key, raw_value = stripped.split(":", 1)
+        scalars[key.strip()] = _clean_markdown_status_scalar(raw_value)
+
+    return scalars
+
+
+def _require_markdown_default(
+    scalars: Mapping[str, str], key: str, expected: str
+) -> None:
+    if key not in scalars:
+        raise ArtifactScaffoldError(f"invalid_template: missing {key} default")
+    if scalars[key].strip().lower() != expected:
+        raise ArtifactScaffoldError(
+            f"unsafe_status: scaffold template default {key} must be {expected}"
+        )
 
 
 def _clean_markdown_status_scalar(raw_value: str) -> str:
@@ -261,7 +299,20 @@ def _validate_json_rendered_template(
             f"invalid_template: missing JSON fill targets: {', '.join(missing_targets)}"
         )
 
+    if artifact_kind.kind == "plan-contract":
+        _require_json_default(payload, "status", "pending")
+        _require_json_default(payload, "handoff_to_tasks_ready", False)
+
     _reject_unsafe_status(payload)
+
+
+def _require_json_default(payload: Mapping[str, Any], key: str, expected: Any) -> None:
+    if key not in payload:
+        raise ArtifactScaffoldError(f"invalid_template: missing {key} default")
+    if payload[key] != expected:
+        raise ArtifactScaffoldError(
+            f"unsafe_status: scaffold template default {key} must be {expected!r}"
+        )
 
 
 def _json_fill_target_keys(artifact_kind: ArtifactKind) -> set[str]:
@@ -524,34 +575,9 @@ def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:
 
 
 def _reject_unsafe_status_value(key: object, value: Any) -> None:
-    unsafe_values = {
-        "approved",
-        "confirmed",
-        "ready",
-        "true",
-        "user-confirmed",
-        "user_confirmed",
-    }
-
     normalized_key = str(key).lower().replace("-", "_")
     if _is_readiness_sensitive_key(normalized_key):
-        if value is True:
-            raise ArtifactScaffoldError(
-                "unsafe_status: scaffold variables cannot assert readiness"
-            )
-        if isinstance(value, str) and value.strip().lower() in unsafe_values:
-            raise ArtifactScaffoldError(
-                "unsafe_status: scaffold variables cannot assert readiness"
-            )
-        if isinstance(value, Mapping):
-            ready_value = value.get("ready")
-            if ready_value is True or (
-                isinstance(ready_value, str)
-                and ready_value.strip().lower() in unsafe_values
-            ):
-                raise ArtifactScaffoldError(
-                    "unsafe_status: scaffold variables cannot assert readiness"
-                )
+        _reject_unsafe_status_scalar(value)
 
     if isinstance(value, Mapping):
         for nested_key, nested_value in value.items():
@@ -559,6 +585,38 @@ def _reject_unsafe_status_value(key: object, value: Any) -> None:
     elif _is_nonstring_sequence(value):
         for item in value:
             _reject_unsafe_status_value(key, item)
+
+
+def _reject_unsafe_status_scalar(value: Any) -> None:
+    safe_values = {
+        "",
+        "false",
+        "gathering",
+        "none",
+        "not applicable",
+        "not-applicable",
+        "not-needed",
+        "not_applicable",
+        "not_needed",
+        "null",
+        "pending",
+        "unknown",
+    }
+
+    if isinstance(value, (Mapping, list, tuple, set)):
+        return
+    if value is None or value is False:
+        return
+    if value is True or isinstance(value, (int, float)):
+        raise ArtifactScaffoldError(
+            "unsafe_status: scaffold variables cannot assert readiness"
+        )
+    if isinstance(value, str) and value.strip().lower() in safe_values:
+        return
+
+    raise ArtifactScaffoldError(
+        "unsafe_status: scaffold variables cannot assert readiness"
+    )
 
 
 def _is_nonstring_sequence(value: object) -> bool:
