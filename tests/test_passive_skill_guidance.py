@@ -149,6 +149,20 @@ def test_ui_design_passive_skill_requires_design_md_before_ui_work() -> None:
     assert "generic one-off styling" in lowered
 
 
+def test_ui_design_passive_skill_requires_subagent_for_ui_reference_input() -> None:
+    content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
+    lowered = content.lower()
+
+    assert "ui reference input" in lowered
+    assert "ui-reference-artifact" in content
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "ui-target.html" in content
+    assert "pending-human-review" in content
+    assert "must not claim" in lowered
+
+
 def test_workflow_routing_recommends_design_for_high_risk_ui() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
     lowered = content.lower()

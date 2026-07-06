@@ -209,6 +209,28 @@ def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
     assert "sp-design" in implement
 
 
+def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
+    plan_template = _read("templates/plan-template.md")
+    plan_command = _read("templates/commands/plan.md")
+    tasks_template = _read("templates/tasks-template.md")
+    tasks_command = _read("templates/commands/tasks.md")
+    implement = _read("templates/commands/implement.md")
+    worker_prompt = _read("templates/worker-prompts/implementer.md")
+
+    assert "Feature UI Brief Adoption" in plan_template
+    assert "ui-brief.md" in plan_command
+    assert "Reference-Implementation" in plan_command
+    assert "visual_comparison_or_human_review" in plan_command
+    assert "UI Implementation Contract" in tasks_template
+    assert "ui_contract" in tasks_template
+    assert "ui_fidelity_mode" in tasks_command
+    assert "required_evidence" in tasks_command
+    assert "ui_verification" in implement
+    assert "pending-human-review" in implement
+    assert "ui_contract" in worker_prompt
+    assert "ui_evidence" in worker_prompt
+
+
 def _launcher_query(intent: str) -> str:
     return f'{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}'
 

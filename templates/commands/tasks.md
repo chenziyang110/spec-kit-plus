@@ -224,6 +224,14 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
     - Carry implementation-shaping `MP-*` items into task guardrails, required references, validation checkpoints, task packets, or explicit deferred notes.
     - If a task would violate an `MP-*` non-goal, decision, reference obligation, or trade-off rationale, stop and route back to the user conflict decision instead of silently generating divergent tasks.
     - If `Reference Fidelity Inputs` or `Reference Behavior Inventory` exist, map every preserved or redesigned reference behavior to at least one task, checkpoint, join point, or explicit deferred note before `tasks.md` is finalized.
+    - **Feature UI brief packet compilation**:
+      - When `ui-brief.md` exists, compile its contract into `ui_contract`.
+      - Set `ui_fidelity_mode` to `approximate`, `high`, or `inspiration`.
+      - Add `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html` to required references.
+      - Add required states and evidence to task packet fields.
+      - For `approximate` and `high`, include `required_evidence: [reference_source_evidence, ui_fidelity_criteria, real_entrypoint_ui_evidence, visual_comparison_or_human_review]`.
+      - For `high`, also include `deviation_log`.
+      - Treat those UI evidence labels as packet shorthand for the canonical Reference-Implementation evidence terms: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
     - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
     - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
     - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes

@@ -121,6 +121,19 @@
 - Evidence strategy:
 - Forbidden styling drift:
 
+## Feature UI Brief Adoption
+
+- UI brief source:
+- UI reference notes:
+- Visual target:
+- Fidelity mode:
+- Reference-Implementation profile:
+- Required evidence:
+- Must preserve:
+- May adapt:
+- Must not:
+- Visual verification strategy:
+
 ## Technical Context
 
 <!--

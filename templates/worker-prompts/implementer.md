@@ -25,6 +25,10 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - rerun the same gate and capture the GREEN state before reporting success
 - For any task that creates a reusable surface such as a UI component, route, provider, registry entry, factory branch, config field, API handler, or test file, return consumer evidence showing where that surface is imported, registered, rendered, executed, or included. A created but not wired file is not complete.
 - If the packet's `required_evidence` includes `real_entrypoint_evidence`, include a `consumer_evidence` item with `kind: real_entrypoint`, `entrypoint`, `producer`, `transformer`, `consumer`, `boundary_or_executor`, and `validation`. Synthetic component, reducer, helper, or hand-built state evidence may be included as support, but it does not satisfy the real-entrypoint requirement by itself.
+- If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
+- If the packet includes `ui_contract.visual_target`, treat `ui-target.html` as a disposable visual target, not production source.
+- If the packet requires UI evidence, return `ui_evidence` with screenshots or captures, state coverage, console or terminal checks, accessibility or keyboard checks when relevant, and notes for any allowed deviation.
+- If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.
 

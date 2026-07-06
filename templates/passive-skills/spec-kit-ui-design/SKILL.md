@@ -27,6 +27,22 @@ TUI, or CLI output quality affects the outcome.
   adjustment, internal form refinement, or low-risk TUI/CLI wording update.
   Record the soft risk and the design assumption in the closeout.
 
+## UI Reference Input Gate
+
+- Treat screenshots, HTML/CSS mockups, UI framework snippets, Figma exports,
+  reference URLs, existing pages, and "make it like this" language as UI
+  reference input.
+- In `sp-specify`, UI reference input requires
+  `choose_ui_reference_lane_dispatch` and `lane_mode: ui-reference-artifact`.
+- The UI reference lane writes `ui-reference-notes.md`, `ui-brief.md`, and
+  optional `ui-target.html`.
+- `approximate` is the default fidelity mode. `high` requires visual
+  comparison; `inspiration` extracts principles only.
+- If the environment cannot prove visual similarity, the workflow must record
+  `pending-human-review`.
+- The agent must not claim a UI visually matches a reference without agent
+  visual comparison or human approval.
+
 ## Platform Rules
 
 - Web work must respect responsive layout, semantic markup, keyboard operation,
