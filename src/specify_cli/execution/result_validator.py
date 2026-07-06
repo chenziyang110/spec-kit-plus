@@ -217,15 +217,6 @@ def validate_worker_task_result(
                 )
             if requires_ui_evidence and not has_any_evidence(result.ui_evidence):
                 raise PacketValidationError("DP3", "worker result is missing ui evidence")
-        if requires_visual_review:
-            if (
-                fidelity_status in _PENDING_HUMAN_REVIEW_STATUSES
-                and not _has_ui_review_artifact(result)
-            ):
-                raise PacketValidationError(
-                    "DP3",
-                    "visual_comparison_or_human_review pending human review requires review evidence",
-                )
             if (
                 fidelity_status in _PASSING_UI_FIDELITY_STATUSES
                 and visual_comparison in _UNAVAILABLE_VISUAL_COMPARISON_STATUSES
@@ -243,6 +234,15 @@ def validate_worker_task_result(
                 raise PacketValidationError(
                     "DP3",
                     "visual_comparison_or_human_review requires review evidence for human approval",
+                )
+        if requires_visual_review:
+            if (
+                fidelity_status in _PENDING_HUMAN_REVIEW_STATUSES
+                and not _has_ui_review_artifact(result)
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review pending human review requires review evidence",
                 )
         if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
             if not result.must_preserve_evidence:
