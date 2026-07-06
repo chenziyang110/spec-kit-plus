@@ -159,6 +159,7 @@ def test_orchestration_exports_evidence_lane_policy_api():
 
     assert orchestration.EvidenceLaneDecision is EvidenceLaneDecision
     assert callable(orchestration.choose_evidence_lane_dispatch)
+    assert callable(orchestration.choose_ui_reference_lane_dispatch)
     assert callable(orchestration.choose_subagent_dispatch)
 
 
