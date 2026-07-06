@@ -193,7 +193,9 @@ def validate_worker_task_result(
             raise PacketValidationError("DP3", "worker result is missing acceptance evidence")
         if "manual_evidence" in required_evidence and not result.manual_evidence:
             raise PacketValidationError("DP3", "worker result is missing manual evidence")
-        if "visual_comparison_or_human_review" in required_evidence:
+        requires_ui_evidence = _requires_ui_evidence(packet, required_evidence)
+        requires_visual_review = "visual_comparison_or_human_review" in required_evidence
+        if requires_visual_review or requires_ui_evidence:
             fidelity_status = normalize_evidence_label(result.ui_verification.fidelity_status)
             visual_comparison = normalize_evidence_label(
                 result.ui_verification.visual_comparison
@@ -213,10 +215,9 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review has failed visual comparison",
                 )
-            if _requires_ui_evidence(packet, required_evidence) and not has_any_evidence(
-                result.ui_evidence
-            ):
+            if requires_ui_evidence and not has_any_evidence(result.ui_evidence):
                 raise PacketValidationError("DP3", "worker result is missing ui evidence")
+        if requires_visual_review:
             if (
                 fidelity_status in _PENDING_HUMAN_REVIEW_STATUSES
                 and not _has_ui_review_artifact(result)
@@ -234,10 +235,15 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review cannot claim fidelity pass without visual comparison or human approval",
                 )
-        if _requires_ui_evidence(packet, required_evidence) and not has_any_evidence(
-            result.ui_evidence
-        ):
-            raise PacketValidationError("DP3", "worker result is missing ui evidence")
+            if (
+                fidelity_status in _PASSING_UI_FIDELITY_STATUSES
+                and visual_comparison in _UNAVAILABLE_VISUAL_COMPARISON_STATUSES
+                and not _has_ui_review_artifact(result)
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "visual_comparison_or_human_review requires review evidence for human approval",
+                )
         if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
             if not result.must_preserve_evidence:
                 raise PacketValidationError("DP3", "worker result is missing must-preserve evidence")

@@ -810,6 +810,45 @@ def test_validate_worker_task_result_accepts_human_reviewer_ui_pass_without_comp
     assert validated.ui_verification.reviewer == reviewer
 
 
+def test_validate_worker_task_result_rejects_human_reviewer_ui_pass_without_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="passed",
+            reviewer="human",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "review evidence" in exc.value.message
+
+
 def test_validate_worker_task_result_rejects_failed_ui_fidelity_status(
     sample_packet: WorkerTaskPacket,
 ) -> None:
@@ -877,6 +916,98 @@ def test_validate_worker_task_result_rejects_failed_ui_visual_comparison(
             visual_comparison="failed",
             fidelity_status="passed",
         ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "visual comparison" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_failed_ui_fidelity_status_for_ui_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="failed",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "fidelity status" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_failed_ui_visual_comparison_for_ui_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="failed",
+            fidelity_status="passed",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
     )
 
     with pytest.raises(PacketValidationError) as exc:
