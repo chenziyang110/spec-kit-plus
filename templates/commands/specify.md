@@ -286,14 +286,15 @@ Use a simple row per term:
 - If the user requests changes, update the working understanding before writing final artifacts.
 
 **UI reference input handling**:
-- Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, and matching-language such as "make it like this" as UI reference input.
+- Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, UI reference URLs or existing UI pages, and matching-language such as "make it like this" as UI reference input.
 - Ask the user which fidelity mode applies when not already explicit: `approximate` (default), `high`, or `inspiration`.
 - Use `choose_ui_reference_lane_dispatch(command_name="specify", snapshot, workload_shape)` and record `lane_mode: ui-reference-artifact`.
 - For `approximate` and `high`, native subagents are required unless the user explicitly approves inline fallback; if unavailable, block with the missing capability instead of guessing.
-- For `inspiration`, inline fallback may proceed with a recorded soft risk when subagents are unavailable.
+- For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
 - Dispatch the UI reference lane to write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
 - Validate that `ui-target.html`, when present, is single-file, low-dependency, no external runtime, no CDN, no production-source claim, and preserves information density over decorative polish.
 - For `approximate` and `high`, set `active_profile: Reference-Implementation`, require `Fidelity Requirements`, and add `required_evidence` terms: `reference_source_evidence`, `ui_fidelity_criteria`, `real_entrypoint_ui_evidence`, `visual_comparison_or_human_review`; add `deviation_log` when fidelity is `high`.
+- Map UI-specific `required_evidence` into existing `Reference-Implementation` vocabulary: `reference_source_evidence` maps to Reference-Implementation reference source evidence; `ui_fidelity_criteria` maps to fidelity criteria; `real_entrypoint_ui_evidence` maps to verification entry points; `visual_comparison_or_human_review` maps to verification entry points plus accepted deviations when human review is pending; `deviation_log` is an artifact for difference inventory / accepted deviations when fidelity is `high`.
 
 ## Artifact Writing Contract
 

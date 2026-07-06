@@ -143,6 +143,11 @@ def test_specify_ui_reference_input_uses_writable_subagent_lane() -> None:
     assert "Fidelity Requirements" in combined
     assert "read-only evidence lane" in combined
     assert "must not directly parse" in combined.lower()
+    assert "safe lane" in combined.lower()
+    assert "contract-ready" in combined.lower() or "contract ready" in combined.lower()
+    assert "fidelity criteria" in combined.lower()
+    assert "verification entry points" in combined.lower()
+    assert "accepted deviations" in combined.lower()
 
 
 def test_feature_ui_brief_artifacts_are_carried_by_spec_package_templates() -> None:
