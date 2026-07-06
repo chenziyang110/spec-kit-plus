@@ -5242,3 +5242,4 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     assert "no external CSS/JS" in specify
     assert "no CDN" in specify
     assert "no remote runtime dependencies" in specify
+    assert "no production-source claim" in specify
