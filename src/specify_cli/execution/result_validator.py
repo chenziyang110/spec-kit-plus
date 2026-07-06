@@ -40,11 +40,13 @@ _UNAVAILABLE_VISUAL_COMPARISON_STATUSES = {
     "none",
     "",
 }
-_AUTOMATED_REVIEWERS = {
-    "",
-    "agent",
-    "automation",
-    "automated",
+_HUMAN_UI_REVIEWERS = {
+    "human",
+    "human_review",
+    "human_reviewer",
+    "manual",
+    "manual_review",
+    "manual_reviewer",
 }
 _UI_EVIDENCE_REQUIRED_FIDELITY_LEVELS = {
     "approximate",
@@ -80,7 +82,7 @@ def _requires_ui_evidence(packet: WorkerTaskPacket, required_evidence: set[str])
 
 
 def _has_human_ui_approval(result: WorkerTaskResult) -> bool:
-    return normalize_evidence_label(result.ui_verification.reviewer) not in _AUTOMATED_REVIEWERS
+    return normalize_evidence_label(result.ui_verification.reviewer) in _HUMAN_UI_REVIEWERS
 
 
 def validate_worker_task_result(
