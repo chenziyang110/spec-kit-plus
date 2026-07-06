@@ -38,6 +38,9 @@ _PASSING_UI_FIDELITY_STATUSES = {
 _PENDING_HUMAN_REVIEW_STATUSES = {
     "pending_human_review",
 }
+_NEEDS_HUMAN_REVIEW_VISUAL_COMPARISON_STATUSES = {
+    "needs_human_review",
+}
 _PASSING_VISUAL_COMPARISON_STATUSES = {
     "pass",
     "passed",
@@ -261,7 +264,7 @@ def validate_worker_task_result(
             if visual_comparison not in (
                 _PASSING_VISUAL_COMPARISON_STATUSES
                 | _UNAVAILABLE_VISUAL_COMPARISON_STATUSES
-                | _PENDING_HUMAN_REVIEW_STATUSES
+                | _NEEDS_HUMAN_REVIEW_VISUAL_COMPARISON_STATUSES
             ):
                 raise PacketValidationError(
                     "DP3",

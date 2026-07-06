@@ -685,6 +685,49 @@ def test_validate_worker_task_result_accepts_ui_contract_required_evidence(
     assert validated.ui_verification.fidelity_status == "pending-human-review"
 
 
+def test_validate_worker_task_result_accepts_needs_human_review_visual_comparison(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="needs-human-review",
+            fidelity_status="pending-human-review",
+        ),
+        ui_evidence=[
+            {
+                "kind": "review tracking",
+                "path": "artifacts/ui/review-tracking.md",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.visual_comparison == "needs-human-review"
+    assert validated.ui_verification.fidelity_status == "pending-human-review"
+
+
 def test_validate_worker_task_result_rejects_pending_human_review_without_evidence(
     sample_packet: WorkerTaskPacket,
 ) -> None:
@@ -1047,6 +1090,50 @@ def test_validate_worker_task_result_rejects_skipped_ui_visual_comparison(
             {
                 "kind": "human approval",
                 "path": "artifacts/ui/human-approval.md",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "unknown visual comparison status" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_pending_human_review_visual_comparison(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="pending-human-review",
+            fidelity_status="pending-human-review",
+        ),
+        ui_evidence=[
+            {
+                "kind": "review tracking",
+                "path": "artifacts/ui/review-tracking.md",
             }
         ],
     )
