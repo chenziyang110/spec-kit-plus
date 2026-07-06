@@ -220,6 +220,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "CAND-001" not in command_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
 def _assert_ask_contract(content: str) -> None:
     lowered = content.lower()
 
@@ -337,6 +345,11 @@ def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
         assert "dependency impact table" in generated, integration_key
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
+
+        specify_path = integration.commands_dest(project) / integration.command_filename("specify")
+        assert specify_path.exists(), integration_key
+        parsed = tomllib.loads(specify_path.read_text(encoding="utf-8"))
+        _assert_ui_reference_guidance(parsed["prompt"])
 
         discussion_path = integration.commands_dest(project) / integration.command_filename("discussion")
         assert discussion_path.exists(), integration_key

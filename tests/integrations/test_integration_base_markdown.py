@@ -232,6 +232,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "CAND-001" not in command_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
 def _assert_ask_contract(content: str) -> None:
     lowered = content.lower()
 
@@ -339,6 +347,19 @@ def _discussion_artifact_path(integration, project_root):
     return command_path
 
 
+def _specify_artifact_path(integration, project_root):
+    command_path = integration.commands_dest(project_root) / integration.command_filename("specify")
+    if command_path.exists():
+        return command_path
+
+    if hasattr(integration, "skills_dest"):
+        skill_path = integration.skills_dest(project_root) / "sp-specify" / "SKILL.md"
+        if skill_path.exists():
+            return skill_path
+
+    return command_path
+
+
 def _design_artifact_path(integration, project_root):
     command_path = integration.commands_dest(project_root) / integration.command_filename("design")
     if command_path.exists():
@@ -374,6 +395,10 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
         assert "dependency impact table" in generated, integration_key
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
+
+        specify_path = _specify_artifact_path(integration, project)
+        assert specify_path.exists(), integration_key
+        _assert_ui_reference_guidance(specify_path.read_text(encoding="utf-8"))
 
         discussion_path = _discussion_artifact_path(integration, project)
         assert discussion_path.exists(), integration_key

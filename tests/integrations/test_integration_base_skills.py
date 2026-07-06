@@ -259,6 +259,14 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "CAND-001" not in skill_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
 def _assert_ask_contract(content: str) -> None:
     lowered = content.lower()
 
@@ -375,6 +383,10 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
         assert "dependency impact table" in generated, integration_key
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
+
+        specify_path = integration.skills_dest(project) / "sp-specify" / "SKILL.md"
+        assert specify_path.exists(), integration_key
+        _assert_ui_reference_guidance(specify_path.read_text(encoding="utf-8"))
 
         discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists(), integration_key
