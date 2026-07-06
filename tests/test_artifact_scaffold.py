@@ -308,6 +308,7 @@ def test_plan_contract_scaffold_rejects_existing_non_fill_target_variables(
         {"consequence_gate": {"status": "ready"}},
         {"implementation_target": {"approved": True}},
         {"status": {"ready": True}},
+        {"must_preserve": [[{"status": "ready"}]]},
     ],
 )
 def test_plan_contract_scaffold_rejects_nested_readiness_overrides(

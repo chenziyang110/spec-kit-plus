@@ -6,7 +6,7 @@ import errno
 import json
 import os
 import stat
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
@@ -251,12 +251,13 @@ def _write_create_only(
                 os.close(fd)
         return
 
-    _reject_unsafe_existing_components(project_root, target)
-    _reject_symlink_escape(project_root, target, allowed_roots)
-    if target.exists() or target.is_symlink():
-        raise ArtifactScaffoldError("blocked_existing_file: target already exists")
-
+    directory_handles = _hold_windows_directory_handles(project_root, target)
     try:
+        _reject_unsafe_existing_components(project_root, target)
+        _reject_symlink_escape(project_root, target, allowed_roots)
+        if target.exists() or target.is_symlink():
+            raise ArtifactScaffoldError("blocked_existing_file: target already exists")
+
         with target.open("x", encoding="utf-8", newline="") as handle:
             _reject_unsafe_existing_components(project_root, target)
             _reject_symlink_escape(project_root, target, allowed_roots)
@@ -267,6 +268,8 @@ def _write_create_only(
         if exc.errno in {errno.ELOOP}:
             raise ArtifactScaffoldError("unsafe_path: target path uses unsafe symlink") from exc
         raise
+    finally:
+        _close_windows_directory_handles(directory_handles)
 
 
 def _reject_written_path_escape(
@@ -318,6 +321,82 @@ def _is_reparse_like_path(path: Path) -> bool:
     return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400))
 
 
+def _hold_windows_directory_handles(project_root: Path, target: Path) -> list[int]:
+    if os.name != "nt":
+        return []
+
+    import ctypes
+    from ctypes import wintypes
+
+    create_file = ctypes.windll.kernel32.CreateFileW
+    create_file.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create_file.restype = wintypes.HANDLE
+
+    handles: list[int] = []
+    current = project_root.resolve()
+    parent = target.parent
+    try:
+        relative_parts = parent.relative_to(current).parts
+    except ValueError as exc:
+        raise ArtifactScaffoldError("unsafe_path: output path escapes project root") from exc
+
+    paths = [current]
+    paths.extend(
+        current.joinpath(*relative_parts[:index])
+        for index in range(1, len(relative_parts) + 1)
+    )
+
+    try:
+        for path in paths:
+            if _is_reparse_like_path(path):
+                raise ArtifactScaffoldError(
+                    "unsafe_path: output path uses unsafe symlink or reparse point"
+                )
+            handle = create_file(
+                str(path),
+                0,
+                0x00000001 | 0x00000002,
+                None,
+                3,
+                0x02000000,
+                None,
+            )
+            if handle == wintypes.HANDLE(-1).value:
+                raise ctypes.WinError()
+            handles.append(int(handle))
+            if _is_reparse_like_path(path):
+                raise ArtifactScaffoldError(
+                    "unsafe_path: output path uses unsafe symlink or reparse point"
+                )
+    except Exception:
+        _close_windows_directory_handles(handles)
+        raise
+
+    return handles
+
+
+def _close_windows_directory_handles(handles: list[int]) -> None:
+    if not handles:
+        return
+
+    import ctypes
+    from ctypes import wintypes
+
+    close_handle = ctypes.windll.kernel32.CloseHandle
+    close_handle.argtypes = [wintypes.HANDLE]
+    close_handle.restype = wintypes.BOOL
+    for handle in reversed(handles):
+        close_handle(wintypes.HANDLE(handle))
+
+
 def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:
     for key, value in variables.items():
         _reject_unsafe_status_value(key, value)
@@ -356,11 +435,15 @@ def _reject_unsafe_status_value(key: object, value: Any) -> None:
     if isinstance(value, Mapping):
         for nested_key, nested_value in value.items():
             _reject_unsafe_status_value(nested_key, nested_value)
-    elif isinstance(value, list):
+    elif _is_nonstring_sequence(value):
         for item in value:
-            if isinstance(item, Mapping):
-                for nested_key, nested_value in item.items():
-                    _reject_unsafe_status_value(nested_key, nested_value)
+            _reject_unsafe_status_value(key, item)
+
+
+def _is_nonstring_sequence(value: object) -> bool:
+    return isinstance(value, Sequence) and not isinstance(
+        value, (str, bytes, bytearray)
+    )
 
 
 def _is_readiness_sensitive_key(key: str) -> bool:
