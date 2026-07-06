@@ -126,7 +126,9 @@ ARTIFACT_REGISTRY: dict[str, ArtifactKind] = {
         prompt_refs=("templates/commands/plan.md",),
         allowed_output_paths=(
             "specs/*/plan-contract.json",
+            "specs/*/plan/plan-contract.json",
             ".specify/features/*/plan-contract.json",
+            ".specify/features/*/plan/plan-contract.json",
         ),
         fixed_anchors=(),
         agent_fill_required=(
@@ -135,6 +137,7 @@ ARTIFACT_REGISTRY: dict[str, ArtifactKind] = {
             "complexity_level",
             "must_preserve",
             "acceptance_obligations",
+            "allowed_optimization_scope",
         ),
         fill_targets={
             "route": {"type": "json_pointer", "pointer": "/route"},
@@ -147,6 +150,10 @@ ARTIFACT_REGISTRY: dict[str, ArtifactKind] = {
             "acceptance_obligations": {
                 "type": "json_pointer",
                 "pointer": "/acceptance_obligations",
+            },
+            "allowed_optimization_scope": {
+                "type": "json_pointer",
+                "pointer": "/allowed_optimization_scope",
             },
         },
         validator="json",
@@ -168,6 +175,30 @@ def get_artifact_kind(kind: str) -> ArtifactKind:
         raise ValueError(f"unknown artifact scaffold kind: {kind}") from exc
 
 
+def _validate_allowed_output_path_pattern(
+    key: str, artifact_kind: ArtifactKind, pattern: str
+) -> list[str]:
+    errors: list[str] = []
+
+    if not pattern:
+        return [f"{key}: allowed output path pattern is empty"]
+    if "\\" in pattern:
+        errors.append(
+            f"{key}: allowed output path pattern must use POSIX separators: {pattern}"
+        )
+    if pattern.startswith("/") or (len(pattern) > 1 and pattern[1] == ":"):
+        errors.append(f"{key}: allowed output path pattern must be relative: {pattern}")
+    if ".." in pattern.split("/"):
+        errors.append(f"{key}: allowed output path pattern cannot contain '..': {pattern}")
+    if not pattern.endswith(f"/{artifact_kind.artifact}") and pattern != artifact_kind.artifact:
+        errors.append(
+            f"{key}: allowed output path pattern must end with "
+            f"{artifact_kind.artifact}: {pattern}"
+        )
+
+    return errors
+
+
 def validate_registry() -> list[str]:
     errors: list[str] = []
 
@@ -178,6 +209,10 @@ def validate_registry() -> list[str]:
             errors.append(f"{key}: source_template is required")
         if not artifact_kind.allowed_output_paths:
             errors.append(f"{key}: allowed_output_paths is required")
+        for pattern in artifact_kind.allowed_output_paths:
+            errors.extend(
+                _validate_allowed_output_path_pattern(key, artifact_kind, pattern)
+            )
         if not artifact_kind.fill_targets:
             errors.append(f"{key}: fill_targets is required")
         for required_target in artifact_kind.agent_fill_required:
