@@ -81,6 +81,18 @@ Use this section when `entry_source: sp-discussion`.
 - reference gaps:
 - platform notes:
 
+## UI Reference Inputs
+
+- UI reference notes:
+- UI brief:
+- Visual target:
+- Reference ownership:
+- Fidelity mode:
+- Must preserve:
+- May adapt:
+- Must not:
+- Human review condition:
+
 ## Must-Preserve Carry-Forward
 
 - `MP-###`: [implementation-shaping decision, reference, non-goal, or trade-off]

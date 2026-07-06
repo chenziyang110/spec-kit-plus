@@ -126,6 +126,45 @@ def test_specify_design_readiness_has_alignment_and_context_slots() -> None:
     assert "design references" in context.lower()
 
 
+def test_specify_ui_reference_input_uses_writable_subagent_lane() -> None:
+    command = _read("templates/commands/specify.md")
+    shell = _read("templates/command-partials/specify/shell.md")
+    combined = f"{command}\n{shell}"
+
+    assert "UI Reference Input" in combined
+    assert "choose_ui_reference_lane_dispatch" in combined
+    assert "lane_mode: ui-reference-artifact" in combined
+    assert "ui-reference-notes.md" in combined
+    assert "ui-brief.md" in combined
+    assert "ui-target.html" in combined
+    assert "approximate" in combined
+    assert "Reference-Implementation" in combined
+    assert "Fidelity Requirements" in combined
+    assert "read-only evidence lane" in combined
+    assert "must not directly parse" in combined.lower()
+
+
+def test_feature_ui_brief_artifacts_are_carried_by_spec_package_templates() -> None:
+    spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    state = _read("templates/workflow-state-template.md")
+
+    assert "UI Reference Processing" in spec
+    assert "ui-reference-notes.md" in spec
+    assert "ui-brief.md" in spec
+    assert "Fidelity Requirements" in spec
+    assert "Reference Object" in spec
+    assert "Required Fidelity" in spec
+    assert "Reference Behavior Inventory" in spec
+    assert "UI Brief Carry-Forward" in alignment
+    assert "ui_reference_processing_status" in alignment
+    assert "UI Reference Inputs" in context
+    assert "ui_reference_lane_mode" in state
+    assert "ui_fidelity_mode" in state
+    assert "visual_comparison_or_human_review" in state
+
+
 def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
     plan = _read("templates/commands/plan.md")
     tasks = _read("templates/commands/tasks.md")

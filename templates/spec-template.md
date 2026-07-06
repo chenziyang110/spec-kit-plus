@@ -42,6 +42,20 @@
 - Experience commitments:
 - Design risks:
 
+## UI Reference Processing
+
+Use this section when the feature request includes screenshots, HTML/CSS mockups, UI framework code, design exports, reference URLs, existing UI pages, or language asking to match a specific UI.
+
+- ui_reference_processing_status: [not-applicable | subagent-dispatched | completed | blocked | inline-fallback-approved]
+- ui_reference_lane_mode: [none | ui-reference-artifact]
+- ui_fidelity_mode: [none | approximate | high | inspiration]
+- ui_reference_notes: [FEATURE_DIR/ui-reference-notes.md | none]
+- ui_brief: [FEATURE_DIR/ui-brief.md | none]
+- ui_target: [FEATURE_DIR/ui-target.html | none]
+- visual_review_requirement: [not-needed | agent-visual-comparison | pending-human-review]
+- ownership_classification: [user-owned | project-owned | third-party | unknown | mixed]
+- inline_fallback_reason: [none | user-approved-inline-fallback | inspiration-soft-risk]
+
 ## Must-Preserve Discussion Inputs
 
 - **Source**: [Discussion handoff path when `entry_source: sp-discussion`]
@@ -190,6 +204,9 @@ Use this section when the Senior Consequence Analysis Gate triggers.
 ## Fidelity Requirements
 
 Include this section only when the active workflow profile is `Reference-Implementation`.
+UI reference inputs with `approximate` or `high` fidelity activate this section.
+Map `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`
+into Reference Object, Required Fidelity, and Reference Behavior Inventory.
 
 ### Reference Object
 

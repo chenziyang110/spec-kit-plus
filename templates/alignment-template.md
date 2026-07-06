@@ -105,6 +105,18 @@ Use this section when `entry_source: sp-discussion`. Every row should name the s
 - DESIGN.md source:
 - blocker_or_soft_risk:
 
+## UI Brief Carry-Forward
+
+- ui_reference_processing_status:
+- ui_reference_lane_mode:
+- ui_fidelity_mode:
+- ui_reference_notes:
+- ui_brief:
+- ui_target:
+- ownership_classification:
+- Reference-Implementation activated:
+- required_evidence:
+
 ## Must-Preserve Coverage
 
 - Coverage Status: [coverage_status]

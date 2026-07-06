@@ -51,6 +51,18 @@
 - design_system_status: [not-applicable | ready | soft-risk | blocked]
 - design_risk_level: [none | low | medium | high]
 
+## UI Reference Processing
+
+- ui_reference_processing_status: [not-applicable | subagent-dispatched | completed | blocked | inline-fallback-approved]
+- ui_reference_lane_mode: [none | ui-reference-artifact]
+- ui_fidelity_mode: [none | approximate | high | inspiration]
+- ui_reference_notes: [path or none]
+- ui_brief: [path or none]
+- ui_target: [path or none]
+- ui_reference_ownership: [user-owned | project-owned | third-party | unknown | mixed | none]
+- visual_verification_requirement: [none | agent-visual-comparison | visual-comparison-or-human-review | pending-human-review]
+- required_evidence: [none | reference_source_evidence, ui_fidelity_criteria, real_entrypoint_ui_evidence, visual_comparison_or_human_review, deviation_log]
+
 ## Reopen Contract
 
 - reopen_source: [none | specify | plan | tasks | implement]
