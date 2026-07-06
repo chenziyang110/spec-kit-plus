@@ -72,12 +72,16 @@ checkpoint:
 ## Execution
 <!-- agent-fill:execution -->
 
+active_lane: ""
+join_point: ""
+blockers: []
 blocked_dispatch:
   status: none
   reason: ""
 lanes: []
 retry_attempts: 0
 recovery_action: none
+blocker_reason: ""
 
 ## Validation
 <!-- agent-fill:validation -->
@@ -90,6 +94,7 @@ terminal_status: gathering
 <!-- agent-fill:summary_pointer -->
 
 summary_path: ""
+resume_decision: ""
 changed_code_paths: []
 changed_behavior_surfaces: []
 project_cognition_refresh:

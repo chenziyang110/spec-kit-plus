@@ -54,6 +54,11 @@ def test_plan_command_scaffolds_plan_contract_with_project_relative_path() -> No
     assert "project-relative" in content
     assert "do not pass absolute `feature_dir`" in content
     assert "convert it to a project-relative output path" in content
+    assert "create the fixed json envelope when it is missing" in content
+    assert "if `plan-contract.json` already exists, read, validate, and preserve it" in content
+    assert "<project-relative-feature-dir>/plan/plan-contract.json" in content
+    assert "artifact scaffold --out` must use a project-relative path" in content
+    assert "never pass an absolute `feature_dir` to scaffold commands" in content
     assert "plan-contract.json" in content
 
 

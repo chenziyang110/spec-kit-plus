@@ -284,13 +284,14 @@ Use the returned readiness:
 
 7. **Stop and report**:
     - write `FEATURE_DIR/plan/plan-contract.json` or `FEATURE_DIR/plan-contract.json` as the machine-readable planning contract
-      - Before writing semantic planning fields into `plan-contract.json`, create the fixed JSON envelope with:
+      - Before writing semantic planning fields into `plan-contract.json`, create the fixed JSON envelope when it is missing. If `plan-contract.json` already exists, read, validate, and preserve it, then update semantic planning fields through the same contract shape.
 
         ```text
         {{specify-subcmd:artifact scaffold --kind plan-contract --out "<project-relative-feature-dir>/plan-contract.json" --vars "{}" --format json}}
         ```
 
       - `--out` must be project-relative. Prerequisite helpers may emit `FEATURE_DIR` as an absolute path; do not pass absolute `FEATURE_DIR` to `artifact scaffold`. Convert it to a project-relative output path first, then write semantic planning values through the returned JSON Pointer `fill_targets`.
+      - Supported output locations are `<project-relative-feature-dir>/plan-contract.json` and `<project-relative-feature-dir>/plan/plan-contract.json`; use the existing location on reruns and scaffold only the missing target.
     - branch
     - plan path
     - alignment status
@@ -381,6 +382,6 @@ Use the returned readiness:
 
 ## Key Rules
 
-- Use absolute paths
+- Use absolute paths for local file reads and artifact references. Exception: `artifact scaffold --out` must use a project-relative path; never pass an absolute `FEATURE_DIR` to scaffold commands.
 - ERROR on gate failures or unresolved clarifications
 - Match the user's current language for all user-visible output unless a literal command name, file path, or fixed status value must remain unchanged.

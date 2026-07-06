@@ -155,6 +155,7 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
 
 def test_quick_template_uses_fixed_status_scaffold() -> None:
     content = read_template("templates/commands/quick.md").lower()
+    scaffold = read_template("templates/artifacts/quick-status.md").lower()
 
     assert "## status.md scaffold" in content
     assert "artifact scaffold --kind quick-status" in content
@@ -172,6 +173,11 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
     assert "status.md" in content
     assert "validation route" in content
     assert "known risk" in content
+    assert "active_lane:" in scaffold
+    assert "join_point:" in scaffold
+    assert "blockers:" in scaffold
+    assert "blocker_reason:" in scaffold
+    assert "resume_decision:" in scaffold
     assert "## current focus" not in content
     assert "task-specific ordered step" not in content
     assert "locate source behavior" not in content
