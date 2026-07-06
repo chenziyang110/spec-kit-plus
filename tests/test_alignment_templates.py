@@ -5063,3 +5063,56 @@ def test_implement_template_requires_structured_execution_contract_from_tasks() 
     assert "allowed optimization scope" in implement
     assert "stop-and-reopen conditions" in implement
     assert "redefining the user's locked goal" in implement or "must not redefine the product goal" in implement
+
+
+def test_ui_reference_artifact_templates_define_strict_formats() -> None:
+    notes = _read("templates/ui-reference-notes-template.md")
+    brief = _read("templates/ui-brief-template.md")
+    target = _read("templates/ui-target-template.html")
+
+    for heading in (
+        "## Reference Inputs",
+        "## Fidelity Mode",
+        "## Ownership And Reuse Constraints",
+        "## Visual Facts",
+        "## Layout Facts",
+        "## Density And Visible Data",
+        "## Component Facts",
+        "## State Facts",
+        "## Interaction Facts",
+        "## Responsive Facts",
+        "## Must Preserve Candidates",
+        "## Adaptation Candidates",
+        "## Risks And Gaps",
+    ):
+        assert heading in notes
+
+    for heading in (
+        "## Source Design System",
+        "## Reference Inputs",
+        "## Fidelity Contract",
+        "## Screen Structure",
+        "## Information Hierarchy",
+        "## Components And States",
+        "## Interactions",
+        "## Responsive Behavior",
+        "## Accessibility And Keyboard Requirements",
+        "## Must Preserve",
+        "## May Adapt",
+        "## Must Not",
+        "## Required Evidence",
+        "## Worker Contract",
+    ):
+        assert heading in brief
+
+    assert "<!doctype html>" in target.lower()
+    assert 'data-ui-target="' in target
+    assert 'data-fidelity="approximate"' in target
+    assert 'data-viewport="desktop-1440"' in target
+    assert 'data-viewport="mobile-390"' in target
+    assert 'data-state="empty"' in target
+    assert 'data-state="error"' in target
+    assert "No external dependencies" in target
+    assert "not production code" in target
+    assert "https://" not in target
+    assert "cdn" not in target.lower()
