@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -113,7 +114,6 @@ def test_scaffold_rejects_disallowed_kind_path(tmp_path: Path):
         )
 
 
-@pytest.mark.skipif(os.name == "nt", reason="symlink escape check is non-Windows only")
 def test_scaffold_rejects_symlink_escape(tmp_path: Path):
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -121,7 +121,9 @@ def test_scaffold_rejects_symlink_escape(tmp_path: Path):
     outside.mkdir()
     quick_root = project_root / ".planning" / "quick"
     quick_root.mkdir(parents=True)
-    (quick_root / "001-demo").symlink_to(outside, target_is_directory=True)
+    link = quick_root / "001-demo"
+    if not _create_directory_link(link, outside):
+        pytest.skip("directory symlink or junction creation is not available")
 
     with pytest.raises(ArtifactScaffoldError, match="unsafe_path"):
         scaffold_artifact(
@@ -129,6 +131,25 @@ def test_scaffold_rejects_symlink_escape(tmp_path: Path):
             kind="quick-status",
             out_path=".planning/quick/001-demo/STATUS.md",
         )
+
+    assert not (outside / "STATUS.md").exists()
+
+
+def _create_directory_link(link: Path, target: Path) -> bool:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+        return True
+    except OSError:
+        if os.name != "nt":
+            return False
+
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return completed.returncode == 0
 
 
 def test_reject_symlink_escape_rejects_resolved_parent_outside_root(tmp_path: Path):
@@ -245,6 +266,8 @@ def test_quick_status_scaffold_rejects_unsafe_markdown_variables(
 def test_plan_contract_scaffold_rejects_unsafe_status_variables(
     tmp_path: Path, variables: dict[str, object]
 ):
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+
     with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
         scaffold_artifact(
             tmp_path,
@@ -253,20 +276,54 @@ def test_plan_contract_scaffold_rejects_unsafe_status_variables(
             variables=variables,
         )
 
+    assert not output.exists()
 
-def test_plan_contract_scaffold_allows_safe_status_variables(tmp_path: Path):
-    scaffold_artifact(
-        tmp_path,
-        kind="plan-contract",
-        out_path="specs/001-demo/plan-contract.json",
-        variables={"status": "pending", "handoff_to_tasks_ready": False},
-    )
-
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {"status": "pending"},
+        {"handoff_to_tasks_ready": False},
+        {"implementation_target": {"target_root": "src"}},
+    ],
+)
+def test_plan_contract_scaffold_rejects_existing_non_fill_target_variables(
+    tmp_path: Path, variables: dict[str, object]
+):
     output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
-    data = json.loads(output.read_text(encoding="utf-8"))
 
-    assert data["status"] == "pending"
-    assert data["handoff_to_tasks_ready"] is False
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_variable"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+            variables=variables,
+        )
+
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {"consequence_gate": {"status": "ready"}},
+        {"implementation_target": {"approved": True}},
+        {"status": {"ready": True}},
+    ],
+)
+def test_plan_contract_scaffold_rejects_nested_readiness_overrides(
+    tmp_path: Path, variables: dict[str, object]
+):
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+            variables=variables,
+        )
+
+    assert not output.exists()
 
 
 def test_quick_status_scaffold_does_not_replace_status_like_markdown_variables(

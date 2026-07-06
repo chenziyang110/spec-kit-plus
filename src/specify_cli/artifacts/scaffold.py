@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import stat
 from collections.abc import Mapping
 from pathlib import Path
 from pathlib import PurePosixPath, PureWindowsPath
@@ -41,11 +42,13 @@ def scaffold_artifact(
         raise ArtifactScaffoldError("blocked_existing_file: target already exists")
 
     template = _locate_template(root, artifact_kind.source_template)
-    rendered = _render_template(template, values)
+    rendered = _render_template(template, values, artifact_kind)
 
+    _reject_unsafe_existing_components(root, target)
     target.parent.mkdir(parents=True, exist_ok=True)
     _reject_symlink_escape(root, target, allowed_roots)
-    _write_create_only(target, rendered)
+    _write_create_only(root, target, rendered, allowed_roots)
+    _reject_written_path_escape(root, target, allowed_roots)
 
     audit = artifact_kind.audit_record()
     return {
@@ -164,14 +167,23 @@ def _locate_template(project_root: Path, source_template: str) -> Path:
     raise ArtifactScaffoldError(f"missing_template: {source_template}")
 
 
-def _render_template(template: Path, variables: Mapping[str, Any]) -> str:
+def _render_template(
+    template: Path, variables: Mapping[str, Any], artifact_kind: ArtifactKind
+) -> str:
     if template.suffix == ".json":
         payload = json.loads(template.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ArtifactScaffoldError("invalid_template: JSON scaffold must be an object")
+        allowed_json_keys = _json_fill_target_keys(artifact_kind)
         for key, value in variables.items():
-            if key in payload:
-                payload[key] = value
+            _reject_unsafe_status_value(key, value)
+            if key not in allowed_json_keys:
+                if key in payload:
+                    raise ArtifactScaffoldError(
+                        f"unsafe_variable: {key} is not a declared JSON fill target"
+                    )
+                continue
+            payload[key] = value
         return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
     rendered = template.read_text(encoding="utf-8")
@@ -179,6 +191,20 @@ def _render_template(template: Path, variables: Mapping[str, Any]) -> str:
         value = _sanitize_markdown_yaml_scalar(key, variables.get(key, ""))
         rendered = rendered.replace("{{" + key + "}}", value)
     return rendered
+
+
+def _json_fill_target_keys(artifact_kind: ArtifactKind) -> set[str]:
+    keys: set[str] = set()
+    for target in artifact_kind.fill_targets.values():
+        if target.get("type") != "json_pointer":
+            continue
+        pointer = target.get("pointer", "")
+        if not pointer.startswith("/") or "/" in pointer[1:]:
+            continue
+        key = pointer[1:]
+        if key:
+            keys.add(key)
+    return keys
 
 
 def _sanitize_markdown_yaml_scalar(key: str, value: Any) -> str:
@@ -195,7 +221,11 @@ def _sanitize_markdown_yaml_scalar(key: str, value: Any) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _write_create_only(target: Path, content: str) -> None:
+def _write_create_only(
+    project_root: Path, target: Path, content: str, allowed_roots: list[Path]
+) -> None:
+    _reject_unsafe_existing_components(project_root, target)
+    _reject_symlink_escape(project_root, target, allowed_roots)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if os.name != "nt" and nofollow:
@@ -221,11 +251,15 @@ def _write_create_only(target: Path, content: str) -> None:
                 os.close(fd)
         return
 
+    _reject_unsafe_existing_components(project_root, target)
+    _reject_symlink_escape(project_root, target, allowed_roots)
     if target.exists() or target.is_symlink():
         raise ArtifactScaffoldError("blocked_existing_file: target already exists")
 
     try:
         with target.open("x", encoding="utf-8", newline="") as handle:
+            _reject_unsafe_existing_components(project_root, target)
+            _reject_symlink_escape(project_root, target, allowed_roots)
             handle.write(content)
     except FileExistsError as exc:
         raise ArtifactScaffoldError("blocked_existing_file: target already exists") from exc
@@ -235,7 +269,61 @@ def _write_create_only(target: Path, content: str) -> None:
         raise
 
 
+def _reject_written_path_escape(
+    project_root: Path, target: Path, allowed_roots: list[Path]
+) -> None:
+    try:
+        resolved_target = target.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ArtifactScaffoldError("unsafe_path: target disappeared after write") from exc
+
+    if not _is_relative_to(resolved_target, project_root):
+        raise ArtifactScaffoldError("unsafe_path: output path escapes project root")
+    if allowed_roots and not any(
+        _is_relative_to(resolved_target, allowed_root) for allowed_root in allowed_roots
+    ):
+        raise ArtifactScaffoldError("unsafe_path: output path escapes allowed kind root")
+
+
+def _reject_unsafe_existing_components(project_root: Path, target: Path) -> None:
+    root = project_root.resolve()
+    current = root
+    parent = target.parent
+
+    try:
+        relative_parts = parent.relative_to(root).parts
+    except ValueError as exc:
+        raise ArtifactScaffoldError("unsafe_path: output path escapes project root") from exc
+
+    for part in relative_parts:
+        current = current / part
+        if not current.exists() and not current.is_symlink():
+            return
+        if _is_reparse_like_path(current):
+            raise ArtifactScaffoldError(
+                "unsafe_path: output path uses unsafe symlink or reparse point"
+            )
+
+
+def _is_reparse_like_path(path: Path) -> bool:
+    try:
+        if path.is_symlink():
+            return True
+        attrs = path.lstat().st_file_attributes
+    except AttributeError:
+        return False
+    except OSError:
+        return True
+
+    return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400))
+
+
 def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:
+    for key, value in variables.items():
+        _reject_unsafe_status_value(key, value)
+
+
+def _reject_unsafe_status_value(key: object, value: Any) -> None:
     unsafe_values = {
         "approved",
         "confirmed",
@@ -245,10 +333,8 @@ def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:
         "user_confirmed",
     }
 
-    for key, value in variables.items():
-        normalized_key = str(key).lower().replace("-", "_")
-        if not _is_readiness_sensitive_key(normalized_key):
-            continue
+    normalized_key = str(key).lower().replace("-", "_")
+    if _is_readiness_sensitive_key(normalized_key):
         if value is True:
             raise ArtifactScaffoldError(
                 "unsafe_status: scaffold variables cannot assert readiness"
@@ -257,6 +343,24 @@ def _reject_unsafe_status(variables: Mapping[str, Any]) -> None:
             raise ArtifactScaffoldError(
                 "unsafe_status: scaffold variables cannot assert readiness"
             )
+        if isinstance(value, Mapping):
+            ready_value = value.get("ready")
+            if ready_value is True or (
+                isinstance(ready_value, str)
+                and ready_value.strip().lower() in unsafe_values
+            ):
+                raise ArtifactScaffoldError(
+                    "unsafe_status: scaffold variables cannot assert readiness"
+                )
+
+    if isinstance(value, Mapping):
+        for nested_key, nested_value in value.items():
+            _reject_unsafe_status_value(nested_key, nested_value)
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, Mapping):
+                for nested_key, nested_value in item.items():
+                    _reject_unsafe_status_value(nested_key, nested_value)
 
 
 def _is_readiness_sensitive_key(key: str) -> bool:
