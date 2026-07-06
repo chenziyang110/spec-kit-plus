@@ -723,6 +723,93 @@ def test_validate_worker_task_result_rejects_pending_human_review_without_eviden
     assert "review evidence" in exc.value.message
 
 
+def test_validate_worker_task_result_accepts_pending_human_review_with_manual_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+        manual_evidence=[
+            {
+                "kind": "human review",
+                "path": "artifacts/ui/manual-review.md",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.fidelity_status == "pending-human-review"
+
+
+@pytest.mark.parametrize("reviewer", ["human", "manual"])
+def test_validate_worker_task_result_accepts_human_reviewer_ui_pass_without_comparison(
+    sample_packet: WorkerTaskPacket,
+    reviewer: str,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="passed",
+            reviewer=reviewer,
+        ),
+        manual_evidence=[
+            {
+                "kind": "human approval",
+                "path": f"artifacts/ui/{reviewer}-approval.md",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.reviewer == reviewer
+
+
 def test_validate_worker_task_result_rejects_failed_ui_fidelity_status(
     sample_packet: WorkerTaskPacket,
 ) -> None:
