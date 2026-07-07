@@ -138,10 +138,14 @@ comparison evidence, accepted deviations, or human verification fallback.
 
 ## Artifact Layout
 
-For every feature, `sp-implement` may create:
+For every packetized implementation task accepted by `sp-implement`, the
+workflow must create and maintain review artifacts under:
 
 ```text
 FEATURE_DIR/implementation-review/
+  reviews.ndjson
+  repairs.ndjson
+  snapshots/
   task-briefs/
     T001.md
   review-packages/
@@ -167,6 +171,34 @@ Large ephemeral screenshots, browser traces, temporary diff files, and local
 tool logs may live under existing project-specific temporary directories when
 needed, but the review package must point to the evidence path that the leader
 used.
+
+The artifact contract is mandatory for packetized implementation. Exemptions are
+limited to:
+
+- a task blocked before worker dispatch
+- a manual-only approval or verification gate that has not yet produced evidence
+- a legacy feature directory created before this contract and resumed without
+  enough data to reconstruct task review state
+
+Every exemption must be recorded in `implement-tracker.md`; if `ledger.json`
+exists, it must also record the task as `blocked` or
+`controller_check_required` rather than `accepted`.
+
+### Coexistence With Existing Audit Records
+
+The new artifact set extends the current embedded implement review audit. It
+must not replace or orphan existing audit files:
+
+- `implementation-review/reviews.ndjson`
+- `implementation-review/repairs.ndjson`
+- `implementation-review/snapshots/`
+
+Those files remain the append-only audit for pre-implement review, join-point
+drift review, and automatic task-layer repair. The new `task-briefs/`,
+`review-packages/`, `task-reviews/`, `ledger.json`, and `branch-review.md`
+record task execution review and final branch review. When a join-point review
+or repair is caused by a task review finding, the existing `reviews.ndjson` or
+`repairs.ndjson` record must reference the relevant task review path.
 
 ## Planning Contract
 
@@ -346,7 +378,8 @@ Minimum schema:
       "file": "path/to/file",
       "line": 1,
       "summary": "Concrete issue summary",
-      "required_fix": "Concrete fix or escalation"
+      "required_fix": "Concrete fix or escalation",
+      "disposition": "open | fixed | accepted_residual_risk | follow_up"
     }
   ],
   "controller_checks": [
@@ -357,6 +390,20 @@ Minimum schema:
     }
   ],
   "plan_mandated_defects": [],
+  "accepted_residual_risks": [
+    {
+      "finding_index": 0,
+      "reason": "Why accepting this concern is safe for this release",
+      "owner": "leader | user | maintainer"
+    }
+  ],
+  "follow_up_work": [
+    {
+      "finding_index": 0,
+      "description": "Concrete follow-up work",
+      "target": "task | issue | upstream-workflow | backlog"
+    }
+  ],
   "ui_fidelity_result": "not_applicable | pass | fail | needs_visual_or_human_review",
   "final_assessment": "accepted | fixes_required | controller_check_required"
 }
@@ -367,8 +414,9 @@ Minimum schema:
 - `spec_verdict=fail` blocks acceptance until the issue is fixed or routed
   upstream.
 - `quality_verdict=fail` blocks acceptance until fixed or explicitly escalated.
-- `quality_verdict=concerns` may pass only when concerns are recorded as
-  accepted residual risk or follow-up work.
+- `quality_verdict=concerns` may pass only when every concern has a mechanical
+  disposition in the finding entry and is mirrored in `accepted_residual_risks`
+  or `follow_up_work`.
 - `spec_verdict=cannot_verify_from_diff` does not fail the task by itself, but
   every `controller_checks` item must be satisfied before acceptance.
 - `ui_fidelity_result=needs_visual_or_human_review` requires agent visual
@@ -379,14 +427,14 @@ Minimum schema:
 
 ## Task Progress Ledger
 
-`sp-implement` should maintain a compact ledger in:
+`sp-implement` must maintain a compact ledger in:
 
 ```text
 FEATURE_DIR/implementation-review/ledger.json
 ```
 
-It should also summarize the current state in `implement-tracker.md` so humans
-can resume without opening JSON first.
+It must also summarize the current state in `implement-tracker.md` so humans can
+resume without opening JSON first.
 
 Minimum ledger entry:
 
@@ -454,7 +502,10 @@ visual, reference, or real-entrypoint evidence.
 ## Resume and Auto Routing
 
 `sp-auto`, resume audit, and `sp-implement` startup must treat ledger state as
-authoritative task-layer evidence when present.
+authoritative task-layer evidence for packetized implementation. If a resumed
+legacy feature lacks `ledger.json`, the workflow must either reconstruct the
+ledger from task briefs, worker results, task reviews, and branch review, or
+record the missing ledger as an evidence gap before trusting checked tasks.
 
 Rules:
 
@@ -493,6 +544,9 @@ Implementation planning must sweep at least:
 - `templates/commands/plan.md`
 - `templates/commands/tasks.md`
 - `templates/commands/implement.md`
+- `templates/plan-contract-template.json`
+- `templates/tasks-template.md`
+- `templates/workflow-state-template.md`
 - `templates/worker-prompts/implementer.md`
 - `templates/worker-prompts/task-reviewer.md`
 - `templates/worker-prompts/spec-reviewer.md`
@@ -505,6 +559,8 @@ Implementation planning must sweep at least:
 - artifact validation, state validation, checkpoint, preflight, and commit hooks
 - `tests/test_alignment_templates.py`
 - integration install tests that assert worker prompt files are packaged
+- packaging asset tests and package-data or force-include surfaces that ship
+  templates and worker prompts
 
 ## Validation Plan
 
