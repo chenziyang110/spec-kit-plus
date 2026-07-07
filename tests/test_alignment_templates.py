@@ -2660,6 +2660,10 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert "follow_up_work" in content
     assert "controller_checks" in content
     assert "findings" in content
+    assert '"plan_mandated_defects": [' in content
+    assert '"category": "plan_mandated_defect"' in content
+    assert "Plan-mandated issue summary" in content
+    assert "`plan_mandated_defects` is a separate finding source list" in content
     assert '"finding_source": "findings | plan_mandated_defects"' in content
     assert "Dispositions that refer to `plan_mandated_defects`" in content
     assert "finding_source=plan_mandated_defects" in content
@@ -2669,6 +2673,22 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert ".specify/teams/state/results/<request-id>.json" in content
     assert "Inline Project Cognition Handoff" not in content
     assert "changed_paths" not in content
+
+
+def test_legacy_split_reviewer_helper_snippets_are_not_default_task_review_path() -> None:
+    spec_helper = _read("templates/passive-skills/subagent-driven-development/spec-reviewer-prompt.md")
+    quality_helper = _read(
+        "templates/passive-skills/subagent-driven-development/code-quality-reviewer-prompt.md"
+    )
+
+    for content in (spec_helper, quality_helper):
+        assert "Legacy compatibility/helper snippet" in content
+        assert "Ordinary `sp-implement` task review uses" in content
+        assert ".specify/templates/worker-prompts/task-reviewer.md" in content
+        assert "spec_verdict" in content
+        assert "quality_verdict" in content
+
+    assert "Only dispatch after spec compliance review passes" not in quality_helper
 
 
 def test_plan_tasks_and_workflow_state_carry_review_artifact_contract() -> None:

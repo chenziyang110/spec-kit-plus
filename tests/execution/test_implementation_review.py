@@ -264,6 +264,27 @@ def test_task_review_cannot_accept_unverifiable_spec_verdict_without_controller_
     assert not task_review_is_accepted(record)
 
 
+def test_task_review_unverifiable_spec_verdict_requires_controller_check_assessment() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="cannot_verify_from_diff",
+        quality_verdict="pass",
+        controller_checks=[
+            ControllerCheck(
+                check="run manual smoke test",
+                reason="Diff cannot prove runtime behavior",
+                evidence_required="smoke test transcript",
+            )
+        ],
+        final_assessment="fixes_required",
+    )
+
+    assert "cannot_verify_from_diff requires final_assessment=controller_check_required" in (
+        task_review_acceptance_errors(record)
+    )
+    assert not task_review_is_accepted(record)
+
+
 def test_task_review_acceptance_blocks_open_plan_mandated_defects() -> None:
     record = TaskReviewRecord(
         task_id="T001",

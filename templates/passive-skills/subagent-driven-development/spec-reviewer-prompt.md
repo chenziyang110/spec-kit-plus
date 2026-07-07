@@ -1,6 +1,10 @@
 # Spec Compliance Reviewer Prompt Template
 
-Use this template when dispatching a spec compliance reviewer subagent.
+Legacy compatibility/helper snippet. Ordinary `sp-implement` task review uses
+`.specify/templates/worker-prompts/task-reviewer.md`, which returns both
+`spec_verdict` and `quality_verdict` in one result. Use this split spec
+reviewer helper only for older downstream workflows or special migration/debug
+scenarios that intentionally do not use the single task reviewer.
 
 **Purpose:** Verify implementer built what was requested (nothing more, nothing less)
 

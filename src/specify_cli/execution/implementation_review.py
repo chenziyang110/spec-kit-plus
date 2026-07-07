@@ -410,6 +410,8 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
     if record.spec_verdict == "cannot_verify_from_diff":
         if not record.controller_checks:
             errors.append("cannot_verify_from_diff requires controller checks")
+        if record.final_assessment != "controller_check_required":
+            errors.append("cannot_verify_from_diff requires final_assessment=controller_check_required")
         if record.final_assessment == "accepted":
             errors.append(
                 "cannot_verify_from_diff cannot be accepted; convert to pass after controller evidence closes"

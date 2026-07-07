@@ -45,7 +45,17 @@ Return one JSON object with:
       "evidence_required": "Screenshot or command output path"
     }
   ],
-  "plan_mandated_defects": [],
+  "plan_mandated_defects": [
+    {
+      "severity": "critical | high | medium | low",
+      "category": "plan_mandated_defect",
+      "file": "path/to/file",
+      "line": 1,
+      "summary": "Plan-mandated issue summary",
+      "required_fix": "Required fix, accepted residual risk, or follow-up",
+      "disposition": "open | fixed | accepted_residual_risk | follow_up"
+    }
+  ],
   "accepted_residual_risks": [
     {
       "finding_source": "findings | plan_mandated_defects",
@@ -72,6 +82,7 @@ Return one JSON object with:
 - `spec_verdict=fail` blocks task acceptance.
 - `quality_verdict=fail` blocks task acceptance.
 - `quality_verdict=concerns` may pass only when every concern has a disposition and appears in `accepted_residual_risks` or `follow_up_work` when relevant.
+- `plan_mandated_defects` is a separate finding source list. Use `finding_source=plan_mandated_defects` when accepted residual risks or follow-up work refer to those entries.
 - Dispositions that refer to `plan_mandated_defects` must set `finding_source=plan_mandated_defects`; ordinary `findings` use `finding_source=findings`.
 - `spec_verdict=cannot_verify_from_diff` requires explicit controller checks and `final_assessment=controller_check_required`; once controller evidence closes, convert the review to `spec_verdict=pass` before `final_assessment=accepted`.
 - `ui_fidelity_result=needs_visual_or_human_review` requires agent visual comparison first when available, otherwise human review as a controller check.
