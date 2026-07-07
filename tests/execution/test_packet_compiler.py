@@ -332,6 +332,11 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         task_id="T021",
     )
 
+    assert [ref.path for ref in packet.required_references] == ["DESIGN.md"]
+    assert packet.forbidden_drift == ["Do not change generated settings routes"]
+    assert "Do not change generated settings routes" in packet.intent.constraints
+    assert packet.scope.write_scope == ["src/ui/settings-panel.tsx"]
+    assert "src/ui/settings-state.ts" in packet.scope.read_scope
     assert packet.global_constraints == [
         "Preserve current keyboard navigation",
         "Keep settings changes local to the panel",
