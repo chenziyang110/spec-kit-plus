@@ -267,6 +267,109 @@ def test_task_review_acceptance_blocks_open_plan_mandated_defects() -> None:
     assert not task_review_is_accepted(record)
 
 
+def test_task_review_disposition_references_do_not_cross_finding_sources() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="concerns",
+        findings=[
+            TaskReviewFinding(
+                severity="low",
+                category="quality",
+                file="src/example.py",
+                line=10,
+                summary="Known quality concern",
+                required_fix="Accept residual risk",
+                disposition="accepted_residual_risk",
+            )
+        ],
+        plan_mandated_defects=[
+            TaskReviewFinding(
+                severity="high",
+                category="plan_mandated_defect",
+                file="src/example.py",
+                line=30,
+                summary="Plan-mandated behavior is missing",
+                required_fix="Implement the plan-mandated behavior",
+                disposition="accepted_residual_risk",
+            )
+        ],
+        accepted_residual_risks=[
+            AcceptedResidualRisk(
+                finding_source="findings",
+                finding_index=0,
+                reason="Accepted only for the regular finding",
+                owner="maintainer",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    assert (
+        "plan_mandated_defects 0 accepted_residual_risk has no matching accepted_residual_risks"
+        in task_review_acceptance_errors(record)
+    )
+    assert not task_review_is_accepted(record)
+
+
+def test_task_review_disposition_references_accept_plan_mandated_defects_explicitly() -> None:
+    accepted_risk = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="pass",
+        plan_mandated_defects=[
+            TaskReviewFinding(
+                severity="high",
+                category="plan_mandated_defect",
+                file="src/example.py",
+                line=30,
+                summary="Plan-mandated behavior is missing",
+                required_fix="Accept residual risk",
+                disposition="accepted_residual_risk",
+            )
+        ],
+        accepted_residual_risks=[
+            AcceptedResidualRisk(
+                finding_source="plan_mandated_defects",
+                finding_index=0,
+                reason="Plan allows this residual behavior",
+                owner="maintainer",
+            )
+        ],
+        final_assessment="accepted",
+    )
+    follow_up = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="pass",
+        plan_mandated_defects=[
+            TaskReviewFinding(
+                severity="medium",
+                category="plan_mandated_defect",
+                file="src/example.py",
+                line=31,
+                summary="Plan cleanup remains",
+                required_fix="Track follow-up work",
+                disposition="follow_up",
+            )
+        ],
+        follow_up_work=[
+            FollowUpWork(
+                finding_source="plan_mandated_defects",
+                finding_index=0,
+                description="Complete plan cleanup",
+                target="backlog",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    assert task_review_acceptance_errors(accepted_risk) == []
+    assert task_review_is_accepted(accepted_risk)
+    assert task_review_acceptance_errors(follow_up) == []
+    assert task_review_is_accepted(follow_up)
+
+
 def test_task_ledger_round_trips_accepted_entry(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     entry = TaskLedgerEntry(task_id="T001", status="accepted")

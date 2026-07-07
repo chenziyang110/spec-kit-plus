@@ -72,6 +72,7 @@ TaskReviewUiFidelityResult = Literal[
     "needs_visual_or_human_review",
 ]
 TaskReviewFinalAssessment = Literal["accepted", "fixes_required", "controller_check_required"]
+TaskReviewFindingSource = Literal["findings", "plan_mandated_defects"]
 TaskLedgerStatus = Literal[
     "pending",
     "brief_written",
@@ -201,6 +202,7 @@ class AcceptedResidualRisk:
     finding_index: int
     reason: str
     owner: str
+    finding_source: TaskReviewFindingSource = "findings"
 
 
 @dataclass(slots=True)
@@ -208,6 +210,7 @@ class FollowUpWork:
     finding_index: int
     description: str
     target: str
+    finding_source: TaskReviewFindingSource = "findings"
 
 
 @dataclass(slots=True)
@@ -375,28 +378,28 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
     if record.quality_verdict == "concerns" and not record.findings:
         errors.append("quality concerns require findings")
 
-    accepted_residual_risk_indexes = {
-        risk.finding_index for risk in record.accepted_residual_risks
+    accepted_residual_risk_refs = {
+        (risk.finding_source, risk.finding_index) for risk in record.accepted_residual_risks
     }
-    follow_up_indexes = {work.finding_index for work in record.follow_up_work}
+    follow_up_refs = {(work.finding_source, work.finding_index) for work in record.follow_up_work}
     review_findings = [
-        ("finding", index, finding) for index, finding in enumerate(record.findings)
+        ("findings", "finding", index, finding) for index, finding in enumerate(record.findings)
     ]
     review_findings.extend(
-        ("plan_mandated_defects", index, finding)
+        ("plan_mandated_defects", "plan_mandated_defects", index, finding)
         for index, finding in enumerate(record.plan_mandated_defects)
     )
-    for label, index, finding in review_findings:
+    for source, label, index, finding in review_findings:
         if finding.disposition == "open":
             errors.append(f"{label} {index} is open")
         elif (
             finding.disposition == "accepted_residual_risk"
-            and index not in accepted_residual_risk_indexes
+            and (source, index) not in accepted_residual_risk_refs
         ):
             errors.append(
                 f"{label} {index} accepted_residual_risk has no matching accepted_residual_risks"
             )
-        elif finding.disposition == "follow_up" and index not in follow_up_indexes:
+        elif finding.disposition == "follow_up" and (source, index) not in follow_up_refs:
             errors.append(f"{label} {index} follow_up has no matching follow_up_work")
 
     if record.ui_fidelity_result == "fail":
