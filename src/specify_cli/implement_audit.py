@@ -139,6 +139,25 @@ def _read_worker_result(path: Path, task_id: str) -> dict[str, Any]:
         return {"task_id": task_id, "status": "invalid-json", "path": str(path)}
     if not isinstance(payload, dict):
         return {"task_id": task_id, "status": "invalid-payload", "path": str(path)}
+    result_task_ids = [
+        value.strip()
+        for key in ("task_id", "taskId")
+        if isinstance((value := payload.get(key)), str) and value.strip()
+    ]
+    if not result_task_ids:
+        return {"task_id": task_id, "status": "worker result missing task_id", "path": str(path)}
+    mismatched_task_ids = [
+        result_task_id
+        for result_task_id in result_task_ids
+        if result_task_id.upper() != task_id.upper()
+    ]
+    if mismatched_task_ids:
+        return {
+            "task_id": task_id,
+            "status": "worker result task_id mismatch",
+            "path": str(path),
+            "result_task_id": mismatched_task_ids[0],
+        }
     payload["path"] = str(path)
     return payload
 
@@ -649,17 +668,27 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
         missing.extend(result_gaps)
         if result is None:
             missing.append("missing worker result")
-        elif str(result.get("status", "")).lower() not in {"success", "done", "done_with_concerns"}:
-            missing.append("worker result is not successful")
         else:
-            if not _result_has_passed_validation(result):
-                missing.append("missing passed validation evidence")
-            if task["requires_real_entrypoint"] and not _result_has_consumer_evidence(result):
-                missing.append("missing consumer evidence")
-            elif task["requires_real_entrypoint"] and not _result_has_real_entrypoint_consumer_evidence(result):
-                missing.append("missing real-entrypoint consumer evidence")
-            elif task["consumer_facing"] and not _result_has_consumer_evidence(result):
-                missing.append("missing consumer evidence")
+            result_status = str(result.get("status", "")).lower()
+            if result_status in {
+                "worker result missing task_id",
+                "worker result task_id mismatch",
+            }:
+                missing.append(result_status)
+            elif result_status not in {"success", "done", "done_with_concerns"}:
+                missing.append("worker result is not successful")
+            else:
+                if not _result_has_passed_validation(result):
+                    missing.append("missing passed validation evidence")
+                if task["requires_real_entrypoint"] and not _result_has_consumer_evidence(result):
+                    missing.append("missing consumer evidence")
+                elif (
+                    task["requires_real_entrypoint"]
+                    and not _result_has_real_entrypoint_consumer_evidence(result)
+                ):
+                    missing.append("missing real-entrypoint consumer evidence")
+                elif task["consumer_facing"] and not _result_has_consumer_evidence(result):
+                    missing.append("missing consumer evidence")
 
         if missing:
             evidence_gaps.append(f"{task['task_id']}: {', '.join(missing)}")
