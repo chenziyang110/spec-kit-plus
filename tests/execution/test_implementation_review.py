@@ -307,6 +307,31 @@ def test_task_review_acceptance_blocks_open_plan_mandated_defects() -> None:
     assert not task_review_is_accepted(record)
 
 
+def test_task_review_rejects_plan_mandated_defects_with_non_defect_category() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="pass",
+        plan_mandated_defects=[
+            TaskReviewFinding(
+                severity="medium",
+                category="quality",
+                file="src/example.py",
+                line=30,
+                summary="Quality finding is in the wrong source list",
+                required_fix="Move ordinary quality findings to findings",
+                disposition="fixed",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    assert "plan_mandated_defects 0 category must be plan_mandated_defect" in (
+        task_review_acceptance_errors(record)
+    )
+    assert not task_review_is_accepted(record)
+
+
 def test_task_review_disposition_references_do_not_cross_finding_sources() -> None:
     record = TaskReviewRecord(
         task_id="T001",

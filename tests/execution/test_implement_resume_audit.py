@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from specify_cli.implement_audit import audit_implement_resume
 from specify_cli.execution.implementation_review import (
     AcceptedResidualRisk,
@@ -1245,7 +1247,47 @@ def test_resolved_packetized_state_loads_runtime_managed_worker_result_from_ledg
     )
 
 
+@pytest.mark.parametrize(
+    "worker_result_reference",
+    [
+        "../outside-worker-result.json",
+        "/tmp/outside-worker-result.json",
+        "C:/tmp/outside-worker-result.json",
+        "\\\\server\\share\\outside-worker-result.json",
+        "worker-results\\T001.json",
+    ],
+)
 def test_resolved_packetized_state_rejects_unsafe_ledger_worker_result_reference(
+    tmp_path: Path,
+    worker_result_reference: str,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_brief="implementation-review/task-briefs/T001.md",
+                worker_result=worker_result_reference,
+                review_package="implementation-review/review-packages/T001.md",
+                task_review="implementation-review/task-reviews/T001.json",
+                last_evidence=[worker_result_reference],
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        f"unsafe worker_result {worker_result_reference}" in finding["missing_evidence"]
+        for finding in payload["task_findings"]
+    )
+
+
+def test_resolved_packetized_state_reports_missing_safe_ledger_worker_result_reference(
     tmp_path: Path,
 ) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
@@ -1257,10 +1299,10 @@ def test_resolved_packetized_state_rejects_unsafe_ledger_worker_result_reference
                 task_id="T001",
                 status="accepted",
                 task_brief="implementation-review/task-briefs/T001.md",
-                worker_result="../outside-worker-result.json",
+                worker_result=".specify/teams/state/results/missing-request.json",
                 review_package="implementation-review/review-packages/T001.md",
                 task_review="implementation-review/task-reviews/T001.json",
-                last_evidence=["../outside-worker-result.json"],
+                last_evidence=[".specify/teams/state/results/missing-request.json"],
             )
         ],
     )
@@ -1269,7 +1311,8 @@ def test_resolved_packetized_state_rejects_unsafe_ledger_worker_result_reference
 
     assert payload["status"] == "fail"
     assert any(
-        "unsafe worker_result ../outside-worker-result.json" in finding["missing_evidence"]
+        "worker_result is missing: .specify/teams/state/results/missing-request.json"
+        in finding["missing_evidence"]
         for finding in payload["task_findings"]
     )
 

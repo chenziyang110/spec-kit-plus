@@ -393,6 +393,8 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
         (source, index): finding for source, _label, index, finding in review_findings
     }
     for source, label, index, finding in review_findings:
+        if source == "plan_mandated_defects" and finding.category != "plan_mandated_defect":
+            errors.append(f"{label} {index} category must be plan_mandated_defect")
         if finding.disposition == "open":
             errors.append(f"{label} {index} is open")
         elif (

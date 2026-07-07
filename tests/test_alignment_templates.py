@@ -96,8 +96,6 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "templates/worker-prompts/quick-worker.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/code-quality-reviewer.md",
-        "templates/worker-prompts/spec-reviewer.md",
     ):
         content = _read(path)
         assert "Use `known_unknowns` only for blockers that make the update unsafe to trust" in content, path
@@ -309,8 +307,6 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/code-quality-reviewer.md",
-        "templates/worker-prompts/spec-reviewer.md",
     ):
         content = _read(path)
         assert "verification" in content, f"{path} missing canonical worker verification field"
@@ -352,8 +348,6 @@ def test_worker_prompts_report_inline_update_payload_evidence() -> None:
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/code-quality-reviewer.md",
-        "templates/worker-prompts/spec-reviewer.md",
     ):
         content = _read(path)
         for field in required_fields:
@@ -4090,6 +4084,11 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "# Code Quality Reviewer Worker Prompt" in code_quality
     assert "only run after spec review passes" in code_quality.lower()
     assert "file responsibility" in code_quality.lower()
+    for content in (spec_reviewer, code_quality):
+        assert "Inline Project Cognition Handoff" not in content
+        assert "changed_paths" not in content
+        assert "behavior_surfaces" not in content
+        assert "state_contracts" not in content
 
     assert "# Task Reviewer Worker Prompt" in task_reviewer
     assert "spec_verdict" in task_reviewer
