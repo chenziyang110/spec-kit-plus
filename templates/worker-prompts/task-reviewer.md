@@ -20,62 +20,35 @@ Treat worker summaries as claims, not proof.
 
 ## Verdicts
 
-Return one JSON object with:
+Return one JSON object. For a clean accepted review, use this runtime-parseable shape:
 
 ```json
 {
   "task_id": "T001",
-  "spec_verdict": "pass | fail | cannot_verify_from_diff",
-  "quality_verdict": "pass | fail | concerns",
-  "findings": [
-    {
-      "severity": "critical | high | medium | low",
-      "category": "spec | quality | evidence | ui_fidelity | plan_mandated_defect",
-      "file": "path/to/file",
-      "line": 1,
-      "summary": "Concrete issue summary",
-      "required_fix": "Concrete fix or escalation",
-      "disposition": "open | fixed | accepted_residual_risk | follow_up"
-    }
-  ],
-  "controller_checks": [
-    {
-      "check": "Run or inspect the real entrypoint",
-      "reason": "Requirement cannot be verified from the diff",
-      "evidence_required": "Screenshot or command output path"
-    }
-  ],
-  "plan_mandated_defects": [
-    {
-      "severity": "critical | high | medium | low",
-      "category": "plan_mandated_defect",
-      "file": "path/to/file",
-      "line": 1,
-      "summary": "Plan-mandated issue summary",
-      "required_fix": "Required fix, accepted residual risk, or follow-up",
-      "disposition": "open | fixed | accepted_residual_risk | follow_up"
-    }
-  ],
-  "accepted_residual_risks": [
-    {
-      "finding_source": "findings | plan_mandated_defects",
-      "finding_index": 0,
-      "reason": "Why accepting this concern is safe for this release",
-      "owner": "leader | user | maintainer"
-    }
-  ],
-  "follow_up_work": [
-    {
-      "finding_source": "findings | plan_mandated_defects",
-      "finding_index": 0,
-      "description": "Concrete follow-up work",
-      "target": "task | issue | upstream-workflow | backlog"
-    }
-  ],
-  "ui_fidelity_result": "not_applicable | pass | fail | needs_visual_or_human_review",
-  "final_assessment": "accepted | fixes_required | controller_check_required"
+  "spec_verdict": "pass",
+  "quality_verdict": "pass",
+  "findings": [],
+  "controller_checks": [],
+  "plan_mandated_defects": [],
+  "accepted_residual_risks": [],
+  "follow_up_work": [],
+  "ui_fidelity_result": "not_applicable",
+  "final_assessment": "accepted"
 }
 ```
+
+Allowed values:
+
+- `spec_verdict`: `pass`, `fail`, `cannot_verify_from_diff`
+- `quality_verdict`: `pass`, `fail`, `concerns`
+- `severity`: `critical`, `high`, `medium`, `low`
+- `category`: `spec`, `quality`, `evidence`, `ui_fidelity`, `plan_mandated_defect`
+- `disposition`: `open`, `fixed`, `accepted_residual_risk`, `follow_up`
+- `finding_source`: `findings`, `plan_mandated_defects`
+- `ui_fidelity_result`: `not_applicable`, `pass`, `fail`, `needs_visual_or_human_review`
+- `final_assessment`: `accepted`, `fixes_required`, `controller_check_required`
+
+Use the same finding object fields for both `findings` and `plan_mandated_defects`: `severity`, `category`, `file`, `line`, `summary`, `required_fix`, and `disposition`. For a plan-mandated defect, set `category=plan_mandated_defect`. When a disposition is `accepted_residual_risk` or `follow_up`, add an entry to `accepted_residual_risks` or `follow_up_work` with `finding_source` set to `findings` or `plan_mandated_defects`, `finding_index` set to that list index, and the required reason, owner, description, or target.
 
 ## Acceptance Rules
 

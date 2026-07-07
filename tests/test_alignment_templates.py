@@ -2,6 +2,11 @@ import json
 import re
 from pathlib import Path
 
+from specify_cli.execution.implementation_review import (
+    TaskReviewRecord,
+    task_review_acceptance_errors,
+)
+
 from .template_utils import read_template
 
 
@@ -2660,11 +2665,11 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert "follow_up_work" in content
     assert "controller_checks" in content
     assert "findings" in content
-    assert '"plan_mandated_defects": [' in content
-    assert '"category": "plan_mandated_defect"' in content
-    assert "Plan-mandated issue summary" in content
+    assert '"plan_mandated_defects": []' in content
+    assert "`category=plan_mandated_defect`" in content
+    assert "Use the same finding object fields for both `findings` and `plan_mandated_defects`" in content
     assert "`plan_mandated_defects` is a separate finding source list" in content
-    assert '"finding_source": "findings | plan_mandated_defects"' in content
+    assert "`finding_source`: `findings`, `plan_mandated_defects`" in content
     assert "Dispositions that refer to `plan_mandated_defects`" in content
     assert "finding_source=plan_mandated_defects" in content
     assert "finding_source=findings" in content
@@ -2673,6 +2678,23 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert ".specify/teams/state/results/<request-id>.json" in content
     assert "Inline Project Cognition Handoff" not in content
     assert "changed_paths" not in content
+
+
+def test_task_reviewer_first_json_example_is_runtime_parseable() -> None:
+    content = _read("templates/worker-prompts/task-reviewer.md")
+    match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
+    assert match is not None
+
+    example = match.group(1)
+    assert " | " not in example
+    payload = json.loads(example)
+    record = TaskReviewRecord(**payload)
+
+    assert record.spec_verdict == "pass"
+    assert record.quality_verdict == "pass"
+    assert record.ui_fidelity_result == "not_applicable"
+    assert record.final_assessment == "accepted"
+    assert task_review_acceptance_errors(record) == []
 
 
 def test_legacy_split_reviewer_helper_snippets_are_not_default_task_review_path() -> None:
