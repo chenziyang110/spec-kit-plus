@@ -206,12 +206,30 @@ def _packetized_review_gaps(
             elif entry.status != "accepted":
                 gaps.append(f"{task_id} in {ledger_relative} is not accepted: {entry.status}")
             else:
-                gaps.extend(_task_review_gaps(feature_dir, task_id, entry.task_review))
+                task_review_reference, task_review_gap = _accepted_ledger_task_review_reference(
+                    ledger_relative, task_id, entry.task_review
+                )
+                if task_review_gap:
+                    gaps.append(task_review_gap)
+                    continue
+                gaps.extend(_task_review_gaps(feature_dir, task_id, task_review_reference))
 
     if not branch_review_path(feature_dir).is_file():
         gaps.append(f"{branch_review_relative} is missing for packetized terminal state")
 
     return gaps
+
+
+def _accepted_ledger_task_review_reference(
+    ledger_relative: str,
+    task_id: str,
+    ledger_task_review: object,
+) -> tuple[str, str]:
+    if not isinstance(ledger_task_review, str):
+        return "", f"{task_id} in {ledger_relative} has malformed task_review"
+    if not ledger_task_review.strip():
+        return "", f"{task_id} in {ledger_relative} is missing task_review"
+    return ledger_task_review, ""
 
 
 def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: object) -> list[str]:

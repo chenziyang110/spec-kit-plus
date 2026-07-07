@@ -289,6 +289,104 @@ def test_resolved_packetized_state_with_malformed_ledger_entry_fails_without_cra
     assert any("implementation-review/ledger.json" in gap for gap in payload["open_gaps"])
 
 
+def test_resolved_packetized_state_with_non_string_ledger_task_review_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": 123,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "implementation-review/ledger.json" in gap
+        and "T001" in gap
+        and "task_review" in gap
+        and "malformed" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_blank_ledger_task_review_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "   ",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "implementation-review/ledger.json" in gap
+        and "T001" in gap
+        and "task_review" in gap
+        and "missing" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_missing_ledger_task_review_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "implementation-review/ledger.json" in gap
+        and "T001" in gap
+        and "task_review" in gap
+        and "missing" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_packetized_state_with_rejected_task_review_fails(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_packetized_review_state(feature_dir)
@@ -733,6 +831,20 @@ def test_resolved_packetized_state_with_accepted_concern_task_review_passes(
             ],
             final_assessment="accepted",
         ),
+    )
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_brief="implementation-review/task-briefs/T001.md",
+                worker_result="worker-results/T001.json",
+                review_package="implementation-review/review-packages/T001.md",
+                task_review="implementation-review/task-reviews/T001.json",
+                last_evidence=["worker-results/T001.json"],
+            )
+        ],
     )
 
     payload = audit_implement_resume(tmp_path, feature_dir)
