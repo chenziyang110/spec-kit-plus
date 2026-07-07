@@ -8,6 +8,7 @@ from specify_cli.execution.packet_schema import (
     MustPreserveObligation,
     PacketReference,
     PacketScope,
+    UiFidelityRequirements,
     WorkerTaskPacket,
 )
 from specify_cli.execution.packet_validator import PacketValidationError
@@ -480,6 +481,133 @@ def test_validate_worker_task_result_accepts_real_entrypoint_consumer_evidence(
     validated = validate_worker_task_result(result, sample_packet)
 
     assert validated.status == "success"
+
+
+def test_validate_worker_task_result_rejects_success_without_applicable_ui_fidelity_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["designs/auth-flow.png"],
+        required_evidence=["visual_comparison_evidence"],
+    )
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "ui fidelity evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_requires_visual_comparison_ui_fidelity_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["designs/auth-flow.png"],
+        required_evidence=["visual_comparison_evidence"],
+    )
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        ui_fidelity_evidence=[
+            {
+                "kind": "manual_review",
+                "artifact": "artifacts/auth-flow-notes.md",
+            }
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "visual comparison" in exc.value.message
+
+
+def test_validate_worker_task_result_accepts_required_ui_fidelity_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["designs/auth-flow.png"],
+        required_evidence=["visual_comparison_evidence"],
+    )
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        ui_fidelity_evidence=[
+            {
+                "kind": "visual_comparison",
+                "artifact": "artifacts/auth-flow-diff.png",
+            }
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_fidelity_evidence[0]["kind"] == "visual_comparison"
 
 
 def test_validate_worker_task_result_requires_must_preserve_evidence(

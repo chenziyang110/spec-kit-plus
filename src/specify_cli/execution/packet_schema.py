@@ -8,6 +8,7 @@ from typing import Literal
 
 
 PacketMode = Literal["hard_fail"]
+UiFidelityLevel = Literal["none", "approximate", "high"]
 ContextKind = Literal[
     "coverage_baseline",
     "handbook",
@@ -43,6 +44,20 @@ class MustPreserveObligation:
 class PacketScope:
     write_scope: list[str] = field(default_factory=list)
     read_scope: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class PacketInterfaces:
+    consumes: list[str] = field(default_factory=list)
+    produces: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class UiFidelityRequirements:
+    applicable: bool = False
+    level: UiFidelityLevel = "none"
+    design_inputs: list[str] = field(default_factory=list)
+    required_evidence: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -114,6 +129,12 @@ class WorkerTaskPacket:
     acceptance_criteria: list[str] = field(default_factory=list)
     consumer_surfaces: list[str] = field(default_factory=list)
     required_evidence: list[str] = field(default_factory=list)
+    global_constraints: list[str] = field(default_factory=list)
+    interfaces: PacketInterfaces = field(default_factory=PacketInterfaces)
+    review_inputs: list[str] = field(default_factory=list)
+    review_risks: list[str] = field(default_factory=list)
+    ui_fidelity_requirements: UiFidelityRequirements = field(default_factory=UiFidelityRequirements)
+    controller_checks_required: list[str] = field(default_factory=list)
     must_preserve_obligations: list[MustPreserveObligation] = field(default_factory=list)
     consequence_obligations: list[ConsequenceObligation] = field(default_factory=list)
     escalation_role: str = "debugger"
@@ -168,11 +189,22 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     intent = ExecutionIntent(
         **_filter_dataclass_payload(ExecutionIntent, payload.get("intent", {}))
     )
+    interfaces = PacketInterfaces(
+        **_filter_dataclass_payload(PacketInterfaces, payload.get("interfaces", {}))
+    )
+    ui_fidelity_requirements = UiFidelityRequirements(
+        **_filter_dataclass_payload(
+            UiFidelityRequirements,
+            payload.get("ui_fidelity_requirements", {}),
+        )
+    )
     dispatch_policy = DispatchPolicy(
         **_filter_dataclass_payload(DispatchPolicy, payload.get("dispatch_policy", {}))
     )
     packet_payload = _filter_dataclass_payload(WorkerTaskPacket, payload)
     packet_payload["intent"] = intent
+    packet_payload["interfaces"] = interfaces
+    packet_payload["ui_fidelity_requirements"] = ui_fidelity_requirements
     packet_payload["scope"] = scope
     packet_payload["context_bundle"] = context_bundle
     packet_payload["required_references"] = required_references

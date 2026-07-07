@@ -182,4 +182,7 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
         consequence_evidence=_normalize_evidence_items(
             _pick(payload, "consequence_evidence", "consequenceEvidence")
         ),
+        ui_fidelity_evidence=_normalize_evidence_items(
+            _pick(payload, "ui_fidelity_evidence", "uiFidelityEvidence")
+        ),
     )

@@ -9,6 +9,7 @@ from .packet_schema import WorkerTaskPacket
 
 
 MP_ID_RE = re.compile(r"^MP-\d{3}$")
+UI_FIDELITY_LEVELS = {"none", "approximate", "high"}
 SURFACE_LIMIT_ANTI_GOAL_RE = re.compile(
     r"\b(do not|don't|must not)\b.*\b(add|introduce|modify|change|expand)\b.*\b(public\s+)?(command|commands|api|apis|route|routes|surface|surfaces|lifecycle)\b",
     re.IGNORECASE,
@@ -51,6 +52,26 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
                 "DP1",
                 "surface-limiting anti-goals require a does-not-remove guard",
             )
+    if packet.ui_fidelity_requirements.level not in UI_FIDELITY_LEVELS:
+        raise PacketValidationError("DP1", "ui fidelity level must be none, approximate, or high")
+    if packet.ui_fidelity_requirements.applicable:
+        if packet.ui_fidelity_requirements.level == "none":
+            raise PacketValidationError(
+                "DP1",
+                "applicable ui fidelity requirements must specify approximate or high level",
+            )
+        if not packet.ui_fidelity_requirements.design_inputs:
+            raise PacketValidationError(
+                "DP1",
+                "applicable ui fidelity requirements must include design inputs",
+            )
+        if not packet.ui_fidelity_requirements.required_evidence:
+            raise PacketValidationError(
+                "DP1",
+                "applicable ui fidelity requirements must include required evidence",
+            )
+    if any(not item.strip() for item in packet.controller_checks_required):
+        raise PacketValidationError("DP1", "controller checks required cannot contain blank entries")
     for obligation in packet.must_preserve_obligations:
         if not MP_ID_RE.match(obligation.id):
             raise PacketValidationError("DP1", "must-preserve obligation id must use MP-### format")

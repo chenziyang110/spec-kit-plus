@@ -119,6 +119,25 @@ def validate_worker_task_result(
             raise PacketValidationError("DP3", "worker result is missing acceptance evidence")
         if "manual_evidence" in required_evidence and not result.manual_evidence:
             raise PacketValidationError("DP3", "worker result is missing manual evidence")
+        if packet.ui_fidelity_requirements.applicable:
+            if not result.ui_fidelity_evidence:
+                raise PacketValidationError("DP3", "worker result is missing ui fidelity evidence")
+            ui_required_evidence = {
+                normalize_evidence_label(item)
+                for item in packet.ui_fidelity_requirements.required_evidence
+                if item.strip()
+            }
+            if "visual_comparison_evidence" in ui_required_evidence:
+                has_visual_comparison = any(
+                    normalize_evidence_label(str(item.get("kind", ""))) == "visual_comparison"
+                    for item in result.ui_fidelity_evidence
+                    if isinstance(item, dict)
+                )
+                if not has_visual_comparison:
+                    raise PacketValidationError(
+                        "DP3",
+                        "worker result is missing visual comparison ui fidelity evidence",
+                    )
         if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
             if not result.must_preserve_evidence:
                 raise PacketValidationError("DP3", "worker result is missing must-preserve evidence")
