@@ -157,16 +157,30 @@ def _tracker_has_open_gaps(feature_dir: Path) -> bool:
     return any(line.startswith("-") or line.startswith("type:") for line in meaningful)
 
 
-def _is_packetized_run(feature_dir: Path, checked_tasks: list[dict[str, Any]]) -> bool:
+def _packetized_task_ids(feature_dir: Path) -> list[str]:
     task_packets_dir = feature_dir / "task-packets"
-    return bool(checked_tasks) and task_packets_dir.is_dir() and any(task_packets_dir.glob("*.json"))
+    if not task_packets_dir.is_dir():
+        return []
+    return sorted({path.stem.upper() for path in task_packets_dir.glob("*.json")})
 
 
-def _packetized_review_gaps(feature_dir: Path, checked_tasks: list[dict[str, Any]]) -> list[str]:
-    if not _is_packetized_run(feature_dir, checked_tasks):
+def _packetized_review_gaps(
+    feature_dir: Path,
+    tasks: list[dict[str, Any]],
+    checked_tasks: list[dict[str, Any]],
+) -> list[str]:
+    packet_task_ids = _packetized_task_ids(feature_dir)
+    if not packet_task_ids:
         return []
 
     gaps: list[str] = []
+    checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
+    for packet_task_id in packet_task_ids:
+        if packet_task_id not in checked_task_ids:
+            task_known = any(str(task["task_id"]).upper() == packet_task_id for task in tasks)
+            reason = "unchecked in tasks.md" if task_known else "missing checked task in tasks.md"
+            gaps.append(f"{packet_task_id} packetized task is not checked: {reason}")
+
     ledger_relative = "implementation-review/ledger.json"
     branch_review_relative = "implementation-review/branch-review.md"
     review_ledger_path = ledger_path(feature_dir)
@@ -511,7 +525,7 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
     if _tracker_has_open_gaps(resolved_feature_dir):
         evidence_gaps.append("implement-tracker.md has unresolved open_gaps")
     if terminal:
-        evidence_gaps.extend(_packetized_review_gaps(resolved_feature_dir, checked_tasks))
+        evidence_gaps.extend(_packetized_review_gaps(resolved_feature_dir, tasks, checked_tasks))
 
     audit_passed = terminal and not evidence_gaps
     if audit_passed:

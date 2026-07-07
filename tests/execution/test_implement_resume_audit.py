@@ -754,6 +754,71 @@ def test_resolved_packetized_state_with_accepted_ledger_and_branch_review_passes
     assert payload["recommended_tracker_status"] == "resolved"
 
 
+def test_resolved_packetized_state_with_unchecked_packet_task_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "# Tasks",
+                "",
+                "- [ ] T001 [US1] Update implementation in src/specify_cli/demo.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["trusted_terminal_state"] is False
+    assert any("T001" in gap and "checked" in gap for gap in payload["open_gaps"])
+
+
+def test_resolved_packetized_state_with_unchecked_extra_packet_task_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "task-packets" / "T002.json").write_text('{"task_id":"T002"}\n', encoding="utf-8")
+    write_task_review_record(
+        feature_dir,
+        TaskReviewRecord(
+            task_id="T002",
+            spec_verdict="pass",
+            quality_verdict="pass",
+            final_assessment="accepted",
+        ),
+    )
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_brief="implementation-review/task-briefs/T001.md",
+                worker_result="worker-results/T001.json",
+                review_package="implementation-review/review-packages/T001.md",
+                task_review="implementation-review/task-reviews/T001.json",
+                last_evidence=["worker-results/T001.json"],
+            ),
+            TaskLedgerEntry(
+                task_id="T002",
+                status="accepted",
+                task_review="implementation-review/task-reviews/T002.json",
+            ),
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["trusted_terminal_state"] is False
+    assert any("T002" in gap and "checked" in gap for gap in payload["open_gaps"])
+
+
 def test_checked_component_task_with_synthetic_only_consumer_evidence_is_gap(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_basic_feature(feature_dir)
