@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from specify_cli.implement_audit import audit_implement_resume
@@ -268,6 +269,76 @@ def test_resolved_packetized_state_with_non_accepted_ledger_task_fails(tmp_path:
 
     assert payload["status"] == "fail"
     assert any("T001" in gap and "accepted" in gap for gap in payload["open_gaps"])
+
+
+def test_resolved_packetized_state_with_malformed_ledger_entry_fails_without_crash(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "ledger.json").write_text(
+        '{"tasks":[{"task_id":123,"status":"accepted"}]}\n',
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any("implementation-review/ledger.json" in gap for gap in payload["open_gaps"])
+
+
+def test_resolved_packetized_state_with_rejected_task_review_fails(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "fixes_required",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "accepted" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_malformed_task_review_fails_without_crash(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "findings": [{"disposition": "open"}],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap and "implementation-review/task-reviews/T001.json" in gap for gap in payload["open_gaps"]
+    )
 
 
 def test_resolved_packetized_state_with_accepted_ledger_and_branch_review_passes(

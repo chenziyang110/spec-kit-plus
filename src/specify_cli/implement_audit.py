@@ -13,9 +13,11 @@ from specify_cli.execution.evidence import (
     normalize_evidence_label,
 )
 from specify_cli.execution.implementation_review import (
+    TaskReviewRecord,
     branch_review_path,
     ledger_path,
     load_task_ledger,
+    task_review_is_accepted,
 )
 from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
 
@@ -156,7 +158,12 @@ def _packetized_review_gaps(feature_dir: Path, checked_tasks: list[dict[str, Any
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             gaps.append(f"{ledger_relative} is malformed: {exc}")
             ledger_entries = []
-        entries_by_task = {entry.task_id.upper(): entry for entry in ledger_entries}
+        entries_by_task: dict[str, Any] = {}
+        for entry in ledger_entries:
+            if not isinstance(entry.task_id, str) or not isinstance(entry.status, str):
+                gaps.append(f"{ledger_relative} contains a malformed task entry")
+                continue
+            entries_by_task[entry.task_id.upper()] = entry
         for task in checked_tasks:
             task_id = str(task["task_id"]).upper()
             entry = entries_by_task.get(task_id)
@@ -164,11 +171,44 @@ def _packetized_review_gaps(feature_dir: Path, checked_tasks: list[dict[str, Any
                 gaps.append(f"{task_id} is missing from {ledger_relative}")
             elif entry.status != "accepted":
                 gaps.append(f"{task_id} in {ledger_relative} is not accepted: {entry.status}")
+            else:
+                gaps.extend(_task_review_gaps(feature_dir, task_id, entry.task_review))
 
     if not branch_review_path(feature_dir).is_file():
         gaps.append(f"{branch_review_relative} is missing for packetized terminal state")
 
     return gaps
+
+
+def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: object) -> list[str]:
+    if isinstance(ledger_task_review, str) and ledger_task_review.strip():
+        review_relative = ledger_task_review.strip().replace("\\", "/")
+        review_path = feature_dir / review_relative
+    else:
+        review_relative = f"implementation-review/task-reviews/{task_id}.json"
+        review_path = feature_dir / review_relative
+
+    if not review_path.is_file():
+        return [f"{task_id} task review is missing: {review_relative}"]
+
+    try:
+        payload = json.loads(review_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("task review must contain a JSON object")
+        record = TaskReviewRecord(**payload)
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        return [f"{task_id} task review is malformed at {review_relative}: {exc}"]
+
+    try:
+        if not isinstance(record.task_id, str) or record.task_id.upper() != task_id:
+            return [f"{task_id} task review has mismatched task_id at {review_relative}"]
+        review_accepted = task_review_is_accepted(record)
+    except (AttributeError, TypeError, ValueError) as exc:
+        return [f"{task_id} task review is malformed at {review_relative}: {exc}"]
+
+    if not review_accepted:
+        return [f"{task_id} task review is not accepted at {review_relative}"]
+    return []
 
 
 def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, Any]:
