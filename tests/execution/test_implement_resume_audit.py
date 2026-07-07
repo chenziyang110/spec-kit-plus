@@ -451,6 +451,60 @@ def test_resolved_packetized_state_with_backslash_ledger_task_review_fails(
     )
 
 
+def test_resolved_packetized_state_with_invalid_task_packet_json_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "task-packets" / "T001.json").write_text("{not json", encoding="utf-8")
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "task-packets/T001.json" in gap and "malformed packet" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_mismatched_task_packet_id_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "task-packets" / "T001.json").write_text(
+        '{"task_id":"T002"}\n',
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "task-packets/T001.json" in gap and "task_id" in gap and "T002" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_blank_task_packet_id_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "task-packets" / "T001.json").write_text(
+        '{"task_id":"   "}\n',
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "task-packets/T001.json" in gap and "task_id" in gap and "malformed packet" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_packetized_state_with_rejected_task_review_fails(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_packetized_review_state(feature_dir)

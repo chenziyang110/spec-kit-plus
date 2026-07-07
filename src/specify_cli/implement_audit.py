@@ -157,11 +157,36 @@ def _tracker_has_open_gaps(feature_dir: Path) -> bool:
     return any(line.startswith("-") or line.startswith("type:") for line in meaningful)
 
 
-def _packetized_task_ids(feature_dir: Path) -> list[str]:
+def _packetized_task_ids(feature_dir: Path) -> tuple[list[str], list[str]]:
     task_packets_dir = feature_dir / "task-packets"
     if not task_packets_dir.is_dir():
-        return []
-    return sorted({path.stem.upper() for path in task_packets_dir.glob("*.json")})
+        return [], []
+
+    task_ids: set[str] = set()
+    gaps: list[str] = []
+    for path in sorted(task_packets_dir.glob("*.json")):
+        packet_relative = path.relative_to(feature_dir).as_posix()
+        expected_task_id = path.stem.upper()
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            gaps.append(f"{packet_relative} has malformed packet JSON: {exc}")
+            continue
+        if not isinstance(payload, dict):
+            gaps.append(f"{packet_relative} has malformed packet: packet must be a JSON object")
+            continue
+        packet_task_id = payload.get("task_id")
+        if not isinstance(packet_task_id, str) or not packet_task_id.strip():
+            gaps.append(f"{packet_relative} has malformed packet task_id")
+            continue
+        normalized_task_id = packet_task_id.upper()
+        if normalized_task_id != expected_task_id:
+            gaps.append(
+                f"{packet_relative} task_id mismatch: {packet_task_id} does not match {expected_task_id}"
+            )
+            continue
+        task_ids.add(normalized_task_id)
+    return sorted(task_ids), gaps
 
 
 def _packetized_review_gaps(
@@ -169,11 +194,12 @@ def _packetized_review_gaps(
     tasks: list[dict[str, Any]],
     checked_tasks: list[dict[str, Any]],
 ) -> list[str]:
-    packet_task_ids = _packetized_task_ids(feature_dir)
-    if not packet_task_ids:
-        return []
-
+    packet_task_ids, packet_gaps = _packetized_task_ids(feature_dir)
     gaps: list[str] = []
+    gaps.extend(packet_gaps)
+    if not packet_task_ids:
+        return gaps
+
     checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
     for packet_task_id in packet_task_ids:
         if packet_task_id not in checked_task_ids:
