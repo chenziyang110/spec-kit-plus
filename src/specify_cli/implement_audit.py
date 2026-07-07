@@ -300,6 +300,8 @@ def _packetized_review_gaps(
     feature_dir: Path,
     tasks: list[dict[str, Any]],
     checked_tasks: list[dict[str, Any]],
+    *,
+    terminal: bool,
 ) -> list[str]:
     packet_task_ids, packet_gaps = _packetized_task_ids(feature_dir)
     gaps: list[str] = []
@@ -308,17 +310,26 @@ def _packetized_review_gaps(
         return gaps
 
     checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
-    for packet_task_id in packet_task_ids:
-        if packet_task_id not in checked_task_ids:
-            task_known = any(str(task["task_id"]).upper() == packet_task_id for task in tasks)
-            reason = "unchecked in tasks.md" if task_known else "missing checked task in tasks.md"
-            gaps.append(f"{packet_task_id} packetized task is not checked: {reason}")
+    if terminal:
+        for packet_task_id in packet_task_ids:
+            if packet_task_id not in checked_task_ids:
+                task_known = any(str(task["task_id"]).upper() == packet_task_id for task in tasks)
+                reason = "unchecked in tasks.md" if task_known else "missing checked task in tasks.md"
+                gaps.append(f"{packet_task_id} packetized task is not checked: {reason}")
+
+    checked_packet_task_ids = sorted(checked_task_ids & set(packet_task_ids))
+    if not terminal and not checked_packet_task_ids:
+        return gaps
 
     ledger_relative = "implementation-review/ledger.json"
     branch_review_relative = "implementation-review/branch-review.md"
     review_ledger_path = ledger_path(feature_dir)
     if not review_ledger_path.is_file():
-        gaps.append(f"{ledger_relative} is missing for packetized terminal state")
+        if terminal:
+            gaps.append(f"{ledger_relative} is missing for packetized terminal state")
+        else:
+            task_list = ", ".join(checked_packet_task_ids)
+            gaps.append(f"{ledger_relative} is missing for checked packetized tasks: {task_list}")
     else:
         try:
             ledger_entries = load_task_ledger(feature_dir)
@@ -331,28 +342,80 @@ def _packetized_review_gaps(
                 gaps.append(f"{ledger_relative} contains a malformed task entry")
                 continue
             entries_by_task[entry.task_id.upper()] = entry
-        for task in checked_tasks:
-            task_id = str(task["task_id"]).upper()
-            if task_id not in packet_task_ids:
-                continue
+        for task_id in checked_packet_task_ids:
             entry = entries_by_task.get(task_id)
             if entry is None:
                 gaps.append(f"{task_id} is missing from {ledger_relative}")
             elif entry.status != "accepted":
                 gaps.append(f"{task_id} in {ledger_relative} is not accepted: {entry.status}")
             else:
+                task_brief_reference, task_brief_gap = _accepted_ledger_artifact_reference(
+                    ledger_relative,
+                    task_id,
+                    "task_brief",
+                    entry.task_brief,
+                    f"implementation-review/task-briefs/{task_id}.md",
+                )
+                if task_brief_gap:
+                    gaps.append(task_brief_gap)
+                else:
+                    gaps.extend(
+                        _ledger_artifact_file_gaps(
+                            feature_dir, task_id, "task brief", task_brief_reference
+                        )
+                    )
+
+                review_package_reference, review_package_gap = _accepted_ledger_artifact_reference(
+                    ledger_relative,
+                    task_id,
+                    "review_package",
+                    entry.review_package,
+                    f"implementation-review/review-packages/{task_id}.md",
+                )
+                if review_package_gap:
+                    gaps.append(review_package_gap)
+                else:
+                    gaps.extend(
+                        _ledger_artifact_file_gaps(
+                            feature_dir,
+                            task_id,
+                            "review package",
+                            review_package_reference,
+                        )
+                    )
+
                 task_review_reference, task_review_gap = _accepted_ledger_task_review_reference(
                     ledger_relative, task_id, entry.task_review
                 )
                 if task_review_gap:
                     gaps.append(task_review_gap)
-                    continue
-                gaps.extend(_task_review_gaps(feature_dir, task_id, task_review_reference))
+                else:
+                    gaps.extend(_task_review_gaps(feature_dir, task_id, task_review_reference))
 
-    if not branch_review_path(feature_dir).is_file():
+    if terminal and not branch_review_path(feature_dir).is_file():
         gaps.append(f"{branch_review_relative} is missing for packetized terminal state")
 
     return gaps
+
+
+def _accepted_ledger_artifact_reference(
+    ledger_relative: str,
+    task_id: str,
+    field_name: str,
+    ledger_value: object,
+    expected: str,
+) -> tuple[str, str]:
+    if not isinstance(ledger_value, str):
+        return "", f"{task_id} in {ledger_relative} has malformed {field_name}"
+    if not ledger_value.strip():
+        return "", f"{task_id} in {ledger_relative} is missing {field_name}"
+    if ledger_value != expected:
+        return (
+            "",
+            f"{task_id} in {ledger_relative} has malformed unsafe {field_name} "
+            f"{ledger_value}: expected {expected}",
+        )
+    return ledger_value, ""
 
 
 def _accepted_ledger_task_review_reference(
@@ -360,18 +423,24 @@ def _accepted_ledger_task_review_reference(
     task_id: str,
     ledger_task_review: object,
 ) -> tuple[str, str]:
-    if not isinstance(ledger_task_review, str):
-        return "", f"{task_id} in {ledger_relative} has malformed task_review"
-    if not ledger_task_review.strip():
-        return "", f"{task_id} in {ledger_relative} is missing task_review"
-    expected = f"implementation-review/task-reviews/{task_id}.json"
-    if ledger_task_review != expected:
-        return (
-            "",
-            f"{task_id} in {ledger_relative} has malformed unsafe task_review "
-            f"{ledger_task_review}: expected {expected}",
-        )
-    return ledger_task_review, ""
+    return _accepted_ledger_artifact_reference(
+        ledger_relative,
+        task_id,
+        "task_review",
+        ledger_task_review,
+        f"implementation-review/task-reviews/{task_id}.json",
+    )
+
+
+def _ledger_artifact_file_gaps(
+    feature_dir: Path,
+    task_id: str,
+    artifact_label: str,
+    artifact_relative: str,
+) -> list[str]:
+    if not (feature_dir / artifact_relative).is_file():
+        return [f"{task_id} {artifact_label} is missing: {artifact_relative}"]
+    return []
 
 
 def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: object) -> list[str]:
@@ -706,8 +775,14 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
 
     if _tracker_has_open_gaps(resolved_feature_dir):
         evidence_gaps.append("implement-tracker.md has unresolved open_gaps")
-    if terminal:
-        evidence_gaps.extend(_packetized_review_gaps(resolved_feature_dir, tasks, checked_tasks))
+    evidence_gaps.extend(
+        _packetized_review_gaps(
+            resolved_feature_dir,
+            tasks,
+            checked_tasks,
+            terminal=terminal,
+        )
+    )
 
     audit_passed = terminal and not evidence_gaps
     if audit_passed:

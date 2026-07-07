@@ -81,6 +81,75 @@ def _run_module_in_project(project: Path, args: list[str], input_text: str | Non
     )
 
 
+def _write_hook_packetized_implement_review_state(
+    feature_dir: Path,
+    *,
+    task_brief: str = "implementation-review/task-briefs/T001.md",
+    review_package: str = "implementation-review/review-packages/T001.md",
+    task_review: str = "implementation-review/task-reviews/T001.json",
+    write_task_brief: bool = True,
+    write_review_package: bool = True,
+    write_task_review: bool = True,
+    branch_review: bool = True,
+) -> None:
+    if write_task_brief:
+        task_brief_path = feature_dir / "implementation-review/task-briefs/T001.md"
+        task_brief_path.parent.mkdir(parents=True, exist_ok=True)
+        task_brief_path.write_text("# T001 Brief\n", encoding="utf-8")
+    if write_review_package:
+        review_package_path = feature_dir / "implementation-review/review-packages/T001.md"
+        review_package_path.parent.mkdir(parents=True, exist_ok=True)
+        review_package_path.write_text("# T001 Review Package\n", encoding="utf-8")
+    if write_task_review:
+        task_review_path = feature_dir / "implementation-review/task-reviews/T001.json"
+        task_review_path.parent.mkdir(parents=True, exist_ok=True)
+        task_review_path.write_text(
+            json.dumps(
+                {
+                    "task_id": "T001",
+                    "spec_verdict": "pass",
+                    "quality_verdict": "pass",
+                    "final_assessment": "accepted",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_brief": task_brief,
+                        "review_package": review_package,
+                        "task_review": task_review,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if branch_review:
+        (review_dir / "branch-review.md").write_text("# Branch Review\n\nAccepted.\n", encoding="utf-8")
+
+
+def _write_hook_packetized_implement_feature(feature_dir: Path) -> None:
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text("# Implement Tracker\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+
+
 def test_all_hook_commands_advertise_json_format_alias():
     runner = CliRunner()
     ansi_re = re.compile(r"\x1b\[[0-9;]*m")
@@ -1482,6 +1551,13 @@ def test_hook_validate_artifacts_allows_mixed_implement_tasks_when_only_packetiz
     packets_dir.mkdir()
     (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
     review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text("# T001 Brief\n", encoding="utf-8")
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
     (review_dir / "task-reviews").mkdir(parents=True)
     (review_dir / "task-reviews" / "T001.json").write_text(
         json.dumps(
@@ -1502,6 +1578,8 @@ def test_hook_validate_artifacts_allows_mixed_implement_tasks_when_only_packetiz
                     {
                         "task_id": "T001",
                         "status": "accepted",
+                        "task_brief": "implementation-review/task-briefs/T001.md",
+                        "review_package": "implementation-review/review-packages/T001.md",
                         "task_review": "implementation-review/task-reviews/T001.json",
                     }
                 ]
@@ -1730,6 +1808,102 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_task_review
     assert any("implementation-review/task-reviews/T001.json" in message for message in payload["errors"])
 
 
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_task_brief_file(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(feature_dir, write_task_brief=False)
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/task-briefs/T001.md" in message and "missing" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_task_brief_path(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(
+        feature_dir,
+        task_brief="implementation-review/./task-briefs/T001.md",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T001" in message and "implementation-review/task-briefs/T001.md" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_review_package_file(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(feature_dir, write_review_package=False)
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/review-packages/T001.md" in message and "missing" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_review_package_path(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(
+        feature_dir,
+        review_package="implementation-review/review-packages/../review-packages/T001.md",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T001" in message and "implementation-review/review-packages/T001.md" in message
+        for message in payload["errors"]
+    )
+
+
 def test_hook_validate_artifacts_blocks_packetized_implement_rejected_task_review(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -1743,6 +1917,13 @@ def test_hook_validate_artifacts_blocks_packetized_implement_rejected_task_revie
     packets_dir.mkdir()
     (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
     review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text("# T001 Brief\n", encoding="utf-8")
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
     (review_dir / "task-reviews").mkdir(parents=True)
     (review_dir / "task-reviews" / "T001.json").write_text(
         json.dumps(
@@ -1899,6 +2080,13 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_branch_revi
     packets_dir.mkdir()
     (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
     review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text("# T001 Brief\n", encoding="utf-8")
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
     (review_dir / "task-reviews").mkdir(parents=True)
     (review_dir / "task-reviews" / "T001.json").write_text(
         json.dumps(
@@ -1953,6 +2141,13 @@ def test_hook_validate_artifacts_accepts_packetized_implement_with_accepted_revi
     packets_dir.mkdir()
     (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
     review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text("# T001 Brief\n", encoding="utf-8")
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
     (review_dir / "task-reviews").mkdir(parents=True)
     (review_dir / "task-reviews" / "T001.json").write_text(
         json.dumps(
@@ -1973,6 +2168,8 @@ def test_hook_validate_artifacts_accepts_packetized_implement_with_accepted_revi
                     {
                         "task_id": "T001",
                         "status": "accepted",
+                        "task_brief": "implementation-review/task-briefs/T001.md",
+                        "review_package": "implementation-review/review-packages/T001.md",
                         "task_review": "implementation-review/task-reviews/T001.json",
                     }
                 ]
@@ -4239,6 +4436,13 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
     packets_dir.mkdir()
     (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
     review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text("# T001 Brief\n", encoding="utf-8")
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
     (review_dir / "task-reviews").mkdir(parents=True)
     (review_dir / "task-reviews" / "T001.json").write_text(
         json.dumps(
@@ -4259,6 +4463,8 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
                     {
                         "task_id": "T001",
                         "status": "accepted",
+                        "task_brief": "implementation-review/task-briefs/T001.md",
+                        "review_package": "implementation-review/review-packages/T001.md",
                         "task_review": "implementation-review/task-reviews/T001.json",
                         "worker_result": "worker-results/T001.json",
                     }

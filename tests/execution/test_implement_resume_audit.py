@@ -10,6 +10,7 @@ from specify_cli.execution.implementation_review import (
     TaskReviewFinding,
     TaskReviewRecord,
     branch_review_path,
+    review_package_path,
     task_brief_path,
     write_task_ledger,
     write_task_review_record,
@@ -109,6 +110,8 @@ def _write_packetized_review_state(
     )
     task_brief_path(feature_dir, "T001").parent.mkdir(parents=True, exist_ok=True)
     task_brief_path(feature_dir, "T001").write_text("# T001 Brief\n", encoding="utf-8")
+    review_package_path(feature_dir, "T001").parent.mkdir(parents=True, exist_ok=True)
+    review_package_path(feature_dir, "T001").write_text("# T001 Review Package\n", encoding="utf-8")
     if task_review:
         write_task_review_record(
             feature_dir,
@@ -449,6 +452,104 @@ def test_resolved_packetized_state_with_backslash_ledger_task_review_fails(
         "implementation-review/ledger.json" in gap
         and "T001" in gap
         and "task_review" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_missing_task_brief_file_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    task_brief_path(feature_dir, "T001").unlink()
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-briefs/T001.md" in gap
+        and "missing" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_non_canonical_task_brief_reference_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_brief="implementation-review/./task-briefs/T001.md",
+                worker_result="worker-results/T001.json",
+                review_package="implementation-review/review-packages/T001.md",
+                task_review="implementation-review/task-reviews/T001.json",
+                last_evidence=["worker-results/T001.json"],
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "implementation-review/ledger.json" in gap
+        and "T001" in gap
+        and "task_brief" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_missing_review_package_file_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    review_package_path(feature_dir, "T001").unlink()
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/review-packages/T001.md" in gap
+        and "missing" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_non_canonical_review_package_reference_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_brief="implementation-review/task-briefs/T001.md",
+                worker_result="worker-results/T001.json",
+                review_package="implementation-review/review-packages/../review-packages/T001.md",
+                task_review="implementation-review/task-reviews/T001.json",
+                last_evidence=["worker-results/T001.json"],
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "implementation-review/ledger.json" in gap
+        and "T001" in gap
+        and "review_package" in gap
         for gap in payload["open_gaps"]
     )
 
@@ -1468,6 +1569,50 @@ def test_resolved_packetized_state_with_unchecked_packet_task_fails(
     assert payload["status"] == "fail"
     assert payload["trusted_terminal_state"] is False
     assert any("T001" in gap and "checked" in gap for gap in payload["open_gaps"])
+
+
+def test_active_packetized_checked_task_without_review_ledger_reports_gap(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, ledger=False, branch_review=False)
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: executing",
+                "feature: 001-demo",
+                "resume_decision: continue",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: implementation",
+                "goal: continue implementation",
+                "next_action: keep working",
+                "",
+                "## Open Gaps",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "# Tasks",
+                "",
+                "- [X] T001 [US1] Update implementation in src/specify_cli/demo.py",
+                "- [ ] T002 [US1] Continue implementation in src/specify_cli/followup.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "pass"
+    assert payload["trusted_terminal_state"] is False
+    assert any("implementation-review/ledger.json" in gap for gap in payload["open_gaps"])
 
 
 def test_resolved_packetized_state_with_unchecked_extra_packet_task_fails(

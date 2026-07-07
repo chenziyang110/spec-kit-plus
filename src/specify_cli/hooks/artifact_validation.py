@@ -644,6 +644,22 @@ def _validate_accepted_task_review(feature_dir: Path, task_id: str, review_relat
     return []
 
 
+def _validate_accepted_ledger_artifact_reference(
+    feature_dir: Path,
+    ledger_relative: str,
+    task_id: str,
+    entry: dict[str, Any],
+    field_name: str,
+    expected_relative: str,
+) -> list[str]:
+    value = entry.get(field_name)
+    if value != expected_relative:
+        return [f"{task_id} in {ledger_relative} must reference {expected_relative}"]
+    if not (feature_dir / expected_relative).is_file():
+        return [f"{expected_relative} is missing for accepted packetized task {task_id}"]
+    return []
+
+
 def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[str]:
     checked_task_id_set = set(_checked_implement_task_ids(feature_dir))
     packet_task_id_list, packet_errors = _packetized_task_ids(feature_dir)
@@ -692,6 +708,8 @@ def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[s
 
     for task_id in checked_task_ids:
         entry = entries_by_task.get(task_id)
+        expected_brief = f"implementation-review/task-briefs/{task_id}.md"
+        expected_package = f"implementation-review/review-packages/{task_id}.md"
         expected_review = f"implementation-review/task-reviews/{task_id}.json"
         if entry is None:
             errors.append(f"{task_id} is missing from {ledger_relative}")
@@ -699,11 +717,20 @@ def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[s
         if entry.get("status") != "accepted":
             errors.append(f"{task_id} in {ledger_relative} must have status accepted")
             continue
-        task_review = entry.get("task_review")
-        if task_review != expected_review:
-            errors.append(f"{task_id} in {ledger_relative} must reference {expected_review}")
-            continue
-        errors.extend(_validate_accepted_task_review(feature_dir, task_id, expected_review))
+        brief_errors = _validate_accepted_ledger_artifact_reference(
+            feature_dir, ledger_relative, task_id, entry, "task_brief", expected_brief
+        )
+        package_errors = _validate_accepted_ledger_artifact_reference(
+            feature_dir, ledger_relative, task_id, entry, "review_package", expected_package
+        )
+        review_errors = _validate_accepted_ledger_artifact_reference(
+            feature_dir, ledger_relative, task_id, entry, "task_review", expected_review
+        )
+        errors.extend(brief_errors)
+        errors.extend(package_errors)
+        errors.extend(review_errors)
+        if not review_errors:
+            errors.extend(_validate_accepted_task_review(feature_dir, task_id, expected_review))
 
     if not (feature_dir / branch_review_relative).is_file():
         errors.append(f"{branch_review_relative} is missing for packetized checked implement tasks")
