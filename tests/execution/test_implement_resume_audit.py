@@ -1512,6 +1512,44 @@ def test_resolved_packetized_state_with_unchecked_extra_packet_task_fails(
     assert any("T002" in gap and "checked" in gap for gap in payload["open_gaps"])
 
 
+def test_resolved_packetized_state_allows_checked_legacy_task_without_ledger_entry(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "# Tasks",
+                "",
+                "- [X] T001 [US1] Update implementation in src/specify_cli/demo.py",
+                "- [X] T002 [US1] Legacy checked cleanup in docs/notes.md",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "worker-results" / "T002.json").write_text(
+        """
+{
+  "task_id": "T002",
+  "status": "success",
+  "changed_files": ["docs/notes.md"],
+  "validation_results": [{"command": "pytest tests/test_demo.py -q", "status": "passed", "output": "PASS"}],
+  "summary": "Completed legacy cleanup"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "pass"
+    assert not any(
+        "T002 is missing from implementation-review/ledger.json" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_checked_component_task_with_synthetic_only_consumer_evidence_is_gap(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_basic_feature(feature_dir)

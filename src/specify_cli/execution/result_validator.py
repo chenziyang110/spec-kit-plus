@@ -27,6 +27,23 @@ _UI_FIDELITY_PAYLOAD_FIELDS = {
     "url",
 }
 _UI_FIDELITY_PLACEHOLDER_VALUES = PLACEHOLDER_VALUES | {"", "not_run"}
+_UI_FIDELITY_KIND_ALIASES = {
+    "desktop_screenshot_evidence": "desktop_screenshot",
+    "mobile_screenshot_evidence": "mobile_screenshot",
+    "screenshot_evidence": "screenshot",
+    "visual_comparison_evidence": "visual_comparison",
+}
+_UI_FIDELITY_ACCEPTED_KINDS = {
+    "desktop_screenshot": {"desktop_screenshot", "screenshot_desktop"},
+    "mobile_screenshot": {"mobile_screenshot", "screenshot_mobile"},
+    "screenshot": {
+        "desktop_screenshot",
+        "mobile_screenshot",
+        "screenshot",
+        "screenshot_desktop",
+        "screenshot_mobile",
+    },
+}
 
 
 def _normalize_command(value: str) -> str:
@@ -42,6 +59,32 @@ def _has_meaningful_ui_fidelity_payload(item: dict[str, str]) -> bool:
     for field in _UI_FIDELITY_PAYLOAD_FIELDS:
         value = str(item.get(field, "")).strip()
         if value and normalize_evidence_label(value) not in _UI_FIDELITY_PLACEHOLDER_VALUES:
+            return True
+    return False
+
+
+def _normalize_ui_fidelity_kind(value: str) -> str:
+    normalized = normalize_evidence_label(value)
+    return _UI_FIDELITY_KIND_ALIASES.get(normalized, normalized)
+
+
+def _accepted_ui_fidelity_kinds(required_kind: str) -> set[str]:
+    normalized = _normalize_ui_fidelity_kind(required_kind)
+    return _UI_FIDELITY_ACCEPTED_KINDS.get(normalized, {normalized})
+
+
+def _has_ui_fidelity_evidence_kind(
+    evidence: object,
+    required_kind: str,
+) -> bool:
+    accepted_kinds = _accepted_ui_fidelity_kinds(required_kind)
+    if not isinstance(evidence, list):
+        return False
+    for item in evidence:
+        if not isinstance(item, dict):
+            continue
+        kind = _normalize_ui_fidelity_kind(str(item.get("kind", "")))
+        if kind in accepted_kinds and _has_meaningful_ui_fidelity_payload(item):
             return True
     return False
 
@@ -145,21 +188,22 @@ def validate_worker_task_result(
             if not result.ui_fidelity_evidence:
                 raise PacketValidationError("DP3", "worker result is missing ui fidelity evidence")
             ui_required_evidence = {
-                normalize_evidence_label(item)
+                _normalize_ui_fidelity_kind(item)
                 for item in packet.ui_fidelity_requirements.required_evidence
                 if item.strip()
             }
-            if "visual_comparison_evidence" in ui_required_evidence:
-                has_visual_comparison = any(
-                    normalize_evidence_label(str(item.get("kind", ""))) == "visual_comparison"
-                    and _has_meaningful_ui_fidelity_payload(item)
-                    for item in result.ui_fidelity_evidence
-                    if isinstance(item, dict)
-                )
-                if not has_visual_comparison:
+            for required_kind in sorted(ui_required_evidence):
+                if not _has_ui_fidelity_evidence_kind(result.ui_fidelity_evidence, required_kind):
+                    if required_kind == "visual_comparison":
+                        message = "worker result is missing visual comparison ui fidelity evidence"
+                    else:
+                        message = (
+                            "worker result is missing ui fidelity evidence "
+                            f"for required kind: {required_kind}"
+                        )
                     raise PacketValidationError(
                         "DP3",
-                        "worker result is missing visual comparison ui fidelity evidence",
+                        message,
                     )
         if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
             if not result.must_preserve_evidence:

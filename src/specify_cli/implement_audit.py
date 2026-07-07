@@ -333,6 +333,8 @@ def _packetized_review_gaps(
             entries_by_task[entry.task_id.upper()] = entry
         for task in checked_tasks:
             task_id = str(task["task_id"]).upper()
+            if task_id not in packet_task_ids:
+                continue
             entry = entries_by_task.get(task_id)
             if entry is None:
                 gaps.append(f"{task_id} is missing from {ledger_relative}")
