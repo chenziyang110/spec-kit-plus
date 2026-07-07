@@ -13,7 +13,10 @@ from specify_cli.execution.evidence import (
     normalize_evidence_label,
 )
 from specify_cli.execution.implementation_review import (
+    AcceptedResidualRisk,
+    FollowUpWork,
     TaskReviewRecord,
+    TaskReviewFinding,
     branch_review_path,
     ledger_path,
     load_task_ledger,
@@ -195,7 +198,7 @@ def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: objec
         payload = json.loads(review_path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("task review must contain a JSON object")
-        record = TaskReviewRecord(**payload)
+        record = _task_review_record_from_payload(payload)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         return [f"{task_id} task review is malformed at {review_relative}: {exc}"]
 
@@ -209,6 +212,64 @@ def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: objec
     if not review_accepted:
         return [f"{task_id} task review is not accepted at {review_relative}"]
     return []
+
+
+def _task_review_record_from_payload(payload: dict[str, Any]) -> TaskReviewRecord:
+    return TaskReviewRecord(
+        **{
+            **payload,
+            "findings": _task_review_findings_from_payload(payload.get("findings", [])),
+            "plan_mandated_defects": _task_review_findings_from_payload(
+                payload.get("plan_mandated_defects", [])
+            ),
+            "accepted_residual_risks": _accepted_residual_risks_from_payload(
+                payload.get("accepted_residual_risks", [])
+            ),
+            "follow_up_work": _follow_up_work_from_payload(payload.get("follow_up_work", [])),
+        }
+    )
+
+
+def _task_review_findings_from_payload(value: object) -> list[TaskReviewFinding]:
+    if not isinstance(value, list):
+        raise ValueError("task review findings must be a list")
+    findings: list[TaskReviewFinding] = []
+    for item in value:
+        if isinstance(item, TaskReviewFinding):
+            findings.append(item)
+        elif isinstance(item, dict):
+            findings.append(TaskReviewFinding(**item))
+        else:
+            raise ValueError("task review findings must contain objects")
+    return findings
+
+
+def _accepted_residual_risks_from_payload(value: object) -> list[AcceptedResidualRisk]:
+    if not isinstance(value, list):
+        raise ValueError("accepted_residual_risks must be a list")
+    risks: list[AcceptedResidualRisk] = []
+    for item in value:
+        if isinstance(item, AcceptedResidualRisk):
+            risks.append(item)
+        elif isinstance(item, dict):
+            risks.append(AcceptedResidualRisk(**item))
+        else:
+            raise ValueError("accepted_residual_risks must contain objects")
+    return risks
+
+
+def _follow_up_work_from_payload(value: object) -> list[FollowUpWork]:
+    if not isinstance(value, list):
+        raise ValueError("follow_up_work must be a list")
+    work_items: list[FollowUpWork] = []
+    for item in value:
+        if isinstance(item, FollowUpWork):
+            work_items.append(item)
+        elif isinstance(item, dict):
+            work_items.append(FollowUpWork(**item))
+        else:
+            raise ValueError("follow_up_work must contain objects")
+    return work_items
 
 
 def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, Any]:

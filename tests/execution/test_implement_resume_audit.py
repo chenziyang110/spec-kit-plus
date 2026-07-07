@@ -3,7 +3,9 @@ from pathlib import Path
 
 from specify_cli.implement_audit import audit_implement_resume
 from specify_cli.execution.implementation_review import (
+    AcceptedResidualRisk,
     TaskLedgerEntry,
+    TaskReviewFinding,
     TaskReviewRecord,
     branch_review_path,
     task_brief_path,
@@ -339,6 +341,45 @@ def test_resolved_packetized_state_with_malformed_task_review_fails_without_cras
     assert any(
         "T001" in gap and "implementation-review/task-reviews/T001.json" in gap for gap in payload["open_gaps"]
     )
+
+
+def test_resolved_packetized_state_with_accepted_concern_task_review_passes(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, task_review=False)
+    write_task_review_record(
+        feature_dir,
+        TaskReviewRecord(
+            task_id="T001",
+            spec_verdict="pass",
+            quality_verdict="concerns",
+            findings=[
+                TaskReviewFinding(
+                    severity="medium",
+                    category="quality",
+                    file="src/specify_cli/demo.py",
+                    line=12,
+                    summary="Existing follow-up risk remains bounded",
+                    required_fix="Accept the residual risk for closeout",
+                    disposition="accepted_residual_risk",
+                )
+            ],
+            accepted_residual_risks=[
+                AcceptedResidualRisk(
+                    finding_index=0,
+                    reason="The concern is documented and does not block this task.",
+                    owner="leader",
+                )
+            ],
+            final_assessment="accepted",
+        ),
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "pass"
+    assert payload["trusted_terminal_state"] is True
 
 
 def test_resolved_packetized_state_with_accepted_ledger_and_branch_review_passes(
