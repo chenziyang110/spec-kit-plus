@@ -2660,6 +2660,10 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert "follow_up_work" in content
     assert "controller_checks" in content
     assert "findings" in content
+    assert '"finding_source": "findings | plan_mandated_defects"' in content
+    assert "Dispositions that refer to `plan_mandated_defects`" in content
+    assert "finding_source=plan_mandated_defects" in content
+    assert "finding_source=findings" in content
     assert "canonical worker result path named by the review package" in content
     assert "FEATURE_DIR/worker-results/<task-id>.json" in content
     assert ".specify/teams/state/results/<request-id>.json" in content

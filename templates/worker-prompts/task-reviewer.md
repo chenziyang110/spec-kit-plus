@@ -48,6 +48,7 @@ Return one JSON object with:
   "plan_mandated_defects": [],
   "accepted_residual_risks": [
     {
+      "finding_source": "findings | plan_mandated_defects",
       "finding_index": 0,
       "reason": "Why accepting this concern is safe for this release",
       "owner": "leader | user | maintainer"
@@ -55,6 +56,7 @@ Return one JSON object with:
   ],
   "follow_up_work": [
     {
+      "finding_source": "findings | plan_mandated_defects",
       "finding_index": 0,
       "description": "Concrete follow-up work",
       "target": "task | issue | upstream-workflow | backlog"
@@ -70,6 +72,7 @@ Return one JSON object with:
 - `spec_verdict=fail` blocks task acceptance.
 - `quality_verdict=fail` blocks task acceptance.
 - `quality_verdict=concerns` may pass only when every concern has a disposition and appears in `accepted_residual_risks` or `follow_up_work` when relevant.
+- Dispositions that refer to `plan_mandated_defects` must set `finding_source=plan_mandated_defects`; ordinary `findings` use `finding_source=findings`.
 - `spec_verdict=cannot_verify_from_diff` requires explicit controller checks and `final_assessment=controller_check_required`; once controller evidence closes, convert the review to `spec_verdict=pass` before `final_assessment=accepted`.
 - `ui_fidelity_result=needs_visual_or_human_review` requires agent visual comparison first when available, otherwise human review as a controller check.
 - `final_assessment=accepted` is valid only when blocking findings and required controller checks are closed.
