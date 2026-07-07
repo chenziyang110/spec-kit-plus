@@ -1203,6 +1203,30 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_review_ledg
     assert any("implementation-review/ledger.json" in message for message in payload["errors"])
 
 
+def test_hook_validate_artifacts_allows_checked_task_when_only_unmatched_packet_exists(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text("# Implement Tracker\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T999.json").write_text('{"task_id":"T999"}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "ok"
+
+
 def test_hook_validate_artifacts_accepts_packetized_implement_with_accepted_reviews(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"

@@ -616,14 +616,16 @@ def _checked_implement_task_ids(feature_dir: Path) -> list[str]:
     )
 
 
-def _has_packetized_implement_state(feature_dir: Path) -> bool:
+def _packetized_implement_task_ids(feature_dir: Path) -> set[str]:
     packets_dir = feature_dir / "task-packets"
-    return packets_dir.is_dir() and any(path.is_file() and path.suffix == ".json" for path in packets_dir.iterdir())
+    if not packets_dir.is_dir():
+        return set()
+    return {path.stem.upper() for path in packets_dir.iterdir() if path.is_file() and path.suffix == ".json"}
 
 
 def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[str]:
-    checked_task_ids = _checked_implement_task_ids(feature_dir)
-    if not checked_task_ids or not _has_packetized_implement_state(feature_dir):
+    checked_task_ids = sorted(set(_checked_implement_task_ids(feature_dir)) & _packetized_implement_task_ids(feature_dir))
+    if not checked_task_ids:
         return []
 
     errors: list[str] = []
