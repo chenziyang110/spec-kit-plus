@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from specify_cli.execution.implementation_review import (
     AcceptedResidualRisk,
     ControllerCheck,
@@ -102,6 +104,19 @@ def test_task_review_artifact_paths_are_under_implementation_review(tmp_path: Pa
         feature_dir / "implementation-review" / "task-reviews" / "T001.json"
     )
     assert branch_review_path(feature_dir) == feature_dir / "implementation-review" / "branch-review.md"
+
+
+@pytest.mark.parametrize("task_id", ["../T001", "..\\T001", "C:/tmp/T001", "/tmp/T001", "T001/extra"])
+@pytest.mark.parametrize("path_helper", [task_brief_path, review_package_path, task_review_path])
+def test_task_review_artifact_paths_reject_unsafe_task_ids(
+    tmp_path: Path,
+    path_helper,
+    task_id: str,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+
+    with pytest.raises(ValueError, match="invalid task_id"):
+        path_helper(feature_dir, task_id)
 
 
 def test_write_accepted_task_review_record(tmp_path: Path) -> None:
@@ -230,14 +245,39 @@ def test_task_review_acceptance_blocks_open_findings_controller_checks_and_ui_re
     assert not task_review_is_accepted(ui_review_required)
 
 
+def test_task_review_acceptance_blocks_open_plan_mandated_defects() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="pass",
+        plan_mandated_defects=[
+            TaskReviewFinding(
+                severity="high",
+                category="plan_mandated_defect",
+                file="src/example.py",
+                line=30,
+                summary="Plan-mandated behavior is missing",
+                required_fix="Implement the plan-mandated behavior",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    assert "plan_mandated_defects 0 is open" in task_review_acceptance_errors(record)
+    assert not task_review_is_accepted(record)
+
+
 def test_task_ledger_round_trips_accepted_entry(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     entry = TaskLedgerEntry(task_id="T001", status="accepted")
 
     path = write_task_ledger(feature_dir, [entry])
     loaded = load_task_ledger(feature_dir)
+    payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert path == feature_dir / "implementation-review" / "ledger.json"
+    assert list(payload) == ["tasks"]
+    assert payload["tasks"][0]["task_id"] == "T001"
     assert loaded == [entry]
 
 

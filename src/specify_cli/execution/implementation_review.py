@@ -266,16 +266,22 @@ def task_reviews_dir(feature_dir: Path) -> Path:
     return implementation_review_root(feature_dir) / "task-reviews"
 
 
+def _validate_task_artifact_id(task_id: str) -> str:
+    if not TASK_ID_RE.fullmatch(task_id):
+        raise ValueError(f"invalid task_id for implementation review artifact path: {task_id}")
+    return task_id
+
+
 def task_brief_path(feature_dir: Path, task_id: str) -> Path:
-    return task_briefs_dir(feature_dir) / f"{task_id}.md"
+    return task_briefs_dir(feature_dir) / f"{_validate_task_artifact_id(task_id)}.md"
 
 
 def review_package_path(feature_dir: Path, task_id: str) -> Path:
-    return review_packages_dir(feature_dir) / f"{task_id}.md"
+    return review_packages_dir(feature_dir) / f"{_validate_task_artifact_id(task_id)}.md"
 
 
 def task_review_path(feature_dir: Path, task_id: str) -> Path:
-    return task_reviews_dir(feature_dir) / f"{task_id}.json"
+    return task_reviews_dir(feature_dir) / f"{_validate_task_artifact_id(task_id)}.json"
 
 
 def ledger_path(feature_dir: Path) -> Path:
@@ -298,8 +304,8 @@ def task_review_record_payload(record: TaskReviewRecord) -> dict[str, object]:
     return asdict(record)
 
 
-def task_ledger_payload(entries: list[TaskLedgerEntry]) -> list[dict[str, object]]:
-    return [asdict(entry) for entry in entries]
+def task_ledger_payload(entries: list[TaskLedgerEntry]) -> dict[str, list[dict[str, object]]]:
+    return {"tasks": [asdict(entry) for entry in entries]}
 
 
 def _append_json_line(path: Path, payload: dict[str, object]) -> Path:
@@ -349,10 +355,10 @@ def load_task_ledger(feature_dir: Path) -> list[TaskLedgerEntry]:
     if not path.exists():
         return []
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list):
-        raise ValueError(f"{path} must contain a JSON array")
+    if not isinstance(payload, dict) or not isinstance(payload.get("tasks"), list):
+        raise ValueError(f"{path} must contain a JSON object with a tasks array")
     entries: list[TaskLedgerEntry] = []
-    for item in payload:
+    for item in payload["tasks"]:
         if not isinstance(item, dict):
             raise ValueError(f"{path} contains a non-object ledger entry")
         entries.append(_task_ledger_entry_from_payload(item))
@@ -373,18 +379,25 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
         risk.finding_index for risk in record.accepted_residual_risks
     }
     follow_up_indexes = {work.finding_index for work in record.follow_up_work}
-    for index, finding in enumerate(record.findings):
+    review_findings = [
+        ("finding", index, finding) for index, finding in enumerate(record.findings)
+    ]
+    review_findings.extend(
+        ("plan_mandated_defects", index, finding)
+        for index, finding in enumerate(record.plan_mandated_defects)
+    )
+    for label, index, finding in review_findings:
         if finding.disposition == "open":
-            errors.append(f"finding {index} is open")
+            errors.append(f"{label} {index} is open")
         elif (
             finding.disposition == "accepted_residual_risk"
             and index not in accepted_residual_risk_indexes
         ):
             errors.append(
-                f"finding {index} accepted_residual_risk has no matching accepted_residual_risks"
+                f"{label} {index} accepted_residual_risk has no matching accepted_residual_risks"
             )
         elif finding.disposition == "follow_up" and index not in follow_up_indexes:
-            errors.append(f"finding {index} follow_up has no matching follow_up_work")
+            errors.append(f"{label} {index} follow_up has no matching follow_up_work")
 
     if record.ui_fidelity_result == "fail":
         errors.append("ui_fidelity_result fail blocks acceptance")
