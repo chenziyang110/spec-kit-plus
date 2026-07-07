@@ -229,6 +229,13 @@ def _accepted_ledger_task_review_reference(
         return "", f"{task_id} in {ledger_relative} has malformed task_review"
     if not ledger_task_review.strip():
         return "", f"{task_id} in {ledger_relative} is missing task_review"
+    expected = f"implementation-review/task-reviews/{task_id}.json"
+    if ledger_task_review != expected:
+        return (
+            "",
+            f"{task_id} in {ledger_relative} has malformed unsafe task_review "
+            f"{ledger_task_review}: expected {expected}",
+        )
     return ledger_task_review, ""
 
 
@@ -356,6 +363,8 @@ def _required_string(payload: object, key: str) -> str:
     value = _payload_value(payload, key)
     if not isinstance(value, str):
         raise ValueError(f"{key} must be a string")
+    if not value.strip():
+        raise ValueError(f"{key} must be a nonblank string")
     return value
 
 

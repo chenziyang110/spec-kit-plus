@@ -387,6 +387,70 @@ def test_resolved_packetized_state_with_missing_ledger_task_review_fails(
     )
 
 
+def test_resolved_packetized_state_with_spaced_ledger_task_review_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": " implementation-review/task-reviews/T001.json ",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "implementation-review/ledger.json" in gap
+        and "T001" in gap
+        and "task_review" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_backslash_ledger_task_review_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review\\task-reviews\\T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "implementation-review/ledger.json" in gap
+        and "T001" in gap
+        and "task_review" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_packetized_state_with_rejected_task_review_fails(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_packetized_review_state(feature_dir)
@@ -717,6 +781,100 @@ def test_resolved_packetized_state_with_invalid_residual_risk_scalar_fails(
     )
 
 
+def test_resolved_packetized_state_with_blank_residual_risk_reason_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "concerns",
+                "findings": [
+                    {
+                        "severity": "medium",
+                        "category": "quality",
+                        "file": "src/specify_cli/demo.py",
+                        "line": 12,
+                        "summary": "Residual risk is blank.",
+                        "required_fix": "Reject blank residual risk values.",
+                        "disposition": "accepted_residual_risk",
+                    }
+                ],
+                "accepted_residual_risks": [
+                    {
+                        "finding_index": 0,
+                        "reason": "   ",
+                        "owner": "leader",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "reason" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_blank_residual_risk_owner_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "concerns",
+                "findings": [
+                    {
+                        "severity": "medium",
+                        "category": "quality",
+                        "file": "src/specify_cli/demo.py",
+                        "line": 12,
+                        "summary": "Residual risk owner is blank.",
+                        "required_fix": "Reject blank residual risk owners.",
+                        "disposition": "accepted_residual_risk",
+                    }
+                ],
+                "accepted_residual_risks": [
+                    {
+                        "finding_index": 0,
+                        "reason": "Documented risk.",
+                        "owner": "",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "owner" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_packetized_state_with_invalid_follow_up_scalar_fails(
     tmp_path: Path,
 ) -> None:
@@ -764,6 +922,53 @@ def test_resolved_packetized_state_with_invalid_follow_up_scalar_fails(
     )
 
 
+def test_resolved_packetized_state_with_blank_follow_up_target_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "concerns",
+                "findings": [
+                    {
+                        "severity": "medium",
+                        "category": "quality",
+                        "file": "src/specify_cli/demo.py",
+                        "line": 12,
+                        "summary": "Follow-up target is blank.",
+                        "required_fix": "Reject blank follow-up values.",
+                        "disposition": "follow_up",
+                    }
+                ],
+                "follow_up_work": [
+                    {
+                        "finding_index": 0,
+                        "description": "Track cleanup.",
+                        "target": " ",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "target" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_packetized_state_with_invalid_controller_check_scalar_fails(
     tmp_path: Path,
 ) -> None:
@@ -796,6 +1001,82 @@ def test_resolved_packetized_state_with_invalid_controller_check_scalar_fails(
         "T001" in gap
         and "implementation-review/task-reviews/T001.json" in gap
         and "check" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_blank_controller_check_evidence_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "controller_checks": [
+                    {
+                        "check": "manual smoke",
+                        "reason": "Manual check required.",
+                        "evidence_required": "",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "evidence_required" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_blank_finding_summary_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "findings": [
+                    {
+                        "severity": "medium",
+                        "category": "quality",
+                        "file": "src/specify_cli/demo.py",
+                        "line": 12,
+                        "summary": " ",
+                        "required_fix": "Reject blank finding fields.",
+                        "disposition": "fixed",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "summary" in gap
         for gap in payload["open_gaps"]
     )
 
