@@ -314,7 +314,7 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
                 "| produces | [settings_panel_events, responsive_settings_markup] |",
                 "| review_inputs | [DESIGN.md, screenshots/settings-panel.png] |",
                 "| review_risks | [Keyboard shortcuts may regress] |",
-                "| ui_fidelity_level | [high] |",
+                "| ui_fidelity_level | [HIGH] |",
                 "| design_inputs | [DESIGN.md#settings-panel] |",
                 "| ui_required_evidence | [desktop_screenshot, mobile_screenshot] |",
                 "| controller_checks_required | [keyboard_navigation_check, state_persistence_check] |",
@@ -363,6 +363,69 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         "keyboard_navigation_check",
         "state_persistence_check",
     ]
+
+
+def test_compile_worker_task_packet_rejects_invalid_ui_fidelity_level(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n',
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `DESIGN.md`",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- npm test -- tests/settings-panel.test.ts",
+                "",
+                "## T022: Build settings panel",
+                "",
+                "### Scope Boundaries",
+                "| Field | Value |",
+                "|-------|-------|",
+                "| write_scope | [src/ui/settings-panel.tsx] |",
+                "| ui_fidelity_level | [hihg] |",
+                "| design_inputs | [DESIGN.md#settings-panel] |",
+                "| ui_required_evidence | [desktop_screenshot] |",
+                "",
+                "- [ ] T022 [US2] Build settings panel",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T022",
+        )
+
+    assert exc.value.code == "DP1"
+    assert "ui fidelity level" in exc.value.message
 
 
 def test_compile_worker_task_packet_accepts_materialized_task_input(

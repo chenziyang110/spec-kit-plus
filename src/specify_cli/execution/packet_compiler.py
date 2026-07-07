@@ -282,11 +282,8 @@ def _ui_fidelity_requirements_from_task_detail(task_detail: str) -> UiFidelityRe
         "Scope Boundaries",
         "ui_fidelity_level",
     )
-    level = (
-        level_values[0]
-        if level_values and level_values[0] in {"none", "approximate", "high"}
-        else "none"
-    )
+    raw_level = level_values[0].strip() if level_values else ""
+    level = raw_level.lower() if raw_level else "none"
     design_inputs = _task_detail_table_field_values(
         task_detail,
         "Scope Boundaries",
