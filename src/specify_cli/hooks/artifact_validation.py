@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from specify_cli.execution.implementation_review import task_review_is_accepted
-from specify_cli.implement_audit import _task_review_record_from_payload
+from specify_cli.implement_audit import _packetized_task_ids, _task_review_record_from_payload
 from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 
 from .checkpoint_serializers import extract_field, normalize_command_name
@@ -626,13 +626,6 @@ def _all_implement_task_ids(feature_dir: Path) -> set[str]:
     return {match.group("task_id").upper() for match in IMPLEMENT_TASK_RE.finditer(content)}
 
 
-def _packetized_implement_task_ids(feature_dir: Path) -> set[str]:
-    packets_dir = feature_dir / "task-packets"
-    if not packets_dir.is_dir():
-        return set()
-    return {path.stem.upper() for path in packets_dir.iterdir() if path.is_file() and path.suffix == ".json"}
-
-
 def _validate_accepted_task_review(feature_dir: Path, task_id: str, review_relative: str) -> list[str]:
     review_path = feature_dir / review_relative
     if not review_path.is_file():
@@ -653,10 +646,12 @@ def _validate_accepted_task_review(feature_dir: Path, task_id: str, review_relat
 
 def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[str]:
     checked_task_id_set = set(_checked_implement_task_ids(feature_dir))
-    packet_task_ids = _packetized_implement_task_ids(feature_dir)
+    packet_task_id_list, packet_errors = _packetized_task_ids(feature_dir)
+    packet_task_ids = set(packet_task_id_list)
     checked_task_ids = sorted(checked_task_id_set & packet_task_ids)
 
     errors: list[str] = []
+    errors.extend(packet_errors)
     all_task_ids = _all_implement_task_ids(feature_dir)
     for packet_task_id in sorted(packet_task_ids - checked_task_id_set):
         reason = "unchecked in tasks.md" if packet_task_id in all_task_ids else "missing checked task in tasks.md"
