@@ -92,7 +92,7 @@ description: "Task list template for feature implementation"
 
 | Task ID | Review Risks | UI Fidelity Requirements | Controller Checks Required |
 | --- | --- | --- | --- |
-| T### | [manual check, quality tradeoff, reference fidelity risk] | [not_applicable | low | medium | high] | [command, screenshot, or human review when needed] |
+| T### | [manual check, quality tradeoff, reference fidelity risk] | [none | approximate | high] | [command, screenshot, or human review when needed] |
 
 ## Consequence Obligation Mapping
 

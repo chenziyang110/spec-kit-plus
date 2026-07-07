@@ -1,11 +1,13 @@
 import json
 import re
 from pathlib import Path
+from typing import get_args
 
 from specify_cli.execution.implementation_review import (
     TaskReviewRecord,
     task_review_acceptance_errors,
 )
+from specify_cli.execution.packet_schema import UiFidelityLevel
 
 from .template_utils import read_template
 
@@ -4839,6 +4841,27 @@ def test_tasks_template_inherits_implementation_target_boundary() -> None:
     assert packet.get("target_relative_paths") == []
     assert packet.get("evidence_status") is None
     assert packet.get("boundary_constraints") == []
+
+
+def test_tasks_template_ui_fidelity_levels_match_packet_schema() -> None:
+    task_template = _read("templates/tasks-template.md")
+    match = re.search(
+        r"\| T### \| \[manual check[^\n]*\| \[(?P<levels>[^\]]+)\] \| "
+        r"\[command, screenshot, or human review when needed\] \|",
+        task_template,
+    )
+
+    assert match, "tasks template must advertise packet UI fidelity levels"
+    advertised_levels = {
+        level.strip(" `").lower()
+        for level in match.group("levels").split("|")
+        if level.strip()
+    }
+    supported_levels = set(get_args(UiFidelityLevel))
+
+    assert supported_levels <= advertised_levels
+    assert advertised_levels == supported_levels
+    assert not (advertised_levels & {"low", "medium", "not_applicable"})
 
 
 def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
