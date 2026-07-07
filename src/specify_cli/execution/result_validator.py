@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from .evidence import has_real_entrypoint_consumer_evidence, normalize_evidence_label
+from .evidence import (
+    PLACEHOLDER_VALUES,
+    has_real_entrypoint_consumer_evidence,
+    normalize_evidence_label,
+)
 from .packet_schema import WorkerTaskPacket
 from .packet_validator import PacketValidationError
 from .result_schema import WorkerTaskResult
@@ -22,14 +26,7 @@ _UI_FIDELITY_PAYLOAD_FIELDS = {
     "path",
     "url",
 }
-_UI_FIDELITY_PLACEHOLDER_VALUES = {
-    "",
-    "todo",
-    "tbd",
-    "n_a",
-    "none",
-    "not_run",
-}
+_UI_FIDELITY_PLACEHOLDER_VALUES = PLACEHOLDER_VALUES | {"", "not_run"}
 
 
 def _normalize_command(value: str) -> str:
