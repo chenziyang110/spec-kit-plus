@@ -251,6 +251,10 @@ Use the returned readiness:
 6. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
    - Add `Implementation Constitution` using architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus from repository evidence
+   - Add `Global Constraints` when constraints materially affect implementation or review.
+   - Add `Task Interface Map` when task-level consumes/produces expectations are already known.
+   - Add `Review-Risk Notes` for plan-approved risks, manual checks, UI/reference fidelity risks, or quality tradeoffs that reviewers must not reconstruct from chat memory.
+   - Carry implementation-review artifact expectations into the plan when relevant: `implementation-review/task-briefs/`, `implementation-review/review-packages/`, `implementation-review/task-reviews/`, `implementation-review/ledger.json`, and `implementation-review/branch-review.md`.
     - `Implementation Constitution` MUST be added if any one of the following conditions is true:
       - the feature touches an established framework-owned boundary or adapter pattern
       - the touched area is a native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary

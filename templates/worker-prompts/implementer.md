@@ -11,6 +11,8 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - verification gates
   - done criteria
 - Provide platform guardrails and completion-handoff expectations explicitly when the lane depends on supported-platform constraints, conditional compilation, runtime-managed result channels, or a promised result handoff path.
+- Provide the task brief path under `FEATURE_DIR/implementation-review/task-briefs/<task-id>.md` when the runtime has written one.
+- Tell the worker that the task brief and packet are the authoritative contract for the lane.
 - Name the write set, shared surfaces, and forbidden drift explicitly.
 - For every behavior-changing task, bug fix, or refactor, tell the worker to write the failing test first, capture the RED state, and return the GREEN rerun evidence for the same gate after the fix.
 
@@ -44,6 +46,8 @@ Treat these fields as binding execution inputs from the worker packet or `handof
 - Verification run
 - RED state evidence when the lane changed behavior
 - GREEN state evidence for the same gate after the fix
+- UI fidelity evidence when the packet's `ui_fidelity_requirements.applicable` is true.
+- Evidence paths that the leader can cite from `implementation-review/review-packages/<task-id>.md`.
 - Remaining concern, blocker, or missing context
 - When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult`-style payload with validation evidence and explicit blocker metadata.
 - When the leader provides a delegated result handoff path, write the normalized result envelope there instead of replying with freeform prose only.

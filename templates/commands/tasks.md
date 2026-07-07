@@ -141,6 +141,8 @@ Use the returned readiness:
 - **CARRY FORWARD**: Carry cognition-derived required references, write scopes,
   validation commands, forbidden drift, and known unknowns into `tasks.md`,
   `task-index.json`, and task packets.
+- Carry `global_constraints`, `interfaces.consumes`, `interfaces.produces`, `review_inputs`, `review_risks`, `ui_fidelity_requirements`, and `controller_checks_required` into task packets when relevant.
+- Carry implementation-review artifact paths into generated state and task guidance when relevant: `implementation-review/task-briefs/`, `implementation-review/review-packages/`, `implementation-review/task-reviews/`, `implementation-review/ledger.json`, and `implementation-review/branch-review.md`.
 
 Task generation may stay focused on the plan artifacts afterward, but it may not skip the query-backed cognition gate.
 

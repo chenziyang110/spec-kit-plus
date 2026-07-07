@@ -91,6 +91,7 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "templates/worker-prompts/quick-worker.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
+        "templates/worker-prompts/task-reviewer.md",
         "templates/worker-prompts/code-quality-reviewer.md",
         "templates/worker-prompts/spec-reviewer.md",
     ):
@@ -304,6 +305,7 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
+        "templates/worker-prompts/task-reviewer.md",
         "templates/worker-prompts/code-quality-reviewer.md",
         "templates/worker-prompts/spec-reviewer.md",
     ):
@@ -347,6 +349,7 @@ def test_worker_prompts_report_inline_update_payload_evidence() -> None:
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
+        "templates/worker-prompts/task-reviewer.md",
         "templates/worker-prompts/code-quality-reviewer.md",
         "templates/worker-prompts/spec-reviewer.md",
     ):
@@ -2633,6 +2636,57 @@ def test_implement_template_preserves_workflow_state_review_allowlist() -> None:
     assert "review_window_policy" in implement
 
 
+def test_implement_uses_single_task_reviewer_by_default() -> None:
+    content = _read("templates/commands/implement.md")
+
+    assert ".specify/templates/worker-prompts/implementer.md" in content
+    assert ".specify/templates/worker-prompts/task-reviewer.md" in content
+    assert "ordinary post-task review" in content
+    assert "spec_verdict" in content
+    assert "quality_verdict" in content
+    assert "implementation-review/task-briefs/" in content
+    assert "implementation-review/review-packages/" in content
+    assert "implementation-review/task-reviews/" in content
+    assert "implementation-review/ledger.json" in content
+    assert "implementation-review/branch-review.md" in content
+    assert "pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md`" not in content
+
+
+def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
+    content = _read("templates/worker-prompts/task-reviewer.md")
+
+    assert "spec_verdict" in content
+    assert "quality_verdict" in content
+    assert "ui_fidelity_result" in content
+    assert "final_assessment" in content
+    assert "accepted_residual_risks" in content
+    assert "follow_up_work" in content
+    assert "controller_checks" in content
+    assert "findings" in content
+
+
+def test_plan_tasks_and_workflow_state_carry_review_artifact_contract() -> None:
+    combined = "\n".join(
+        [
+            _read("templates/commands/plan.md"),
+            _read("templates/commands/tasks.md"),
+            _read("templates/tasks-template.md"),
+            _read("templates/workflow-state-template.md"),
+            _read("templates/plan-contract-template.json"),
+        ]
+    )
+
+    assert "Global Constraints" in combined
+    assert "Task Interface Map" in combined
+    assert "Review-Risk Notes" in combined
+    assert "ui_fidelity_requirements" in combined
+    assert "controller_checks_required" in combined
+    assert "task-briefs" in combined
+    assert "review-packages" in combined
+    assert "task-reviews" in combined
+    assert "branch-review.md" in combined
+
+
 def test_tasks_template_requires_stable_task_identity_for_embedded_repair() -> None:
     content = _read("templates/tasks-template.md")
     lowered = content.lower()
@@ -3493,8 +3547,10 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "dispatch only from validated `WorkerTaskPacket`" in content
     assert "Do not dispatch from raw task text alone" in content
     assert ".specify/templates/worker-prompts/implementer.md" in content
+    assert ".specify/templates/worker-prompts/task-reviewer.md" in content
     assert ".specify/templates/worker-prompts/spec-reviewer.md" in content
     assert ".specify/templates/worker-prompts/code-quality-reviewer.md" in content
+    assert "ordinary post-task review" in lowered
     assert "runtime-managed result channel" in lowered
     assert "feature_dir/worker-results/<task-id>.json" in lowered
     assert '{{specify-subcmd:result path --command implement --feature-dir "$feature_dir" --task-id <task-id>}}' in lowered
@@ -3945,6 +4001,7 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     implementer = _read("templates/worker-prompts/implementer.md")
     debug_investigator = _read("templates/worker-prompts/debug-investigator.md")
     quick_worker = _read("templates/worker-prompts/quick-worker.md")
+    task_reviewer = _read("templates/worker-prompts/task-reviewer.md")
     spec_reviewer = _read("templates/worker-prompts/spec-reviewer.md")
     code_quality = _read("templates/worker-prompts/code-quality-reviewer.md")
 
@@ -3985,6 +4042,10 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "# Code Quality Reviewer Worker Prompt" in code_quality
     assert "only run after spec review passes" in code_quality.lower()
     assert "file responsibility" in code_quality.lower()
+
+    assert "# Task Reviewer Worker Prompt" in task_reviewer
+    assert "spec_verdict" in task_reviewer
+    assert "quality_verdict" in task_reviewer
 
 
 def test_specify_template_explicitly_reads_constitution() -> None:

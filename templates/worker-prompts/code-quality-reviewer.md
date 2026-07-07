@@ -1,5 +1,7 @@
 # Code Quality Reviewer Worker Prompt
 
+> Legacy compatibility prompt. New `sp-implement` ordinary task reviews use `.specify/templates/worker-prompts/task-reviewer.md`, which returns both `spec_verdict` and `quality_verdict` in one result.
+
 Use this template when the leader needs an independent quality review after spec review passes.
 
 ## Review Order

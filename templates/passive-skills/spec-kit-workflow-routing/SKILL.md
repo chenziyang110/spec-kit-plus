@@ -121,6 +121,7 @@ explicit numeric option.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`. `sp-implement` owns the embedded pre-implement review, join-point drift review, bounded sequential review windows, and safe task-layer repair loop. Safe repairs may update remaining tasks, packets, handoff state, tracker state, and implementation-review audit records; product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
+- Route planned implementation to `sp-implement`; task review is embedded through task briefs, review packages, task reviews, ledger state, and branch review. Do not route to a separate public review command.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use

@@ -86,6 +86,11 @@
   - reviews: [implementation-review/reviews.ndjson]
   - repairs: [implementation-review/repairs.ndjson]
   - snapshots: [implementation-review/snapshots/]
+  - task_briefs: [implementation-review/task-briefs/]
+  - review_packages: [implementation-review/review-packages/]
+  - task_reviews: [implementation-review/task-reviews/]
+  - ledger: [implementation-review/ledger.json]
+  - branch_review: [implementation-review/branch-review.md]
 - workflow_state_write_allowlist:
   - review_gate
   - review_window_policy
