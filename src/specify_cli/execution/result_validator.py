@@ -13,6 +13,23 @@ _PLACEHOLDER_OUTPUTS = {
     "NOT RUN",
     "NOT RUN - REPLACE WITH ACTUAL COMMAND OUTPUT AFTER EXECUTION",
 }
+_UI_FIDELITY_PAYLOAD_FIELDS = {
+    "artifact",
+    "screenshot",
+    "diff",
+    "comparison",
+    "evidence",
+    "path",
+    "url",
+}
+_UI_FIDELITY_PLACEHOLDER_VALUES = {
+    "",
+    "todo",
+    "tbd",
+    "n_a",
+    "none",
+    "not_run",
+}
 
 
 def _normalize_command(value: str) -> str:
@@ -22,6 +39,14 @@ def _normalize_command(value: str) -> str:
 def _validation_output_is_placeholder(output: str) -> bool:
     normalized = output.strip()
     return normalized.upper() in _PLACEHOLDER_OUTPUTS
+
+
+def _has_meaningful_ui_fidelity_payload(item: dict[str, str]) -> bool:
+    for field in _UI_FIDELITY_PAYLOAD_FIELDS:
+        value = str(item.get(field, "")).strip()
+        if value and normalize_evidence_label(value) not in _UI_FIDELITY_PLACEHOLDER_VALUES:
+            return True
+    return False
 
 
 def validate_worker_task_result(
@@ -130,6 +155,7 @@ def validate_worker_task_result(
             if "visual_comparison_evidence" in ui_required_evidence:
                 has_visual_comparison = any(
                     normalize_evidence_label(str(item.get("kind", ""))) == "visual_comparison"
+                    and _has_meaningful_ui_fidelity_payload(item)
                     for item in result.ui_fidelity_evidence
                     if isinstance(item, dict)
                 )

@@ -25,6 +25,10 @@ class PacketValidationError(ValueError):
         ValueError.__init__(self, self.message)
 
 
+def _has_blank_entry(values: list[str]) -> bool:
+    return any(not item.strip() for item in values)
+
+
 def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
     """Return the packet when its hard-fail execution contract is complete."""
 
@@ -60,17 +64,23 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
                 "DP1",
                 "applicable ui fidelity requirements must specify approximate or high level",
             )
-        if not packet.ui_fidelity_requirements.design_inputs:
+        if (
+            not packet.ui_fidelity_requirements.design_inputs
+            or _has_blank_entry(packet.ui_fidelity_requirements.design_inputs)
+        ):
             raise PacketValidationError(
                 "DP1",
-                "applicable ui fidelity requirements must include design inputs",
+                "applicable ui fidelity requirements must include nonblank design inputs",
             )
-        if not packet.ui_fidelity_requirements.required_evidence:
+        if (
+            not packet.ui_fidelity_requirements.required_evidence
+            or _has_blank_entry(packet.ui_fidelity_requirements.required_evidence)
+        ):
             raise PacketValidationError(
                 "DP1",
-                "applicable ui fidelity requirements must include required evidence",
+                "applicable ui fidelity requirements must include nonblank required evidence",
             )
-    if any(not item.strip() for item in packet.controller_checks_required):
+    if _has_blank_entry(packet.controller_checks_required):
         raise PacketValidationError("DP1", "controller checks required cannot contain blank entries")
     for obligation in packet.must_preserve_obligations:
         if not MP_ID_RE.match(obligation.id):

@@ -220,6 +220,40 @@ def test_validate_worker_task_packet_rejects_incomplete_applicable_ui_fidelity_c
     assert "ui fidelity" in exc.value.message.lower()
 
 
+def test_validate_worker_task_packet_rejects_blank_ui_fidelity_design_inputs(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["  "],
+        required_evidence=["visual_comparison_evidence"],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "design inputs" in exc.value.message.lower()
+
+
+def test_validate_worker_task_packet_rejects_blank_ui_fidelity_required_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["designs/auth-flow.png"],
+        required_evidence=["  "],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "required evidence" in exc.value.message.lower()
+
+
 def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
     sample_packet: WorkerTaskPacket,
 ) -> None:
