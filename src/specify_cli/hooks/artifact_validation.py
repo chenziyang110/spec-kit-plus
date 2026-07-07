@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from specify_cli.execution.implementation_review import task_review_is_accepted
+from specify_cli.implement_audit import _task_review_record_from_payload
 from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
 
 from .checkpoint_serializers import extract_field, normalize_command_name
@@ -616,6 +618,14 @@ def _checked_implement_task_ids(feature_dir: Path) -> list[str]:
     )
 
 
+def _all_implement_task_ids(feature_dir: Path) -> set[str]:
+    tasks_path = feature_dir / "tasks.md"
+    if not tasks_path.is_file():
+        return set()
+    content = tasks_path.read_text(encoding="utf-8", errors="replace")
+    return {match.group("task_id").upper() for match in IMPLEMENT_TASK_RE.finditer(content)}
+
+
 def _packetized_implement_task_ids(feature_dir: Path) -> set[str]:
     packets_dir = feature_dir / "task-packets"
     if not packets_dir.is_dir():
@@ -623,26 +633,56 @@ def _packetized_implement_task_ids(feature_dir: Path) -> set[str]:
     return {path.stem.upper() for path in packets_dir.iterdir() if path.is_file() and path.suffix == ".json"}
 
 
+def _validate_accepted_task_review(feature_dir: Path, task_id: str, review_relative: str) -> list[str]:
+    review_path = feature_dir / review_relative
+    if not review_path.is_file():
+        return [f"{review_relative} is missing for accepted packetized task {task_id}"]
+    try:
+        payload = json.loads(review_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("task review must contain a JSON object")
+        record = _task_review_record_from_payload(payload)
+        if not isinstance(record.task_id, str) or record.task_id.upper() != task_id:
+            return [f"{task_id} task review has mismatched task_id at {review_relative}"]
+        if not task_review_is_accepted(record):
+            return [f"{task_id} task review is not accepted at {review_relative}"]
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        return [f"{task_id} task review is malformed at {review_relative}: {exc}"]
+    return []
+
+
 def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[str]:
-    checked_task_ids = sorted(set(_checked_implement_task_ids(feature_dir)) & _packetized_implement_task_ids(feature_dir))
-    if not checked_task_ids:
-        return []
+    checked_task_id_set = set(_checked_implement_task_ids(feature_dir))
+    packet_task_ids = _packetized_implement_task_ids(feature_dir)
+    checked_task_ids = sorted(checked_task_id_set & packet_task_ids)
 
     errors: list[str] = []
+    all_task_ids = _all_implement_task_ids(feature_dir)
+    for packet_task_id in sorted(packet_task_ids - checked_task_id_set):
+        reason = "unchecked in tasks.md" if packet_task_id in all_task_ids else "missing checked task in tasks.md"
+        errors.append(f"{packet_task_id} packetized task is not checked: {reason}")
+
+    if not checked_task_ids:
+        return errors
+
     ledger_relative = "implementation-review/ledger.json"
     branch_review_relative = "implementation-review/branch-review.md"
     ledger_path = feature_dir / ledger_relative
     if not ledger_path.is_file():
-        return [f"{ledger_relative} is missing for packetized checked implement tasks"]
+        errors.append(f"{ledger_relative} is missing for packetized checked implement tasks")
+        return errors
 
     payload, read_errors = _read_json_artifact(ledger_path, ledger_relative)
     if read_errors:
-        return read_errors
+        errors.extend(read_errors)
+        return errors
     if not isinstance(payload, dict):
-        return [f"{ledger_relative} must contain a top-level JSON object"]
+        errors.append(f"{ledger_relative} must contain a top-level JSON object")
+        return errors
     tasks = payload.get("tasks")
     if not isinstance(tasks, list):
-        return [f"{ledger_relative} must define a top-level tasks array"]
+        errors.append(f"{ledger_relative} must define a top-level tasks array")
+        return errors
 
     entries_by_task: dict[str, dict[str, Any]] = {}
     for index, item in enumerate(tasks):
@@ -668,8 +708,7 @@ def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[s
         if task_review != expected_review:
             errors.append(f"{task_id} in {ledger_relative} must reference {expected_review}")
             continue
-        if not (feature_dir / expected_review).is_file():
-            errors.append(f"{expected_review} is missing for accepted packetized task {task_id}")
+        errors.extend(_validate_accepted_task_review(feature_dir, task_id, expected_review))
 
     if not (feature_dir / branch_review_relative).is_file():
         errors.append(f"{branch_review_relative} is missing for packetized checked implement tasks")
