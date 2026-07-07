@@ -237,7 +237,7 @@ def test_task_ledger_round_trips_accepted_entry(tmp_path: Path) -> None:
     path = write_task_ledger(feature_dir, [entry])
     loaded = load_task_ledger(feature_dir)
 
-    assert path == feature_dir / "implementation-review" / "task-ledger.json"
+    assert path == feature_dir / "implementation-review" / "ledger.json"
     assert loaded == [entry]
 
 

@@ -279,7 +279,7 @@ def task_review_path(feature_dir: Path, task_id: str) -> Path:
 
 
 def ledger_path(feature_dir: Path) -> Path:
-    return implementation_review_root(feature_dir) / "task-ledger.json"
+    return implementation_review_root(feature_dir) / "ledger.json"
 
 
 def branch_review_path(feature_dir: Path) -> Path:
