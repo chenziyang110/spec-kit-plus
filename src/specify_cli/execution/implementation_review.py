@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -54,6 +54,34 @@ RepairOperation = Literal[
     "insert_repair_task",
     "update_tracker",
     "update_handoff",
+]
+TaskReviewSpecVerdict = Literal["pass", "fail", "cannot_verify_from_diff"]
+TaskReviewQualityVerdict = Literal["pass", "fail", "concerns"]
+TaskReviewFindingCategory = Literal[
+    "spec",
+    "quality",
+    "evidence",
+    "ui_fidelity",
+    "plan_mandated_defect",
+]
+TaskReviewFindingDisposition = Literal["open", "fixed", "accepted_residual_risk", "follow_up"]
+TaskReviewUiFidelityResult = Literal[
+    "not_applicable",
+    "pass",
+    "fail",
+    "needs_visual_or_human_review",
+]
+TaskReviewFinalAssessment = Literal["accepted", "fixes_required", "controller_check_required"]
+TaskLedgerStatus = Literal[
+    "pending",
+    "brief_written",
+    "worker_done",
+    "review_package_written",
+    "review_pending",
+    "fixes_required",
+    "controller_check_required",
+    "accepted",
+    "blocked",
 ]
 
 
@@ -150,6 +178,66 @@ class ImplementationRepairRecord:
     created_at: str = field(default_factory=_utc_now)
 
 
+@dataclass(slots=True)
+class TaskReviewFinding:
+    severity: ReviewSeverity
+    category: TaskReviewFindingCategory
+    file: str
+    line: int
+    summary: str
+    required_fix: str
+    disposition: TaskReviewFindingDisposition = "open"
+
+
+@dataclass(slots=True)
+class ControllerCheck:
+    check: str
+    reason: str
+    evidence_required: str
+
+
+@dataclass(slots=True)
+class AcceptedResidualRisk:
+    finding_index: int
+    reason: str
+    owner: str
+
+
+@dataclass(slots=True)
+class FollowUpWork:
+    finding_index: int
+    description: str
+    target: str
+
+
+@dataclass(slots=True)
+class TaskReviewRecord:
+    task_id: str
+    spec_verdict: TaskReviewSpecVerdict
+    quality_verdict: TaskReviewQualityVerdict
+    findings: list[TaskReviewFinding] = field(default_factory=list)
+    controller_checks: list[ControllerCheck] = field(default_factory=list)
+    plan_mandated_defects: list[TaskReviewFinding] = field(default_factory=list)
+    accepted_residual_risks: list[AcceptedResidualRisk] = field(default_factory=list)
+    follow_up_work: list[FollowUpWork] = field(default_factory=list)
+    ui_fidelity_result: TaskReviewUiFidelityResult = "not_applicable"
+    final_assessment: TaskReviewFinalAssessment = "fixes_required"
+    created_at: str = field(default_factory=_utc_now)
+
+
+@dataclass(slots=True)
+class TaskLedgerEntry:
+    task_id: str
+    status: TaskLedgerStatus
+    task_brief: str = ""
+    worker_result: str = ""
+    review_package: str = ""
+    task_review: str = ""
+    controller_checks_open: list[str] = field(default_factory=list)
+    controller_checks_closed: list[str] = field(default_factory=list)
+    last_evidence: list[str] = field(default_factory=list)
+
+
 def implementation_review_root(feature_dir: Path) -> Path:
     return feature_dir / "implementation-review"
 
@@ -166,12 +254,52 @@ def snapshots_dir(feature_dir: Path) -> Path:
     return implementation_review_root(feature_dir) / "snapshots"
 
 
+def task_briefs_dir(feature_dir: Path) -> Path:
+    return implementation_review_root(feature_dir) / "task-briefs"
+
+
+def review_packages_dir(feature_dir: Path) -> Path:
+    return implementation_review_root(feature_dir) / "review-packages"
+
+
+def task_reviews_dir(feature_dir: Path) -> Path:
+    return implementation_review_root(feature_dir) / "task-reviews"
+
+
+def task_brief_path(feature_dir: Path, task_id: str) -> Path:
+    return task_briefs_dir(feature_dir) / f"{task_id}.md"
+
+
+def review_package_path(feature_dir: Path, task_id: str) -> Path:
+    return review_packages_dir(feature_dir) / f"{task_id}.md"
+
+
+def task_review_path(feature_dir: Path, task_id: str) -> Path:
+    return task_reviews_dir(feature_dir) / f"{task_id}.json"
+
+
+def ledger_path(feature_dir: Path) -> Path:
+    return implementation_review_root(feature_dir) / "task-ledger.json"
+
+
+def branch_review_path(feature_dir: Path) -> Path:
+    return implementation_review_root(feature_dir) / "branch-review.md"
+
+
 def implementation_review_record_payload(record: ImplementationReviewRecord) -> dict[str, object]:
     return asdict(record)
 
 
 def implementation_repair_record_payload(record: ImplementationRepairRecord) -> dict[str, object]:
     return asdict(record)
+
+
+def task_review_record_payload(record: TaskReviewRecord) -> dict[str, object]:
+    return asdict(record)
+
+
+def task_ledger_payload(entries: list[TaskLedgerEntry]) -> list[dict[str, object]]:
+    return [asdict(entry) for entry in entries]
 
 
 def _append_json_line(path: Path, payload: dict[str, object]) -> Path:
@@ -188,6 +316,95 @@ def write_review_record(feature_dir: Path, record: ImplementationReviewRecord) -
 
 def write_repair_record(feature_dir: Path, record: ImplementationRepairRecord) -> Path:
     return _append_json_line(repairs_path(feature_dir), implementation_repair_record_payload(record))
+
+
+def _write_json(path: Path, payload: object) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def write_task_review_record(feature_dir: Path, record: TaskReviewRecord) -> Path:
+    return _write_json(task_review_path(feature_dir, record.task_id), task_review_record_payload(record))
+
+
+def write_task_ledger(feature_dir: Path, entries: list[TaskLedgerEntry]) -> Path:
+    return _write_json(ledger_path(feature_dir), task_ledger_payload(entries))
+
+
+def _field_names(dataclass_type: type[object]) -> set[str]:
+    return {item.name for item in fields(dataclass_type)}
+
+
+def _task_ledger_entry_from_payload(payload: dict[str, object]) -> TaskLedgerEntry:
+    allowed = _field_names(TaskLedgerEntry)
+    return TaskLedgerEntry(**{key: value for key, value in payload.items() if key in allowed})  # type: ignore[arg-type]
+
+
+def load_task_ledger(feature_dir: Path) -> list[TaskLedgerEntry]:
+    path = ledger_path(feature_dir)
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError(f"{path} must contain a JSON array")
+    entries: list[TaskLedgerEntry] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            raise ValueError(f"{path} contains a non-object ledger entry")
+        entries.append(_task_ledger_entry_from_payload(item))
+    return entries
+
+
+def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
+    errors: list[str] = []
+
+    if record.spec_verdict == "fail":
+        errors.append("spec_verdict fail blocks acceptance")
+    if record.quality_verdict == "fail":
+        errors.append("quality_verdict fail blocks acceptance")
+    if record.quality_verdict == "concerns" and not record.findings:
+        errors.append("quality concerns require findings")
+
+    accepted_residual_risk_indexes = {
+        risk.finding_index for risk in record.accepted_residual_risks
+    }
+    follow_up_indexes = {work.finding_index for work in record.follow_up_work}
+    for index, finding in enumerate(record.findings):
+        if finding.disposition == "open":
+            errors.append(f"finding {index} is open")
+        elif (
+            finding.disposition == "accepted_residual_risk"
+            and index not in accepted_residual_risk_indexes
+        ):
+            errors.append(
+                f"finding {index} accepted_residual_risk has no matching accepted_residual_risks"
+            )
+        elif finding.disposition == "follow_up" and index not in follow_up_indexes:
+            errors.append(f"finding {index} follow_up has no matching follow_up_work")
+
+    if record.ui_fidelity_result == "fail":
+        errors.append("ui_fidelity_result fail blocks acceptance")
+    elif record.ui_fidelity_result == "needs_visual_or_human_review":
+        errors.append("needs_visual_or_human_review cannot be accepted")
+
+    if record.final_assessment == "accepted" and record.controller_checks:
+        errors.append("accepted assessment cannot have open controller checks")
+    if (
+        record.final_assessment == "accepted"
+        and record.spec_verdict == "cannot_verify_from_diff"
+        and record.controller_checks
+    ):
+        errors.append("cannot_verify_from_diff with controller checks cannot be accepted")
+
+    return errors
+
+
+def task_review_is_accepted(record: TaskReviewRecord) -> bool:
+    return record.final_assessment == "accepted" and not task_review_acceptance_errors(record)
 
 
 def _snapshot_name(relative_path: str, review_id: str) -> str:
