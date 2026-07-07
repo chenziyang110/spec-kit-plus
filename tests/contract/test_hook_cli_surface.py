@@ -1295,6 +1295,169 @@ def test_hook_validate_artifacts_blocks_packetized_implement_malformed_review_le
     assert any("top-level JSON object" in message for message in payload["errors"])
 
 
+def test_hook_validate_artifacts_blocks_packetized_implement_ledger_tasks_not_array(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text("# Implement Tracker\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir()
+    (review_dir / "ledger.json").write_text('{"tasks": {}}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any("implementation-review/ledger.json" in message for message in payload["errors"])
+    assert any("tasks array" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_accepted_ledger_task(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text("# Implement Tracker\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir()
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "review_pending",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text("# Branch Review\n\nAccepted.\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any("implementation-review/ledger.json" in message for message in payload["errors"])
+    assert any("status accepted" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_task_review_file(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text("# Implement Tracker\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir()
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text("# Branch Review\n\nAccepted.\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any("implementation-review/task-reviews/T001.json" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_task_review_path(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text("# Implement Tracker\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps({"task_id": "T001", "final_assessment": "accepted"}) + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/./task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text("# Branch Review\n\nAccepted.\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any("implementation-review/task-reviews/T001.json" in message for message in payload["errors"])
+
+
 def test_hook_validate_artifacts_blocks_packetized_implement_missing_branch_review(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
