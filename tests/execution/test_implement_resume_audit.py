@@ -532,6 +532,176 @@ def test_resolved_packetized_state_with_malformed_controller_checks_fails(
     )
 
 
+def test_resolved_packetized_state_with_invalid_nested_finding_disposition_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "findings": [
+                    {
+                        "severity": "medium",
+                        "category": "quality",
+                        "file": "src/specify_cli/demo.py",
+                        "line": 12,
+                        "summary": "Bogus disposition should not satisfy acceptance.",
+                        "required_fix": "Reject malformed disposition values.",
+                        "disposition": "bogus",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "disposition" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_invalid_residual_risk_scalar_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "concerns",
+                "findings": [
+                    {
+                        "severity": "medium",
+                        "category": "quality",
+                        "file": "src/specify_cli/demo.py",
+                        "line": 12,
+                        "summary": "Residual risk is malformed.",
+                        "required_fix": "Reject malformed residual risk values.",
+                        "disposition": "accepted_residual_risk",
+                    }
+                ],
+                "accepted_residual_risks": [
+                    {
+                        "finding_index": "0",
+                        "reason": "Documented risk.",
+                        "owner": "leader",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "finding_index" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_invalid_follow_up_scalar_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "concerns",
+                "findings": [
+                    {
+                        "severity": "medium",
+                        "category": "quality",
+                        "file": "src/specify_cli/demo.py",
+                        "line": 12,
+                        "summary": "Follow-up is malformed.",
+                        "required_fix": "Reject malformed follow-up values.",
+                        "disposition": "follow_up",
+                    }
+                ],
+                "follow_up_work": [
+                    {
+                        "finding_index": 0,
+                        "description": 123,
+                        "target": "backlog",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "description" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_invalid_controller_check_scalar_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "controller_checks": [
+                    {
+                        "check": 123,
+                        "reason": "Manual check required.",
+                        "evidence_required": "Transcript",
+                    }
+                ],
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "check" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_packetized_state_with_accepted_concern_task_review_passes(
     tmp_path: Path,
 ) -> None:

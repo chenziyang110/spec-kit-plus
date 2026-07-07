@@ -54,6 +54,14 @@ TASK_REVIEW_UI_FIDELITY_RESULTS = frozenset(
 TASK_REVIEW_FINAL_ASSESSMENTS = frozenset(
     {"accepted", "fixes_required", "controller_check_required"}
 )
+TASK_REVIEW_FINDING_SEVERITIES = frozenset({"low", "medium", "high", "critical"})
+TASK_REVIEW_FINDING_CATEGORIES = frozenset(
+    {"spec", "quality", "evidence", "ui_fidelity", "plan_mandated_defect"}
+)
+TASK_REVIEW_FINDING_DISPOSITIONS = frozenset(
+    {"open", "fixed", "accepted_residual_risk", "follow_up"}
+)
+TASK_REVIEW_FINDING_SOURCES = frozenset({"findings", "plan_mandated_defects"})
 
 
 def _read_text(path: Path) -> str:
@@ -312,17 +320,74 @@ def _optional_choice(
     return value
 
 
+def _required_string(payload: object, key: str) -> str:
+    value = _payload_value(payload, key)
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string")
+    return value
+
+
+def _required_int(payload: object, key: str) -> int:
+    value = _payload_value(payload, key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{key} must be an integer")
+    return value
+
+
+def _required_payload_choice(payload: object, key: str, allowed: frozenset[str]) -> str:
+    value = _required_string(payload, key)
+    if value not in allowed:
+        raise ValueError(f"{key} must be one of: {', '.join(sorted(allowed))}")
+    return value
+
+
+def _optional_payload_choice(
+    payload: object,
+    key: str,
+    allowed: frozenset[str],
+    default: str,
+) -> str:
+    value = _payload_value(payload, key, default=default)
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError(f"{key} must be one of: {', '.join(sorted(allowed))}")
+    return value
+
+
+def _payload_value(payload: object, key: str, *, default: object = ...):
+    if isinstance(payload, dict):
+        if key in payload:
+            return payload[key]
+    elif hasattr(payload, key):
+        return getattr(payload, key)
+    if default is not ...:
+        return default
+    raise ValueError(f"{key} is required")
+
+
 def _task_review_findings_from_payload(value: object) -> list[TaskReviewFinding]:
     if not isinstance(value, list):
         raise ValueError("task review findings must be a list")
     findings: list[TaskReviewFinding] = []
     for item in value:
-        if isinstance(item, TaskReviewFinding):
-            findings.append(item)
-        elif isinstance(item, dict):
-            findings.append(TaskReviewFinding(**item))
-        else:
+        if not isinstance(item, (TaskReviewFinding, dict)):
             raise ValueError("task review findings must contain objects")
+        findings.append(
+            TaskReviewFinding(
+                severity=_required_payload_choice(
+                    item, "severity", TASK_REVIEW_FINDING_SEVERITIES
+                ),
+                category=_required_payload_choice(
+                    item, "category", TASK_REVIEW_FINDING_CATEGORIES
+                ),
+                file=_required_string(item, "file"),
+                line=_required_int(item, "line"),
+                summary=_required_string(item, "summary"),
+                required_fix=_required_string(item, "required_fix"),
+                disposition=_required_payload_choice(
+                    item, "disposition", TASK_REVIEW_FINDING_DISPOSITIONS
+                ),
+            )
+        )
     return findings
 
 
@@ -331,12 +396,15 @@ def _controller_checks_from_payload(value: object) -> list[ControllerCheck]:
         raise ValueError("controller_checks must be a list")
     checks: list[ControllerCheck] = []
     for item in value:
-        if isinstance(item, ControllerCheck):
-            checks.append(item)
-        elif isinstance(item, dict):
-            checks.append(ControllerCheck(**item))
-        else:
+        if not isinstance(item, (ControllerCheck, dict)):
             raise ValueError("controller_checks must contain objects")
+        checks.append(
+            ControllerCheck(
+                check=_required_string(item, "check"),
+                reason=_required_string(item, "reason"),
+                evidence_required=_required_string(item, "evidence_required"),
+            )
+        )
     return checks
 
 
@@ -345,12 +413,18 @@ def _accepted_residual_risks_from_payload(value: object) -> list[AcceptedResidua
         raise ValueError("accepted_residual_risks must be a list")
     risks: list[AcceptedResidualRisk] = []
     for item in value:
-        if isinstance(item, AcceptedResidualRisk):
-            risks.append(item)
-        elif isinstance(item, dict):
-            risks.append(AcceptedResidualRisk(**item))
-        else:
+        if not isinstance(item, (AcceptedResidualRisk, dict)):
             raise ValueError("accepted_residual_risks must contain objects")
+        risks.append(
+            AcceptedResidualRisk(
+                finding_index=_required_int(item, "finding_index"),
+                reason=_required_string(item, "reason"),
+                owner=_required_string(item, "owner"),
+                finding_source=_optional_payload_choice(
+                    item, "finding_source", TASK_REVIEW_FINDING_SOURCES, "findings"
+                ),
+            )
+        )
     return risks
 
 
@@ -359,12 +433,18 @@ def _follow_up_work_from_payload(value: object) -> list[FollowUpWork]:
         raise ValueError("follow_up_work must be a list")
     work_items: list[FollowUpWork] = []
     for item in value:
-        if isinstance(item, FollowUpWork):
-            work_items.append(item)
-        elif isinstance(item, dict):
-            work_items.append(FollowUpWork(**item))
-        else:
+        if not isinstance(item, (FollowUpWork, dict)):
             raise ValueError("follow_up_work must contain objects")
+        work_items.append(
+            FollowUpWork(
+                finding_index=_required_int(item, "finding_index"),
+                description=_required_string(item, "description"),
+                target=_required_string(item, "target"),
+                finding_source=_optional_payload_choice(
+                    item, "finding_source", TASK_REVIEW_FINDING_SOURCES, "findings"
+                ),
+            )
+        )
     return work_items
 
 
