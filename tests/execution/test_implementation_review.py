@@ -245,6 +245,25 @@ def test_task_review_acceptance_blocks_open_findings_controller_checks_and_ui_re
     assert not task_review_is_accepted(ui_review_required)
 
 
+def test_task_review_cannot_accept_unverifiable_spec_verdict_without_controller_checks() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="cannot_verify_from_diff",
+        quality_verdict="pass",
+        controller_checks=[],
+        final_assessment="accepted",
+    )
+
+    errors = task_review_acceptance_errors(record)
+
+    assert "cannot_verify_from_diff requires controller checks" in errors
+    assert (
+        "cannot_verify_from_diff cannot be accepted; convert to pass after controller evidence closes"
+        in errors
+    )
+    assert not task_review_is_accepted(record)
+
+
 def test_task_review_acceptance_blocks_open_plan_mandated_defects() -> None:
     record = TaskReviewRecord(
         task_id="T001",

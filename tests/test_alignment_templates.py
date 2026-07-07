@@ -91,7 +91,6 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "templates/worker-prompts/quick-worker.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/task-reviewer.md",
         "templates/worker-prompts/code-quality-reviewer.md",
         "templates/worker-prompts/spec-reviewer.md",
     ):
@@ -305,7 +304,6 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/task-reviewer.md",
         "templates/worker-prompts/code-quality-reviewer.md",
         "templates/worker-prompts/spec-reviewer.md",
     ):
@@ -349,7 +347,6 @@ def test_worker_prompts_report_inline_update_payload_evidence() -> None:
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/task-reviewer.md",
         "templates/worker-prompts/code-quality-reviewer.md",
         "templates/worker-prompts/spec-reviewer.md",
     ):
@@ -2663,6 +2660,11 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert "follow_up_work" in content
     assert "controller_checks" in content
     assert "findings" in content
+    assert "canonical worker result path named by the review package" in content
+    assert "FEATURE_DIR/worker-results/<task-id>.json" in content
+    assert ".specify/teams/state/results/<request-id>.json" in content
+    assert "Inline Project Cognition Handoff" not in content
+    assert "changed_paths" not in content
 
 
 def test_plan_tasks_and_workflow_state_carry_review_artifact_contract() -> None:

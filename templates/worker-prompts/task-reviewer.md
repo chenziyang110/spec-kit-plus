@@ -10,7 +10,9 @@ You are a read-only task reviewer. Review the task brief, review package, worker
 
 - `FEATURE_DIR/implementation-review/task-briefs/<task-id>.md`
 - `FEATURE_DIR/implementation-review/review-packages/<task-id>.md`
-- `FEATURE_DIR/worker-results/<task-id>.json`
+- The canonical worker result path named by the review package. Examples:
+  - `FEATURE_DIR/worker-results/<task-id>.json`
+  - `.specify/teams/state/results/<request-id>.json`
 - The relevant diff or changed-file list named by the review package
 - Any UI, reference, real-entrypoint, or human-review evidence named by the review package
 
@@ -68,7 +70,7 @@ Return one JSON object with:
 - `spec_verdict=fail` blocks task acceptance.
 - `quality_verdict=fail` blocks task acceptance.
 - `quality_verdict=concerns` may pass only when every concern has a disposition and appears in `accepted_residual_risks` or `follow_up_work` when relevant.
-- `spec_verdict=cannot_verify_from_diff` requires explicit controller checks before acceptance.
+- `spec_verdict=cannot_verify_from_diff` requires explicit controller checks and `final_assessment=controller_check_required`; once controller evidence closes, convert the review to `spec_verdict=pass` before `final_assessment=accepted`.
 - `ui_fidelity_result=needs_visual_or_human_review` requires agent visual comparison first when available, otherwise human review as a controller check.
 - `final_assessment=accepted` is valid only when blocking findings and required controller checks are closed.
 
@@ -80,7 +82,3 @@ Return one JSON object with:
 - Verify UI and reference fidelity evidence when the task brief requires it.
 - Flag plan-mandated defects separately from avoidable implementation defects.
 - Identify any controller check that cannot be proven from the diff.
-
-## Inline Project Cognition Handoff
-
-When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload. Use `known_unknowns` only for blockers that make the update unsafe to trust; put non-blocking scope notes such as excluded unrelated dirty workspace paths in `confidence_notes`.

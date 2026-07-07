@@ -407,14 +407,16 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
     elif record.ui_fidelity_result == "needs_visual_or_human_review":
         errors.append("needs_visual_or_human_review cannot be accepted")
 
+    if record.spec_verdict == "cannot_verify_from_diff":
+        if not record.controller_checks:
+            errors.append("cannot_verify_from_diff requires controller checks")
+        if record.final_assessment == "accepted":
+            errors.append(
+                "cannot_verify_from_diff cannot be accepted; convert to pass after controller evidence closes"
+            )
+
     if record.final_assessment == "accepted" and record.controller_checks:
         errors.append("accepted assessment cannot have open controller checks")
-    if (
-        record.final_assessment == "accepted"
-        and record.spec_verdict == "cannot_verify_from_diff"
-        and record.controller_checks
-    ):
-        errors.append("cannot_verify_from_diff with controller checks cannot be accepted")
 
     return errors
 
