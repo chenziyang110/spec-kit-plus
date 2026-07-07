@@ -316,6 +316,136 @@ def test_resolved_packetized_state_with_rejected_task_review_fails(tmp_path: Pat
     )
 
 
+def test_resolved_packetized_state_rejects_absolute_task_review_reference(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    outside_review = tmp_path / "outside-task-review.json"
+    outside_review.write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_packetized_review_state(feature_dir, task_review=False)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_review=str(outside_review),
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap and str(outside_review) in gap and "unsafe" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_rejects_parent_task_review_reference(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, task_review=False)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_review="../outside-task-review.json",
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap and "../outside-task-review.json" in gap and "unsafe" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_rejects_dot_segment_task_review_reference(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, task_review=False)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_review="implementation-review/./task-reviews/T001.json",
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/./task-reviews/T001.json" in gap
+        and "unsafe" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_rejects_windows_drive_task_review_reference(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, task_review=False)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_review="C:/tmp/T001.json",
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap and "C:/tmp/T001.json" in gap and "unsafe" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_rejects_unc_task_review_reference(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, task_review=False)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_review="//server/share/T001.json",
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap and "//server/share/T001.json" in gap and "unsafe" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_packetized_state_with_malformed_task_review_fails_without_crash(
     tmp_path: Path,
 ) -> None:
@@ -340,6 +470,65 @@ def test_resolved_packetized_state_with_malformed_task_review_fails_without_cras
     assert payload["status"] == "fail"
     assert any(
         "T001" in gap and "implementation-review/task-reviews/T001.json" in gap for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_invalid_task_review_enum_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "bogus",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "spec_verdict" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resolved_packetized_state_with_malformed_controller_checks_fails(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "implementation-review" / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "controller_checks": {},
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "T001" in gap
+        and "implementation-review/task-reviews/T001.json" in gap
+        and "controller_checks" in gap
+        for gap in payload["open_gaps"]
     )
 
 

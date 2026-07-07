@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from specify_cli.execution.evidence import (
@@ -14,6 +14,7 @@ from specify_cli.execution.evidence import (
 )
 from specify_cli.execution.implementation_review import (
     AcceptedResidualRisk,
+    ControllerCheck,
     FollowUpWork,
     TaskReviewRecord,
     TaskReviewFinding,
@@ -44,6 +45,14 @@ CONSUMER_KEYWORDS = (
     "config",
     "schema",
     "test",
+)
+TASK_REVIEW_SPEC_VERDICTS = frozenset({"pass", "fail", "cannot_verify_from_diff"})
+TASK_REVIEW_QUALITY_VERDICTS = frozenset({"pass", "concerns", "fail"})
+TASK_REVIEW_UI_FIDELITY_RESULTS = frozenset(
+    {"not_applicable", "pass", "fail", "needs_visual_or_human_review"}
+)
+TASK_REVIEW_FINAL_ASSESSMENTS = frozenset(
+    {"accepted", "fixes_required", "controller_check_required"}
 )
 
 
@@ -185,11 +194,14 @@ def _packetized_review_gaps(feature_dir: Path, checked_tasks: list[dict[str, Any
 
 def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: object) -> list[str]:
     if isinstance(ledger_task_review, str) and ledger_task_review.strip():
-        review_relative = ledger_task_review.strip().replace("\\", "/")
-        review_path = feature_dir / review_relative
+        review_relative = ledger_task_review.strip()
     else:
         review_relative = f"implementation-review/task-reviews/{task_id}.json"
-        review_path = feature_dir / review_relative
+
+    try:
+        review_path = _safe_task_review_path(feature_dir, task_id, review_relative)
+    except ValueError as exc:
+        return [f"{task_id} task review path is unsafe: {review_relative}: {exc}"]
 
     if not review_path.is_file():
         return [f"{task_id} task review is missing: {review_relative}"]
@@ -214,11 +226,50 @@ def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: objec
     return []
 
 
+def _safe_task_review_path(feature_dir: Path, task_id: str, review_relative: str) -> Path:
+    windows_source = PureWindowsPath(review_relative)
+    normalized_review_relative = review_relative.replace("\\", "/")
+    posix_source = PurePosixPath(normalized_review_relative)
+    if (
+        Path(review_relative).is_absolute()
+        or windows_source.is_absolute()
+        or posix_source.is_absolute()
+    ):
+        raise ValueError("absolute paths are not allowed")
+    if windows_source.drive:
+        raise ValueError("drive-qualified paths are not allowed")
+    if review_relative.startswith(("//", "\\\\")):
+        raise ValueError("UNC paths are not allowed")
+    if any(part in {"", ".", ".."} for part in normalized_review_relative.split("/")):
+        raise ValueError("dot path segments are not allowed")
+
+    expected = PurePosixPath("implementation-review", "task-reviews", f"{task_id}.json")
+    if posix_source != expected:
+        raise ValueError(f"expected {expected.as_posix()}")
+
+    feature_root = feature_dir.resolve(strict=False)
+    candidate = (feature_dir / Path(*posix_source.parts)).resolve(strict=False)
+    try:
+        candidate.relative_to(feature_root)
+    except ValueError as exc:
+        raise ValueError("resolved path escapes feature directory") from exc
+    return candidate
+
+
 def _task_review_record_from_payload(payload: dict[str, Any]) -> TaskReviewRecord:
     return TaskReviewRecord(
         **{
             **payload,
+            "spec_verdict": _required_choice(
+                payload, "spec_verdict", TASK_REVIEW_SPEC_VERDICTS
+            ),
+            "quality_verdict": _required_choice(
+                payload, "quality_verdict", TASK_REVIEW_QUALITY_VERDICTS
+            ),
             "findings": _task_review_findings_from_payload(payload.get("findings", [])),
+            "controller_checks": _controller_checks_from_payload(
+                payload.get("controller_checks", [])
+            ),
             "plan_mandated_defects": _task_review_findings_from_payload(
                 payload.get("plan_mandated_defects", [])
             ),
@@ -226,8 +277,39 @@ def _task_review_record_from_payload(payload: dict[str, Any]) -> TaskReviewRecor
                 payload.get("accepted_residual_risks", [])
             ),
             "follow_up_work": _follow_up_work_from_payload(payload.get("follow_up_work", [])),
+            "ui_fidelity_result": _optional_choice(
+                payload,
+                "ui_fidelity_result",
+                TASK_REVIEW_UI_FIDELITY_RESULTS,
+                "not_applicable",
+            ),
+            "final_assessment": _optional_choice(
+                payload,
+                "final_assessment",
+                TASK_REVIEW_FINAL_ASSESSMENTS,
+                "fixes_required",
+            ),
         }
     )
+
+
+def _required_choice(payload: dict[str, Any], key: str, allowed: frozenset[str]) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError(f"{key} must be one of: {', '.join(sorted(allowed))}")
+    return value
+
+
+def _optional_choice(
+    payload: dict[str, Any],
+    key: str,
+    allowed: frozenset[str],
+    default: str,
+) -> str:
+    value = payload.get(key, default)
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError(f"{key} must be one of: {', '.join(sorted(allowed))}")
+    return value
 
 
 def _task_review_findings_from_payload(value: object) -> list[TaskReviewFinding]:
@@ -242,6 +324,20 @@ def _task_review_findings_from_payload(value: object) -> list[TaskReviewFinding]
         else:
             raise ValueError("task review findings must contain objects")
     return findings
+
+
+def _controller_checks_from_payload(value: object) -> list[ControllerCheck]:
+    if not isinstance(value, list):
+        raise ValueError("controller_checks must be a list")
+    checks: list[ControllerCheck] = []
+    for item in value:
+        if isinstance(item, ControllerCheck):
+            checks.append(item)
+        elif isinstance(item, dict):
+            checks.append(ControllerCheck(**item))
+        else:
+            raise ValueError("controller_checks must contain objects")
+    return checks
 
 
 def _accepted_residual_risks_from_payload(value: object) -> list[AcceptedResidualRisk]:
