@@ -1,6 +1,14 @@
 from pathlib import Path
 
 from specify_cli.implement_audit import audit_implement_resume
+from specify_cli.execution.implementation_review import (
+    TaskLedgerEntry,
+    TaskReviewRecord,
+    branch_review_path,
+    task_brief_path,
+    write_task_ledger,
+    write_task_review_record,
+)
 from specify_cli.implementation_summary import build_implementation_summary
 
 
@@ -56,6 +64,74 @@ def _write_basic_feature(feature_dir: Path, *, tracker_status: str = "resolved")
         ),
         encoding="utf-8",
     )
+
+
+def _write_packetized_review_state(
+    feature_dir: Path,
+    *,
+    ledger: bool = True,
+    branch_review: bool = True,
+    ledger_status: str = "accepted",
+    task_review: bool = True,
+) -> None:
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "# Tasks",
+                "",
+                "- [X] T001 [US1] Update implementation in src/specify_cli/demo.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    (result_dir / "T001.json").write_text(
+        """
+{
+  "task_id": "T001",
+  "status": "success",
+  "changed_files": ["src/specify_cli/demo.py"],
+  "validation_results": [{"command": "pytest tests/test_demo.py -q", "status": "passed", "output": "PASS"}],
+  "summary": "Updated demo implementation"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    task_brief_path(feature_dir, "T001").parent.mkdir(parents=True, exist_ok=True)
+    task_brief_path(feature_dir, "T001").write_text("# T001 Brief\n", encoding="utf-8")
+    if task_review:
+        write_task_review_record(
+            feature_dir,
+            TaskReviewRecord(
+                task_id="T001",
+                spec_verdict="pass",
+                quality_verdict="pass",
+                final_assessment="accepted",
+            ),
+        )
+    if ledger:
+        write_task_ledger(
+            feature_dir,
+            [
+                TaskLedgerEntry(
+                    task_id="T001",
+                    status=ledger_status,  # type: ignore[arg-type]
+                    task_brief="implementation-review/task-briefs/T001.md",
+                    worker_result="worker-results/T001.json",
+                    review_package="implementation-review/review-packages/T001.md",
+                    task_review="implementation-review/task-reviews/T001.json" if task_review else "",
+                    last_evidence=["worker-results/T001.json"],
+                )
+            ],
+        )
+    if branch_review:
+        branch_review_path(feature_dir).parent.mkdir(parents=True, exist_ok=True)
+        branch_review_path(feature_dir).write_text("# Branch Review\n\nAccepted.\n", encoding="utf-8")
 
 
 def test_resolved_tracker_with_checked_task_but_no_worker_result_requires_audit_recovery(tmp_path: Path) -> None:
@@ -154,6 +230,51 @@ def test_resolved_tracker_with_worker_result_and_consumer_evidence_passes(tmp_pa
 """.strip(),
         encoding="utf-8",
     )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "pass"
+    assert payload["trusted_terminal_state"] is True
+    assert payload["recommended_tracker_status"] == "resolved"
+
+
+def test_resolved_packetized_state_without_ledger_fails(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, ledger=False)
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["trusted_terminal_state"] is False
+    assert any("implementation-review/ledger.json" in gap for gap in payload["open_gaps"])
+
+
+def test_resolved_packetized_state_without_branch_review_fails(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, branch_review=False)
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["trusted_terminal_state"] is False
+    assert any("implementation-review/branch-review.md" in gap for gap in payload["open_gaps"])
+
+
+def test_resolved_packetized_state_with_non_accepted_ledger_task_fails(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir, ledger_status="fixes_required")
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any("T001" in gap and "accepted" in gap for gap in payload["open_gaps"])
+
+
+def test_resolved_packetized_state_with_accepted_ledger_and_branch_review_passes(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
 
     payload = audit_implement_resume(tmp_path, feature_dir)
 
@@ -330,3 +451,30 @@ def test_implementation_summary_records_completed_work_changes_and_verification(
     assert "Added the demo command and regression coverage" in report
     assert "src/specify_cli/demo.py" in report
     assert "pytest tests/test_demo.py -q" in report
+
+
+def test_implementation_summary_includes_packetized_review_artifacts(tmp_path: Path) -> None:
+    project = tmp_path
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+
+    payload = build_implementation_summary(project, feature_dir)
+
+    assert payload["review_artifacts"]["ledger"].endswith(
+        ".specify/features/001-demo/implementation-review/ledger.json"
+    )
+    assert payload["review_artifacts"]["branch_review"].endswith(
+        ".specify/features/001-demo/implementation-review/branch-review.md"
+    )
+    assert payload["completed_work"][0]["review_artifacts"]["task_review"].endswith(
+        ".specify/features/001-demo/implementation-review/task-reviews/T001.json"
+    )
+    assert payload["completed_work"][0]["review_artifacts"]["task_review"] == payload[
+        "review_artifacts"
+    ]["task_reviews"]["T001"]
+
+    report = (feature_dir / "implementation-summary.md").read_text(encoding="utf-8")
+    assert "## Review Artifacts" in report
+    assert "implementation-review/ledger.json" in report
+    assert "implementation-review/branch-review.md" in report
+    assert "implementation-review/task-reviews/T001.json" in report

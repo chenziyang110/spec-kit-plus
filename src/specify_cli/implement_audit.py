@@ -12,6 +12,11 @@ from specify_cli.execution.evidence import (
     has_real_entrypoint_consumer_evidence,
     normalize_evidence_label,
 )
+from specify_cli.execution.implementation_review import (
+    branch_review_path,
+    ledger_path,
+    load_task_ledger,
+)
 from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
 
 
@@ -130,6 +135,42 @@ def _tracker_has_open_gaps(feature_dir: Path) -> bool:
     return any(line.startswith("-") or line.startswith("type:") for line in meaningful)
 
 
+def _is_packetized_run(feature_dir: Path, checked_tasks: list[dict[str, Any]]) -> bool:
+    task_packets_dir = feature_dir / "task-packets"
+    return bool(checked_tasks) and task_packets_dir.is_dir() and any(task_packets_dir.glob("*.json"))
+
+
+def _packetized_review_gaps(feature_dir: Path, checked_tasks: list[dict[str, Any]]) -> list[str]:
+    if not _is_packetized_run(feature_dir, checked_tasks):
+        return []
+
+    gaps: list[str] = []
+    ledger_relative = "implementation-review/ledger.json"
+    branch_review_relative = "implementation-review/branch-review.md"
+    review_ledger_path = ledger_path(feature_dir)
+    if not review_ledger_path.is_file():
+        gaps.append(f"{ledger_relative} is missing for packetized terminal state")
+    else:
+        try:
+            ledger_entries = load_task_ledger(feature_dir)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            gaps.append(f"{ledger_relative} is malformed: {exc}")
+            ledger_entries = []
+        entries_by_task = {entry.task_id.upper(): entry for entry in ledger_entries}
+        for task in checked_tasks:
+            task_id = str(task["task_id"]).upper()
+            entry = entries_by_task.get(task_id)
+            if entry is None:
+                gaps.append(f"{task_id} is missing from {ledger_relative}")
+            elif entry.status != "accepted":
+                gaps.append(f"{task_id} in {ledger_relative} is not accepted: {entry.status}")
+
+    if not branch_review_path(feature_dir).is_file():
+        gaps.append(f"{branch_review_relative} is missing for packetized terminal state")
+
+    return gaps
+
+
 def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, Any]:
     """Return a conservative resume audit payload for an implement feature dir."""
 
@@ -192,6 +233,8 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
 
     if _tracker_has_open_gaps(resolved_feature_dir):
         evidence_gaps.append("implement-tracker.md has unresolved open_gaps")
+    if terminal:
+        evidence_gaps.extend(_packetized_review_gaps(resolved_feature_dir, checked_tasks))
 
     audit_passed = terminal and not evidence_gaps
     if audit_passed:

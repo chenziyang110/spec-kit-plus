@@ -3384,6 +3384,40 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
 """.strip(),
         encoding="utf-8",
     )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                        "worker_result": "worker-results/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text("# Branch Review\n\nAccepted.\n", encoding="utf-8")
 
     result = _invoke_in_project(
         project,
@@ -3398,12 +3432,22 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
     assert summary["completed_work"][0]["summary"] == "Wired the demo CLI route and regression coverage"
     assert "src/specify_cli/demo.py" in summary["changed_paths"]["from_worker_results"]
     assert "git diff --stat HEAD" in summary["baseline_comparison"]["commands"]
+    assert summary["review_artifacts"]["ledger"].endswith(
+        ".specify/features/001-demo/implementation-review/ledger.json"
+    )
+    assert summary["review_artifacts"]["branch_review"].endswith(
+        ".specify/features/001-demo/implementation-review/branch-review.md"
+    )
+    assert summary["completed_work"][0]["review_artifacts"]["task_review"].endswith(
+        ".specify/features/001-demo/implementation-review/task-reviews/T001.json"
+    )
     report_path = feature_dir / "implementation-summary.md"
     assert report_path.is_file()
     report = report_path.read_text(encoding="utf-8")
     assert "## What Changed" in report
     assert "## How To Verify" in report
     assert "## Version Comparison" in report
+    assert "## Review Artifacts" in report
 
 
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):

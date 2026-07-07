@@ -7,6 +7,11 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from specify_cli.execution.implementation_review import (
+    branch_review_path,
+    ledger_path,
+    task_review_path,
+)
 from specify_cli.implement_audit import _parse_tasks
 
 
@@ -32,11 +37,12 @@ def build_implementation_summary(
     worker_results = _load_worker_results(resolved_feature_dir)
     tasks = _parse_tasks(resolved_feature_dir / "tasks.md")
 
-    completed_work = _completed_work(tasks, worker_results, root)
+    completed_work = _completed_work(tasks, worker_results, root, resolved_feature_dir)
     changed_from_results = _changed_paths_from_results(worker_results)
     verification_evidence = _verification_evidence(worker_results)
     git_comparison = _git_comparison(root)
     behavior_surfaces = _behavior_surfaces(changed_from_results)
+    review_artifacts = _review_artifacts(resolved_feature_dir, tasks, root)
 
     payload: dict[str, Any] = {
         "status": "ok",
@@ -48,6 +54,7 @@ def build_implementation_summary(
             "from_git_working_tree": git_comparison["changed_paths"],
         },
         "changed_behavior_surfaces": behavior_surfaces,
+        "review_artifacts": review_artifacts,
         "verification_evidence": verification_evidence,
         "baseline_comparison": {
             "method": "working_tree_vs_head",
@@ -95,6 +102,7 @@ def _completed_work(
     tasks: list[dict[str, Any]],
     worker_results: list[dict[str, Any]],
     project_root: Path,
+    feature_dir: Path,
 ) -> list[dict[str, Any]]:
     by_task_id = {
         str(result.get("task_id") or "").upper(): result
@@ -109,6 +117,7 @@ def _completed_work(
         result = by_task_id.get(task_id, {})
         changed_files = _normalize_paths(result.get("changed_files") or result.get("changedFiles") or [])
         result_path = result.get("path")
+        review_path = task_review_path(feature_dir, task_id)
         completed.append(
             {
                 "task_id": task_id,
@@ -116,10 +125,40 @@ def _completed_work(
                 "summary": str(result.get("summary") or task.get("body") or "").strip(),
                 "result_status": str(result.get("status") or "missing-worker-result"),
                 "result_path": _display_path(result_path, project_root) if isinstance(result_path, Path) else "",
+                "review_artifacts": {
+                    "task_review": _display_path(review_path, project_root)
+                    if review_path.is_file()
+                    else "",
+                },
                 "changed_files": changed_files,
             }
         )
     return completed
+
+
+def _review_artifacts(
+    feature_dir: Path,
+    tasks: list[dict[str, Any]],
+    project_root: Path,
+) -> dict[str, Any]:
+    review_ledger_path = ledger_path(feature_dir)
+    review_branch_path = branch_review_path(feature_dir)
+    task_reviews: dict[str, str] = {}
+    for task in tasks:
+        task_id = str(task.get("task_id") or "").upper()
+        if not task_id:
+            continue
+        try:
+            review_path = task_review_path(feature_dir, task_id)
+        except ValueError:
+            continue
+        if review_path.is_file():
+            task_reviews[task_id] = _display_path(review_path, project_root)
+    return {
+        "ledger": _display_path(review_ledger_path, project_root) if review_ledger_path.is_file() else "",
+        "branch_review": _display_path(review_branch_path, project_root) if review_branch_path.is_file() else "",
+        "task_reviews": task_reviews,
+    }
 
 
 def _changed_paths_from_results(worker_results: list[dict[str, Any]]) -> list[str]:
@@ -277,6 +316,9 @@ def _render_markdown(payload: dict[str, Any]) -> str:
                 lines.append(f"  - Files: {', '.join(f'`{path}`' for path in changed_files)}")
             if item.get("result_path"):
                 lines.append(f"  - Worker result: `{item['result_path']}`")
+            review_artifacts = item.get("review_artifacts") or {}
+            if review_artifacts.get("task_review"):
+                lines.append(f"  - Task review: `{review_artifacts['task_review']}`")
     else:
         lines.append("- No checked tasks were found in `tasks.md`.")
 
@@ -303,6 +345,19 @@ def _render_markdown(payload: dict[str, Any]) -> str:
             lines.append(f"- `{item['path']}` -> {item['surface']}")
     else:
         lines.append("- No behavior surfaces were inferred from worker changed files.")
+
+    lines.extend(["", "## Review Artifacts", ""])
+    review_artifacts = payload.get("review_artifacts") or {}
+    ledger = review_artifacts.get("ledger") or ""
+    branch_review = review_artifacts.get("branch_review") or ""
+    task_reviews = review_artifacts.get("task_reviews") or {}
+    lines.append(f"- Ledger: `{ledger}`" if ledger else "- Ledger: None recorded.")
+    lines.append(f"- Branch review: `{branch_review}`" if branch_review else "- Branch review: None recorded.")
+    if task_reviews:
+        for task_id, path in sorted(task_reviews.items()):
+            lines.append(f"- `{task_id}` task review: `{path}`")
+    else:
+        lines.append("- Task reviews: None recorded.")
 
     lines.extend(["", "## How To Verify", ""])
     evidence = payload.get("verification_evidence") or []
