@@ -155,18 +155,20 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
         if not checkpoint["next_action"]:
             errors.append("implement-tracker is missing next_action")
         if errors:
+            implementation_review = _implementation_review_metadata(feature_dir)
             return HookResult(
                 event=WORKFLOW_STATE_VALIDATE,
                 status="blocked",
                 severity="critical",
                 errors=errors,
-                data={"checkpoint": checkpoint},
+                data={"checkpoint": checkpoint, "implementation_review": implementation_review},
             )
+        implementation_review = _implementation_review_metadata(feature_dir)
         return HookResult(
             event=WORKFLOW_STATE_VALIDATE,
             status="ok",
             severity="info",
-            data={"checkpoint": checkpoint},
+            data={"checkpoint": checkpoint, "implementation_review": implementation_review},
         )
 
     if command_name == "quick":
@@ -228,6 +230,14 @@ def _required_path(project_root: Path, payload: dict[str, object], key: str) -> 
     if not path.is_absolute():
         path = (project_root / path).resolve()
     return path
+
+
+def _implementation_review_metadata(feature_dir: Path) -> dict[str, str]:
+    review_dir = feature_dir / "implementation-review"
+    return {
+        "ledger": str((review_dir / "ledger.json").resolve()),
+        "branch_review": str((review_dir / "branch-review.md").resolve()),
+    }
 
 
 def _autofix_sections_for_command(command_name: str) -> str:
