@@ -1201,6 +1201,79 @@ def test_resolved_packetized_state_with_accepted_ledger_and_branch_review_passes
     assert payload["recommended_tracker_status"] == "resolved"
 
 
+def test_resolved_packetized_state_loads_runtime_managed_worker_result_from_ledger(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    (feature_dir / "worker-results" / "T001.json").unlink()
+    runtime_result = tmp_path / ".specify" / "teams" / "state" / "results" / "request-123.json"
+    runtime_result.parent.mkdir(parents=True)
+    runtime_result.write_text(
+        """
+{
+  "task_id": "T001",
+  "status": "success",
+  "changed_files": ["src/specify_cli/demo.py"],
+  "validation_results": [{"command": "pytest tests/test_demo.py -q", "status": "passed", "output": "PASS"}],
+  "summary": "Updated demo implementation"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_brief="implementation-review/task-briefs/T001.md",
+                worker_result=".specify/teams/state/results/request-123.json",
+                review_package="implementation-review/review-packages/T001.md",
+                task_review="implementation-review/task-reviews/T001.json",
+                last_evidence=[".specify/teams/state/results/request-123.json"],
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "pass"
+    assert payload["trusted_terminal_state"] is True
+    assert payload["task_findings"][0]["result_path"].replace("\\", "/").endswith(
+        ".specify/teams/state/results/request-123.json"
+    )
+
+
+def test_resolved_packetized_state_rejects_unsafe_ledger_worker_result_reference(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_packetized_review_state(feature_dir)
+    write_task_ledger(
+        feature_dir,
+        [
+            TaskLedgerEntry(
+                task_id="T001",
+                status="accepted",
+                task_brief="implementation-review/task-briefs/T001.md",
+                worker_result="../outside-worker-result.json",
+                review_package="implementation-review/review-packages/T001.md",
+                task_review="implementation-review/task-reviews/T001.json",
+                last_evidence=["../outside-worker-result.json"],
+            )
+        ],
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert any(
+        "unsafe worker_result ../outside-worker-result.json" in finding["missing_evidence"]
+        for finding in payload["task_findings"]
+    )
+
+
 def test_resolved_packetized_state_with_unchecked_packet_task_fails(
     tmp_path: Path,
 ) -> None:

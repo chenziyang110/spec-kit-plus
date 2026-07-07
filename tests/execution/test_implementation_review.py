@@ -410,6 +410,88 @@ def test_task_review_disposition_references_accept_plan_mandated_defects_explici
     assert task_review_is_accepted(follow_up)
 
 
+def test_task_review_rejects_orphan_residual_risk_and_follow_up_references() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="pass",
+        accepted_residual_risks=[
+            AcceptedResidualRisk(
+                finding_source="findings",
+                finding_index=0,
+                reason="No target finding exists",
+                owner="maintainer",
+            )
+        ],
+        follow_up_work=[
+            FollowUpWork(
+                finding_source="plan_mandated_defects",
+                finding_index=0,
+                description="No target plan-mandated defect exists",
+                target="backlog",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    errors = task_review_acceptance_errors(record)
+
+    assert "accepted_residual_risks references missing findings 0" in errors
+    assert "follow_up_work references missing plan_mandated_defects 0" in errors
+    assert not task_review_is_accepted(record)
+
+
+def test_task_review_rejects_disposition_reference_type_mismatches() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="pass",
+        findings=[
+            TaskReviewFinding(
+                severity="low",
+                category="quality",
+                file="src/example.py",
+                line=10,
+                summary="Already fixed quality concern",
+                required_fix="No residual risk should target fixed findings",
+                disposition="fixed",
+            ),
+            TaskReviewFinding(
+                severity="low",
+                category="quality",
+                file="src/example.py",
+                line=11,
+                summary="Another fixed quality concern",
+                required_fix="No follow-up should target fixed findings",
+                disposition="fixed",
+            ),
+        ],
+        accepted_residual_risks=[
+            AcceptedResidualRisk(
+                finding_source="findings",
+                finding_index=0,
+                reason="Wrongly accepts a fixed finding",
+                owner="maintainer",
+            )
+        ],
+        follow_up_work=[
+            FollowUpWork(
+                finding_source="findings",
+                finding_index=1,
+                description="Wrongly follows up a fixed finding",
+                target="backlog",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    errors = task_review_acceptance_errors(record)
+
+    assert "accepted_residual_risks references findings 0 with disposition fixed" in errors
+    assert "follow_up_work references findings 1 with disposition fixed" in errors
+    assert not task_review_is_accepted(record)
+
+
 def test_task_ledger_round_trips_accepted_entry(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     entry = TaskLedgerEntry(task_id="T001", status="accepted")

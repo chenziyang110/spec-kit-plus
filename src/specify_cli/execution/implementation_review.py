@@ -389,6 +389,9 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
         ("plan_mandated_defects", "plan_mandated_defects", index, finding)
         for index, finding in enumerate(record.plan_mandated_defects)
     )
+    findings_by_ref = {
+        (source, index): finding for source, _label, index, finding in review_findings
+    }
     for source, label, index, finding in review_findings:
         if finding.disposition == "open":
             errors.append(f"{label} {index} is open")
@@ -401,6 +404,30 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
             )
         elif finding.disposition == "follow_up" and (source, index) not in follow_up_refs:
             errors.append(f"{label} {index} follow_up has no matching follow_up_work")
+
+    for risk in record.accepted_residual_risks:
+        target = findings_by_ref.get((risk.finding_source, risk.finding_index))
+        if target is None:
+            errors.append(
+                "accepted_residual_risks references missing "
+                f"{risk.finding_source} {risk.finding_index}"
+            )
+        elif target.disposition != "accepted_residual_risk":
+            errors.append(
+                "accepted_residual_risks references "
+                f"{risk.finding_source} {risk.finding_index} with disposition {target.disposition}"
+            )
+    for work in record.follow_up_work:
+        target = findings_by_ref.get((work.finding_source, work.finding_index))
+        if target is None:
+            errors.append(
+                f"follow_up_work references missing {work.finding_source} {work.finding_index}"
+            )
+        elif target.disposition != "follow_up":
+            errors.append(
+                "follow_up_work references "
+                f"{work.finding_source} {work.finding_index} with disposition {target.disposition}"
+            )
 
     if record.ui_fidelity_result == "fail":
         errors.append("ui_fidelity_result fail blocks acceptance")

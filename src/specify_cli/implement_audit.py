@@ -104,20 +104,108 @@ def _looks_consumer_facing(task_body: str) -> bool:
     return any(keyword in lowered for keyword in CONSUMER_KEYWORDS)
 
 
-def _load_worker_result(feature_dir: Path, task_id: str) -> dict[str, Any] | None:
+def _load_worker_result(
+    project_root: Path,
+    feature_dir: Path,
+    task_id: str,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    gaps: list[str] = []
+    ledger_reference, ledger_gaps = _ledger_worker_result_reference(feature_dir, task_id)
+    gaps.extend(ledger_gaps)
+    if ledger_reference:
+        try:
+            candidate = _safe_worker_result_path(project_root, feature_dir, ledger_reference)
+        except ValueError as exc:
+            gaps.append(f"unsafe worker_result {ledger_reference}: {exc}")
+        else:
+            if candidate.exists():
+                return _read_worker_result(candidate, task_id), gaps
+            gaps.append(f"worker_result is missing: {ledger_reference}")
+
     for candidate in (
         feature_dir / "worker-results" / f"{task_id}.json",
         feature_dir / "worker-results" / f"{task_id.lower()}.json",
     ):
         if not candidate.exists():
             continue
-        try:
-            payload = json.loads(candidate.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {"task_id": task_id, "status": "invalid-json", "path": str(candidate)}
-        payload["path"] = str(candidate)
-        return payload
-    return None
+        return _read_worker_result(candidate, task_id), gaps
+    return None, gaps
+
+
+def _read_worker_result(path: Path, task_id: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"task_id": task_id, "status": "invalid-json", "path": str(path)}
+    if not isinstance(payload, dict):
+        return {"task_id": task_id, "status": "invalid-payload", "path": str(path)}
+    payload["path"] = str(path)
+    return payload
+
+
+def _ledger_worker_result_reference(feature_dir: Path, task_id: str) -> tuple[str, list[str]]:
+    review_ledger_path = ledger_path(feature_dir)
+    if not review_ledger_path.is_file():
+        return "", []
+    ledger_relative = "implementation-review/ledger.json"
+    try:
+        ledger_entries = load_task_ledger(feature_dir)
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        return "", [f"{ledger_relative} is malformed for worker_result lookup: {exc}"]
+    for entry in ledger_entries:
+        if not isinstance(entry.task_id, str) or entry.task_id.upper() != task_id.upper():
+            continue
+        if not isinstance(entry.worker_result, str):
+            return "", [f"{task_id} in {ledger_relative} has malformed worker_result"]
+        if not entry.worker_result.strip():
+            return "", []
+        return entry.worker_result, []
+    return "", []
+
+
+def _safe_worker_result_path(project_root: Path, feature_dir: Path, result_relative: str) -> Path:
+    if result_relative != result_relative.strip():
+        raise ValueError("leading or trailing whitespace is not allowed")
+    if "\\" in result_relative:
+        raise ValueError("backslash path separators are not allowed")
+    windows_source = PureWindowsPath(result_relative)
+    normalized_result_relative = result_relative.replace("\\", "/")
+    posix_source = PurePosixPath(normalized_result_relative)
+    if (
+        Path(result_relative).is_absolute()
+        or windows_source.is_absolute()
+        or posix_source.is_absolute()
+    ):
+        raise ValueError("absolute paths are not allowed")
+    if windows_source.drive:
+        raise ValueError("drive-qualified paths are not allowed")
+    if result_relative.startswith(("//", "\\\\")):
+        raise ValueError("UNC paths are not allowed")
+    if any(part in {"", ".", ".."} for part in normalized_result_relative.split("/")):
+        raise ValueError("dot path segments are not allowed")
+
+    parts = posix_source.parts
+    if len(parts) == 2 and parts[0] == "worker-results" and posix_source.suffix == ".json":
+        root = feature_dir.resolve(strict=False)
+        candidate = (feature_dir / Path(*parts)).resolve(strict=False)
+    elif (
+        len(parts) == 5
+        and parts[:4] == (".specify", "teams", "state", "results")
+        and posix_source.suffix == ".json"
+    ):
+        root = project_root.resolve(strict=False)
+        candidate = (project_root / Path(*parts)).resolve(strict=False)
+    else:
+        raise ValueError(
+            "expected worker-results/<task-id>.json or "
+            ".specify/teams/state/results/<request-id>.json"
+        )
+
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("resolved path escapes its allowed root") from exc
+    return candidate
 
 
 def _result_has_passed_validation(result: dict[str, Any]) -> bool:
@@ -518,7 +606,12 @@ def _follow_up_work_from_payload(value: object) -> list[FollowUpWork]:
 def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, Any]:
     """Return a conservative resume audit payload for an implement feature dir."""
 
-    resolved_feature_dir = feature_dir if feature_dir.is_absolute() else (project_root / feature_dir).resolve()
+    resolved_project_root = project_root.resolve(strict=False)
+    resolved_feature_dir = (
+        feature_dir
+        if feature_dir.is_absolute()
+        else (resolved_project_root / feature_dir).resolve(strict=False)
+    )
     tracker_path = resolved_feature_dir / "implement-tracker.md"
     tasks_path = resolved_feature_dir / "tasks.md"
 
@@ -548,7 +641,12 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
         evidence_gaps.append("tasks.md has no task checklist evidence")
     for task in checked_tasks:
         missing: list[str] = []
-        result = _load_worker_result(resolved_feature_dir, str(task["task_id"]))
+        result, result_gaps = _load_worker_result(
+            resolved_project_root,
+            resolved_feature_dir,
+            str(task["task_id"]),
+        )
+        missing.extend(result_gaps)
         if result is None:
             missing.append("missing worker result")
         elif str(result.get("status", "")).lower() not in {"success", "done", "done_with_concerns"}:
