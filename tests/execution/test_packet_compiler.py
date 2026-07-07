@@ -254,6 +254,112 @@ def test_compile_worker_task_packet_reads_enriched_task_contract_fields(
     assert packet.required_evidence == ["consumer_evidence", "real_entrypoint_evidence"]
 
 
+def test_compile_worker_task_packet_compiles_review_contract_fields(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n',
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
+        b"SQLite test database marker"
+    )
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `DESIGN.md`",
+                "",
+                "## Forbidden Implementation Drift",
+                "",
+                "- Do not change generated settings routes",
+                "",
+                "## Global Constraints",
+                "",
+                "- Preserve current keyboard navigation",
+                "- Keep settings changes local to the panel",
+                "",
+                "## Review-Risk Notes",
+                "",
+                "- Screenshot drift can hide responsive regressions",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- npm test -- tests/settings-panel.test.ts",
+                "",
+                "## T021: Build settings panel",
+                "",
+                "### Scope Boundaries",
+                "| Field | Value |",
+                "|-------|-------|",
+                "| write_scope | [src/ui/settings-panel.tsx] |",
+                "| read_scope | [src/ui/settings-state.ts] |",
+                "| consumes | [settings_state, design_tokens] |",
+                "| produces | [settings_panel_events, responsive_settings_markup] |",
+                "| review_inputs | [DESIGN.md, screenshots/settings-panel.png] |",
+                "| review_risks | [Keyboard shortcuts may regress] |",
+                "| ui_fidelity_level | [high] |",
+                "| design_inputs | [DESIGN.md#settings-panel] |",
+                "| ui_required_evidence | [desktop_screenshot, mobile_screenshot] |",
+                "| controller_checks_required | [keyboard_navigation_check, state_persistence_check] |",
+                "| global_constraints | [Do not introduce a new state store] |",
+                "",
+                "- [ ] T021 [US2] Build settings panel",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T021",
+    )
+
+    assert packet.global_constraints == [
+        "Preserve current keyboard navigation",
+        "Keep settings changes local to the panel",
+        "Do not introduce a new state store",
+    ]
+    assert packet.interfaces.consumes == ["settings_state", "design_tokens"]
+    assert packet.interfaces.produces == [
+        "settings_panel_events",
+        "responsive_settings_markup",
+    ]
+    assert packet.review_inputs == ["DESIGN.md", "screenshots/settings-panel.png"]
+    assert packet.review_risks == [
+        "Screenshot drift can hide responsive regressions",
+        "Keyboard shortcuts may regress",
+    ]
+    assert packet.ui_fidelity_requirements.applicable is True
+    assert packet.ui_fidelity_requirements.level == "high"
+    assert packet.ui_fidelity_requirements.design_inputs == ["DESIGN.md#settings-panel"]
+    assert packet.ui_fidelity_requirements.required_evidence == [
+        "desktop_screenshot",
+        "mobile_screenshot",
+    ]
+    assert packet.controller_checks_required == [
+        "keyboard_navigation_check",
+        "state_persistence_check",
+    ]
+
+
 def test_compile_worker_task_packet_accepts_materialized_task_input(
     tmp_path: Path,
 ) -> None:

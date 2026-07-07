@@ -11,8 +11,10 @@ from .packet_schema import (
     DispatchPolicy,
     ExecutionIntent,
     MustPreserveObligation,
+    PacketInterfaces,
     PacketReference,
     PacketScope,
+    UiFidelityRequirements,
     WorkerTaskPacket,
 )
 from .packet_validator import validate_worker_task_packet
@@ -272,6 +274,38 @@ def _section_or_subsection_values(text: str, *titles: str) -> list[str]:
     for title in titles:
         values.extend(_bullet_values(_section_body(text, title)))
     return _unique(values)
+
+
+def _ui_fidelity_requirements_from_task_detail(task_detail: str) -> UiFidelityRequirements:
+    level_values = _task_detail_table_field_values(
+        task_detail,
+        "Scope Boundaries",
+        "ui_fidelity_level",
+    )
+    level = (
+        level_values[0]
+        if level_values and level_values[0] in {"none", "approximate", "high"}
+        else "none"
+    )
+    design_inputs = _task_detail_table_field_values(
+        task_detail,
+        "Scope Boundaries",
+        "design_inputs",
+    )
+    required_evidence = _task_detail_table_field_values(
+        task_detail,
+        "Scope Boundaries",
+        "ui_required_evidence",
+    )
+    applicable = level != "none" or bool(design_inputs) or bool(required_evidence)
+    if applicable and level == "none":
+        level = "approximate"
+    return UiFidelityRequirements(
+        applicable=applicable,
+        level=level,
+        design_inputs=design_inputs,
+        required_evidence=required_evidence,
+    )
 
 
 def _task_contract_bullet_values(task_detail: str, *titles: str) -> list[str]:
@@ -543,6 +577,33 @@ def compile_worker_task_packet(
         required_evidence=_unique(
             _task_contract_bullet_values(task_detail, "Required Evidence")
             + _task_detail_table_field_values(task_detail, "Scope Boundaries", "required_evidence")
+        ),
+        global_constraints=_unique(
+            _section_or_subsection_values(
+                plan_text,
+                "Global Constraints",
+                "Profile-Driven Implementation Constraints",
+            )
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "global_constraints")
+        ),
+        interfaces=PacketInterfaces(
+            consumes=_task_detail_table_field_values(task_detail, "Scope Boundaries", "consumes"),
+            produces=_task_detail_table_field_values(task_detail, "Scope Boundaries", "produces"),
+        ),
+        review_inputs=_task_detail_table_field_values(
+            task_detail,
+            "Scope Boundaries",
+            "review_inputs",
+        ),
+        review_risks=_unique(
+            _section_or_subsection_values(plan_text, "Review-Risk Notes")
+            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "review_risks")
+        ),
+        ui_fidelity_requirements=_ui_fidelity_requirements_from_task_detail(task_detail),
+        controller_checks_required=_task_detail_table_field_values(
+            task_detail,
+            "Scope Boundaries",
+            "controller_checks_required",
         ),
         must_preserve_obligations=must_preserve_obligations,
         consequence_obligations=_consequence_obligations_for_task(tasks_text, task_id),
