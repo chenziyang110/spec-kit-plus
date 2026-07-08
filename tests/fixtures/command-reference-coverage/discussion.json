@@ -1,0 +1,166 @@
+{
+  "workflow": "discussion",
+  "source": "templates/commands/discussion.md",
+  "entries": [
+    {
+      "kind": "gate",
+      "source_excerpt": "Context Boundary Gate",
+      "target": "templates/commands/discussion.md"
+    },
+    {
+      "kind": "state-field",
+      "source_excerpt": "verified_project_facts",
+      "target": "templates/command-references/discussion/context-boundary-and-truth.md"
+    },
+    {
+      "kind": "state-field",
+      "source_excerpt": "open_assumptions",
+      "target": "templates/command-references/discussion/context-boundary-and-truth.md"
+    },
+    {
+      "kind": "state-field",
+      "source_excerpt": "evidence_checked",
+      "target": "templates/command-references/discussion/context-boundary-and-truth.md"
+    },
+    {
+      "kind": "state-field",
+      "source_excerpt": "advice_confidence",
+      "target": "templates/command-references/discussion/context-boundary-and-truth.md"
+    },
+    {
+      "kind": "question-gate",
+      "source_excerpt": "Question Evidence Gate",
+      "target": "templates/command-references/discussion/question-and-advice-contract.md"
+    },
+    {
+      "kind": "reply-contract",
+      "source_excerpt": "Unified Frontstage Contract",
+      "target": "templates/command-references/discussion/question-and-advice-contract.md"
+    },
+    {
+      "kind": "consequence-gate",
+      "source_excerpt": "Senior Consequence Analysis Gate",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "persistence",
+      "source_excerpt": "semantic checkpoints",
+      "target": "templates/command-references/discussion/frontstage-backstage-persistence.md"
+    },
+    {
+      "kind": "persistence",
+      "source_excerpt": "save triggers",
+      "target": "templates/command-references/discussion/frontstage-backstage-persistence.md"
+    },
+    {
+      "kind": "handoff-file",
+      "source_excerpt": "handoff-to-specify.md",
+      "target": "templates/command-references/discussion/handoff-contract.md"
+    },
+    {
+      "kind": "handoff-file",
+      "source_excerpt": "handoff-to-specify.json",
+      "target": "templates/command-references/discussion/handoff-contract.md"
+    },
+    {
+      "kind": "handoff-field",
+      "source_excerpt": "discussion_requirement_contract",
+      "target": "templates/command-references/discussion/handoff-contract.md"
+    },
+    {
+      "kind": "handoff-field",
+      "source_excerpt": "consumer_eligibility",
+      "target": "templates/command-references/discussion/handoff-contract.md"
+    },
+    {
+      "kind": "handoff-field",
+      "source_excerpt": "recommended_consumer",
+      "target": "templates/command-references/discussion/handoff-contract.md"
+    },
+    {
+      "kind": "handoff-field",
+      "source_excerpt": "quick_task_candidate",
+      "target": "templates/command-references/discussion/handoff-contract.md"
+    },
+    {
+      "kind": "must-preserve",
+      "source_excerpt": "Must-Preserve Ledger",
+      "target": "templates/command-references/discussion/handoff-contract.md"
+    },
+    {
+      "kind": "repair",
+      "source_excerpt": "blocked_by_handoff_integrity",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "repair",
+      "source_excerpt": "source_handoff_json",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "repair",
+      "source_excerpt": "source_files_read",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "repair",
+      "source_excerpt": "handoff_status",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "review-gate",
+      "source_excerpt": "Handoff Reviewer Guide",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "review-gate",
+      "source_excerpt": "Approve only if",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "review-gate",
+      "source_excerpt": "Request changes if",
+      "target": "templates/command-references/discussion/handoff-review-and-repair.md"
+    },
+    {
+      "kind": "downstream",
+      "source_excerpt": "discussion_decision_digest",
+      "target": "templates/command-references/discussion/downstream-consumption.md"
+    },
+    {
+      "kind": "downstream",
+      "source_excerpt": "selected direction",
+      "target": "templates/command-references/discussion/downstream-consumption.md"
+    },
+    {
+      "kind": "downstream",
+      "source_excerpt": "target boundary",
+      "target": "templates/command-references/discussion/downstream-consumption.md"
+    },
+    {
+      "kind": "downstream",
+      "source_excerpt": "next consumption path",
+      "target": "templates/command-references/discussion/downstream-consumption.md"
+    },
+    {
+      "kind": "closeout",
+      "source_excerpt": "Handoff-ready closeout",
+      "target": "templates/command-references/discussion/quality-and-closeout.md"
+    },
+    {
+      "kind": "closeout",
+      "source_excerpt": "Do not close with only file paths",
+      "target": "templates/command-references/discussion/quality-and-closeout.md"
+    },
+    {
+      "kind": "closeout",
+      "source_excerpt": "P0/P1/P2",
+      "target": "templates/command-references/discussion/quality-and-closeout.md"
+    },
+    {
+      "kind": "closeout",
+      "source_excerpt": "alternate product path",
+      "target": "templates/command-references/discussion/quality-and-closeout.md"
+    }
+  ]
+}

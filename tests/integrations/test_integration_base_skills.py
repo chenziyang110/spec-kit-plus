@@ -394,6 +394,17 @@ def _assert_embedded_implement_review_contract(content: str) -> None:
     assert "sp-review" not in content
 
 
+def _read_skill_with_references(skill_path):
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            path.read_text(encoding="utf-8")
+            for path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
+
 
 SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe")
 
@@ -407,7 +418,7 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
 
         generated = "\n".join(
             path.read_text(encoding="utf-8").lower()
-            for path in integration.skills_dest(project).glob("**/SKILL.md")
+            for path in integration.skills_dest(project).glob("**/*.md")
         )
 
         assert "senior consequence analysis gate" in generated, integration_key
@@ -423,7 +434,7 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
 
         discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists(), integration_key
-        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+        _assert_discussion_contract(_read_skill_with_references(discussion_path))
 
 
 def test_collected_skills_integrations_preserve_ask_contract(tmp_path):
@@ -539,6 +550,30 @@ def test_generated_reference_sidecars_have_no_unresolved_renderer_tokens(
         assert "{ARGS}" not in content, path
         assert "__AGENT__" not in content, path
         assert "{{invoke:" not in content, path
+
+
+def test_real_discussion_reference_sidecars_are_rendered(tmp_path):
+    i = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+    i.setup(tmp_path, manifest, script_type="sh")
+
+    references_dir = i.skills_dest(tmp_path) / "sp-discussion" / "references"
+    sidecars = sorted(references_dir.glob("*.md"))
+    assert sidecars
+    index = (references_dir / "INDEX.md").read_text(encoding="utf-8")
+
+    for path in sidecars:
+        content = path.read_text(encoding="utf-8")
+        assert "{SCRIPT}" not in content, path
+        assert "{AGENT_SCRIPT}" not in content, path
+        assert "{ARGS}" not in content, path
+        assert "__AGENT__" not in content, path
+        assert "{{invoke:" not in content, path
+        if path.name != "INDEX.md":
+            assert path.name in index, path
+
+    truth_reference = references_dir / "context-boundary-and-truth.md"
+    assert "$sp-map-scan" in truth_reference.read_text(encoding="utf-8")
 
 
 def test_generated_reference_sidecars_are_reachable_from_index(tmp_path, monkeypatch):

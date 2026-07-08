@@ -25,11 +25,30 @@ ASCII_CARD_LINE_RE = re.compile(r"(?m)^\s*\| .+\|\s*$")
 ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
 
 
+def _discussion_reference_surface() -> str:
+    root = PROJECT_ROOT / "templates" / "command-references" / "discussion"
+    parts = [
+        (PROJECT_ROOT / "templates" / "commands" / "discussion.md").read_text(
+            encoding="utf-8"
+        ),
+        read_template("templates/commands/discussion.md"),
+    ]
+    if root.is_dir():
+        for ref_path in sorted(root.glob("*.md")):
+            parts.append(ref_path.read_text(encoding="utf-8"))
+    parts.append("## End Discussion Reference Surface\n")
+    return "\n\n".join(parts)
+
+
 def _read(path: str) -> str:
+    if path == "templates/commands/discussion.md":
+        return _discussion_reference_surface()
     return read_template(path)
 
 
 def _read_project_file(path: str) -> str:
+    if path == "templates/commands/discussion.md":
+        return _discussion_reference_surface()
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
@@ -41,6 +60,44 @@ def _design_system_from_front_matter(content: str) -> dict:
     design_system = parsed.get("design_system")
     assert isinstance(design_system, dict)
     return design_system
+
+
+def test_discussion_reference_files_are_reachable_and_have_required_headers():
+    root = PROJECT_ROOT / "templates" / "command-references" / "discussion"
+    command = (PROJECT_ROOT / "templates" / "commands" / "discussion.md").read_text(
+        encoding="utf-8"
+    )
+    index = (root / "INDEX.md").read_text(encoding="utf-8")
+    assert "references/INDEX.md" in command
+
+    for path in sorted(root.glob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        if path.name == "INDEX.md":
+            assert "Trigger:" in content, path
+            continue
+        if path.name != "INDEX.md":
+            assert content.startswith("Trigger:"), path
+        assert "Trigger:" in content, path
+        assert "Purpose:" in content, path
+        assert "Preserved Contract:" in content, path
+        if path.name != "INDEX.md":
+            assert path.name in index, path
+
+
+def test_discussion_reference_coverage_ledger_targets_existing_text():
+    ledger = json.loads(
+        (
+            PROJECT_ROOT
+            / "tests"
+            / "fixtures"
+            / "command-reference-coverage"
+            / "discussion.json"
+        ).read_text(encoding="utf-8")
+    )
+    for entry in ledger["entries"]:
+        target = PROJECT_ROOT / entry["target"]
+        assert target.exists(), entry
+        assert entry["source_excerpt"] in target.read_text(encoding="utf-8"), entry
 
 
 def test_design_template_declares_v1_schema_and_required_guidance() -> None:

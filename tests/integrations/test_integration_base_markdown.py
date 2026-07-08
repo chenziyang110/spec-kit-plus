@@ -417,6 +417,18 @@ def _discussion_artifact_path(integration, project_root):
     return command_path
 
 
+def _read_generated_artifact_with_references(path):
+    parts = [path.read_text(encoding="utf-8")]
+    if path.name == "SKILL.md":
+        references_dir = path.parent / "references"
+        if references_dir.is_dir():
+            parts.extend(
+                ref.read_text(encoding="utf-8")
+                for ref in sorted(references_dir.glob("**/*.md"))
+            )
+    return "\n\n".join(parts)
+
+
 def _specify_artifact_path(integration, project_root):
     command_path = integration.commands_dest(project_root) / integration.command_filename("specify")
     if command_path.exists():
@@ -472,7 +484,9 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
 
         discussion_path = _discussion_artifact_path(integration, project)
         assert discussion_path.exists(), integration_key
-        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+        _assert_discussion_contract(
+            _read_generated_artifact_with_references(discussion_path)
+        )
 
 
 def test_collected_markdown_integrations_preserve_ask_contract(tmp_path):
