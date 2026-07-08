@@ -3347,49 +3347,104 @@ def test_tasks_templates_preserve_user_confirmed_delivery_scope_not_mvp():
 
 
 def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> None:
-    plan = _read("templates/commands/plan.md")
-    plan_template = _read("templates/plan-template.md")
-    tasks = _read("templates/commands/tasks.md")
-    tasks_template = _read("templates/tasks-template.md")
-    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    surfaces = {
+        "templates/commands/plan.md": _read("templates/commands/plan.md").lower(),
+        "templates/plan-template.md": _read("templates/plan-template.md").lower(),
+        "templates/commands/tasks.md": _read("templates/commands/tasks.md").lower(),
+        "templates/tasks-template.md": _read("templates/tasks-template.md").lower(),
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md": _read(
+            "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
+        ).lower(),
+    }
 
-    combined = "\n".join([plan, plan_template, tasks, tasks_template, routing])
-    lowered = combined.lower()
+    expected_by_surface = {
+        "templates/commands/plan.md": (
+            "complete-first scope preservation",
+            "complete user-confirmed scope",
+            "complexity alone is not a valid reason",
+            "do not shrink scope",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/plan-template.md": (
+            "complete-first scope preservation",
+            "complete user-confirmed scope",
+            "complexity alone is not a valid reason",
+            "do not shrink scope",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/commands/tasks.md": (
+            "complete-first scope preservation",
+            "do not shrink scope",
+            "execution phases are ordering, not delivery deferral",
+            "user story priorities such as `p1`, `p2`, and `p3` remain ordering labels",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/tasks-template.md": (
+            "complete-first scope preservation",
+            "do not shrink scope",
+            "execution phases are ordering, not delivery deferral",
+            "user story priorities such as `p1`, `p2`, and `p3` remain ordering labels",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md": (
+            "complete-first scope preservation",
+            "do not shrink scope",
+            "runtime capability limits are blockers only under the adaptive execution policy",
+            "heavy, safety-critical, or unpacketizable",
+        ),
+    }
 
-    assert "complete-first scope preservation" in lowered
-    assert "complete user-confirmed scope" in lowered
-    assert "complexity alone is not a valid reason" in lowered
-    assert "do not shrink scope" in lowered
-    assert "execution phases are ordering, not delivery deferral" in lowered
-    assert "runtime capability limits are blockers only under the adaptive execution policy" in lowered
-    assert "heavy, safety-critical, or unpacketizable" in lowered
-    assert "user story priorities such as `p1`, `p2`, and `p3` remain ordering labels" in lowered
-    assert "agent-invented `v1/v2`" in lowered
-    assert "agent-invented `p0/p1`" in lowered
-    assert "future-work delivery slice" in lowered
+    for path, phrases in expected_by_surface.items():
+        for phrase in phrases:
+            assert phrase in surfaces[path], f"{path} missing {phrase!r}"
 
 
 def test_complete_first_deferrals_require_full_contract_fields() -> None:
-    checked_templates = [
-        _read("templates/commands/plan.md"),
-        _read("templates/plan-template.md"),
-        _read("templates/commands/tasks.md"),
-        _read("templates/tasks-template.md"),
-    ]
-    combined = "\n".join(checked_templates).lower()
-
-    for phrase in (
+    surfaces = {
+        "templates/commands/plan.md": _read("templates/commands/plan.md").lower(),
+        "templates/plan-template.md": _read("templates/plan-template.md").lower(),
+        "templates/commands/tasks.md": _read("templates/commands/tasks.md").lower(),
+        "templates/tasks-template.md": _read("templates/tasks-template.md").lower(),
+    }
+    required_fields = (
         "confirmation source",
         "exact excluded behavior",
         "residual risk",
         "reopen or stop condition",
         "downstream artifact",
-    ):
-        assert phrase in combined
+    )
+    fallback_by_surface = {
+        "templates/commands/plan.md": (
+            "if the user did not confirm the deferral",
+            "create a refinement or validation checkpoint",
+        ),
+        "templates/plan-template.md": (
+            "if the user did not confirm the deferral",
+            "create a refinement or validation checkpoint",
+        ),
+        "templates/commands/tasks.md": (
+            "if the user did not confirm the deferral",
+            "task the behavior",
+        ),
+        "templates/tasks-template.md": (
+            "if the user did not confirm the deferral",
+            "task the behavior",
+        ),
+    }
 
-    assert "if the user did not confirm the deferral" in combined
-    assert "task the behavior" in combined
-    assert "create a refinement or validation checkpoint" in combined
+    for path, content in surfaces.items():
+        for phrase in required_fields:
+            assert phrase in content, f"{path} missing deferral field {phrase!r}"
+        for phrase in fallback_by_surface[path]:
+            assert phrase in content, f"{path} missing unconfirmed-deferral fallback {phrase!r}"
 
 
 def test_structured_templates_carry_complete_first_scope_contract() -> None:
