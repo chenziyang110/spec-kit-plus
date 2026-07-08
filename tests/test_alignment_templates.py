@@ -2555,7 +2555,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "roughly 10-20 minutes" in lowered
     assert "subagent can still execute the task internally through smaller 2-5 minute atomic steps" in lowered
     assert "stop decomposition once the current executable window is atomic" in lowered
-    assert "leave later phases at the coarser story or phase level" in lowered
+    assert "leave later execution phases at the coarser story or phase level" in lowered
+    assert "refinement inside the current confirmed delivery" in lowered
+    assert "not delivery deferral or future work" in lowered
     assert "grouped parallelism is the default" in lowered
     assert "parallel-eligible" in lowered
     assert "batch range labels such as `t012-t021` are summaries, not executable lane identities" in lowered
