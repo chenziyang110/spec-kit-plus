@@ -567,6 +567,61 @@ def test_generated_reference_sidecars_are_reachable_from_index(tmp_path, monkeyp
         assert rel in index_content, reference
 
 
+def test_repair_missing_reference_sidecars_restores_manifest_owned_missing_file(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    i.setup(project, manifest, script_type="sh")
+
+    reference = i.skills_dest(project) / "sp-plan" / "references" / "INDEX.md"
+    assert reference.exists()
+    reference.unlink()
+
+    restored = i.repair_missing_command_reference_sidecars(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert reference in restored
+    assert reference.exists()
+    assert "Plan Reference Index" in reference.read_text(encoding="utf-8")
+
+
+def test_repair_missing_reference_sidecars_preserves_existing_modified_file(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    i.setup(project, manifest, script_type="sh")
+
+    reference = i.skills_dest(project) / "sp-plan" / "references" / "INDEX.md"
+    original = "# user-modified reference index\n"
+    reference.write_text(original, encoding="utf-8")
+
+    restored = i.repair_missing_command_reference_sidecars(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert restored == []
+    assert reference.read_text(encoding="utf-8") == original
+
+
 class SkillsIntegrationTests:
     """Mixin — set class-level constants and inherit these tests.
 

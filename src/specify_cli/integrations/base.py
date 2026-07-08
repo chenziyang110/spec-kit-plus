@@ -2115,6 +2115,94 @@ class SkillsIntegration(IntegrationBase):
 
         return created
 
+    def repair_missing_command_reference_sidecars(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        *,
+        script_type: str,
+    ) -> list[Path]:
+        """Restore missing manifest-owned reference sidecars without overwriting edits."""
+        skills_dir = self.skills_dest(project_root)
+        arg_placeholder = (
+            self.registrar_config.get("args", "$ARGUMENTS")
+            if self.registrar_config
+            else "$ARGUMENTS"
+        )
+        restored: list[Path] = []
+
+        references_dir = self.shared_command_references_dir()
+        if not references_dir:
+            return restored
+
+        project_root_resolved = project_root.resolve()
+        for src_file in self.list_command_templates():
+            command_name = src_file.stem
+            reference_files = self.list_command_reference_templates(command_name)
+            if not reference_files:
+                continue
+            skill_name = (
+                "sp-teams"
+                if command_name == "team"
+                else f"sp-{command_name.replace('.', '-')}"
+            )
+            skill_dir = skills_dir / skill_name
+            if not (skill_dir / "SKILL.md").is_file():
+                continue
+
+            owner_raw = src_file.read_text(encoding="utf-8")
+            references_root = (references_dir / command_name).resolve()
+            for reference_src in reference_files:
+                try:
+                    relative = reference_src.resolve().relative_to(references_root)
+                except ValueError:
+                    relative = Path(reference_src.name)
+                destination = skill_dir / "references" / relative
+                rel_manifest_path = destination.resolve().relative_to(
+                    project_root_resolved
+                ).as_posix()
+                if rel_manifest_path not in manifest.files:
+                    continue
+                if destination.exists():
+                    continue
+                rendered = self.render_command_reference_content(
+                    reference_src.read_text(encoding="utf-8"),
+                    owner_template_raw=owner_raw,
+                    owner_template_path=src_file,
+                    reference_path=reference_src,
+                    agent_name=self.key,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                    project_root=project_root,
+                    apply_invocation_conventions=True,
+                )
+                restored.append(
+                    self.write_file_and_record(
+                        rendered,
+                        destination,
+                        project_root,
+                        manifest,
+                    )
+                )
+
+        return restored
+
+    def repair_runtime_assets(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        **opts: Any,
+    ) -> list[Path]:
+        created = super().repair_runtime_assets(project_root, manifest, **opts)
+        created.extend(
+            self.repair_missing_command_reference_sidecars(
+                project_root,
+                manifest,
+                script_type=opts.get("script_type", "sh"),
+            )
+        )
+        return created
+
     def _copy_supporting_passive_files(
         self,
         *,

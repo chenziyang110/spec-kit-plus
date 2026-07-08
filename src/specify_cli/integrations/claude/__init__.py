@@ -892,6 +892,13 @@ class ClaudeIntegration(SkillsIntegration):
                 script_type=opts.get("script_type", "sh"),
             )
         )
+        created.extend(
+            self.repair_missing_command_reference_sidecars(
+                project_root,
+                manifest,
+                script_type=opts.get("script_type", "sh"),
+            )
+        )
         return created
 
 
