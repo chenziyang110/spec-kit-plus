@@ -158,6 +158,9 @@ order, dispatch shape, and validation strategy, but it must not shrink scope.
 - If a deferral is valid, it must be user-confirmed and record confirmation source,
   exact excluded behavior, residual risk, reopen or stop condition, and downstream
   artifact.
+- `plan.md` and `plan-contract.json` must carry the same confirmed delivery scope
+  and user-confirmed deferral contract, including `confirmed_delivery_scope` and
+  `user_confirmed_deferrals`.
 - If the user did not confirm the deferral, plan the behavior, create a refinement or validation checkpoint that keeps it inside the current feature, or identify a valid hard blocker.
 - Runtime capability limits are blockers only under the adaptive execution policy
   for heavy, safety-critical, or unpacketizable work. They are not permission to
