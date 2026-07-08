@@ -2063,6 +2063,58 @@ class SkillsIntegration(IntegrationBase):
             f"{processed_body}"
         )
 
+    def _copy_command_reference_sidecars(
+        self,
+        *,
+        command_name: str,
+        owner_template_raw: str,
+        owner_template_path: Path,
+        destination_dir: Path,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        script_type: str,
+        arg_placeholder: str,
+    ) -> list[Path]:
+        """Render command references into a skill's ``references/`` directory."""
+        reference_files = self.list_command_reference_templates(command_name)
+        if not reference_files:
+            return []
+
+        references_dir = self.shared_command_references_dir()
+        if not references_dir:
+            return []
+        references_root = (references_dir / command_name).resolve()
+        references_dest = destination_dir / "references"
+
+        created: list[Path] = []
+        for src_file in reference_files:
+            try:
+                relative = src_file.resolve().relative_to(references_root)
+            except ValueError:
+                relative = Path(src_file.name)
+            dst_file = references_dest / relative
+            rendered = self.render_command_reference_content(
+                src_file.read_text(encoding="utf-8"),
+                owner_template_raw=owner_template_raw,
+                owner_template_path=owner_template_path,
+                reference_path=src_file,
+                agent_name=self.key,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+                project_root=project_root,
+                apply_invocation_conventions=True,
+            )
+            created.append(
+                self.write_file_and_record(
+                    rendered,
+                    dst_file,
+                    project_root,
+                    manifest,
+                )
+            )
+
+        return created
+
     def _copy_supporting_passive_files(
         self,
         *,
@@ -2254,6 +2306,18 @@ class SkillsIntegration(IntegrationBase):
                 skill_content, skill_file, project_root, manifest
             )
             created.append(dst)
+            created.extend(
+                self._copy_command_reference_sidecars(
+                    command_name=command_name,
+                    owner_template_raw=raw,
+                    owner_template_path=src_file,
+                    destination_dir=skill_dir,
+                    project_root=project_root,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+            )
 
         for template_dir in passive_templates:
             raw = (template_dir / "SKILL.md").read_text(encoding="utf-8")

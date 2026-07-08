@@ -46,6 +46,37 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
 )
 
 
+def _write_skill_command_with_reference_fixture(root):
+    commands = root / "commands"
+    references = root / "command-references" / "plan"
+    commands.mkdir(parents=True)
+    references.mkdir(parents=True)
+    (commands / "plan.md").write_text(
+        "---\n"
+        "description: Plan command\n"
+        "scripts:\n"
+        "  sh: scripts/bash/setup-plan.sh --json\n"
+        "---\n\n"
+        "# Plan Main\n\n"
+        "Use [reference index](references/INDEX.md) for detailed contract routing.\n",
+        encoding="utf-8",
+    )
+    (references / "INDEX.md").write_text(
+        "# Plan Reference Index\n\n"
+        "- [details](details.md): Trigger: detail routing; Purpose: sidecar test; "
+        "Preserved Contract: sidecar rules\n",
+        encoding="utf-8",
+    )
+    (references / "details.md").write_text(
+        "Trigger: detail routing\n\n"
+        "Purpose: prove sidecar rendering\n\n"
+        "Preserved Contract: keep sidecar details\n\n"
+        "Run {SCRIPT} with {ARGS} for __AGENT__ before {{invoke:tasks}}.\n",
+        encoding="utf-8",
+    )
+    return commands, root / "command-references"
+
+
 def _extract_generated_cognition_policy(content: str) -> str:
     lines = content.splitlines()
     selected: set[int] = set()
@@ -453,6 +484,87 @@ def test_generated_planning_skills_require_inline_cognition_update_for_source_ch
             )
             assert "run inline project cognition update" in content
             assert "sp-map-update is for manual/external maintenance" in content
+
+
+def test_skills_install_processed_reference_sidecars_and_manifest_entries(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    i.setup(project, manifest, script_type="sh")
+
+    skill_dir = i.skills_dest(project) / "sp-plan"
+    skill = skill_dir / "SKILL.md"
+    index = skill_dir / "references" / "INDEX.md"
+    detail = skill_dir / "references" / "details.md"
+
+    assert skill.exists()
+    assert index.exists()
+    assert detail.exists()
+    assert "references/INDEX.md" in skill.read_text(encoding="utf-8")
+    detail_content = detail.read_text(encoding="utf-8")
+    assert "scripts/bash/setup-plan.sh --json" in detail_content
+    assert "{SCRIPT}" not in detail_content
+    assert "{ARGS}" not in detail_content
+    assert "__AGENT__" not in detail_content
+    assert "{{invoke:tasks}}" not in detail_content
+    assert str(index.relative_to(project)).replace("\\", "/") in manifest.files
+    assert str(detail.relative_to(project)).replace("\\", "/") in manifest.files
+
+
+def test_generated_reference_sidecars_have_no_unresolved_renderer_tokens(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    manifest = IntegrationManifest("codex", tmp_path)
+    i.setup(tmp_path, manifest, script_type="sh")
+
+    sidecars = sorted(i.skills_dest(tmp_path).glob("sp-*/references/**/*.md"))
+    assert sidecars
+    for path in sidecars:
+        content = path.read_text(encoding="utf-8")
+        assert "{SCRIPT}" not in content, path
+        assert "{AGENT_SCRIPT}" not in content, path
+        assert "{ARGS}" not in content, path
+        assert "__AGENT__" not in content, path
+        assert "{{invoke:" not in content, path
+
+
+def test_generated_reference_sidecars_are_reachable_from_index(tmp_path, monkeypatch):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    manifest = IntegrationManifest("codex", tmp_path)
+    i.setup(tmp_path, manifest, script_type="sh")
+
+    skill_dir = i.skills_dest(tmp_path) / "sp-plan"
+    references_dir = skill_dir / "references"
+    skill = skill_dir / "SKILL.md"
+    skill_content = skill.read_text(encoding="utf-8")
+    assert "references/INDEX.md" in skill_content, skill
+
+    index = references_dir / "INDEX.md"
+    assert index.exists(), skill_dir
+    index_content = index.read_text(encoding="utf-8")
+    for reference in sorted(references_dir.glob("**/*.md")):
+        if reference.name == "INDEX.md":
+            continue
+        rel = reference.relative_to(references_dir).as_posix()
+        assert rel in index_content, reference
 
 
 class SkillsIntegrationTests:
