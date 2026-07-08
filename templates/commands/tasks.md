@@ -224,7 +224,7 @@ join points, and refinement checkpoints, but it must not shrink scope. Do not sh
     - Before dispatching any delegated task-generation lane, persist a `task_generation_checkpoint` record to `task-generation/checkpoints.ndjson` with the lane id, dispatch shape, authoritative inputs, expected handoff path, and current workflow-state summary.
    - Each delegated lane must persist the lane's structured handoff to `task-generation/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or synthesizes `tasks.md`.
    - Update `task-generation/evidence-index.json` after each accepted delegated lane handoff with lane id, handoff path, source artifacts inspected, decisions or constraints contributed, affected task IDs or batch IDs, blocker status, and integration status.
-    - Consume `task-generation/evidence-index.json` before final task synthesis when delegated lanes were used: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target task ID, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or escalation that consumed it.
+    - Consume `task-generation/evidence-index.json` before final task synthesis when delegated lanes were used: for every accepted handoff, mark the handoff as `integrated`, assigned to a refinement checkpoint, recorded in `user_confirmed_deferrals` with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact, or `blocked`, and name the target task ID, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or escalation that consumed it.
     - Do not synthesize `tasks.md` from chat-only delegated lane results. If a delegated lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a writable lane and a valid handoff path.
     - When resuming after compaction and delegated lanes were used, re-read `workflow-state.md`, `task-generation/checkpoints.ndjson`, `task-generation/evidence-index.json`, and all accepted `task-generation/handoffs/<lane-id>.json` files before continuing task synthesis.
     - Required join points:
@@ -236,14 +236,14 @@ join points, and refinement checkpoints, but it must not shrink scope. Do not sh
     - Read `planning/evidence-index.json` and all accepted `planning/handoffs/*.json` when present; treat accepted planning lane contributions as upstream planning inputs, not discarded background evidence.
     - Emit `handoff-to-tasks.json`, `task-index.json`, and per-task packet JSON under `task-packets/` when standard/heavy mode uses delegated task-generation lanes or downstream delegated implementation needs packets; in light mode, emit only the minimum light-mode `tasks.md` contract unless `task-index.json` is useful.
     - When delegated task-generation handoffs exist, include references in `handoff-to-tasks.json` and `task-index.json` to the accepted `task-generation/handoffs/<lane-id>.json` files that shaped each task, dependency edge, write-set decision, parallel batch, join point, guardrail, or escalation.
-    - Do not mark task generation complete while `task-generation/evidence-index.json` contains an accepted handoff without an explicit consuming task, packet field, dependency edge, deferral, escalation, or blocker reason.
+    - Do not mark task generation complete while `task-generation/evidence-index.json` contains an accepted handoff without an explicit consuming task, packet field, dependency edge, refinement checkpoint, `user_confirmed_deferrals` entry carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact, escalation, or blocker reason.
     - Carry complexity level, must-preserve invariants, allowed optimization scope, and stop-and-reopen conditions into each task packet.
     - Keep `sp-tasks` aligned with the persisted first-release profile contract: `active_profile` must be one of the two supported profiles, `Standard Delivery` or `Reference-Implementation`.
     - If `workflow-state.md` presents an unsupported `active_profile` during first release, `sp-tasks` stops before decomposition and tells the operator to repair/re-run upstream routing state before task generation continues.
     - Treat `Scenario profile inputs` as task-shaping inputs: active profile, routing reason, activated gates, fidelity obligations, deviation review requirements, and required evidence.
-    - **Analyze remediation mode**: If `workflow-state.md` contains an open `Analyze Gate` blocker bundle for `sp-tasks`, map each task-layer finding to exactly one disposition: `resolved | deferred | not_applicable | escalated`.
+    - **Analyze remediation mode**: If `workflow-state.md` contains an open `Analyze Gate` blocker bundle for `sp-tasks`, map each task-layer finding to exactly one disposition: `resolved | user_confirmed_deferral | not_applicable | escalated`.
     - `resolved`: fix the issue in this task pass and name the task, guardrail, checkpoint, packet field, or section evidence.
-    - `deferred`: keep the issue explicit with the downstream condition that must clear it.
+    - `user_confirmed_deferral`: keep the issue explicit in `user_confirmed_deferrals` with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
     - `not_applicable`: state why the prior finding no longer applies and cite the artifact evidence.
     - `escalated`: stop task generation for the current pass because the missing truth belongs to `plan`, `clarify`, or `deep-research`.
     - Escalation is terminal for the current `sp-tasks` run. If required upstream truth is missing, write the escalation evidence into `workflow-state.md` and set `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`. This sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` instead of sending the user back through `/sp.analyze` first.
@@ -360,7 +360,7 @@ join points, and refinement checkpoints, but it must not shrink scope. Do not sh
     - Analyze remediation summary when remediation mode is active:
       - handled previous analyze findings count
       - resolved count
-      - deferred count
+      - user_confirmed_deferral count
       - not_applicable count
       - escalated count
       - evidence sections or task IDs for resolved findings

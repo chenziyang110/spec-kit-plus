@@ -23,7 +23,7 @@ description: "Task list template for feature implementation"
 - **Must-preserve discussion obligations**: Copy relevant `MP-*` items from `plan.md`, `spec.md`, `alignment.md`, `context.md`, `references.md`, and `brainstorming/handoff-to-specify.json`. Each implementation-shaping item must appear in the Task Guardrail Index, a required reference, a validation checkpoint, a task packet field, a refinement checkpoint, a valid blocker, or a user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - **Capability operations**: Copy every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
 - **User-observable paths**: For any UI, TUI, CLI, API route, installer, registry/factory/config wiring, or generated asset consumed by runtime behavior, record the real entrypoint path from producer data through transformer/state builder to the consumer surface and executor/boundary.
-- Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
+- Do not silently drop a locked planning decision; if a user-confirmed deferral applies, record it in the phase or dependency notes with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact
 - Do not allow command-surface anti-goals to delete capability. Each anti-goal that limits commands, routes, APIs, lifecycle operations, or public surfaces must include a does-not-remove guard naming the preserved operation and selected entry point.
 - Detect semantic degradation before handoff: if a create/scaffold capability is represented only by a template-only task, manual copy docs, or an authoring guide with no executable entry point, stop task generation and route back to `sp-plan` or `sp-clarify`.
 - If a feature touches an established framework or boundary pattern, guardrail tasks MUST be added before implementation begins.
@@ -90,12 +90,12 @@ description: "Task list template for feature implementation"
 - `task-generation/checkpoints.ndjson`: `task_generation_checkpoint` records written before delegated decomposition lanes, major synthesis points, and compaction-risk stops.
 - `task-generation/handoffs/`: one structured handoff per accepted task-generation lane, named by stable lane id.
 - Every task, dependency edge, write-set decision, parallel batch, join point, guardrail, or escalation below should be traceable to upstream artifacts and, when delegated lanes were used, to at least one accepted task-generation handoff.
-- Every accepted task-generation handoff must have a consumer recorded in `task-generation/evidence-index.json`: a task ID, packet field, dependency edge, write-set decision, join point, guardrail, deferral, escalation, or blocker reason.
+- Every accepted task-generation handoff must have a consumer recorded in `task-generation/evidence-index.json`: a task ID, packet field, dependency edge, write-set decision, join point, guardrail, refinement checkpoint, `user_confirmed_deferrals` entry carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact, escalation, or blocker reason.
 
 ## Reference Fidelity Mapping
 
 - Map each preserved or redesigned reference behavior inventory item to the task IDs, checkpoints, or join points that carry it forward.
-- If a reference behavior is intentionally deferred, record the user-confirmed deferral with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact instead of silently omitting it.
+- If a reference behavior is covered by a user-confirmed deferral, record confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact instead of silently omitting it.
 - If a reference behavior is intentionally redesigned, point to the task or review checkpoint that must acknowledge the divergence.
 
 ## Consequence Obligation Mapping
@@ -112,7 +112,7 @@ Use this section only when regenerating tasks after a blocked or explicitly reco
 |------------|-------------|-----------------------|-------|
 | No prior analyze blockers | not_applicable | First task-generation pass | No remediation mapping required |
 
-Allowed dispositions: `resolved`, `deferred`, `not_applicable`, `escalated`.
+Allowed dispositions: `resolved`, `user_confirmed_deferral`, `not_applicable`, `escalated`.
 If any finding is `escalated`, stop task generation and set `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` in `workflow-state.md`.
 
 ## Task Shaping Rules

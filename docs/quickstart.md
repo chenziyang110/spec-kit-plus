@@ -131,7 +131,9 @@ deferred, dropped, or reopened explicitly.
 Command-surface minimization must not delete capability. If the discussion or
 specification includes a new/create/scaffold/authoring operation, downstream
 planning and task generation must preserve it through an explicit public
-command, TUI route, core API, private helper, or user-confirmed deferral.
+command, TUI route, core API, private helper, or user-confirmed deferral
+carrying confirmation source, exact excluded behavior, residual risk, reopen or
+stop condition, and downstream artifact.
 Manual copy instructions and template-only docs can support that flow, but they
 do not replace the confirmed operation unless the user chose that narrower entry
 point.

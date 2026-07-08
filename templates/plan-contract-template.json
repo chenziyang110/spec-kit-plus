@@ -32,12 +32,19 @@
     "reopen_or_stop_condition",
     "downstream_artifact"
   ],
+  "user_confirmed_deferral_entry_template": {
+    "confirmation_source": "",
+    "exact_excluded_behavior": "",
+    "residual_risk": "",
+    "reopen_or_stop_condition": "",
+    "downstream_artifact": ""
+  },
   "acceptance_obligations": [],
   "capability_operations": [],
   "capability_preservation": {
     "required": false,
     "operations": [],
-    "surface_minimization_policy": "Command-surface minimization must not delete capability; remap preserved operations to an explicit entry point or record a user-confirmed deferral."
+    "surface_minimization_policy": "Command-surface minimization must not delete capability; remap preserved operations to an explicit entry point or record a user-confirmed deferral using user_confirmed_deferral_entry_template."
   },
   "mp_obligations": [],
   "open_conflicts": [],

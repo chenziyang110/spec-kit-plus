@@ -112,7 +112,7 @@
 
 ### Behavior-Level Fidelity Inventory
 
-- [Behavior ID] [Preserved / redesigned / deferred behavior] -> [Where the plan preserves or handles it]
+- [Behavior ID] [Preserved / redesigned / user-confirmed deferral] -> [Where the plan preserves it, redesigns it, or records confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact]
 - [Behavior ID] [Boundary, lifecycle, failure-path, or compatibility behavior] -> [Where the plan preserves or handles it]
 
 ## Scenario Profile Inputs
@@ -336,9 +336,9 @@ directories captured above]
   Before finalizing the plan, verify that every locked planning decision is
   represented in the plan summary, technical context, design artifacts,
   refinement checkpoint, valid blocker, or user-confirmed deferral contract.
-  If something is intentionally deferred, record confirmation source, exact
-  excluded behavior, residual risk, reopen or stop condition, and downstream
-  artifact instead of silently dropping it.
+  If something is covered by a user-confirmed deferral, record confirmation
+  source, exact excluded behavior, residual risk, reopen or stop condition, and
+  downstream artifact instead of silently dropping it.
 -->
 
 - [Locked decision] -> [Where it appears in the plan]

@@ -266,7 +266,7 @@ Use the returned readiness:
    - Before dispatching any delegated planning lane, persist a `planning_checkpoint` record to `planning/checkpoints.ndjson` with the lane id, dispatch shape, authoritative inputs, expected handoff path, and current workflow-state summary.
    - Each delegated planning lane must persist the lane's structured handoff to `planning/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or synthesizes `plan.md`, `research.md`, or `plan-contract.json`.
    - Update `planning/evidence-index.json` after each accepted delegated lane handoff with lane id, handoff path, source artifacts inspected, decisions or constraints contributed, affected plan sections or generated artifacts, blocker status, and integration status.
-   - Consume `planning/evidence-index.json` before final synthesis when delegated lanes were used: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, or `plan-contract.json` section that consumed it.
+   - Consume `planning/evidence-index.json` before final synthesis when delegated lanes were used: for every accepted handoff, mark the handoff as `integrated`, assigned to a refinement checkpoint, recorded in `user_confirmed_deferrals` with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact, or `blocked`, and name the target `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, or `plan-contract.json` section that consumed it.
    - Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results. If a delegated lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a writable lane and a valid handoff path.
    - When resuming after compaction and delegated lanes were used, re-read `workflow-state.md`, `planning/checkpoints.ndjson`, `planning/evidence-index.json`, and all accepted `planning/handoffs/<lane-id>.json` files before continuing planning synthesis.
    - Required join points:
@@ -274,7 +274,7 @@ Use the returned readiness:
      - before writing the consolidated implementation plan
    - Record the chosen dispatch shape, blocked reason if any, selected lanes, and join points in the planning artifacts you generate.
    - In `plan-contract.json`, include references to accepted `planning/handoffs/<lane-id>.json` files that shaped each major plan decision, research conclusion, generated artifact, risk, guardrail, or escalation.
-   - Do not mark planning complete while `planning/evidence-index.json` contains an accepted handoff without an explicit consuming artifact section, deferral, or blocker reason.
+   - Do not mark planning complete while `planning/evidence-index.json` contains an accepted handoff without an explicit consuming artifact section, refinement checkpoint, `user_confirmed_deferrals` entry carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact, or blocker reason.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 6. **Execute the plan workflow** using the IMPL_PLAN template:
@@ -298,7 +298,7 @@ Use the returned readiness:
    - Add a `Deep Research Traceability Matrix` section when `deep-research.md` contains Planning Handoff IDs:
      - columns: `Plan Decision`, `Handoff ID`, `Capability ID`, `Track ID`, `Evidence / Spike ID`, `Evidence Quality`, `Plan Action`
      - every architecture, module-boundary, API/library, data-flow, validation, or residual-risk decision derived from deep research must cite at least one `PH-###` item
-     - mark any `PH-###` item not consumed by the plan as `deferred`, `not applicable`, or `requires user decision`
+     - mark any `PH-###` item not consumed by the plan as covered by a refinement checkpoint, recorded in `user_confirmed_deferrals` with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact, `not applicable`, or `requires user decision`
    - Copy locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md` into planning constraints, assumptions, or design notes so they are not silently dropped
    - Add each implementation-shaping `MP-*` item to `plan.md#Must-Preserve Carry-Forward`, `Locked Planning Decisions`, `Implementation Constitution`, or `Alignment Inputs`.
    - Preserve `MP-*` IDs when the plan consumes goals, non-goals, references, decisions, trade-offs, and stop-and-reopen conditions.

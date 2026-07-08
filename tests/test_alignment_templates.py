@@ -3466,6 +3466,13 @@ def test_complete_first_deferrals_require_full_contract_fields() -> None:
     assert "deferred-note coverage" not in combined
     assert "explicitly user-confirmed deferral" not in combined
     assert "explicitly deferred" not in combined
+    assert "explicit consuming artifact section, deferral, or blocker reason" not in combined
+    assert "dependency edge, deferral, escalation, or blocker reason" not in combined
+    assert "mark the handoff as `integrated`, `deferred`, or `blocked`" not in combined
+    assert "resolved`, `deferred" not in combined
+    assert "deferred count" not in combined
+    assert "if it is deferred, say so explicitly" not in combined
+    assert "deferred behavior]" not in combined
 
 
 def test_structured_templates_carry_complete_first_scope_contract() -> None:
@@ -3486,8 +3493,12 @@ def test_structured_templates_carry_complete_first_scope_contract() -> None:
             "reopen_or_stop_condition",
             "downstream_artifact",
         ]
+        assert set(payload["user_confirmed_deferral_entry_template"]) == set(
+            payload["deferral_contract_required_fields"]
+        )
 
     assert plan_contract["complete_first_scope_preservation"]["default"] == "plan_and_task_complete_confirmed_scope"
+    assert "user_confirmed_deferral_entry_template" in plan_contract["capability_preservation"]["surface_minimization_policy"]
     assert task_index["complete_first_scope_preservation"]["phase_policy"] == "execution_order_not_delivery_deferral"
     assert task_packet["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
     assert implement_state["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
@@ -4039,7 +4050,7 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
     assert "DP2" in content
     assert "DP3" in content
     assert "Analyze Remediation Mapping" in content
-    assert "resolved | deferred | not_applicable | escalated" in content
+    assert "resolved | user_confirmed_deferral | not_applicable | escalated" in content
     assert "Escalation is terminal for the current `sp-tasks` run" in content
     assert "sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
     assert "No more than one task-layer remediation cycle is expected" in content

@@ -29,6 +29,13 @@
     "reopen_or_stop_condition",
     "downstream_artifact"
   ],
+  "user_confirmed_deferral_entry_template": {
+    "confirmation_source": "",
+    "exact_excluded_behavior": "",
+    "residual_risk": "",
+    "reopen_or_stop_condition": "",
+    "downstream_artifact": ""
+  },
   "implementation_target": {},
   "target_root": null,
   "target_relative_paths": [],

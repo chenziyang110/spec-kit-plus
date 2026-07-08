@@ -65,6 +65,7 @@ def test_docs_teach_command_surface_minimization_preserves_scaffold_operations()
         "docs/installation.md",
     ):
         lowered = _read(rel_path).lower()
+        normalized = " ".join(lowered.split())
 
         assert "command-surface minimization must not delete capability" in lowered
         assert "new/create/scaffold/authoring" in lowered
@@ -72,6 +73,11 @@ def test_docs_teach_command_surface_minimization_preserves_scaffold_operations()
         assert "template-only" in lowered
         assert "tui route" in lowered
         assert "core api" in lowered
+        assert "confirmation source" in lowered
+        assert "exact excluded behavior" in lowered
+        assert "residual risk" in lowered
+        assert "reopen or stop condition" in normalized
+        assert "downstream artifact" in lowered
 
 
 def test_quickstart_declares_integration_specific_invocation_syntax():
