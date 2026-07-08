@@ -214,7 +214,7 @@ user what to type:
 
 - Do not replace a user-invoked `sp-*` workflow with ad hoc implementation.
 - If multiple workflow recommendations seem plausible, suggest the smallest safe workflow route and make the next escalation trigger explicit.
-- Workflow-route minimization is only about choosing the command surface. Preserve the user's confirmed product scope; do not steer the product toward a smaller MVP, pilot, prototype, or first-story release unless the user asked for that shape or confirmed it after a named constraint/trade-off.
+- Complete-first scope preservation: workflow-route minimization is only about choosing the command surface. Preserve the user's complete user-confirmed scope; do not shrink scope toward a smaller MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, or agent-invented `P0/P1` unless the user asked for that shape or confirmed it after a named constraint/trade-off. Complexity alone is not a valid reason to defer or block ordinary work; use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 - If the user intent is effectively "continue with the recommended next step",
   prefer `sp-auto` over guessing which canonical workflow they meant from chat alone.
 - Clean completed `sp-tasks` state with `/sp.implement` should route through `sp-auto` to `sp-implement`.

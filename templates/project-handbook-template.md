@@ -29,10 +29,7 @@ and what sits clearly outside the system boundary.]
   in `source_signal_disposition` instead of trusting only the handoff summary.
   `alignment.md` records `Semantic Term Decisions`, `Upstream Intent Disposition`,
   and `Out-Of-Scope Conflicts`.
-- **User-confirmed product scope**: Generated workflows preserve the user's confirmed product scope. Workflow routing may choose the lightest safe command
-  surface, but it must not convert the user's product intent into a smaller MVP
-  or first-story release. Scope reduction requires user confirmation, including
-  when a named constraint forces a scope decision.
+- **User-confirmed product scope**: Generated workflows preserve the user's complete user-confirmed scope. Workflow routing may choose the lightest safe command surface, but `sp-plan` and `sp-tasks` must not convert the user's product intent into a smaller MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, or agent-invented `P0/P1`. Scope reduction requires user confirmation, including when a named constraint forces a scope decision. Complexity alone is not a valid reason to shrink scope, defer ordinary work, or block; use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 - **`sp-auto` nonblocking resume**: `sp-auto` resumes the safe next workflow from
   recorded state. When the routed workflow would only ask a bounded question or
   confirmation with one safe recommended/default answer, it accepts that answer
