@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,7 +25,7 @@ def _assert_tier_roles(content: str) -> None:
 
 
 def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
     raw_content = (PROJECT_ROOT / "templates/commands/quick.md").read_text(encoding="utf-8").lower()
 
     assert "dispatch mode follows command tier" in content
@@ -119,7 +119,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
 
 
 def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "## understanding checkpoint" in content
     assert "## quick checkpoint" in content
@@ -154,7 +154,7 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
 
 
 def test_quick_template_uses_fixed_status_scaffold() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
     scaffold = read_template("templates/artifacts/quick-status.md").lower()
 
     assert "## status.md scaffold" in content
@@ -184,7 +184,7 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
 
 
 def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "upgrade to `{{invoke:specify}}` immediately if" in content or "upgrade to `/sp-specify` immediately if" in content
     assert "architecture" in content
@@ -199,7 +199,7 @@ def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
 
 
 def test_quick_template_escalates_when_consequence_model_is_not_bounded() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "senior consequence analysis gate" in content
     assert "continue in quick only when the consequence model is bounded" in content
@@ -210,7 +210,7 @@ def test_quick_template_escalates_when_consequence_model_is_not_bounded() -> Non
 
 
 def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert ".specify/memory/constitution.md" in content
     assert "constitution first" in content
@@ -225,7 +225,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
 
 
 def test_quick_template_requires_self_recovery_before_blocking() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "read additional local context" in content
@@ -240,7 +240,7 @@ def test_quick_template_requires_self_recovery_before_blocking() -> None:
 
 
 def test_quick_template_requires_minimal_plan_for_propagating_changes() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "surface sweep rule" in content
     assert "small-scope complete sweep" in content
@@ -262,7 +262,7 @@ def test_quick_template_requires_minimal_plan_for_propagating_changes() -> None:
 
 
 def test_quick_template_rejects_sampling_for_propagating_change_completion() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "sampling is not sufficient" in content
     assert "full-coverage check" in content or "full coverage check" in content
@@ -271,7 +271,7 @@ def test_quick_template_rejects_sampling_for_propagating_change_completion() -> 
 
 
 def test_quick_template_requires_summary_transparency_for_verified_and_unverified_surfaces() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "summary artifact" in content
     assert "which surfaces were left unverified" in content
@@ -281,7 +281,7 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
 
 
 def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
     assert "project-cognition closeout-plan --workflow" in content
@@ -312,14 +312,14 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "constitution first" in content
     assert "before workspace setup, clarification, lane selection, subagent dispatch, or local analysis" in content
 
 
 def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "if exactly one unfinished quick task exists" in content
     assert "if multiple unfinished quick tasks exist" in content
@@ -330,7 +330,7 @@ def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -
 
 
 def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "understanding_confirmed: false" in content
     assert "blocks substantive execution" in content
@@ -350,7 +350,7 @@ def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None
 
 
 def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent_marker() -> None:
-    content = read_template("templates/commands/quick.md")
+    content = read_command_with_references("quick")
     lowered = content.lower()
 
     assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers" in lowered
@@ -365,7 +365,7 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
 
 
 def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "behavior-changing" in content or "behavior changing" in content
     assert "bugfix" in content or "bug fix" in content
@@ -379,7 +379,7 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
 
 
 def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:
-    content = read_template("templates/commands/quick.md").lower()
+    content = read_command_with_references("quick").lower()
 
     assert "root cause is still unknown" in content or "root cause is not yet known" in content
     assert "{{invoke:debug}}" in content or "/sp-debug" in content

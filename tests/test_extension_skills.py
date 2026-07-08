@@ -23,6 +23,7 @@ from specify_cli.extensions import (
     ExtensionManager,
 )
 from specify_cli import SKILL_DESCRIPTIONS
+from tests.template_utils import read_skill_with_references
 
 
 # ===== Helpers =====
@@ -279,6 +280,9 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "project-learning-detail-template.md").exists()
         assert not (project_dir / ".specify" / "templates" / "testing").exists()
 
+        def _skill_body(skill_name: str) -> str:
+            return read_skill_with_references(skills_dir / skill_name / "SKILL.md")
+
         for skill_name in (
             "sp-specify",
             "sp-deep-research",
@@ -287,20 +291,20 @@ class TestBuiltInSkillGeneration:
             "sp-debug",
             "sp-quick",
         ):
-            body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
+            body = _skill_body(skill_name).lower()
             assert ".specify/memory/project-rules.md" in body
             assert ".specify/memory/learnings/index.md" in body
             assert "learning reflex" in body or "future senior engineer" in body
             assert ".planning/learnings/candidates.md" not in body or "compatibility" in body
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
-        fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md").lower()
+        fast_body = _skill_body("sp-fast").lower()
         assert "skip all learning hooks" in fast_body
         assert "do not read constitution, project-rules, or project-learnings" in fast_body
         assert ".specify/memory/learnings/index.md" in fast_body
         assert "workflow contract summary" in fast_body
         assert "routing metadata only" in fast_body
-        constitution_body = _body_without_frontmatter(skills_dir / "sp-constitution" / "SKILL.md").lower()
+        constitution_body = _skill_body("sp-constitution").lower()
         constitution = (project_dir / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/project-rules.md" in constitution_body
         assert ".specify/memory/learnings/index.md" in constitution_body
@@ -321,7 +325,7 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
         assert "clarify" in result.output.lower()
 
-        explain_body = _body_without_frontmatter(skills_dir / "sp-explain" / "SKILL.md")
+        explain_body = _skill_body("sp-explain")
         explain_tui = _extract_section(explain_body, "TUI Requirements").lower()
         explain_blocks = _bullet_lines(explain_tui)
         _assert_bullet_contains(explain_blocks, "stage header")
@@ -340,7 +344,7 @@ class TestBuiltInSkillGeneration:
         assert "supporting artifact cross-check" in explain_body.lower()
         assert "before rendering the final explanation" in explain_body.lower()
 
-        specify_body = _body_without_frontmatter(skills_dir / "sp-specify" / "SKILL.md")
+        specify_body = _skill_body("sp-specify")
         assert "pre-analysis protocol" in specify_body.lower()
         assert "native structured question tool" in specify_body.lower()
         assert "fallback-only text format guidance" in specify_body.lower()
@@ -406,7 +410,7 @@ class TestBuiltInSkillGeneration:
         assert "manual override/fallback" in specify_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in specify_body
 
-        prd_body = _body_without_frontmatter(skills_dir / "sp-prd" / "SKILL.md")
+        prd_body = _skill_body("sp-prd")
         prd_lower = prd_body.lower()
         assert "deprecated compatibility entrypoint" in prd_lower
         assert "compatibility-only" in prd_lower
@@ -417,7 +421,7 @@ class TestBuiltInSkillGeneration:
         assert "exports/prd.md" in prd_body
         assert "old one-step semantics" in prd_lower
         assert "do not skip `sp-prd-scan` and jump straight to `sp-prd-build`" in prd_lower
-        plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
+        plan_body = _skill_body("sp-plan")
         assert "Add `Implementation Constitution`" in plan_body
         assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_body
         assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
@@ -445,14 +449,14 @@ class TestBuiltInSkillGeneration:
         assert "manual override/fallback" in plan_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in plan_body
 
-        clarify_body = _body_without_frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
+        clarify_body = _skill_body("sp-clarify")
         assert "clarification/handoffs/<lane-id>.json" in clarify_body
         assert "clarification/evidence-index.json" in clarify_body
         assert "clarification/checkpoints.ndjson" in clarify_body
         assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_body.lower()
         assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_body.lower()
 
-        tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
+        tasks_body = _skill_body("sp-tasks")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
         assert "boundary-defining references or forbidden drift" in tasks_body
         assert "implementation-guardrails phase before setup" in tasks_body
@@ -487,7 +491,7 @@ class TestBuiltInSkillGeneration:
         assert "use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state." in routing_body
         assert "clean completed `sp-tasks` state with `/sp.implement` should route through `sp-auto` to `sp-implement`." in routing_body
 
-        implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
+        implement_body = _skill_body("sp-implement")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
         assert "What framework or boundary pattern owns the touched surface?" in implement_body
         assert "Which files define the existing pattern that must be preserved?" in implement_body
@@ -500,7 +504,7 @@ class TestBuiltInSkillGeneration:
         assert "do not write production code for the batch until the red state is verified" in implement_body.lower()
         assert "do not self-authorize an `/sp-implement` start from chat memory alone" in implement_body.lower()
 
-        analyze_body = _body_without_frontmatter(skills_dir / "sp-analyze" / "SKILL.md")
+        analyze_body = _skill_body("sp-analyze")
         assert "Boundary Guardrail Gaps" in analyze_body
         assert "BG1" in analyze_body
         assert "BG2" in analyze_body
@@ -525,7 +529,7 @@ class TestBuiltInSkillGeneration:
         assert "If the remaining issue is execution-only, the re-entry chain MUST begin at" in analyze_body
         assert "exact workflow re-entry path" in analyze_body
 
-        scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
+        scan_body = _skill_body("sp-map-scan")
         scan_lower = scan_body.lower()
         assert ".specify/project-cognition/status.json" in scan_body
         assert ".specify/project-cognition/evidence/" in scan_body
@@ -540,7 +544,7 @@ class TestBuiltInSkillGeneration:
         assert "provisional nodes and candidate edges" in scan_lower
         assert "evidence harvested" in scan_lower
 
-        build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
+        build_body = _skill_body("sp-map-build")
         assert ".specify/project-cognition/status.json" in build_body
         assert ".specify/project-cognition/project-cognition.db" in build_body
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_body
@@ -554,14 +558,14 @@ class TestBuiltInSkillGeneration:
         assert "synthesize `concept_candidates` from graph-backed aliases" in build_body
         assert "status.json` reflects a query-ready baseline" in build_body
 
-        fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")
+        fast_body = _skill_body("sp-fast")
         assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()
         assert "do not use manual sanity checks as a substitute for red" in fast_body.lower()
         assert "/sp-quick" in fast_body.lower()
         assert "/sp-debug" in fast_body.lower()
         assert "root cause is still unknown" in fast_body.lower() or "root cause is not yet known" in fast_body.lower()
 
-        quick_body = _body_without_frontmatter(skills_dir / "sp-quick" / "SKILL.md")
+        quick_body = _skill_body("sp-quick")
         assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
         assert "do not write production code until the red state is captured" in quick_body.lower()
         assert "bootstrap the smallest viable test surface first" in quick_body.lower()
@@ -570,7 +574,7 @@ class TestBuiltInSkillGeneration:
         assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
         assert "surface-only" in quick_body.lower() or "symptom-only" in quick_body.lower()
 
-        checklist_body = _body_without_frontmatter(skills_dir / "sp-checklist" / "SKILL.md")
+        checklist_body = _skill_body("sp-checklist")
         checklist_lower = checklist_body.lower()
         assert ".specify/memory/constitution.md" in checklist_lower
         assert ".specify/memory/project-rules.md" in checklist_lower
@@ -600,7 +604,7 @@ class TestBuiltInSkillGeneration:
         assert "recommend `/sp-plan`" in checklist_lower
         assert "optional" in checklist_lower
 
-        debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
+        debug_body = _skill_body("sp-debug")
         debug_lower = debug_body.lower()
         assert "observer framing" in debug_lower
         assert "map-backed minimum intake" in debug_lower

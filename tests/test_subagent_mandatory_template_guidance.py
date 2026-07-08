@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from .template_utils import read_command_with_references
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -26,7 +28,7 @@ TEAM_COMMANDS = ("implement-teams", "team")
 
 
 def _read_command(name: str) -> str:
-    return (PROJECT_ROOT / "templates" / "commands" / f"{name}.md").read_text(encoding="utf-8")
+    return read_command_with_references(name)
 
 
 def test_mandatory_sp_commands_require_subagents_for_substantive_tasks() -> None:

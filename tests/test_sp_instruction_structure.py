@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -70,6 +70,6 @@ def test_shared_sp_command_templates_expose_common_navigation_sections():
     )
 
     for path in command_files:
-        content = read_template(path.relative_to(PROJECT_ROOT).as_posix())
+        content = read_command_with_references(path.stem)
         for heading in required_headings:
             assert heading in content, f"{path.name} missing common section {heading}"

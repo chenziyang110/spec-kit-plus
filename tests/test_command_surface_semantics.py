@@ -7,7 +7,7 @@ import sys
 from specify_cli.agents import CommandRegistrar
 from specify_cli.integrations.base import IntegrationBase
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_skill_with_references, read_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -50,7 +50,7 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
         else [str(PROJECT_ROOT / "src")]
     )
 
-    result = subprocess.run(
+    subprocess.run(
         [
             sys.executable,
             "-c",
@@ -72,7 +72,9 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
         capture_output=True,
         text=True,
     )
-    content = result.stdout
+    content = read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    )
 
     assert "## Invocation Syntax" in content
     assert "`$sp-plan`-style syntax" in content
@@ -222,7 +224,7 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
     surfaces = {
         "README": (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower(),
         "quickstart": (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower(),
-        "specify-template": (PROJECT_ROOT / "templates" / "commands" / "specify.md").read_text(encoding="utf-8").lower(),
+        "specify-template": read_command_with_references("specify").lower(),
         "managed-bash": read_template("scripts/bash/update-agent-context.sh").lower(),
         "managed-powershell": read_template("scripts/powershell/update-agent-context.ps1").lower(),
     }
@@ -260,9 +262,7 @@ def test_upgrade_guide_uses_current_runtime_repair_language() -> None:
 
 
 def test_specify_template_points_feature_creation_to_sp_specify_and_generated_script() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "specify.md").read_text(
-        encoding="utf-8"
-    )
+    content = read_command_with_references("specify")
     lowered = content.lower()
 
     assert "sp-specify" in content
@@ -278,14 +278,15 @@ def test_command_templates_do_not_declare_unused_script_frontmatter() -> None:
 
     for path in sorted(commands_dir.glob("*.md")):
         content = path.read_text(encoding="utf-8")
-        frontmatter, body = CommandRegistrar.parse_frontmatter(content)
+        frontmatter, _ = CommandRegistrar.parse_frontmatter(content)
+        rendered_body = read_command_with_references(path.stem)
         scripts = frontmatter.get("scripts")
         agent_scripts = frontmatter.get("agent_scripts")
 
         if scripts:
-            assert "{SCRIPT}" in body, f"{path.name} declares scripts: but never consumes {{SCRIPT}}"
+            assert "{SCRIPT}" in rendered_body, f"{path.name} declares scripts: but never consumes {{SCRIPT}}"
         if agent_scripts:
-            assert "{AGENT_SCRIPT}" in body, f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
+            assert "{AGENT_SCRIPT}" in rendered_body, f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
 
 
 def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
@@ -362,7 +363,7 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
         else [str(PROJECT_ROOT / "src")]
     )
 
-    result = subprocess.run(
+    subprocess.run(
         [
             sys.executable,
             "-c",
@@ -384,7 +385,9 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
         capture_output=True,
         text=True,
     )
-    content = result.stdout.lower()
+    content = read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    ).lower()
 
     assert ".specify/scripts/bash/create-new-feature.sh" in content
     assert "run `.specify/scripts/bash/create-new-feature.sh \"$arguments\"` from the repo root" in content
@@ -595,7 +598,7 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
 
 
 def test_discussion_workflow_uses_recommendation_first_decision_progression() -> None:
-    command = read_template("templates/commands/discussion.md").lower()
+    command = read_command_with_references("discussion").lower()
     shell = read_template("templates/command-partials/discussion/shell.md").lower()
     state_template = read_template("templates/discussion-state-template.md").lower()
     readme = read_template("README.md").lower()

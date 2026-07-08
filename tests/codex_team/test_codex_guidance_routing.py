@@ -5,6 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
+from tests.template_utils import read_skill_with_references
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -31,7 +32,7 @@ def _init_codex_project(tmp_path: Path) -> Path:
 
 
 def _read_sp_implement(project: Path) -> str:
-    return (project / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    return read_skill_with_references(project / ".codex" / "skills" / "sp-implement" / "SKILL.md")
 
 
 def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:

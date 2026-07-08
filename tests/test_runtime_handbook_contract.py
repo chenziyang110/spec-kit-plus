@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from .template_utils import read_command_with_references
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -9,7 +11,7 @@ def _read(relative_path: str) -> str:
 
 
 def test_map_build_runtime_outputs_are_project_cognition_database_artifacts() -> None:
-    content = _read("templates/commands/map-build.md")
+    content = read_command_with_references("map-build")
 
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
@@ -122,7 +124,7 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
     ):
-        content = _read(rel_path)
+        content = read_command_with_references(Path(rel_path).stem)
         lowered = content.lower()
 
         assert "project-cognition compass --intent plan" in content
@@ -151,7 +153,7 @@ def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
     }
 
     for rel_path, phrases in expectations.items():
-        content = _read(rel_path).lower()
+        content = read_command_with_references(Path(rel_path).stem).lower()
         assert "project-cognition compass" in content, rel_path
         for phrase in phrases:
             assert phrase.lower() in content, f"{rel_path} missing {phrase!r}"

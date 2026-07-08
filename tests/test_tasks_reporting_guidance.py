@@ -1,7 +1,9 @@
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 
 def _read(path: str) -> str:
+    if path == "templates/commands/tasks.md":
+        return read_command_with_references("tasks")
     return read_template(path)
 
 

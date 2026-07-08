@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -154,6 +154,10 @@ def _run_or_emulate_blocks(content: str) -> list[str]:
     return blocks
 
 
+def _read_command(name: str) -> str:
+    return read_command_with_references(name.removesuffix(".md"))
+
+
 def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
     workflow_intents = {
         "fast.md": "implement",
@@ -181,7 +185,7 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
     ]
 
     for name, intent in workflow_intents.items():
-        content = read_template(f"templates/commands/{name}").lower()
+        content = _read_command(name).lower()
         assert "project-cognition compass" in content
         assert f"project-cognition compass --intent {intent}" in content
         assert "minimal_live_reads" in content
@@ -220,7 +224,7 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
 
 def test_cognition_launchers_use_double_brace_generated_forms() -> None:
     for name in ("plan.md", "implement.md", "debug.md", "tasks.md"):
-        content = read_template(f"templates/commands/{name}")
+        content = _read_command(name)
         raw_content = _read(f"templates/commands/{name}")
         assert not re.search(r"(?<!\{)\{specify-subcmd:project-cognition compass", raw_content)
         assert "{{specify-subcmd:project-cognition compass" in content
@@ -241,7 +245,7 @@ def test_default_runnable_cognition_blocks_only_run_compass() -> None:
     }
 
     for name, intent in workflow_intents.items():
-        content = read_template(f"templates/commands/{name}")
+        content = _read_command(name)
         blocks = _run_or_emulate_blocks(content)
         assert blocks, f"{name} missing Run or emulate fenced block"
         expected = f'{{{{specify-subcmd:project-cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
@@ -252,7 +256,7 @@ def test_default_runnable_cognition_blocks_only_run_compass() -> None:
 
 
 def test_specify_default_intake_does_not_use_old_ready_readiness() -> None:
-    content = read_template("templates/commands/specify.md").lower()
+    content = _read_command("specify.md").lower()
     assert "when cognition reports `ready`, use the returned task-local bundle" not in content
     assert "when compass reports `query_ready`" in content
     assert "read top-level `minimal_live_reads` first" in content
@@ -424,7 +428,7 @@ def test_shared_semantic_work_contract_partial_defines_permission_and_learning_g
 def test_semantic_work_contract_is_generated_for_all_project_cognition_workflows() -> None:
     missing = []
     for name in SEMANTIC_WORK_CONTRACT_COMMANDS:
-        content = _compact(read_template(f"templates/commands/{name}").lower())
+        content = _compact(_read_command(name).lower())
         if not all(term in content for term in SEMANTIC_WORK_CONTRACT_TERMS):
             missing.append(name)
 
@@ -461,7 +465,7 @@ def test_semantic_resume_smoke_contract_is_generated_for_all_project_cognition_w
     )
     missing = []
     for name in SEMANTIC_WORK_CONTRACT_COMMANDS:
-        content = _compact(read_template(f"templates/commands/{name}").lower())
+        content = _compact(_read_command(name).lower())
         missing_terms = [term for term in required_terms if term not in content]
         if missing_terms:
             missing.append(f"{name}: {', '.join(missing_terms)}")
@@ -674,7 +678,7 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
     )
 
     for name in COGNITION_INTAKE_COMMANDS:
-        content = read_template(f"templates/commands/{name}").lower()
+        content = _read_command(name).lower()
         for term in required_terms:
             assert term in content, f"{name} missing shared cognition intake term {term}"
 
@@ -729,7 +733,7 @@ def test_cognition_workflows_preserve_direct_agent_normalization_guidance() -> N
     )
 
     for name in COGNITION_INTAKE_COMMANDS:
-        content = read_template(f"templates/commands/{name}").lower()
+        content = _read_command(name).lower()
         for term in required_terms:
             assert term in content, f"{name} missing direct agent_normalization guidance term: {term}"
 
@@ -774,7 +778,7 @@ def test_shared_readiness_review_guidance_uses_minimal_live_reads() -> None:
 def test_learning_start_hardening_scope_matches_command_templates() -> None:
     commands_with_learning_start: set[str] = set()
     for path in (PROJECT_ROOT / "templates" / "commands").glob("*.md"):
-        content = path.read_text(encoding="utf-8")
+        content = _read_command(path.name)
         for match in re.finditer(r"learning start --command ([a-z-]+) --format json", content):
             commands_with_learning_start.add(match.group(1))
 
@@ -801,7 +805,7 @@ def test_semantic_intake_contract_is_not_debug_only() -> None:
     }
     missing = []
     for name in brownfield_workflows:
-        content = read_template(f"templates/commands/{name}").lower()
+        content = _read_command(name).lower()
         if "semantic_intake" not in content or "facet coverage" not in content:
             missing.append(name)
 

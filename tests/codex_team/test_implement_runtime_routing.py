@@ -2,12 +2,14 @@
 
 from pathlib import Path
 
+from tests.template_utils import read_command_with_references
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _read_template() -> str:
-    return (PROJECT_ROOT / "templates" / "commands" / "implement.md").read_text(encoding="utf-8")
+    return read_command_with_references("implement")
 
 
 def _step_6_block() -> str:

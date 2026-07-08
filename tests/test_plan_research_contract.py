@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -11,7 +11,7 @@ def _read(path: str) -> str:
 
 
 def test_plan_command_research_contract_is_prescriptive() -> None:
-    content = _read("templates/commands/plan.md")
+    content = read_command_with_references("plan")
 
     assert "Read `templates/research-template.md`" in content
     assert "high-risk architectural choice -> stack/pattern/pitfall task" in content
@@ -30,7 +30,7 @@ def test_plan_command_research_contract_is_prescriptive() -> None:
 
 
 def test_plan_command_requires_persisted_delegated_planning_lane_handoffs() -> None:
-    content = _read("templates/commands/plan.md")
+    content = read_command_with_references("plan")
     lowered = content.lower()
 
     assert "planning/handoffs/<lane-id>.json" in content
@@ -49,7 +49,7 @@ def test_plan_command_requires_persisted_delegated_planning_lane_handoffs() -> N
 
 
 def test_plan_command_scaffolds_plan_contract_with_project_relative_path() -> None:
-    content = _read("templates/commands/plan.md").lower()
+    content = read_command_with_references("plan").lower()
 
     assert "artifact scaffold --kind plan-contract" in content
     assert "project-relative" in content

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +22,7 @@ def _assert_tier_roles(content: str) -> None:
 
 
 def test_debug_template_documents_map_backed_intake_contract() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "complexity-based debug execution" in content
     assert "execution_model: leader-inline | subagent-assisted | blocked" in content
@@ -208,7 +208,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
 
 
 def test_debug_template_requires_understanding_checkpoint_before_investigation() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "## debug understanding checkpoint" in content
     assert "## debug checkpoint" in content
@@ -272,7 +272,7 @@ def test_debug_session_template_tracks_understanding_checkpoint() -> None:
 
 
 def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "subagent-blocked" in content
     assert "execution_surface: none" in content
@@ -284,7 +284,7 @@ def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> Non
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "## role" in content
     assert "## operating principles" in content
