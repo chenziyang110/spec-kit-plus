@@ -1,0 +1,46 @@
+{
+  "workflow": "implement",
+  "source": "templates/commands/implement.md",
+  "entries": [
+    {
+      "kind": "review",
+      "source_excerpt": "Embedded Implement Review Loop",
+      "target": "templates/command-references/implement/join-point-review.md"
+    },
+    {
+      "kind": "review",
+      "source_excerpt": "review_gate",
+      "target": "templates/command-references/implement/join-point-review.md"
+    },
+    {
+      "kind": "dispatch",
+      "source_excerpt": "Orchestration Model",
+      "target": "templates/command-references/implement/subagent-worker-contract.md"
+    },
+    {
+      "kind": "dispatch",
+      "source_excerpt": "dispatch_shape: one-subagent | parallel-subagents",
+      "target": "templates/command-references/implement/subagent-worker-contract.md"
+    },
+    {
+      "kind": "validation",
+      "source_excerpt": "Pre-Dispatch Validation",
+      "target": "templates/command-references/implement/red-first-and-validation.md"
+    },
+    {
+      "kind": "tracker",
+      "source_excerpt": "Implement Tracker Protocol",
+      "target": "templates/command-references/implement/task-intake-and-tracker.md"
+    },
+    {
+      "kind": "blocker",
+      "source_excerpt": "Actionable Blocker Resolution",
+      "target": "templates/command-references/implement/safe-repair-loop.md"
+    },
+    {
+      "kind": "closeout",
+      "source_excerpt": "implement closeout",
+      "target": "templates/command-references/implement/branch-review-and-closeout.md"
+    }
+  ]
+}

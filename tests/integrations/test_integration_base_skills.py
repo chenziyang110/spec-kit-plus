@@ -461,7 +461,9 @@ def test_collected_skills_integrations_embed_internal_implement_review_loop(tmp_
 
         implement_path = integration.skills_dest(project) / "sp-implement" / "SKILL.md"
         assert implement_path.exists(), integration_key
-        _assert_embedded_implement_review_contract(implement_path.read_text(encoding="utf-8"))
+        _assert_embedded_implement_review_contract(
+            _read_skill_with_references(implement_path)
+        )
 
 
 def test_collected_skills_integrations_generate_design_workflow(tmp_path):
@@ -1058,7 +1060,7 @@ class SkillsIntegrationTests:
         i.setup(tmp_path, m)
 
         implement_path = i.skills_dest(tmp_path) / "sp-implement" / "SKILL.md"
-        content = implement_path.read_text(encoding="utf-8")
+        content = _read_skill_with_references(implement_path)
         lowered = content.lower()
 
         assert "## Orchestration Model" in content
@@ -1077,7 +1079,9 @@ class SkillsIntegrationTests:
         i.setup(tmp_path, m)
 
         for name in ("implement", "debug", "quick"):
-            content = (i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
+            content = _read_skill_with_references(
+                i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md"
+            ).lower()
             assert "subagent dispatch contract" in content
             assert "subagent dispatch" in content
             assert "native subagent capability discovery" in content
@@ -1099,8 +1103,12 @@ class SkillsIntegrationTests:
         i.setup(tmp_path, m)
         agent_name = i.config["name"].replace(" CLI", "")
 
-        debug_content = (i.skills_dest(tmp_path) / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
-        quick_content = (i.skills_dest(tmp_path) / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+        debug_content = _read_skill_with_references(
+            i.skills_dest(tmp_path) / "sp-debug" / "SKILL.md"
+        ).lower()
+        quick_content = _read_skill_with_references(
+            i.skills_dest(tmp_path) / "sp-quick" / "SKILL.md"
+        ).lower()
 
         assert f"## {agent_name} Leader Gate".lower() in debug_content
         assert "you are the **leader**, not a freeform debugger" in debug_content

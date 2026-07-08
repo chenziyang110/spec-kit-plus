@@ -29,6 +29,9 @@ MIGRATED_COMMAND_REFERENCE_WORKFLOWS = (
     "specify",
     "plan",
     "tasks",
+    "implement",
+    "quick",
+    "debug",
 )
 
 

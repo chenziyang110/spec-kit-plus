@@ -2722,7 +2722,9 @@ def test_claude_generated_runtime_facing_skills_include_native_subagent_contract
 
     skills_dir = target / ".claude" / "skills"
     for skill_name in ("sp-implement", "sp-debug", "sp-quick"):
-        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        content = _read_skill_with_references(
+            skills_dir / skill_name / "SKILL.md"
+        ).lower()
         assert "subagent dispatch contract" in content
         assert "delegation surface contract" in content
         assert "native subagent capability discovery" in content
@@ -2737,9 +2739,15 @@ def test_claude_generated_runtime_facing_skills_include_native_subagent_contract
         assert "workertaskresult" in content
         assert "spawn_agent" not in content
         assert "specify team" not in content
-    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
-    debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
-    quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+    implement_content = _read_skill_with_references(
+        skills_dir / "sp-implement" / "SKILL.md"
+    ).lower()
+    debug_content = _read_skill_with_references(
+        skills_dir / "sp-debug" / "SKILL.md"
+    ).lower()
+    quick_content = _read_skill_with_references(
+        skills_dir / "sp-quick" / "SKILL.md"
+    ).lower()
     assert "feature_dir/worker-results/<task-id>.json" in implement_content
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content
@@ -2759,7 +2767,9 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
 
     assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
 
-    content = (target / ".claude" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(
+        target / ".claude" / "skills" / "sp-implement" / "SKILL.md"
+    ).lower()
 
     assert "/sp-implement-teams" not in content
     assert "## orchestration model" in content

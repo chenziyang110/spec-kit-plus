@@ -1,0 +1,61 @@
+{
+  "workflow": "quick",
+  "source": "templates/commands/quick.md",
+  "entries": [
+    {
+      "kind": "checkpoint",
+      "source_excerpt": "Understanding Checkpoint",
+      "target": "templates/command-references/quick/intake-and-checkpoint.md"
+    },
+    {
+      "kind": "checkpoint",
+      "source_excerpt": "Quick Checkpoint",
+      "target": "templates/command-references/quick/intake-and-checkpoint.md"
+    },
+    {
+      "kind": "handoff",
+      "source_excerpt": "Discussion Handoff Intake",
+      "target": "templates/command-references/quick/handoff-consumption.md"
+    },
+    {
+      "kind": "scope",
+      "source_excerpt": "Scope Gate",
+      "target": "templates/command-references/quick/intake-and-checkpoint.md"
+    },
+    {
+      "kind": "workspace",
+      "source_excerpt": "STATUS.md Scaffold",
+      "target": "templates/command-references/quick/workspace-state.md"
+    },
+    {
+      "kind": "workspace",
+      "source_excerpt": ".planning/quick/<id>-<slug>/",
+      "target": "templates/command-references/quick/workspace-state.md"
+    },
+    {
+      "kind": "dispatch",
+      "source_excerpt": "Mandatory Subagent Execution",
+      "target": "templates/command-references/quick/packetized-work.md"
+    },
+    {
+      "kind": "dispatch",
+      "source_excerpt": "choose_subagent_dispatch(command_name=\"quick\"",
+      "target": "templates/command-references/quick/packetized-work.md"
+    },
+    {
+      "kind": "packet",
+      "source_excerpt": "WorkerTaskPacket",
+      "target": "templates/command-references/quick/packetized-work.md"
+    },
+    {
+      "kind": "closeout",
+      "source_excerpt": "Completion Standard",
+      "target": "templates/command-references/quick/validation-and-closeout.md"
+    },
+    {
+      "kind": "coverage",
+      "source_excerpt": "Coverage Before Completion",
+      "target": "templates/command-references/quick/validation-and-closeout.md"
+    }
+  ]
+}

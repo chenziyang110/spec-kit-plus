@@ -439,8 +439,8 @@ class TestCodexAutoPromote:
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-        generated_skill = (target / ".codex" / "skills" / "sp-debug" / "SKILL.md").read_text(
-            encoding="utf-8"
+        generated_skill = _read_skill_with_references(
+            target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
         )
         generated_command_template = (
             target / ".specify" / "templates" / "commands" / "debug.md"
@@ -977,8 +977,12 @@ def test_codex_generated_skills_render_launcher_backed_runtime_commands(tmp_path
 
     constitution_content = (target / ".codex" / "skills" / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8")
     constitution_normalized = " ".join(constitution_content.split())
-    implement_content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
-    quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8")
+    implement_content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
+    )
+    quick_content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
+    )
 
     assert "learning start --command constitution --format json" in constitution_content
     assert "This workflow writes only `.specify/memory/constitution.md`." in constitution_content
@@ -1045,14 +1049,17 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8")
-    leader_gate_idx = content.find("## Codex Leader Gate")
+    raw_content = skill_path.read_text(encoding="utf-8")
+    content = _read_skill_with_references(skill_path)
+    leader_gate_idx = raw_content.find("## Codex Leader Gate")
+    main_flow_idx = raw_content.find("## Main Flow")
     outline_idx = content.find("## Outline")
-    auto_parallel_idx = content.find("## Codex Subagents-First Execution")
+    auto_parallel_idx = raw_content.find("## Codex Subagents-First Execution")
 
-    assert leader_gate_idx != -1 or "## Orchestration Model" in content
+    assert leader_gate_idx != -1 or "## Orchestration Model" in raw_content
+    assert main_flow_idx != -1
     assert outline_idx != -1
-    assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
+    assert auto_parallel_idx == -1 or leader_gate_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
     assert "compass --intent implement" in content.lower()
@@ -1189,7 +1196,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "would benefit from them" not in content
         assert "make the next path explicit" not in content
 
-    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+    implement_content = _read_skill_with_references(
+        skills_dir / "sp-implement" / "SKILL.md"
+    ).lower()
     assert "execution_model: subagent-mandatory" in implement_content or "execution model: `subagents-first`" in implement_content
     assert "dispatch_shape: one-subagent | parallel-subagents" in implement_content
     assert "execution_surface: native-subagents" in implement_content
@@ -1289,7 +1298,9 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
         assert "recommended option first" in lower
         assert "fall back immediately" in lower or "fall back to the" in lower
 
-    quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+    quick_content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
+    ).lower()
     assert "--discuss" in quick_content
     assert "multiple unfinished quick tasks exist" in quick_content
     assert "resolve discussion handoff intake before quick-task execution" in quick_content
@@ -1379,7 +1390,9 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "execution-capable native subagents" in tasks_content.lower()
     assert "read-only explorer, reviewer, or diagnostic lane" in tasks_content.lower()
 
-    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    implement_content = _read_skill_with_references(
+        skills_dir / "sp-implement" / "SKILL.md"
+    )
     assert "Extract `Implementation Constitution` from `plan.md`" in implement_content
     assert "What framework or boundary pattern owns the touched surface?" in implement_content
     assert "Which files define the existing pattern that must be preserved?" in implement_content
@@ -1528,7 +1541,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/learnings/index.md" in content
@@ -1667,7 +1680,9 @@ def test_codex_generated_implement_skill_mentions_optimization_scope_and_reopen(
     integration = CodexIntegration()
     manifest = IntegrationManifest("codex", target)
     integration.setup(target, manifest)
-    content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
+    ).lower()
 
     assert "allowed optimization scope" in content
     assert "must-preserve invariants" in content
@@ -1688,7 +1703,9 @@ def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    content = (target / ".codex" / "skills" / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
+    ).lower()
     assert "request_user_input" in content
     assert "native structured question tool" in content
     assert "missing-information question" in content or "plain-text clarification" in content
@@ -1713,7 +1730,7 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-fast" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
     assert "scope gate" in content
     assert "skip all learning hooks" in content
@@ -1765,7 +1782,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
     assert ".planning/quick/" in content
     assert ".specify/memory/project-rules.md" in content
