@@ -9,7 +9,7 @@ import os
 
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
-from specify_cli.integrations.base import MarkdownIntegration
+from specify_cli.integrations.base import IntegrationBase, MarkdownIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 from .test_base import _assert_canonical_cognition_intake_contract
 
@@ -487,6 +487,27 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
         _assert_discussion_contract(
             _read_generated_artifact_with_references(discussion_path)
         )
+
+
+def test_collected_markdown_integrations_inline_migrated_command_references(tmp_path):
+    for integration_key in MARKDOWN_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            command_path = (
+                integration.commands_dest(project)
+                / integration.command_filename(workflow)
+            )
+            if not command_path.exists():
+                continue
+            content = command_path.read_text(encoding="utf-8")
+            assert "references/INDEX.md" in content, (integration_key, workflow)
+            assert "## Reference Contracts" in content, (integration_key, workflow)
+            assert "Trigger:" in content, (integration_key, workflow)
+            assert "Preserved Contract:" in content, (integration_key, workflow)
 
 
 def test_collected_markdown_integrations_preserve_ask_contract(tmp_path):

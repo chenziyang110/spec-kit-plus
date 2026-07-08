@@ -13,7 +13,7 @@ import os
 import yaml
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
-from specify_cli.integrations.base import SkillsIntegration
+from specify_cli.integrations.base import IntegrationBase, SkillsIntegration
 from specify_cli.integrations.codex import CodexIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 from .test_base import _assert_canonical_cognition_intake_contract
@@ -476,6 +476,43 @@ def test_collected_skills_integrations_generate_design_workflow(tmp_path):
         design_path = integration.skills_dest(project) / "sp-design" / "SKILL.md"
         assert design_path.exists(), integration_key
         _assert_design_contract(design_path.read_text(encoding="utf-8"))
+
+
+def test_all_skills_integrations_generate_migrated_workflow_references(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest, script_type="sh")
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            skill_dir = integration.skills_dest(project) / f"sp-{workflow}"
+            references_dir = skill_dir / "references"
+            assert (skill_dir / "SKILL.md").exists(), (integration_key, workflow)
+            assert (references_dir / "INDEX.md").exists(), (integration_key, workflow)
+            assert any(
+                path.name != "INDEX.md" for path in references_dir.glob("*.md")
+            ), (integration_key, workflow)
+
+
+def test_all_skills_integrations_manifest_owns_reference_sidecars(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest, script_type="sh")
+
+        for reference in integration.skills_dest(project).glob(
+            "sp-*/references/**/*.md"
+        ):
+            rel = reference.relative_to(project).as_posix()
+            assert rel in manifest.files, (integration_key, rel)
 
 
 def test_generated_planning_skills_require_inline_cognition_update_for_source_changes(tmp_path):

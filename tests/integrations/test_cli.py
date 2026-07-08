@@ -12,6 +12,17 @@ from specify_cli import app
 from tests.conftest import strip_ansi
 
 
+def _read_skill_with_references(skill_path):
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            reference_path.read_text(encoding="utf-8")
+            for reference_path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
+
 def test_top_level_cli_exposes_discussion_entrypoint():
     runner = CliRunner()
     root_help = runner.invoke(app, ["--help"], catch_exceptions=False)
@@ -153,7 +164,7 @@ class TestInitIntegrationFlag:
 
         implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
         assert implement_skill.exists()
-        content = implement_skill.read_text(encoding="utf-8")
+        content = _read_skill_with_references(implement_skill)
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
@@ -209,7 +220,9 @@ class TestInitIntegrationFlag:
             assert "dispatch_shape: one-subagent | parallel-subagents" in content
             assert "execution_surface: native-subagents" in content
             assert "specify team" not in content
-        specify_content = (skills_dir / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
+        specify_content = _read_skill_with_references(
+            skills_dir / "sp-specify" / "SKILL.md"
+        ).lower()
         assert "choose_evidence_lane_dispatch" in specify_content
         assert "lane_mode: read-only-evidence" in specify_content
         assert "structured_result: evidence_packet" in specify_content
@@ -217,13 +230,17 @@ class TestInitIntegrationFlag:
         assert "execution_surface: leader-inline | native-subagents | none" in specify_content
         assert "specify team" not in specify_content
         for skill_name in ("sp-plan", "sp-tasks"):
-            content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+            content = _read_skill_with_references(
+                skills_dir / skill_name / "SKILL.md"
+            ).lower()
             assert "execution_model: adaptive" in content
             assert "execution_mode: light | standard | heavy" in content
             assert "workflow_status: ready | blocked" in content
             assert "specify team" not in content
 
-        debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+        debug_content = _read_skill_with_references(
+            skills_dir / "sp-debug" / "SKILL.md"
+        ).lower()
         assert "execution_model: leader-inline | subagent-assisted | blocked" in debug_content
         assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in debug_content
         assert "execution_surface: leader-inline | native-subagents | none" in debug_content
@@ -258,7 +275,9 @@ class TestInitIntegrationFlag:
         assert "shared surfaces" in fast_content
         assert "change-propagation hotspot" in fast_content
 
-        quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+        quick_content = _read_skill_with_references(
+            skills_dir / "sp-quick" / "SKILL.md"
+        ).lower()
         assert ".specify/memory/constitution.md" in quick_content
         assert ".specify/memory/project-rules.md" in quick_content
         assert ".specify/memory/learnings/index.md" in quick_content

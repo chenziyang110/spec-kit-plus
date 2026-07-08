@@ -14,7 +14,7 @@ import tomllib
 import pytest
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
-from specify_cli.integrations.base import TomlIntegration
+from specify_cli.integrations.base import IntegrationBase, TomlIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 from .test_base import _assert_canonical_cognition_intake_contract
 
@@ -427,6 +427,28 @@ def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
         assert discussion_path.exists(), integration_key
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
         _assert_discussion_contract(parsed["prompt"])
+
+
+def test_collected_toml_integrations_inline_migrated_command_references(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            command_path = (
+                integration.commands_dest(project)
+                / integration.command_filename(workflow)
+            )
+            if not command_path.exists():
+                continue
+            parsed = tomllib.loads(command_path.read_text(encoding="utf-8"))
+            prompt = parsed["prompt"]
+            assert "references/INDEX.md" in prompt, (integration_key, workflow)
+            assert "## Reference Contracts" in prompt, (integration_key, workflow)
+            assert "Trigger:" in prompt, (integration_key, workflow)
+            assert "Preserved Contract:" in prompt, (integration_key, workflow)
 
 
 def test_collected_toml_integrations_preserve_ask_contract(tmp_path):

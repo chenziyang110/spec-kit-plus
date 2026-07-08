@@ -192,6 +192,7 @@ class TestIntegrationBase:
 
         i = StubIntegration()
         monkeypatch.setattr(type(i), "list_command_templates", lambda self: sorted(tpl.glob("*.md")))
+        monkeypatch.setattr(type(i), "shared_command_references_dir", lambda self: None)
 
         project = tmp_path / "project"
         project.mkdir()

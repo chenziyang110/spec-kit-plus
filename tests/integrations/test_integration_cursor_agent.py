@@ -1,6 +1,17 @@
 """Tests for CursorAgentIntegration."""
 
 
+def _read_skill_with_references(skill_path):
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            reference_path.read_text(encoding="utf-8")
+            for reference_path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
+
 def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
@@ -53,7 +64,7 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
     skill_path = target / ".cursor" / "skills" / "sp-quick" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
     assert ".specify/memory/constitution.md" in content
     assert "understanding checkpoint" in content
@@ -113,7 +124,7 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         ".cursor/skills/sp-debug/SKILL.md",
         ".cursor/skills/sp-quick/SKILL.md",
     ):
-        content = (target / rel).read_text(encoding="utf-8").lower()
+        content = _read_skill_with_references(target / rel).lower()
         assert "map-scan" in content
         assert "map-build" in content
         for stale_phrase in (
