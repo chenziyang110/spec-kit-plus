@@ -13,6 +13,8 @@ from typing import Any
 
 from .registry import ArtifactKind, get_artifact_kind
 
+_POSIX_OPEN_SUPPORTS_DIR_FD = os.open in getattr(os, "supports_dir_fd", ())
+
 
 class ArtifactScaffoldError(ValueError):
     """Raised when artifact scaffold generation fails."""
@@ -403,7 +405,7 @@ def _write_create_only(
     _reject_unsafe_existing_components(project_root, target)
     _reject_symlink_escape(project_root, target, allowed_roots)
     nofollow = getattr(os, "O_NOFOLLOW", 0)
-    if os.name != "nt" and nofollow and os.open in os.supports_dir_fd:
+    if os.name != "nt" and nofollow and _POSIX_OPEN_SUPPORTS_DIR_FD:
         _write_create_only_posix(project_root, target, content, allowed_roots)
         return
 

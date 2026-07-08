@@ -239,22 +239,28 @@ def test_import_design_reference_writes_reference_summary(tmp_path: Path) -> Non
     assert not (tmp_path / "DESIGN.md").exists()
 
 
-def test_design_lint_cli_reports_success_by_default_against_cwd_design(tmp_path: Path) -> None:
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        Path("DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
-        result = runner.invoke(app, ["design", "lint"])
+def test_design_lint_cli_reports_success_by_default_against_cwd_design(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    Path("DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
+
+    result = runner.invoke(app, ["design", "lint"])
 
     assert result.exit_code == 0
     assert "DESIGN.md is valid" in result.output
 
 
-def test_design_lint_cli_json_reports_diagnostics_for_invalid_schema(tmp_path: Path) -> None:
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        Path("DESIGN.md").write_text(
-            VALID_DESIGN.replace("schema: spec-kit-design-v1", "schema: wrong-schema"),
-            encoding="utf-8",
-        )
-        result = runner.invoke(app, ["design", "lint", "--format", "json"])
+def test_design_lint_cli_json_reports_diagnostics_for_invalid_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    Path("DESIGN.md").write_text(
+        VALID_DESIGN.replace("schema: spec-kit-design-v1", "schema: wrong-schema"),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["design", "lint", "--format", "json"])
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
@@ -262,10 +268,13 @@ def test_design_lint_cli_json_reports_diagnostics_for_invalid_schema(tmp_path: P
     assert any(diagnostic["code"] == "invalid-schema" for diagnostic in payload["diagnostics"])
 
 
-def test_design_export_cli_json_prints_design_schema(tmp_path: Path) -> None:
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        Path("DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
-        result = runner.invoke(app, ["design", "export", "--format", "json"])
+def test_design_export_cli_json_prints_design_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    Path("DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
+
+    result = runner.invoke(app, ["design", "export", "--format", "json"])
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
@@ -285,21 +294,24 @@ def test_specify_design_export_rejects_unknown_format_as_usage_error(
     assert "--format must be json or tailwind" in result.output
 
 
-def test_design_import_cli_writes_reference_without_root_design(tmp_path: Path) -> None:
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(
-            app,
-            [
-                "design",
-                "import",
-                "https://example.com/style",
-                "--notes",
-                "Dense admin UI with compact tables.",
-            ],
-        )
-        references_path = Path(".specify/design/references.md")
-        references_content = references_path.read_text(encoding="utf-8")
-        root_design_exists = Path("DESIGN.md").exists()
+def test_design_import_cli_writes_reference_without_root_design(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "design",
+            "import",
+            "https://example.com/style",
+            "--notes",
+            "Dense admin UI with compact tables.",
+        ],
+    )
+    references_path = Path(".specify/design/references.md")
+    references_content = references_path.read_text(encoding="utf-8")
+    root_design_exists = Path("DESIGN.md").exists()
 
     assert result.exit_code == 0
     assert "Wrote .specify/design/references.md" in result.output
