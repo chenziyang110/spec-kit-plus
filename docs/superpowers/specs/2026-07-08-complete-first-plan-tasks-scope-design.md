@@ -1,7 +1,7 @@
 # Complete-First Plan and Tasks Scope Design
 
-**Date:** 2026-07-08  
-**Status:** Draft for user review  
+**Date:** 2026-07-08
+**Status:** Draft for user review
 **Owner:** Codex
 
 ## Summary
