@@ -176,6 +176,34 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
 - At least one task for each mapped path must carry `consumer_surfaces` and `required_evidence` including `real_entrypoint_evidence` in its packet fields.
 - If no real-entrypoint validation surface exists yet, create the smallest feasible validation task or record an explicit user-confirmed deferral with residual risk.
 
+## Complete-First Task Generation
+
+This section defines complete-first scope preservation for generated task packages.
+
+Task generation must cover the complete user-confirmed scope from `spec.md`,
+`alignment.md`, `context.md`, `plan.md`, `plan-contract.json`, and approved handoff
+files. `sp-tasks` may choose execution phases, dependency order, parallel batches,
+join points, and refinement checkpoints, but it must not shrink scope. Do not shrink scope.
+
+- Complexity alone is not a valid reason to split, defer, block, or route upstream.
+- Handle complex but clear work through dependency ordering, isolated write sets,
+  parallel-safe batches, join-point validation, refinement tasks, and verification
+  tasks.
+- Execution phases are ordering, not delivery deferral.
+- Do not move confirmed behavior to an MVP, pilot, prototype, first release,
+  future-work delivery slice, agent-invented `v1/v2`, or agent-invented `P0/P1`.
+- User story priorities such as `P1`, `P2`, and `P3` remain ordering labels from
+  `spec.md`; they are not delivery-scope buckets.
+- Runtime capability limits are blockers only under the adaptive execution policy
+  for heavy, safety-critical, or unpacketizable work. They are not permission to
+  shrink scope.
+- Every valid deferral must be user-confirmed and record confirmation source, exact
+  excluded behavior, residual risk, reopen or stop condition, and downstream
+  artifact.
+- If the user did not confirm the deferral, task the behavior, create a refinement
+  or validation checkpoint that keeps it inside the current feature, or identify a
+  valid hard blocker.
+
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, split work only into the supported task-generation lanes: `story and phase decomposition`, `dependency graph analysis`, and `write-set and parallel-safety analysis`.
     - [AGENT] Before dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
@@ -242,7 +270,7 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
     - If the touched area lacks a reliable automated test surface, add the smallest runnable test surface only when the change risk requires automated proof; otherwise record the no-new-test rationale, replacement validation, and residual risk
     - Top-level tasks should fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path
     - A subagent can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks
-    - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence
+    - Stop decomposition once the current executable window is atomic. Leave later execution phases at the coarser story or phase level only when their exact task shape depends on earlier join-point evidence; this is refinement inside the current confirmed delivery, not delivery deferral or future work.
     - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early
     - Carry profile-required evidence into task completion criteria instead of relying only on generic behavior validation. When the active profile requires screenshots, trace IDs, reference comparisons, migration proof, or other required evidence, attach that evidence obligation to the relevant task done condition or join point pass condition.
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
@@ -267,11 +295,11 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
     - For every explicit join point, include a validation target, a validation command or concrete manual check, and a pass condition
     - Create parallel execution examples per user story
     - **Implementation-Readiness Task Self-Audit**: Before finalizing `tasks.md`, run the task-layer subset of the `sp-analyze` checks against the generated task package.
-    - Confirm every buildable `FR-*` and buildable success criterion has at least one task, checkpoint, or explicit deferred note.
+    - Confirm every buildable `FR-*` and buildable success criterion has at least one task, checkpoint, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
     - Confirm every locked planning decision that affects implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails appears in `tasks.md`.
     - Confirm `Implementation Constitution` rules from `plan.md` are preserved through a guardrail phase, `Task Guardrail Index`, task notes, or explicit escalation.
     - Confirm the `Task Guardrail Index` maps applicable guardrails to concrete implementation tasks.
-    - Confirm every UI/TUI/CLI/API/runtime-visible path has User-Observable Path Coverage with a real-entrypoint validation task or user-confirmed deferral.
+    - Confirm every UI/TUI/CLI/API/runtime-visible path has User-Observable Path Coverage with a real-entrypoint validation task or a user-confirmed deferral carrying the full five-field deferral contract.
     - Confirm each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
     - Confirm task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
     - Confirm reference fidelity behavior items map to task IDs, checkpoints, join points, or explicit deferred notes.

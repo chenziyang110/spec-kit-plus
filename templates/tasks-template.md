@@ -28,6 +28,25 @@ description: "Task list template for feature implementation"
 - Detect semantic degradation before handoff: if a create/scaffold capability is represented only by a template-only task, manual copy docs, or an authoring guide with no executable entry point, stop task generation and route back to `sp-plan` or `sp-clarify`.
 - If a feature touches an established framework or boundary pattern, guardrail tasks MUST be added before implementation begins.
 
+## Complete-First Delivery Scope
+
+- **Complete-first scope preservation**: Preserve confirmed delivery scope through task generation and downstream execution.
+- **Delivery rule**: Task the complete user-confirmed scope from `spec.md`, `alignment.md`, `context.md`, `plan.md`, `plan-contract.json`, and approved handoff files.
+- **Complexity response**: Use ordering, dependencies, isolated write sets, parallel batches, join points, refinement tasks, and validation; do not shrink scope because the work is complex.
+- **Execution phase policy**: Execution phases are ordering, not delivery deferral.
+- **Forbidden reductions**: Do not create an MVP, pilot, prototype, first-release slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or future-work delivery slice unless the user explicitly confirmed that delivery boundary.
+- **Priority labels**: User story priorities such as `P1`, `P2`, and `P3` remain ordering labels, not delivery-scope buckets.
+- **Adaptive blocker carve-out**: Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and do not reduce scope.
+
+## User-Confirmed Deferral Contract
+
+| Confirmation Source | Exact Excluded Behavior | Residual Risk | Reopen Or Stop Condition | Downstream Artifact |
+| --- | --- | --- | --- | --- |
+| None | None | None | None | None |
+
+- If the user did not confirm the deferral, task the behavior, create a refinement or
+  validation checkpoint, or record a valid hard blocker.
+
 ## Task Guardrail Index
 
 - Map each implementation task to the delegated-execution rules it inherits from `plan.md`, `tasks.md`, and `.specify/memory/constitution.md`
@@ -102,7 +121,7 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 - Each task should preserve one stable objective, one isolated write set, and one verification path.
 - Delegated workers may still break a task into smaller 2-5 minute atomic internal steps, but `tasks.md` should stop at the smallest unit worth explicit orchestration.
 - Stop decomposition once the current executable window is atomic.
-- Leave later phases at the coarser story or phase level when their exact shape depends on earlier join points, then refine them after the checkpoint instead of guessing too early.
+- Leave later execution phases at the coarser story or phase level only when their exact task shape depends on earlier join points, then refine them after the checkpoint inside the current confirmed delivery instead of guessing too early.
 - Every task MUST carry the enriched subagent contract fields defined in the `sp-tasks` shell output contract: agent, depends_on, parallel_safe, context navigation table, scope boundaries (write_scope / read_scope / forbidden), expected outputs, anti_goals, acceptance criteria, verify commands, handoff format, and failure handling (retry_max, escalation).
 - Tasks that appear in User-Observable Path Coverage MUST also include `consumer_surfaces` and `required_evidence` with `real_entrypoint_evidence` so `sp-implement` can reject synthetic-only consumer proof.
 - Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, the task MUST be refined before `tasks.md` can be finalized.
@@ -431,7 +450,7 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
 1. Complete Setup + Foundational → Foundation ready
 2. Add each confirmed story in priority order or in the user-approved parallel sequence
 3. Test each story independently before dependent work continues
-4. Preserve user-confirmed deferrals and non-goals explicitly; do not infer a smaller release from User Story 1
+4. Preserve user-confirmed deferrals and non-goals explicitly with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact; do not infer a smaller release from User Story 1 or any execution phase
 5. Each story adds value without breaking previous stories
 
 ### Parallel Team Strategy
