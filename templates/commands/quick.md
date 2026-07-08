@@ -270,150 +270,26 @@ The following flags are available and composable:
 - After the constitution gate, `STATUS.md` initialization is the next hard gate. Do not perform substantial repository analysis, implementation design, or code reading beyond scope-lock context until the workspace exists and the first lane is recorded.
 - When the quick task completes, preserve `SUMMARY.md` and move resolved state under `.planning/quick/resolved/` if the local project convention prefers archiving over keeping active quick-task folders in place.
 
-## STATUS.md Template
+## STATUS.md Scaffold
 
-Use this as the default structure for `.planning/quick/<id>-<slug>/STATUS.md`:
+Use the fixed artifact scaffold instead of writing the fixed `STATUS.md` skeleton by hand.
 
-```markdown
----
-id: [quick-task id]
-slug: [quick-task slug]
-title: [short quick-task title]
-status: gathering | planned | executing | validating | blocked | resolved
-trigger: "[verbatim user input]"
-understanding_confirmed: false | true
-execution_model: subagent-mandatory
-dispatch_shape: one-subagent | parallel-subagents
-execution_surface: native-subagents
-created: [ISO timestamp]
-updated: [ISO timestamp]
----
+Command shape:
 
-## Discussion Handoff Source
-<!-- OVERWRITE after accepting a unified discussion handoff; keep empty for normal quick requests -->
-
-handoff_consumer: none | sp-quick
-source_discussion_slug: [discussion slug or none]
-source_handoff_md: [handoff Markdown path or none]
-source_handoff_json: [handoff JSON path or none]
-source_files_read:
-  - [discussion source file inspected after handoff intake]
-locked_direction:
-  - [selected direction from the discussion handoff]
-must_preserve:
-  - [MP item, decision, constraint, or must-not-dilute item carried into quick]
-reopen_conditions:
-  - [condition requiring return to sp-discussion or sp-specify]
-quick_task_candidate:
-  bounded_scope:
-    - [bounded scope from handoff]
-  excluded_scope:
-    - [excluded scope from handoff]
-  validation_route:
-    - [validation route from handoff]
-
-## Current Focus
-<!-- OVERWRITE on each update -->
-
-goal: [bounded quick-task objective]
-current_focus: [what the leader is doing now]
-next_action: [immediate next step]
-
-## Execution Intent
-<!-- OVERWRITE/REFINE when the lane shape or validation target changes -->
-
-intent_outcome: [the bounded behavior change or recovery target for this quick task]
-intent_constraints:
-  - [constraints, forbidden drift, or scope boundaries that must stay active]
-success_evidence:
-  - [the checks or observations required before the quick task can be treated as resolved]
-cognition_facts:
-  selected_capability: [capability, route, symptom, or unknown]
-  minimal_reads:
-    - [project-cognition minimal_live_reads entry used before wider inspection]
-  validation_route: [test, command, manual check, or unknown]
-  known_risk: [ambiguity, weak coverage, forbidden drift, or none]
-
-## Understanding Checkpoint
-<!-- OVERWRITE/REFINE before substantive execution starts -->
-
-checkpoint:
-  issue: [the specific problem or request the user confirmed]
-  issue_detail: [where it appears, why it matters, and the nearest thing the user is not asking for]
-  expected_or_target: [the concrete result the user confirmed]
-  known_facts:
-    - [repository evidence, handoff fact, project cognition route, or explicit user constraint]
-  unknowns_or_risks:
-    - [uncertainty, why it matters, and the current safe assumption]
-  will_change:
-    - [specific area, file family, command, workflow, behavior, or surface included in this quick task]
-  will_not_change:
-    - [explicit non-goal, excluded file family, excluded workflow, lifecycle behavior, or escalation boundary]
-  in_scope:
-    - [specific area, workflow, file family, behavior, or command included in this quick task]
-  out_of_scope:
-    - [explicit non-goal, excluded file family, excluded workflow, or escalation boundary]
-  affected_surfaces:
-    - [implementation, docs, tests, generated assets, state files, CLI/API surface, or consumer to touch or check]
-  execution_approach: [leader-inline preparation, one-subagent, or parallel-subagents with first lane shape and rationale]
-  implementation_plan:
-    - [task-specific ordered step]
-  next_action: [the confirmed implementation, delegation, or preparation action after confirmation]
-  validation_evidence:
-    - [test, command, manual check, or evidence required before closeout]
-  stop_condition: [discovery or risk that stops quick execution and requires user decision or escalation]
-  done_or_progress_signal:
-    - [test, command, manual check, or evidence required before closeout]
-  user_corrections:
-    - [user correction, ambiguity, or confirmation timestamp]
-
-## Execution
-<!-- OVERWRITE/REFINE as the lane or batch changes -->
-
-active_lane: [single lane name or current batch]
-join_point: [empty if none]
-files_or_surfaces: [primary files, modules, or shared surfaces in play]
-blocked_dispatch: [none by default; if subagent-blocked, record why native subagent dispatch was unavailable or unsafe]
-blockers: [empty if none]
-recovery_action: [next self-recovery step before asking for help]
-retry_attempts: [0 if none]
-blocker_reason: [empty if none]
-
-## Validation
-<!-- OVERWRITE/REFINE as checks complete -->
-
-planned_checks:
-  - [smallest meaningful verification command or manual check]
-completed_checks:
-  - [verification already run]
-
-## Senior Consequence Analysis
-<!-- OVERWRITE/REFINE when the gate stands down, triggers, or escalates -->
-
-gate_status: not_evaluated | stand_down | triggered_bounded | escalated
-stand_down_reason: [why lifecycle, running-state, destructive, shared-state, downstream-consumer, compatibility, security, or multiple-behavior semantics do not apply]
-affected_objects:
-  - [object, state surface, consumer, command, API, artifact, or workflow]
-state_behavior_matrix:
-  - [state -> expected behavior]
-dependency_impact:
-  - [dependency or consumer -> impact]
-recovery_and_validation:
-  - [rollback, retry, cleanup, idempotency, observability, or validation requirement]
-project_cognition_evidence:
-  - [project cognition fact, live read, or coverage source]
-coverage_gaps:
-  - [gap, owner, latest safe resolve phase, stop-and-reopen condition]
-consequence_obligations:
-  - [CA-### claim, owner, mapped lane/task/check]
-escalation_decision: [stay quick | upgrade to specify | route to debug | blocked]
-
-## Summary Pointer
-<!-- OVERWRITE when terminal state is reached -->
-
-summary_path: [.planning/quick/<id>-<slug>/SUMMARY.md]
-resume_decision: [resume here | blocked waiting | resolved]
+```text
+{{specify-subcmd:artifact scaffold --kind quick-status --out ".planning/quick/<id>-<slug>/STATUS.md" --vars "<compact-json>" --format json}}
 ```
+
+`--out` must be project-relative. Do not pass an absolute path. The scaffold is create-only and returns `agent_fill_required` plus `fill_targets`; write semantic quick-task content only at those returned anchors.
+
+The compact JSON variables are:
+
+- `id`: quick-task id
+- `slug`: quick-task slug
+- `title`: short quick-task title
+- `trigger`: verbatim user input
+
+The generated scaffold initializes `understanding_confirmed: false`, `status: gathering`, `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, and `execution_surface: native-subagents`. It also creates fixed sections for discussion handoff source, current focus, execution intent, understanding checkpoint, execution, validation, summary pointer, and senior consequence analysis. The agent must fill the semantic values through the returned `fill_targets` and keep `STATUS.md` compact.
 
 ## Recovery Routing
 

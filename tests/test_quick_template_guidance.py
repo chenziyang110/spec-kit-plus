@@ -153,58 +153,34 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     assert "not a `sp-plan` substitute" in content
 
 
-def test_quick_template_includes_concrete_status_template() -> None:
+def test_quick_template_uses_fixed_status_scaffold() -> None:
     content = read_template("templates/commands/quick.md").lower()
+    scaffold = read_template("templates/artifacts/quick-status.md").lower()
 
-    assert "## status.md template" in content
-    assert "id: [quick-task id]" in content
-    assert "slug: [quick-task slug]" in content
-    assert "status: gathering | planned | executing | validating | blocked | resolved" in content
-    assert "understanding_confirmed: false | true" in content
+    assert "## status.md scaffold" in content
+    assert "artifact scaffold --kind quick-status" in content
+    assert '--out ".planning/quick/<id>-<slug>/status.md"' in content
+    assert "--vars" in content
+    assert "project-relative" in content
+    assert "do not pass an absolute path" in content
+    assert "agent_fill_required" in content
+    assert "fill_targets" in content
+    assert "understanding_confirmed: false" in content
+    assert "status: gathering" in content
     assert "execution_model: subagent-mandatory" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
-    assert "## current focus" in content
-    assert "## execution intent" in content
-    assert "intent_outcome:" in content
-    assert "intent_constraints:" in content
-    assert "success_evidence:" in content
-    assert "## understanding checkpoint" in content
-    assert "checkpoint:" in content
-    assert "issue:" in content
-    assert "issue_detail:" in content
-    assert "expected_or_target:" in content
-    assert "known_facts:" in content
-    assert "unknowns_or_risks:" in content
-    assert "will_change:" in content
-    assert "will_not_change:" in content
-    assert "in_scope:" in content
-    assert "out_of_scope:" in content
-    assert "affected_surfaces:" in content
-    assert "execution_approach:" in content
-    assert "implementation_plan:" in content
-    assert "task-specific ordered step" in content
-    assert "locate source behavior" not in content
-    assert "next_action:" in content
-    assert "validation_evidence:" in content
-    assert "stop_condition:" in content
-    assert "done_or_progress_signal:" in content
-    assert "user_corrections:" in content
     assert "status.md" in content
     assert "validation route" in content
     assert "known risk" in content
-    assert "## execution" in content
-    assert "blocked_dispatch:" in content
-    assert "## validation" in content
-    assert "## summary pointer" in content
-    assert "## senior consequence analysis" in content
-    assert "affected_objects:" in content
-    assert "state_behavior_matrix:" in content
-    assert "dependency_impact:" in content
-    assert "recovery_and_validation:" in content
-    assert "project_cognition_evidence:" in content
-    assert "coverage_gaps:" in content
-    assert "escalation_decision:" in content
+    assert "active_lane:" in scaffold
+    assert "join_point:" in scaffold
+    assert "blockers:" in scaffold
+    assert "blocker_reason:" in scaffold
+    assert "resume_decision:" in scaffold
+    assert "## current focus" not in content
+    assert "task-specific ordered step" not in content
+    assert "locate source behavior" not in content
 
 
 def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:

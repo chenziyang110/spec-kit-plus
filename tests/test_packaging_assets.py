@@ -238,6 +238,13 @@ def test_wheel_force_include_bundles_structured_workflow_contract_templates() ->
         ) in pyproject
 
 
+def test_wheel_force_include_bundles_artifact_scaffold_templates() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"templates/artifacts" = "specify_cli/core_pack/templates/artifacts"' in pyproject
+    assert (REPO_ROOT / "templates" / "artifacts" / "quick-status.md").exists()
+
+
 def test_lossless_specify_state_templates_are_force_included() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     for template in (
@@ -318,6 +325,11 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
         "# PRD Master Pack\n",
         encoding="utf-8",
     )
+    (core_pack / "templates" / "artifacts").mkdir(parents=True)
+    (core_pack / "templates" / "artifacts" / "quick-status.md").write_text(
+        "# Quick Status\n",
+        encoding="utf-8",
+    )
     (core_pack / "command-partials" / "test").mkdir(parents=True)
     (core_pack / "command-partials" / "test" / "shell.md").write_text("shell\n", encoding="utf-8")
     (core_pack / "passive-skills" / "python-testing").mkdir(parents=True)
@@ -346,6 +358,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     assert (project_root / ".specify" / "templates" / "testing" / "testing-contract-template.md").exists()
     assert (project_root / ".specify" / "templates" / "examples" / "deep-research" / "not-needed.md").exists()
     assert (project_root / ".specify" / "templates" / "prd" / "master-pack-template.md").exists()
+    assert (project_root / ".specify" / "templates" / "artifacts" / "quick-status.md").exists()
     assert (project_root / ".specify" / "templates" / "command-partials" / "test" / "shell.md").exists()
     assert (project_root / ".specify" / "templates" / "passive-skills" / "python-testing" / "SKILL.md").exists()
     assert not (project_root / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
