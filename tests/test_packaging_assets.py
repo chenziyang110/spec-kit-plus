@@ -39,6 +39,7 @@ def test_wheel_force_include_bundles_command_partials_and_prd_templates() -> Non
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"templates/command-partials" = "specify_cli/core_pack/command-partials"' in pyproject
+    assert '"templates/command-references" = "specify_cli/core_pack/command-references"' in pyproject
     assert '"templates/prd" = "specify_cli/core_pack/templates/prd"' in pyproject
     assert '"templates/testing" = "specify_cli/core_pack/templates/testing"' not in pyproject
 
@@ -360,6 +361,8 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     )
     (core_pack / "command-partials" / "test").mkdir(parents=True)
     (core_pack / "command-partials" / "test" / "shell.md").write_text("shell\n", encoding="utf-8")
+    (core_pack / "command-references" / "plan").mkdir(parents=True)
+    (core_pack / "command-references" / "plan" / "INDEX.md").write_text("# Plan References\n", encoding="utf-8")
     (core_pack / "passive-skills" / "python-testing").mkdir(parents=True)
     (core_pack / "passive-skills" / "python-testing" / "SKILL.md").write_text("---\nname: python-testing\n---\n", encoding="utf-8")
     (core_pack / "project-map" / "root").mkdir(parents=True)
@@ -402,6 +405,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     assert (project_root / "DESIGN.md").exists()
     assert (project_root / "DESIGN.md").read_text(encoding="utf-8") == "# Design\n"
     assert (project_root / ".specify" / "templates" / "command-partials" / "test" / "shell.md").exists()
+    assert (project_root / ".specify" / "templates" / "command-references" / "plan" / "INDEX.md").exists()
     assert (project_root / ".specify" / "templates" / "passive-skills" / "python-testing" / "SKILL.md").exists()
     assert not (project_root / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
     assert not (project_root / ".specify" / "templates" / "project-map" / "root" / "ARCHITECTURE.md").exists()

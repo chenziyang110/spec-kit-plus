@@ -2669,6 +2669,7 @@ def _install_shared_infra(
         if core:
             extra_template_dirs = (
                 "command-partials",
+                "command-references",
                 "passive-skills",
                 "worker-prompts",
             )
