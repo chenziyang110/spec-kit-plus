@@ -107,6 +107,12 @@ class IntegrationBase(ABC):
         "spawn_agent",
         "task tool",
     )
+    COMMAND_REFERENCE_WORKFLOWS = frozenset(
+        {"discussion", "specify", "plan", "tasks", "implement", "quick", "debug"}
+    )
+    UNRESOLVED_RENDERER_TOKEN_RE = re.compile(
+        r"\{SCRIPT\}|\{AGENT_SCRIPT\}|\{ARGS\}|__AGENT__|\{\{invoke:[^}]+}}"
+    )
 
     # -- Public API -------------------------------------------------------
 
@@ -130,6 +136,19 @@ class IntegrationBase(ABC):
         for candidate in [
             pkg_dir / "core_pack" / "commands",
             pkg_dir.parent.parent / "templates" / "commands",
+        ]:
+            if candidate.is_dir():
+                return candidate
+        return None
+
+    def shared_command_references_dir(self) -> Path | None:
+        """Return path to the shared command reference templates directory."""
+        import inspect
+
+        pkg_dir = Path(inspect.getfile(IntegrationBase)).resolve().parent.parent
+        for candidate in [
+            pkg_dir / "core_pack" / "command-references",
+            pkg_dir.parent.parent / "templates" / "command-references",
         ]:
             if candidate.is_dir():
                 return candidate
@@ -162,6 +181,21 @@ class IntegrationBase(ABC):
             f
             for f in cmd_dir.iterdir()
             if f.is_file() and f.suffix == ".md" and f.name not in excluded_templates
+        )
+
+    def list_command_reference_templates(self, command_name: str) -> list[Path]:
+        """Return sorted reference template files for *command_name*."""
+        references_dir = self.shared_command_references_dir()
+        if not references_dir or not references_dir.is_dir():
+            return []
+
+        workflow_dir = references_dir / command_name
+        if not workflow_dir.is_dir():
+            return []
+
+        return sorted(
+            (path for path in workflow_dir.rglob("*") if path.is_file()),
+            key=lambda path: path.relative_to(workflow_dir).as_posix(),
         )
 
     def command_filename(self, template_name: str) -> str:
@@ -223,6 +257,19 @@ class IntegrationBase(ABC):
         """
         rel = file_path.resolve().relative_to(project_root.resolve())
         manifest.record_existing(rel)
+
+    @classmethod
+    def validate_no_unresolved_renderer_tokens(
+        cls,
+        content: str,
+        source_path: Path,
+    ) -> None:
+        """Raise if rendered *content* still contains renderer-only tokens."""
+        match = cls.UNRESOLVED_RENDERER_TOKEN_RE.search(content)
+        if match:
+            raise ValueError(
+                f"{source_path} contains unresolved renderer token {match.group(0)!r}"
+            )
 
     @staticmethod
     def write_file_and_record(
@@ -1180,6 +1227,48 @@ class IntegrationBase(ABC):
 
         rendered_body = body.lstrip("\r\n")
         return f"---\n{frontmatter_text}---\n\n{summary}{rendered_body}"
+
+    @classmethod
+    def render_command_reference_content(
+        cls,
+        raw_reference: str,
+        *,
+        owner_template_raw: str,
+        owner_template_path: Path,
+        reference_path: Path,
+        agent_name: str,
+        script_type: str,
+        arg_placeholder: str,
+        project_root: Path | None = None,
+        apply_invocation_conventions: bool = False,
+    ) -> str:
+        """Render a command reference template using its owner command context."""
+        _ = owner_template_path
+        owner_frontmatter, _ = cls._split_frontmatter(owner_template_raw)
+        render_input = raw_reference
+        if owner_frontmatter:
+            render_input = f"---\n{owner_frontmatter}---\n\n{raw_reference}"
+
+        processed = cls.process_template(
+            render_input,
+            agent_name,
+            script_type,
+            arg_placeholder,
+            template_path=reference_path,
+            project_root=project_root,
+        )
+        _, body = cls._split_frontmatter(processed)
+
+        if apply_invocation_conventions:
+            from specify_cli.agents import CommandRegistrar
+
+            body = CommandRegistrar.apply_skill_invocation_conventions(
+                agent_name,
+                body,
+            )
+
+        cls.validate_no_unresolved_renderer_tokens(body, reference_path)
+        return body.lstrip("\r\n")
 
     @staticmethod
     def process_template(
