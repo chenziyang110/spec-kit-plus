@@ -3346,6 +3346,77 @@ def test_tasks_templates_preserve_user_confirmed_delivery_scope_not_mvp():
     assert "mvp!" not in template_content.lower()
 
 
+def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> None:
+    plan = _read("templates/commands/plan.md")
+    plan_template = _read("templates/plan-template.md")
+    tasks = _read("templates/commands/tasks.md")
+    tasks_template = _read("templates/tasks-template.md")
+    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+
+    combined = "\n".join([plan, plan_template, tasks, tasks_template, routing])
+    lowered = combined.lower()
+
+    assert "complete-first scope preservation" in lowered
+    assert "complete user-confirmed scope" in lowered
+    assert "complexity alone is not a valid reason" in lowered
+    assert "do not shrink scope" in lowered
+    assert "execution phases are ordering, not delivery deferral" in lowered
+    assert "runtime capability limits are blockers only under the adaptive execution policy" in lowered
+    assert "heavy, safety-critical, or unpacketizable" in lowered
+    assert "user story priorities such as `p1`, `p2`, and `p3` remain ordering labels" in lowered
+    assert "agent-invented `v1/v2`" in lowered
+    assert "agent-invented `p0/p1`" in lowered
+    assert "future-work delivery slice" in lowered
+
+
+def test_complete_first_deferrals_require_full_contract_fields() -> None:
+    checked_templates = [
+        _read("templates/commands/plan.md"),
+        _read("templates/plan-template.md"),
+        _read("templates/commands/tasks.md"),
+        _read("templates/tasks-template.md"),
+    ]
+    combined = "\n".join(checked_templates).lower()
+
+    for phrase in (
+        "confirmation source",
+        "exact excluded behavior",
+        "residual risk",
+        "reopen or stop condition",
+        "downstream artifact",
+    ):
+        assert phrase in combined
+
+    assert "if the user did not confirm the deferral" in combined
+    assert "task the behavior" in combined
+    assert "create a refinement or validation checkpoint" in combined
+
+
+def test_structured_templates_carry_complete_first_scope_contract() -> None:
+    plan_contract = json.loads(_read("templates/plan-contract-template.json"))
+    task_index = json.loads(_read("templates/task-index-template.json"))
+    task_packet = json.loads(_read("templates/task-packet-template.json"))
+    implement_state = json.loads(_read("templates/implement-execution-state-template.json"))
+
+    for payload in (plan_contract, task_index, task_packet, implement_state):
+        assert "confirmed_delivery_scope" in payload
+        assert "complete_first_scope_preservation" in payload
+        assert "user_confirmed_deferrals" in payload
+        assert "deferral_contract_required_fields" in payload
+        assert payload["deferral_contract_required_fields"] == [
+            "confirmation_source",
+            "exact_excluded_behavior",
+            "residual_risk",
+            "reopen_or_stop_condition",
+            "downstream_artifact",
+        ]
+
+    assert plan_contract["complete_first_scope_preservation"]["default"] == "plan_and_task_complete_confirmed_scope"
+    assert task_index["complete_first_scope_preservation"]["phase_policy"] == "execution_order_not_delivery_deferral"
+    assert task_packet["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
+    assert implement_state["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
+
+
 def test_workflow_templates_preserve_create_scaffold_capabilities_when_surface_is_minimized() -> None:
     specify = _read("templates/commands/specify.md")
     spec_template = _read("templates/spec-template.md")
