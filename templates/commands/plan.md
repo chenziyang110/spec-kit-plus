@@ -140,6 +140,29 @@ agent_scripts:
 - If the active profile is `Standard Delivery`, keep the standard planning artifact contract and only add profile-driven constraints when `workflow-state.md` explicitly records them.
 - If `workflow-state.md` presents any other `active_profile` in first release, stop and tell the operator to repair or re-run upstream scenario profile routing state before planning; do not silently reinterpret unsupported profiles as a new planning mode.
 
+## Complete-First Scope Preservation
+
+The active feature scope is the complete user-confirmed scope from `spec.md`,
+`alignment.md`, `context.md`, `plan-contract.json`, and approved discussion or
+brainstorming handoffs. `sp-plan` may choose architecture, sequencing, dependency
+order, dispatch shape, and validation strategy, but it must not shrink scope.
+
+- Complexity alone is not a valid reason to split, defer, block, or return upstream; do not shrink scope.
+- Handle complex but clear work through dependency ordering, implementation
+  guardrails, design artifacts, validation paths, and refinement checkpoints.
+- Execution phases are ordering, not delivery deferral.
+- Do not convert confirmed scope into an MVP, pilot, prototype, first release,
+  future-work delivery slice, agent-invented `v1/v2`, or agent-invented `P0/P1`.
+- User story priorities such as `P1`, `P2`, and `P3` remain ordering labels from
+  `spec.md`; they are not delivery-scope buckets.
+- If a deferral is valid, it must be user-confirmed and record confirmation source,
+  exact excluded behavior, residual risk, reopen or stop condition, and downstream
+  artifact.
+- If the user did not confirm the deferral, plan the behavior, create a refinement or validation checkpoint that keeps it inside the current feature, or identify a valid hard blocker.
+- Runtime capability limits are blockers only under the adaptive execution policy
+  for heavy, safety-critical, or unpacketizable work. They are not permission to
+  shrink scope or relabel confirmed behavior as a later version.
+
 ## Operational Consequence Design
 
 Before `sp-tasks`, convert every triggered `CA-###` consequence obligation into concrete operational design.
@@ -230,6 +253,9 @@ Use the returned readiness:
      - If the workload is standard and native subagents are available, dispatch `one-subagent` for exactly one validated isolated planning lane or `parallel-subagents` for two or more isolated planning lanes.
      - If the workload is standard, native subagents are unavailable, and no high-risk trigger is present, continue leader-inline with `capability_degraded: true`.
      - If the workload is heavy or safety-critical and native subagents are unavailable, or if heavy work cannot be packetized safely, record `workflow_status: blocked`, `dispatch_shape: subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`; stop before synthesizing planning artifacts.
+     - This adaptive blocker preserves scope. It may stop synthesis when execution
+       cannot proceed safely, but it must not convert confirmed behavior into a
+       smaller MVP, future phase, or agent-invented release slice.
    - Managed-team fallback is not part of adaptive plan/tasks dispatch.
    - Artifact-writing delegated planning lanes must be dispatched as a writable, execution-capable native subagent lane. If the runtime exposes role, sandbox, or permission choices, select a role/sandbox that can write the declared handoff file; a read-only lane is not a valid lane for `planning/handoffs/<lane-id>.json`.
    - Do not dispatch a read-only explorer, reviewer, or diagnostic lane to satisfy a delegated planning lane that must write a handoff. Such lanes may inform the leader only as supplemental evidence, and they do not satisfy `one-subagent` or `parallel-subagents` planning handoff requirements.

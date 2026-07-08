@@ -21,6 +21,33 @@
 - [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
 
 
+## Complete-First Delivery Scope
+
+<!--
+  Complete-first scope preservation:
+  Restate the complete user-confirmed scope that this plan must preserve.
+  Execution order, dependency order, and validation order may vary, but planning
+  must not reduce delivery scope unless a user-confirmed deferral is recorded in
+  the deferral contract below.
+-->
+
+- **Scope source files**: `spec.md`, `alignment.md`, `context.md`, `plan-contract.json`, and approved handoff files
+- **Delivery rule**: Plan and task the complete confirmed scope; do not shrink scope because the work is complex
+- **Complexity rule**: Complexity alone is not a valid reason to split, defer, block, or return upstream
+- **Execution phases**: Execution phases are ordering, not delivery deferral
+- **Forbidden reductions**: MVP by default, pilot by default, prototype by default, first-release slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or future-work delivery slice
+- **Priority labels**: User story priorities such as `P1`, `P2`, and `P3` are ordering labels, not delivery-scope buckets
+- **Adaptive blocker carve-out**: Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and do not reduce scope
+
+## User-Confirmed Deferral Contract
+
+| Confirmation Source | Exact Excluded Behavior | Residual Risk | Reopen Or Stop Condition | Downstream Artifact |
+| --- | --- | --- | --- | --- |
+| None | None | None | None | None |
+
+- If the user did not confirm the deferral, keep the behavior in scope through design,
+  create a refinement or validation checkpoint, or identify a named valid blocker.
+
 ## Must-Preserve Carry-Forward
 
 <!--
