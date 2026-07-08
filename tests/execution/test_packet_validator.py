@@ -11,6 +11,7 @@ from specify_cli.execution.packet_schema import (
     MustPreserveObligation,
     PacketReference,
     PacketScope,
+    UiFidelityRequirements,
     WorkerTaskPacket,
 )
 from specify_cli.execution.packet_validator import (
@@ -200,6 +201,69 @@ def test_validate_worker_task_packet_requires_does_not_remove_guard_for_surface_
 
     assert exc.value.code == "DP1"
     assert "does-not-remove" in exc.value.message
+
+
+def test_validate_worker_task_packet_rejects_incomplete_applicable_ui_fidelity_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="none",
+        design_inputs=[],
+        required_evidence=[],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "ui fidelity" in exc.value.message.lower()
+
+
+def test_validate_worker_task_packet_rejects_blank_ui_fidelity_design_inputs(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["  "],
+        required_evidence=["visual_comparison_evidence"],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "design inputs" in exc.value.message.lower()
+
+
+def test_validate_worker_task_packet_rejects_blank_ui_fidelity_required_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["designs/auth-flow.png"],
+        required_evidence=["  "],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "required evidence" in exc.value.message.lower()
+
+
+def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.controller_checks_required = ["verify screenshot diff", "  "]
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "controller checks" in exc.value.message.lower()
 
 
 def test_compile_worker_task_packet_collects_must_preserve_obligations(

@@ -56,9 +56,12 @@ Route first, packetize second, dispatch third.
 4. **Join on evidence**: Wait for every subagent's structured handoff. The
    handoff must name changed files, verification run, failures, open risks, and
    any spec or plan gaps. An idle or silent subagent is not completed work.
-5. **Review in order**: Run spec compliance review first. Run code quality
-   review after spec compliance passes. Then run the workflow's required
-   validation commands and update the tracker/state artifacts.
+5. **Review accepted work**: For ordinary `sp-implement` task review, use the
+   single task reviewer. It returns `spec_verdict`, `quality_verdict`,
+   controller checks, UI fidelity result, and final assessment. Legacy separate
+   spec and quality reviewer prompts are compatibility assets, not the default
+   path. Then run the workflow's required validation commands and update the
+   tracker/state artifacts.
 
 ## Dispatch Prompt Contract
 
@@ -106,7 +109,7 @@ packet before dispatch.
   in the current runtime.
 - Treating an idle subagent as done work.
 - Accepting a handoff that lacks verification evidence or changed-file summary.
-- Skipping spec compliance review.
-- Running code quality review before spec compliance review.
+- Skipping the ordinary `sp-implement` task reviewer when the workflow requires
+  task review.
 - Updating `tasks.md`, quick status, or workflow state as complete before the
   structured handoff and validation evidence exist.

@@ -4,8 +4,10 @@ from specify_cli.execution.packet_schema import (
     DispatchPolicy,
     ExecutionIntent,
     MustPreserveObligation,
+    PacketInterfaces,
     PacketReference,
     PacketScope,
+    UiFidelityRequirements,
     WorkerTaskPacket,
     worker_task_packet_from_json,
     worker_task_packet_payload,
@@ -186,6 +188,73 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.capability_operations == ["implements check command", "does not own scaffold operation"]
     assert restored.consequence_obligations[0].obligation_id == "CA-001"
     assert restored.consequence_obligations[0].claim == "Running workers drain before close completes"
+
+
+def test_worker_task_packet_round_trips_review_and_ui_contract_fields() -> None:
+    packet = WorkerTaskPacket(
+        feature_id="001-feature",
+        task_id="T017",
+        story_id="US1",
+        objective="Implement auth flow",
+        intent=ExecutionIntent(
+            outcome="Implement auth flow without changing the public contract shape",
+            constraints=["Do not create a parallel auth stack"],
+            success_signals=["login/logout behavior implemented"],
+        ),
+        scope=PacketScope(
+            write_scope=["src/services/auth_service.py"],
+            read_scope=["src/contracts/auth.py"],
+        ),
+        context_bundle=[
+            ContextBundleItem(
+                path=".specify/project-cognition/status.json",
+                kind="project_cognition",
+                purpose="Project cognition freshness entrypoint",
+                required_for=["workflow_boundary"],
+                read_order=1,
+                must_read=True,
+                selection_reason="required runtime readiness source",
+            )
+        ],
+        required_references=[
+            PacketReference(
+                path="src/contracts/auth.py",
+                reason="public contract compatibility must be preserved",
+            )
+        ],
+        hard_rules=["Every public function changed must have tests"],
+        forbidden_drift=["Do not create a parallel auth stack"],
+        validation_gates=["pytest tests/unit/test_auth_service.py -q"],
+        done_criteria=["login/logout behavior implemented"],
+        handoff_requirements=["return changed files"],
+        global_constraints=["do not edit generated hooks"],
+        interfaces=PacketInterfaces(
+            consumes=["auth contract"],
+            produces=["auth service"],
+        ),
+        review_inputs=["design-review.md"],
+        review_risks=["layout regression"],
+        ui_fidelity_requirements=UiFidelityRequirements(
+            applicable=True,
+            level="high",
+            design_inputs=["designs/auth-flow.png"],
+            required_evidence=["visual_comparison_evidence"],
+        ),
+        controller_checks_required=["verify screenshot diff"],
+    )
+
+    restored = worker_task_packet_from_json(json.dumps(worker_task_packet_payload(packet)))
+
+    assert restored.global_constraints == ["do not edit generated hooks"]
+    assert restored.interfaces.consumes == ["auth contract"]
+    assert restored.interfaces.produces == ["auth service"]
+    assert restored.review_inputs == ["design-review.md"]
+    assert restored.review_risks == ["layout regression"]
+    assert restored.ui_fidelity_requirements.applicable is True
+    assert restored.ui_fidelity_requirements.level == "high"
+    assert restored.ui_fidelity_requirements.design_inputs == ["designs/auth-flow.png"]
+    assert restored.ui_fidelity_requirements.required_evidence == ["visual_comparison_evidence"]
+    assert restored.controller_checks_required == ["verify screenshot diff"]
 
 
 def test_worker_task_packet_preserves_must_preserve_obligations() -> None:

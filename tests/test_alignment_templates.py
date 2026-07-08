@@ -1,6 +1,13 @@
 import json
 import re
 from pathlib import Path
+from typing import get_args
+
+from specify_cli.execution.implementation_review import (
+    TaskReviewRecord,
+    task_review_acceptance_errors,
+)
+from specify_cli.execution.packet_schema import UiFidelityLevel
 
 from .template_utils import read_template
 
@@ -91,8 +98,6 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "templates/worker-prompts/quick-worker.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/code-quality-reviewer.md",
-        "templates/worker-prompts/spec-reviewer.md",
     ):
         content = _read(path)
         assert "Use `known_unknowns` only for blockers that make the update unsafe to trust" in content, path
@@ -304,8 +309,6 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/code-quality-reviewer.md",
-        "templates/worker-prompts/spec-reviewer.md",
     ):
         content = _read(path)
         assert "verification" in content, f"{path} missing canonical worker verification field"
@@ -347,8 +350,6 @@ def test_worker_prompts_report_inline_update_payload_evidence() -> None:
         "templates/worker-prompts/implementer.md",
         "templates/worker-prompts/debug-investigator.md",
         "templates/worker-prompts/debug-thinker.md",
-        "templates/worker-prompts/code-quality-reviewer.md",
-        "templates/worker-prompts/spec-reviewer.md",
     ):
         content = _read(path)
         for field in required_fields:
@@ -2653,6 +2654,103 @@ def test_implement_template_preserves_workflow_state_review_allowlist() -> None:
     assert "review_window_policy" in implement
 
 
+def test_implement_uses_single_task_reviewer_by_default() -> None:
+    content = _read("templates/commands/implement.md")
+
+    assert ".specify/templates/worker-prompts/implementer.md" in content
+    assert ".specify/templates/worker-prompts/task-reviewer.md" in content
+    assert "ordinary post-task review" in content
+    assert "spec_verdict" in content
+    assert "quality_verdict" in content
+    assert "implementation-review/task-briefs/" in content
+    assert "implementation-review/review-packages/" in content
+    assert "implementation-review/task-reviews/" in content
+    assert "implementation-review/ledger.json" in content
+    assert "implementation-review/branch-review.md" in content
+    assert "pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md`" not in content
+
+
+def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
+    content = _read("templates/worker-prompts/task-reviewer.md")
+
+    assert "spec_verdict" in content
+    assert "quality_verdict" in content
+    assert "ui_fidelity_result" in content
+    assert "final_assessment" in content
+    assert "accepted_residual_risks" in content
+    assert "follow_up_work" in content
+    assert "controller_checks" in content
+    assert "findings" in content
+    assert '"plan_mandated_defects": []' in content
+    assert "`category=plan_mandated_defect`" in content
+    assert "Use the same finding object fields for both `findings` and `plan_mandated_defects`" in content
+    assert "`plan_mandated_defects` is a separate finding source list" in content
+    assert "`finding_source`: `findings`, `plan_mandated_defects`" in content
+    assert "Dispositions that refer to `plan_mandated_defects`" in content
+    assert "finding_source=plan_mandated_defects" in content
+    assert "finding_source=findings" in content
+    assert "canonical worker result path named by the review package" in content
+    assert "FEATURE_DIR/worker-results/<task-id>.json" in content
+    assert ".specify/teams/state/results/<request-id>.json" in content
+    assert "Inline Project Cognition Handoff" not in content
+    assert "changed_paths" not in content
+
+
+def test_task_reviewer_first_json_example_is_runtime_parseable() -> None:
+    content = _read("templates/worker-prompts/task-reviewer.md")
+    match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
+    assert match is not None
+
+    example = match.group(1)
+    assert " | " not in example
+    payload = json.loads(example)
+    record = TaskReviewRecord(**payload)
+
+    assert record.spec_verdict == "pass"
+    assert record.quality_verdict == "pass"
+    assert record.ui_fidelity_result == "not_applicable"
+    assert record.final_assessment == "accepted"
+    assert task_review_acceptance_errors(record) == []
+
+
+def test_legacy_split_reviewer_helper_snippets_are_not_default_task_review_path() -> None:
+    spec_helper = _read("templates/passive-skills/subagent-driven-development/spec-reviewer-prompt.md")
+    quality_helper = _read(
+        "templates/passive-skills/subagent-driven-development/code-quality-reviewer-prompt.md"
+    )
+
+    for content in (spec_helper, quality_helper):
+        assert "Legacy compatibility/helper snippet" in content
+        assert "Ordinary `sp-implement` task review uses" in content
+        assert ".specify/templates/worker-prompts/task-reviewer.md" in content
+        assert "spec_verdict" in content
+        assert "quality_verdict" in content
+
+    assert "Only dispatch after spec compliance review passes" not in quality_helper
+
+
+def test_plan_tasks_and_workflow_state_carry_review_artifact_contract() -> None:
+    combined = "\n".join(
+        [
+            _read("templates/commands/plan.md"),
+            _read("templates/commands/tasks.md"),
+            _read("templates/tasks-template.md"),
+            _read("templates/workflow-state-template.md"),
+            _read("templates/plan-contract-template.json"),
+        ]
+    )
+
+    assert "Global Constraints" in combined
+    assert "Task Interface Map" in combined
+    assert "Review-Risk Notes" in combined
+    assert "ui_fidelity_requirements" in combined
+    assert "controller_checks_required" in combined
+    assert "task-briefs" in combined
+    assert "review-packages" in combined
+    assert "task-reviews" in combined
+    assert "branch-review.md" in combined
+
+
 def test_tasks_template_requires_stable_task_identity_for_embedded_repair() -> None:
     content = _read("templates/tasks-template.md")
     lowered = content.lower()
@@ -3669,8 +3767,10 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "dispatch only from validated `WorkerTaskPacket`" in content
     assert "Do not dispatch from raw task text alone" in content
     assert ".specify/templates/worker-prompts/implementer.md" in content
+    assert ".specify/templates/worker-prompts/task-reviewer.md" in content
     assert ".specify/templates/worker-prompts/spec-reviewer.md" in content
     assert ".specify/templates/worker-prompts/code-quality-reviewer.md" in content
+    assert "ordinary post-task review" in lowered
     assert "runtime-managed result channel" in lowered
     assert "feature_dir/worker-results/<task-id>.json" in lowered
     assert '{{specify-subcmd:result path --command implement --feature-dir "$feature_dir" --task-id <task-id>}}' in lowered
@@ -4121,6 +4221,7 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     implementer = _read("templates/worker-prompts/implementer.md")
     debug_investigator = _read("templates/worker-prompts/debug-investigator.md")
     quick_worker = _read("templates/worker-prompts/quick-worker.md")
+    task_reviewer = _read("templates/worker-prompts/task-reviewer.md")
     spec_reviewer = _read("templates/worker-prompts/spec-reviewer.md")
     code_quality = _read("templates/worker-prompts/code-quality-reviewer.md")
 
@@ -4161,6 +4262,15 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "# Code Quality Reviewer Worker Prompt" in code_quality
     assert "only run after spec review passes" in code_quality.lower()
     assert "file responsibility" in code_quality.lower()
+    for content in (spec_reviewer, code_quality):
+        assert "Inline Project Cognition Handoff" not in content
+        assert "changed_paths" not in content
+        assert "behavior_surfaces" not in content
+        assert "state_contracts" not in content
+
+    assert "# Task Reviewer Worker Prompt" in task_reviewer
+    assert "spec_verdict" in task_reviewer
+    assert "quality_verdict" in task_reviewer
 
 
 def test_specify_template_explicitly_reads_constitution() -> None:
@@ -4907,6 +5017,27 @@ def test_tasks_template_inherits_implementation_target_boundary() -> None:
     assert packet.get("target_relative_paths") == []
     assert packet.get("evidence_status") is None
     assert packet.get("boundary_constraints") == []
+
+
+def test_tasks_template_ui_fidelity_levels_match_packet_schema() -> None:
+    task_template = _read("templates/tasks-template.md")
+    match = re.search(
+        r"\| T### \| \[manual check[^\n]*\| \[(?P<levels>[^\]]+)\] \| "
+        r"\[command, screenshot, or human review when needed\] \|",
+        task_template,
+    )
+
+    assert match, "tasks template must advertise packet UI fidelity levels"
+    advertised_levels = {
+        level.strip(" `").lower()
+        for level in match.group("levels").split("|")
+        if level.strip()
+    }
+    supported_levels = set(get_args(UiFidelityLevel))
+
+    assert supported_levels <= advertised_levels
+    assert advertised_levels == supported_levels
+    assert not (advertised_levels & {"low", "medium", "not_applicable"})
 
 
 def test_structured_json_templates_preserve_fidelity_status_fields() -> None:

@@ -999,41 +999,42 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         for command in ("list", "status", "resume", "close", "archive"):
             assert command in result.output
 
-    def test_init_installs_shared_worker_prompt_templates(self, tmp_path):
-        from typer.testing import CliRunner
-        from specify_cli import app
+def test_init_installs_shared_worker_prompt_templates(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
 
-        project = tmp_path / "worker-prompt-assets"
-        project.mkdir()
-        runner = CliRunner()
+    project = tmp_path / "worker-prompt-assets"
+    project.mkdir()
+    runner = CliRunner()
 
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(project)
-            result = runner.invoke(
-                app,
-                [
-                    "init",
-                    "--here",
-                    "--ai",
-                    "claude",
-                    "--script",
-                    "sh",
-                    "--no-git",
-                    "--ignore-agent-tools",
-                ],
-                catch_exceptions=False,
-            )
-        finally:
-            os.chdir(old_cwd)
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--ai",
+                "claude",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
 
-        assert result.exit_code == 0, result.output
-        prompt_dir = project / ".specify" / "templates" / "worker-prompts"
-        assert (prompt_dir / "implementer.md").exists()
-        assert (prompt_dir / "debug-investigator.md").exists()
-        assert (prompt_dir / "quick-worker.md").exists()
-        assert (prompt_dir / "spec-reviewer.md").exists()
-        assert (prompt_dir / "code-quality-reviewer.md").exists()
+    assert result.exit_code == 0, result.output
+    prompt_dir = project / ".specify" / "templates" / "worker-prompts"
+    assert (prompt_dir / "implementer.md").exists()
+    assert (prompt_dir / "debug-investigator.md").exists()
+    assert (prompt_dir / "quick-worker.md").exists()
+    assert (prompt_dir / "task-reviewer.md").exists()
+    assert (prompt_dir / "spec-reviewer.md").exists()
+    assert (prompt_dir / "code-quality-reviewer.md").exists()
 
 def test_install_psmux_for_codex_teams_uses_exact_winget_id(monkeypatch):
     from specify_cli import _install_psmux_for_codex_teams

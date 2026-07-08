@@ -19,6 +19,9 @@ description: "Task list template for feature implementation"
 - **Scenario profile inputs**: Record exactly one active profile and carry forward every profile-driven constraint, reference fidelity rule, allowed deviation rule, and required evidence obligation from `plan.md`, `spec.md`, `alignment.md`, and `context.md`.
 - **Reference fidelity inventory**: When the spec/plan package defines reference behavior inventory items, map every preserved or redesigned behavior to at least one task, checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
+- **Global Constraints**: Carry plan-level implementation and review constraints into task packet fields when they affect acceptance.
+- **Task Interface Map**: Record known consumes/produces relationships so downstream packets can expose interface expectations before implementation.
+- **Review-Risk Notes**: Preserve plan-approved residual risks, manual checks, UI/reference fidelity risks, and quality tradeoffs for task reviewers.
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
 - **Must-preserve discussion obligations**: Copy relevant `MP-*` items from `plan.md`, `spec.md`, `alignment.md`, `context.md`, `references.md`, and `brainstorming/handoff-to-specify.json`. Each implementation-shaping item must appear in the Task Guardrail Index, a required reference, a validation checkpoint, a task packet field, a refinement checkpoint, a valid blocker, or a user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - **Capability operations**: Copy every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
@@ -98,6 +101,18 @@ description: "Task list template for feature implementation"
 - If a reference behavior is covered by a user-confirmed deferral, record confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact instead of silently omitting it.
 - If a reference behavior is intentionally redesigned, point to the task or review checkpoint that must acknowledge the divergence.
 
+## Task Interface Map
+
+| Task ID | Consumes | Produces | Review Inputs |
+| --- | --- | --- | --- |
+| T### | [upstream component, route, schema, or artifact] | [component, route, schema, or artifact] | [plan.md, DESIGN.md, quickstart.md] |
+
+## Review-Risk Notes
+
+| Task ID | Review Risks | UI Fidelity Requirements | Controller Checks Required |
+| --- | --- | --- | --- |
+| T### | [manual check, quality tradeoff, reference fidelity risk] | [none | approximate | high] | [command, screenshot, or human review when needed] |
+
 ## Consequence Obligation Mapping
 
 | Obligation ID | Task IDs | Affected State / Dependency | Required References | Validation | Stop And Reopen |
@@ -123,6 +138,7 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 - Stop decomposition once the current executable window is atomic.
 - Leave later execution phases at the coarser story or phase level only when their exact task shape depends on earlier join points, then refine them after the checkpoint inside the current confirmed delivery instead of guessing too early.
 - Every task MUST carry the enriched subagent contract fields defined in the `sp-tasks` shell output contract: agent, depends_on, parallel_safe, context navigation table, scope boundaries (write_scope / read_scope / forbidden), expected outputs, anti_goals, acceptance criteria, verify commands, handoff format, and failure handling (retry_max, escalation).
+- Carry `global_constraints`, `interfaces.consumes`, `interfaces.produces`, `review_inputs`, `review_risks`, `ui_fidelity_requirements`, and `controller_checks_required` into task packets when relevant.
 - Tasks that appear in User-Observable Path Coverage MUST also include `consumer_surfaces` and `required_evidence` with `real_entrypoint_evidence` so `sp-implement` can reject synthetic-only consumer proof.
 - Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, the task MUST be refined before `tasks.md` can be finalized.
 - If the active profile has a reference fidelity contract, add an explicit Fidelity Checkpoint before any implementation batch that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
@@ -136,6 +152,8 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 - Automatic task-layer repair is allowed only when the accepted goal and plan remain valid.
 - Automatic task-layer repair may not rewrite spec, alignment, context, plan, upstream-derived profile fields, required evidence, final handoff decisions, Analyze Gate, or Reopen Contract.
 - Audit records must be written to `implementation-review/reviews.ndjson` and `implementation-review/repairs.ndjson`, with snapshots under `implementation-review/snapshots/`.
+- Accepted packetized tasks must have `implementation-review/task-briefs/<task-id>.md`, `implementation-review/review-packages/<task-id>.md`, `implementation-review/task-reviews/<task-id>.json`, and `implementation-review/ledger.json`.
+- Final closeout must include `implementation-review/branch-review.md`.
 
 ### Task Identity Stability
 
@@ -500,6 +518,15 @@ Below is a complete enriched task showing every required subagent contract field
 | capability_operations | [implements auth middleware, does not own scaffold operation] |
 | consumer_surfaces | [Protected route middleware invoked through real HTTP request path] |
 | required_evidence | [consumer_evidence, real_entrypoint_evidence] |
+| global_constraints | [Use project design tokens] |
+| consumes | [SettingsRoute registration] |
+| produces | [SettingsPanel component] |
+| review_inputs | [DESIGN.md, ui-brief.md, ui-target.html] |
+| review_risks | [visual comparison may require browser screenshot] |
+| ui_fidelity_level | [high] |
+| design_inputs | [DESIGN.md, ui-brief.md, ui-target.html] |
+| ui_required_evidence | [screenshot_evidence, visual_comparison_evidence] |
+| controller_checks_required | [human review if agent visual comparison is unavailable] |
 
 ### Expected Outputs
 - src/middleware/auth.ts （新建）

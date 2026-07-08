@@ -47,6 +47,29 @@ def test_normalize_worker_task_result_payload_preserves_consequence_evidence() -
     ]
 
 
+def test_normalize_worker_task_result_payload_maps_camel_case_ui_fidelity_evidence() -> None:
+    result = normalize_worker_task_result_payload(
+        {
+            "task_id": "T105",
+            "status": "success",
+            "summary": "validated UI fidelity",
+            "uiFidelityEvidence": [
+                {
+                    "kind": "visual_comparison",
+                    "artifact": "artifacts/auth-flow-diff.png",
+                }
+            ],
+        }
+    )
+
+    assert result.ui_fidelity_evidence == [
+        {
+            "kind": "visual_comparison",
+            "artifact": "artifacts/auth-flow-diff.png",
+        }
+    ]
+
+
 def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success() -> None:
     result = normalize_worker_task_result_payload(
         {

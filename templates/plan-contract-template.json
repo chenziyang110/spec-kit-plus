@@ -57,6 +57,17 @@
   "target_evidence_status": null,
   "reference_projects": [],
   "boundary_constraints": [],
+  "global_constraints": [],
+  "task_interface_map": [],
+  "review_risk_notes": [],
+  "ui_design_inputs": [],
+  "implementation_review_artifacts": [
+    "implementation-review/task-briefs/",
+    "implementation-review/review-packages/",
+    "implementation-review/task-reviews/",
+    "implementation-review/ledger.json",
+    "implementation-review/branch-review.md"
+  ],
   "handoff_to_tasks_ready": false,
   "consequence_gate": {
     "triggered": false,

@@ -117,6 +117,17 @@ Record every review in `FEATURE_DIR/implementation-review/reviews.ndjson`.
 
 Record every automatic repair in `FEATURE_DIR/implementation-review/repairs.ndjson`.
 
+For every packetized implementation task accepted by `sp-implement`, maintain:
+
+- `FEATURE_DIR/implementation-review/task-briefs/<task-id>.md`
+- `FEATURE_DIR/implementation-review/review-packages/<task-id>.md`
+- `FEATURE_DIR/implementation-review/task-reviews/<task-id>.json`
+- `FEATURE_DIR/implementation-review/ledger.json`
+
+After all tasks are accepted and before closeout, write `FEATURE_DIR/implementation-review/branch-review.md`.
+
+Task acceptance requires an accepted task review. A checked task is a claim; a ledger entry with `status: accepted` plus `task-reviews/<task-id>.json` is reviewed execution evidence. Ordinary task review uses `spec_verdict`, `quality_verdict`, controller checks, UI fidelity result, and final assessment from the task reviewer.
+
 After repair, revalidate task-index consistency, packet readiness, dependencies, tracker state, and worker-result references before continuing.
 
 ## Orchestration Model
@@ -410,7 +421,7 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: compile a `WorkerTaskPacket` for each subagent task using `.specify/memory/constitution.md`, `plan.md`, and `tasks.md`
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] compile and validate the packet before any subagent work begins
     - **REQUIRED FOR SUBAGENT EXECUTION**: Validate each `WorkerTaskPacket` before dispatching work
-    - **REQUIRED FOR SUBAGENT EXECUTION**: Use `.specify/templates/worker-prompts/implementer.md` as the default implementer subagent contract and pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md` and `.specify/templates/worker-prompts/code-quality-reviewer.md`
+    - **REQUIRED FOR SUBAGENT EXECUTION**: Use `.specify/templates/worker-prompts/implementer.md` as the default implementer subagent contract and use `.specify/templates/worker-prompts/task-reviewer.md` for ordinary post-task review. Legacy `.specify/templates/worker-prompts/spec-reviewer.md` and `.specify/templates/worker-prompts/code-quality-reviewer.md` remain installed for older downstream workflows and special migration/debug scenarios; do not run both legacy prompts and the new task reviewer for the same ordinary task review.
     - **REQUIRED FOR SUBAGENT EXECUTION**: Prefer structured handoffs compatible with the shared `WorkerTaskResult` contract whenever the current runtime exposes structured subagent results
     - **REQUIRED FOR SUBAGENT EXECUTION**: If the current integration exposes a runtime-managed result channel, use that channel. For Codex runtime-managed handoffs, the canonical path requires the runtime dispatch request id and is computed with `{{specify-subcmd:result path --command implement --request-id <request-id>}}`; final completion must be reported through the active runtime-managed result channel for that request id.
     - **REQUIRED FOR SUBAGENT EXECUTION**: Without a runtime-managed result channel, write the normalized subagent result envelope to `FEATURE_DIR/worker-results/<task-id>.json`
