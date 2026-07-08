@@ -1,5 +1,7 @@
 """Tests for IntegrationOption, IntegrationBase, MarkdownIntegration, and primitives."""
 
+from pathlib import Path
+
 import pytest
 
 from specify_cli.integrations.base import (
@@ -356,3 +358,80 @@ class TestBasePrimitives:
         assert "- **Default handoff**: /sp-tasks after planning is complete." in processed
         assert "routing metadata only" in processed.lower()
         assert processed.index("## Workflow Contract Summary") < processed.index("## Objective")
+
+    def test_command_reference_templates_are_discovered_from_workflow_stem(self, tmp_path, monkeypatch):
+        refs_root: Path = tmp_path / "command-references"
+        workflow_refs = refs_root / "plan"
+        workflow_refs.mkdir(parents=True)
+        (workflow_refs / "INDEX.md").write_text(
+            "# Plan References\n\n- [details](details.md): Trigger: planning detail\n",
+            encoding="utf-8",
+        )
+        (workflow_refs / "details.md").write_text(
+            "Trigger: when planning needs details\n\n"
+            "Purpose: exercise discovery\n\n"
+            "Preserved Contract: keep the plan rules\n",
+            encoding="utf-8",
+        )
+
+        i = StubIntegration()
+        monkeypatch.setattr(type(i), "shared_command_references_dir", lambda self: refs_root, raising=False)
+
+        assert [path.name for path in i.list_command_reference_templates("plan")] == [
+            "INDEX.md",
+            "details.md",
+        ]
+        assert i.list_command_reference_templates("specify") == []
+
+    def test_render_command_reference_uses_owner_template_context(self, tmp_path):
+        command = tmp_path / "plan.md"
+        command.write_text(
+            "---\n"
+            "description: Plan command\n"
+            "scripts:\n"
+            "  sh: scripts/bash/setup-plan.sh --json\n"
+            "---\n\n"
+            "# Plan\n\n"
+            "Main body for __AGENT__ using {SCRIPT}, {ARGS}, and {{invoke:tasks}}.\n",
+            encoding="utf-8",
+        )
+        reference = tmp_path / "references" / "details.md"
+        reference.parent.mkdir()
+        reference.write_text(
+            "Trigger: when planning detail is needed\n\n"
+            "Purpose: verify owner context\n\n"
+            "Preserved Contract: preserve command substitutions\n\n"
+            "Use {SCRIPT}, {ARGS}, __AGENT__, and {{invoke:tasks}} here.\n",
+            encoding="utf-8",
+        )
+
+        rendered = IntegrationBase.render_command_reference_content(
+            reference.read_text(encoding="utf-8"),
+            owner_template_raw=command.read_text(encoding="utf-8"),
+            owner_template_path=command,
+            reference_path=reference,
+            agent_name="stub",
+            script_type="sh",
+            arg_placeholder="$ARGUMENTS",
+            project_root=tmp_path,
+        )
+
+        assert "scripts/bash/setup-plan.sh --json" in rendered
+        assert "$ARGUMENTS" in rendered
+        assert "__AGENT__" not in rendered
+        assert "{SCRIPT}" not in rendered
+        assert "{ARGS}" not in rendered
+        assert "{{invoke:tasks}}" not in rendered
+        assert "$sp-tasks" not in rendered
+        assert "/sp.tasks" not in rendered
+
+    def test_validate_no_unresolved_renderer_tokens_reports_path(self, tmp_path):
+        path = tmp_path / "references" / "details.md"
+        path.parent.mkdir()
+        path.write_text("Use {SCRIPT}\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=r"details\.md.*\{SCRIPT\}"):
+            IntegrationBase.validate_no_unresolved_renderer_tokens(
+                path.read_text(encoding="utf-8"),
+                path,
+            )
