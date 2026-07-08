@@ -35,8 +35,13 @@ def test_quickstart_teaches_specify_to_plan_mainline():
 def _assert_doc_teaches_user_confirmed_product_scope(rel_path: str) -> None:
     lowered = _read(rel_path).lower()
 
+    assert "complete user-confirmed scope" in lowered
     assert "scope reduction requires user confirmation" in lowered
-    assert "preserve the user's confirmed product scope" in lowered
+    assert "future-work delivery slice" in lowered
+    assert "agent-invented `v1/v2`" in lowered
+    assert "agent-invented `p0/p1`" in lowered
+    assert "complexity alone is not a valid reason" in lowered
+    assert "runtime capability limits are blockers only under the adaptive execution policy" in lowered
     assert "minimal viable path" not in lowered
     assert "smallest coherent release slice" not in lowered
 

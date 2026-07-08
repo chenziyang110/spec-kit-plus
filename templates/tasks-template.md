@@ -17,10 +17,10 @@ description: "Task list template for feature implementation"
 - **Locked planning decisions**: Copy every non-negotiable implementation, compatibility, rollout, or validation constraint from `plan.md`, `spec.md`, and `alignment.md`. Do not silently drop any locked decision.
 - **Implementation constitution**: Carry forward all architecture invariants, boundary ownership rules, forbidden drift, required references, and review focus from `plan.md`.
 - **Scenario profile inputs**: Record exactly one active profile and carry forward every profile-driven constraint, reference fidelity rule, allowed deviation rule, and required evidence obligation from `plan.md`, `spec.md`, `alignment.md`, and `context.md`.
-- **Reference fidelity inventory**: When the spec/plan package defines reference behavior inventory items, map every preserved or redesigned behavior to at least one task, checkpoint, or explicit deferred note.
+- **Reference fidelity inventory**: When the spec/plan package defines reference behavior inventory items, map every preserved or redesigned behavior to at least one task, checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
-- **Must-preserve discussion obligations**: Copy relevant `MP-*` items from `plan.md`, `spec.md`, `alignment.md`, `context.md`, `references.md`, and `brainstorming/handoff-to-specify.json`. Each implementation-shaping item must appear in the Task Guardrail Index, a required reference, a validation checkpoint, a task packet field, or an explicit deferred note.
+- **Must-preserve discussion obligations**: Copy relevant `MP-*` items from `plan.md`, `spec.md`, `alignment.md`, `context.md`, `references.md`, and `brainstorming/handoff-to-specify.json`. Each implementation-shaping item must appear in the Task Guardrail Index, a required reference, a validation checkpoint, a task packet field, a refinement checkpoint, a valid blocker, or a user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - **Capability operations**: Copy every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
 - **User-observable paths**: For any UI, TUI, CLI, API route, installer, registry/factory/config wiring, or generated asset consumed by runtime behavior, record the real entrypoint path from producer data through transformer/state builder to the consumer surface and executor/boundary.
 - Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
@@ -150,17 +150,17 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 
 Before final handoff to `sp-implement`, confirm:
 
-- Buildable `FR-*` and buildable success criteria have task, checkpoint, or deferred-note coverage.
+- Buildable `FR-*` and buildable success criteria have task, checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact coverage.
 - Locked planning decisions that affect implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails are preserved in this task package.
 - `Implementation Constitution` rules from `plan.md` are preserved through the implementation guardrails phase, `Task Guardrail Index`, task notes, or explicit escalation.
 - `Task Guardrail Index` entries map applicable guardrails to concrete implementation tasks.
-- Preserved capability operations map to implementation tasks, validation tasks, packet fields, or user-confirmed deferred notes.
+- Preserved capability operations map to implementation tasks, validation tasks, packet fields, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - User-observable UI/TUI/CLI/API/runtime paths map to at least one real-entrypoint validation task or explicit user-confirmed deferral.
 - No operation-shaped create/scaffold capability has degraded to template-only task output, manual copy docs, or an authoring guide without an executable entry point.
 - Anti-goals that restrict public surfaces include does-not-remove guards.
 - Each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
 - Task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
-- Reference fidelity behavior items map to task IDs, checkpoints, join points, or explicit deferred notes.
+- Reference fidelity behavior items map to task IDs, checkpoints, join points, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - Unmapped tasks are justified as setup, polish, verification, or cross-cutting work, or removed.
 - Task dependencies and parallel batches do not contain obvious write-set conflicts.
 

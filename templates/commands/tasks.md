@@ -161,7 +161,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
 Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`.
 
 - Operation-shaped capabilities include new/create/scaffold/authoring/template-creation, CLI path, TUI path, lifecycle action, API entry point, and any user workflow verb that changes implementation or validation shape.
-- For each capability operation, create at least one implementation task, test/quickstart task, join point, packet field, or explicit deferred note with user confirmation.
+- For each capability operation, create at least one implementation task, test/quickstart task, join point, packet field, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - Treat template-only task output as insufficient for a confirmed create/scaffold capability unless the plan explicitly selected manual copy as the entry point.
 - Detect semantic degradation: if an upstream create/scaffold operation becomes manual copy docs, static template-only support, or an authoring guide with no executable entry point, stop and route back to `{{invoke:plan}}` or `{{invoke:clarify}}`.
 - Anti-goals must include a does-not-remove guard when they restrict command, route, API, lifecycle, or public surface growth. Example: "Do not add public commands beyond X; does-not-remove guard: preserve scaffold capability via TUI route or core API."
@@ -185,7 +185,7 @@ Task generation must cover the complete user-confirmed scope from `spec.md`,
 files. `sp-tasks` may choose execution phases, dependency order, parallel batches,
 join points, and refinement checkpoints, but it must not shrink scope. Do not shrink scope.
 
-- Complexity alone is not a valid reason to split, defer, block, or route upstream.
+- Complexity alone is not a valid reason to split delivery scope, defer, block, or route upstream.
 - Handle complex but clear work through dependency ordering, isolated write sets,
   parallel-safe batches, join-point validation, refinement tasks, and verification
   tasks.
@@ -249,9 +249,9 @@ join points, and refinement checkpoints, but it must not shrink scope. Do not sh
     - Escalation is terminal for the current `sp-tasks` run. If required upstream truth is missing, write the escalation evidence into `workflow-state.md` and set `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`. This sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` instead of sending the user back through `/sp.analyze` first.
     - Load plan.md and extract tech stack, libraries, project structure
     - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, `Must-Preserve Carry-Forward`, and `Decision Preservation Check` from plan.md when present
-    - Carry implementation-shaping `MP-*` items into task guardrails, required references, validation checkpoints, task packets, or explicit deferred notes.
+    - Carry implementation-shaping `MP-*` items into task guardrails, required references, validation checkpoints, task packets, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
     - If a task would violate an `MP-*` non-goal, decision, reference obligation, or trade-off rationale, stop and route back to the user conflict decision instead of silently generating divergent tasks.
-    - If `Reference Fidelity Inputs` or `Reference Behavior Inventory` exist, map every preserved or redesigned reference behavior to at least one task, checkpoint, join point, or explicit deferred note before `tasks.md` is finalized.
+    - If `Reference Fidelity Inputs` or `Reference Behavior Inventory` exist, map every preserved or redesigned reference behavior to at least one task, checkpoint, join point, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact before `tasks.md` is finalized.
     - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
     - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
     - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes
@@ -302,14 +302,14 @@ join points, and refinement checkpoints, but it must not shrink scope. Do not sh
     - Confirm every UI/TUI/CLI/API/runtime-visible path has User-Observable Path Coverage with a real-entrypoint validation task or a user-confirmed deferral carrying the full five-field deferral contract.
     - Confirm each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
     - Confirm task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
-    - Confirm reference fidelity behavior items map to task IDs, checkpoints, join points, or explicit deferred notes.
+    - Confirm reference fidelity behavior items map to task IDs, checkpoints, join points, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
     - Confirm unmapped tasks are justified as setup, polish, verification, or cross-cutting work, or remove them.
     - Confirm task dependencies and parallel batches do not contain obvious write-set conflicts.
     - If the self-audit finds task-layer defects, repair them before completing `sp-tasks`. If the defect requires missing upstream truth, escalate instead of producing speculative tasks.
     - **Embedded Implement Review Preparation**: A clean task package still records `next_command: /sp.implement`; do not add or expose a separate public review workflow. When generating `tasks.md`, `task-index.json`, `task-packets/*.json`, or `handoff-to-implement`, prepare the embedded review contract with `embedded_review_gate: required`, `auto_repair_tasks: true`, default `review_window_policy`, reviewable join points before first code-writing and after each parallel batch, phase, pipeline stage, and sequential review window, plus packet regeneration expectations whenever task-layer repair changes dependencies, write sets, next batches, or packet metadata.
     - Validate task completeness (each user story has all needed tasks, independently testable)
     - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
-    - Validate reference behavior preservation: if a preserved or redesigned reference behavior exists in the spec/plan package, at least one task, checkpoint, or explicit deferred note must account for it before task generation can complete
+    - Validate reference behavior preservation: if a preserved or redesigned reference behavior exists in the spec/plan package, at least one task, checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact must account for it before task generation can complete
 
     **Feature delivery shape**: Classify the whole task graph in plain language (e.g., `serial phases with intra-phase parallel batches`, `mostly sequential`, `pipeline-heavy`, `parallel-ready after foundational work`). If later batches are parallelizable but the current batch is not, state that explicitly.
 

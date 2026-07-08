@@ -3408,6 +3408,18 @@ def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> Non
         for phrase in phrases:
             assert phrase in surfaces[path], f"{path} missing {phrase!r}"
 
+    task_surfaces = {
+        "templates/commands/tasks.md": surfaces["templates/commands/tasks.md"],
+        "templates/tasks-template.md": surfaces["templates/tasks-template.md"],
+    }
+    for path, content in task_surfaces.items():
+        assert "explicit deferred note" not in content, f"{path} still permits generic deferred-note language"
+        assert "deferred-note coverage" not in content, f"{path} still permits generic deferred-note coverage"
+        assert (
+            "user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact"
+            in content
+        ), f"{path} missing full user-confirmed deferral contract"
+
 
 def test_complete_first_deferrals_require_full_contract_fields() -> None:
     surfaces = {
