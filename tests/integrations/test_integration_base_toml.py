@@ -92,6 +92,9 @@ def test_toml_commands_inline_command_references(tmp_path, monkeypatch):
     assert "## Reference Contracts" in prompt
     assert "### references/INDEX.md" in prompt
     assert "### references/details.md" in prompt
+    assert prompt.index("### references/INDEX.md") < prompt.index(
+        "### references/details.md"
+    )
     assert ".specify/scripts/bash/setup-plan.sh --json" in prompt
     assert "{SCRIPT}" not in prompt
     assert "{ARGS}" not in prompt

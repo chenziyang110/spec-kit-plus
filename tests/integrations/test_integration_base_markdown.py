@@ -99,6 +99,9 @@ def test_single_file_commands_inline_command_references(tmp_path, monkeypatch):
     assert "## Reference Contracts" in generated
     assert "### references/INDEX.md" in generated
     assert "### references/details.md" in generated
+    assert generated.index("### references/INDEX.md") < generated.index(
+        "### references/details.md"
+    )
     assert ".specify/scripts/bash/setup-plan.sh --json" in generated
     assert "{SCRIPT}" not in generated
     assert "{ARGS}" not in generated
