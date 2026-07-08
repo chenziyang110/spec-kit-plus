@@ -1,0 +1,101 @@
+{
+  "workflow": "specify",
+  "source": "templates/commands/specify.md",
+  "entries": [
+    {
+      "kind": "handoff-gate",
+      "source_excerpt": "Resolve discussion handoff intake before feature creation",
+      "target": "templates/command-references/specify/discussion-handoff-validation.md"
+    },
+    {
+      "kind": "handoff-field",
+      "source_excerpt": "discussion_requirement_contract",
+      "target": "templates/command-references/specify/discussion-handoff-validation.md"
+    },
+    {
+      "kind": "handoff-field",
+      "source_excerpt": "planning_gate_status: ready",
+      "target": "templates/command-references/specify/discussion-handoff-validation.md"
+    },
+    {
+      "kind": "source-sweep",
+      "source_excerpt": "source_signal_disposition",
+      "target": "templates/command-references/specify/discussion-handoff-validation.md"
+    },
+    {
+      "kind": "digest",
+      "source_excerpt": "Discussion Decision Digest",
+      "target": "templates/command-references/specify/discussion-handoff-validation.md"
+    },
+    {
+      "kind": "digest-field",
+      "source_excerpt": "must_not_dilute",
+      "target": "templates/command-references/specify/discussion-handoff-validation.md"
+    },
+    {
+      "kind": "clarification",
+      "source_excerpt": "one high-impact question",
+      "target": "templates/command-references/specify/semantic-traceability.md"
+    },
+    {
+      "kind": "semantic",
+      "source_excerpt": "Semantic Term Decomposition",
+      "target": "templates/command-references/specify/semantic-traceability.md"
+    },
+    {
+      "kind": "approach",
+      "source_excerpt": "Present two or three approaches",
+      "target": "templates/command-references/specify/semantic-traceability.md"
+    },
+    {
+      "kind": "approval",
+      "source_excerpt": "section_approval_status: auto-approved-recommended",
+      "target": "templates/command-references/specify/semantic-traceability.md"
+    },
+    {
+      "kind": "ui",
+      "source_excerpt": "choose_ui_reference_lane_dispatch",
+      "target": "templates/command-references/specify/ui-reference-lane.md"
+    },
+    {
+      "kind": "ui",
+      "source_excerpt": "ui-reference-notes.md",
+      "target": "templates/command-references/specify/ui-reference-lane.md"
+    },
+    {
+      "kind": "ui",
+      "source_excerpt": "Reference-Implementation",
+      "target": "templates/command-references/specify/ui-reference-lane.md"
+    },
+    {
+      "kind": "artifact",
+      "source_excerpt": "brainstorming/handoff-to-specify.json",
+      "target": "templates/command-references/specify/artifact-package.md"
+    },
+    {
+      "kind": "artifact",
+      "source_excerpt": "discussion_decision_digest",
+      "target": "templates/command-references/specify/artifact-package.md"
+    },
+    {
+      "kind": "review",
+      "source_excerpt": "Ask the user to review the written artifact set before planning",
+      "target": "templates/command-references/specify/question-cadence-and-review.md"
+    },
+    {
+      "kind": "review",
+      "source_excerpt": "Only the user review gate may decide",
+      "target": "templates/command-references/specify/question-cadence-and-review.md"
+    },
+    {
+      "kind": "self-review",
+      "source_excerpt": "Review the written `spec.md`, `alignment.md`, and `context.md`",
+      "target": "templates/command-references/specify/self-review-and-quality-gates.md"
+    },
+    {
+      "kind": "quality",
+      "source_excerpt": "Do not recommend `/sp.plan` until the written artifacts pass self-review",
+      "target": "templates/command-references/specify/self-review-and-quality-gates.md"
+    }
+  ]
+}

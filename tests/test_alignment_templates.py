@@ -10,6 +10,7 @@ from specify_cli.execution.implementation_review import (
 from specify_cli.execution.packet_schema import UiFidelityLevel
 
 import yaml
+import pytest
 
 from .template_utils import read_template
 
@@ -23,32 +24,45 @@ PRIMARY_TUI_TEMPLATE_PATHS = (
 ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
 ASCII_CARD_LINE_RE = re.compile(r"(?m)^\s*\| .+\|\s*$")
 ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
+MIGRATED_COMMAND_REFERENCE_WORKFLOWS = (
+    "discussion",
+    "specify",
+    "plan",
+    "tasks",
+)
 
 
-def _discussion_reference_surface() -> str:
-    root = PROJECT_ROOT / "templates" / "command-references" / "discussion"
+def _workflow_reference_surface(workflow: str) -> str:
+    root = PROJECT_ROOT / "templates" / "command-references" / workflow
     parts = [
-        (PROJECT_ROOT / "templates" / "commands" / "discussion.md").read_text(
+        (PROJECT_ROOT / "templates" / "commands" / f"{workflow}.md").read_text(
             encoding="utf-8"
         ),
-        read_template("templates/commands/discussion.md"),
+        read_template(f"templates/commands/{workflow}.md"),
     ]
     if root.is_dir():
         for ref_path in sorted(root.glob("*.md")):
-            parts.append(ref_path.read_text(encoding="utf-8"))
-    parts.append("## End Discussion Reference Surface\n")
+            rel_path = ref_path.relative_to(PROJECT_ROOT).as_posix()
+            raw_reference = ref_path.read_text(encoding="utf-8")
+            rendered_reference = read_template(rel_path)
+            parts.append(raw_reference)
+            if rendered_reference != raw_reference:
+                parts.append(rendered_reference)
+    parts.append(f"## End {workflow.title()} Reference Surface\n")
     return "\n\n".join(parts)
 
 
 def _read(path: str) -> str:
-    if path == "templates/commands/discussion.md":
-        return _discussion_reference_surface()
+    for workflow in MIGRATED_COMMAND_REFERENCE_WORKFLOWS:
+        if path == f"templates/commands/{workflow}.md":
+            return _workflow_reference_surface(workflow)
     return read_template(path)
 
 
 def _read_project_file(path: str) -> str:
-    if path == "templates/commands/discussion.md":
-        return _discussion_reference_surface()
+    for workflow in MIGRATED_COMMAND_REFERENCE_WORKFLOWS:
+        if path == f"templates/commands/{workflow}.md":
+            return _workflow_reference_surface(workflow)
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
@@ -62,9 +76,10 @@ def _design_system_from_front_matter(content: str) -> dict:
     return design_system
 
 
-def test_discussion_reference_files_are_reachable_and_have_required_headers():
-    root = PROJECT_ROOT / "templates" / "command-references" / "discussion"
-    command = (PROJECT_ROOT / "templates" / "commands" / "discussion.md").read_text(
+@pytest.mark.parametrize("workflow", MIGRATED_COMMAND_REFERENCE_WORKFLOWS)
+def test_command_reference_files_are_reachable_and_have_required_headers(workflow):
+    root = PROJECT_ROOT / "templates" / "command-references" / workflow
+    command = (PROJECT_ROOT / "templates" / "commands" / f"{workflow}.md").read_text(
         encoding="utf-8"
     )
     index = (root / "INDEX.md").read_text(encoding="utf-8")
@@ -84,14 +99,15 @@ def test_discussion_reference_files_are_reachable_and_have_required_headers():
             assert path.name in index, path
 
 
-def test_discussion_reference_coverage_ledger_targets_existing_text():
+@pytest.mark.parametrize("workflow", MIGRATED_COMMAND_REFERENCE_WORKFLOWS)
+def test_command_reference_coverage_ledgers_target_existing_text(workflow):
     ledger = json.loads(
         (
             PROJECT_ROOT
             / "tests"
             / "fixtures"
             / "command-reference-coverage"
-            / "discussion.json"
+            / f"{workflow}.json"
         ).read_text(encoding="utf-8")
     )
     for entry in ledger["entries"]:

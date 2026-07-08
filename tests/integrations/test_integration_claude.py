@@ -21,6 +21,17 @@ SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 
 
+def _read_skill_with_references(skill_path: Path) -> str:
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            path.read_text(encoding="utf-8")
+            for path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
+
 def _assert_compact_managed_context(content: str) -> None:
     lower = content.lower()
 
@@ -340,8 +351,17 @@ class TestClaudeIntegration:
         skills_prefix = ".claude/skills"
         expected = []
 
+        claude = get_integration("claude")
         for stem in cls._command_stems():
             expected.append(f"{skills_prefix}/sp-{stem}/SKILL.md")
+            for reference in claude.list_command_reference_templates(stem):
+                references_root = claude.shared_command_references_dir()
+                if references_root is None:
+                    continue
+                rel_reference = reference.relative_to(references_root / stem).as_posix()
+                expected.append(
+                    f"{skills_prefix}/sp-{stem}/references/{rel_reference}"
+                )
         expected.append(f"{skills_prefix}/sp-implement-teams/SKILL.md")
         for relative_file in cls._passive_skill_files():
             expected.append(f"{skills_prefix}/{relative_file}")
@@ -3013,7 +3033,9 @@ def test_claude_question_driven_skills_prefer_ask_user_question_with_fallback(tm
             or "plain-text clarification" in lower
         )
 
-    specify_content = (target / ".claude" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+    specify_content = _read_skill_with_references(
+        target / ".claude" / "skills" / "sp-specify" / "SKILL.md"
+    )
     assert (
         "If the runtime's native structured question tool is available for the current turn "
         "and the `sp-auto` automatic gate did not resolve the question, you must use it."

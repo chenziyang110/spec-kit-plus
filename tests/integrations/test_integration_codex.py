@@ -44,6 +44,17 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
 )
 
 
+def _read_skill_with_references(skill_path: Path) -> str:
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            path.read_text(encoding="utf-8")
+            for path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
+
 def _assert_stable_subagent_contract(content: str) -> None:
     lower = content.lower()
 
@@ -663,8 +674,8 @@ class TestCodexAutoPromote:
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-        skill_content = (target / ".codex" / "skills" / "sp-discussion" / "SKILL.md").read_text(
-            encoding="utf-8"
+        skill_content = _read_skill_with_references(
+            target / ".codex" / "skills" / "sp-discussion" / "SKILL.md"
         )
         command_template = (target / ".specify" / "templates" / "commands" / "discussion.md").read_text(
             encoding="utf-8"
@@ -1128,7 +1139,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify",):
-        skill_content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8")
+        skill_content = _read_skill_with_references(skills_dir / skill_name / "SKILL.md")
         content = skill_content.lower()
         assert (
             "execution_model: subagent-mandatory" in content
@@ -1154,7 +1165,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "would benefit from them" not in content
         assert "make the next path explicit" not in content
     for skill_name in ("sp-plan", "sp-tasks"):
-        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        content = _read_skill_with_references(
+            skills_dir / skill_name / "SKILL.md"
+        ).lower()
         assert "execution_model: adaptive" in content
         assert "execution_mode: light | standard | heavy" in content
         assert "workflow_status: ready | blocked" in content
@@ -1187,7 +1200,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
     for skill_name in shared_skills:
-        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        content = _read_skill_with_references(
+            skills_dir / skill_name / "SKILL.md"
+        ).lower()
         assert "specify team" not in content
         assert "workflow-state.md" in content
         assert "workflow_state_file" in content
@@ -1322,7 +1337,7 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
 
     skills_dir = target / ".codex" / "skills"
 
-    plan_content = (skills_dir / "sp-plan" / "SKILL.md").read_text(encoding="utf-8")
+    plan_content = _read_skill_with_references(skills_dir / "sp-plan" / "SKILL.md")
     assert "Add `Implementation Constitution`" in plan_content
     assert "`Implementation Constitution` MUST be added if any one of the following conditions is true" in plan_content
     assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_content
@@ -1347,7 +1362,7 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_content.lower()
     assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_content.lower()
 
-    tasks_content = (skills_dir / "sp-tasks" / "SKILL.md").read_text(encoding="utf-8")
+    tasks_content = _read_skill_with_references(skills_dir / "sp-tasks" / "SKILL.md")
     assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_content
     assert "implementation-guardrails phase before setup" in tasks_content
     assert "locked planning decision or implementation constitution rule" in tasks_content
@@ -1584,7 +1599,9 @@ def test_codex_generated_specify_skill_mentions_source_sweep_and_reopen(tmp_path
     integration = CodexIntegration()
     manifest = IntegrationManifest("codex", target)
     integration.setup(target, manifest)
-    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    ).lower()
     assert "source_signal_disposition" in content
     assert "discussion decision digest" in content
     assert "discussion_decision_digest" in content
@@ -1616,7 +1633,9 @@ def test_codex_generated_sp_specify_uses_simplified_flow_wording(tmp_path):
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    )
     lowered = content.lower()
 
     assert "explore project context" in lowered
