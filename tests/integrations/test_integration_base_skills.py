@@ -261,6 +261,14 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "CAND-001" not in skill_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
 def _assert_ask_contract(content: str) -> None:
     lowered = content.lower()
 
@@ -291,6 +299,16 @@ def _assert_ask_contract(content: str) -> None:
     assert "whether backend/server/runtime code exists" in lowered
     assert "discussion-state.md" not in content
     assert "handoff-to-specify" not in content
+
+
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -368,6 +386,10 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
 
+        specify_path = integration.skills_dest(project) / "sp-specify" / "SKILL.md"
+        assert specify_path.exists(), integration_key
+        _assert_ui_reference_guidance(specify_path.read_text(encoding="utf-8"))
+
         discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists(), integration_key
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
@@ -398,6 +420,18 @@ def test_collected_skills_integrations_embed_internal_implement_review_loop(tmp_
         implement_path = integration.skills_dest(project) / "sp-implement" / "SKILL.md"
         assert implement_path.exists(), integration_key
         _assert_embedded_implement_review_contract(implement_path.read_text(encoding="utf-8"))
+
+
+def test_collected_skills_integrations_generate_design_workflow(tmp_path):
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = integration.skills_dest(project) / "sp-design" / "SKILL.md"
+        assert design_path.exists(), integration_key
+        _assert_design_contract(design_path.read_text(encoding="utf-8"))
 
 
 def test_generated_planning_skills_require_inline_cognition_update_for_source_changes(tmp_path):
@@ -685,6 +719,11 @@ class SkillsIntegrationTests:
         assert "review_criteria_carried_forward" in content
         assert "must_not_dilute" in content
         assert "source_files_read" in content
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in content
         assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
@@ -1227,6 +1266,7 @@ class SkillsIntegrationTests:
         skills_prefix = i.config["folder"].rstrip("/") + "/" + i.config.get("commands_subdir", "skills")
 
         files = []
+        files.append("DESIGN.md")
         # Skill files
         for cmd in self._skill_commands():
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")

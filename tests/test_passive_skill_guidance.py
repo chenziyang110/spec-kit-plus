@@ -133,6 +133,69 @@ def test_workflow_routing_uses_prd_scan_then_prd_build_as_canonical_prd_flow() -
     assert "deprecated compatibility alias" in content
 
 
+def test_ui_design_passive_skill_requires_design_md_before_ui_work() -> None:
+    content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
+    lowered = content.lower()
+
+    assert "DESIGN.md" in content
+    assert "design.md" in lowered
+    assert "sp-design" in content
+    assert "web" in lowered
+    assert "mobile" in lowered
+    assert "desktop" in lowered
+    assert "tui" in lowered
+    assert "cli" in lowered
+    assert "platform-appropriate evidence" in lowered
+    assert "generic one-off styling" in lowered
+
+
+def test_ui_design_passive_skill_requires_subagent_for_ui_reference_input() -> None:
+    content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
+    lowered = content.lower()
+
+    assert "ui reference input" in lowered
+    assert "ui-reference-artifact" in content
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "ui-target.html" in content
+    assert "pending-human-review" in content
+    assert "must not claim" in lowered
+
+
+def test_workflow_routing_recommends_design_for_high_risk_ui() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "{{invoke:design}}" in content
+    assert "high-risk ui" in lowered
+    assert "new product ui" in lowered
+    assert "redesign or rebrand" in lowered
+    assert "small ui work" in lowered
+    assert "soft risk" in lowered
+
+
+def test_frontend_design_is_subordinate_to_design_md() -> None:
+    content = _read("templates/passive-skills/frontend-design/SKILL.md")
+    lowered = content.lower()
+
+    assert "design.md" in lowered
+    assert "subordinate" in lowered
+    assert "sp-design" in content
+    assert "do not invent unrelated bold aesthetics" in lowered
+
+
+def test_webapp_testing_requires_visual_evidence() -> None:
+    content = _read("templates/passive-skills/webapp-testing/SKILL.md")
+    lowered = content.lower()
+
+    assert "viewport screenshot" in lowered
+    assert "layout overflow" in lowered
+    assert "visual regression-friendly" in lowered
+    assert "sp-implement" in content
+
+
 def test_workflow_routing_mentions_heavy_prd_reconstruction_contract() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
     lowered = content.lower()

@@ -428,6 +428,74 @@ def test_compile_worker_task_packet_rejects_invalid_ui_fidelity_level(
     assert "ui fidelity level" in exc.value.message
 
 
+def test_compile_worker_task_packet_extracts_ui_contract(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-ui-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST preserve UI implementation contracts\n",
+        encoding="utf-8",
+    )
+    (project_root / "DESIGN.md").write_text("# Design\n", encoding="utf-8")
+    (feature_dir / "ui-reference-notes.md").write_text("# UI Reference Notes\n", encoding="utf-8")
+    (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
+    (feature_dir / "ui-target.html").write_text("<!doctype html>\n", encoding="utf-8")
+    (feature_dir / "plan.md").write_text("## Required Implementation References\n\n- DESIGN.md\n", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- npm test -- exceptions",
+                "",
+                "## T021: Implement exception panel UI",
+                "",
+                "### Scope Boundaries",
+                "| Field | Value |",
+                "|-------|-------|",
+                "| write_scope | [src/app/exceptions/page.tsx] |",
+                "| read_scope | [DESIGN.md, specs/001-ui-feature/ui-brief.md] |",
+                "| required_evidence | [reference_source_evidence, ui_fidelity_criteria, real_entrypoint_ui_evidence, visual_comparison_or_human_review] |",
+                "",
+                "### UI Implementation Contract",
+                "| Field | Value |",
+                "|-------|-------|",
+                "| design_sources | [DESIGN.md, specs/001-ui-feature/ui-brief.md] |",
+                "| reference_notes | specs/001-ui-feature/ui-reference-notes.md |",
+                "| visual_target | specs/001-ui-feature/ui-target.html |",
+                "| ui_fidelity_mode | approximate |",
+                "| must_preserve | [three-column layout, compact table density] |",
+                "| may_adapt | [icons, minor spacing] |",
+                "| must_not | [copy third-party source, turn table into cards] |",
+                "| required_states | [loading, empty, error] |",
+                "| required_evidence | [desktop screenshot, mobile screenshot] |",
+                "",
+                "- [ ] T021 [US1] Implement exception panel UI",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T021",
+    )
+
+    assert packet.ui_contract.fidelity_level == "approximate"
+    assert packet.ui_contract.reference_notes == "specs/001-ui-feature/ui-reference-notes.md"
+    assert packet.ui_contract.visual_target == "specs/001-ui-feature/ui-target.html"
+    assert "three-column layout" in packet.ui_contract.must_preserve
+    assert "turn table into cards" in packet.ui_contract.must_not
+    assert "visual_comparison_or_human_review" in packet.required_evidence
+    reference_paths = [reference.path for reference in packet.required_references]
+    assert reference_paths.count("DESIGN.md") == 1
+    assert "specs/001-ui-feature/ui-brief.md" in reference_paths
+    assert "specs/001-ui-feature/ui-reference-notes.md" in reference_paths
+    assert "specs/001-ui-feature/ui-target.html" in reference_paths
+
+
 def test_compile_worker_task_packet_accepts_materialized_task_input(
     tmp_path: Path,
 ) -> None:

@@ -254,6 +254,14 @@ join points, and refinement checkpoints, but it must not shrink scope. Do not sh
     - Carry implementation-shaping `MP-*` items into task guardrails, required references, validation checkpoints, task packets, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
     - If a task would violate an `MP-*` non-goal, decision, reference obligation, or trade-off rationale, stop and route back to the user conflict decision instead of silently generating divergent tasks.
     - If `Reference Fidelity Inputs` or `Reference Behavior Inventory` exist, map every preserved or redesigned reference behavior to at least one task, checkpoint, join point, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact before `tasks.md` is finalized.
+    - **Feature UI brief packet compilation**:
+      - When `ui-brief.md` exists, compile its contract into `ui_contract`.
+      - Set `ui_fidelity_mode` to `approximate`, `high`, or `inspiration`.
+      - Add `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html` to required references.
+      - Add required states and evidence to task packet fields.
+      - For `approximate` and `high`, include `required_evidence: [reference_source_evidence, ui_fidelity_criteria, real_entrypoint_ui_evidence, visual_comparison_or_human_review]`.
+      - For `high`, also include `deviation_log`.
+      - Treat those UI-specific labels as task-packet aliases only. Persisted `workflow-state.md` and `Reference-Implementation` `required_evidence` MUST remain canonical: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
     - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
     - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
     - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes
@@ -332,6 +340,8 @@ join points, and refinement checkpoints, but it must not shrink scope. Do not sh
    - Deviation Review join points before downstream work continues when an implementation may intentionally diverge from the reference contract
    - Task completion criteria that carry required evidence from the active profile instead of relying only on generic behavior validation
    - User-Observable Path Coverage section for every UI/TUI/CLI/API/runtime-visible behavior, including task packet fields `consumer_surfaces` and `required_evidence: real_entrypoint_evidence` where required
+   - Design Quality Coverage section for user-visible surfaces with surface name, design source, required states, platform coverage, evidence required, and task IDs that implement and verify the surface
+   - UI tasks should cover default, hover, focus, disabled, loading, empty, error, and success states when relevant, responsive layout or platform adaptation, accessibility checks, screenshots, terminal samples, recordings, or manual review artifacts, and no-color or narrow-terminal modes for TUI/CLI
    - Analyze Remediation Mapping section when regenerating tasks after a blocked `sp-analyze` gate
    - Parallel execution examples per story
     - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution

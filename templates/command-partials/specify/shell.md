@@ -23,6 +23,19 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - Ask one high-impact question at a time when the answer can change scope, acceptance, architecture, compatibility, security, data shape, external integration, or downstream planning.
 - Decompose ambiguous terms such as capability, real, usable, works, end-to-end, fetch, probe, health, model, endpoint, integration, auth, `new` command, `<tool> new`, create, scaffold, authoring, template creation, authoring workflow, CLI path, TUI path, `能力`, `真实`, and `可用` before compiling the spec.
 - Treat create/scaffold/`new` command/authoring workflow wording as an operation-shaped capability signal. If surface minimization changes the entry point, preserve the capability operation through an explicit TUI route, core API, public CLI command, or user-confirmed deferral; do not downgrade it to manual copy docs or static template-only support without confirmation.
+
+## UI Reference Input
+
+- Detect screenshots, HTML/CSS mockups, Tailwind/shadcn/React/Vue/Svelte snippets, Figma exports, reference URLs, existing product pages, or matching-language such as "make it like this", "basically the same", "copy this layout", or "use this as the design".
+- When UI reference input exists, ask for the fidelity mode unless the user already stated it:
+  - `approximate` by default: preserve layout, density, hierarchy, visual rhythm, component structure, and primary interactions.
+  - `high`: require visual comparison and deviation notes.
+  - `inspiration`: extract principles only and avoid similar-looking output.
+- Use `choose_ui_reference_lane_dispatch(command_name="specify", snapshot, workload_shape)` before dispatching UI reference work.
+- Record `lane_mode: ui-reference-artifact`, `dispatch_shape`, `execution_surface`, `workflow_status`, `blocked_reason`, and whether inline fallback was user approved.
+- The `sp-specify` leader must not directly parse UI references and write the UI contract when UI reference input is present. The leader dispatches and validates the lane.
+- The writable UI reference lane may write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html` inside the active `FEATURE_DIR`.
+- Do not treat this as a read-only evidence lane; source code, tests, app styling, component implementation, package managers, builds, and app servers remain forbidden.
 - Present two or three approaches with trade-offs and a recommendation before committing to the spec shape.
 - Present the spec sections for user approval before final artifact release.
 - When entered through `sp-auto` with `auto_default_recommendation: true`, automatically accept a single safe recommended approach or section-shape option instead of stopping only for a `1`/`2`/`3` reply; do not use this to confirm scope reduction, dropped upstream signals, out-of-scope conflicts, or unresolved planning-critical ambiguity.
@@ -33,6 +46,8 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 
 - Write or update `spec.md`, `alignment.md`, `context.md`, `workflow-state.md`, `checklists/requirements.md`, and `references.md` when useful.
 - Write or update a minimal `brainstorming/handoff-to-specify.json` compatibility handoff with `version`, `status`, `entry_source`, `source_handoff`, `source_handoff_json`, `source_files_read`, `source_signal_disposition`, `must_preserve`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, `open_conflict_count`, and `quality_gate`.
+- When UI reference input exists, require `ui-reference-notes.md`; when the feature has a concrete UI surface, require `ui-brief.md`; create `ui-target.html` only when a disposable visual target materially reduces ambiguity.
+- For `approximate` and `high` UI reference fidelity, activate `Reference-Implementation`, populate `Fidelity Requirements`, persist canonical Reference-Implementation `required_evidence`, and record UI-specific labels only as aliases/mapping notes.
 - `alignment.md` must record `Semantic Term Decisions`, `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` when relevant.
 - Do not recommend `/sp.plan` while a capability-like upstream signal lacks disposition, an ambiguous high-impact term lacks confirmation, or an out-of-scope conflict lacks user confirmation.
 - Report what was confirmed, what remains open, what was deferred or dropped, and the single valid next command.

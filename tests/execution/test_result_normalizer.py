@@ -70,6 +70,70 @@ def test_normalize_worker_task_result_payload_maps_camel_case_ui_fidelity_eviden
     ]
 
 
+def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
+    result = normalize_worker_task_result_payload(
+        {
+            "task_id": "T105",
+            "status": "success",
+            "summary": "validated UI fidelity",
+            "ui_evidence": [
+                {
+                    "kind": "screenshot",
+                    "path": "artifacts/ui/desktop-1440.png",
+                    "viewport": "1440",
+                }
+            ],
+            "ui_verification": {
+                "contract_check": "pass",
+                "runtime_evidence": "pass",
+                "visual_comparison": "unavailable",
+                "fidelity_status": "pending-human-review",
+                "reviewer": "agent",
+            },
+        }
+    )
+
+    assert result.ui_evidence == [
+        {
+            "kind": "screenshot",
+            "path": "artifacts/ui/desktop-1440.png",
+            "viewport": "1440",
+        }
+    ]
+    assert result.ui_verification.fidelity_status == "pending-human-review"
+
+
+def test_normalize_worker_task_result_payload_accepts_camel_case_ui_fields() -> None:
+    result = normalize_worker_task_result_payload(
+        {
+            "taskId": "T106",
+            "status": "success",
+            "summary": "validated UI fidelity",
+            "uiEvidence": [
+                {
+                    "kind": "screenshot",
+                    "path": "artifacts/ui/mobile-390.png",
+                    "viewport": "390",
+                }
+            ],
+            "uiVerification": {
+                "fidelityStatus": "pending-human-review",
+                "visualComparison": "unavailable",
+            },
+        }
+    )
+
+    assert result.ui_evidence == [
+        {
+            "kind": "screenshot",
+            "path": "artifacts/ui/mobile-390.png",
+            "viewport": "390",
+        }
+    ]
+    assert result.ui_verification.fidelity_status == "pending-human-review"
+    assert result.ui_verification.visual_comparison == "unavailable"
+
+
 def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success() -> None:
     result = normalize_worker_task_result_payload(
         {

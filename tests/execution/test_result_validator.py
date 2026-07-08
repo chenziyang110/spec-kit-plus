@@ -14,6 +14,7 @@ from specify_cli.execution.packet_schema import (
 from specify_cli.execution.packet_validator import PacketValidationError
 from specify_cli.execution.result_schema import (
     RuleAcknowledgement,
+    UIVerification,
     ValidationResult,
     WorkerTaskResult,
 )
@@ -378,6 +379,40 @@ def test_validate_worker_task_result_rejects_synthetic_only_real_entrypoint_evid
     assert "real-entrypoint" in exc.value.message
 
 
+def test_validate_worker_task_result_enforces_real_entrypoint_ui_evidence_alias(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["real_entrypoint_ui_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "consumer evidence" in exc.value.message
+
+
 @pytest.mark.parametrize(
     "invalid_value",
     [
@@ -483,15 +518,11 @@ def test_validate_worker_task_result_accepts_real_entrypoint_consumer_evidence(
     assert validated.status == "success"
 
 
-def test_validate_worker_task_result_rejects_success_without_applicable_ui_fidelity_evidence(
+def test_validate_worker_task_result_accepts_ui_human_review_fidelity_status(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["visual_comparison_evidence"],
-    )
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    sample_packet.ui_contract.fidelity_level = "approximate"
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -513,248 +544,28 @@ def test_validate_worker_task_result_rejects_success_without_applicable_ui_fidel
                 ".specify/project-cognition/project-cognition.db",
             ],
         ),
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        validate_worker_task_result(result, sample_packet)
-
-    assert exc.value.code == "DP3"
-    assert "ui fidelity evidence" in exc.value.message
-
-
-def test_validate_worker_task_result_requires_visual_comparison_ui_fidelity_evidence(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["visual_comparison_evidence"],
-    )
-    result = WorkerTaskResult(
-        task_id="T017",
-        status="success",
-        changed_files=["src/services/auth_service.py"],
-        validation_results=[
-            ValidationResult(
-                command="pytest tests/unit/test_auth_service.py -q",
-                status="passed",
-                output="1 passed",
-            )
-        ],
-        ui_fidelity_evidence=[
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+        ui_evidence=[
             {
-                "kind": "manual_review",
-                "artifact": "artifacts/auth-flow-notes.md",
+                "kind": "pending review",
+                "path": "artifacts/ui/pending-review.md",
             }
         ],
-        summary="Implemented auth flow",
-        rule_acknowledgement=RuleAcknowledgement(
-            required_references_read=True,
-            forbidden_drift_respected=True,
-            context_bundle_read=True,
-            paths_read=[
-                ".specify/project-cognition/status.json",
-                ".specify/project-cognition/project-cognition.db",
-            ],
-        ),
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        validate_worker_task_result(result, sample_packet)
-
-    assert exc.value.code == "DP3"
-    assert "visual comparison" in exc.value.message
-
-
-def test_validate_worker_task_result_rejects_visual_comparison_without_payload(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["visual_comparison_evidence"],
-    )
-    result = WorkerTaskResult(
-        task_id="T017",
-        status="success",
-        changed_files=["src/services/auth_service.py"],
-        validation_results=[
-            ValidationResult(
-                command="pytest tests/unit/test_auth_service.py -q",
-                status="passed",
-                output="1 passed",
-            )
-        ],
-        ui_fidelity_evidence=[
-            {
-                "kind": "visual_comparison",
-            }
-        ],
-        summary="Implemented auth flow",
-        rule_acknowledgement=RuleAcknowledgement(
-            required_references_read=True,
-            forbidden_drift_respected=True,
-            context_bundle_read=True,
-            paths_read=[
-                ".specify/project-cognition/status.json",
-                ".specify/project-cognition/project-cognition.db",
-            ],
-        ),
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        validate_worker_task_result(result, sample_packet)
-
-    assert exc.value.code == "DP3"
-    assert "visual comparison" in exc.value.message
-
-
-def test_validate_worker_task_result_rejects_visual_comparison_placeholder_payload(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["visual_comparison_evidence"],
-    )
-    result = WorkerTaskResult(
-        task_id="T017",
-        status="success",
-        changed_files=["src/services/auth_service.py"],
-        validation_results=[
-            ValidationResult(
-                command="pytest tests/unit/test_auth_service.py -q",
-                status="passed",
-                output="1 passed",
-            )
-        ],
-        ui_fidelity_evidence=[
-            {
-                "kind": "visual_comparison",
-                "artifact": "TODO",
-            }
-        ],
-        summary="Implemented auth flow",
-        rule_acknowledgement=RuleAcknowledgement(
-            required_references_read=True,
-            forbidden_drift_respected=True,
-            context_bundle_read=True,
-            paths_read=[
-                ".specify/project-cognition/status.json",
-                ".specify/project-cognition/project-cognition.db",
-            ],
-        ),
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        validate_worker_task_result(result, sample_packet)
-
-    assert exc.value.code == "DP3"
-    assert "visual comparison" in exc.value.message
-
-
-@pytest.mark.parametrize("placeholder", ["placeholder", "unknown", "replace_me"])
-def test_validate_worker_task_result_rejects_common_visual_comparison_placeholders(
-    sample_packet: WorkerTaskPacket,
-    placeholder: str,
-) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["visual_comparison_evidence"],
-    )
-    result = WorkerTaskResult(
-        task_id="T017",
-        status="success",
-        changed_files=["src/services/auth_service.py"],
-        validation_results=[
-            ValidationResult(
-                command="pytest tests/unit/test_auth_service.py -q",
-                status="passed",
-                output="1 passed",
-            )
-        ],
-        ui_fidelity_evidence=[
-            {
-                "kind": "visual_comparison",
-                "artifact": placeholder,
-            }
-        ],
-        summary="Implemented auth flow",
-        rule_acknowledgement=RuleAcknowledgement(
-            required_references_read=True,
-            forbidden_drift_respected=True,
-            context_bundle_read=True,
-            paths_read=[
-                ".specify/project-cognition/status.json",
-                ".specify/project-cognition/project-cognition.db",
-            ],
-        ),
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        validate_worker_task_result(result, sample_packet)
-
-    assert exc.value.code == "DP3"
-    assert "visual comparison" in exc.value.message
-
-
-def test_validate_worker_task_result_accepts_required_ui_fidelity_evidence(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["visual_comparison_evidence"],
-    )
-    result = WorkerTaskResult(
-        task_id="T017",
-        status="success",
-        changed_files=["src/services/auth_service.py"],
-        validation_results=[
-            ValidationResult(
-                command="pytest tests/unit/test_auth_service.py -q",
-                status="passed",
-                output="1 passed",
-            )
-        ],
-        ui_fidelity_evidence=[
-            {
-                "kind": "visual_comparison",
-                "artifact": "artifacts/auth-flow-diff.png",
-            }
-        ],
-        summary="Implemented auth flow",
-        rule_acknowledgement=RuleAcknowledgement(
-            required_references_read=True,
-            forbidden_drift_respected=True,
-            context_bundle_read=True,
-            paths_read=[
-                ".specify/project-cognition/status.json",
-                ".specify/project-cognition/project-cognition.db",
-            ],
-        ),
     )
 
     validated = validate_worker_task_result(result, sample_packet)
 
-    assert validated.ui_fidelity_evidence[0]["kind"] == "visual_comparison"
+    assert validated.ui_verification.fidelity_status == "pending-human-review"
 
 
-def test_validate_worker_task_result_rejects_required_screenshots_when_only_notes_exist(
+def test_validate_worker_task_result_enforces_ui_contract_required_evidence(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["desktop_screenshot", "mobile_screenshot"],
-    )
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.required_evidence = ["visual_comparison_or_human_review"]
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -765,12 +576,6 @@ def test_validate_worker_task_result_rejects_required_screenshots_when_only_note
                 status="passed",
                 output="1 passed",
             )
-        ],
-        ui_fidelity_evidence=[
-            {
-                "kind": "notes",
-                "artifact": "artifacts/auth-flow-notes.md",
-            }
         ],
         summary="Implemented auth flow",
         rule_acknowledgement=RuleAcknowledgement(
@@ -788,57 +593,834 @@ def test_validate_worker_task_result_rejects_required_screenshots_when_only_note
         validate_worker_task_result(result, sample_packet)
 
     assert exc.value.code == "DP3"
-    assert "desktop_screenshot" in exc.value.message
+    assert (
+        exc.value.message
+        == "visual_comparison_or_human_review requires ui_verification fidelity_status"
+    )
 
 
-def test_validate_worker_task_result_accepts_required_screenshot_evidence(
+def test_validate_worker_task_result_rejects_missing_ui_evidence_for_approximate_ui_contract(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["desktop_screenshot", "mobile_screenshot"],
-    )
-    result = WorkerTaskResult(
-        task_id="T017",
-        status="success",
-        changed_files=["src/services/auth_service.py"],
-        validation_results=[
-            ValidationResult(
-                command="pytest tests/unit/test_auth_service.py -q",
-                status="passed",
-                output="1 passed",
-            )
-        ],
-        ui_fidelity_evidence=[
-            {
-                "kind": "desktop_screenshot",
-                "screenshot": "artifacts/auth-flow-desktop.png",
-            },
-            {
-                "kind": "mobile_screenshot",
-                "screenshot": "artifacts/auth-flow-mobile.png",
-            },
-        ],
-        summary="Implemented auth flow",
-        rule_acknowledgement=RuleAcknowledgement(
-            required_references_read=True,
-            forbidden_drift_respected=True,
-            context_bundle_read=True,
-            paths_read=[
-                ".specify/project-cognition/status.json",
-                ".specify/project-cognition/project-cognition.db",
-            ],
-        ),
-    )
-
-    validated = validate_worker_task_result(result, sample_packet)
-
-    assert [item["kind"] for item in validated.ui_fidelity_evidence] == [
-        "desktop_screenshot",
-        "mobile_screenshot",
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.required_evidence = [
+        "desktop screenshot",
+        "mobile screenshot",
+        "visual_comparison_or_human_review",
     ]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "ui evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_accepts_ui_contract_required_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+        ui_evidence=[
+            {
+                "kind": "human review",
+                "path": "artifacts/ui/review-notes.md",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.fidelity_status == "pending-human-review"
+
+
+def test_validate_worker_task_result_accepts_needs_human_review_visual_comparison(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="needs-human-review",
+            fidelity_status="pending-human-review",
+        ),
+        ui_evidence=[
+            {
+                "kind": "review tracking",
+                "path": "artifacts/ui/review-tracking.md",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.visual_comparison == "needs-human-review"
+    assert validated.ui_verification.fidelity_status == "pending-human-review"
+
+
+def test_validate_worker_task_result_rejects_pending_human_review_without_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "review evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_pending_human_review_with_only_screenshot_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "review evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_accepts_pending_human_review_with_manual_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+        ),
+        manual_evidence=[
+            {
+                "kind": "human review",
+                "path": "artifacts/ui/manual-review.md",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.fidelity_status == "pending-human-review"
+
+
+@pytest.mark.parametrize("reviewer", ["human", "manual"])
+def test_validate_worker_task_result_accepts_human_reviewer_ui_pass_without_comparison(
+    sample_packet: WorkerTaskPacket,
+    reviewer: str,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="passed",
+            reviewer=reviewer,
+        ),
+        manual_evidence=[
+            {
+                "kind": "human approval",
+                "path": f"artifacts/ui/{reviewer}-approval.md",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_verification.reviewer == reviewer
+
+
+def test_validate_worker_task_result_rejects_human_reviewer_ui_pass_without_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="passed",
+            reviewer="human",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "manual evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_failed_ui_fidelity_status(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="failed",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "fidelity status" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_skipped_ui_fidelity_status(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="passed",
+            fidelity_status="skipped",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "unknown ui fidelity status" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_failed_ui_visual_comparison(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="failed",
+            fidelity_status="passed",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "visual comparison" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_skipped_ui_visual_comparison(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="skipped",
+            fidelity_status="passed",
+            reviewer="human",
+        ),
+        manual_evidence=[
+            {
+                "kind": "human approval",
+                "path": "artifacts/ui/human-approval.md",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "unknown visual comparison status" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_pending_human_review_visual_comparison(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="pending-human-review",
+            fidelity_status="pending-human-review",
+        ),
+        ui_evidence=[
+            {
+                "kind": "review tracking",
+                "path": "artifacts/ui/review-tracking.md",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "unknown visual comparison status" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_failed_ui_fidelity_status_for_ui_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="failed",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "fidelity status" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_failed_ui_visual_comparison_for_ui_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="failed",
+            fidelity_status="passed",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "visual comparison" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_agent_ui_pass_without_comparison_for_ui_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="passed",
+            reviewer="agent",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "human approval" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_human_ui_pass_with_only_screenshot_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = []
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="passed",
+            reviewer="human",
+        ),
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "manual evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_agent_reviewer_claiming_ui_pass_without_comparison(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="unavailable",
+            fidelity_status="passed",
+            reviewer="vision-subagent",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "human approval" in exc.value.message
+
+
+@pytest.mark.parametrize("fidelity_status", [None, "", "not-run", "unavailable", "none"])
+def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
+    sample_packet: WorkerTaskPacket,
+    fidelity_status: str | None,
+) -> None:
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    ui_verification = (
+        UIVerification(fidelity_status=fidelity_status)
+        if fidelity_status is not None
+        else UIVerification()
+    )
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=ui_verification,
+        ui_evidence=[
+            {
+                "kind": "desktop screenshot",
+                "path": "artifacts/ui/desktop.png",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert (
+        exc.value.message
+        == "visual_comparison_or_human_review requires ui_verification fidelity_status"
+    )
 
 
 def test_validate_worker_task_result_requires_must_preserve_evidence(
@@ -1009,3 +1591,157 @@ def test_validate_worker_task_result_accepts_success_with_consequence_evidence(
     validated = validate_worker_task_result(result, sample_packet)
 
     assert validated.consequence_evidence[0]["obligation_id"] == "CA-001"
+
+
+def _successful_result_with_ui_fidelity(
+    *,
+    ui_fidelity_evidence: list[dict[str, str]] | None = None,
+) -> WorkerTaskResult:
+    return WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        ui_fidelity_evidence=ui_fidelity_evidence or [],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+
+def _require_ui_fidelity(
+    sample_packet: WorkerTaskPacket,
+    required_evidence: list[str],
+) -> None:
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="high",
+        design_inputs=["designs/auth-flow.png"],
+        required_evidence=required_evidence,
+    )
+
+
+def test_validate_worker_task_result_rejects_success_without_applicable_ui_fidelity_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(_successful_result_with_ui_fidelity(), sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "ui fidelity evidence" in exc.value.message
+
+
+def test_validate_worker_task_result_requires_visual_comparison_ui_fidelity_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
+    result = _successful_result_with_ui_fidelity(
+        ui_fidelity_evidence=[
+            {
+                "kind": "manual_review",
+                "artifact": "artifacts/auth-flow-notes.md",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "visual comparison" in exc.value.message
+
+
+@pytest.mark.parametrize("artifact", ["", "TODO", "placeholder", "unknown", "replace_me"])
+def test_validate_worker_task_result_rejects_visual_comparison_placeholder_payload(
+    sample_packet: WorkerTaskPacket,
+    artifact: str,
+) -> None:
+    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
+    evidence = {"kind": "visual_comparison"}
+    if artifact:
+        evidence["artifact"] = artifact
+    result = _successful_result_with_ui_fidelity(ui_fidelity_evidence=[evidence])
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "visual comparison" in exc.value.message
+
+
+def test_validate_worker_task_result_accepts_required_ui_fidelity_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
+    result = _successful_result_with_ui_fidelity(
+        ui_fidelity_evidence=[
+            {
+                "kind": "visual_comparison",
+                "artifact": "artifacts/auth-flow-diff.png",
+            }
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.ui_fidelity_evidence[0]["kind"] == "visual_comparison"
+
+
+def test_validate_worker_task_result_rejects_required_screenshots_when_only_notes_exist(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    _require_ui_fidelity(sample_packet, ["desktop_screenshot", "mobile_screenshot"])
+    result = _successful_result_with_ui_fidelity(
+        ui_fidelity_evidence=[
+            {
+                "kind": "notes",
+                "artifact": "artifacts/auth-flow-notes.md",
+            }
+        ],
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "desktop_screenshot" in exc.value.message
+
+
+def test_validate_worker_task_result_accepts_required_screenshot_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    _require_ui_fidelity(sample_packet, ["desktop_screenshot", "mobile_screenshot"])
+    result = _successful_result_with_ui_fidelity(
+        ui_fidelity_evidence=[
+            {
+                "kind": "desktop_screenshot",
+                "screenshot": "artifacts/auth-flow-desktop.png",
+            },
+            {
+                "kind": "mobile_screenshot",
+                "screenshot": "artifacts/auth-flow-mobile.png",
+            },
+        ],
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert [item["kind"] for item in validated.ui_fidelity_evidence] == [
+        "desktop_screenshot",
+        "mobile_screenshot",
+    ]

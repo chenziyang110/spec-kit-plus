@@ -19,6 +19,7 @@ from .multi_agent import ClaudeMultiAgentAdapter
 # Mapping of command template stem → argument-hint text shown inline
 # when a user invokes the slash command in Claude Code.
 ARGUMENT_HINTS: dict[str, str] = {
+    "design": "Optional design-system mode, reference, or UI readiness concern",
     "specify": "Describe the feature you want to specify",
     "ask": "Ask a read-only project question to answer from live evidence",
     "discussion": "Describe the rough idea or discussion slug to create or resume before specification",

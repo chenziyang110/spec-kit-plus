@@ -234,6 +234,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "CAND-001" not in command_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
 def _assert_ask_contract(content: str) -> None:
     lowered = content.lower()
 
@@ -264,6 +272,16 @@ def _assert_ask_contract(content: str) -> None:
     assert "whether backend/server/runtime code exists" in lowered
     assert "discussion-state.md" not in content
     assert "handoff-to-specify" not in content
+
+
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -331,6 +349,32 @@ def _discussion_artifact_path(integration, project_root):
     return command_path
 
 
+def _specify_artifact_path(integration, project_root):
+    command_path = integration.commands_dest(project_root) / integration.command_filename("specify")
+    if command_path.exists():
+        return command_path
+
+    if hasattr(integration, "skills_dest"):
+        skill_path = integration.skills_dest(project_root) / "sp-specify" / "SKILL.md"
+        if skill_path.exists():
+            return skill_path
+
+    return command_path
+
+
+def _design_artifact_path(integration, project_root):
+    command_path = integration.commands_dest(project_root) / integration.command_filename("design")
+    if command_path.exists():
+        return command_path
+
+    if hasattr(integration, "skills_dest"):
+        skill_path = integration.skills_dest(project_root) / "sp-design" / "SKILL.md"
+        if skill_path.exists():
+            return skill_path
+
+    return command_path
+
+
 
 MARKDOWN_INTEGRATION_SAMPLE_KEYS = ("claude", "opencode", "kiro-cli")
 
@@ -354,6 +398,10 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
 
+        specify_path = _specify_artifact_path(integration, project)
+        assert specify_path.exists(), integration_key
+        _assert_ui_reference_guidance(specify_path.read_text(encoding="utf-8"))
+
         discussion_path = _discussion_artifact_path(integration, project)
         assert discussion_path.exists(), integration_key
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
@@ -376,6 +424,18 @@ def test_collected_markdown_integrations_preserve_ask_contract(tmp_path):
             ask_path = integration.commands_dest(project) / integration.command_filename("ask")
         assert ask_path.exists(), integration_key
         _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
+
+
+def test_collected_markdown_integrations_generate_design_workflow(tmp_path):
+    for integration_key in MARKDOWN_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = _design_artifact_path(integration, project)
+        assert design_path.exists(), integration_key
+        _assert_design_contract(design_path.read_text(encoding="utf-8"))
 
 
 class MarkdownIntegrationTests:
@@ -590,6 +650,11 @@ class MarkdownIntegrationTests:
         assert "discussion_decision_digest" in content
         assert "review_criteria_carried_forward" in content
         assert "must_not_dilute" in content
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in content
         assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
@@ -956,6 +1021,7 @@ class MarkdownIntegrationTests:
         i = get_integration(self.KEY)
         cmd_dir = i.registrar_config["dir"]
         files = []
+        files.append("DESIGN.md")
 
         # Command files
         for stem in self._command_stems():

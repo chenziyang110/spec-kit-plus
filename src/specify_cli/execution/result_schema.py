@@ -22,6 +22,15 @@ class RuleAcknowledgement:
 
 
 @dataclass(slots=True)
+class UIVerification:
+    contract_check: str = "not-run"
+    runtime_evidence: str = "not-run"
+    visual_comparison: str = "unavailable"
+    fidelity_status: str = "not-applicable"
+    reviewer: str = "agent"
+
+
+@dataclass(slots=True)
 class WorkerTaskResult:
     task_id: str
     status: WorkerStatus
@@ -40,6 +49,8 @@ class WorkerTaskResult:
     must_preserve_evidence: list[dict[str, str]] = field(default_factory=list)
     consequence_evidence: list[dict[str, str]] = field(default_factory=list)
     ui_fidelity_evidence: list[dict[str, str]] = field(default_factory=list)
+    ui_evidence: list[dict[str, str]] = field(default_factory=list)
+    ui_verification: UIVerification = field(default_factory=UIVerification)
 
 
 def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
@@ -112,6 +123,12 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     )
     result_payload["ui_fidelity_evidence"] = _normalize_evidence_items(
         result_payload.get("ui_fidelity_evidence", [])
+    )
+    result_payload["ui_evidence"] = _normalize_evidence_items(
+        result_payload.get("ui_evidence", [])
+    )
+    result_payload["ui_verification"] = UIVerification(
+        **_filter_dataclass_payload(UIVerification, result_payload.get("ui_verification", {}))
     )
     result_payload["validation_results"] = validation_results
     result_payload["rule_acknowledgement"] = rule_acknowledgement

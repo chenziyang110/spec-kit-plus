@@ -140,6 +140,29 @@
 - [Profile obligation that MUST change implementation shape, task sequencing, validation evidence, or completion criteria]
 - [Reference fidelity contract, required evidence, or deviation rule that downstream tasks and implementation MUST preserve]
 
+## Design System Adoption
+
+- Source and status:
+- Token strategy:
+- Component reuse and extension policy:
+- Platform adaptation strategy:
+- Accessibility requirements:
+- Evidence strategy:
+- Forbidden styling drift:
+
+## Feature UI Brief Adoption
+
+- UI brief source:
+- UI reference notes:
+- Visual target:
+- Fidelity mode:
+- Reference-Implementation profile:
+- Required evidence:
+- Must preserve:
+- May adapt:
+- Must not:
+- Visual verification strategy:
+
 ## Technical Context
 
 <!--

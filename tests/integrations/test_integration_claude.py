@@ -348,6 +348,7 @@ class TestClaudeIntegration:
 
         expected.extend(
             [
+                "DESIGN.md",
                 "CLAUDE.md",
                 ".claude/hooks/README.md",
                 ".claude/hooks/claude-hook-dispatch.py",

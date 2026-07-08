@@ -674,6 +674,12 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - Verify all required tasks are completed
    - Check that implemented features match the original specification, accepted behavior, and any independent test criteria captured in `tasks.md`
    - Validate that tests pass and coverage meets requirements
+   - Before closing UI tasks, read `DESIGN.md`, `Design System Adoption`, and `Design Quality Coverage`.
+   - Do not close UI tasks with only `tests passed` unless the accepted task package explicitly says tests are sufficient evidence. Usual evidence:
+     - Web: Playwright screenshots, viewport checks, accessibility checks, and visual review notes.
+     - Mobile or desktop: screenshots or recordings, platform-state coverage, and accessibility checks where available.
+     - TUI or CLI: representative output, narrow-width output, no-color output, error and empty states, and readability checks.
+   - If `DESIGN.md` is missing, contradictory, or insufficient, record a blocker and route back to `sp-design`, `sp-plan`, or `sp-specify` according to ownership.
    - Confirm the implementation follows the technical plan
    - Confirm final exit evidence matches `active_profile` and `required_evidence` from `workflow-state.md` when present.
    - For `Standard Delivery`, behavior validation and regression proof are the lighter default unless stronger required evidence was explicitly activated.
@@ -681,6 +687,12 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - For UI/TUI/CLI/API/runtime-visible work that requires `real_entrypoint_evidence`, do not mark completion unless the result evidence covers the real entrypoint path instead of only a synthesized object or hand-built state.
    - Comparison evidence, a deviation log, or fidelity audit notes are acceptable artifact forms only when they satisfy those persisted `Reference-Implementation` terms; do not treat them as replacement `required_evidence` names.
    - Do not accept generic `tests passed` output as sufficient when the active profile requires stronger exit evidence.
+   - **UI verification gate**:
+     - Before closing a UI-bearing task with `ui_contract`, confirm the worker returned `ui_evidence` and `ui_verification`.
+     - Do not mark UI fidelity as passed from tests alone.
+     - If `visual_comparison_or_human_review` is required and no vision-capable comparison is available, record `fidelity_status: pending-human-review`.
+     - If `high` fidelity is required, require visual comparison or human review plus deviation notes before claiming fidelity pass.
+     - Functional completion may be recorded separately from visual fidelity approval.
    - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion
    - Do not use final-completion language such as `core implementation complete`, `implementation complete`, or `ready for integration testing` as shorthand for overall feature completion while required E2E, Polish, documentation, quickstart, or other planned validation tasks remain incomplete; report that partial state explicitly instead
    - Classify each unresolved gap:

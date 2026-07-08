@@ -166,6 +166,36 @@ order, dispatch shape, and validation strategy, but it must not shrink scope.
   for heavy, safety-critical, or unpacketizable work. They are not permission to
   shrink scope or relabel confirmed behavior as a later version.
 
+## Design System Adoption
+
+For UI-facing features, convert `DESIGN.md` into implementation constraints:
+
+- design-system source and status
+- token strategy
+- component reuse and extension policy
+- platform adaptation strategy
+- accessibility requirements
+- screenshot or output evidence strategy
+- forbidden styling drift
+
+Name where implementers may use judgment and where the design system is binding.
+
+## Feature UI Brief Adoption
+
+When `FEATURE_DIR/ui-brief.md` exists, read it before planning implementation details. Treat it as a planning input alongside `DESIGN.md`, not as optional background.
+
+For `approximate` and `high` fidelity, preserve the existing `Reference-Implementation` profile and promote these UI-specific evidence terms into `Implementation Constitution`:
+
+- `reference_source_evidence`
+- `ui_fidelity_criteria`
+- `real_entrypoint_ui_evidence`
+- `visual_comparison_or_human_review`
+- `deviation_log` when fidelity is `high`
+
+Persist canonical `Reference-Implementation` required evidence terms while carrying the UI aliases as mapping notes: `reference_source_evidence` maps to reference source evidence, `ui_fidelity_criteria` maps to fidelity criteria, `real_entrypoint_ui_evidence` maps to verification entry points, `visual_comparison_or_human_review` maps to verification entry points plus difference inventory or human approval, and `deviation_log` maps to difference inventory and accepted deviations.
+
+The plan must state what implementers must preserve, what they may adapt, what they must not copy, and whether visual comparison can be agent-verified or needs human review.
+
 ## Operational Consequence Design
 
 Before `sp-tasks`, convert every triggered `CA-###` consequence obligation into concrete operational design.

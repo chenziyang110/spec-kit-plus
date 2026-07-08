@@ -46,6 +46,15 @@ def test_project_handbook_template_documents_discussion_deferred_persistence():
     assert "only at save triggers, semantic checkpoints, and lifecycle transitions" in content
 
 
+def test_project_handbooks_document_feature_ui_reference_lane():
+    for rel_path in ("templates/project-handbook-template.md", "PROJECT-HANDBOOK.md"):
+        content = _read(rel_path)
+
+        assert "ui-brief.md" in content
+        assert "ui-reference-notes.md" in content
+        assert "UI reference" in content
+
+
 def test_project_map_templates_share_metadata_contract():
     for rel_path in [
         "templates/project-map/root/ARCHITECTURE.md",

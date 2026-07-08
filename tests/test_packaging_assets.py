@@ -10,10 +10,21 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _read(path: str) -> str:
+    return (REPO_ROOT / path).read_text(encoding="utf-8")
+
+
 def test_wheel_force_include_bundles_passive_skills() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"templates/passive-skills" = "specify_cli/core_pack/passive-skills"' in pyproject
+
+
+def test_design_assets_are_packaged() -> None:
+    pyproject = _read("pyproject.toml")
+
+    assert '"templates/design-template.md" = "specify_cli/core_pack/templates/design-template.md"' in pyproject
+    assert '"templates/design-library" = "specify_cli/core_pack/templates/design-library"' in pyproject
 
 
 def test_cli_dependency_metadata_pins_pydantic_graph_base_node_api() -> None:
@@ -245,6 +256,14 @@ def test_wheel_force_include_bundles_artifact_scaffold_templates() -> None:
     assert (REPO_ROOT / "templates" / "artifacts" / "quick-status.md").exists()
 
 
+def test_ui_reference_artifact_templates_are_packaged() -> None:
+    pyproject = _read("pyproject.toml")
+
+    assert '"templates/ui-reference-notes-template.md" = "specify_cli/core_pack/templates/ui-reference-notes-template.md"' in pyproject
+    assert '"templates/ui-brief-template.md" = "specify_cli/core_pack/templates/ui-brief-template.md"' in pyproject
+    assert '"templates/ui-target-template.html" = "specify_cli/core_pack/templates/ui-target-template.html"' in pyproject
+
+
 def test_lossless_specify_state_templates_are_force_included() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     for template in (
@@ -330,6 +349,15 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
         "# Quick Status\n",
         encoding="utf-8",
     )
+    (core_pack / "templates" / "design-template.md").write_text("# Design\n", encoding="utf-8")
+    (core_pack / "templates" / "ui-reference-notes-template.md").write_text("# UI Reference Notes\n", encoding="utf-8")
+    (core_pack / "templates" / "ui-brief-template.md").write_text("# UI Brief\n", encoding="utf-8")
+    (core_pack / "templates" / "ui-target-template.html").write_text("<!doctype html>\n", encoding="utf-8")
+    (core_pack / "templates" / "design-library").mkdir(parents=True)
+    (core_pack / "templates" / "design-library" / "workbench-precision.md").write_text(
+        "# Workbench Precision\n",
+        encoding="utf-8",
+    )
     (core_pack / "command-partials" / "test").mkdir(parents=True)
     (core_pack / "command-partials" / "test" / "shell.md").write_text("shell\n", encoding="utf-8")
     (core_pack / "passive-skills" / "python-testing").mkdir(parents=True)
@@ -360,6 +388,19 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     assert (project_root / ".specify" / "templates" / "examples" / "deep-research" / "not-needed.md").exists()
     assert (project_root / ".specify" / "templates" / "prd" / "master-pack-template.md").exists()
     assert (project_root / ".specify" / "templates" / "artifacts" / "quick-status.md").exists()
+    assert (project_root / ".specify" / "templates" / "design-template.md").exists()
+    assert (project_root / ".specify" / "templates" / "ui-reference-notes-template.md").exists()
+    assert (project_root / ".specify" / "templates" / "ui-brief-template.md").exists()
+    assert (project_root / ".specify" / "templates" / "ui-target-template.html").exists()
+    assert (
+        project_root
+        / ".specify"
+        / "templates"
+        / "design-library"
+        / "workbench-precision.md"
+    ).exists()
+    assert (project_root / "DESIGN.md").exists()
+    assert (project_root / "DESIGN.md").read_text(encoding="utf-8") == "# Design\n"
     assert (project_root / ".specify" / "templates" / "command-partials" / "test" / "shell.md").exists()
     assert (project_root / ".specify" / "templates" / "passive-skills" / "python-testing" / "SKILL.md").exists()
     assert not (project_root / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
@@ -369,3 +410,21 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     assert (project_root / ".specify" / "scripts" / "shared" / "prd-state.py").exists()
     assert not (project_root / ".specify" / "bin" / "specify-hook.mjs").exists()
     assert not (project_root / ".specify" / "bin" / "specify-hook.py").exists()
+
+
+def test_install_shared_infra_preserves_existing_design_md(tmp_path, monkeypatch) -> None:
+    from specify_cli import _install_shared_infra
+
+    core_pack = tmp_path / "core_pack"
+    (core_pack / "templates").mkdir(parents=True)
+    (core_pack / "templates" / "design-template.md").write_text("# New Design\n", encoding="utf-8")
+    (core_pack / "scripts" / "powershell").mkdir(parents=True)
+
+    monkeypatch.setattr("specify_cli._locate_core_pack", lambda: core_pack)
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / "DESIGN.md").write_text("# Existing Design\n", encoding="utf-8")
+
+    assert _install_shared_infra(project_root, "ps") is True
+    assert (project_root / "DESIGN.md").read_text(encoding="utf-8") == "# Existing Design\n"

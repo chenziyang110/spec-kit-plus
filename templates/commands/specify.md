@@ -106,6 +106,13 @@ scripts:
 ## Project Context Intake
 
 - Explore project context just enough to understand ownership, constraints, adjacent surfaces, reusable patterns, compatibility boundaries, and likely verification routes.
+- **UI Design System Intake**:
+  - If the feature has user-interface scope, read `DESIGN.md` when present.
+  - Capture Experience Requirements in `spec.md`.
+  - Capture design-system readiness in `alignment.md` with `design_system_status`.
+  - Capture relevant design references and gaps in `context.md`.
+  - Treat missing or insufficient design system as a strong blocker for new product UI, redesign or rebrand, core workflow experience, multi-platform design decisions, and high-visibility customer-facing surfaces.
+  - Treat missing design system as a soft risk for small internal form changes, narrow copy or state improvements, already-covered component variants, and low-risk CLI/TUI wording refinements.
 - Check whether `.specify/project-cognition/status.json` exists before trusting project cognition output.
 - Run or emulate:
 
@@ -278,6 +285,17 @@ Use a simple row per term:
 - Under `auto_default_recommendation: true`, do not ask the user to reply `1`, `2`, or `3` when the single safe pending action is accepting that recommended section shape.
 - If the user requests changes, update the working understanding before writing final artifacts.
 
+**UI reference input handling**:
+- Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, UI reference URLs or existing UI pages, and matching-language such as "make it like this" as UI reference input.
+- Ask the user which fidelity mode applies when not already explicit: `approximate` (default), `high`, or `inspiration`.
+- Use `choose_ui_reference_lane_dispatch(command_name="specify", snapshot, workload_shape)` and record `lane_mode: ui-reference-artifact`.
+- For `approximate` and `high`, native subagents are required by default; if native subagents are unavailable, follow the decision from `choose_ui_reference_lane_dispatch` and proceed inline only when it returns a gated `leader-inline` fallback with explicit user approval recorded, otherwise block with the missing capability instead of guessing.
+- For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
+- Dispatch the UI reference lane to write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
+- Validate that `ui-target.html`, when present, is static HTML/CSS only: single-file, low-dependency, no `<script>`, no inline event handlers such as `onclick`, no JS-driven behavior, no external CSS/JS, no CDN, no remote runtime dependencies, no production-source claim, and preserves information density over decorative polish.
+- For `approximate` and `high`, activate the `Reference-Implementation` profile contract, require `Fidelity Requirements`, and persist canonical `required_evidence` terms: `reference source evidence`, `fidelity criteria`, `verification entry points`, `difference inventory`, and `accepted deviations`; for `high`, require a deviation log as an artifact form for `difference inventory` / `accepted deviations`.
+- Keep UI-specific labels only as aliases/mapping notes, not persisted `required_evidence` values: `reference_source_evidence` alias -> `reference source evidence`; `ui_fidelity_criteria` alias -> `fidelity criteria`; `real_entrypoint_ui_evidence` alias -> `verification entry points` / existing `real_entrypoint_evidence` when real entrypoint proof is needed; `visual_comparison_or_human_review` alias -> `verification entry points` plus `accepted deviations` when human review is pending; `deviation_log` alias/artifact -> `difference inventory` / `accepted deviations`.
+
 ## Artifact Writing Contract
 
 Write the specification package after context intake, necessary clarification, semantic decomposition, approach comparison, and section approval.
@@ -382,7 +400,7 @@ After the completion report, check whether `.specify/extensions.yml` exists.
 - Avoid implementation design except where a dependency, constraint, boundary, or planning risk must be named.
 - Keep generated artifacts concise, reviewable, and useful to `/sp.plan`.
 - Do not treat product minimization as the default strategy. Scope reduction requires user confirmation before it can shape `spec.md`.
-- Before dispatching independent review or evidence work, use `choose_evidence_lane_dispatch(command_name="specify", snapshot, workload_shape)` and record `lane_mode: read-only-evidence`, `dispatch_shape: one-subagent | parallel-subagents`, and `execution_surface: native-subagents` when a validated isolated read-only lane exists. Use delegated lanes only for isolated review/evidence packets, never for source edits or artifact writes.
+- Before dispatching independent review or evidence work, use `choose_evidence_lane_dispatch(command_name="specify", snapshot, workload_shape)` and record `lane_mode: read-only-evidence`, `dispatch_shape: one-subagent | parallel-subagents`, and `execution_surface: native-subagents` when a validated isolated read-only lane exists. Use delegated read-only lanes only for isolated review/evidence packets, never for source edits or artifact writes. UI reference artifact work uses `choose_ui_reference_lane_dispatch` and the `ui-reference-artifact` lane instead.
 - Record impacted surfaces and change-propagation expectations, major affected surfaces, verification entry points and minimum evidence expectations, and known unknowns or stale evidence boundaries that could change planning safety.
 - Route to `/sp.clarify` when planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria.
 - Do not recommend `/sp.plan` until the written artifacts pass self-review and user review has been requested.

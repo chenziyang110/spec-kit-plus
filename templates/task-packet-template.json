@@ -45,6 +45,18 @@
   "must_preserve": [],
   "allowed_optimization_scope": [],
   "required_validation": [],
+  "required_evidence": [],
+  "ui_contract": {
+    "design_sources": [],
+    "reference_notes": "",
+    "visual_target": "",
+    "fidelity_level": "none",
+    "must_preserve": [],
+    "may_adapt": [],
+    "must_not": [],
+    "required_states": [],
+    "required_evidence": []
+  },
   "stop_and_reopen_conditions": [],
   "does_not_remove": [],
   "capability_operations": [],

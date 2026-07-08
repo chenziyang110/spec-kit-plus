@@ -332,6 +332,27 @@ def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
     assert "whether backend/server/runtime code exists" in lowered
 
 
+def test_design_command_declares_design_system_workflow_contract() -> None:
+    content = read_template("templates/commands/design.md")
+    raw = (PROJECT_ROOT / "templates" / "commands" / "design.md").read_text(encoding="utf-8")
+
+    assert "description: Use when a project needs a DESIGN.md design-system contract" in content
+    assert "primary_outputs" in content
+    assert "DESIGN.md" in content
+    assert ".specify/design/design-state.md" in content
+    assert "{{spec-kit-include: ../command-partials/design/shell.md}}" in raw
+
+
+def test_templates_include_design_quality_sections() -> None:
+    assert "## Experience Requirements" in read_template("templates/spec-template.md")
+    assert "UI Reference Processing" in read_template("templates/spec-template.md")
+    assert "ui-reference-notes.md" in read_template("templates/spec-template.md")
+    assert "ui-brief.md" in read_template("templates/spec-template.md")
+    assert "## Design System Adoption" in read_template("templates/plan-template.md")
+    assert "Design Quality Coverage" in read_template("templates/tasks-template.md")
+    assert "design-system" in read_template("templates/workflow-state-template.md").lower()
+
+
 def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(tmp_path: Path):
     target = tmp_path / "codex-specify-entrypoint"
     env = os.environ.copy()

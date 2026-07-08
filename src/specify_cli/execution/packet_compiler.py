@@ -15,6 +15,7 @@ from .packet_schema import (
     PacketReference,
     PacketScope,
     UiFidelityRequirements,
+    UIContract,
     WorkerTaskPacket,
 )
 from .packet_validator import validate_worker_task_packet
@@ -179,6 +180,66 @@ def _task_detail_table_field_values(task_detail: str, section_title: str, field_
         if _normalized_header_name(parts[0]) == expected_field:
             values.extend(_split_list_field(parts[1]))
     return _unique(values)
+
+
+def _ui_contract_for_task(task_detail: str) -> UIContract:
+    section = _section_body(task_detail, "UI Implementation Contract")
+    if not section:
+        return UIContract()
+    fidelity_level = next(
+        iter(
+            _task_detail_table_field_values(
+                task_detail, "UI Implementation Contract", "fidelity_level"
+            )
+        ),
+        "",
+    )
+    if not fidelity_level:
+        fidelity_level = next(
+            iter(
+                _task_detail_table_field_values(
+                    task_detail, "UI Implementation Contract", "ui_fidelity_mode"
+                )
+            ),
+            "none",
+        )
+    return UIContract(
+        design_sources=_task_detail_table_field_values(
+            task_detail, "UI Implementation Contract", "design_sources"
+        ),
+        reference_notes=next(
+            iter(
+                _task_detail_table_field_values(
+                    task_detail, "UI Implementation Contract", "reference_notes"
+                )
+            ),
+            "",
+        ),
+        visual_target=next(
+            iter(
+                _task_detail_table_field_values(
+                    task_detail, "UI Implementation Contract", "visual_target"
+                )
+            ),
+            "",
+        ),
+        fidelity_level=fidelity_level,
+        must_preserve=_task_detail_table_field_values(
+            task_detail, "UI Implementation Contract", "must_preserve"
+        ),
+        may_adapt=_task_detail_table_field_values(
+            task_detail, "UI Implementation Contract", "may_adapt"
+        ),
+        must_not=_task_detail_table_field_values(
+            task_detail, "UI Implementation Contract", "must_not"
+        ),
+        required_states=_task_detail_table_field_values(
+            task_detail, "UI Implementation Contract", "required_states"
+        ),
+        required_evidence=_task_detail_table_field_values(
+            task_detail, "UI Implementation Contract", "required_evidence"
+        ),
+    )
 
 
 def _line_mentions_task(line: str, task_id: str) -> bool:
@@ -452,6 +513,7 @@ def compile_worker_task_packet(
     resolved_task_body = task_body if task_body is not None else _task_body(tasks_text, task_id)
     task_detail = _task_detail_body(tasks_text, task_id)
     objective = resolved_task_body
+    ui_contract = _ui_contract_for_task(task_detail)
 
     required_references = [
         PacketReference(
@@ -460,6 +522,21 @@ def compile_worker_task_packet(
         )
         for value in _bullet_values(_section_body(plan_text, "Required Implementation References"))
     ]
+    existing_reference_paths = {reference.path for reference in required_references}
+    for value in [
+        *ui_contract.design_sources,
+        ui_contract.reference_notes,
+        ui_contract.visual_target,
+    ]:
+        if not value or value in existing_reference_paths:
+            continue
+        required_references.append(
+            PacketReference(
+                path=value,
+                reason="UI implementation contract reference",
+            )
+        )
+        existing_reference_paths.add(value)
     forbidden_drift = _unique(
         _bullet_values(_section_body(plan_text, "Forbidden Implementation Drift"))
         + _task_detail_table_field_values(task_detail, "Scope Boundaries", "forbidden")
@@ -602,6 +679,7 @@ def compile_worker_task_packet(
             "Scope Boundaries",
             "controller_checks_required",
         ),
+        ui_contract=ui_contract,
         must_preserve_obligations=must_preserve_obligations,
         consequence_obligations=_consequence_obligations_for_task(tasks_text, task_id),
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),

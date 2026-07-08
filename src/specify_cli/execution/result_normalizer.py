@@ -7,6 +7,7 @@ from typing import Any
 
 from .result_schema import (
     RuleAcknowledgement,
+    UIVerification,
     ValidationResult,
     WorkerTaskResult,
 )
@@ -112,6 +113,19 @@ def _normalize_rule_acknowledgement(payload: dict[str, Any]) -> RuleAcknowledgem
     )
 
 
+def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
+    raw = _pick(payload, "ui_verification", "uiVerification")
+    if not isinstance(raw, dict):
+        return UIVerification()
+    return UIVerification(
+        contract_check=str(_pick(raw, "contract_check", "contractCheck") or "not-run"),
+        runtime_evidence=str(_pick(raw, "runtime_evidence", "runtimeEvidence") or "not-run"),
+        visual_comparison=str(_pick(raw, "visual_comparison", "visualComparison") or "unavailable"),
+        fidelity_status=str(_pick(raw, "fidelity_status", "fidelityStatus") or "not-applicable"),
+        reviewer=str(_pick(raw, "reviewer") or "agent"),
+    )
+
+
 def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, Any] | str) -> WorkerTaskResult:
     """Normalize common worker result payload shapes into ``WorkerTaskResult``."""
 
@@ -185,4 +199,8 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
         ui_fidelity_evidence=_normalize_evidence_items(
             _pick(payload, "ui_fidelity_evidence", "uiFidelityEvidence")
         ),
+        ui_evidence=_normalize_evidence_items(
+            _pick(payload, "ui_evidence", "uiEvidence")
+        ),
+        ui_verification=_normalize_ui_verification(payload),
     )

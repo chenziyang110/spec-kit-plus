@@ -88,6 +88,22 @@ class ExecutionIntent:
     success_signals: list[str] = field(default_factory=list)
 
 
+UIFidelityLevel = Literal["none", "approximate", "high", "inspiration"]
+
+
+@dataclass(slots=True)
+class UIContract:
+    design_sources: list[str] = field(default_factory=list)
+    reference_notes: str = ""
+    visual_target: str = ""
+    fidelity_level: UIFidelityLevel = "none"
+    must_preserve: list[str] = field(default_factory=list)
+    may_adapt: list[str] = field(default_factory=list)
+    must_not: list[str] = field(default_factory=list)
+    required_states: list[str] = field(default_factory=list)
+    required_evidence: list[str] = field(default_factory=list)
+
+
 @dataclass(slots=True)
 class ConsequenceObligation:
     obligation_id: str
@@ -135,6 +151,7 @@ class WorkerTaskPacket:
     review_risks: list[str] = field(default_factory=list)
     ui_fidelity_requirements: UiFidelityRequirements = field(default_factory=UiFidelityRequirements)
     controller_checks_required: list[str] = field(default_factory=list)
+    ui_contract: UIContract = field(default_factory=UIContract)
     must_preserve_obligations: list[MustPreserveObligation] = field(default_factory=list)
     consequence_obligations: list[ConsequenceObligation] = field(default_factory=list)
     escalation_role: str = "debugger"
@@ -201,6 +218,9 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     dispatch_policy = DispatchPolicy(
         **_filter_dataclass_payload(DispatchPolicy, payload.get("dispatch_policy", {}))
     )
+    ui_contract = UIContract(
+        **_filter_dataclass_payload(UIContract, payload.get("ui_contract", {}))
+    )
     packet_payload = _filter_dataclass_payload(WorkerTaskPacket, payload)
     packet_payload["intent"] = intent
     packet_payload["interfaces"] = interfaces
@@ -211,4 +231,5 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     packet_payload["must_preserve_obligations"] = must_preserve_obligations
     packet_payload["consequence_obligations"] = consequence_obligations
     packet_payload["dispatch_policy"] = dispatch_policy
+    packet_payload["ui_contract"] = ui_contract
     return WorkerTaskPacket(**packet_payload)

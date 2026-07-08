@@ -384,6 +384,37 @@ class TestCodexAutoPromote:
         assert "discussion-state.md" not in partial_content
         assert "handoff-to-specify" not in partial_content
 
+    def test_codex_init_generates_sp_design_workflow_contract(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "codex-design-contract"
+        result = runner.invoke(
+            app,
+            ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        )
+
+        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+        skill_path = target / ".codex" / "skills" / "sp-design" / "SKILL.md"
+        template_path = target / ".specify" / "templates" / "commands" / "design.md"
+        partial_path = target / ".specify" / "templates" / "command-partials" / "design" / "shell.md"
+        assert skill_path.exists()
+        assert template_path.exists()
+        assert partial_path.exists()
+
+        skill_content = skill_path.read_text(encoding="utf-8")
+        skill_lower = skill_content.lower()
+
+        assert "DESIGN.md" in skill_content
+        assert "specify design lint" in skill_content
+        assert "Forbidden Writes" in skill_content
+        assert "CSS or theme implementation files" in skill_content
+        assert "active_command: sp-design" in skill_content
+        assert "phase_mode: design-only" in skill_content
+        assert "source code" in skill_lower
+
     def test_codex_init_generates_semantic_resume_smoke_contract(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -1097,13 +1128,19 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify",):
-        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        skill_content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8")
+        content = skill_content.lower()
         assert (
             "execution_model: subagent-mandatory" in content
             or "execution model: `subagents-first`" in content
             or "lane_mode: read-only-evidence" in content
         )
         assert "choose_evidence_lane_dispatch" in content
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in skill_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content

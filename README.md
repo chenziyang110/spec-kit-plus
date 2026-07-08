@@ -195,6 +195,10 @@ After `specify init`, use the generated workflow commands in your agent:
 6. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
 7. `integrate` to close out completed independent feature lanes before mainline merge
 
+- `design` / `sp-design` creates, synthesizes, refines, or audits the root `DESIGN.md` design-system contract before UI work proceeds. Use it for new product UI, redesigns, rebrands, core workflow experience, multi-platform interface decisions, and high-visibility customer-facing surfaces.
+
+Feature UI references are handled during `sp-specify`. When a feature request includes screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, or "make it like this" language, `sp-specify` asks for a fidelity mode and defaults to `approximate`. It uses the writable `ui-reference-artifact` lane to produce `ui-reference-notes.md` and `ui-brief.md`, plus optional `ui-target.html`. Approximate and high-fidelity references activate the existing `Reference-Implementation` profile and carry UI-specific evidence requirements through plan, tasks, and implementation. If agent visual comparison is unavailable, visual fidelity remains `pending-human-review` instead of being claimed as complete.
+
 Use `ask` for read-only evidence-backed project Q&A when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. In v1, `sp-ask` is independent from `sp-discussion`, creates no state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. There is no `specify ask` Typer helper in v1.
 
 Use `discussion` before `specify` or `quick` when the idea is exploratory, has product trade-offs, or has unclear context boundaries. `discussion` classifies each turn and works as a high-throughput senior product-engineering advisor: the visible conversation uses one unified frontstage contract with the recommended direction, plain-language reason, useful draft or next design step, default next step, and override path when relevant. The agent controls headings, order, and detail level instead of choosing among named answer templates or fixed cards. Frontstage / backstage separation keeps state accounting backstage for decisions, open questions, Must-Preserve items, evidence, dirty artifacts, flush reasons, and handoff readiness. It uses checkpoint persistence: do not persist every turn; ordinary replies, acknowledgements, low-risk preferences, and small clarifications default to frontstage-only deferred in-conversation persistence rather than file writes, including for counters, receipts, status summaries, and dirty markers; flush batched compact events at semantic checkpoints, user-triggered saves, five-turn cadence, compaction risk, or durable lifecycle transitions; and surface file paths and state updates only when the user needs review, recovery, verification, or state visibility. Native hooks may surface resume or compaction reminders, but they are not a per-user-reply or per-tool-use persistence loop for discussion files. The behavior is: continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists. For repository facts, it uses project cognition only as advisory navigation toward minimal live reads, proves claims from live evidence, runs a Truth Pass, records verified project facts, open assumptions, checked evidence, and advice confidence, and maintains a Discussion Compass. It runs a Context Boundary Gate before technicalizing unclear target/reference/external/evidence boundaries; cross-project requests must lock the target project root because current project cognition cannot prove another project's implementation facts. It drafts one unified `discussion_requirement_contract` handoff pair only after explicit handoff request and boundary lock, and marks that pair handoff-ready only after self-review and user confirmation. The compatibility filenames remain `handoff-to-specify.md` and `handoff-to-specify.json`, but the pair is one agent-facing requirement contract with `consumer_eligibility` for `sp-specify` and `sp-quick`, `recommended_consumer`, `quick_task_candidate`, `handoff_goal`, `quality_gate`, and a `Handoff Reviewer Guide`; do not generate a second quick-specific handoff. Skills-based projects also install `spec-kit-discussion-handoff-review`, which standardizes review verdicts and applies ready-summary quality checks without requiring fixed visible labels or cards.
@@ -327,7 +331,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- Support skills: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `design`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `sp-teams`
 
 Conditional gates and follow-up commands:
@@ -710,6 +714,14 @@ Maintainer note:
 - `specify check`
 - `specify extension list`
 - `specify preset list`
+
+### Design System Helpers
+
+- `specify design lint` checks whether `DESIGN.md` is complete enough for agents to use.
+- `specify design export --format json` exports normalized design tokens and component token references.
+- `specify design export --format tailwind` exports supported token categories into Tailwind theme fields.
+- `specify design import SOURCE_REFERENCE` writes `.specify/design/references.md` as input for `sp-design`; it does not overwrite `DESIGN.md`.
+- Feature UI references are handled during `sp-specify`: screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, or "make it like this" language route through the writable `ui-reference-artifact` lane, which produces `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
 
 Result helper command shapes:
 

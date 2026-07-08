@@ -9,6 +9,8 @@ from specify_cli.execution.implementation_review import (
 )
 from specify_cli.execution.packet_schema import UiFidelityLevel
 
+import yaml
+
 from .template_utils import read_template
 
 
@@ -29,6 +31,229 @@ def _read(path: str) -> str:
 
 def _read_project_file(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
+
+
+def _design_system_from_front_matter(content: str) -> dict:
+    assert content.startswith("---\n")
+    front_matter = content.split("---", 2)[1]
+    parsed = yaml.safe_load(front_matter)
+    assert isinstance(parsed, dict)
+    design_system = parsed.get("design_system")
+    assert isinstance(design_system, dict)
+    return design_system
+
+
+def test_design_template_declares_v1_schema_and_required_guidance() -> None:
+    content = _read("templates/design-template.md")
+    design_system = _design_system_from_front_matter(content)
+
+    assert "design_system:" in content
+    assert "schema: spec-kit-design-v1" in content
+    assert design_system["schema"] == "spec-kit-design-v1"
+    assert set((design_system.get("tokens") or {})) >= {"color", "spacing", "radius", "typography"}
+    assert set((design_system.get("components") or {})) >= {"button", "input", "card"}
+    assert "tokens:" in content
+    assert "components:" in content
+    assert "accessibility:" in content
+    assert "## Anti-Patterns" in content
+    assert "## UI QA Checklist" in content
+    assert "{color." in content
+
+
+def test_design_library_contains_owned_second_created_presets() -> None:
+    presets = [
+        "workbench-precision",
+        "developer-tool-sharp",
+        "data-dense-ops",
+        "consumer-mobile-polished",
+    ]
+
+    for preset in presets:
+        content = _read(f"templates/design-library/{preset}.md")
+        lowered = content.lower()
+        design_system = _design_system_from_front_matter(content)
+
+        assert "schema: spec-kit-design-v1" in content
+        assert design_system["schema"] == "spec-kit-design-v1"
+        assert set((design_system.get("tokens") or {})) >= {"color", "spacing", "radius", "typography"}
+        assert set((design_system.get("components") or {})) >= {"button", "input", "card"}
+        assert "spec kit plus owned" in lowered
+        assert "second-created" in lowered
+        assert "do not copy external brand expression" in lowered
+
+
+def test_discussion_carries_ui_design_intent_to_handoff() -> None:
+    content = _read("templates/commands/discussion.md")
+
+    assert "experience_commitments" in content
+    assert "design_system_requirements" in content
+    assert "design_system_status" in content
+    assert "design_risk_level" in content
+    assert "sp-design" in content
+
+
+def test_specify_reads_design_md_for_ui_features() -> None:
+    content = _read("templates/commands/specify.md")
+
+    assert "DESIGN.md" in content
+    assert "Experience Requirements" in content
+    assert "design-system readiness" in content
+    assert "design_system_status" in content
+    assert "strong blocker" in content.lower()
+    assert "soft risk" in content.lower()
+
+
+def test_discussion_design_carry_forward_artifacts_are_modeled() -> None:
+    command = _read("templates/commands/discussion.md")
+    state = _read("templates/discussion-state-template.md")
+    handoff = _read("templates/brainstorming-handoff-specify-template.json")
+
+    for field in (
+        "experience_commitments",
+        "design_system_requirements",
+        "design_system_status",
+        "design_risk_level",
+    ):
+        assert field in command
+        assert field in state
+        assert field in handoff
+
+
+def test_specify_design_readiness_has_alignment_and_context_slots() -> None:
+    command = _read("templates/commands/specify.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+
+    assert "design-system readiness" in command
+    assert "design_system_status" in alignment
+    assert "design_risk_level" in alignment
+    assert "Design System Readiness" in alignment
+    assert "Design References and Gaps" in context
+    assert "design_system_requirements" in context
+    assert "design references" in context.lower()
+
+
+def test_specify_ui_reference_input_uses_writable_subagent_lane() -> None:
+    command = _read("templates/commands/specify.md")
+    shell = _read("templates/command-partials/specify/shell.md")
+    combined = f"{command}\n{shell}"
+
+    assert "UI Reference Input" in combined
+    assert "choose_ui_reference_lane_dispatch" in combined
+    assert "follow the decision from `choose_ui_reference_lane_dispatch`" in combined
+    assert "gated `leader-inline` fallback with explicit user approval recorded" in combined
+    assert "lane_mode: ui-reference-artifact" in combined
+    assert "ui-reference-notes.md" in combined
+    assert "ui-brief.md" in combined
+    assert "ui-target.html" in combined
+    assert "approximate" in combined
+    assert "matching-language" in combined
+    assert "Reference-Implementation" in combined
+    assert "Fidelity Requirements" in combined
+    assert "read-only evidence lane" in combined
+    assert "must not directly parse" in combined.lower()
+    assert "safe lane" in combined.lower()
+    assert "contract-ready" in combined.lower() or "contract ready" in combined.lower()
+    assert "fidelity criteria" in combined.lower()
+    assert "verification entry points" in combined.lower()
+    assert "accepted deviations" in combined.lower()
+
+
+def test_feature_ui_brief_artifacts_are_carried_by_spec_package_templates() -> None:
+    spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    state = _read("templates/workflow-state-template.md")
+    required_evidence_line = next(
+        line for line in state.splitlines() if line.startswith("- required_evidence:")
+    )
+
+    assert "UI Reference Processing" in spec
+    assert "ui-reference-notes.md" in spec
+    assert "ui-brief.md" in spec
+    assert "Fidelity Requirements" in spec
+    assert "Reference Object" in spec
+    assert "Required Fidelity" in spec
+    assert "Reference Behavior Inventory" in spec
+    assert "UI Brief Carry-Forward" in alignment
+    assert "ui_reference_processing_status" in alignment
+    assert "UI Reference Inputs" in context
+    assert "ui_reference_lane_mode" in state
+    assert "ui_fidelity_mode" in state
+    assert "reference source evidence" in state
+    assert "fidelity criteria" in state
+    assert "verification entry points" in state
+    assert "difference inventory" in state
+    assert "accepted deviations" in state
+    assert "reference source evidence" in required_evidence_line
+    assert "fidelity criteria" in required_evidence_line
+    assert "verification entry points" in required_evidence_line
+    assert "difference inventory" in required_evidence_line
+    assert "accepted deviations" in required_evidence_line
+    assert "ui_fidelity_criteria" not in required_evidence_line
+    assert "real_entrypoint_ui_evidence" not in required_evidence_line
+    assert "visual_comparison_or_human_review" not in required_evidence_line
+    assert "deviation_log" not in required_evidence_line
+    assert "ui_fidelity_criteria" in state
+    assert "real_entrypoint_ui_evidence" in state
+    assert "visual_comparison_or_human_review" in state
+    assert "deviation_log" in state
+
+
+def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
+    plan = _read("templates/commands/plan.md")
+    tasks = _read("templates/commands/tasks.md")
+    implement = _read("templates/commands/implement.md")
+
+    assert "Design System Adoption" in plan
+    assert "token strategy" in plan.lower()
+    assert "Design Quality Coverage" in tasks
+    assert "required states" in tasks.lower()
+    assert "DESIGN.md" in implement
+    assert "Playwright screenshots" in implement
+    assert "representative output" in implement
+    assert "tests passed" in implement
+    assert "sp-design" in implement
+
+
+def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
+    plan_template = _read("templates/plan-template.md")
+    plan_command = _read("templates/commands/plan.md")
+    tasks_template = _read("templates/tasks-template.md")
+    tasks_command = _read("templates/commands/tasks.md")
+    implement = _read("templates/commands/implement.md")
+    worker_prompt = _read("templates/worker-prompts/implementer.md")
+    tasks_template_lower = tasks_template.lower()
+    tasks_command_lower = tasks_command.lower()
+
+    assert "Feature UI Brief Adoption" in plan_template
+    assert "ui-brief.md" in plan_command
+    assert "Reference-Implementation" in plan_command
+    assert "visual_comparison_or_human_review" in plan_command
+    assert "UI Implementation Contract" in tasks_template
+    assert "ui_contract" in tasks_template
+    assert "packet shorthand" in tasks_template_lower or "shorthand aliases" in tasks_template_lower
+    assert "reference source evidence" in tasks_template_lower
+    assert "fidelity criteria" in tasks_template_lower
+    assert "verification entry points" in tasks_template_lower
+    assert "difference inventory" in tasks_template_lower
+    assert "accepted deviations" in tasks_template_lower
+    assert "ui_fidelity_mode" in tasks_command
+    assert "required_evidence" in tasks_command
+    assert (
+        "packet shorthand" in tasks_command_lower
+        or "shorthand aliases" in tasks_command_lower
+        or "task-packet aliases only" in tasks_command_lower
+    )
+    assert "reference source evidence" in tasks_command_lower
+    assert "fidelity criteria" in tasks_command_lower
+    assert "verification entry points" in tasks_command_lower
+    assert "difference inventory" in tasks_command_lower
+    assert "accepted deviations" in tasks_command_lower
+    assert "ui_verification" in implement
+    assert "pending-human-review" in implement
+    assert "ui_contract" in worker_prompt
+    assert "ui_evidence" in worker_prompt
 
 
 def _launcher_query(intent: str) -> str:
@@ -179,6 +404,21 @@ def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
         "`history`: explain prior decisions from project files, templates, docs, generated state, "
         "memory, or project cognition."
     ) in shell
+
+
+def test_design_workflow_is_not_an_implementation_workflow() -> None:
+    content = _read("templates/commands/design.md") + "\n" + _read("templates/command-partials/design/shell.md")
+    lowered = content.lower()
+
+    assert "active_command: sp-design" in content
+    assert "phase_mode: design-only" in content
+    assert "allowed writes" in lowered
+    assert "forbidden writes" in lowered
+    assert "source code" in lowered
+    assert "css or theme implementation files" in lowered
+    assert "ask the user to approve a direction" in lowered
+    assert "specify design lint" in lowered
+    assert "write the project's own `design.md`" in lowered
 
 
 def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None:
@@ -5237,3 +5477,76 @@ def test_implement_template_requires_structured_execution_contract_from_tasks() 
     assert "allowed optimization scope" in implement
     assert "stop-and-reopen conditions" in implement
     assert "redefining the user's locked goal" in implement or "must not redefine the product goal" in implement
+
+
+def test_ui_reference_artifact_templates_define_strict_formats() -> None:
+    def _h2_headings(markdown: str) -> list[str]:
+        return [line.strip() for line in markdown.splitlines() if line.startswith("## ")]
+
+    notes = _read("templates/ui-reference-notes-template.md")
+    brief = _read("templates/ui-brief-template.md")
+    specify = _read("templates/commands/specify.md")
+    target = _read("templates/ui-target-template.html")
+    target_lower = target.lower()
+    specify_lower = specify.lower()
+
+    assert _h2_headings(notes) == [
+        "## Reference Inputs",
+        "## Fidelity Mode",
+        "## Ownership And Reuse Constraints",
+        "## Visual Facts",
+        "## Layout Facts",
+        "## Density And Visible Data",
+        "## Component Facts",
+        "## State Facts",
+        "## Interaction Facts",
+        "## Responsive Facts",
+        "## Must Preserve Candidates",
+        "## Adaptation Candidates",
+        "## Risks And Gaps",
+    ]
+
+    assert _h2_headings(brief) == [
+        "## Source Design System",
+        "## Reference Inputs",
+        "## Fidelity Contract",
+        "## Screen Structure",
+        "## Information Hierarchy",
+        "## Components And States",
+        "## Interactions",
+        "## Responsive Behavior",
+        "## Accessibility And Keyboard Requirements",
+        "## Must Preserve",
+        "## May Adapt",
+        "## Must Not",
+        "## Required Evidence",
+        "## Worker Contract",
+    ]
+
+    assert "<!doctype html>" in target_lower
+    assert 'data-ui-target="' in target
+    assert 'data-fidelity="approximate"' in target
+    assert 'data-viewport="desktop-1440"' in target
+    assert 'data-viewport="mobile-390"' in target
+    assert 'data-state="empty"' in target
+    assert 'data-state="error"' in target
+    assert "No external dependencies" in target
+    assert "not production code" in target
+    assert "<script" not in target_lower
+    assert "<link" not in target_lower
+    assert "@import" not in target_lower
+    assert "src=" not in target_lower
+    assert "href=" not in target_lower
+    assert "url(" not in target_lower
+    assert "http://" not in target_lower
+    assert "https://" not in target_lower
+    assert "cdn" not in target_lower
+    assert "static HTML/CSS only" in specify
+    assert "no `<script>`" in specify
+    assert "no inline event handlers" in specify
+    assert "onclick" in specify_lower
+    assert "no JS-driven behavior" in specify
+    assert "no external CSS/JS" in specify
+    assert "no CDN" in specify
+    assert "no remote runtime dependencies" in specify
+    assert "no production-source claim" in specify

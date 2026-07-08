@@ -222,6 +222,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "CAND-001" not in command_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
 def _assert_ask_contract(content: str) -> None:
     lowered = content.lower()
 
@@ -252,6 +260,16 @@ def _assert_ask_contract(content: str) -> None:
     assert "whether backend/server/runtime code exists" in lowered
     assert "discussion-state.md" not in content
     assert "handoff-to-specify" not in content
+
+
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
 
 
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
@@ -330,6 +348,11 @@ def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
 
+        specify_path = integration.commands_dest(project) / integration.command_filename("specify")
+        assert specify_path.exists(), integration_key
+        parsed = tomllib.loads(specify_path.read_text(encoding="utf-8"))
+        _assert_ui_reference_guidance(parsed["prompt"])
+
         discussion_path = integration.commands_dest(project) / integration.command_filename("discussion")
         assert discussion_path.exists(), integration_key
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
@@ -363,6 +386,19 @@ def test_collected_toml_integrations_embed_internal_implement_review_loop(tmp_pa
         assert implement_path.exists(), integration_key
         parsed = tomllib.loads(implement_path.read_text(encoding="utf-8"))
         _assert_embedded_implement_review_contract(parsed["prompt"])
+
+
+def test_collected_toml_integrations_generate_design_workflow(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = integration.commands_dest(project) / integration.command_filename("design")
+        assert design_path.exists(), integration_key
+        parsed = tomllib.loads(design_path.read_text(encoding="utf-8"))
+        _assert_design_contract(parsed["prompt"])
 
 
 class TomlIntegrationTests:
@@ -609,6 +645,11 @@ class TomlIntegrationTests:
         assert "review_criteria_carried_forward" in content
         assert "must_not_dilute" in content
         assert "source_files_read" in content
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in content
         assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
@@ -1045,6 +1086,7 @@ class TomlIntegrationTests:
         i = get_integration(self.KEY)
         cmd_dir = i.registrar_config["dir"]
         files = []
+        files.append("DESIGN.md")
 
         # Command files (.toml)
         for stem in self._command_stems():
