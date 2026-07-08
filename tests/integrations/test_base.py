@@ -419,6 +419,8 @@ class TestBasePrimitives:
         assert "scripts/bash/setup-plan.sh --json" in rendered
         assert "$ARGUMENTS" in rendered
         assert "/sp.tasks" in rendered
+        assert "Purpose: verify owner context" in rendered
+        assert "Main body for" not in rendered
         assert "__AGENT__" not in rendered
         assert "{SCRIPT}" not in rendered
         assert "{ARGS}" not in rendered
@@ -429,8 +431,11 @@ class TestBasePrimitives:
         path.parent.mkdir()
         path.write_text("Use {SCRIPT}\n", encoding="utf-8")
 
-        with pytest.raises(ValueError, match=r"details\.md.*\{SCRIPT\}"):
+        with pytest.raises(ValueError) as exc_info:
             IntegrationBase.validate_no_unresolved_renderer_tokens(
                 path.read_text(encoding="utf-8"),
                 path,
             )
+        message = str(exc_info.value)
+        assert "details.md" in message
+        assert "{SCRIPT}" in message
