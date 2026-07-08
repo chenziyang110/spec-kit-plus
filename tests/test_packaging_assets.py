@@ -14,6 +14,17 @@ def _read(path: str) -> str:
     return (REPO_ROOT / path).read_text(encoding="utf-8")
 
 
+def _read_command_surface(command_name: str) -> str:
+    parts = [_read(f"templates/commands/{command_name}.md")]
+    references_dir = REPO_ROOT / "templates" / "command-references" / command_name
+    if references_dir.is_dir():
+        parts.extend(
+            path.read_text(encoding="utf-8")
+            for path in sorted(references_dir.glob("*.md"))
+        )
+    return "\n\n".join(parts)
+
+
 def test_wheel_force_include_bundles_passive_skills() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
@@ -47,7 +58,7 @@ def test_wheel_force_include_bundles_command_partials_and_prd_templates() -> Non
 def test_wheel_force_include_covers_deep_research_planning_handoff_contract() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     deep_research = (REPO_ROOT / "templates" / "commands" / "deep-research.md").read_text(encoding="utf-8")
-    plan = (REPO_ROOT / "templates" / "commands" / "plan.md").read_text(encoding="utf-8")
+    plan = _read_command_surface("plan")
     shell_partial = (
         REPO_ROOT / "templates" / "command-partials" / "deep-research" / "shell.md"
     ).read_text(encoding="utf-8")

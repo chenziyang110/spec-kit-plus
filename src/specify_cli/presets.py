@@ -881,7 +881,6 @@ class PresetManager:
                 if isinstance(selected_ai, str):
                     self._restore_core_skill_references_if_missing(
                         selected_ai=selected_ai,
-                        short_name=short_name,
                         skill_subdir=skill_subdir,
                     )
                 continue
@@ -921,7 +920,6 @@ class PresetManager:
         self,
         *,
         selected_ai: str,
-        short_name: str,
         skill_subdir: Path,
     ) -> None:
         """Restore missing core workflow skill references after preset removal."""
