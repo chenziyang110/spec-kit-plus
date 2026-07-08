@@ -438,14 +438,23 @@ If the idea is clearly greenfield or does not depend on existing project structu
 
 ## Lightweight Recovery Log
 
-Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and flush it to `discussion-log.md` only when a save trigger fires.
+Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and flush it to `discussion-log.md` only when a save trigger fires. Treat an existing discussion package as a recovery surface, not a reason to write more often.
+
+Classify the persistence mode before any write-capable action:
+
+- `frontstage-only`: default for ordinary discussion replies, acknowledgements, low-risk preference answers, small clarifications, and follow-up thinking. This mode behaves like `sp-ask`: answer in the visible conversation, keep backstage state in active memory, and do not write files, counters, dirty markers, receipts, or status summaries.
+- `durable-checkpoint`: use only when a semantic checkpoint, user-triggered save, five-turn cadence, high compaction risk, or resume-relevant stop requires a compact durable summary. Write the smallest useful state update.
+- `evidence-handoff`: use only when delegated or source-grounded evidence must be consumed by later synthesis. Persist the evidence packet or source reference required for that later consumer; do not turn the whole discussion into a transcript.
+- `lifecycle-transition`: use for handoff assessment, draft handoff creation, handoff-ready confirmation, consume/repair/archive transitions, or resume repair.
+
+Keep the classification backstage. If the mode is `frontstage-only`, do not call filesystem write tools for `.specify/discussions/<slug>/` artifacts during that turn.
 
 Before any local write in an ordinary discussion turn, run the persistence gate:
 
 - If no save trigger has fired, do not write `discussion-state.md`, `discussion-log.md`, structured files, hidden counters, dirty-artifact markers, or state receipts just to record that turn.
 - Keep `unsaved_turn_count`, pending decisions, pending open-question deltas, and compaction-preserve notes in active-conversation memory until the next save trigger.
 - Update persisted counters and pending summaries only inside the batched save event or semantic-checkpoint refresh.
-- A user reply is not itself a save trigger. A reply becomes durable only when it changes a checkpoint-level decision, boundary, evidence status, recommendation, handoff readiness, or the configured cadence/compaction/lifecycle trigger fires.
+- A user reply is not itself a save trigger. A reply becomes durable only when it changes a checkpoint-level decision, boundary, evidence status, recommendation, handoff readiness, or the configured cadence/compaction/lifecycle trigger fires. Plain confirmations such as "yes", "ok", "continue", or localized equivalents remain `frontstage-only` unless they approve a named checkpoint, save, handoff, or lifecycle transition.
 - Native hooks may remind the agent about resume or compaction at session start/stop, but must not create per-user-reply or per-tool-use discussion writes. Do not use `UserPromptSubmit`, `PostToolUse`, or similar hook events as a hidden persistence loop for `sp-discussion`.
 
 Save triggers are:
@@ -453,10 +462,11 @@ Save triggers are:
 - semantic checkpoint
 - user-triggered save, such as "save this point", "record the current discussion", or "this is decided"
 - five-turn cadence: five ordinary turns have accumulated since the last persisted discussion event
+- evidence-handoff: delegated or source-grounded evidence must be consumed by later synthesis
 - context compaction risk is high
 - handoff assessment, handoff drafting, resume repair, or another durable lifecycle transition needs the pending summary
 
-When a save trigger fires, append one batched compact event to `discussion-log.md`. The event is not a transcript. It records only durable meaning: covered turn count, event kind, user input summary, agent conclusion, confirmed decisions, pending requirement or feature points, evidence used, open question delta, save trigger, and whether a semantic checkpoint is required.
+When a save trigger fires, append one batched compact event to `discussion-log.md`. The event is not a transcript and must cover the accumulated unsaved ordinary turns as one compact summary. It records only durable meaning: covered turn count, event kind, user input summary, agent conclusion, confirmed decisions, pending requirement or feature points, evidence used, open question delta, save trigger, and whether a semantic checkpoint is required.
 
 Do not refresh all structured files on ordinary turns. The batched event log exists to survive context compaction while keeping normal discussion lightweight.
 
@@ -466,7 +476,7 @@ When there is active meaning to preserve, keep a pending backstage Compaction Pr
 
 ## Semantic Checkpoints
 
-Refresh structured files only at semantic checkpoints. A semantic checkpoint is a durable meaning change that affects the discussion's future course; it is not every user response, acknowledgement, minor preference, or answer to a low-risk follow-up.
+Refresh structured files only at semantic checkpoints. A semantic checkpoint is a durable meaning change that affects the discussion's future course; it is not every user response, acknowledgement, minor preference, low-risk clarification, or answer to a low-risk follow-up. The gate is meaning-first, not turn-count-first: the five-turn cadence may write one compact recovery event, but it does not by itself justify refreshing every structured file.
 
 - user confirms a goal, non-goal, scope boundary, or important product decision that changes the discussion compass, target boundary, recommendation, handoff readiness, blocking unknowns, or downstream contract
 - discussion stage changes, such as product framing to technical options

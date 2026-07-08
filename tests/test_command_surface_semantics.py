@@ -645,6 +645,8 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "`sp-debug` for root-cause diagnosis" in content
         assert "generated create-feature script" in content
         assert "prefer durable workflow state and explicit feature paths" in content
+        assert "frontstage-only deferred persistence" in content
+        assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in content
         assert "project cognition freshness truthful" in content
         assert "store reusable lessons in project memory" in content
         assert "1% chance" not in content

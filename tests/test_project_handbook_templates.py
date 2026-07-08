@@ -40,8 +40,8 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
 def test_project_handbook_template_documents_discussion_deferred_persistence():
     content = _read("templates/project-handbook-template.md").lower()
 
-    assert "deferred in-conversation persistence rather than file writes" in content
-    assert "including for counters and dirty markers" in content
+    assert "frontstage-only deferred in-conversation persistence rather than file writes" in content
+    assert "including for counters, receipts, status summaries, and dirty markers" in content
     assert "not a per-user-reply or per-tool-use persistence loop" in content
     assert "only at save triggers, semantic checkpoints, and lifecycle transitions" in content
 

@@ -164,6 +164,9 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "generated create-feature script" in lower
     assert "## durable state" in lower
     assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "frontstage-only deferred persistence" in lower
+    assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
+    assert "semantic checkpoints, user-triggered saves, five-turn cadence, compaction risk, or lifecycle transitions" in lower
     assert "project cognition freshness truthful" in lower
     assert "store reusable lessons in project memory" in lower
 

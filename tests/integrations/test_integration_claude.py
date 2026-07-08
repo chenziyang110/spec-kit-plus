@@ -45,6 +45,8 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "generated create-feature script" in lower
     assert "## Durable State" in content
     assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "frontstage-only deferred persistence" in lower
+    assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
     assert "project cognition freshness truthful" in lower
     assert "store reusable lessons in project memory" in lower
 

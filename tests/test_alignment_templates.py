@@ -744,6 +744,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "## Durable State" in block
     assert "prefer durable workflow state and explicit feature paths" in lowered
     assert "over branch name or chat memory" in lowered
+    assert "frontstage-only deferred persistence" in lowered
+    assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lowered
+    assert "semantic checkpoints, user-triggered saves, five-turn cadence, compaction risk, or lifecycle transitions" in lowered
     assert "project cognition freshness truthful" in lowered
     assert "store reusable lessons in project memory" in lowered
 
@@ -1396,15 +1399,30 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "Lightweight Recovery Log" in content
     assert "Semantic Checkpoints" in content
     assert "ordinary turns do not write local files by default" in lowered
+    assert "persistence mode" in lowered
+    assert "`frontstage-only`" in combined
+    assert "`durable-checkpoint`" in combined
+    assert "`evidence-handoff`" in combined
+    assert "`lifecycle-transition`" in combined
+    assert "treat an existing discussion package as a recovery surface, not a reason to write more often" in lowered
+    assert "plain confirmations such as" in lowered
     assert "a user reply is not itself a save trigger" in lowered
     assert "hidden counters" in lowered
     assert "per-user-reply or per-tool-use discussion writes" in lowered
+    assert "status summaries" in lowered
     assert "deferred persistence" in lowered
     assert "compaction preserve" in lowered
     assert "user-triggered save" in lowered
     assert "five-turn" in lowered
+    assert "evidence-handoff: delegated or source-grounded evidence must be consumed by later synthesis" in lowered
+    assert (
+        "save_trigger_policy: semantic-checkpoint | user-triggered-save | five-turn-cadence | "
+        "evidence-handoff | compaction-risk | durable-lifecycle-transition"
+    ) in combined
     assert "semantic checkpoint is a durable meaning change" in lowered
+    assert "five-turn cadence may write one compact recovery event" in lowered
     assert "pending_context_summary" in combined
+    assert "ordinary_turn_persistence_mode" in combined
     assert "unsaved_turn_count" in combined
     assert "memory-only between save triggers" in lowered
     assert "suppress local writes until save trigger" in lowered
@@ -2555,7 +2573,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "roughly 10-20 minutes" in lowered
     assert "subagent can still execute the task internally through smaller 2-5 minute atomic steps" in lowered
     assert "stop decomposition once the current executable window is atomic" in lowered
-    assert "leave later phases at the coarser story or phase level" in lowered
+    assert "leave later execution phases at the coarser story or phase level" in lowered
+    assert "refinement inside the current confirmed delivery" in lowered
+    assert "not delivery deferral or future work" in lowered
     assert "grouped parallelism is the default" in lowered
     assert "parallel-eligible" in lowered
     assert "batch range labels such as `t012-t021` are summaries, not executable lane identities" in lowered

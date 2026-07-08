@@ -20,6 +20,14 @@ For AI CLI workflows in this repository:
 - Prefer compact structured data with only fields the next agent step needs. Omit explanatory prose, duplicated data, timestamps, hashes, version metadata, exclusion details, and other audit/debug fields unless they are required for the active workflow.
 - Put expanded diagnostics behind explicit debug, verbose, explain, or human-readable modes instead of including them in default agent-facing output.
 
+## Template Artifact Generation
+
+- For template-like artifacts, prefer deterministic scripts, renderers, or CLI helpers over asking an agent to manually emit large Markdown, JSON, TOML, YAML, or code blocks from prose instructions.
+- If an artifact has a stable schema, repeated structure, compatibility filename, managed block, or cross-integration copy, encode that structure in `scripts/`, `src/specify_cli/**`, or a packaged template plus renderer, then have the agent invoke or update that mechanism.
+- Agent prompts may explain when and why to generate the artifact, but the exact shape should live in code or templates whenever practical. Do not rely on an agent repeatedly reconstructing long boilerplate by following an example in a prompt.
+- When introducing or changing a scripted/template generator, add or update tests that assert the rendered output and the source-of-truth surfaces stay in sync.
+- Existing examples of this direction include `src/specify_cli/agents.py` command/skill rendering and the shared `scripts/bash/update-agent-context.sh` plus `scripts/powershell/update-agent-context.ps1` managed-block renderers.
+
 ## Project Memory
 
 - Generated projects use `.specify/memory/project-rules.md` for local rules and `.specify/memory/learnings/INDEX.md` plus linked detail documents as the first-read reusable learning layer. `.specify/memory/project-learnings.md` remains a compatibility summary; new durable lessons should write the index/detail memory first.
@@ -650,11 +658,12 @@ When adding new agents:
 - Treat live `specify --help` output as the authoritative CLI surface.
 - Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.
 - Do not invent unsupported CLI names such as `specify create-feature`.
-- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`.
+- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.
 
 ## Durable State
 
 - When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.
+- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered saves, five-turn cadence, compaction risk, or lifecycle transitions.
 - Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.
 - Store reusable lessons in project memory, not only in chat or task artifacts.
 
