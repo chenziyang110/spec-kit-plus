@@ -132,6 +132,9 @@ Valid blockers include:
 - feasibility evidence is missing for a dependency that determines whether the
   requested capability can be built
 - upstream artifacts contradict each other and no safe interpretation preserves scope
+- adaptive execution policy requires blocking because heavy or safety-critical work
+  lacks an execution-capable native subagent, or because the work cannot be packetized
+  safely
 
 Invalid blockers include:
 
@@ -139,7 +142,12 @@ Invalid blockers include:
 - there are many tasks
 - the agent would prefer a staged release
 - implementation will require multiple phases or join points
-- parallelization is not available
+- parallelization is not available for ordinary work
+
+Runtime capability limits are a blocker only under the existing adaptive execution
+policy for heavy, safety-critical, or unpacketizable work. They are not permission to
+shrink scope, relabel confirmed work as a later version, or move confirmed behavior
+to a future phase.
 
 ### 4. User-Confirmed Deferral Contract
 
@@ -188,7 +196,12 @@ Primary surfaces:
 - `templates/commands/plan.md`
 - `templates/commands/tasks.md`
 - `templates/plan-template.md`
+- `templates/plan-contract-template.json`
 - `templates/tasks-template.md`
+- `templates/task-index-template.json`
+- `templates/task-packet-template.json`
+- `templates/implement-execution-state-template.json` when implementation handoff
+  state consumes delivery scope, optimization scope, or deferral fields
 - `templates/passive-skills/spec-kit-workflow-routing/SKILL.md`
 - `PROJECT-HANDBOOK.md`
 - `README.md`
@@ -209,13 +222,17 @@ Add template-contract tests that assert:
 2. `sp-tasks` contains complete-first scope preservation language.
 3. `tasks-template.md` distinguishes execution phases from delivery deferral.
 4. Complexity alone is explicitly not a blocker or deferral trigger.
-5. User-confirmed deferral requires confirmation source, residual risk, and reopen or
-   stop condition.
+5. User-confirmed deferral requires all five deferral contract fields:
+   confirmation source, exact excluded behavior, residual risk, reopen or stop
+   condition, and downstream artifact that preserves the deferral.
 6. Forbidden shrinking terms are rejected when used as suggested delivery scope:
    MVP, pilot, prototype, first release, `v1/v2`, `P0/P1`, later phase, and future
    work.
 7. Existing legitimate priority labels such as user story `P1`, `P2`, and `P3`
    remain allowed as ordering labels.
+8. Structured artifact templates preserve the same complete-first and deferral
+   contract fields where they carry planning contracts, task indexes, task packets,
+   or implementation execution state.
 
 ## Acceptance Criteria
 
@@ -226,12 +243,18 @@ The change is complete when:
 2. `sp-tasks` tells agents to handle complexity through decomposition, ordering,
    batches, join points, refinement tasks, and validation instead of scope shrinking.
 3. Blocking guidance is narrow and does not allow "too complex" as a standalone
-   blocker.
-4. Deferrals require explicit user confirmation and recorded risk/reopen details.
+   blocker, while preserving the existing adaptive blocker carve-out for heavy,
+   safety-critical, or unpacketizable work without allowing scope reduction.
+4. Deferrals require explicit user confirmation plus a recorded confirmation source,
+   exact excluded behavior, residual risk, reopen or stop condition, and downstream
+   artifact that preserves the deferral.
 5. Generated `tasks.md` guidance makes clear that phases are execution order, not
    permission to move confirmed work out of the current delivery.
 6. Regression tests protect the new wording and preserve existing legitimate `P1`,
    `P2`, and `P3` user-story priority labels.
+7. Structured JSON templates that carry planning, task, packet, or implementation
+   handoff state expose enough fields to preserve complete-first scope and the full
+   deferral contract.
 
 ## Risks
 
