@@ -62,6 +62,43 @@ def _write_command_reference_fixture(tmp_path):
     return plan, references_dir
 
 
+def test_toml_commands_inline_command_references(tmp_path, monkeypatch):
+    class SingleFileTomlIntegration(TomlIntegration):
+        key = "test-agent"
+        config = {
+            "name": "Test Agent",
+            "folder": ".test/",
+            "commands_subdir": "commands",
+        }
+        registrar_config = {
+            "dir": ".test/commands",
+            "format": "toml",
+            "args": "{{args}}",
+            "extension": ".toml",
+        }
+
+    i = SingleFileTomlIntegration()
+    plan, references_dir = _write_command_reference_fixture(tmp_path)
+    monkeypatch.setattr(i, "list_command_templates", lambda: [plan])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: references_dir)
+
+    m = IntegrationManifest(i.key, tmp_path)
+    i.setup(tmp_path, m, script_type="sh")
+
+    generated = (i.commands_dest(tmp_path) / "sp.plan.toml").read_text(encoding="utf-8")
+    parsed = tomllib.loads(generated)
+    prompt = parsed["prompt"]
+
+    assert "## Reference Contracts" in prompt
+    assert "### references/INDEX.md" in prompt
+    assert "### references/details.md" in prompt
+    assert ".specify/scripts/bash/setup-plan.sh --json" in prompt
+    assert "{SCRIPT}" not in prompt
+    assert "{ARGS}" not in prompt
+    assert "__AGENT__" not in prompt
+    assert "{{invoke:tasks}}" not in prompt
+
+
 def _extract_generated_cognition_policy(content: str) -> str:
     lines = content.splitlines()
     selected: set[int] = set()
@@ -501,42 +538,6 @@ class TomlIntegrationTests:
         assert i.registrar_config["format"] == "toml"
         assert i.registrar_config["args"] == "{{args}}"
         assert i.registrar_config["extension"] == ".toml"
-
-    def test_toml_commands_inline_command_references(self, tmp_path, monkeypatch):
-        class SingleFileTomlIntegration(TomlIntegration):
-            key = "test-agent"
-            config = {
-                "name": "Test Agent",
-                "folder": ".test/",
-                "commands_subdir": "commands",
-            }
-            registrar_config = {
-                "dir": ".test/commands",
-                "format": "toml",
-                "args": "{{args}}",
-                "extension": ".toml",
-            }
-
-        i = SingleFileTomlIntegration()
-        plan, references_dir = _write_command_reference_fixture(tmp_path)
-        monkeypatch.setattr(i, "list_command_templates", lambda: [plan])
-        monkeypatch.setattr(i, "shared_command_references_dir", lambda: references_dir)
-
-        m = IntegrationManifest(i.key, tmp_path)
-        i.setup(tmp_path, m, script_type="sh")
-
-        generated = (i.commands_dest(tmp_path) / "sp.plan.toml").read_text(encoding="utf-8")
-        parsed = tomllib.loads(generated)
-        prompt = parsed["prompt"]
-
-        assert "## Reference Contracts" in prompt
-        assert "### references/INDEX.md" in prompt
-        assert "### references/details.md" in prompt
-        assert ".specify/scripts/bash/setup-plan.sh --json" in prompt
-        assert "{SCRIPT}" not in prompt
-        assert "{ARGS}" not in prompt
-        assert "__AGENT__" not in prompt
-        assert "{{invoke:tasks}}" not in prompt
 
     def test_context_file(self):
         i = get_integration(self.KEY)
