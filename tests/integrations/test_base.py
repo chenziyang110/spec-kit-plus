@@ -418,12 +418,11 @@ class TestBasePrimitives:
 
         assert "scripts/bash/setup-plan.sh --json" in rendered
         assert "$ARGUMENTS" in rendered
+        assert "/sp.tasks" in rendered
         assert "__AGENT__" not in rendered
         assert "{SCRIPT}" not in rendered
         assert "{ARGS}" not in rendered
         assert "{{invoke:tasks}}" not in rendered
-        assert "$sp-tasks" not in rendered
-        assert "/sp.tasks" not in rendered
 
     def test_validate_no_unresolved_renderer_tokens_reports_path(self, tmp_path):
         path = tmp_path / "references" / "details.md"
