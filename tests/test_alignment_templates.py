@@ -3366,6 +3366,162 @@ def test_tasks_templates_preserve_user_confirmed_delivery_scope_not_mvp():
     assert "mvp!" not in template_content.lower()
 
 
+def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> None:
+    surfaces = {
+        "templates/commands/plan.md": _read("templates/commands/plan.md").lower(),
+        "templates/plan-template.md": _read("templates/plan-template.md").lower(),
+        "templates/commands/tasks.md": _read("templates/commands/tasks.md").lower(),
+        "templates/tasks-template.md": _read("templates/tasks-template.md").lower(),
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md": _read(
+            "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
+        ).lower(),
+    }
+
+    expected_by_surface = {
+        "templates/commands/plan.md": (
+            "complete-first scope preservation",
+            "complete user-confirmed scope",
+            "complexity alone is not a valid reason",
+            "do not shrink scope",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/plan-template.md": (
+            "complete-first scope preservation",
+            "complete user-confirmed scope",
+            "complexity alone is not a valid reason",
+            "do not shrink scope",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/commands/tasks.md": (
+            "complete-first scope preservation",
+            "do not shrink scope",
+            "execution phases are ordering, not delivery deferral",
+            "user story priorities such as `p1`, `p2`, and `p3` remain ordering labels",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/tasks-template.md": (
+            "complete-first scope preservation",
+            "do not shrink scope",
+            "execution phases are ordering, not delivery deferral",
+            "user story priorities such as `p1`, `p2`, and `p3` remain ordering labels",
+            "agent-invented `v1/v2`",
+            "agent-invented `p0/p1`",
+            "future-work delivery slice",
+        ),
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md": (
+            "complete-first scope preservation",
+            "do not shrink scope",
+            "runtime capability limits are blockers only under the adaptive execution policy",
+            "heavy, safety-critical, or unpacketizable",
+        ),
+    }
+
+    for path, phrases in expected_by_surface.items():
+        for phrase in phrases:
+            assert phrase in surfaces[path], f"{path} missing {phrase!r}"
+
+    task_surfaces = {
+        "templates/commands/tasks.md": surfaces["templates/commands/tasks.md"],
+        "templates/tasks-template.md": surfaces["templates/tasks-template.md"],
+    }
+    for path, content in task_surfaces.items():
+        assert "explicit deferred note" not in content, f"{path} still permits generic deferred-note language"
+        assert "deferred-note coverage" not in content, f"{path} still permits generic deferred-note coverage"
+        assert (
+            "user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact"
+            in content
+        ), f"{path} missing full user-confirmed deferral contract"
+
+
+def test_complete_first_deferrals_require_full_contract_fields() -> None:
+    surfaces = {
+        "templates/commands/plan.md": _read("templates/commands/plan.md").lower(),
+        "templates/plan-template.md": _read("templates/plan-template.md").lower(),
+        "templates/commands/tasks.md": _read("templates/commands/tasks.md").lower(),
+        "templates/tasks-template.md": _read("templates/tasks-template.md").lower(),
+    }
+    required_fields = (
+        "confirmation source",
+        "exact excluded behavior",
+        "residual risk",
+        "reopen or stop condition",
+        "downstream artifact",
+    )
+    fallback_by_surface = {
+        "templates/commands/plan.md": (
+            "if the user did not confirm the deferral",
+            "create a refinement or validation checkpoint",
+        ),
+        "templates/plan-template.md": (
+            "if the user did not confirm the deferral",
+            "create a refinement or validation checkpoint",
+        ),
+        "templates/commands/tasks.md": (
+            "if the user did not confirm the deferral",
+            "task the behavior",
+        ),
+        "templates/tasks-template.md": (
+            "if the user did not confirm the deferral",
+            "task the behavior",
+        ),
+    }
+
+    for path, content in surfaces.items():
+        for phrase in required_fields:
+            assert phrase in content, f"{path} missing deferral field {phrase!r}"
+        for phrase in fallback_by_surface[path]:
+            assert phrase in content, f"{path} missing unconfirmed-deferral fallback {phrase!r}"
+
+    combined = "\n".join(surfaces.values())
+    assert "explicit deferral" not in combined
+    assert "explicit deferred note" not in combined
+    assert "deferred-note coverage" not in combined
+    assert "explicitly user-confirmed deferral" not in combined
+    assert "explicitly deferred" not in combined
+    assert "explicit consuming artifact section, deferral, or blocker reason" not in combined
+    assert "dependency edge, deferral, escalation, or blocker reason" not in combined
+    assert "mark the handoff as `integrated`, `deferred`, or `blocked`" not in combined
+    assert "resolved`, `deferred" not in combined
+    assert "deferred count" not in combined
+    assert "if it is deferred, say so explicitly" not in combined
+    assert "deferred behavior]" not in combined
+
+
+def test_structured_templates_carry_complete_first_scope_contract() -> None:
+    plan_contract = json.loads(_read("templates/plan-contract-template.json"))
+    task_index = json.loads(_read("templates/task-index-template.json"))
+    task_packet = json.loads(_read("templates/task-packet-template.json"))
+    implement_state = json.loads(_read("templates/implement-execution-state-template.json"))
+
+    for payload in (plan_contract, task_index, task_packet, implement_state):
+        assert "confirmed_delivery_scope" in payload
+        assert "complete_first_scope_preservation" in payload
+        assert "user_confirmed_deferrals" in payload
+        assert "deferral_contract_required_fields" in payload
+        assert payload["deferral_contract_required_fields"] == [
+            "confirmation_source",
+            "exact_excluded_behavior",
+            "residual_risk",
+            "reopen_or_stop_condition",
+            "downstream_artifact",
+        ]
+        assert set(payload["user_confirmed_deferral_entry_template"]) == set(
+            payload["deferral_contract_required_fields"]
+        )
+
+    assert plan_contract["complete_first_scope_preservation"]["default"] == "plan_and_task_complete_confirmed_scope"
+    assert "user_confirmed_deferral_entry_template" in plan_contract["capability_preservation"]["surface_minimization_policy"]
+    assert task_index["complete_first_scope_preservation"]["phase_policy"] == "execution_order_not_delivery_deferral"
+    assert task_packet["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
+    assert implement_state["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
+
+
 def test_workflow_templates_preserve_create_scaffold_capabilities_when_surface_is_minimized() -> None:
     specify = _read("templates/commands/specify.md")
     spec_template = _read("templates/spec-template.md")
@@ -3912,7 +4068,7 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
     assert "DP2" in content
     assert "DP3" in content
     assert "Analyze Remediation Mapping" in content
-    assert "resolved | deferred | not_applicable | escalated" in content
+    assert "resolved | user_confirmed_deferral | not_applicable | escalated" in content
     assert "Escalation is terminal for the current `sp-tasks` run" in content
     assert "sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
     assert "No more than one task-layer remediation cycle is expected" in content

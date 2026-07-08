@@ -3,6 +3,39 @@
   "status": "gathering",
   "current_batch": null,
   "complexity_level": null,
+  "confirmed_delivery_scope": [],
+  "complete_first_scope_preservation": {
+    "default": "execute_current_task_graph_without_reducing_confirmed_scope",
+    "scope_reduction_allowed": false,
+    "complexity_response": "repair_tasks_or_return_valid_blocker_without_shrinking_scope",
+    "phase_policy": "execution_phase_is_ordering_not_delivery_deferral",
+    "adaptive_blocker_carve_out": "Runtime capability limits block only under adaptive execution for heavy, safety-critical, or unpacketizable work; they do not reduce scope.",
+    "priority_label_policy": "User story P1/P2/P3 labels are ordering labels, not delivery-scope buckets.",
+    "forbidden_reduction_patterns": [
+      "mvp_by_default",
+      "pilot_by_default",
+      "prototype_by_default",
+      "first_release_slice",
+      "agent_invented_v1_v2",
+      "agent_invented_p0_p1",
+      "future_work_delivery_slice"
+    ]
+  },
+  "user_confirmed_deferrals": [],
+  "deferral_contract_required_fields": [
+    "confirmation_source",
+    "exact_excluded_behavior",
+    "residual_risk",
+    "reopen_or_stop_condition",
+    "downstream_artifact"
+  ],
+  "user_confirmed_deferral_entry_template": {
+    "confirmation_source": "",
+    "exact_excluded_behavior": "",
+    "residual_risk": "",
+    "reopen_or_stop_condition": "",
+    "downstream_artifact": ""
+  },
   "active_packet_ids": [],
   "must_preserve": [],
   "applied_mp_obligations": [],

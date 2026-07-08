@@ -209,7 +209,9 @@ upstream signal cannot silently disappear before planning.
 Command-surface minimization must not delete capability. If upstream discussion
 or specification text includes a new/create/scaffold/authoring operation,
 downstream planning and task generation must preserve it through an explicit
-public command, TUI route, core API, private helper, or user-confirmed deferral.
+public command, TUI route, core API, private helper, or user-confirmed deferral
+carrying confirmation source, exact excluded behavior, residual risk, reopen or
+stop condition, and downstream artifact.
 Manual copy instructions and template-only docs can support that operation, but
 they do not replace it unless the user chose that narrower entry point.
 

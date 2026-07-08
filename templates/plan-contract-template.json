@@ -6,12 +6,45 @@
   "complexity_level": null,
   "must_preserve": [],
   "allowed_optimization_scope": [],
+  "confirmed_delivery_scope": [],
+  "complete_first_scope_preservation": {
+    "default": "plan_and_task_complete_confirmed_scope",
+    "scope_reduction_allowed": false,
+    "complexity_response": "decompose_order_validate_refine_without_shrinking",
+    "phase_policy": "execution_order_not_delivery_deferral",
+    "adaptive_blocker_carve_out": "Runtime capability limits block only under adaptive execution for heavy, safety-critical, or unpacketizable work; they do not reduce scope.",
+    "priority_label_policy": "User story P1/P2/P3 labels are ordering labels, not delivery-scope buckets.",
+    "forbidden_reduction_patterns": [
+      "mvp_by_default",
+      "pilot_by_default",
+      "prototype_by_default",
+      "first_release_slice",
+      "agent_invented_v1_v2",
+      "agent_invented_p0_p1",
+      "future_work_delivery_slice"
+    ]
+  },
+  "user_confirmed_deferrals": [],
+  "deferral_contract_required_fields": [
+    "confirmation_source",
+    "exact_excluded_behavior",
+    "residual_risk",
+    "reopen_or_stop_condition",
+    "downstream_artifact"
+  ],
+  "user_confirmed_deferral_entry_template": {
+    "confirmation_source": "",
+    "exact_excluded_behavior": "",
+    "residual_risk": "",
+    "reopen_or_stop_condition": "",
+    "downstream_artifact": ""
+  },
   "acceptance_obligations": [],
   "capability_operations": [],
   "capability_preservation": {
     "required": false,
     "operations": [],
-    "surface_minimization_policy": "Command-surface minimization must not delete capability; remap preserved operations to an explicit entry point or record a user-confirmed deferral."
+    "surface_minimization_policy": "Command-surface minimization must not delete capability; remap preserved operations to an explicit entry point or record a user-confirmed deferral using user_confirmed_deferral_entry_template."
   },
   "mp_obligations": [],
   "open_conflicts": [],

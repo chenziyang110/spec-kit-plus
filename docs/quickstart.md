@@ -131,7 +131,9 @@ deferred, dropped, or reopened explicitly.
 Command-surface minimization must not delete capability. If the discussion or
 specification includes a new/create/scaffold/authoring operation, downstream
 planning and task generation must preserve it through an explicit public
-command, TUI route, core API, private helper, or user-confirmed deferral.
+command, TUI route, core API, private helper, or user-confirmed deferral
+carrying confirmation source, exact excluded behavior, residual risk, reopen or
+stop condition, and downstream artifact.
 Manual copy instructions and template-only docs can support that flow, but they
 do not replace the confirmed operation unless the user chose that narrower entry
 point.
@@ -189,7 +191,7 @@ Use `deep-research` only when the requirements are clear but feasibility still n
 Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
 When `specify` records an unproven implementation chain after artifact review, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
-Generated workflows preserve the user's confirmed product scope. Scope reduction requires user confirmation: a smaller MVP, pilot, prototype, or staged delivery boundary is valid only when the user asks for it, the request already defines it, or the agent names a constraint and the user confirms the scope decision.
+Generated workflows preserve the user's complete user-confirmed scope. Scope reduction requires user confirmation: agents should not steer a requirement toward an MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or smaller validation build unless the user asked for that shape, the request already defines that boundary, or a named constraint makes reduced scope a decision the user confirms. Complexity alone is not a valid reason to shrink, defer, or block ordinary work; `sp-plan` and `sp-tasks` should use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 
 ### Step 5: Break Down and Implement
 

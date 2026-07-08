@@ -35,8 +35,13 @@ def test_quickstart_teaches_specify_to_plan_mainline():
 def _assert_doc_teaches_user_confirmed_product_scope(rel_path: str) -> None:
     lowered = _read(rel_path).lower()
 
+    assert "complete user-confirmed scope" in lowered
     assert "scope reduction requires user confirmation" in lowered
-    assert "preserve the user's confirmed product scope" in lowered
+    assert "future-work delivery slice" in lowered
+    assert "agent-invented `v1/v2`" in lowered
+    assert "agent-invented `p0/p1`" in lowered
+    assert "complexity alone is not a valid reason" in lowered
+    assert "runtime capability limits are blockers only under the adaptive execution policy" in lowered
     assert "minimal viable path" not in lowered
     assert "smallest coherent release slice" not in lowered
 
@@ -60,6 +65,7 @@ def test_docs_teach_command_surface_minimization_preserves_scaffold_operations()
         "docs/installation.md",
     ):
         lowered = _read(rel_path).lower()
+        normalized = " ".join(lowered.split())
 
         assert "command-surface minimization must not delete capability" in lowered
         assert "new/create/scaffold/authoring" in lowered
@@ -67,6 +73,11 @@ def test_docs_teach_command_surface_minimization_preserves_scaffold_operations()
         assert "template-only" in lowered
         assert "tui route" in lowered
         assert "core api" in lowered
+        assert "confirmation source" in lowered
+        assert "exact excluded behavior" in lowered
+        assert "residual risk" in lowered
+        assert "reopen or stop condition" in normalized
+        assert "downstream artifact" in lowered
 
 
 def test_quickstart_declares_integration_specific_invocation_syntax():
