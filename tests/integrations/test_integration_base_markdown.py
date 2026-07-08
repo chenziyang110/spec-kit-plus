@@ -41,6 +41,36 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
 )
 
 
+def _write_command_reference_fixture(tmp_path):
+    commands_dir = tmp_path / "commands"
+    references_dir = tmp_path / "command-references"
+    workflow_references_dir = references_dir / "plan"
+    commands_dir.mkdir()
+    workflow_references_dir.mkdir(parents=True)
+
+    plan = commands_dir / "plan.md"
+    plan.write_text(
+        "---\n"
+        "description: Plan workflow\n"
+        "scripts:\n"
+        "  sh: scripts/bash/setup-plan.sh --json\n"
+        "---\n"
+        "Plan body links to references/INDEX.md.\n",
+        encoding="utf-8",
+    )
+    (workflow_references_dir / "INDEX.md").write_text(
+        "# Plan Reference Index\n\n"
+        "See details.md.\n",
+        encoding="utf-8",
+    )
+    (workflow_references_dir / "details.md").write_text(
+        "# Plan Details\n\n"
+        "Run {SCRIPT} with {ARGS} for __AGENT__ before {{invoke:tasks}}.\n",
+        encoding="utf-8",
+    )
+    return plan, references_dir
+
+
 def _extract_generated_cognition_policy(content: str) -> str:
     lines = content.splitlines()
     selected: set[int] = set()
@@ -509,6 +539,40 @@ class MarkdownIntegrationTests:
         assert i.registrar_config["format"] == "markdown"
         assert i.registrar_config["args"] == "$ARGUMENTS"
         assert i.registrar_config["extension"] == ".md"
+
+    def test_single_file_commands_inline_command_references(self, tmp_path, monkeypatch):
+        class SingleFileMarkdownIntegration(MarkdownIntegration):
+            key = "test-agent"
+            config = {
+                "name": "Test Agent",
+                "folder": ".test/",
+                "commands_subdir": "commands",
+            }
+            registrar_config = {
+                "dir": ".test/commands",
+                "format": "markdown",
+                "args": "$ARGUMENTS",
+                "extension": ".md",
+            }
+
+        i = SingleFileMarkdownIntegration()
+        plan, references_dir = _write_command_reference_fixture(tmp_path)
+        monkeypatch.setattr(i, "list_command_templates", lambda: [plan])
+        monkeypatch.setattr(i, "shared_command_references_dir", lambda: references_dir)
+
+        m = IntegrationManifest(i.key, tmp_path)
+        i.setup(tmp_path, m, script_type="sh")
+
+        generated = (i.commands_dest(tmp_path) / "sp.plan.md").read_text(encoding="utf-8")
+
+        assert "## Reference Contracts" in generated
+        assert "### references/INDEX.md" in generated
+        assert "### references/details.md" in generated
+        assert ".specify/scripts/bash/setup-plan.sh --json" in generated
+        assert "{SCRIPT}" not in generated
+        assert "{ARGS}" not in generated
+        assert "__AGENT__" not in generated
+        assert "{{invoke:tasks}}" not in generated
 
     def test_context_file(self):
         i = get_integration(self.KEY)

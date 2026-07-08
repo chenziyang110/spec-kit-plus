@@ -1305,6 +1305,56 @@ class IntegrationBase(ABC):
         cls.validate_no_unresolved_renderer_tokens(body, reference_path)
         return body.lstrip("\r\n")
 
+    def render_inline_command_references(
+        self,
+        *,
+        command_name: str,
+        owner_template_raw: str,
+        owner_template_path: Path,
+        agent_name: str | None = None,
+        script_type: str,
+        arg_placeholder: str,
+        project_root: Path | None = None,
+    ) -> str:
+        """Render command references as an inline section for single-file commands."""
+        reference_files = self.list_command_reference_templates(command_name)
+        if not reference_files:
+            return ""
+
+        references_dir = self.shared_command_references_dir()
+        workflow_dir = (references_dir / command_name).resolve() if references_dir else None
+        display_root = (
+            workflow_dir
+            if workflow_dir is not None and workflow_dir.is_dir()
+            else reference_files[0].parent.resolve()
+        )
+
+        lines = ["", "## Reference Contracts", ""]
+        for reference_path in reference_files:
+            try:
+                relative_reference = reference_path.resolve().relative_to(display_root)
+            except ValueError:
+                relative_reference = Path(reference_path.name)
+            display_path = f"references/{relative_reference.as_posix()}"
+            rendered_body = self.render_command_reference_content(
+                reference_path.read_text(encoding="utf-8"),
+                owner_template_raw=owner_template_raw,
+                owner_template_path=owner_template_path,
+                reference_path=reference_path,
+                agent_name=agent_name or self.key,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+                project_root=project_root,
+            ).rstrip()
+
+            lines.extend([f"### {display_path}", ""])
+            if rendered_body:
+                lines.extend([rendered_body, ""])
+
+        section = "\n".join(lines).rstrip() + "\n"
+        self.validate_no_unresolved_renderer_tokens(section, owner_template_path)
+        return section
+
     @staticmethod
     def process_template(
         content: str,
@@ -1579,6 +1629,15 @@ class MarkdownIntegration(IntegrationBase):
                 template_path=src_file,
                 project_root=project_root,
             )
+            processed += self.render_inline_command_references(
+                command_name=src_file.stem,
+                owner_template_raw=raw,
+                owner_template_path=src_file,
+                agent_name=self.key,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+                project_root=project_root,
+            )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             processed = self._append_runtime_project_cognition_gate(
                 content=processed,
@@ -1782,6 +1841,15 @@ class TomlIntegration(IntegrationBase):
                 script_type,
                 arg_placeholder,
                 template_path=src_file,
+                project_root=project_root,
+            )
+            processed += self.render_inline_command_references(
+                command_name=src_file.stem,
+                owner_template_raw=raw,
+                owner_template_path=src_file,
+                agent_name=self.key,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
                 project_root=project_root,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
