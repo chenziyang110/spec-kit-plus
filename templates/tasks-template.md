@@ -144,6 +144,7 @@ Use this section only when regenerating tasks after a blocked or explicitly reco
 | No prior analyze blockers | not_applicable | First task-generation pass | No remediation mapping required |
 
 Allowed dispositions: `resolved`, `user_confirmed_deferral`, `not_applicable`, `escalated`.
+Compatibility label: `deferred` maps to `user_confirmed_deferral` and must still carry confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 If any finding is `escalated`, stop task generation and set `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` in `workflow-state.md`.
 
 ## Task Shaping Rules

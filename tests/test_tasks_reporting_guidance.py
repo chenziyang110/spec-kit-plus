@@ -93,8 +93,9 @@ def test_tasks_command_requires_persisted_task_generation_handoffs():
     assert "persist a `task_generation_checkpoint` record" in lowered
     assert "persist the lane's structured handoff" in lowered
     assert "consume `task-generation/evidence-index.json` before final task synthesis" in lowered
-    assert "mark the handoff as `integrated`, `deferred`, or `blocked`" in lowered
-    assert "without an explicit consuming task, packet field, dependency edge, deferral, escalation, or blocker reason" in lowered
+    assert "mark the handoff as `integrated`, assigned to a refinement checkpoint" in lowered
+    assert "recorded in `user_confirmed_deferrals` with confirmation source" in lowered
+    assert "without an explicit consuming task, packet field, dependency edge, refinement checkpoint" in lowered
     assert "do not synthesize `tasks.md` from chat-only delegated lane results" in lowered
 
 

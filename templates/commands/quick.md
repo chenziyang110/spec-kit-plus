@@ -32,6 +32,7 @@ Dispatch one safe validated lane as `one-subagent` or multiple safe isolated lan
 - Use `execution_model: subagent-mandatory` once the quick task has a bounded execution lane.
 - Dispatch `one-subagent` for one safe delegated lane and `parallel-subagents` for isolated lanes that can run concurrently.
 - Compile a validated `WorkerTaskPacket` or equivalent execution contract before dispatch.
+- Keep quick status fields compatible with `templates/artifacts/quick-status.md`: record `done_or_progress_signal` for every join-point update and `blocked_dispatch` when dispatch is unavailable, unsafe, or unpacketizable.
 
 ## Required Context Inputs
 
@@ -273,6 +274,8 @@ The following flags are available and composable:
 ## STATUS.md Scaffold
 
 Use the fixed artifact scaffold instead of writing the fixed `STATUS.md` skeleton by hand.
+The scaffold renders the `STATUS.md template`; valid lifecycle values are
+`status: gathering | planned | executing | validating | blocked | resolved`.
 
 Command shape:
 
@@ -457,6 +460,8 @@ The generated scaffold initializes `understanding_confirmed: false`, `status: ga
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate dispatch at each join point instead of assuming the first choice remains correct.
    - Only use `subagent-blocked` after subagent execution and the native subagent workflow are unavailable or blocked for the current batch, and record the blocked dispatch reason explicitly in `STATUS.md`.
+   - When blocked, update `blocked_dispatch` in `STATUS.md` with the concrete unavailable or unsafe dispatch surface.
+   - At each join point, update `done_or_progress_signal` with the latest completion proof or next safe progress signal.
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
    - If execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
 

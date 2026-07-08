@@ -59,9 +59,9 @@ Route first, packetize second, dispatch third.
 5. **Review accepted work**: For ordinary `sp-implement` task review, use the
    single task reviewer. It returns `spec_verdict`, `quality_verdict`,
    controller checks, UI fidelity result, and final assessment. Legacy separate
-   spec and quality reviewer prompts are compatibility assets, not the default
-   path. Then run the workflow's required validation commands and update the
-   tracker/state artifacts.
+   spec compliance review and code quality review prompts are compatibility
+   assets, not the default path. Then run the workflow's required validation
+   commands and update the tracker/state artifacts.
 
 ## Dispatch Prompt Contract
 
