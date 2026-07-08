@@ -188,8 +188,20 @@ class IntegrationBase(ABC):
         references_dir = self.shared_command_references_dir()
         if not references_dir or not references_dir.is_dir():
             return []
+        if (
+            not command_name
+            or ".." in command_name
+            or "/" in command_name
+            or "\\" in command_name
+        ):
+            return []
 
-        workflow_dir = references_dir / command_name
+        references_root = references_dir.resolve()
+        workflow_dir = (references_root / command_name).resolve()
+        try:
+            workflow_dir.relative_to(references_root)
+        except ValueError:
+            return []
         if not workflow_dir.is_dir():
             return []
 
@@ -1228,6 +1240,28 @@ class IntegrationBase(ABC):
         rendered_body = body.lstrip("\r\n")
         return f"---\n{frontmatter_text}---\n\n{summary}{rendered_body}"
 
+    @staticmethod
+    def _renderer_context_frontmatter(frontmatter_text: str) -> str:
+        """Return only frontmatter sections needed for renderer substitutions."""
+        renderer_sections = {"scripts:", "agent_scripts:"}
+        output_lines: list[str] = []
+        in_renderer_section = False
+
+        for line in frontmatter_text.splitlines(keepends=True):
+            stripped = line.strip()
+            if stripped in renderer_sections:
+                output_lines.append(line)
+                in_renderer_section = True
+                continue
+
+            if in_renderer_section:
+                if line and line[0].isspace():
+                    output_lines.append(line)
+                    continue
+                in_renderer_section = False
+
+        return "".join(output_lines)
+
     @classmethod
     def render_command_reference_content(
         cls,
@@ -1246,8 +1280,9 @@ class IntegrationBase(ABC):
         _ = owner_template_path
         owner_frontmatter, _ = cls._split_frontmatter(owner_template_raw)
         render_input = raw_reference
-        if owner_frontmatter:
-            render_input = f"---\n{owner_frontmatter}---\n\n{raw_reference}"
+        renderer_context = cls._renderer_context_frontmatter(owner_frontmatter)
+        if renderer_context:
+            render_input = f"---\n{renderer_context}---\n\n{raw_reference}"
 
         processed = cls.process_template(
             render_input,

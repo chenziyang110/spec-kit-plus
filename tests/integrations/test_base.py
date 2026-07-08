@@ -382,6 +382,9 @@ class TestBasePrimitives:
             "details.md",
         ]
         assert i.list_command_reference_templates("specify") == []
+        assert i.list_command_reference_templates("../plan") == []
+        assert i.list_command_reference_templates("plan/details") == []
+        assert i.list_command_reference_templates(r"plan\details") == []
 
     def test_render_command_reference_uses_owner_template_context(self, tmp_path):
         command = tmp_path / "plan.md"
@@ -425,6 +428,51 @@ class TestBasePrimitives:
         assert "{SCRIPT}" not in rendered
         assert "{ARGS}" not in rendered
         assert "{{invoke:tasks}}" not in rendered
+
+    def test_render_command_reference_uses_only_renderer_context_frontmatter(
+        self, tmp_path
+    ):
+        command = tmp_path / "plan.md"
+        command.write_text(
+            "---\n"
+            "description: Plan command should not render in references\n"
+            "workflow_contract:\n"
+            "  when_to_use: UNIQUE WORKFLOW WHEN TEXT\n"
+            "  primary_objective: UNIQUE WORKFLOW OBJECTIVE TEXT\n"
+            "  primary_outputs: UNIQUE WORKFLOW OUTPUT TEXT\n"
+            "  default_handoff: UNIQUE WORKFLOW HANDOFF TEXT\n"
+            "scripts:\n"
+            "  sh: scripts/bash/setup-plan.sh --json\n"
+            "---\n\n"
+            "# Plan\n\n"
+            "Owner body should not render.\n",
+            encoding="utf-8",
+        )
+        reference = tmp_path / "references" / "details.md"
+        reference.parent.mkdir()
+        reference.write_text(
+            "UNIQUE REFERENCE PHRASE uses {SCRIPT}.\n",
+            encoding="utf-8",
+        )
+
+        rendered = IntegrationBase.render_command_reference_content(
+            reference.read_text(encoding="utf-8"),
+            owner_template_raw=command.read_text(encoding="utf-8"),
+            owner_template_path=command,
+            reference_path=reference,
+            agent_name="stub",
+            script_type="sh",
+            arg_placeholder="$ARGUMENTS",
+            project_root=tmp_path,
+        )
+
+        assert "UNIQUE REFERENCE PHRASE" in rendered
+        assert "scripts/bash/setup-plan.sh --json" in rendered
+        assert "## Workflow Contract Summary" not in rendered
+        assert "UNIQUE WORKFLOW WHEN TEXT" not in rendered
+        assert "UNIQUE WORKFLOW OBJECTIVE TEXT" not in rendered
+        assert "UNIQUE WORKFLOW OUTPUT TEXT" not in rendered
+        assert "UNIQUE WORKFLOW HANDOFF TEXT" not in rendered
 
     def test_validate_no_unresolved_renderer_tokens_reports_path(self, tmp_path):
         path = tmp_path / "references" / "details.md"
