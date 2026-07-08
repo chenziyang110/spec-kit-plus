@@ -150,7 +150,7 @@ Before the task package is complete, map every triggered `CA-###` consequence ob
 
 - Read upstream consequence analysis from `spec.md`, `alignment.md`, `context.md`, `references.md`, `plan.md`, `plan-contract.json`, and any handoff JSON present.
 - For each `CA-###`, name the affected objects, required state behavior, dependency impact, recovery and validation requirement, owning task or join point, and latest safe resolve phase.
-- Map each obligation to at least one task, packet field, join point, validation task, review checkpoint, or explicit deferral with a stop-and-reopen condition.
+- Map each obligation to at least one task, packet field, join point, validation task, review checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - Each mapped task or packet must include objective, write set, affected state or dependency, required references, forbidden drift, validation command or concrete manual check, done condition, and stop-and-reopen condition.
 - Emit the mapping in `tasks.md`, `handoff-to-tasks.json`, `task-index.json`, and per-task JSON under `task-packets/` when those machine-readable artifacts are generated.
 - Preserve `CA-###` IDs verbatim in `tasks.md`, handoff-to-tasks metadata, task-index metadata, and worker packet shaping instructions so `sp-analyze` and `sp-implement` cannot drop them.
@@ -174,7 +174,7 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
 - For each visible or runtime-consumed behavior, map: real entrypoint -> producer data -> transformer/state builder -> consumer surface -> executor/boundary -> validation task.
 - Do not treat synthetic component, reducer, helper, or hand-built state tests as sufficient by themselves when the feature is visible through a real route, command, TUI screen, API, installer, or runtime executor.
 - At least one task for each mapped path must carry `consumer_surfaces` and `required_evidence` including `real_entrypoint_evidence` in its packet fields.
-- If no real-entrypoint validation surface exists yet, create the smallest feasible validation task or record an explicit user-confirmed deferral with residual risk.
+- If no real-entrypoint validation surface exists yet, create the smallest feasible validation task, add a refinement checkpoint, identify a valid blocker, or record a user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 
 ## Complete-First Task Generation
 

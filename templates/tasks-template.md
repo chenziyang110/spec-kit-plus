@@ -60,7 +60,7 @@ description: "Task list template for feature implementation"
 
 | Operation | Upstream Source | Selected Entry Point | Task IDs / Packet Fields | Validation | Degradation Check |
 | --- | --- | --- | --- | --- | --- |
-| [create/scaffold operation] | [spec/alignment/plan/handoff] | [TUI route | core API | public CLI | private helper | deferred] | [T###, packet field, or explicit deferral] | [command or manual check] | [not template-only / not manual-copy-only / user-confirmed deferral] |
+| [create/scaffold operation] | [spec/alignment/plan/handoff] | [TUI route | core API | public CLI | private helper | user-confirmed deferral] | [T###, packet field, refinement checkpoint, valid blocker, or five-field deferral contract row] | [command or manual check] | [not template-only / not manual-copy-only / user-confirmed deferral carries confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact] |
 
 - Template directories, sample files, and authoring documentation are supporting assets. They do not satisfy a confirmed create/scaffold operation unless manual copy was explicitly selected and confirmed upstream.
 - A task packet anti-goal such as "do not add public commands" must carry a does-not-remove guard for the underlying operation, for example preserving scaffold through a TUI route or core API.
@@ -95,7 +95,7 @@ description: "Task list template for feature implementation"
 ## Reference Fidelity Mapping
 
 - Map each preserved or redesigned reference behavior inventory item to the task IDs, checkpoints, or join points that carry it forward.
-- If a reference behavior is intentionally deferred, record that explicitly instead of silently omitting it.
+- If a reference behavior is intentionally deferred, record the user-confirmed deferral with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact instead of silently omitting it.
 - If a reference behavior is intentionally redesigned, point to the task or review checkpoint that must acknowledge the divergence.
 
 ## Consequence Obligation Mapping
@@ -155,7 +155,7 @@ Before final handoff to `sp-implement`, confirm:
 - `Implementation Constitution` rules from `plan.md` are preserved through the implementation guardrails phase, `Task Guardrail Index`, task notes, or explicit escalation.
 - `Task Guardrail Index` entries map applicable guardrails to concrete implementation tasks.
 - Preserved capability operations map to implementation tasks, validation tasks, packet fields, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
-- User-observable UI/TUI/CLI/API/runtime paths map to at least one real-entrypoint validation task or explicit user-confirmed deferral.
+- User-observable UI/TUI/CLI/API/runtime paths map to at least one real-entrypoint validation task, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - No operation-shaped create/scaffold capability has degraded to template-only task output, manual copy docs, or an authoring guide without an executable entry point.
 - Anti-goals that restrict public surfaces include does-not-remove guards.
 - Each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.

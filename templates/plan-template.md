@@ -73,15 +73,17 @@
   Command-surface minimization may remap where the user invokes the capability,
   but it must not delete capability. If the public command surface stays small,
   preserve the operation through an explicit TUI route, core API, public CLI
-  command, private helper, or user-confirmed deferral.
+  command, private helper, refinement checkpoint, valid blocker, or
+  user-confirmed deferral carrying confirmation source, exact excluded behavior,
+  residual risk, reopen or stop condition, and downstream artifact.
 -->
 
 | Capability Operation | Upstream Source | Selected Entry Point | Owning Surface | Required Implementation | Acceptance Proof | Reopen Or Conflict Condition |
 | --- | --- | --- | --- | --- | --- | --- |
-| [create/scaffold operation] | [spec/alignment/handoff source] | [TUI route | core API | public CLI | private helper | deferred] | [module, route, command, or contract] | [buildable behavior, not just templates/docs] | [test, quickstart, contract, or manual check] | [condition, conflict decision, or none] |
+| [create/scaffold operation] | [spec/alignment/handoff source] | [TUI route | core API | public CLI | private helper | user-confirmed deferral] | [module, route, command, contract, or five-field deferral contract row] | [buildable behavior, not just templates/docs, unless valid blocker] | [test, quickstart, contract, manual check, or valid blocker] | [confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact] |
 
 - A static template directory, manual copy docs, or authoring guide may support this plan, but it does not satisfy a confirmed scaffold operation unless manual copy was explicitly selected as the user-facing entry point.
-- If this plan removes, narrows, or defers an upstream create/scaffold operation, record user confirmation here before task generation proceeds.
+- If this plan removes, narrows, or defers an upstream create/scaffold operation, record the user-confirmed deferral with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact before task generation proceeds.
 
 ## Implementation Target Boundary
 
@@ -332,9 +334,11 @@ directories captured above]
 
 <!--
   Before finalizing the plan, verify that every locked planning decision is
-  represented in the plan summary, technical context, design artifacts, or
-  explicit follow-up work. If something is intentionally deferred, say so here
-  instead of silently dropping it.
+  represented in the plan summary, technical context, design artifacts,
+  refinement checkpoint, valid blocker, or user-confirmed deferral contract.
+  If something is intentionally deferred, record confirmation source, exact
+  excluded behavior, residual risk, reopen or stop condition, and downstream
+  artifact instead of silently dropping it.
 -->
 
 - [Locked decision] -> [Where it appears in the plan]

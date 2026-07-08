@@ -3460,6 +3460,13 @@ def test_complete_first_deferrals_require_full_contract_fields() -> None:
         for phrase in fallback_by_surface[path]:
             assert phrase in content, f"{path} missing unconfirmed-deferral fallback {phrase!r}"
 
+    combined = "\n".join(surfaces.values())
+    assert "explicit deferral" not in combined
+    assert "explicit deferred note" not in combined
+    assert "deferred-note coverage" not in combined
+    assert "explicitly user-confirmed deferral" not in combined
+    assert "explicitly deferred" not in combined
+
 
 def test_structured_templates_carry_complete_first_scope_contract() -> None:
     plan_contract = json.loads(_read("templates/plan-contract-template.json"))
