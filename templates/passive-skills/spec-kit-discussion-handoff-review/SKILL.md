@@ -35,6 +35,9 @@ Read these files before issuing a verdict when they exist:
 
 If either handoff file is missing, stop with `block-handoff`. Do not reconstruct
 the missing file outside `sp-discussion`.
+Do not accept `specification-input.md`, `discussion-state.md`, or another
+discussion source file as a replacement for the missing Markdown/JSON handoff
+pair.
 
 ## Review Verdicts
 
@@ -138,6 +141,10 @@ entire discussion. It must include:
 If the closeout says only that files were updated, counters are zero, and the
 next step is review or `sp-specify`, return `request-changes` for an incomplete
 ready summary.
+
+If the package is not yet `handoff-ready`, any summary that names `sp-specify`
+as the next user command is invalid. The next action must be review, repair, or
+handoff creation inside `sp-discussion`.
 
 ## Draft User Review Summary Quality Check
 

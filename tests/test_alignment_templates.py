@@ -1562,6 +1562,26 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
     assert "without writing or claiming `handoff-assessment.md`" in lowered
 
 
+def test_discussion_does_not_route_to_specify_before_ready_handoff_pair() -> None:
+    content = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    review = _read("templates/passive-skills/spec-kit-discussion-handoff-review/SKILL.md")
+    combined = "\n".join([content, shell, routing, review])
+    lowered = combined.lower()
+
+    assert "pre-ready handoff next-step guard" in lowered
+    assert "the visible next step is handoff assessment, draft handoff review, or handoff repair inside `sp-discussion`" in lowered
+    assert "do not say the user's next sentence should be `sp-specify`" in lowered
+    assert "do not tell the user their next sentence can be `sp-specify`" in lowered
+    assert "do not tell them to run or enter `sp-specify`" in lowered
+    assert "before `handoff-ready`, do not describe the next consumption path as a user-invoked `sp-specify` command" in lowered
+    assert "`specification-input.md`, `discussion-state.md`, or any other discussion source file is not a fallback handoff" in lowered
+    assert "specification-input.md` is not a substitute handoff" in lowered
+    assert "the next action is `sp-discussion` handoff creation, review, or repair" in lowered
+    assert "handoff-to-specify.md` and `handoff-to-specify.json` both exist" in lowered
+
+
 def test_discussion_readiness_summary_does_not_plan_execution_phases() -> None:
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")
@@ -1932,6 +1952,12 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "project-context.md" in content
     assert "source_signal_disposition" in content
     assert "source_files_read" in content
+    assert "specification-input.md" in content
+    assert "not accepted discussion handoffs" in content
+    assert "stop with `blocked_by_handoff_integrity`" in content
+    assert "do not ask for permission to use `specification-input.md` as a fallback feature description" in lowered
+    assert "do not ask the user to confirm `specification-input.md` as the feature input" in lowered
+    assert "do not use `specification-input.md`, `discussion-state.md`, or other discussion source files as a substitute" in lowered
     assert "capability-like" in lowered
     assert "not only the handoff summary" in lowered
     assert "Confirmed discussion handoff default continuation" in content

@@ -195,6 +195,14 @@ Examples:
 
 Stop short only when continuing would require user judgment, missing boundary evidence, unavailable live evidence, an evidence conflict, destructive or lifecycle consequence, security or data-risk consequence, or handoff approval. In that case, say exactly what is blocked and provide the smallest useful partial draft, checklist, or evidence plan that can be produced safely. It is blocked only when no safe concrete first-pass content can be produced.
 
+### Pre-Ready Handoff Next-Step Guard
+
+If a discussion is mature enough that the likely downstream consumer is `sp-specify`, but either `handoff-to-specify.md` or `handoff-to-specify.json` is missing, draft-only, not self-reviewed, or not user-confirmed, the visible default next step must stay inside `sp-discussion`.
+
+Allowed next-step wording before `handoff-ready`: handoff assessment, draft handoff review, or handoff repair, with the concrete assessment preview, draft-review summary, or repair checklist in the same reply.
+
+Forbidden next-step wording before `handoff-ready`: do not tell the user their next sentence can be `sp-specify`; do not tell them to run, enter, or proceed to `sp-specify`; do not ask `sp-specify` to use `specification-input.md`, `discussion-state.md`, or any other discussion source file as a substitute for the required Markdown/JSON handoff pair.
+
 ### High-Throughput Rules
 
 - Continue by default when a safe default exists.

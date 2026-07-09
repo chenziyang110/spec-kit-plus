@@ -8,6 +8,8 @@ Preserved Contract: Migrated from `templates/commands/discussion.md`; this file 
 
 Handoff assessment is explicit-user-request only. Run it when the user says the discussion is done, asks to hand off, asks to feed the result to `sp-specify`, or asks to continue the next stage.
 
+A discussion may be specification-ready but still not consumer-ready. Until `handoff-to-specify.md` and `handoff-to-specify.json` both exist, self-review has passed, and the user has confirmed the handoff, the next action is `write-unified-handoff`, draft handoff review, or handoff repair inside `sp-discussion`; do not tell the user to run `sp-specify`.
+
 Write or refresh `handoff-assessment.md` with:
 
 - decision status: `ready-for-specify` or `continue-discussion`
@@ -80,6 +82,8 @@ The handoff quality gate is mandatory. `sp-discussion` must not mark a handoff r
 - user has not reviewed and confirmed the handoff
 
 Before user confirmation, the handoff can exist only as a draft. Do not recommend `sp-specify` until `quality_gate.status` records user confirmation.
+
+`specification-input.md`, `discussion-state.md`, or any other discussion source file is not a fallback handoff. If the handoff pair is missing or stale, keep the discussion in draft or repair state and refresh `handoff-to-specify.md` and `handoff-to-specify.json` together before any downstream consumer is recommended.
 
 ## Handoff Request-Changes Repair
 

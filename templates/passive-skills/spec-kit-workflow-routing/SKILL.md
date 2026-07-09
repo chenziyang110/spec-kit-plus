@@ -95,7 +95,7 @@ explicit numeric option.
 - `sp-discussion` must run the Context Boundary Gate before project-specific technical options, affected-file claims, or handoff generation.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
-- A valid explicit handoff from discussion is one pair: `handoff-to-specify.md` and `handoff-to-specify.json`, with self-review and user confirmation. Route that pair to `sp-specify` by passing the handoff Markdown path, JSON path, or discussion slug; when exactly one unconsumed `handoff-ready` discussion exists, `sp-specify` may consume it directly. `sp-specify` must validate ready planning status, user-confirmed quality gate status, zero hard unknowns, zero open conflicts, and Markdown/JSON agreement before feature creation.
+- A valid explicit handoff from discussion is one pair: `handoff-to-specify.md` and `handoff-to-specify.json`, with self-review and user confirmation. Route that pair to `sp-specify` by passing the handoff Markdown path, JSON path, or discussion slug; when exactly one unconsumed `handoff-ready` discussion exists, `sp-specify` may consume it directly. Before that ready pair exists, do not tell the user to run `sp-specify`; the next action is `sp-discussion` handoff creation, review, or repair. `specification-input.md` is not a substitute handoff. `sp-specify` must validate ready planning status, user-confirmed quality gate status, zero hard unknowns, zero open conflicts, and Markdown/JSON agreement before feature creation.
 - When asked to review a discussion handoff, apply
   `spec-kit-discussion-handoff-review`: return `approve-handoff-ready`,
   `request-changes`, or `block-handoff`, apply the ready summary quality check,
@@ -225,7 +225,7 @@ user what to type:
   recommend them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.
 - Do not skip from `sp-discussion` into `sp-specify` unless the user explicitly
-  requests handoff.
+  requests handoff and the ready Markdown/JSON handoff pair exists.
 - If a required next step is a user-invoked workflow entrypoint rather than an
   in-workflow action, stop the current flow and tell the user exactly what to run.
 - Do not self-execute a different explicit `sp-*` workflow just because the current

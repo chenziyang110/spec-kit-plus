@@ -48,6 +48,7 @@ Preserved Contract: Migrated from `templates/commands/discussion.md`; this file 
    - Do not write `handoff-assessment.md` or handoff draft files in this preview stage.
    - Give the assessment preview in the same visible reply: likely verdict, proposed handoff goal, recommended consumer, proposed package scope, excluded scope, readiness checks, blocking checklist if any, default next action, and override path.
    - Do not end with only "next I recommend handoff assessment" or a list of updated discussion artifacts.
+   - Do not phrase the default next action as running `sp-specify`; before explicit handoff and user-confirmed readiness, the next action remains handoff assessment or review inside `sp-discussion`.
 
 9. `handoff-assessment`
    - Decide whether one draft handoff package can be produced for review or discussion must continue.
@@ -68,7 +69,9 @@ Preserved Contract: Migrated from `templates/commands/discussion.md`; this file 
    - If the user's next message is an unrelated prompt, codebase explanation request, new target root, or new product question, it must not be treated as approval. Classify it as a new turn, preserve the draft in user-review state, and answer or route the new request according to the normal classifier.
 
 13. `handoff-ready`
-   - Only after user confirmation. Then tell the user how to invoke the integration-appropriate `sp-specify` command with `.specify/discussions/<slug>/handoff-to-specify.md`.
+   - Only after user confirmation, both handoff files exist, Markdown/JSON agreement is checked, and `quality_gate.status` is user-confirmed. Then tell the user how to invoke the integration-appropriate `sp-specify` command with `.specify/discussions/<slug>/handoff-to-specify.md`.
+
+If a discussion is mature enough for specification but lacks `handoff-to-specify.md` or `handoff-to-specify.json`, close the turn with handoff assessment, draft review, or repair guidance inside `sp-discussion`. Do not tell the user their next sentence should be `sp-specify`, and do not send `specification-input.md` to `sp-specify` as a fallback.
 
 ## Quality And Closeout
 

@@ -17,6 +17,8 @@ These filenames are compatibility names for the unified discussion handoff. Do n
 
 Both files are mandatory. Missing Markdown is invalid because the user-reviewable source is absent. Missing JSON is invalid because downstream workflows need structured boundary, review, and Must-Preserve status. Do not reconstruct a missing JSON companion during handoff; refresh the handoff in `sp-discussion` instead.
 
+`specification-input.md`, `discussion-state.md`, and other discussion source files are supporting evidence only. They are not substitutes for the required handoff pair and must not be offered as a bypass for `handoff-to-specify.md` plus `handoff-to-specify.json`.
+
 The handoff Markdown and JSON must agree on `handoff_kind`, `handoff_goal`, `discussion_slug`, `consumer_eligibility`, `recommended_consumer`, context boundary fields, implementation target fields, quality gate status, Must-Preserve IDs, Senior Consequence Analysis status, and open blockers.
 
 ### Handoff Request-Changes Repair

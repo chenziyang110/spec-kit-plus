@@ -23,6 +23,7 @@ Preserved Contract: discussion handoff integrity, target boundary safety, source
 - If multiple unconsumed `handoff-ready` discussions exist, stop before creating a feature workspace and ask the user for the specific slug or handoff path.
 - When a discussion handoff is selected, treat it as the authoritative upstream input and set `SOURCE_HANDOFF_MD`, `SOURCE_HANDOFF_JSON`, and `SOURCE_DISCUSSION_SLUG`. Do not rediscover or switch to another handoff later in the run.
 - Require both `handoff-to-specify.md` and `handoff-to-specify.json` before feature creation. Missing Markdown or JSON is `blocked_by_handoff_integrity`; route back to `sp-discussion` to refresh the pair instead of reconstructing it here.
+- `specification-input.md`, `discussion-state.md`, `requirements.md`, and other discussion source files are not accepted discussion handoffs. If a discussion package is specification-ready but lacks the ready Markdown/JSON handoff pair, stop with `blocked_by_handoff_integrity` and tell the user to return to `sp-discussion` for handoff creation or repair; do not ask for permission to use `specification-input.md` as a fallback feature description.
 - Parse the JSON before feature creation and require:
   - `entry_source: sp-discussion`
   - `handoff_kind: discussion_requirement_contract` when present; legacy discussion handoffs without this field may continue only if all other gates pass

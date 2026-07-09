@@ -28,7 +28,7 @@ scripts:
 
 ## Main Flow
 
-1. Resolve discussion handoff intake before feature creation; require both `handoff-to-specify.md` and `handoff-to-specify.json`, verify `handoff-ready`, `quality_gate.status: user_confirmed`, and `planning_gate_status: ready`, derive the feature description, and do not pass the raw handoff path as the feature description.
+1. Resolve discussion handoff intake before feature creation; require both `handoff-to-specify.md` and `handoff-to-specify.json`, verify `handoff-ready`, `quality_gate.status: user_confirmed`, and `planning_gate_status: ready`, derive the feature description, and do not pass the raw handoff path as the feature description. Do not use `specification-input.md`, `discussion-state.md`, or other discussion source files as a substitute for the ready handoff pair.
 2. Run `{SCRIPT}` from the repository root to create or resume the feature workspace; generated projects resolve this to `.specify/scripts/bash/create-new-feature.sh "$ARGUMENTS"` or `.specify/scripts/powershell/create-new-feature.ps1 "$ARGUMENTS"`.
 3. Explore project context with project cognition as advisory navigation, then prove current facts from live files and record source evidence.
 4. Ask one high-impact question at a time only for planning-critical ambiguity; otherwise continue with the safe recommended/default path.
