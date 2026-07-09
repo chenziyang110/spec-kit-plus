@@ -1096,7 +1096,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "## Durable State",
             "",
             "- When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.",
-            "- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered saves, five-turn cadence, compaction risk, or lifecycle transitions.",
+            "- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.",
             "- Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.",
             "- Store reusable lessons in project memory, not only in chat or task artifacts.",
             "",
@@ -3163,6 +3163,7 @@ def init(
         specify init --here --ai codex --ai-skills
         specify init --here --ai codebuddy
         specify init --here --ai vibe      # Initialize with Mistral Vibe support
+        specify init --here --ai zcode     # Initialize with ZCode support
         specify init --here --ai mimo      # Initialize with MiMo Code support
         specify init --here
         specify init --here --force  # Skip confirmation when current directory not empty
@@ -3673,6 +3674,7 @@ def init(
     cursor_agent_skill_mode = selected_ai == "cursor-agent" and _is_skills_integration
     trae_skill_mode = selected_ai == "trae" and _is_skills_integration
     vibe_skill_mode = selected_ai == "vibe" and _is_skills_integration
+    zcode_skill_mode = selected_ai == "zcode" and _is_skills_integration
     native_skill_mode = (
         codex_skill_mode
         or claude_skill_mode
@@ -3681,6 +3683,7 @@ def init(
         or cursor_agent_skill_mode
         or trae_skill_mode
         or vibe_skill_mode
+        or zcode_skill_mode
     )
 
     if native_skill_mode and not ai_skills:
@@ -3692,6 +3695,7 @@ def init(
             "cursor-agent": "Cursor Agent",
             "trae": "Trae",
             "vibe": "Mistral Vibe",
+            "zcode": "ZCode",
         }
         agent_label = agent_start_labels.get(
             selected_ai,
@@ -3728,7 +3732,7 @@ def init(
     usage_label = "skills" if native_skill_mode else "slash commands"
 
     def _display_cmd(name: str) -> str:
-        if codex_skill_mode or agy_skill_mode:
+        if codex_skill_mode or agy_skill_mode or zcode_skill_mode:
             return f"$sp-{name}"
         if cursor_agent_skill_mode or vibe_skill_mode:
             return f"/sp-{name}"

@@ -250,7 +250,7 @@ class CommandRegistrar:
 
         if agent_name in {"codex", "kimi", "claude"}:
             body = self.resolve_skill_placeholders(agent_name, frontmatter, body, project_root)
-        elif agent_name in {"agy"}:
+        elif agent_name in {"agy", "zcode"}:
             body = self.apply_skill_invocation_conventions(agent_name, body)
         body = self.render_invocation_placeholders(agent_name, body)
 
@@ -288,7 +288,7 @@ class CommandRegistrar:
     @staticmethod
     def _skill_invocation_example(agent_name: str) -> str | None:
         """Return the agent-specific skill invocation example when applicable."""
-        if agent_name in {"codex", "agy"}:
+        if agent_name in {"codex", "agy", "zcode"}:
             return "$sp-plan"
         if agent_name == "claude":
             return "/sp-plan"
@@ -302,7 +302,7 @@ class CommandRegistrar:
         normalized = workflow_name.strip().lstrip("/").removeprefix("sp.")
         normalized = normalized.removeprefix("sp-")
 
-        if agent_name in {"codex", "agy"}:
+        if agent_name in {"codex", "agy", "zcode"}:
             return f"$sp-{normalized}"
         if agent_name == "kimi":
             return f"/skill:sp-{normalized}"

@@ -60,9 +60,11 @@
 - ordinary_turn_persistence_mode: frontstage-only by default; durable-checkpoint, evidence-handoff, and lifecycle-transition only when their trigger fires
 - ordinary_turn_write_gate: suppress local writes until save trigger; do not update persisted counters for every user reply or plain acknowledgement
 - structured_refresh_policy: semantic-checkpoint-only
-- save_trigger_policy: semantic-checkpoint | user-triggered-save | five-turn-cadence | evidence-handoff | compaction-risk | durable-lifecycle-transition
+- save_trigger_policy: semantic-checkpoint | user-triggered-checkpoint-or-save | evidence-handoff | compaction-risk | durable-lifecycle-transition
 - unsaved_turn_count: 0
 - unsaved_turn_count_policy: memory-only between save triggers; persist only when flushing a batched event or semantic checkpoint
+- checkpoint_prompt_policy: after several unsaved ordinary turns, the visible reply may mention the unsaved turn count and suggest `checkpoint, continue`; prompt-only, no writes
+- checkpoint_continue_policy: user-triggered checkpoint saves one batched event first, refreshes only changed files, then continues in the same reply
 - pending_context_summary: []
 - compaction_preserve_items: []
 - hook_persistence_policy: hooks may remind on resume or compaction, but must not create per-user-reply discussion writes

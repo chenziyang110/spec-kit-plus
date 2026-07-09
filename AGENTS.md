@@ -121,6 +121,7 @@ Specify supports multiple AI agents by generating agent-specific command files a
 | **Trae**                   | `.trae/skills/`        | Markdown | N/A (IDE-based) | Trae IDE                    |
 | **Antigravity**            | `.agents/skills/`      | Markdown | N/A (IDE-based) | Antigravity IDE (`--ai agy --ai-skills`) |
 | **Mistral Vibe**           | `.vibe/skills/`        | Markdown | `vibe`          | Mistral Vibe CLI            |
+| **ZCode**                  | `.zcode/skills/`       | Markdown | N/A (desktop app) | ZCode Agent skills        |
 | **Generic**                | User-specified via `--ai-commands-dir` | Markdown | N/A | Bring your own agent        |
 
 ### Step-by-Step Integration Guide
@@ -381,12 +382,13 @@ Work within integrated development environments:
 - **IBM Bob**: Built into IBM Bob IDE
 - **Trae**: Built into Trae IDE
 - **Antigravity**: Built into Antigravity IDE (`--ai agy --ai-skills`)
+- **ZCode**: Built into the ZCode desktop app (`--ai zcode`)
 
 ## Command File Formats
 
 ### Markdown Format
 
-Used by: Claude, Cursor, GitHub Copilot, opencode, Windsurf, Junie, Kiro CLI, Amp, SHAI, IBM Bob, Kimi Code, Qwen, Pi, Codex, Auggie, CodeBuddy, Qoder, Roo Code, Kilo Code, Trae, Antigravity, Mistral Vibe, iFlow, Forge
+Used by: Claude, Cursor, GitHub Copilot, opencode, Windsurf, Junie, Kiro CLI, Amp, SHAI, IBM Bob, Kimi Code, Qwen, Pi, Codex, Auggie, CodeBuddy, Qoder, Roo Code, Kilo Code, Trae, Antigravity, Mistral Vibe, ZCode, iFlow, Forge
 
 **Standard format:**
 
@@ -438,6 +440,7 @@ Command content with {SCRIPT} and {{args}} placeholders.
 - Kimi Code: `.kimi/skills/` (skills; explicit workflow skills use `/skill:sp-<command>`, passive bundled skills keep their template directory names such as `spec-kit-*`, `tdd-workflow`, or `frontend-design`)
 - Trae: `.trae/skills/` (skills; explicit workflow skills use `sp-*` and the Trae rules directory remains the home for project context files such as `project_rules.md`)
 - Mistral Vibe: `.vibe/skills/` (skills; generated workflow skills install as `sp-*/SKILL.md`)
+- ZCode: `.zcode/skills/` (skills; explicit workflow skills use `$sp-<command>`, root `AGENTS.md` remains the context file, and `.agents/skills/` is left for cross-tool shared skills)
 - **Shared rule for skills-based integrations**:
 - When an integration installs into a `skills/` directory, explicit workflow skills use the `sp-*` namespace and passive bundled skills keep the directory names defined under `templates/passive-skills/`.
 - **Prompt-based exceptions**:
@@ -663,7 +666,7 @@ When adding new agents:
 ## Durable State
 
 - When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.
-- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered saves, five-turn cadence, compaction risk, or lifecycle transitions.
+- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.
 - Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.
 - Store reusable lessons in project memory, not only in chat or task artifacts.
 

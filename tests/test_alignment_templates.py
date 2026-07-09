@@ -1074,7 +1074,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "over branch name or chat memory" in lowered
     assert "frontstage-only deferred persistence" in lowered
     assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lowered
-    assert "semantic checkpoints, user-triggered saves, five-turn cadence, compaction risk, or lifecycle transitions" in lowered
+    assert "semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions" in lowered
+    assert "suggest `checkpoint, continue`" in lowered
+    assert "prompt does not write files by itself" in lowered
     assert "project cognition freshness truthful" in lowered
     assert "store reusable lessons in project memory" in lowered
 
@@ -1740,18 +1742,23 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "status summaries" in lowered
     assert "deferred persistence" in lowered
     assert "compaction preserve" in lowered
-    assert "user-triggered save" in lowered
+    assert "user-triggered checkpoint/save" in lowered
     assert "five-turn" in lowered
+    assert "checkpoint, continue" in lowered
+    assert "same visible reply" in lowered or "same reply" in lowered
     assert "evidence-handoff: delegated or source-grounded evidence must be consumed by later synthesis" in lowered
     assert (
-        "save_trigger_policy: semantic-checkpoint | user-triggered-save | five-turn-cadence | "
+        "save_trigger_policy: semantic-checkpoint | user-triggered-checkpoint-or-save | "
         "evidence-handoff | compaction-risk | durable-lifecycle-transition"
     ) in combined
     assert "semantic checkpoint is a durable meaning change" in lowered
-    assert "five-turn cadence may write one compact recovery event" in lowered
+    assert "five-turn checkpoint suggestion cadence may prompt the user to save" in lowered
+    assert "does not by itself write a compact recovery event or refresh structured files" in lowered
     assert "pending_context_summary" in combined
     assert "ordinary_turn_persistence_mode" in combined
     assert "unsaved_turn_count" in combined
+    assert "checkpoint_prompt_policy" in combined
+    assert "checkpoint_continue_policy" in combined
     assert "memory-only between save triggers" in lowered
     assert "suppress local writes until save trigger" in lowered
     assert "hooks may remind on resume or compaction" in lowered

@@ -6,7 +6,7 @@ Preserved Contract: Migrated from `templates/commands/discussion.md`; this file 
 
 ## Semantic Checkpoints
 
-Refresh structured files only at semantic checkpoints. A semantic checkpoint is a durable meaning change that affects the discussion's future course; it is not every user response, acknowledgement, minor preference, low-risk clarification, or answer to a low-risk follow-up. The gate is meaning-first, not turn-count-first: the five-turn cadence may write one compact recovery event, but it does not by itself justify refreshing every structured file.
+Refresh structured files only at semantic checkpoints. A semantic checkpoint is a durable meaning change that affects the discussion's future course; it is not every user response, acknowledgement, minor preference, low-risk clarification, or answer to a low-risk follow-up. The gate is meaning-first, not turn-count-first: the five-turn checkpoint suggestion cadence may prompt the user to save, but it does not by itself write a compact recovery event or refresh structured files.
 
 - user confirms a goal, non-goal, scope boundary, or important product decision that changes the discussion compass, target boundary, recommendation, handoff readiness, blocking unknowns, or downstream contract
 - discussion stage changes, such as product framing to technical options
@@ -15,8 +15,7 @@ Refresh structured files only at semantic checkpoints. A semantic checkpoint is 
 - evidence conflict is found
 - truth pass status changes
 - the discussion compass becomes stale or a recommendation changes materially
-- user-triggered save confirms the current discussion point should become durable
-- five-turn deferred persistence cadence fires after five ordinary unsaved turns
+- user-triggered checkpoint/save confirms the current discussion point should become durable, including `checkpoint`, `save checkpoint`, `checkpoint, continue`, or localized equivalents that pair checkpoint with continue
 - the user asks for handoff or next-stage continuation
 - context compaction risk is high
 - an old discussion is resumed and compact state is missing or stale
@@ -28,6 +27,14 @@ Checkpoint triggers do not refresh all files. Refresh only the targets whose dur
 - technical-options.md only when options are introduced, revised, selected, or rejected.
 - project-context.md only when source-grounding evidence, truth-pass evidence, assumptions, advice confidence, or cognition coverage changes.
 - open-questions.md only when blocking or soft unknowns materially change.
+
+## Checkpoint Prompting
+
+Do not persist only because the unsaved turn count changed. Keep `unsaved_turn_count` in active-conversation memory between save triggers.
+
+At a natural pause or after several unsaved ordinary turns, the visible reply may end with one short note that names the unsaved turn count and suggests `checkpoint, continue` if the user wants to save progress and keep going. This note is not a receipt, does not expose file paths by default, and must not call write-capable tools.
+
+When the user says `checkpoint, continue` or an equivalent checkpoint-plus-continue phrase, write one batched compact event to `discussion-log.md` that covers the accumulated unsaved turns, refresh only semantically changed structured files, update persisted checkpoint counters only inside that flush, and continue with the next useful discussion content in the same reply. Do not stop after a save receipt or ask for permission to continue.
 
 ## Recovery Flow
 

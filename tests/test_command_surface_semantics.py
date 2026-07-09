@@ -137,6 +137,16 @@ def test_apply_skill_invocation_conventions_supports_agy_surface():
     assert "- Run $sp-plan next." in agy
 
 
+def test_apply_skill_invocation_conventions_supports_zcode_surface():
+    body = "- Run /sp-plan next.\n- State token remains `next_command: /sp.plan`.\n"
+
+    zcode = CommandRegistrar.apply_skill_invocation_conventions("zcode", body)
+
+    assert "## Invocation Syntax" in zcode
+    assert "- Run $sp-plan next." in zcode
+    assert "`next_command: /sp.plan`" in zcode
+
+
 def test_invoke_placeholder_projects_codex_skill_surface():
     rendered = IntegrationBase.process_template(
         "---\n---\nRun {{invoke:plan}} next.",
@@ -155,6 +165,16 @@ def test_invoke_placeholder_projects_kimi_skill_surface():
     )
 
     assert rendered.endswith("Run /skill:sp-map-scan next.")
+
+
+def test_invoke_placeholder_projects_zcode_skill_surface():
+    rendered = IntegrationBase.process_template(
+        "---\n---\nRun {{invoke:plan}} next.",
+        "zcode",
+        "sh",
+    )
+
+    assert rendered.endswith("Run $sp-plan next.")
 
 
 def test_invoke_placeholder_projects_markdown_command_surface():
@@ -671,6 +691,8 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "prefer durable workflow state and explicit feature paths" in content
         assert "frontstage-only deferred persistence" in content
         assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in content
+        assert "suggest `checkpoint, continue`" in content
+        assert "prompt does not write files by itself" in content
         assert "project cognition freshness truthful" in content
         assert "store reusable lessons in project memory" in content
         assert "1% chance" not in content

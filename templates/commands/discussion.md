@@ -83,7 +83,7 @@ Use `templates/discussion-state-template.md` when initializing `discussion-state
 2. Run the Context Boundary Gate before project-specific technical advice.
 3. Use project cognition only as advisory navigation; prove facts from live evidence.
 4. Answer with the unified frontstage contract.
-5. Persist only at semantic checkpoints, save triggers, compaction risk, five-turn cadence, or lifecycle transitions.
+5. Persist only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved ordinary turns, optionally append a short frontstage note with the unsaved turn count and suggest `checkpoint, continue`; the suggestion is prompt-only and must not write files by itself.
 6. Draft exactly one `discussion_requirement_contract` handoff pair only after explicit handoff request and boundary lock.
 7. Self-review and ask for user confirmation before marking handoff ready.
 

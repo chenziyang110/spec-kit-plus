@@ -406,7 +406,7 @@ def _read_skill_with_references(skill_path):
 
 
 
-SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe")
+SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe", "zcode")
 
 
 def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_path):

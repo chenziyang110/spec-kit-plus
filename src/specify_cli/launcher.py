@@ -60,6 +60,7 @@ GENERATED_GUIDANCE_ROOTS = (
     ".trae/skills",
     ".agents/skills",
     ".vibe/skills",
+    ".zcode/skills",
 )
 GENERATED_GUIDANCE_SUFFIXES = {".md", ".toml"}
 SOURCE_BOUND_UVX_SPECIFY_RE = re.compile(r"uvx\s+--from\s+git\+\S+\s+specify")
