@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .template_utils import read_command_with_references
+from .template_utils import read_command_with_references, read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -244,3 +244,18 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
     assert "delegate it through a validated subagent lane" in debug_content
     assert "when the fix cannot proceed safely" in debug_content
     assert "record `subagent-blocked`" in debug_content
+
+
+def test_implement_template_requires_original_image_handoff_for_visual_tasks() -> None:
+    content = _read_command("implement").lower()
+    worker_prompt = read_template("templates/worker-prompts/implementer.md").lower()
+
+    assert "runtime image item/local_image" in content
+    assert "leader-authored prose summary is not a substitute" in content
+    assert "materialize it to a stable project-relative artifact path" in content
+    assert "do not dispatch image-backed ui implementation" in content
+    assert "missing image handoff reason" in content
+    assert "include every original png, screenshot, mockup, design export, or reference image" in worker_prompt
+    assert "do not reduce an original visual reference to prose-only instructions" in worker_prompt
+    assert "inspect the original visual input before implementing visual structure" in worker_prompt
+    assert "do not implement from a controller summary alone" in worker_prompt

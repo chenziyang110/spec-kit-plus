@@ -332,7 +332,12 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         task_id="T021",
     )
 
-    assert [ref.path for ref in packet.required_references] == ["DESIGN.md"]
+    reference_paths = [ref.path for ref in packet.required_references]
+    assert reference_paths == [
+        "DESIGN.md",
+        "DESIGN.md#settings-panel",
+        "screenshots/settings-panel.png",
+    ]
     assert packet.forbidden_drift == ["Do not change generated settings routes"]
     assert "Do not change generated settings routes" in packet.intent.constraints
     assert packet.scope.write_scope == ["src/ui/settings-panel.tsx"]
@@ -363,6 +368,8 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         "keyboard_navigation_check",
         "state_persistence_check",
     ]
+    assert "DESIGN.md#settings-panel" in packet.scope.read_scope
+    assert "screenshots/settings-panel.png" in packet.scope.read_scope
 
 
 def test_compile_worker_task_packet_rejects_invalid_ui_fidelity_level(

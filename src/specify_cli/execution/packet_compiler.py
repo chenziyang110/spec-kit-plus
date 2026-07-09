@@ -514,6 +514,12 @@ def compile_worker_task_packet(
     task_detail = _task_detail_body(tasks_text, task_id)
     objective = resolved_task_body
     ui_contract = _ui_contract_for_task(task_detail)
+    ui_fidelity_requirements = _ui_fidelity_requirements_from_task_detail(task_detail)
+    review_inputs = _task_detail_table_field_values(
+        task_detail,
+        "Scope Boundaries",
+        "review_inputs",
+    )
 
     required_references = [
         PacketReference(
@@ -523,11 +529,14 @@ def compile_worker_task_packet(
         for value in _bullet_values(_section_body(plan_text, "Required Implementation References"))
     ]
     existing_reference_paths = {reference.path for reference in required_references}
-    for value in [
+    ui_reference_candidates = [
         *ui_contract.design_sources,
+        *ui_fidelity_requirements.design_inputs,
+        *review_inputs,
         ui_contract.reference_notes,
         ui_contract.visual_target,
-    ]:
+    ]
+    for value in ui_reference_candidates:
         if not value or value in existing_reference_paths:
             continue
         required_references.append(
@@ -664,16 +673,12 @@ def compile_worker_task_packet(
             consumes=_task_detail_table_field_values(task_detail, "Scope Boundaries", "consumes"),
             produces=_task_detail_table_field_values(task_detail, "Scope Boundaries", "produces"),
         ),
-        review_inputs=_task_detail_table_field_values(
-            task_detail,
-            "Scope Boundaries",
-            "review_inputs",
-        ),
+        review_inputs=review_inputs,
         review_risks=_unique(
             _section_or_subsection_values(plan_text, "Review-Risk Notes")
             + _task_detail_table_field_values(task_detail, "Scope Boundaries", "review_risks")
         ),
-        ui_fidelity_requirements=_ui_fidelity_requirements_from_task_detail(task_detail),
+        ui_fidelity_requirements=ui_fidelity_requirements,
         controller_checks_required=_task_detail_table_field_values(
             task_detail,
             "Scope Boundaries",

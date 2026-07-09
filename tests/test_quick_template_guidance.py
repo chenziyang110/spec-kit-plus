@@ -385,3 +385,20 @@ def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:
     assert "{{invoke:debug}}" in content or "/sp-debug" in content
     assert "surface-only" in content or "symptom-only" in content
     assert "cannot satisfy the quick-task contract" in content or "cannot satisfy the quick contract" in content
+
+
+def test_quick_template_requires_original_image_handoff_for_visual_tasks() -> None:
+    content = read_command_with_references("quick").lower()
+    worker_prompt = read_template("templates/worker-prompts/quick-worker.md").lower()
+
+    assert "image and ui reference handoff" in content
+    assert "png, screenshot, mockup, design export, reference image" in content
+    assert "runtime image item/local_image" in content
+    assert "do not rely on inherited chat context" in content
+    assert "prose summary as the only handoff" in content
+    assert "do not dispatch a ui implementation worker" in content
+    assert "worker would receive only the leader's textual description" in content
+    assert "which image inputs were inspected" in content
+    assert "provide the original visual input as a runtime image item/local_image" in worker_prompt
+    assert "do not provide only a prose summary of the image" in worker_prompt
+    assert "inspect the original image input" in worker_prompt

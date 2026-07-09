@@ -60,6 +60,16 @@ The following flags are available and composable:
 - Idle subagent is not an accepted result.
 - The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
 
+## Image and UI Reference Handoff
+
+- Treat a user-provided PNG, screenshot, mockup, design export, reference image, or "make it like this" UI request as a first-class worker input when it shapes the quick task.
+- Before dispatch, record the image inputs in the quick-task context and include them in the `WorkerTaskPacket` or equivalent lane contract as `image_inputs` or UI reference inputs with stable project-relative paths when available.
+- If the image exists only as a chat attachment, materialize it to a stable project-local artifact path or pass it to the subagent as a runtime image item/local_image when the integration supports that. Do not rely on inherited chat context, `fork_context`, or a prose summary as the only handoff.
+- Dispatch image-backed UI lanes to a vision-capable or design-capable worker when the runtime exposes worker roles or capabilities.
+- The lane contract must state the fidelity mode (`approximate` by default unless the user says `high` or `inspiration`), the original image input refs, visual constraints to preserve, allowed adaptations, required UI states, and screenshot or visual-review evidence.
+- Do not dispatch a UI implementation worker when the worker would receive only the leader's textual description of the image. If the original image cannot be handed off or materialized and the lane depends on seeing it, record `subagent-blocked` with that reason instead of guessing.
+- The accepted worker result must state which image inputs were inspected. If visual comparison is unavailable, record the fidelity status truthfully as pending human review or blocked instead of claiming visual match.
+
 ## Autonomous Execution Contract
 
 - The leader must continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
