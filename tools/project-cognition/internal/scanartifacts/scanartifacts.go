@@ -846,7 +846,7 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 	boundary.IncludedPaths = boundaryPathsFromValue(obj["included_paths"])
 	boundary.ExcludedPaths = boundaryPathsFromValue(obj["excluded_paths"])
 	boundary.AmbiguousPaths = boundaryPathsFromValue(obj["ambiguous_paths"])
-	boundary.Dispositions = boundaryDispositionMap(obj["dispositions"])
+	boundary.Dispositions = boundaryDispositionsFromObject(obj, boundary.CandidatePaths)
 	boundary.Criticality = boundaryDispositionMap(obj["criticality"])
 	boundary.ClassificationReasons = boundaryDispositionMap(obj["classification_reasons"])
 	boundary.DecisionSource = boundaryDispositionMap(obj["decision_source"])
@@ -932,6 +932,7 @@ func isVersionedBoundaryObject(obj map[string]any) bool {
 		"excluded_paths",
 		"ambiguous_paths",
 		"dispositions",
+		"disposition_map",
 		"classification_reasons",
 		"decision_source",
 	} {
@@ -954,7 +955,17 @@ func validateVersionedBoundaryShapes(obj map[string]any, result *Result) {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an array", key))
 		}
 	}
-	for _, key := range []string{"dispositions", "criticality", "classification_reasons", "decision_source"} {
+	if _, ok := obj["dispositions"].(map[string]any); !ok {
+		if _, aliasOK := obj["disposition_map"].(map[string]any); !aliasOK {
+			result.Errors = append(result.Errors, "repository-universe dispositions must be an object")
+		}
+	}
+	if _, exists := obj["disposition_map"]; exists {
+		if _, ok := obj["disposition_map"].(map[string]any); !ok {
+			result.Errors = append(result.Errors, "repository-universe disposition_map must be an object")
+		}
+	}
+	for _, key := range []string{"criticality", "classification_reasons", "decision_source"} {
 		if _, ok := obj[key].(map[string]any); !ok {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an object", key))
 		}
@@ -1007,6 +1018,30 @@ func boundaryDispositionMap(value any) map[string]string {
 		}
 	}
 	return values
+}
+
+func boundaryDispositionsFromObject(obj map[string]any, candidates map[string]string) map[string]string {
+	dispositions := boundaryDispositionMap(obj["dispositions"])
+	alias := boundaryDispositionMap(obj["disposition_map"])
+	if len(alias) == 0 {
+		return dispositions
+	}
+	if len(dispositions) == 0 {
+		return alias
+	}
+	merged := map[string]string{}
+	for path, disposition := range dispositions {
+		merged[path] = disposition
+	}
+	for path, disposition := range alias {
+		if _, exists := merged[path]; exists {
+			continue
+		}
+		if _, candidate := candidates[path]; candidate {
+			merged[path] = disposition
+		}
+	}
+	return merged
 }
 
 func boundaryCandidatePaths(value any) map[string]string {
