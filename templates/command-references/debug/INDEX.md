@@ -1,5 +1,6 @@
 # Debug Reference Index
 
+- [semantic-work-contract.md](semantic-work-contract.md): Trigger: when project-cognition-backed semantic intake, routing, permission, audit, resume, or final-claim rules affect the debug workflow.
 - [intake-and-debug-checkpoint.md](intake-and-debug-checkpoint.md): Trigger: before reproduction, log review, source reads, evidence collection, code edits, or validation.
 - [reproduction-and-evidence.md](reproduction-and-evidence.md): Trigger: when gathering evidence, reproducing failure, reading logs/tests/source, or building the investigation contract.
 - [hypothesis-and-root-cause.md](hypothesis-and-root-cause.md): Trigger: when forming, testing, confirming, or rejecting root-cause hypotheses.

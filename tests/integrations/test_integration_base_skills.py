@@ -498,6 +498,35 @@ def test_all_skills_integrations_generate_migrated_workflow_references(tmp_path)
             ), (integration_key, workflow)
 
 
+def test_all_skills_integrations_route_semantic_contract_to_references(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest, script_type="sh")
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            skill_dir = integration.skills_dest(project) / f"sp-{workflow}"
+            skill = skill_dir / "SKILL.md"
+            semantic_ref = skill_dir / "references" / "semantic-work-contract.md"
+            assert semantic_ref.exists(), (integration_key, workflow)
+            assert "v1.3 verification owner discovery" not in skill.read_text(
+                encoding="utf-8"
+            ), (integration_key, workflow)
+            semantic_content = semantic_ref.read_text(encoding="utf-8")
+            assert "v1.3 verification owner discovery" in semantic_content, (
+                integration_key,
+                workflow,
+            )
+            assert "{{spec-kit-include:" not in semantic_content, (
+                integration_key,
+                workflow,
+            )
+
+
 def test_all_skills_integrations_manifest_owns_reference_sidecars(tmp_path):
     for integration_key in INTEGRATION_REGISTRY:
         integration = get_integration(integration_key)

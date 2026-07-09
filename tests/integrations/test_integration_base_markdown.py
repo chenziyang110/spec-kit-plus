@@ -508,6 +508,10 @@ def test_collected_markdown_integrations_inline_migrated_command_references(tmp_
             assert "## Reference Contracts" in content, (integration_key, workflow)
             assert "Trigger:" in content, (integration_key, workflow)
             assert "Preserved Contract:" in content, (integration_key, workflow)
+            assert "v1.3 verification owner discovery" in content, (
+                integration_key,
+                workflow,
+            )
 
 
 def test_collected_markdown_integrations_preserve_ask_contract(tmp_path):

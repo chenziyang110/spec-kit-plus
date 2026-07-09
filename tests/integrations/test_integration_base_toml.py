@@ -449,6 +449,10 @@ def test_collected_toml_integrations_inline_migrated_command_references(tmp_path
             assert "## Reference Contracts" in prompt, (integration_key, workflow)
             assert "Trigger:" in prompt, (integration_key, workflow)
             assert "Preserved Contract:" in prompt, (integration_key, workflow)
+            assert "v1.3 verification owner discovery" in prompt, (
+                integration_key,
+                workflow,
+            )
 
 
 def test_collected_toml_integrations_preserve_ask_contract(tmp_path):

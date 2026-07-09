@@ -1,5 +1,6 @@
 # Plan Reference Index
 
+- [semantic-work-contract.md](semantic-work-contract.md): Trigger: when project-cognition-backed semantic intake, routing, permission, audit, resume, or final-claim rules affect the planning workflow.
 - [spec-package-intake.md](spec-package-intake.md): Trigger: before any design artifact synthesis or planning lane dispatch.
 - [research-and-design-lanes.md](research-and-design-lanes.md): Trigger: when gathering research, preserving complete-first scope, adopting design inputs, or shaping capability plans.
 - [data-model-contracts-and-quickstart.md](data-model-contracts-and-quickstart.md): Trigger: when generating conditional design artifacts and validation scenarios.

@@ -1,5 +1,6 @@
 # Tasks Reference Index
 
+- [semantic-work-contract.md](semantic-work-contract.md): Trigger: when project-cognition-backed semantic intake, routing, permission, audit, resume, or final-claim rules affect the task-generation workflow.
 - [plan-intake.md](plan-intake.md): Trigger: before task decomposition or remediation from a prior task/analyze blocker.
 - [task-generation-sequence.md](task-generation-sequence.md): Trigger: when decomposing plan artifacts into tasks.md and related machine-readable packets.
 - [task-packet-schema.md](task-packet-schema.md): Trigger: when writing task-index.json, handoff-to-tasks.json, task-packets/*.json, or worker packet metadata.
