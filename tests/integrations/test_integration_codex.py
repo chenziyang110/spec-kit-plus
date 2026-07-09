@@ -269,7 +269,10 @@ class TestCodexIntegration:
         integration.setup(tmp_path, manifest)
 
         skills_dir = tmp_path / ".codex" / "skills"
-        generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in skills_dir.glob("**/SKILL.md"))
+        generated = "\n".join(
+            _read_skill_with_references(path).lower()
+            for path in skills_dir.glob("**/SKILL.md")
+        )
         cognition_policy = "\n".join(
             _extract_generated_cognition_policy(path.read_text(encoding="utf-8"))
             for path in skills_dir.glob("**/SKILL.md")
@@ -858,7 +861,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     skill_path = target / ".codex" / "skills" / "sp-implement-teams" / "SKILL.md"
     assert skill_path.exists()
 
-    content = skill_path.read_text(encoding="utf-8")
+    content = _read_skill_with_references(skill_path)
     lower = content.lower()
     assert "codex-only" in lower
     assert "psmux" in lower

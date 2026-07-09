@@ -1,0 +1,11 @@
+{
+  "workflow": "prd-scan",
+  "source": "templates/commands/prd-scan.md",
+  "entries": [
+    {
+      "kind": "semantic-contract",
+      "source_excerpt": "{{spec-kit-include: ../../command-partials/common/semantic-work-contract.md}}",
+      "target": "templates/command-references/prd-scan/semantic-work-contract.md"
+    }
+  ]
+}

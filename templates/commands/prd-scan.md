@@ -19,7 +19,13 @@ This summary is routing metadata only. The full workflow contract is the frontma
 - Stable freshness state: `.specify/prd/status.json`.
 - Default handoff: `/sp-prd-build`.
 
-{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
 
 ## Objective
 

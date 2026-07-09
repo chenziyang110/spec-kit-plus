@@ -1,0 +1,11 @@
+{
+  "workflow": "analyze",
+  "source": "templates/commands/analyze.md",
+  "entries": [
+    {
+      "kind": "semantic-contract",
+      "source_excerpt": "{{spec-kit-include: ../../command-partials/common/semantic-work-contract.md}}",
+      "target": "templates/command-references/analyze/semantic-work-contract.md"
+    }
+  ]
+}

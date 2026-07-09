@@ -25,12 +25,23 @@ ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
 ASCII_CARD_LINE_RE = re.compile(r"(?m)^\s*\| .+\|\s*$")
 ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
 MIGRATED_COMMAND_REFERENCE_WORKFLOWS = (
+    "analyze",
+    "checklist",
+    "clarify",
+    "deep-research",
+    "design",
     "discussion",
-    "specify",
-    "plan",
-    "tasks",
+    "fast",
     "implement",
+    "implement-teams",
+    "map-build",
+    "map-scan",
+    "map-update",
+    "plan",
+    "prd-scan",
     "quick",
+    "specify",
+    "tasks",
     "debug",
 )
 

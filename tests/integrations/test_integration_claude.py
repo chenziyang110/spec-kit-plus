@@ -363,6 +363,16 @@ class TestClaudeIntegration:
                     f"{skills_prefix}/sp-{stem}/references/{rel_reference}"
                 )
         expected.append(f"{skills_prefix}/sp-implement-teams/SKILL.md")
+        for reference in claude.list_command_reference_templates("implement-teams"):
+            references_root = claude.shared_command_references_dir()
+            if references_root is None:
+                continue
+            rel_reference = reference.relative_to(
+                references_root / "implement-teams"
+            ).as_posix()
+            expected.append(
+                f"{skills_prefix}/sp-implement-teams/references/{rel_reference}"
+            )
         for relative_file in cls._passive_skill_files():
             expected.append(f"{skills_prefix}/{relative_file}")
 
@@ -2837,7 +2847,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     skill_path = target / ".claude" / "skills" / "sp-implement-teams" / "SKILL.md"
     assert skill_path.exists()
 
-    content = skill_path.read_text(encoding="utf-8")
+    content = _read_skill_with_references(skill_path)
     lower = content.lower()
     team_bootstrap_idx = content.find("## Team Bootstrap Gate")
     shared_contract_idx = content.find("## Shared Contract With `/sp-implement`")

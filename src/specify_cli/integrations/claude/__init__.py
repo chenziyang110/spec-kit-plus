@@ -589,13 +589,6 @@ class ClaudeIntegration(SkillsIntegration):
             return []
 
         raw = template.read_text(encoding="utf-8")
-        semantic_contract = self._shared_semantic_work_contract()
-        if semantic_contract and "SEMANTIC_WORK_CONTRACT_BEGIN" not in raw:
-            raw = raw.replace(
-                "## Team Bootstrap Gate",
-                f"{semantic_contract.rstrip()}\n\n## Team Bootstrap Gate",
-                1,
-            )
         frontmatter = self._parse_skill_frontmatter(raw)
         description = frontmatter.get(
             "description",
@@ -611,7 +604,7 @@ class ClaudeIntegration(SkillsIntegration):
             arg_placeholder=arg_placeholder,
         )
         skill_path = skills_dir / "sp-implement-teams" / "SKILL.md"
-        return [
+        created = [
             self.write_file_and_record(
                 skill_content,
                 skill_path,
@@ -619,22 +612,19 @@ class ClaudeIntegration(SkillsIntegration):
                 manifest,
             )
         ]
-
-    def _shared_semantic_work_contract(self) -> str:
-        commands_dir = self.shared_commands_dir()
-        if not commands_dir:
-            return ""
-
-        partial_path = (
-            commands_dir.parent
-            / "command-partials"
-            / "common"
-            / "semantic-work-contract.md"
+        created.extend(
+            self._copy_command_reference_sidecars(
+                command_name="implement-teams",
+                owner_template_raw=raw,
+                owner_template_path=template,
+                destination_dir=skill_path.parent,
+                project_root=project_root,
+                manifest=manifest,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+            )
         )
-        if not partial_path.is_file():
-            return ""
-
-        return partial_path.read_text(encoding="utf-8")
+        return created
 
     @staticmethod
     def inject_argument_hint(content: str, hint: str) -> str:

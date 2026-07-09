@@ -7,7 +7,13 @@ workflow_contract:
   default_handoff: Return to the blocked workflow once the affected query scope is green or yellow.
 ---
 
-{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
 
 ## Objective
 

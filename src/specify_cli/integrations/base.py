@@ -108,7 +108,26 @@ class IntegrationBase(ABC):
         "task tool",
     )
     COMMAND_REFERENCE_WORKFLOWS = frozenset(
-        {"discussion", "specify", "plan", "tasks", "implement", "quick", "debug"}
+        {
+            "analyze",
+            "checklist",
+            "clarify",
+            "debug",
+            "deep-research",
+            "design",
+            "discussion",
+            "fast",
+            "implement",
+            "implement-teams",
+            "map-build",
+            "map-scan",
+            "map-update",
+            "plan",
+            "prd-scan",
+            "quick",
+            "specify",
+            "tasks",
+        }
     )
     UNRESOLVED_RENDERER_TOKEN_RE = re.compile(
         r"\{SCRIPT\}|\{AGENT_SCRIPT\}|\{ARGS\}|__AGENT__|\{\{invoke:[^}]+}}"

@@ -9,6 +9,12 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/design/shell.md}}
 
-{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
 
 {{spec-kit-include: ../command-partials/common/adaptive-execution.md}}
