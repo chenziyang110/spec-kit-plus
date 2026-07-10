@@ -68,4 +68,4 @@ Seed `STATUS.md` from the handoff before substantive work:
 - `reopen_conditions`
 - `handoff_consumer: sp-quick`
 
-Do not skip the Understanding Checkpoint. The accepted discussion handoff prepares the checkpoint; it does not replace user confirmation. Initialize or update `STATUS.md` with `understanding_confirmed: false`, then present the Quick Checkpoint from `agent_requirement_contract`, `planning_constraints`, and `must_preserve`.
+Do not skip the Understanding Checkpoint. The accepted discussion handoff prepares the checkpoint; it does not replace user confirmation. Initialize or update `STATUS.md` with `understanding_confirmed: false`, then present the fixed Quick Checkpoint Markdown table from `agent_requirement_contract`, `planning_constraints`, and `must_preserve`.

@@ -71,10 +71,12 @@ explicit numeric option.
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
 - `sp-quick` performs one Understanding Checkpoint before substantive execution:
-  confirm the understood problem, intended outcome, boundaries, known facts and
-  assumptions, affected surfaces, concrete implementation plan, validation
-  evidence, and stop condition before code edits, broad repo analysis,
-  delegation, or validation commands continue.
+  render the fixed Quick Checkpoint Markdown table with
+  `| Item | Current understanding |` and rows for issue, target outcome,
+  boundaries, known facts/assumptions, affected surfaces, implementation plan,
+  next action, validation evidence, and stop condition before code edits, broad
+  repo analysis, delegation, or validation commands continue. Freeform prose or
+  bullet-only confirmations do not satisfy this gate.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
 - In `sp-auto` routed mode, safe bounded questions and confirmations with one

@@ -346,6 +346,9 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "handoff_goal" in content
         assert "validates" in lowered and "before feature creation" in lowered
         assert "quick checkpoint" in lowered
+        if "quick workflow confirmation" in lowered:
+            assert "| item | current understanding |" in lowered
+            assert "bullet-only confirmations do not satisfy this gate" in lowered
         assert "single unconsumed" in lowered or "eligible consumer consumes" in lowered
         assert "split-plan.md" not in content
         assert "handoffs/<candidate_id>" not in content
@@ -412,6 +415,7 @@ def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> N
         assert "handoff-ready" in content
         assert "before feature creation" in lowered
         assert "quick checkpoint" in lowered
+        assert "| item | current understanding |" in lowered
         assert "handoff_goal" in content
         assert "split-plan.md" not in content
         assert "handoffs/CAND-001-handoff-to-specify" not in content

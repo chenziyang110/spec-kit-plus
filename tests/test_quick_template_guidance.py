@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from .template_utils import read_command_with_references, read_template
+from .template_utils import (
+    assert_quick_checkpoint_card_shape,
+    read_command_with_references,
+    read_template,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -122,17 +126,7 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     content = read_command_with_references("quick").lower()
 
     assert "## understanding checkpoint" in content
-    assert "## quick checkpoint" in content
-    assert "| item | current understanding |" in content
-    assert "| issue |" in content
-    assert "| target outcome |" in content
-    assert "| boundaries |" in content
-    assert "| known facts / assumptions |" in content
-    assert "| affected surfaces |" in content
-    assert "| implementation plan |" in content
-    assert "| next action |" in content
-    assert "| validation evidence |" in content
-    assert "| stop condition |" in content
+    assert_quick_checkpoint_card_shape(content)
     assert "where it appears, why it matters" in content
     assert "concrete ordered sequence" in content
     assert "plain text for terminal output" in content
@@ -151,6 +145,12 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     assert "revise the checkpoint" in content
     assert "not a full spec" in content
     assert "not a `sp-plan` substitute" in content
+
+
+def test_quick_shell_embeds_fixed_checkpoint_card() -> None:
+    shell = read_template("templates/command-partials/quick/shell.md")
+
+    assert_quick_checkpoint_card_shape(shell)
 
 
 def test_quick_template_uses_fixed_status_scaffold() -> None:

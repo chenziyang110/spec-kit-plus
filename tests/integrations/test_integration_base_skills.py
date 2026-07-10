@@ -16,6 +16,7 @@ from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import IntegrationBase, SkillsIntegration
 from specify_cli.integrations.codex import CodexIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
+from tests.template_utils import assert_quick_checkpoint_card_shape
 from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
@@ -1204,7 +1205,7 @@ class SkillsIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
         assert "understanding checkpoint" in quick_content
-        assert "quick checkpoint" in quick_content
+        assert_quick_checkpoint_card_shape(quick_content)
         assert "understanding_confirmed: true" in quick_content
         assert "<br>" not in quick_content
         assert "plain text for terminal output" in quick_content

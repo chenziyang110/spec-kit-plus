@@ -15,6 +15,7 @@ from .test_integration_base_skills import (
     _assert_compact_managed_context,
     _extract_generated_cognition_policy,
 )
+from tests.template_utils import assert_quick_checkpoint_card_shape
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -1309,6 +1310,7 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
     assert "review_digest" in quick_content
     assert "quick_task_candidate" not in quick_content
     assert "do not skip the understanding checkpoint" in quick_content
+    assert_quick_checkpoint_card_shape(quick_content)
 
 
 def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
@@ -1817,7 +1819,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "managed-team" in content
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
-    assert "quick checkpoint" in content
+    assert_quick_checkpoint_card_shape(content)
     assert "<br>" not in content
     assert "plain text for terminal output" in content
     assert "target outcome" in content

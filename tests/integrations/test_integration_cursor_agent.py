@@ -1,5 +1,7 @@
 """Tests for CursorAgentIntegration."""
 
+from tests.template_utils import assert_quick_checkpoint_card_shape
+
 
 def _read_skill_with_references(skill_path):
     parts = [skill_path.read_text(encoding="utf-8")]
@@ -69,7 +71,7 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert ".specify/memory/constitution.md" in content
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
-    assert "quick checkpoint" in content
+    assert_quick_checkpoint_card_shape(content)
     assert "known facts / assumptions" in content
     assert "implementation plan" in content
     assert "validation evidence" in content

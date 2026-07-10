@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from tests.conftest import strip_ansi
+from tests.template_utils import assert_quick_checkpoint_card_shape
 
 
 def _read_skill_with_references(skill_path):
@@ -295,6 +296,7 @@ class TestInitIntegrationFlag:
         assert "minimal_live_reads" in quick_content
         assert "understanding checkpoint" in quick_content
         assert "understanding_confirmed" in quick_content
+        assert_quick_checkpoint_card_shape(quick_content)
         assert "status and slice artifacts" not in quick_content
         assert ".specify/project-cognition/slices/change.json" not in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content

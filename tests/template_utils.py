@@ -6,6 +6,34 @@ from specify_cli.integrations.base import IntegrationBase
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+QUICK_CHECKPOINT_CARD_ROWS = (
+    "| issue |",
+    "| target outcome |",
+    "| boundaries |",
+    "| known facts / assumptions |",
+    "| affected surfaces |",
+    "| implementation plan |",
+    "| next action |",
+    "| validation evidence |",
+    "| stop condition |",
+)
+
+
+def assert_quick_checkpoint_card_shape(content: str) -> None:
+    lowered = content.lower()
+
+    assert "## quick checkpoint" in lowered
+    assert "| item | current understanding |" in lowered
+    for row in QUICK_CHECKPOINT_CARD_ROWS:
+        assert row in lowered
+    assert "reply with `confirm`/`确认`" in lowered
+    assert (
+        "freeform prose" in lowered
+        or "prose bullets or partial field lists are not sufficient" in lowered
+        or "bullet-only confirmations do not satisfy this gate" in lowered
+    )
+
+
 def read_template(path: str) -> str:
     template_path = PROJECT_ROOT / path
     raw = template_path.read_text(encoding="utf-8")

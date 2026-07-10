@@ -4,7 +4,10 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from tests.test_extension_skills import _body_without_frontmatter
-from tests.template_utils import read_skill_with_references
+from tests.template_utils import (
+    assert_quick_checkpoint_card_shape,
+    read_skill_with_references,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -30,6 +33,7 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert 'choose_subagent_dispatch(command_name="quick"' in full_body
     assert "read `.specify/memory/constitution.md` first" in body
     assert "understanding checkpoint" in body
+    assert_quick_checkpoint_card_shape(body)
     assert "understanding_confirmed: true" in body
     assert "dispatch_shape: one-subagent | parallel-subagents" in full_body
     assert "execution_surface: native-subagents" in full_body
