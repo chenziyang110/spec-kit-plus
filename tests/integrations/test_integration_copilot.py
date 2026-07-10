@@ -146,6 +146,22 @@ class TestCopilotIntegration:
             assert f.parent == tmp_path / ".github" / "agents"
             assert f.name.endswith(".agent.md")
 
+    def test_discussion_agent_has_reachable_triggered_reference_sidecars(self, tmp_path):
+        from specify_cli.integrations.copilot import CopilotIntegration
+
+        copilot = CopilotIntegration()
+        manifest = IntegrationManifest("copilot", tmp_path)
+        copilot.setup(tmp_path, manifest)
+
+        command = tmp_path / ".github" / "agents" / "sp.discussion.agent.md"
+        content = command.read_text(encoding="utf-8")
+        references = command.parent / "references" / "discussion"
+        assert "references/discussion/INDEX.md" in content
+        assert "## Reference Contracts" not in content
+        assert (references / "INDEX.md").is_file()
+        assert (references / "context-boundary-and-truth.md").is_file()
+        assert len(content) < 48_000
+
     def test_setup_creates_companion_prompts(self, tmp_path):
         from specify_cli.integrations.copilot import CopilotIntegration
         copilot = CopilotIntegration()

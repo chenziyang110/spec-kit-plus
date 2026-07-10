@@ -71,7 +71,7 @@ def _write_command_reference_fixture(tmp_path):
     return plan, references_dir
 
 
-def test_single_file_commands_inline_command_references(tmp_path, monkeypatch):
+def test_single_file_commands_install_triggered_reference_sidecars(tmp_path, monkeypatch):
     class SingleFileMarkdownIntegration(MarkdownIntegration):
         key = "test-agent"
         config = {
@@ -96,17 +96,17 @@ def test_single_file_commands_inline_command_references(tmp_path, monkeypatch):
 
     generated = (i.commands_dest(tmp_path) / "sp.plan.md").read_text(encoding="utf-8")
 
-    assert "## Reference Contracts" in generated
-    assert "### references/INDEX.md" in generated
-    assert "### references/details.md" in generated
-    assert generated.index("### references/INDEX.md") < generated.index(
-        "### references/details.md"
-    )
+    references = i.commands_dest(tmp_path) / "references" / "plan"
+    assert "## Reference Contracts" not in generated
+    assert "references/plan/INDEX.md" in generated
+    assert (references / "INDEX.md").is_file()
+    details = (references / "details.md").read_text(encoding="utf-8")
+    assert ".specify/scripts/bash/setup-plan.sh --json" in details
+    assert "{SCRIPT}" not in details
+    assert "{ARGS}" not in details
+    assert "__AGENT__" not in details
+    assert "{{invoke:tasks}}" not in details
     assert ".specify/scripts/bash/setup-plan.sh --json" in generated
-    assert "{SCRIPT}" not in generated
-    assert "{ARGS}" not in generated
-    assert "__AGENT__" not in generated
-    assert "{{invoke:tasks}}" not in generated
 
 
 def _extract_generated_cognition_policy(content: str) -> str:

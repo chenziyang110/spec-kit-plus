@@ -62,7 +62,7 @@ def _write_command_reference_fixture(tmp_path):
     return plan, references_dir
 
 
-def test_toml_commands_inline_command_references(tmp_path, monkeypatch):
+def test_toml_commands_install_triggered_reference_sidecars(tmp_path, monkeypatch):
     class SingleFileTomlIntegration(TomlIntegration):
         key = "test-agent"
         config = {
@@ -89,17 +89,17 @@ def test_toml_commands_inline_command_references(tmp_path, monkeypatch):
     parsed = tomllib.loads(generated)
     prompt = parsed["prompt"]
 
-    assert "## Reference Contracts" in prompt
-    assert "### references/INDEX.md" in prompt
-    assert "### references/details.md" in prompt
-    assert prompt.index("### references/INDEX.md") < prompt.index(
-        "### references/details.md"
-    )
+    references = i.commands_dest(tmp_path) / "references" / "plan"
+    assert "## Reference Contracts" not in prompt
+    assert "references/plan/INDEX.md" in prompt
+    assert (references / "INDEX.md").is_file()
+    details = (references / "details.md").read_text(encoding="utf-8")
+    assert ".specify/scripts/bash/setup-plan.sh --json" in details
+    assert "{SCRIPT}" not in details
+    assert "{ARGS}" not in details
+    assert "__AGENT__" not in details
+    assert "{{invoke:tasks}}" not in details
     assert ".specify/scripts/bash/setup-plan.sh --json" in prompt
-    assert "{SCRIPT}" not in prompt
-    assert "{ARGS}" not in prompt
-    assert "__AGENT__" not in prompt
-    assert "{{invoke:tasks}}" not in prompt
 
 
 def _extract_generated_cognition_policy(content: str) -> str:

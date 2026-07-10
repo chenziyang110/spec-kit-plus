@@ -1692,6 +1692,23 @@ def test_discussion_handoff_review_passive_skill_sets_review_standard() -> None:
     assert "do not answer with only" in lowered
     assert "route the fix back to `sp-discussion`" in lowered
     assert "downstream consumers must block instead of reconstructing or patching" in lowered
+    assert "every review response must use these top-level sections in this order" not in lowered
+    assert "visible headings and layout remain adaptive" in lowered
+
+
+def test_discussion_separates_human_frontstage_from_agent_backstage() -> None:
+    command = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    review = _read("templates/passive-skills/spec-kit-discussion-handoff-review/SKILL.md")
+    combined = "\n".join([command, shell, review])
+    lowered = combined.lower()
+
+    assert "human frontstage" in lowered
+    assert "agent backstage" in lowered
+    assert "written from the human's point of view" in lowered
+    assert "discussionturnpacket" in lowered
+    assert "do not expose typed state" in lowered
+    assert "fixed visible review headings" not in lowered
 
 
 def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -> None:
