@@ -7,6 +7,7 @@
   "source_handoff": null,
   "source_handoff_json": null,
   "discussion_slug": null,
+  "review_digest": null,
   "candidate_id": null,
   "candidate_title": null,
   "source_split_plan": null,
@@ -130,7 +131,7 @@
     "preserved_assumptions": [],
     "conflicts_requiring_return": [],
     "capability_map": [],
-    "recommended_sequence": [],
+    "planning_constraints": [],
     "dependencies": [],
     "deferred_scope": [],
     "reopen_conditions": []

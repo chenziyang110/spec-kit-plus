@@ -1091,9 +1091,26 @@ def _validate_consumer_evidence(
     expected_json = f".specify/discussions/{slug}/handoff-to-specify.json"
     if evidence_path.suffix.lower() == ".md":
         text = evidence_path.read_text(encoding="utf-8")
-        if slug not in text or review_digest not in text:
+        scalar_fields = {
+            match.group("key"): match.group("value").strip().strip("'\"")
+            for match in re.finditer(
+                r"(?m)^\s*(?P<key>[a-zA-Z0-9_]+):\s*(?P<value>[^\r\n#]+)",
+                text,
+            )
+        }
+        if (
+            scalar_fields.get("source_discussion_slug") != slug
+            or scalar_fields.get("review_digest") != review_digest
+        ):
             raise ValueError(
                 "consumer evidence does not reference the reviewed discussion"
+            )
+        if (
+            scalar_fields.get("source_handoff_md") != expected_markdown
+            or scalar_fields.get("source_handoff_json") != expected_json
+        ):
+            raise ValueError(
+                "consumer evidence does not bind the source handoff paths"
             )
         return
     try:
@@ -1246,6 +1263,17 @@ def main() -> int:
         if not isinstance(changes, dict):
             raise ValueError("checkpoint payload must be an object")
         result = checkpoint_discussion(project_root, slug, changes)
+    elif mode == "write-handoff":
+        input_path = _safe_consumer_path(project_root, value)
+        if not input_path.is_file():
+            raise ValueError("handoff input must be an existing JSON file")
+        try:
+            handoff_payload = json.loads(input_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("handoff input is not valid JSON") from exc
+        if not isinstance(handoff_payload, dict):
+            raise ValueError("handoff input must be a JSON object")
+        result = write_handoff(project_root, slug, handoff_payload)
     elif mode == "validate-handoff":
         result = validate_handoff(project_root, slug)
     elif mode == "mark-ready":

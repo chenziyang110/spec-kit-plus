@@ -193,7 +193,7 @@ package managers, or project CLI commands by default. There is no `specify ask`
 Typer helper in v1.
 
 When `specify` starts from a `discussion` handoff, it must read the named
-discussion source files, at least `discussion-log.md`, `requirements.md`, and
+discussion source files, at least `discussion-log.jsonl`, `requirements.md`, and
 `open-questions.md` when present, instead of trusting the handoff summary
 alone. Invoke it with the handoff Markdown path, JSON path, or discussion slug,
 or let it consume the single unconsumed `handoff-ready` discussion when exactly
@@ -229,6 +229,16 @@ peer workflow path to `specify` and does not automatically hand off to `plan`.
 `prd` remains a deprecated compatibility entrypoint only.
 
 Use the canonical `discussion` workflow for rough ideas that need resumable product/technical discussion before formal specification or bounded quick execution. `discussion` stores `.specify/discussions/<slug>/` artifacts and runs as a high-throughput senior product-engineering advisor: the visible conversation gives the recommended direction, plain-language reason, usable draft or next design step, default next step, and override path, while frontstage / backstage separation keeps state accounting backstage. It uses checkpoint persistence: do not persist every turn, flush durable meaning at semantic checkpoints or lifecycle triggers, continue by default, and do not ask for continuation when a safe default exists. It still uses an Adaptive Question Pack with one required primary question and up to two optional same-topic follow-ups only for local low-risk topics, and it asks only when user judgment is genuinely required. It runs the Context Boundary Gate before technical options or handoff generation. If the request crosses projects, references another codebase, names an external system, or depends on an existing module, lock the target project root, current project role, reference source, and evidence source before making project-specific claims. It uses project cognition as advisory navigation while proving claims from live evidence. Before project-specific technical advice it performs a Truth Pass, records verified project facts, open assumptions, checked evidence, and advice confidence, and maintains a Discussion Compass. When the user explicitly asks to hand off, `discussion` writes exactly one single unified `discussion_requirement_contract` handoff: `handoff-to-specify.md` plus `handoff-to-specify.json` only after self-review and user confirmation. These are compatibility filenames for one agent-facing requirement contract with `consumer_eligibility` for `sp-specify` and `sp-quick`, `recommended_consumer`, and `quick_task_candidate`; do not create a second quick-specific handoff. Missing JSON is a hard integrity blocker for downstream intake. The handoff includes `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger. The Markdown handoff includes a `Handoff Reviewer Guide` with approval and change-request criteria for reviewers who do not know Spec Kit internals. Skills-based projects include `spec-kit-discussion-handoff-review`, which gives reviewers fixed verdicts and applies a ready summary quality check so the final handoff-ready closeout reads like a concise handoff card, not only updated paths and counters. Broad directions stay in `discussion` until they can be expressed as one handoff with a capability map, recommended sequence, dependencies, deferred scope, and reopen conditions. It does not automatically invoke `specify` or `quick`; `sp-specify` validates the ready/user-confirmed handoff before feature creation, while `sp-quick` validates `consumer_eligibility.sp-quick` and still requires the Quick Checkpoint. After an eligible consumer consumes the handoff, use `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` to record handoff consumption and remove stale `handoff-ready` state from default auto-resume candidates.
+
+Current discussion state is agent-native: `discussion-state.json` is canonical,
+`discussion-state.md` is a derived compatibility view, and
+`discussion-log.jsonl` records compact semantic checkpoints. Human frontstage
+replies stay natural and adaptive; agent backstage uses a typed
+`DiscussionTurnPacket` and the lifecycle `explore -> ground -> decide -> prepare
+-> review -> ready -> consumed|closed`. JSON is also canonical for the unified
+handoff, Markdown is rendered from it, and approval/consumption bind to the
+stable `review_digest`. Use `planning_constraints` rather than an ordered
+implementation sequence; execution ordering belongs to `sp-plan`.
 
 The discussion output is a single unified handoff pair, not separate specify and quick payloads.
 

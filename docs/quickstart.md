@@ -115,7 +115,7 @@ approaches when scope needs a choice, and writes artifacts only after the
 important meaning decisions are explicit.
 
 When `specify` starts from a `discussion` handoff, it must read the named
-discussion source files, at least `discussion-log.md`, `requirements.md`, and
+discussion source files, at least `discussion-log.jsonl`, `requirements.md`, and
 `open-questions.md` when present, instead of trusting the handoff summary alone.
 Invoke it with the handoff Markdown path, JSON path, or discussion slug, or let
 it consume the single unconsumed `handoff-ready` discussion when exactly one
@@ -342,11 +342,16 @@ Use the lightweight routing rules consistently:
   - Command shape: `specify quick resume <id>`
   - Command shape: `specify quick close <id> --status resolved|blocked`
   - Command shape: `specify quick archive <id>`
-- Discussion sessions live under `.specify/discussions/<slug>/`, with `discussion-state.md` as the source of truth and `.specify/discussions/index.json` as a derived management index. `handoff-ready` remains resumable until `sp-specify` consumes the handoff; after consumption, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` records `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none` so old handoffs do not block `sp-auto`.
+- Discussion sessions live under `.specify/discussions/<slug>/`, with canonical typed state in `discussion-state.json`, a short derived compatibility view in `discussion-state.md`, compact semantic events in `discussion-log.jsonl`, and a derived management index in `.specify/discussions/index.json`. `handoff-ready` remains resumable until an eligible consumer records matching source paths and `review_digest`; after verified consumption, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` closes the source discussion so old handoffs do not block `sp-auto`.
 - Use `specify discussion list` to inspect unclosed discussions by default.
 - Discussion helper command shapes:
+  - Command shape: `specify discussion init <topic> [--slug <slug>]`
   - Command shape: `specify discussion status <slug>`
   - Command shape: `specify discussion resume <slug>`
+  - Command shape: `specify discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
+  - Command shape: `specify discussion write-handoff <slug> --input <draft.json>`
+  - Command shape: `specify discussion validate-handoff <slug>`
+  - Command shape: `specify discussion mark-ready <slug>`
   - Command shape: `specify discussion close <slug> --status completed|abandoned`
   - Command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`
   - Command shape: `specify discussion archive <slug>`

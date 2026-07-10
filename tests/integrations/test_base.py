@@ -160,7 +160,10 @@ class TestIntegrationBase:
         manifest = IntegrationManifest("stub", tmp_path)
         created = i.setup(tmp_path, manifest)
         assert len(created) > 0
-        for f in created:
+        command_dir = tmp_path / ".stub" / "commands"
+        command_files = [f for f in created if f.parent == command_dir]
+        assert command_files
+        for f in command_files:
             assert f.parent == tmp_path / ".stub" / "commands"
             assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
@@ -285,7 +288,9 @@ class TestBasePrimitives:
         m = IntegrationManifest("stub", tmp_path)
         created = i.setup(tmp_path, m)
         assert len(created) > 0
-        for f in created:
+        command_files = [f for f in created if f.parent.name == "commands"]
+        assert command_files
+        for f in command_files:
             assert f.parent.name == "commands"
             assert f.name.startswith("sp.")
             assert f.name.endswith(".md")

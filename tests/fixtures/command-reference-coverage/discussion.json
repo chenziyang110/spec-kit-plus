@@ -79,7 +79,7 @@
     },
     {
       "kind": "handoff-field",
-      "source_excerpt": "quick_task_candidate",
+      "source_excerpt": "planning_constraints",
       "target": "templates/command-references/discussion/handoff-contract.md"
     },
     {
@@ -99,12 +99,12 @@
     },
     {
       "kind": "repair",
-      "source_excerpt": "source_files_read",
+      "source_excerpt": "review_digest",
       "target": "templates/command-references/discussion/handoff-review-and-repair.md"
     },
     {
       "kind": "repair",
-      "source_excerpt": "handoff_status",
+      "source_excerpt": "field-level validation errors",
       "target": "templates/command-references/discussion/handoff-review-and-repair.md"
     },
     {

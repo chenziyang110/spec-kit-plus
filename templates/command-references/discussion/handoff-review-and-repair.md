@@ -12,14 +12,14 @@ A discussion may be specification-ready but still not consumer-ready. Until `han
 
 Write or refresh `handoff-assessment.md` with:
 
-- decision status: `ready-for-specify` or `continue-discussion`
+- decision status: `ready-for-handoff` or `continue-discussion`
 - rationale citing `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, boundary evidence, scope confirmation, or explicit assumptions
 - assessment dimensions: feature coherence, implementation target clarity, current repository role, reference source clarity, planning shape, validation shape, and risk profile
 - required next action: `write-unified-handoff` or `continue-discussion`
 
 Assessment outcomes:
 
-- `ready-for-specify`: the mature discussion describes one coherent handoff boundary with locked context and a bounded unified scope. Write the unified draft `handoff-to-specify.md` and `handoff-to-specify.json` pair.
+- `ready-for-handoff`: the mature discussion describes one coherent handoff boundary with locked context and a bounded unified scope. Write canonical `handoff-to-specify.json` and render `handoff-to-specify.md` from the same payload.
 - `continue-discussion`: the discussion is missing clarity, boundary facts, evidence provenance, scope confirmation, or a coherent unified scope. Return to the question loop.
 
 Do not use `split-required`. Do not write separate split planning artifacts. Broad work must be represented inside the single handoff through a capability map, dependencies, deferred scope, planning constraints, and reopen conditions, or stay in discussion until the scope is coherent. Do not turn broad work into a plan-stage execution sequence inside `sp-discussion`.
@@ -89,4 +89,4 @@ Before user confirmation, the handoff can exist only as a draft. Do not recommen
 
 If the user requests changes during handoff review, the repair belongs to `sp-discussion`. Refresh `handoff-to-specify.md` and `handoff-to-specify.json` together from the current discussion source files, then run handoff self-review again before asking the user to approve `handoff-ready`. Keep the discussion in draft/user-review state until the refreshed pair passes self-review and the user confirms it.
 
-Every repair record must preserve `blocked_by_handoff_integrity`, `source_handoff_json`, `source_files_read`, `handoff_status`, and `quality_gate` evidence.
+Every repair record must preserve `blocked_by_handoff_integrity`, `source_handoff`, `source_handoff_json`, field-level validation errors, `review_digest`, and `quality_gate` evidence.

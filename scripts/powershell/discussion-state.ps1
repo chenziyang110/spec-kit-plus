@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 param(
     [string]$ProjectRoot = ".",
-    [ValidateSet("init", "list", "status", "resume-context", "checkpoint", "validate-handoff", "mark-ready", "mark-consumed", "close", "archive", "rebuild-index")]
+    [ValidateSet("init", "list", "status", "resume-context", "checkpoint", "write-handoff", "validate-handoff", "mark-ready", "mark-consumed", "close", "archive", "rebuild-index")]
     [string]$Mode = "list",
     [string]$Slug = "",
     [string]$Value = "",

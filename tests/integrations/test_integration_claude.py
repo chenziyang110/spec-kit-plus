@@ -19,6 +19,7 @@ from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 
 
 def _read_skill_with_references(skill_path: Path) -> str:
@@ -433,7 +434,7 @@ class TestClaudeIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
-        expected.append(SHARED_PRD_HELPER)
+        expected.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)

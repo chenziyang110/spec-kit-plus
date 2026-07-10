@@ -6,7 +6,7 @@ origin: spec-kit-plus
 
 # Spec Kit Discussion Handoff Review
 
-This passive skill supplies a fixed review protocol for `sp-discussion` handoff
+This passive skill supplies a deterministic internal review protocol for `sp-discussion` handoff
 packages. It is not a user-invoked workflow and it does not replace
 `sp-discussion` or `sp-specify`.
 
@@ -30,7 +30,7 @@ Read these files before issuing a verdict when they exist:
 - `.specify/discussions/<slug>/technical-options.md`
 - `.specify/discussions/<slug>/project-context.md`
 - `.specify/discussions/<slug>/open-questions.md`
-- `.specify/discussions/<slug>/discussion-log.md` only when state, handoff,
+- `.specify/discussions/<slug>/discussion-log.jsonl` only when state, handoff,
   or review evidence appears stale or inconsistent
 
 If either handoff file is missing, stop with `block-handoff`. Do not reconstruct
@@ -50,21 +50,27 @@ Use exactly one verdict:
   hard blocker, missing companion file, unresolved boundary, evidence conflict,
   or Markdown/JSON integrity failure exists.
 
-## Fixed Review Output
+## Human Frontstage
 
-Every review response must use these top-level sections in this order:
+The visible response is written from the human's point of view. Use the unified
+frontstage contract: lead with the decision-level meaning, explain only the
+evidence and risk that change that decision, and make the next useful action
+clear. The agent chooses the visible headings and layout; visible headings and layout remain adaptive to the user's question and level of detail.
 
-1. Review Verdict
-2. What This Means
-3. Evidence Read
-4. Readiness Checks
-5. Carry-Forward Coverage
-6. Blocking Issues
-7. Required Changes
-8. Next Action
+Keep this internal coverage vocabulary available for self-checking, without
+turning it into a mandatory visible card: Review Verdict, What This Means,
+Evidence Read, Readiness Checks, Carry-Forward Coverage, Blocking Issues,
+Required Changes, and Next Action.
 
 Do not answer with only file paths, status counters, or "looks good". The user
 needs the reviewer judgment, the preservation risk, and the exact next action.
+
+## Agent Backstage
+
+Use typed state, the `DiscussionTurnPacket`, the handoff schemas, evidence
+provenance, and validation counters internally. Do not expose typed state,
+field inventories, or machine-oriented bookkeeping unless the user asks for
+diagnostics or needs exact recovery evidence.
 
 ## Readiness Checks
 

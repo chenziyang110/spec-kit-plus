@@ -28,9 +28,10 @@ Preserved Contract: discussion handoff integrity, target boundary safety, source
   - `entry_source: sp-discussion`
   - `handoff_kind: discussion_requirement_contract` when present; legacy discussion handoffs without this field may continue only if all other gates pass
   - `consumer_eligibility.sp-specify.status: ready` when `consumer_eligibility` is present
-  - `handoff_status: handoff-ready` or source `discussion-state.md` `status: handoff-ready`
+  - canonical JSON `status: handoff-ready`
   - `planning_gate_status: ready`
   - `quality_gate.status: user_confirmed` or `quality_gate.status: user-confirmed`
+  - non-empty `review_digest` matching `quality_gate.confirmed_digest`
   - `hard_unknown_count: 0`
   - `open_conflict_count: 0`
 - Check the Markdown for `Handoff Reviewer Guide`, `Quality Gate`, `Must-Preserve Ledger`, and source evidence sections before creating a feature workspace.
@@ -125,14 +126,14 @@ When `sp-specify` starts from `sp-discussion`, do not trust only the handoff sum
 - Use the `SOURCE_HANDOFF_MD`, `SOURCE_HANDOFF_JSON`, and `SOURCE_DISCUSSION_SLUG` selected by pre-feature-creation discussion handoff intake. If a handoff was supplied but intake did not run, stop and run intake before continuing.
 - Read the agent-facing requirement contract first: `agent_requirement_contract.target_need`, `constraints`, `success_criteria`, `design_direction`, `optimal_solution_approach`, and `scope`.
 - Confirm `consumer_eligibility.sp-specify.status` is `ready` when present; if it is blocked, route back to `sp-discussion` instead of forcing feature creation.
-- Re-read `handoff-to-specify.md` and `handoff-to-specify.json` after `FEATURE_DIR` is known and preserve compatibility fields such as `entry_source: sp-discussion`, `handoff_status: handoff-ready`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`.
+- Re-read `handoff-to-specify.md` and canonical `handoff-to-specify.json` after `FEATURE_DIR` is known and preserve compatibility fields such as `entry_source: sp-discussion`, `discussion_slug`, source handoff paths, `status: handoff-ready`, `review_digest`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count`.
 - When `entry_source: sp-discussion` and `source_handoff` points under `.specify/discussions/<slug>/handoff-to-specify.md`, preserve that slug as the source discussion that must be marked consumed after this command successfully writes and self-reviews the feature specification package.
 - Coverage and planning readiness are separate. Use `coverage_status` for upstream signal mapping completeness and `planning_gate_status` for whether downstream planning may proceed.
 - Planning gate statuses include `ready`, `blocked_by_hard_unknowns`, `blocked_by_conflict`, `blocked_by_incomplete_coverage`, and `blocked_by_handoff_integrity`.
 - Preserve the Must-Preserve Ledger. Every `MP-*` or `MP-###` item must be mapped, deferred, dropped, superseded, or converted into a conflict blocker with source and reopen details.
 - Read the handoff-declared source files, not only the handoff summary.
 - At minimum inspect these discussion source files when they exist:
-  - `discussion-log.md`
+  - `discussion-log.jsonl`
   - `requirements.md`
   - `open-questions.md`
 - Also inspect `technical-options.md` and `project-context.md` when present or named by the handoff.

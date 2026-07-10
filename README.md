@@ -219,7 +219,7 @@ When a discussion looks mature enough for handoff but the user has not explicitl
 
 When a draft handoff pair has been written, `sp-discussion` should use the same unified frontstage contract to summarize the recommended route, scope to approve, excluded scope, readiness checks, package paths, and allowed review decisions. It should not present the draft as a file-write receipt, require fixed headings, or treat an unrelated follow-up prompt as approval.
 
-When handoff review returns `request-changes` or a downstream consumer reports `blocked_by_handoff_integrity`, the repair belongs to `sp-discussion`: refresh `handoff-to-specify.md` and `handoff-to-specify.json` together, synchronize Markdown/JSON protected facts and `source_evidence`, preserve required JSON consumption fields such as `entry_source`, `source_files_read`, `handoff_status`, `planning_gate_status`, `coverage_status`, `hard_unknown_count`, and `open_conflict_count`, rerun self-review, and ask for user approval again. `sp-specify` and `sp-quick` should block rather than reconstruct or patch the handoff pair.
+When handoff review returns `request-changes` or a downstream consumer reports `blocked_by_handoff_integrity`, the repair belongs to `sp-discussion`: update canonical `handoff-to-specify.json`, render Markdown from that exact payload, preserve source paths, `review_digest`, gate fields, protected facts, and evidence, rerun self-review, and ask for approval of the current digest. `sp-specify` and `sp-quick` block rather than reconstructing or patching the pair.
 
 When `sp-specify` consumes a user-confirmed discussion handoff and there is one safe recommended approach or section shape that preserves the confirmed scope, it records that choice and writes the draft spec package instead of asking the user to approve the recommendation again. The user review gate happens after `spec.md`, `alignment.md`, `context.md`, checklist, and compatibility handoff JSON exist. Runtime/tool availability details such as structured-question fallback or execution mode stay backstage.
 
@@ -279,12 +279,12 @@ path, or discussion slug, or let it consume the single unconsumed `handoff-ready
 discussion when exactly one exists. A discussion `specification-input.md` or
 other source file is not a substitute for that ready Markdown/JSON handoff
 pair. `sp-specify` validates the handoff pair
-before feature creation, requires `handoff_status: handoff-ready`,
+before feature creation, requires canonical JSON `status: handoff-ready`,
 `planning_gate_status: ready`, user-confirmed quality gate status, zero hard
 unknowns, zero open conflicts, and Markdown/JSON agreement on protected
 downstream facts, then derives the feature description from `handoff_goal`
 instead of using the raw path or slug. It reads the discussion source files,
-including `discussion-log.md`, `requirements.md`, and `open-questions.md`, not
+including `discussion-log.jsonl`, `requirements.md`, and `open-questions.md`, not
 only the handoff summary. Capability-like upstream signals must appear in
 `source_signal_disposition`. `alignment.md` records `Semantic Term Decisions`,
 `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts`; ambiguous product terms such as "real",
@@ -440,11 +440,16 @@ Routing guide for lightweight work:
   - Command shape: `specify quick resume <id>`
   - Command shape: `specify quick close <id> --status resolved|blocked`
   - Command shape: `specify quick archive <id>`
-- Discussion sessions live under `.specify/discussions/<slug>/`, with `discussion-state.md` as the source of truth and `.specify/discussions/index.json` as a derived management index. `handoff-ready` remains resumable until `sp-specify` consumes the handoff. `sp-specify` accepts a handoff Markdown path, JSON path, discussion slug, or the single unconsumed `handoff-ready` discussion when there is exactly one; it validates the handoff before feature creation and derives the feature description from `handoff_goal`, not the raw path. After consumption, mark the source discussion with `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` so `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none` prevent stale handoffs from blocking future `sp-auto` routing.
+- Discussion sessions live under `.specify/discussions/<slug>/`. `discussion-state.json` is canonical typed state, `discussion-state.md` is a short derived compatibility view, `discussion-log.jsonl` stores compact semantic checkpoints, and `.specify/discussions/index.json` is a derived management index. `handoff-ready` remains resumable until an eligible consumer produces evidence bound to the handoff paths and `review_digest`. `sp-specify` accepts a handoff Markdown path, JSON path, discussion slug, or the single unconsumed ready discussion, validates it before feature creation, and derives the feature description from `handoff_goal`. After verified consumption, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` closes the source discussion so stale handoffs cannot block future `sp-auto` routing.
 - Use `specify discussion list` to inspect unclosed discussions by default.
 - Discussion helper command shapes:
+  - Command shape: `specify discussion init <topic> [--slug <slug>]`
   - Command shape: `specify discussion status <slug>`
   - Command shape: `specify discussion resume <slug>`
+  - Command shape: `specify discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
+  - Command shape: `specify discussion write-handoff <slug> --input <draft.json>`
+  - Command shape: `specify discussion validate-handoff <slug>`
+  - Command shape: `specify discussion mark-ready <slug>`
   - Command shape: `specify discussion close <slug> --status completed|abandoned`
   - Command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`
   - Command shape: `specify discussion archive <slug>`

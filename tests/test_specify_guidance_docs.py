@@ -587,7 +587,7 @@ def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
         assert "two or three" in lowered and "approaches" in lowered
         assert "user review" in lowered
         assert "source_signal_disposition" in content
-        assert "discussion-log.md" in content
+        assert "discussion-log.jsonl" in content
         assert "requirements.md" in content
         assert "open-questions.md" in content
         assert "handoff-ready" in content

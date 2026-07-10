@@ -61,15 +61,16 @@ Parse the JSON before quick-task execution and require:
 
 - `entry_source: sp-discussion`
 - `handoff_kind: discussion_requirement_contract` when present; legacy discussion handoffs without this field may continue only if all other gates pass
-- `handoff_status: handoff-ready` or source `discussion-state.md` `status: handoff-ready`
+- canonical JSON `status: handoff-ready`
+- a non-empty `review_digest` matching the current canonical handoff
 - `quality_gate.status: user_confirmed` or `quality_gate.status: user-confirmed`
 - `hard_unknown_count: 0`
 - `open_conflict_count: 0`
 - `consumer_eligibility.sp-quick.status: ready`
-- `quick_task_candidate.requires_spec_first: false`
-- `quick_task_candidate.consequence_model: bounded` or a recorded bounded stand-down reason
+- a bounded `agent_requirement_contract.scope.in` with explicit exclusions in `scope.out`
+- no planning constraint, consequence obligation, or reopen condition that requires specification first
 
-If `consumer_eligibility.sp-quick.status` is blocked, `requires_spec_first` is true, the consequence model is unbounded, or the scope no longer fits one bounded quick-task workspace, stop and route to `{{invoke:specify}}` or back to `{{invoke:discussion}}` according to the handoff's `recommended_consumer` and blocker reason.
+If `consumer_eligibility.sp-quick.status` is blocked, the planning constraints require specification, the consequence model is unbounded, or the scope no longer fits one bounded quick-task workspace, stop and route to `{{invoke:specify}}` or back to `{{invoke:discussion}}` according to the handoff's `recommended_consumer` and blocker reason.
 
 When a discussion handoff is accepted for quick, read only the agent-facing requirement contract first:
 
@@ -79,26 +80,25 @@ When a discussion handoff is accepted for quick, read only the agent-facing requ
 - `agent_requirement_contract.design_direction`
 - `agent_requirement_contract.optimal_solution_approach`
 - `agent_requirement_contract.scope`
-- `quick_task_candidate`
 - `must_preserve`
 - `discussion_decision_digest`
 - `reopen_conditions` or `stop_and_reopen_conditions`
 
-Read `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only when the unified handoff is stale, incomplete, contradictory, or explicitly references those files for evidence. Record inspected files in `source_files_read`.
+Read `discussion-log.jsonl`, `requirements.md`, `technical-options.md`, `project-context.md`, and `open-questions.md` only when the unified handoff is stale, incomplete, contradictory, or explicitly references those files for evidence. Record inspected files in `source_files_read`.
 
 Seed `STATUS.md` from the handoff before substantive work:
 
 - `source_discussion_slug`
 - `source_handoff_md`
 - `source_handoff_json`
+- `review_digest`
 - `source_files_read`
 - `locked_direction`
 - `must_preserve`
 - `reopen_conditions`
-- `quick_task_candidate`
 - `handoff_consumer: sp-quick`
 
-Do not skip the Understanding Checkpoint. The accepted discussion handoff prepares the checkpoint; it does not replace user confirmation. Initialize or update `STATUS.md` with `understanding_confirmed: false`, then present the Quick Checkpoint from `quick_task_candidate.quick_checkpoint_seed`, `agent_requirement_contract`, and `must_preserve`.
+Do not skip the Understanding Checkpoint. The accepted discussion handoff prepares the checkpoint; it does not replace user confirmation. Initialize or update `STATUS.md` with `understanding_confirmed: false`, then present the Quick Checkpoint from `agent_requirement_contract`, `planning_constraints`, and `must_preserve`.
 
 ## Understanding Checkpoint
 

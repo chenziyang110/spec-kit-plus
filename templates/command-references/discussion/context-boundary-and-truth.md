@@ -85,7 +85,7 @@ If the idea is clearly greenfield or does not depend on existing project structu
 
 ## Lightweight Recovery Log
 
-Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and flush it to `discussion-log.md` only when a save trigger fires. Treat an existing discussion package as a recovery surface, not a reason to write more often.
+Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and flush one semantic event to `discussion-log.jsonl` only when a save trigger fires. Treat an existing discussion package as a recovery surface, not a reason to write more often.
 
 Classify the persistence mode before any write-capable action:
 
@@ -98,8 +98,8 @@ Keep the classification backstage. If the mode is `frontstage-only`, do not call
 
 Before any local write in an ordinary discussion turn, run the persistence gate:
 
-- If no save trigger has fired, do not write `discussion-state.md`, `discussion-log.md`, structured files, hidden counters, dirty-artifact markers, or state receipts just to record that turn.
-- Keep `unsaved_turn_count`, pending decisions, pending open-question deltas, and compaction-preserve notes in active-conversation memory until the next save trigger.
+- If no save trigger has fired, do not write `discussion-state.json`, `discussion-state.md`, `discussion-log.jsonl`, optional structured files, hidden counters, dirty-artifact markers, or state receipts just to record that turn.
+- Keep pending decisions, pending open-question deltas, and compaction-preserve notes in active-conversation memory until the next save trigger.
 - Update persisted counters and pending summaries only inside the batched save event or semantic-checkpoint refresh.
 - A user reply is not itself a save trigger. A reply becomes durable only when it changes a checkpoint-level decision, boundary, evidence status, recommendation, handoff readiness, or the configured cadence/compaction/lifecycle trigger fires. Plain confirmations such as "yes", "ok", "continue", or localized equivalents remain `frontstage-only` unless they approve a named checkpoint, save, handoff, or lifecycle transition.
 - Native hooks may remind the agent about resume or compaction at session start/stop, but must not create per-user-reply or per-tool-use discussion writes. Do not use `UserPromptSubmit`, `PostToolUse`, or similar hook events as a hidden persistence loop for `sp-discussion`.
@@ -112,9 +112,9 @@ Save triggers are:
 - context compaction risk is high
 - handoff assessment, handoff drafting, resume repair, or another durable lifecycle transition needs the pending summary
 
-When a save trigger fires, append one batched compact event to `discussion-log.md`. The event is not a transcript and must cover the accumulated unsaved ordinary turns as one compact summary. It records only durable meaning: covered turn count, event kind, user input summary, agent conclusion, confirmed decisions, pending requirement or feature points, evidence used, open question delta, save trigger, and whether a semantic checkpoint is required.
+When a save trigger fires, append one compact JSON object to `discussion-log.jsonl`. The event is not a transcript and records only durable meaning: event kind, summary, confirmed decisions, evidence used, open-question delta, save trigger, and resulting lifecycle phase.
 
-The five-turn cadence is a checkpoint suggestion cadence, not an automatic save trigger. At a natural pause or after several unsaved ordinary turns, optionally append one short frontstage note that names the unsaved turn count and suggests `checkpoint, continue` to save progress and keep going. Do not write files only because the suggestion was shown.
+At a natural pause or when compaction would risk losing important decisions, optionally suggest `checkpoint, continue` to save progress and keep going. Do not expose or maintain a turn counter merely to trigger this suggestion.
 
 When the user says `checkpoint, continue` or an equivalent checkpoint-plus-continue phrase, flush the batched compact event first, refresh only semantically changed structured files, reset persisted unsaved counts inside that flush, and then continue with the next useful discussion content in the same visible reply instead of stopping at a file-write receipt.
 

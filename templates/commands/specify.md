@@ -33,7 +33,7 @@ scripts:
 3. Explore project context with project cognition as advisory navigation, then prove current facts from live files and record source evidence.
 4. Ask one high-impact question at a time only for planning-critical ambiguity; otherwise continue with the safe recommended/default path.
 5. Decompose semantic terms, preserve `source_signal_disposition`, and present two or three approaches or `2-3 approaches` when behavior, boundary, compatibility, or acceptance proof changes.
-6. Preserve discussion source files including `discussion-log.md`, `requirements.md`, and `open-questions.md`; build the `Discussion Decision Digest` and `discussion_decision_digest` instead of flattening upstream intent.
+6. Preserve discussion source files including `discussion-log.jsonl`, `requirements.md`, and `open-questions.md`; build the `Discussion Decision Digest` and `discussion_decision_digest` instead of flattening upstream intent.
 7. Handle UI reference input through `choose_ui_reference_lane_dispatch`, `ui-reference-artifact`, `ui-reference-notes.md`, `ui-brief.md`, and `Reference-Implementation` fidelity evidence rules.
 8. Write and self-review the artifact package, then ask for user review. Recommend exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 

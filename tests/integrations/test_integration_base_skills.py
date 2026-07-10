@@ -20,6 +20,7 @@ from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 STALE_COGNITION_ADDENDUM_PHRASES = (
     "for blocked, stale, missing, or incomplete references",
     "{{invoke:map-scan}} -> {{invoke:map-build}} or "
@@ -158,7 +159,7 @@ def test_generated_specify_skill_teaches_simplified_specify_contract(tmp_path):
     assert "planning_gate_status: ready" in content
     assert "derive the feature description" in content
     assert "do not pass the raw handoff" in content
-    assert "discussion-log.md" in content
+    assert "discussion-log.jsonl" in content
     assert "requirements.md" in content
     assert "open-questions.md" in content
     assert "facts-lock" not in content
@@ -188,7 +189,7 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "deferred persistence" in skill_lower
     assert "compaction preserve" in skill_lower
     assert "user-triggered save" in skill_lower
-    assert "five-turn" in skill_lower
+    assert "turn count alone is never a save trigger" in skill_lower
     assert "semantic checkpoint is a durable meaning change" in skill_lower
     assert "pending truth-pass state" in skill_lower
     assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in skill_lower
@@ -238,18 +239,18 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "handoff request-changes repair" in skill_lower
     assert "blocked_by_handoff_integrity" in skill_content
     assert "the repair belongs to `sp-discussion`" in skill_lower
-    assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in skill_lower
+    assert "render `handoff-to-specify.md` from that exact payload" in skill_lower
     assert "source_handoff_json" in skill_content
-    assert "source_files_read" in skill_content
-    assert "handoff_status" in skill_content
-    assert "handoff-review" in skill_content
+    assert "field-level validation errors" in skill_content
+    assert "review_digest" in skill_content
     assert "recommendation-first is not questionless" in skill_lower
     assert "one unified" in skill_lower or "single unified" in skill_lower
     assert "discussion_requirement_contract" in skill_content
     assert "Agent-Facing Requirement Contract" in skill_content
     assert "consumer_eligibility" in skill_content
     assert "recommended_consumer" in skill_content
-    assert "quick_task_candidate" in skill_content
+    assert "planning_constraints" in skill_content
+    assert "quick_task_candidate" not in skill_content
     assert "Do not describe current execution or implementation progress" in skill_content
     assert "handoff-to-specify.md" in skill_content
     assert "handoff-to-specify.json" in skill_content
@@ -1593,7 +1594,7 @@ class SkillsIntegrationTests:
                 ".specify/scripts/powershell/setup-plan.ps1",
                 ".specify/scripts/powershell/update-agent-context.ps1",
             ]
-        files.append(SHARED_PRD_HELPER)
+        files.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
         # Templates
         files += [f".specify/templates/{name}" for name in self._template_files()]
         return sorted(files)

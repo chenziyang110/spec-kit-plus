@@ -1301,8 +1301,9 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "ui-interaction-discussion" in content
     assert "ascii sketches" in lowered
     assert ".specify/discussions/<slug>/" in content
+    assert "discussion-state.json" in content
     assert "discussion-state.md" in content
-    assert "discussion-log.md" in content
+    assert "discussion-log.jsonl" in content
     assert "requirements.md" in content
     assert "technical-options.md" in content
     assert "project-context.md" in content
@@ -1462,10 +1463,9 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
         assert item in lowered
 
     for state_term in (
-        "readiness-summary",
-        "handoff-preview",
-        "handoff-review",
-        "review-summary",
+        "lifecycle_phase",
+        "explore | ground | decide | prepare | review | ready | consumed | closed",
+        "DiscussionTurnPacket",
     ):
         assert state_term in state
 
@@ -1515,11 +1515,12 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
     assert "handoff request-changes repair" in lowered
     assert "blocked_by_handoff_integrity" in lowered
     assert "the repair belongs to `sp-discussion`" in lowered
-    assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in lowered
+    assert "render `handoff-to-specify.md` from that exact payload" in lowered
     assert "do not ask `sp-specify`, `sp-quick`, or another consumer to reconstruct" in lowered
     assert "source_handoff_json" in content
-    assert "source_files_read" in content
-    assert "handoff_status" in content
+    assert "field-level validation errors" in content
+    assert "review_digest" in content
+    assert "source_files_read" not in content
     assert "planning_gate_status" in content
     assert "coverage_status" in content
     assert "soft unknowns that remain open must be carried forward explicitly" in lowered
@@ -1553,22 +1554,20 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
     combined = "\n".join([content, shell, state])
     lowered = combined.lower()
 
-    assert "handoff-preview" in content
-    assert "handoff-preview" in state
+    assert "`prepare`" in content
+    assert "prepare | review" in state
     assert "pre-handoff readiness" in lowered
-    assert "user has not explicitly requested handoff" in lowered
     assert "without writing or claiming `handoff-assessment.md`" in lowered
-    assert "do not write `handoff-assessment.md`" in lowered
-    assert "handoff draft files" in lowered
+    assert "without writing or claiming `handoff-assessment.md`" in lowered
     assert "likely verdict" in lowered
     assert "proposed handoff goal" in lowered
     assert "recommended consumer" in lowered
-    assert "proposed package scope" in lowered
+    assert "package scope" in lowered
     assert "excluded scope" in lowered
     assert "readiness checks" in lowered
     assert "blocking readiness checklist" in lowered
-    assert "do not end with only \"next i recommend handoff assessment\"" in lowered
-    assert "list of updated discussion artifacts" in lowered
+    assert "do not close with only a next-step label" in lowered
+    assert "updated-artifact lists" in lowered
     assert "without writing or claiming `handoff-assessment.md`" in lowered
 
 
@@ -1599,15 +1598,15 @@ def test_discussion_readiness_summary_does_not_plan_execution_phases() -> None:
     combined = "\n".join([content, shell, state])
     lowered = combined.lower()
 
-    assert "readiness-summary" in content
+    assert "readiness summary" in content
     assert "readiness summary" in shell
-    assert "readiness-summary" in state
+    assert "lifecycle_phase" in state
     assert "direction is locked" in lowered
-    assert "handoff or downstream-readiness bar" in lowered
-    assert "blocked user decisions" in lowered
+    assert "why the topic is not yet ready for handoff or downstream execution" in lowered
+    assert "blocked decisions" in lowered
     assert "evidence gaps" in lowered
     assert "planning inputs to preserve" in lowered
-    assert "do not create p0/p1/p2 sequences" in lowered
+    assert "does not create p0/p1/p2 sequences" in lowered
     assert "migration phases" in lowered
     assert "task packets" in lowered
     assert "do not ask the user to say next" in lowered
@@ -1621,11 +1620,12 @@ def test_discussion_handoff_user_review_uses_draft_review_card() -> None:
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")
     state = _read("templates/discussion-state-template.md")
-    combined = "\n".join([content, shell, state])
+    review = _read("templates/passive-skills/spec-kit-discussion-handoff-review/SKILL.md")
+    combined = "\n".join([content, shell, state, review])
     lowered = combined.lower()
 
-    assert "handoff-review" in content
-    assert "handoff-review" in state
+    assert "`review`" in content
+    assert "review | ready" in state
     for required_content in (
         "decision requested",
         "recommended route",
@@ -1640,7 +1640,7 @@ def test_discussion_handoff_user_review_uses_draft_review_card() -> None:
     assert "do not present draft handoff review as a path receipt" in lowered
     assert "do not lead with artifact-write narration" in lowered
     assert "unrelated prompt" in lowered
-    assert "must not be treated as approval" in lowered
+    assert "is not approval" in lowered
     assert "do not use mandatory visible headings or fixed card labels" in lowered
     assert "draft handoff review card" not in lowered
 
@@ -1726,7 +1726,7 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     assert ui_match is not None
     ui_section = ui_match.group("section")
 
-    assert "ui-interaction-discussion" in content
+    assert "ui_discussion_status" in content
     assert "after functional discussion is stable" in content_lower
     assert "no explicit handoff request is active" in content_lower
     assert "handoff-assessment.md` first" in content
@@ -1761,7 +1761,7 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     assert "ui_sketch_reference" in shell_lower
 
     assert "current_stage:" in state
-    assert "ui-interaction-discussion" in state
+    assert "orthogonal" in state
     assert "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred" in state
     assert "feature workflow" not in state_lower
 
@@ -1790,7 +1790,6 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "deferred persistence" in lowered
     assert "compaction preserve" in lowered
     assert "user-triggered checkpoint/save" in lowered
-    assert "five-turn" in lowered
     assert "checkpoint, continue" in lowered
     assert "same visible reply" in lowered or "same reply" in lowered
     assert "evidence-handoff: delegated or source-grounded evidence must be consumed by later synthesis" in lowered
@@ -1799,14 +1798,12 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
         "evidence-handoff | compaction-risk | durable-lifecycle-transition"
     ) in combined
     assert "semantic checkpoint is a durable meaning change" in lowered
-    assert "five-turn checkpoint suggestion cadence may prompt the user to save" in lowered
-    assert "does not by itself write a compact recovery event or refresh structured files" in lowered
+    assert "turn count alone is never a save trigger" in lowered
     assert "pending_context_summary" in combined
     assert "ordinary_turn_persistence_mode" in combined
-    assert "unsaved_turn_count" in combined
-    assert "checkpoint_prompt_policy" in combined
+    assert "checkpoint_value_policy" in combined
     assert "checkpoint_continue_policy" in combined
-    assert "memory-only between save triggers" in lowered
+    assert "do not maintain a hidden turn counter" in lowered
     assert "suppress local writes until save trigger" in lowered
     assert "hooks may remind on resume or compaction" in lowered
     assert "pending truth-pass state" in lowered
@@ -1887,7 +1884,8 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "active_command: sp-discussion" in content
     assert "phase_mode: discussion-only" in content
     assert "status: active | blocked | handoff-ready | completed | abandoned" in content
-    assert "ui-interaction-discussion" in content
+    assert "lifecycle_phase: explore | ground | decide | prepare | review | ready | consumed | closed" in content
+    assert "orthogonal" in content
     assert "ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred" in content
     assert "updated_at:" in content
     assert "question_pack_mode: single-question | adaptive-pack | none" in content
@@ -1905,11 +1903,12 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "changed_recommendations:" in content
     assert "next_discussion_paths:" in content
     assert "## Allowed Artifact Writes" in content
+    assert "discussion-state.json" in content
     assert "discussion-state.md" in content
     assert "handoff-to-specify.md" in content
     assert "consumer_eligibility" in content
     assert "recommended_consumer" in content
-    assert "quick_task_candidate" in content
+    assert "quick_task_candidate" not in content
     assert "## Context Boundary" in content
     assert "context_boundary_status: not-started | needs-user-input | locked | blocked" in content
     assert "current_project_root:" in content
@@ -1956,7 +1955,8 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "discussion_requirement_contract" in content
     assert "consumer_eligibility" in content
     assert "sp-specify" in content
-    assert "handoff_status: handoff-ready" in content
+    assert "status: handoff-ready" in content
+    assert "review_digest" in content
     assert "quality_gate.status: user_confirmed" in content
     assert "planning_gate_status: ready" in content
     assert "hard_unknown_count: 0" in content
@@ -1972,7 +1972,7 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "hard_unknown_count" in content
     assert "open_conflict_count" in content
     assert "read the handoff-declared source files" in lowered
-    assert "discussion-log.md" in content
+    assert "discussion-log.jsonl" in content
     assert "requirements.md" in content
     assert "open-questions.md" in content
     assert "technical-options.md" in content
@@ -2008,8 +2008,9 @@ def test_quick_consumes_unified_discussion_handoff_through_checkpoint() -> None:
     assert "discussion_requirement_contract" in content
     assert "consumer_eligibility" in content
     assert "sp-quick" in content
-    assert "quick_task_candidate" in content
-    assert "requires_spec_first" in content
+    assert "planning_constraints" in content
+    assert "review_digest" in content
+    assert "quick_task_candidate" not in content
     assert "source_discussion_slug" in content
     assert "source_files_read" in content
     assert "must_preserve" in content
@@ -2033,7 +2034,7 @@ def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -
 
 def test_discussion_handoff_is_agent_facing_requirement_contract() -> None:
     content = _read("templates/commands/discussion.md")
-    handoff_json = _read("templates/brainstorming-handoff-specify-template.json")
+    handoff_json = _read("templates/discussion-handoff-template.json")
     combined = "\n".join([content, handoff_json])
     lowered = combined.lower()
 
@@ -2049,8 +2050,8 @@ def test_discussion_handoff_is_agent_facing_requirement_contract() -> None:
     assert '"sp-specify"' in handoff_json
     assert '"sp-quick"' in handoff_json
     assert '"recommended_consumer"' in handoff_json
-    assert '"quick_task_candidate"' in handoff_json
-    assert '"requires_spec_first"' in handoff_json
+    assert '"planning_constraints"' in handoff_json
+    assert '"quick_task_candidate"' not in handoff_json
     assert "do not write a second quick-specific pair" in lowered
     assert "review_criteria_carried_forward" in content
     assert "technical-options.md" in content
@@ -2395,7 +2396,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "user review" in lowered
     assert "source_signal_disposition" in content
     assert "source_files_read" in content
-    assert "discussion-log.md" in content
+    assert "discussion-log.jsonl" in content
     assert "requirements.md" in content
     assert "open-questions.md" in content
     assert "checklists/requirements.md" in content
@@ -3740,7 +3741,7 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "testing-state.md" not in content
     assert "status.md" in lowered
     assert "debug" in lowered
-    assert "discussion-state.md" in content
+    assert "discussion-state.json" in content
     assert "handoff_consumption_status" in content
     assert "mark-consumed" in lowered
     assert "next_command" in content
@@ -5143,7 +5144,8 @@ def test_brainstorming_handoff_template_supports_context_boundary_quality_gate_a
     downstream_instructions = template.get("downstream_instructions")
     assert isinstance(downstream_instructions, dict)
     assert downstream_instructions.get("capability_map") == []
-    assert downstream_instructions.get("recommended_sequence") == []
+    assert downstream_instructions.get("planning_constraints") == []
+    assert "recommended_sequence" not in downstream_instructions
     assert downstream_instructions.get("deferred_scope") == []
     quality_gate = template.get("quality_gate")
     assert isinstance(quality_gate, dict)
@@ -5513,7 +5515,7 @@ def test_specify_template_uses_simplified_collaborative_spec_flow() -> None:
     assert "semantic term" in lowered
     assert "user review" in lowered
     assert "source_signal_disposition" in content
-    assert "discussion-log.md" in content
+    assert "discussion-log.jsonl" in content
     assert "requirements.md" in content
     assert "open-questions.md" in content
     assert "brainstorming/handoff-to-specify.json" in content

@@ -30,6 +30,7 @@ def test_copilot_generated_subagent_workflows_include_capability_discovery(tmp_p
     _assert_subagent_using_surfaces_have_discovery((tmp_path / ".github" / "agents").glob("sp.*.agent.md"))
 
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 
 
 class TestCopilotIntegration:
@@ -57,11 +58,17 @@ class TestCopilotIntegration:
     @classmethod
     def _expected_inventory(cls, script_variant: str) -> list[str]:
         copilot = get_integration("copilot")
+        references_root = copilot.shared_command_references_dir()
+        assert references_root is not None
         expected = []
 
         for stem in cls._command_stems():
             expected.append(f".github/agents/sp.{stem}.agent.md")
             expected.append(f".github/prompts/sp.{stem}.prompt.md")
+            expected.extend(
+                f".github/agents/references/{stem}/{reference.relative_to(references_root / stem).as_posix()}"
+                for reference in copilot.list_command_reference_templates(stem)
+            )
 
         if copilot.context_file:
             expected.append(copilot.context_file)
@@ -116,7 +123,7 @@ class TestCopilotIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
-        expected.append(SHARED_PRD_HELPER)
+        expected.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)

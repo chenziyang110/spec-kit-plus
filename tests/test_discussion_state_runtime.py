@@ -171,6 +171,46 @@ def test_initialize_discussion_creates_minimal_typed_state(runtime, tmp_path: Pa
     assert len(markdown.splitlines()) < 70
 
 
+def test_legacy_markdown_state_migrates_to_typed_shape(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    workspace = project / ".specify" / "discussions" / "legacy-review"
+    workspace.mkdir(parents=True)
+    (workspace / "discussion-state.md").write_text(
+        "\n".join(
+            [
+                "# Discussion State: Legacy",
+                "- slug: `legacy-review`",
+                "- status: active",
+                "- summary: 'Legacy review summary'",
+                "- updated_at: 2026-07-10T00:00:00Z",
+                "- current_stage: handoff-review",
+                "- current_decision_frame: Review the migrated contract",
+                "- handoff_review_status: draft",
+                "- quality_gate_status: draft",
+                "- handoff_to_specify: [not written]",
+                "- handoff_to_specify_json: none",
+                "- handoff_consumption_status: not_consumed",
+                "- consumed_at: none",
+                "- consumed_by_feature_dir: none",
+                "- next_command: none",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = runtime.discussion_status(project, "legacy-review")["discussion"]
+
+    assert payload["slug"] == "legacy-review"
+    assert payload["summary"] == "Legacy review summary"
+    assert payload["lifecycle_phase"] == "review"
+    assert payload["turn_packet"]["current_decision_frame"] == "Review the migrated contract"
+    assert payload["handoff"]["markdown_path"] is None
+    assert runtime._legacy_phase("context-grounding", "active") == "ground"
+    assert runtime._legacy_phase("handoff-ready", "handoff-ready") == "ready"
+    assert runtime._legacy_phase("anything", "completed") == "closed"
+
+
 def test_initialize_discussion_uses_collision_safe_slug(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
 
@@ -373,6 +413,69 @@ def test_mark_consumed_rejects_missing_mismatched_and_escaping_targets(runtime, 
     outside.mkdir(exist_ok=True)
     with pytest.raises(ValueError, match="inside the project root"):
         runtime.mark_consumed(project, initialized["slug"], str(outside))
+
+
+def test_runtime_main_dispatches_complete_lifecycle(runtime, tmp_path: Path, monkeypatch, capsys):
+    project = _setup_project(tmp_path)
+
+    def call(mode: str, slug: str = "", value: str = "", include_all: str = "false"):
+        monkeypatch.setattr(
+            runtime.sys,
+            "argv",
+            ["discussion-state.py", str(project), mode, slug, value, include_all],
+        )
+        assert runtime.main() == 0
+        return json.loads(capsys.readouterr().out)
+
+    initialized = call("init", "dispatcher", "Dispatcher lifecycle")
+    slug = initialized["slug"]
+    assert call("list")["discussions"][0]["slug"] == slug
+    assert call("status", slug)["discussion"]["slug"] == slug
+    assert call("resume-context", slug)["turn_packet"]["discussion_slug"] == slug
+    checkpoint = call(
+        "checkpoint",
+        slug,
+        json.dumps({"summary": "Dispatch checkpoint", "lifecycle_phase": "prepare"}),
+    )
+    assert checkpoint["discussion"]["lifecycle_phase"] == "prepare"
+
+    markdown_path, json_path, _digest = _write_confirmed_handoff(runtime, project, slug)
+    written = call("write-handoff", slug, str(json_path))
+    assert written["review_digest"]
+    assert call("validate-handoff", slug)["valid"] is True
+    assert call("mark-ready", slug)["discussion"]["status"] == "handoff-ready"
+
+    feature_dir = project / ".specify" / "features" / "001-dispatcher"
+    evidence_dir = feature_dir / "brainstorming"
+    evidence_dir.mkdir(parents=True)
+    (evidence_dir / "handoff-to-specify.json").write_text(
+        json.dumps(
+            {
+                "discussion_slug": slug,
+                "source_handoff": markdown_path.relative_to(project).as_posix(),
+                "source_handoff_json": json_path.relative_to(project).as_posix(),
+                "review_digest": written["review_digest"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    consumed = call("mark-consumed", slug, feature_dir.relative_to(project).as_posix())
+    assert consumed["discussion"]["lifecycle_phase"] == "consumed"
+    assert call("archive", slug)["discussion"]["archived"] is True
+
+    second = call("init", "closed-dispatcher", "Closed dispatcher")
+    assert call("close", second["slug"], "abandoned")["discussion"]["status"] == "abandoned"
+    assert call("archive", second["slug"])["discussion"]["archived"] is True
+    assert call("rebuild-index")["version"] == 2
+    assert len(call("list", include_all="true")["discussions"]) == 2
+
+    monkeypatch.setattr(
+        runtime.sys,
+        "argv",
+        ["discussion-state.py", str(project), "unknown-mode", "", "", "false"],
+    )
+    with pytest.raises(ValueError, match="unknown mode"):
+        runtime.main()
 
 
 def test_discussion_templates_define_typed_state_and_consumer_neutral_handoff():

@@ -19,8 +19,10 @@ Write the specification package after context intake, necessary clarification, s
   - `version`
   - `status`
   - `entry_source`
+  - `discussion_slug`
   - `source_handoff`
   - `source_handoff_json`
+  - `review_digest`
   - `source_files_read`
   - `source_signal_disposition`
   - `discussion_decision_digest`

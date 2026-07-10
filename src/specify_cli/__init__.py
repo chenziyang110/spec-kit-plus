@@ -1519,6 +1519,28 @@ def discussion_validate_handoff(
         raise typer.Exit(1)
 
 
+@discussion_app.command("write-handoff")
+def discussion_write_handoff(
+    slug: str = typer.Argument(..., help="Discussion slug"),
+    input_path: Path = typer.Option(..., "--input", help="Canonical handoff JSON draft"),
+    json_output: bool = typer.Option(False, "--json", help="Print rendered handoff paths and digest as JSON"),
+):
+    """Write canonical JSON and deterministically render its Markdown view."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper(
+        "write-handoff",
+        slug=slug,
+        status=str(input_path.resolve()),
+    )
+    if json_output:
+        print_json(payload, indent=2)
+        return
+    console.print(
+        f"Prepared handoff for {slug}. Review digest: {payload.get('review_digest')}\n"
+        f"JSON: {payload.get('json_path')}\nMarkdown: {payload.get('markdown_path')}"
+    )
+
+
 @discussion_app.command("mark-ready")
 def discussion_mark_ready(
     slug: str = typer.Argument(..., help="Discussion slug"),

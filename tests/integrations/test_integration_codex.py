@@ -709,7 +709,7 @@ class TestCodexAutoPromote:
         assert "deferred persistence" in generated_lower
         assert "compaction preserve" in generated_lower
         assert "user-triggered save" in generated_lower
-        assert "five-turn" in generated_lower
+        assert "turn count alone is never a save trigger" in generated_lower
         assert "semantic checkpoints" in generated_lower
         assert "adaptive question pack" in generated_lower
         assert "primary question" in generated_lower
@@ -729,9 +729,7 @@ class TestCodexAutoPromote:
         assert "unified frontstage contract" in generated_lower
         assert "do not choose among named answer templates" in generated_lower
         assert "agent controls heading names" in generated_lower
-        assert "readiness-summary" in generated_discussion
-        assert "handoff-preview" in generated_discussion
-        assert "handoff-review" in generated_discussion
+        assert "`explore -> ground -> decide -> prepare -> review -> ready -> consumed | closed`" in generated_discussion
         assert "discussion responsibility boundary" in generated_lower
         assert "does not own implementation planning" in generated_lower
         assert "do not split the work into p0/p1/p2" in generated_lower
@@ -746,10 +744,10 @@ class TestCodexAutoPromote:
         assert "handoff request-changes repair" in generated_lower
         assert "blocked_by_handoff_integrity" in generated_discussion
         assert "the repair belongs to `sp-discussion`" in generated_lower
-        assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in generated_lower
+        assert "render `handoff-to-specify.md` from that exact payload" in generated_lower
         assert "source_handoff_json" in generated_discussion
-        assert "source_files_read" in generated_discussion
-        assert "handoff_status" in generated_discussion
+        assert "field-level validation errors" in generated_discussion
+        assert "review_digest" in generated_discussion
         assert "safe default discussion action" in generated_lower
         assert "next-step content rule" in generated_lower
         assert "first-pass content" in generated_lower
@@ -765,7 +763,8 @@ class TestCodexAutoPromote:
         assert "Agent-Facing Requirement Contract" in generated_discussion
         assert "consumer_eligibility" in generated_discussion
         assert "recommended_consumer" in generated_discussion
-        assert "quick_task_candidate" in generated_discussion
+        assert "planning_constraints" in generated_discussion
+        assert "quick_task_candidate" not in generated_discussion
         assert "Do not describe current execution or implementation progress" in generated_discussion
         assert "locked_direction" in generated_discussion
         assert "rejected_alternatives" in generated_discussion
@@ -781,14 +780,14 @@ class TestCodexAutoPromote:
         assert "next consumption path" in generated_lower
         assert "do not close with only file paths, status counters, or a next command" in generated_lower
         assert "keep ready-summary quality checks internal" in generated_lower
-        assert "draft handoff package can be produced" in generated_lower
-        assert "complete handoff package can be produced" not in generated_lower
+        assert "`ready-for-handoff` or `continue-discussion`" in generated_lower
+        assert "canonical json payload" in generated_lower
         assert "confirmed unified handoff pair" not in generated_lower
 
         assert "latest_event_checkpoint:" in state_template
         assert "ordinary_turn_write_policy: deferred-checkpoint" in state_template
         assert "save_trigger_policy:" in state_template
-        assert "unsaved_turn_count:" in state_template
+        assert "checkpoint_value_policy:" in state_template
         assert "pending_context_summary:" in state_template
         assert "compaction_preserve_items:" in state_template
         assert "latest_cognition_readiness:" in state_template
@@ -799,10 +798,7 @@ class TestCodexAutoPromote:
         assert "question_pack_mode: single-question | adaptive-pack | none" in state_template
         assert "reply_shape_id:" not in state_template
         assert "frontstage_reply_contract: unified" in state_template
-        assert "readiness-summary" in state_template
-        assert "handoff-preview" in state_template
-        assert "handoff-review" in state_template
-        assert "review-summary" in state_template
+        assert "lifecycle_phase: explore | ground | decide | prepare | review | ready | consumed | closed" in state_template
         assert "primary_question:" in state_template
         assert "optional_followups:" in state_template
         assert "recommendation_required_for_choices: true" in state_template
@@ -810,7 +806,7 @@ class TestCodexAutoPromote:
         assert "handoff_kind: discussion_requirement_contract" in state_template
         assert "consumer_eligibility:" in state_template
         assert "recommended_consumer:" in state_template
-        assert "quick_task_candidate_status:" in state_template
+        assert "quick_task_candidate_status:" not in state_template
 
         source_contract = handoff_template["source_evidence_contract"]
         assert source_contract["required_fields"] == [
@@ -1309,7 +1305,9 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
     assert "resolve discussion handoff intake before quick-task execution" in quick_content
     assert "discussion_requirement_contract" in quick_content
     assert "consumer_eligibility.sp-quick.status" in quick_content
-    assert "quick_task_candidate" in quick_content
+    assert "planning_constraints" in quick_content
+    assert "review_digest" in quick_content
+    assert "quick_task_candidate" not in quick_content
     assert "do not skip the understanding checkpoint" in quick_content
 
 

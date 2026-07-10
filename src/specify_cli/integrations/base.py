@@ -1375,6 +1375,63 @@ class IntegrationBase(ABC):
         return section
 
     @staticmethod
+    def rewrite_command_reference_links(content: str, command_name: str) -> str:
+        """Point a single-file command at its namespaced reference sidecars."""
+        if not command_name or "references/" not in content:
+            return content
+        return re.sub(
+            r"references/(?=[A-Za-z0-9_.-]+\.md\b)",
+            f"references/{command_name}/",
+            content,
+        )
+
+    def install_command_reference_sidecars(
+        self,
+        *,
+        command_name: str,
+        owner_template_raw: str,
+        owner_template_path: Path,
+        commands_destination: Path,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        script_type: str,
+        arg_placeholder: str,
+    ) -> list[Path]:
+        """Render references beside a single-file command under a stable namespace."""
+        reference_files = self.list_command_reference_templates(command_name)
+        references_dir = self.shared_command_references_dir()
+        if not reference_files or not references_dir:
+            return []
+
+        references_root = (references_dir / command_name).resolve()
+        references_destination = commands_destination / "references" / command_name
+        created: list[Path] = []
+        for source in reference_files:
+            try:
+                relative = source.resolve().relative_to(references_root)
+            except ValueError:
+                relative = Path(source.name)
+            rendered = self.render_command_reference_content(
+                source.read_text(encoding="utf-8"),
+                owner_template_raw=owner_template_raw,
+                owner_template_path=owner_template_path,
+                reference_path=source,
+                agent_name=self.key,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+                project_root=project_root,
+            )
+            created.append(
+                self.write_file_and_record(
+                    rendered,
+                    references_destination / relative,
+                    project_root,
+                    manifest,
+                )
+            )
+        return created
+
+    @staticmethod
     def process_template(
         content: str,
         agent_name: str,
@@ -1648,14 +1705,9 @@ class MarkdownIntegration(IntegrationBase):
                 template_path=src_file,
                 project_root=project_root,
             )
-            processed += self.render_inline_command_references(
-                command_name=src_file.stem,
-                owner_template_raw=raw,
-                owner_template_path=src_file,
-                agent_name=self.key,
-                script_type=script_type,
-                arg_placeholder=arg_placeholder,
-                project_root=project_root,
+            processed = self.rewrite_command_reference_links(
+                processed,
+                src_file.stem,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             processed = self._append_runtime_project_cognition_gate(
@@ -1720,6 +1772,18 @@ class MarkdownIntegration(IntegrationBase):
                 processed, dest / dst_name, project_root, manifest
             )
             created.append(dst_file)
+            created.extend(
+                self.install_command_reference_sidecars(
+                    command_name=src_file.stem,
+                    owner_template_raw=raw,
+                    owner_template_path=src_file,
+                    commands_destination=dest,
+                    project_root=project_root,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+            )
 
         created.extend(self.install_scripts(project_root, manifest))
         return created
@@ -1862,14 +1926,9 @@ class TomlIntegration(IntegrationBase):
                 template_path=src_file,
                 project_root=project_root,
             )
-            processed += self.render_inline_command_references(
-                command_name=src_file.stem,
-                owner_template_raw=raw,
-                owner_template_path=src_file,
-                agent_name=self.key,
-                script_type=script_type,
-                arg_placeholder=arg_placeholder,
-                project_root=project_root,
+            processed = self.rewrite_command_reference_links(
+                processed,
+                src_file.stem,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             processed = self._append_runtime_project_cognition_gate(
@@ -1940,6 +1999,18 @@ class TomlIntegration(IntegrationBase):
                 toml_content, dest / dst_name, project_root, manifest
             )
             created.append(dst_file)
+            created.extend(
+                self.install_command_reference_sidecars(
+                    command_name=src_file.stem,
+                    owner_template_raw=raw,
+                    owner_template_path=src_file,
+                    commands_destination=dest,
+                    project_root=project_root,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+            )
 
         created.extend(self.install_scripts(project_root, manifest))
         return created

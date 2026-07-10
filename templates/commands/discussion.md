@@ -3,7 +3,7 @@ description: Use when a rough idea or requirement needs a resumable senior produ
 workflow_contract:
   when_to_use: A rough idea or requirement needs product/technical discussion before it is ready for sp-specify.
   primary_objective: Build a durable discussion package that matures the idea into requirements and technical implementation options.
-  primary_outputs: '`.specify/discussions/<slug>/discussion-state.md`, `discussion-log.md`, `requirements.md`, `technical-options.md`, `project-context.md`, `open-questions.md`, `handoff-assessment.md` when handoff is requested, plus exactly one unified draft handoff pair `.specify/discussions/<slug>/handoff-to-specify.md` and `.specify/discussions/<slug>/handoff-to-specify.json` after explicit handoff request and boundary lock. The pair becomes handoff-ready only after self-review and user confirmation.'
+  primary_outputs: 'Canonical `.specify/discussions/<slug>/discussion-state.json`, derived `discussion-state.md`, compact `discussion-log.jsonl`, checkpoint artifacts only when their meaning changes, and exactly one unified draft handoff pair `.specify/discussions/<slug>/handoff-to-specify.json` plus its rendered Markdown after explicit handoff request and boundary lock. The pair becomes handoff-ready only after exact validation, self-review, and user confirmation.'
   default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run boundary-aware handoff assessment and either produce one unified draft handoff pair for review or continue discussion. Mark handoff-ready only after self-review and user confirmation.
 ---
 
@@ -23,6 +23,13 @@ You are a senior product-engineering advisor: a senior technical expert and seni
 - You recommend options, but the user chooses product direction and explicitly controls handoff to `sp-specify`.
 - Use recommendation-first decision progression: give the recommended choice and reason when the evidence supports it, then surface the next useful recommended decision instead of forcing a bare "should we?" or "okay to continue?" loop.
 - Recommendation-first is not questionless: if the discussion is still active and cannot safely advance without user judgment, ask one concrete user-owned question that names the recommended default and the meaningful override choices.
+
+## Human Frontstage and Agent Backstage
+
+- Human frontstage is the visible collaboration and is written from the human's point of view: lead with meaning, recommendation, decision impact, and the next useful move in language appropriate to the user.
+- Agent backstage is the compact machine-facing control plane: maintain a typed `DiscussionTurnPacket`, lifecycle phase, evidence provenance, confirmed decisions, open questions, persistence mode, and next gate.
+- Do not expose typed state, internal counters, schema fields, or bookkeeping in ordinary replies. Surface them only when the user requests diagnostics or needs exact review or recovery evidence.
+- Visible headings, order, and detail remain adaptive. Preserve the semantic reply contract without imposing a canned card on the human.
 
 
 ## Hard Boundaries
@@ -45,23 +52,33 @@ You are a senior product-engineering advisor: a senior technical expert and seni
 
 ## Session Store
 
-All state lives under `.specify/discussions/<slug>/`.
+All state lives under `.specify/discussions/<slug>/`. Use `specify discussion init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` for lifecycle operations instead of reconstructing state by hand.
 
 Required files:
 
-- `discussion-state.md`
-- `discussion-log.md`
+- `discussion-state.json` as canonical typed state conforming to `templates/discussion-state-schema.json`
+- `discussion-state.md` as a short derived compatibility view; never treat it as the machine authority
+- `discussion-log.jsonl` as a compact semantic-checkpoint log, never a transcript
+
+Checkpoint artifacts, created or refreshed only when their meaning changes:
+
 - `requirements.md`
 - `technical-options.md`
 - `project-context.md`
 - `open-questions.md`
 - `handoff-assessment.md` only after explicit user request to hand off or continue to the next stage
-- `handoff-to-specify.md` as a draft only after explicit user request, boundary lock, and a bounded unified scope; ready only after self-review and user confirmation
-- `handoff-to-specify.json` as a draft companion only after explicit user request, boundary lock, and a bounded unified scope; ready only after self-review and user confirmation
+- `handoff-to-specify.json` as the canonical `discussion_requirement_contract` conforming to `templates/discussion-handoff-schema.json`
+- `handoff-to-specify.md` as the deterministic human-readable rendering of the same payload
 
 Do not create separate split planning artifacts or candidate-specific handoff files. Complex directions stay inside the single handoff through `capability_map`, `dependencies`, `deferred_scope`, `planning_constraints`, and `reopen_conditions`, or remain in `continue-discussion` until the user confirms a unified scope. Do not fill discussion handoffs with an ordered execution sequence.
 
-Use `templates/discussion-state-template.md` when initializing `discussion-state.md`.
+Use the shared discussion runtime to initialize state and render `discussion-state.md`. Use `templates/discussion-handoff-template.json` as the draft payload shape and the shared renderer to generate Markdown; never maintain the pair independently.
+
+## Lifecycle Model
+
+- Use exactly one primary lifecycle phase: `explore -> ground -> decide -> prepare -> review -> ready -> consumed | closed`.
+- Keep evidence confidence, blockers, UI discussion, persistence mode, consumer eligibility, and user confirmation as orthogonal typed fields instead of inventing more primary phases.
+- Carry only the compact `DiscussionTurnPacket` needed for the next turn: goal, decision frame, confirmed decisions, boundary, open questions, recommendation, allowed actions, persistence mode, and next gate.
 
 ## Session Selection
 
@@ -76,7 +93,7 @@ Use `templates/discussion-state-template.md` when initializing `discussion-state
 - If the user specifies a slug, resume or create that slug according to the user's wording.
 - If no slug is specified and exactly one incomplete discussion exists, resume it.
 - If multiple incomplete discussions exist, list candidates with slug, status, summary, and `updated_at`, then ask the user to choose one or explicitly start a new discussion.
-- Sort candidates by `updated_at` in `discussion-state.md`; fall back to the state file modification time only when `updated_at` is missing.
+- Sort candidates by `updated_at` in canonical `discussion-state.json`; use the derived Markdown or file modification time only for legacy recovery.
 
 ## Main Flow
 
