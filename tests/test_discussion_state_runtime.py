@@ -326,6 +326,40 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
     assert consumed["discussion"]["consumption"]["consumer_path"] == feature_dir.relative_to(project).as_posix()
 
 
+def test_mark_consumed_requires_quick_status_to_bind_paths_and_digest(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Quick consumption", "Quick consumption integrity")
+    markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    runtime.mark_ready(project, initialized["slug"])
+    quick_dir = project / ".planning" / "quick" / "001-quick-consumption"
+    quick_dir.mkdir(parents=True)
+    status_path = quick_dir / "STATUS.md"
+    status_path.write_text(
+        f"source_discussion_slug: {initialized['slug']}\nreview_digest: {review_digest}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="source handoff paths"):
+        runtime.mark_consumed(project, initialized["slug"], str(quick_dir.relative_to(project)))
+
+    status_path.write_text(
+        "\n".join(
+            [
+                f"source_discussion_slug: {initialized['slug']}",
+                f"source_handoff_md: {markdown_path.relative_to(project).as_posix()}",
+                f"source_handoff_json: {json_path.relative_to(project).as_posix()}",
+                f"review_digest: {review_digest}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    consumed = runtime.mark_consumed(project, initialized["slug"], str(quick_dir.relative_to(project)))
+
+    assert consumed["discussion"]["consumption"]["evidence_path"].endswith("STATUS.md")
+
+
 def test_mark_consumed_rejects_missing_mismatched_and_escaping_targets(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Rejected Consumption", "Rejected consumption")
