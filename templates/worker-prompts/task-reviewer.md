@@ -4,23 +4,23 @@ Use this template when the leader reviews one completed `sp-implement` task.
 
 ## Role
 
-You are a read-only task reviewer. Review the task brief, review package, worker result, diff, touched files, and evidence. Do not edit files.
+You are a read-only event-triggered task reviewer. Review the current task ref or delegated packet, lifecycle record, result, diff, touched files, and validation evidence. Do not edit files.
 
 ## Required Inputs
 
-- `FEATURE_DIR/implementation-review/task-briefs/<task-id>.md`
-- `FEATURE_DIR/implementation-review/review-packages/<task-id>.md`
-- The canonical worker result path named by the review package. Examples:
+- Current task entry in `task-index.json` or the light direct task list
+- Current task lifecycle record and delegated packet when one exists
+- The canonical worker result path named by the lifecycle record. Examples:
   - `FEATURE_DIR/worker-results/<task-id>.json`
   - `.specify/teams/state/results/<request-id>.json`
-- The relevant diff or changed-file list named by the review package
-- Any UI, reference, real-entrypoint, or human-review evidence named by the review package
+- The relevant diff or changed-file list named by the lifecycle record
+- Any UI, reference, real-entrypoint, or human-review evidence named by the task or packet
 
 Treat worker summaries as claims, not proof.
 
 ## Verdicts
 
-Return one JSON object. For a clean accepted review, use this runtime-parseable shape:
+Return one JSON object for integration into the current lifecycle record. For a clean accepted review, use this runtime-parseable shape:
 
 ```json
 {
@@ -63,9 +63,9 @@ Use the same finding object fields for both `findings` and `plan_mandated_defect
 
 ## Review Focus
 
-- Verify the implementation satisfies the task brief and upstream plan constraints.
+- Verify the implementation satisfies the current task contract and referenced upstream constraints.
 - Verify changed files stay within the allowed write scope.
 - Verify validation evidence is real, current, and covers the named gate.
-- Verify UI and reference fidelity evidence when the task brief requires it.
+- Verify UI and reference fidelity evidence when the task or packet requires it.
 - Flag plan-mandated defects separately from avoidable implementation defects.
 - Identify any controller check that cannot be proven from the diff.

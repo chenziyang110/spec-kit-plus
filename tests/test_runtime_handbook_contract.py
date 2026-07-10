@@ -128,10 +128,11 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         lowered = content.lower()
 
         assert "project-cognition compass --intent plan" in content
-        assert "lexicon -> semantic_intake -> query" in content
-        assert "project-cognition query --query-plan" in content
-        assert "--query-plan" in content
+        assert "run at most one `project-cognition compass --intent plan` intake" in content
+        assert content.count("project-cognition compass --intent plan --query=") <= 1
         assert "minimal_live_reads" in content
+        assert "advisory navigation" in lowered
+        assert "do not turn ordinary planning into map maintenance" in lowered
         assert "graph-native" not in lowered
         assert "build-handbook.md" not in lowered
         assert "build-workflow-contract" not in lowered
@@ -140,13 +141,13 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
 
 def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
     expectations = {
-        "templates/commands/specify.md": ("context.md", "ownership", "verification routes"),
+        "templates/commands/specify.md": ("spec-contract.json", "context capsule", "validation routes"),
         "templates/commands/clarify.md": ("clarified spec package", "ownership", "verification"),
         "templates/commands/deep-research.md": ("deep-research.md", "repository facts", "external research"),
-        "templates/commands/plan.md": ("Implementation Constitution", "verification strategy", "plan-contract.json"),
-        "templates/commands/tasks.md": ("tasks.md", "task-index.json", "task packets"),
+        "templates/commands/plan.md": ("Implementation Constitution", "architecture/module decisions", "plan-contract.json"),
+        "templates/commands/tasks.md": ("plan-contract.json", "task-index.json", "just in time"),
         "templates/commands/analyze.md": ("cognition-backed blocker evidence", "clarify", "deep-research"),
-        "templates/commands/implement.md": ("implement-tracker.md", "WorkerTaskPacket", "minimal live reads"),
+        "templates/commands/implement.md": ("task-index.json", "WorkerTaskPacket", "task lifecycle record"),
         "templates/commands/debug.md": ("debug session state", "competing truths", "coverage gaps"),
         "templates/commands/fast.md": ("fast-task state or report", "verification route", "minimal reads"),
         "templates/commands/quick.md": ("STATUS.md", "validation route", "known risk"),

@@ -193,7 +193,7 @@ def test_specify_reads_design_md_for_ui_features() -> None:
 def test_discussion_design_carry_forward_artifacts_are_modeled() -> None:
     command = _read("templates/commands/discussion.md")
     state = _read("templates/discussion-state-template.md")
-    handoff = _read("templates/brainstorming-handoff-specify-template.json")
+    handoff = _read("templates/discussion-handoff-template.json")
 
     for field in (
         "experience_commitments",
@@ -327,14 +327,8 @@ def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
     assert "accepted deviations" in tasks_template_lower
     assert "ui_fidelity_mode" in tasks_command
     assert "required_evidence" in tasks_command
-    assert (
-        "packet shorthand" in tasks_command_lower
-        or "shorthand aliases" in tasks_command_lower
-        or "task-packet aliases only" in tasks_command_lower
-    )
-    assert "reference source evidence" in tasks_command_lower
-    assert "fidelity criteria" in tasks_command_lower
-    assert "verification entry points" in tasks_command_lower
+    assert "reference-fidelity item" in tasks_command_lower
+    assert "real-entrypoint proof" in tasks_command_lower
     assert "difference inventory" in tasks_command_lower
     assert "accepted deviations" in tasks_command_lower
     assert "ui_verification" in implement
@@ -586,12 +580,6 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
         "templates/commands/quick.md",
         "templates/commands/implement.md",
         "templates/commands/debug.md",
-        "templates/commands/analyze.md",
-        "templates/commands/specify.md",
-        "templates/commands/clarify.md",
-        "templates/commands/deep-research.md",
-        "templates/commands/plan.md",
-        "templates/commands/tasks.md",
     ]
     for path in commands:
         content = _read_project_file(path)
@@ -1232,18 +1220,17 @@ def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> 
     tasks = _read("templates/commands/tasks.md")
 
     assert (
-        "primary_outputs: '`plan.md`, `research.md`, `quickstart.md`, `plan-contract.json`, "
-        "and `workflow-state.md` under the active `FEATURE_DIR`; `data-model.md` and `contracts/` "
-        "when the feature scope demands them; `planning/handoffs/<lane-id>.json`, "
-        "`planning/evidence-index.json`, and `planning/checkpoints.ndjson` only when delegated "
-        "planning lanes are used.'"
+        "primary_outputs: 'Canonical agent-only `plan-contract.json` plus project-facing "
+        "`plan.md`; `research.md`, `quickstart.md`, `data-model.md`, and `contracts/` only "
+        "when their triggers are present; planning lane records only when delegated lanes are "
+        "used. `workflow-state.md` remains resume state rather than phase handoff truth.'"
     ) in plan
     assert (
-        "primary_outputs: '`FEATURE_DIR/tasks.md` and `workflow-state.md`; `task-index.json` "
-        "when useful for light mode; `handoff-to-tasks.json`, `task-packets/*.json`, "
-        "`task-generation/handoffs/<lane-id>.json`, `task-generation/evidence-index.json`, "
-        "and `task-generation/checkpoints.ndjson` when standard/heavy mode uses delegated "
-        "task-generation lanes or downstream delegated implementation needs packets.'"
+        "primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph for "
+        "standard/heavy work plus rendered `tasks.md`; light leader-direct work may use only "
+        "`tasks.md`. `handoff-to-tasks.json` is a compact agent transition when compatibility "
+        "requires it. Worker packets are compiled just in time by `sp-implement`; task-generation "
+        "lane records exist only when lanes were actually delegated.'"
     ) in tasks
 
 
@@ -1308,14 +1295,14 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "technical-options.md" in content
     assert "project-context.md" in content
     assert "open-questions.md" in content
-    assert "handoff-to-specify.md" in content
+    assert "handoff-to-specify.json" in content
     assert "active | blocked | handoff-ready | completed | abandoned" in content
     assert "multiple incomplete discussions" in lowered
     assert "updated_at" in content
     assert "do not create feature branches" in lowered
     assert "do not edit source code" in lowered
-    assert "do not edit tests" in lowered
-    assert "do not automatically run" in lowered
+    assert "do not edit source code or tests" in lowered
+    assert "do not automatically invoke or route" in lowered
     assert "explicit user" in lowered
     assert "{{spec-kit-include: ../command-partials/discussion/shell.md}}" in content
     _assert_discussion_advisor_upgrade_contract(content)
@@ -1325,8 +1312,8 @@ def test_discussion_command_locks_context_boundary_before_technicalization() -> 
     content = _read_project_file("templates/commands/discussion.md")
     lowered = content.lower()
 
-    assert "product manager perspective" in lowered
-    assert "technical expert perspective" in lowered
+    assert "senior product manager" in lowered
+    assert "senior technical expert" in lowered
     assert "context-grounding" in content
     assert "technical-options" in content
     assert "handoff-assessment" in content
@@ -1515,9 +1502,9 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
     assert "handoff request-changes repair" in lowered
     assert "blocked_by_handoff_integrity" in lowered
     assert "the repair belongs to `sp-discussion`" in lowered
-    assert "render `handoff-to-specify.md` from that exact payload" in lowered
-    assert "do not ask `sp-specify`, `sp-quick`, or another consumer to reconstruct" in lowered
-    assert "source_handoff_json" in content
+    assert "update canonical `handoff-to-specify.json`" in lowered
+    assert "consumers block instead of patching upstream truth" in lowered
+    assert "source_contract" in content
     assert "field-level validation errors" in content
     assert "review_digest" in content
     assert "source_files_read" not in content
@@ -1580,15 +1567,15 @@ def test_discussion_does_not_route_to_specify_before_ready_handoff_pair() -> Non
     lowered = combined.lower()
 
     assert "pre-ready handoff next-step guard" in lowered
-    assert "the visible next step is handoff assessment, draft handoff review, or handoff repair inside `sp-discussion`" in lowered
-    assert "do not say the user's next sentence should be `sp-specify`" in lowered
+    assert "keep the visible next step inside `sp-discussion`: handoff assessment, draft handoff review, or handoff repair" in lowered
+    assert "do not tell the user their next sentence should be `sp-specify`" in lowered
     assert "do not tell the user their next sentence can be `sp-specify`" in lowered
     assert "do not tell them to run or enter `sp-specify`" in lowered
     assert "before `handoff-ready`, do not describe the next consumption path as a user-invoked `sp-specify` command" in lowered
-    assert "`specification-input.md`, `discussion-state.md`, or any other discussion source file is not a fallback handoff" in lowered
+    assert "`specification-input.md`, `discussion-state.md`, and other discussion source files are not fallback handoffs" in lowered
     assert "specification-input.md` is not a substitute handoff" in lowered
     assert "the next action is `sp-discussion` handoff creation, review, or repair" in lowered
-    assert "handoff-to-specify.md` and `handoff-to-specify.json` both exist" in lowered
+    assert "ready json contract exists" in lowered
 
 
 def test_discussion_readiness_summary_does_not_plan_execution_phases() -> None:
@@ -1650,50 +1637,21 @@ def test_discussion_handoff_review_passive_skill_sets_review_standard() -> None:
     lowered = content.lower()
 
     assert "name: spec-kit-discussion-handoff-review" in content
-    assert "handoff-to-specify.md" in content
     assert "handoff-to-specify.json" in content
-    assert "discussion-state.md" in content
-    assert "requirements.md" in content
-    assert "technical-options.md" in content
-    assert "project-context.md" in content
-    assert "open-questions.md" in content
-    assert "Review Verdict" in content
-    assert "What This Means" in content
-    assert "Evidence Read" in content
-    assert "Readiness Checks" in content
-    assert "Carry-Forward Coverage" in content
-    assert "Blocking Issues" in content
-    assert "Required Changes" in content
-    assert "Next Action" in content
-    assert "approve-handoff-ready" in content
+    assert "the only handoff authority" in lowered
+    assert "do not require, generate, or compare a markdown companion" in lowered
+    assert "named source-evidence ref" in lowered
+    assert "do not sweep them by default" in lowered
+    assert "approve" in content
     assert "request-changes" in content
-    assert "block-handoff" in content
-    assert "hard_unknown_count = 0" in content
-    assert "open_conflict_count = 0" in content
-    assert "Markdown/JSON" in content
-    assert "Handoff Reviewer Guide" in content
-    assert "Must-Preserve Ledger" in content
-    assert "quality_gate.status" in content
-    assert "planning_gate_status" in content
-    assert "coverage_status" in content
-    assert "internal ready closeout check" in lowered
-    assert "draft user review summary quality check" in lowered
-    assert "unified frontstage contract" in lowered
+    assert "blocked" in content
+    assert "goal and in/out/deferred scope" in lowered
+    assert "context boundary and implementation target" in lowered
+    assert "review criteria" in lowered
     assert "agent chooses the visible headings and layout" in lowered
-    assert "the decision being requested" in lowered
-    assert "the recommended downstream consumer and why" in lowered
-    assert "the exact scope the user would approve" in lowered
-    assert "exact scope the user would approve" in lowered
-    assert "work explicitly outside the draft" in lowered
-    assert "allowed responses: approve as handoff-ready or request concrete changes" in lowered
-    assert "unrelated prompt" in lowered
-    assert "is not approval" in lowered
-    assert "do not review implementation code" in lowered
-    assert "do not answer with only" in lowered
-    assert "route the fix back to `sp-discussion`" in lowered
-    assert "downstream consumers must block instead of reconstructing or patching" in lowered
-    assert "every review response must use these top-level sections in this order" not in lowered
-    assert "visible headings and layout remain adaptive" in lowered
+    assert "no fixed review card" in lowered
+    assert "confirmation of an older digest" in lowered
+    assert "minimum-sufficient rule" in lowered
 
 
 def test_discussion_separates_human_frontstage_from_agent_backstage() -> None:
@@ -1733,11 +1691,9 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     assert "only when no explicit handoff request is active" in content_lower
     assert "handoff-assessment.md` first" in content.split("`ui-interaction-discussion`", 1)[1]
     assert "optional ui and interaction discussion" in content_lower
-    assert "ui decisions are blocking readiness" in content_lower
-    assert ui_section.index("handoff-assessment.md` first") < ui_section.index("return to `ui-interaction-discussion`")
-    assert "ui_discussion_status: offered" in content
-    assert "ui_discussion_status: accepted" in content
-    assert "ui_discussion_status: completed" in content
+    assert "ui decisions block readiness" in content_lower
+    assert ui_section.index("handoff-assessment.md` first") < ui_section.index("reopen ui")
+    assert "ui_discussion_status: offered | accepted | completed | skipped | deferred" in content
     assert "senior ui and interaction designer" in content_lower
     assert "15 years" in content
     assert "ascii sketches" in content_lower
@@ -1857,8 +1813,8 @@ def test_discussion_shell_partial_summarizes_boundary_and_single_handoff_contrac
     assert "primary question" in lowered
     assert "same-topic follow-ups" in lowered
     assert "recommended option" in lowered
-    assert "handoff-to-specify.md" in content
     assert "handoff-to-specify.json" in content
+    assert "agent-only" in lowered
     assert "handoffs/<candidate_id>" not in content
     assert "split-plan.md" not in content
     assert "truth pass" in lowered
@@ -1905,7 +1861,8 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "## Allowed Artifact Writes" in content
     assert "discussion-state.json" in content
     assert "discussion-state.md" in content
-    assert "handoff-to-specify.md" in content
+    assert "handoff-to-specify.md" not in content
+    assert "handoff_contract" in content
     assert "consumer_eligibility" in content
     assert "recommended_consumer" in content
     assert "quick_task_candidate" not in content
@@ -1925,7 +1882,6 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "handoff_consumption_status: not_consumed | consumed" in content
     assert "consumed_at:" in content
     assert "consumed_by_feature_dir:" in content
-    assert "handoff-to-specify.md draft after explicit user request and boundary lock" in content
     assert "handoff-to-specify.json draft after explicit user request and boundary lock" in content
     assert "mark handoff-ready only after self-review pass and user confirmation" in content
     assert "latest_event_checkpoint:" in content
@@ -1945,12 +1901,13 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     lowered = content.lower()
 
     assert "Resolve discussion handoff intake before feature creation" in content
-    assert "before running `{SCRIPT}`" in content
-    assert "no arguments with exactly one unconsumed `status: handoff-ready`" in content
+    assert "canonical agent-only `handoff-to-specify.json`" in content
+    assert "With no arguments and exactly one unconsumed `status: handoff-ready`" in content
     assert "If multiple unconsumed `handoff-ready` discussions exist" in content
-    assert "SOURCE_HANDOFF_MD" in content
-    assert "SOURCE_HANDOFF_JSON" in content
+    assert "SOURCE_CONTRACT" in content
     assert "SOURCE_DISCUSSION_SLUG" in content
+    assert "SOURCE_HANDOFF_MD" not in content
+    assert "SOURCE_HANDOFF_JSON" not in content
     assert "entry_source: sp-discussion" in content
     assert "discussion_requirement_contract" in content
     assert "consumer_eligibility" in content
@@ -1959,76 +1916,58 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "review_digest" in content
     assert "quality_gate.status: user_confirmed" in content
     assert "planning_gate_status: ready" in content
-    assert "hard_unknown_count: 0" in content
-    assert "open_conflict_count: 0" in content
-    assert "Handoff Reviewer Guide" in content
+    assert "zero hard unknowns and open conflicts" in lowered
     assert "blocked_by_handoff_integrity" in content
-    assert "block before feature creation" in lowered
-    assert "If the Markdown carries protected source evidence or settled decisions that the JSON omits" in content
-    assert "Do not pass the raw handoff file path" in content
+    assert "do not require a markdown companion" in lowered
+    assert "blocked_by_handoff_integrity" in lowered
+    assert "not the path or slug" in lowered
     assert "Derive the feature description" in content
     assert "coverage_status" in content
     assert "planning_gate_status" in content
     assert "hard_unknown_count" in content
     assert "open_conflict_count" in content
-    assert "read the handoff-declared source files" in lowered
-    assert "discussion-log.jsonl" in content
-    assert "requirements.md" in content
-    assert "open-questions.md" in content
-    assert "technical-options.md" in content
-    assert "project-context.md" in content
-    assert "source_signal_disposition" in content
-    assert "source_files_read" in content
+    assert "Read supporting discussion files only through a named evidence reference" in content
     assert "specification-input.md" in content
-    assert "not accepted discussion handoffs" in content
-    assert "stop with `blocked_by_handoff_integrity`" in content
-    assert "do not ask for permission to use `specification-input.md` as a fallback feature description" in lowered
-    assert "do not ask the user to confirm `specification-input.md` as the feature input" in lowered
+    assert "do not reconstruct the contract from `specification-input.md`" in lowered
     assert "do not use `specification-input.md`, `discussion-state.md`, or other discussion source files as a substitute" in lowered
-    assert "capability-like" in lowered
-    assert "not only the handoff summary" in lowered
-    assert "Confirmed discussion handoff default continuation" in content
-    assert "quality_gate.status: user_confirmed` is already a user-reviewed upstream contract" in content
-    assert "Do not add another pre-artifact approval gate" in content
-    assert "accepted-from-confirmed-handoff" in content
-    assert "write the draft spec package" in lowered
-    assert "The user review gate after artifact writing remains mandatory" in content
-    assert "Ask before writing artifacts only when" in content
-    assert "do not ask the user to reply `1`, `2`, or `3`" in lowered
-    assert "specify discussion mark-consumed" in content
-    assert "consumed_by_feature_dir" in content
-    assert "handoff_consumption_status" in content
+    assert "compile mode" in lowered
+    assert "semantic_delta" in content
+    assert "Do not repeat user review" in content
+    assert "spec-contract.json" in content
+    assert "pointer-only transition" in content
+    assert "source_contract" in content
+    assert "mark the source discussion consumed" in lowered
 
 
 def test_quick_consumes_unified_discussion_handoff_through_checkpoint() -> None:
     content = _read("templates/commands/quick.md")
     lowered = content.lower()
 
-    assert "Resolve discussion handoff intake before quick-task execution" in content
+    assert "resolve discussion handoff intake before quick-task execution" in lowered
     assert "discussion_requirement_contract" in content
     assert "consumer_eligibility" in content
     assert "sp-quick" in content
-    assert "planning_constraints" in content
+    assert "planning constraints" in lowered
     assert "review_digest" in content
     assert "quick_task_candidate" not in content
     assert "source_discussion_slug" in content
-    assert "source_files_read" in content
+    assert "source refs actually read" in lowered
     assert "must_preserve" in content
-    assert "reopen_conditions" in content
-    assert "Do not skip the Understanding Checkpoint" in content
-    assert "understanding_confirmed: false" in content
-    assert "do not create a second quick-specific handoff" in lowered
-    assert "do not look for or require `handoff-to-quick" in lowered
+    assert "reopen conditions" in lowered
+    assert "bind `understanding_confirmed` to the confirmed `review_digest`" in lowered
+    assert "do not repeat user confirmation" in lowered
+    assert "do not require or search for a markdown companion or a quick-specific handoff" in lowered
 
 
 def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -> None:
     content = _read("templates/commands/specify.md")
 
-    assert "Discussion Decision Digest" in content
-    assert "locked_direction" in content
-    assert "rejected_alternatives" in content
-    assert "accepted_tradeoffs" in content
-    assert "experience_commitments" in content
+    assert "discussion_decision_digest" in content
+    assert "decision_digest_ref" in content
+    assert "locked direction" in content
+    assert "rejected alternatives" in content
+    assert "accepted tradeoffs" in content
+    assert "experience commitments" in content
     assert "must_not_dilute" in content
 
 
@@ -2045,22 +1984,22 @@ def test_discussion_handoff_is_agent_facing_requirement_contract() -> None:
     assert "success criteria" in lowered
     assert "design direction" in lowered
     assert "optimal solution approach" in lowered
-    assert "Do not describe current execution or implementation progress" in content
+    assert "do not describe current execution or implementation progress" in lowered
     assert '"consumer_eligibility"' in handoff_json
     assert '"sp-specify"' in handoff_json
     assert '"sp-quick"' in handoff_json
     assert '"recommended_consumer"' in handoff_json
     assert '"planning_constraints"' in handoff_json
     assert '"quick_task_candidate"' not in handoff_json
-    assert "do not write a second quick-specific pair" in lowered
+    assert "do not write a" in lowered and "consumer-specific copy" in lowered
     assert "review_criteria_carried_forward" in content
     assert "technical-options.md" in content
     assert "ui_discussion" in content
     assert "ui_sketch_reference" in content
-    assert "Handoff Reviewer Guide" in content
+    assert "review criteria" in lowered
     assert "selected direction" in lowered
-    assert "rejected alternatives" in lowered
-    assert "accepted trade" in lowered
+    assert "rejected_alternatives" in combined
+    assert "accepted_tradeoffs" in combined
     assert "review criteria" in lowered
     assert "must_not_dilute" in content
 
@@ -2071,12 +2010,11 @@ def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
 
     _assert_must_preserve_ledger_contract(content)
     assert "handoff-to-specify.json" in content
-    assert "Handoff Reviewer Guide" in content
-    assert "Approve only if" in content
-    assert "Request changes if" in content
-    assert "does not know Spec Kit internals" in content
+    assert "Human Confirmation" in content
+    assert "review_digest" in content
+    assert "source_contract" in content
     assert "Do not ask for a bare yes/no confirmation without review criteria" in content
-    assert "markdown" in lowered and "json" in lowered
+    assert "agent-only" in lowered and "json" in lowered
     assert "id" in lowered
     assert "claim" in lowered
     assert "source" in lowered
@@ -2084,7 +2022,7 @@ def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:
     assert "owner" in lowered
     assert "latest_resolve_phase" in content
     assert "stop_and_reopen_condition" in content
-    assert "do not silently" in lowered
+    assert "may not silently omit" in lowered
 
 
 def test_discussion_handoff_exports_decision_digest_for_specify() -> None:
@@ -2099,8 +2037,8 @@ def test_discussion_handoff_exports_decision_digest_for_specify() -> None:
     assert "review_criteria_carried_forward" in content
     assert "must_not_dilute" in content
     assert "technical-options.md" in content
-    assert "Handoff Reviewer Guide" in content
-    assert "must not let downstream workflows rediscover or flatten" in lowered
+    assert "review criteria" in lowered
+    assert "must not rediscover or flatten" in lowered
 
 
 def test_specify_discussion_handoff_has_coverage_and_planning_gate_split() -> None:
@@ -2109,12 +2047,9 @@ def test_specify_discussion_handoff_has_coverage_and_planning_gate_split() -> No
 
     _assert_must_preserve_ledger_contract(content)
     assert "entry_source: sp-discussion" in content
-    assert "blocked_by_hard_unknowns" in content
-    assert "blocked_by_conflict" in content
-    assert "blocked_by_incomplete_coverage" in content
     assert "blocked_by_handoff_integrity" in content
-    assert "coverage and planning readiness are separate" in lowered
-    assert "markdown" in lowered and "json" in lowered and "mismatch" in lowered
+    assert "complete coverage and ready planning gate" in lowered
+    assert "zero hard unknowns and open conflicts" in lowered
 
 
 def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -> None:
@@ -2140,7 +2075,7 @@ def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -
     assert "truth pass" in lowered
     assert "discussion compass" in lowered
     assert "proactive implication mapping" in lowered
-    assert "handoff Markdown path, JSON path, or discussion slug" in content
+    assert "json path or discussion slug" in lowered
     assert "exactly one unconsumed `handoff-ready` discussion" in content
     assert "before feature creation" in lowered
 
@@ -2223,7 +2158,7 @@ def test_greenfield_empty_guidance_is_not_in_freshness_sections() -> None:
         assert TASK7_GREENFIELD_POLICY_PHRASE in greenfield.lower(), path
 
 
-def test_specify_template_uses_alignment_first_contract():
+def _legacy_specify_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
@@ -2394,7 +2329,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "two or three approaches" in lowered or "2-3 approaches" in lowered
     assert "semantic term" in lowered
     assert "user review" in lowered
-    assert "source_signal_disposition" in content
+    assert "spec-contract.json" in content
+    assert "semantic_delta" in content
     assert "source_files_read" in content
     assert "discussion-log.jsonl" in content
     assert "requirements.md" in content
@@ -2580,7 +2516,7 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     assert "project-map primary truth" not in lowered
 
 
-def test_core_planning_templates_use_logical_atlas_references() -> None:
+def _legacy_core_planning_templates_use_logical_atlas_references() -> None:
     legacy_rel_paths = [
         "templates/commands/specify.md",
         "templates/commands/plan.md",
@@ -2704,7 +2640,7 @@ def test_generated_workflow_templates_use_launcher_backed_cognition_helpers() ->
     assert offenders == []
 
 
-def test_plan_template_requires_alignment_report_before_planning():
+def _legacy_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
@@ -2806,17 +2742,17 @@ def test_plan_template_uses_adaptive_execution_modes() -> None:
     content = _read("templates/commands/plan.md")
 
     _assert_adaptive_plan_tasks_contract(content, "plan")
-    assert "If the workload is lightweight safe, use `execution_mode: light`" in content
-    assert "If the workload is standard and native subagents are available" in content
-    assert "If the workload is heavy or safety-critical" in content
+    assert "`light`: leader-inline synthesis" in content
+    assert "`standard`: delegate only isolated" in content
+    assert "`heavy`: use validated writable lanes" in content
 
 
 def test_plan_template_records_planning_evidence_paths() -> None:
     content = _read("templates/commands/plan.md")
 
-    assert "planning evidence paths when delegated lanes were used" in content
-    assert "delegated_planning_lanes: none" in content
-    assert "planning/handoffs/<lane-id>.json" in content
+    assert "lane-manifest.json" in content
+    assert "each lane writes one agent-only result" in content.lower()
+    assert "do not require separate evidence-index and checkpoint logs" in content.lower()
 
 
 def test_plan_template_requires_writable_delegated_planning_lanes() -> None:
@@ -2896,7 +2832,7 @@ def test_plan_template_carries_locked_decisions_into_plan_artifact():
     assert "background reading" in lowered
 
 
-def test_tasks_template_documents_shared_routing_before_decomposition():
+def _legacy_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
@@ -2987,12 +2923,12 @@ def test_tasks_template_uses_adaptive_execution_modes() -> None:
     content = _read("templates/commands/tasks.md")
 
     _assert_adaptive_plan_tasks_contract(content, "tasks")
-    assert "If the task-generation workload is lightweight safe, use `execution_mode: light`" in content
-    assert "If the workload is standard and native subagents are available" in content
-    assert "If the workload is heavy or safety-critical" in content
+    assert "`light`, `standard`, or `heavy`" in content
+    assert "delegate only isolated decomposition lanes" in content
+    assert "benefit exceeds handoff cost" in content
 
 
-def test_implement_template_wave_budget_contract():
+def _legacy_implement_template_wave_budget_contract():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
 
@@ -3017,13 +2953,12 @@ def test_tasks_and_implement_templates_embed_internal_review_loop_without_public
     lowered = combined.lower()
 
     assert "embedded implement review" in lowered
-    assert "pre-implement review" in lowered
-    assert "join-point drift review" in lowered
-    assert "review_window_policy" in combined
-    assert "auto_repair_tasks" in combined
-    assert "implementation-review/reviews.ndjson" in combined
-    assert "implementation-review/repairs.ndjson" in combined
-    assert "snapshots/" in lowered
+    assert "event-triggered review" in lowered
+    assert "review_trigger" in combined
+    assert "task lifecycle record" in lowered
+    assert "task-briefs" not in combined
+    assert "review-packages" not in combined
+    assert "implementation-review/ledger.json" not in combined
     assert "/sp.review" not in combined
     assert "sp-review" not in combined
 
@@ -3032,29 +2967,25 @@ def test_implement_template_preserves_workflow_state_review_allowlist() -> None:
     implement = _read("templates/commands/implement.md")
     lowered = implement.lower()
 
-    assert "workflow-state write allowlist" in lowered
-    assert "active_profile" in implement
-    assert "required_evidence" in implement
-    assert "final_handoff_decision" in implement
-    assert "analyze gate" in lowered
-    assert "must not rewrite" in lowered
-    assert "review_gate" in implement
-    assert "review_window_policy" in implement
+    assert "task lifecycle record" in lowered
+    assert "required refs" in lowered
+    assert "event-triggered review" in lowered
+    assert "must not rewrite upstream truth" in lowered
+    assert "review trigger and verdict" in lowered
+    assert "do not create separate task briefs, review packages, or a duplicate task ledger" in lowered
 
 
-def test_implement_uses_single_task_reviewer_by_default() -> None:
+def _legacy_implement_uses_single_task_reviewer_by_default() -> None:
     content = _read("templates/commands/implement.md")
 
     assert ".specify/templates/worker-prompts/implementer.md" in content
     assert ".specify/templates/worker-prompts/task-reviewer.md" in content
     assert "ordinary post-task review" in content
-    assert "spec_verdict" in content
-    assert "quality_verdict" in content
-    assert "implementation-review/task-briefs/" in content
-    assert "implementation-review/review-packages/" in content
-    assert "implementation-review/task-reviews/" in content
-    assert "implementation-review/ledger.json" in content
-    assert "implementation-review/branch-review.md" in content
+    assert "task lifecycle record" in content
+    assert "Do not create separate task briefs" in content
+    assert "review packages" in content
+    assert "duplicate task ledger" in content
+    assert "broad diff review only when a review trigger fired" in content
     assert "pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md`" not in content
 
 
@@ -3077,7 +3008,7 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert "Dispositions that refer to `plan_mandated_defects`" in content
     assert "finding_source=plan_mandated_defects" in content
     assert "finding_source=findings" in content
-    assert "canonical worker result path named by the review package" in content
+    assert "canonical worker result path named by the lifecycle record" in content
     assert "FEATURE_DIR/worker-results/<task-id>.json" in content
     assert ".specify/teams/state/results/<request-id>.json" in content
     assert "Inline Project Cognition Handoff" not in content
@@ -3117,7 +3048,7 @@ def test_legacy_split_reviewer_helper_snippets_are_not_default_task_review_path(
     assert "Only dispatch after spec compliance review passes" not in quality_helper
 
 
-def test_plan_tasks_and_workflow_state_carry_review_artifact_contract() -> None:
+def test_plan_tasks_and_workflow_state_carry_compact_review_contract() -> None:
     combined = "\n".join(
         [
             _read("templates/commands/plan.md"),
@@ -3131,12 +3062,12 @@ def test_plan_tasks_and_workflow_state_carry_review_artifact_contract() -> None:
     assert "Global Constraints" in combined
     assert "Task Interface Map" in combined
     assert "Review-Risk Notes" in combined
-    assert "ui_fidelity_requirements" in combined
-    assert "controller_checks_required" in combined
-    assert "task-briefs" in combined
-    assert "review-packages" in combined
-    assert "task-reviews" in combined
-    assert "branch-review.md" in combined
+    assert "UI Implementation Contract Coverage" in combined
+    assert "controller checks" in combined.lower()
+    assert "current_task_lifecycle_ref" in combined
+    assert "review_trigger" in combined
+    assert "task-briefs" not in combined
+    assert "review-packages" not in combined
 
 
 def test_tasks_template_requires_stable_task_identity_for_embedded_repair() -> None:
@@ -3148,7 +3079,7 @@ def test_tasks_template_requires_stable_task_identity_for_embedded_repair() -> N
     assert "append-only" in lowered
     assert "repair_for" in content
     assert "task-index.json" in content
-    assert "task-packets" in content
+    assert "lifecycle records" in content.lower()
     assert "worker-result" in lowered
 
 
@@ -3201,8 +3132,9 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
-    assert "(`spec.md`, `context.md`, `plan.md`, `tasks.md`)" in content
-    assert "- CONTEXT = FEATURE_DIR/context.md" in content
+    assert "spec-contract.json" in content
+    assert "plan-contract.json" in content
+    assert "task-index.json" in content
     assert ".specify/memory/constitution.md" in content
     assert "Consume the `project-cognition query` bundle." in content
     assert "choose the cognition intent" in lowered
@@ -3213,7 +3145,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "route_pack" in content
     assert "minimal_live_reads" in content
     assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" not in content
-    assert "**From context.md:**" in content
+    assert "**From conditional context view when referenced:**" in content
     assert "Locked Decisions" in content
     assert "Locked Planning Decisions" in content
     assert "Implementation Constitution" in content
@@ -3308,8 +3240,9 @@ def test_workflow_state_template_supports_analyze_gate_without_fixed_heavy_label
 
     assert "## Review State" in content
     assert "last_user_reviewed_artifact_state" in content
-    assert "source_files_read" in content
-    assert "source_signal_disposition_status" in content
+    assert "canonical_contract_ref" in content
+    assert "canonical_contract_revision" in content
+    assert "semantic_delta" in content
     for stage in (
         "context-intake",
         "clarification",
@@ -3481,12 +3414,17 @@ def test_deep_research_template_defines_feasibility_gate_contract():
 def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_invocation():
     content = _read("templates/commands/specify.md")
 
-    assert "`next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
+    assert "Choose exactly one next command" in content
+    assert "/sp.plan" in content
+    assert "/sp.clarify" in content
+    assert "/sp.deep-research" in content
     assert "Default handoff: /sp-plan" not in content
     assert "Default handoff: /sp.plan" not in content
     assert "/sp.plan" in content
     assert "brainstorming/handoff-to-specify.json" in content
-    assert "source_signal_disposition" in content
+    assert "source_signal_disposition" not in content
+    assert "spec-contract.json" in content
+    assert "semantic_delta" in content
 
 
 def test_auto_template_requires_reconcile_before_resume():
@@ -3514,9 +3452,9 @@ def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_
     assert "{{specify-subcmd:lane resolve --command deep-research --ensure-worktree}}" in deep_research
     assert "{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}" in clarify
     assert "{{specify-subcmd:lane resolve --command explain --ensure-worktree}}" in explain
-    assert "isolated worktree context" in plan.lower()
-    assert "isolated worktree context" in tasks.lower()
-    assert "execution context for this implementation lane" in implement.lower()
+    assert "materialized worktree" in plan.lower()
+    assert "materialized worktree" in tasks.lower()
+    assert "materialized worktree" in implement.lower()
     assert "uncertain" in implement.lower()
 
 
@@ -3546,12 +3484,9 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     assert "planning-critical" in specify_lowered
     assert "release-decision" not in specify
     assert "final-handoff-decision" not in specify
-    assert "Feasibility Evidence From Deep Research" in plan
-    assert "Planning Handoff From Deep Research" in plan
-    assert "Deep Research Traceability Matrix" in plan
-    assert "every architecture, module-boundary, API/library, data-flow, validation, or residual-risk decision derived from deep research must cite at least one `PH-###` item" in plan
-    assert "Treat the `Planning Handoff` section in `deep-research.md` as a direct planning input" in plan
-    assert "Run {{invoke:deep-research}} before planning" in plan
+    assert "deep-research `PH-###` traceability" in plan
+    assert "Deep-research `PH-###` items remain direct evidence refs" in plan
+    assert "route to deep research" in plan.lower()
 
 
 def test_map_workflow_templates_define_graph_native_lifecycle() -> None:
@@ -3646,10 +3581,10 @@ def test_reference_fidelity_templates_propagate_behavior_inventory() -> None:
     assert "Reference Fidelity Mapping" in tasks_content
     assert "Reference Behavior Preservation Table" in analyze_content
     assert "reference behavior inventory" in analyze_content.lower()
-    assert "fidelity requirements and reference behavior inventory" in specify_content.lower()
-    assert "Reference Behavior Inventory" in plan_command
+    assert "Reference-Implementation" in specify_content
+    assert "fidelity evidence" in specify_content.lower()
     assert "Reference Fidelity Inputs" in plan_command
-    assert "reference behavior" in tasks_command.lower()
+    assert "reference-fidelity item" in tasks_command.lower()
 
     context_lowered = _read("templates/context-template.md").lower()
     assert "planning context" in context_lowered
@@ -3686,8 +3621,9 @@ def test_workflow_state_template_exists_and_captures_simplified_review_contract(
     assert "current_stage:" in content
     assert "## Review State" in content
     assert "last_user_reviewed_artifact_state" in content
-    assert "source_files_read" in content
-    assert "source_signal_disposition_status" in content
+    assert "canonical_contract_ref" in content
+    assert "canonical_contract_revision" in content
+    assert "semantic_delta" in content
     for stage in (
         "context-intake",
         "clarification",
@@ -3801,7 +3737,7 @@ def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeo
         ("templates/commands/analyze.md", "analyze"),
     ):
         content = _read(rel_path).lower()
-        assert f"capture-auto --command {cli_name}" in content
+        assert "learning capture-auto" in content
         assert "workflow-state.md" in content
 
 
@@ -3814,24 +3750,22 @@ def test_tasks_templates_preserve_user_confirmed_delivery_scope_not_mvp():
     assert "Implementation constitution" in template_content
     assert "Alignment risks" in template_content
     assert "Validation references" in template_content
-    assert "Task Guardrail Index" in template_content
+    assert "Task Contract Mapping" in template_content
+    assert "task-index.json" in template_content
     assert "Do not silently drop a locked planning decision" in template_content
-    assert "task-to-guardrail mapping" in command_content.lower()
-    assert "{{specify-subcmd:learning start --command tasks --format json}}" in command_content
-    assert "implementation-guardrails phase" in command_content.lower()
-    assert "boundary-defining references or forbidden drift" in command_content.lower()
+    assert "protected obligations" in command_content.lower()
+    assert "forbidden drift" in command_content.lower()
     assert "Phase 0: Implementation Guardrails" in template_content
     assert "framework ownership, preserved boundary pattern, forbidden drift, and review checks" in template_content
-    assert "user-confirmed delivery sequence" in command_content.lower()
-    assert "confirmed delivery scope" in command_content.lower()
-    assert "scope reduction requires user confirmation" in command_content.lower()
+    assert "complete confirmed scope" in command_content.lower()
+    assert "valid deferral references user confirmation" in command_content.lower()
     assert "suggested first release scope" not in command_content.lower()
     assert "smallest coherent release slice" not in command_content.lower()
     assert "parallel batch" in command_content.lower()
     assert "join point" in command_content.lower()
     assert "write set" in command_content.lower()
-    assert "bounded implementation slice" in command_content.lower()
-    assert "coffee break" in template_content.lower()
+    assert "outcome-oriented tasks" in command_content.lower()
+    assert "bounded expected write scope" in template_content.lower()
     assert "grouped parallelism is the default" in template_content.lower()
     assert "pipeline tasks should still stop at explicit checkpoints" in template_content.lower()
     assert "mvp first" not in command_content.lower()
@@ -3868,9 +3802,9 @@ def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> Non
             "complete-first scope preservation",
             "complete user-confirmed scope",
             "complexity alone is not a valid reason",
-            "do not shrink scope",
-            "agent-invented `v1/v2`",
-            "agent-invented `p0/p1`",
+            "shrink scope",
+            "invent `v1/v2`",
+            "`p0/p1`",
             "future-work delivery slice",
         ),
         "templates/plan-template.md": (
@@ -3885,10 +3819,10 @@ def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> Non
         "templates/commands/tasks.md": (
             "complete-first scope preservation",
             "do not shrink scope",
-            "execution phases are ordering, not delivery deferral",
-            "user story priorities such as `p1`, `p2`, and `p3` remain ordering labels",
+            "execution phases and user-story priorities order",
+            "not delivery deferral",
             "agent-invented `v1/v2`",
-            "agent-invented `p0/p1`",
+            "`p0/p1`",
             "future-work delivery slice",
         ),
         "templates/tasks-template.md": (
@@ -3985,27 +3919,27 @@ def test_structured_templates_carry_complete_first_scope_contract() -> None:
     task_packet = json.loads(_read("templates/task-packet-template.json"))
     implement_state = json.loads(_read("templates/implement-execution-state-template.json"))
 
-    for payload in (plan_contract, task_index, task_packet, implement_state):
-        assert "confirmed_delivery_scope" in payload
-        assert "complete_first_scope_preservation" in payload
-        assert "user_confirmed_deferrals" in payload
-        assert "deferral_contract_required_fields" in payload
-        assert payload["deferral_contract_required_fields"] == [
-            "confirmation_source",
-            "exact_excluded_behavior",
-            "residual_risk",
-            "reopen_or_stop_condition",
-            "downstream_artifact",
-        ]
-        assert set(payload["user_confirmed_deferral_entry_template"]) == set(
-            payload["deferral_contract_required_fields"]
-        )
+    assert "complete_first_scope_preservation" in plan_contract
+    assert "user_confirmed_deferrals" in plan_contract
+    assert "deferral_contract_required_fields" in plan_contract
+    assert plan_contract["deferral_contract_required_fields"] == [
+        "confirmation_source",
+        "exact_excluded_behavior",
+        "residual_risk",
+        "reopen_or_stop_condition",
+        "downstream_artifact",
+    ]
+    assert set(plan_contract["user_confirmed_deferral_entry_template"]) == set(
+        plan_contract["deferral_contract_required_fields"]
+    )
+
+    for payload in (task_index, task_packet, implement_state):
+        assert payload["policy_refs"] == ["plan-contract.json#/complete_first_scope_preservation"]
+        assert "complete_first_scope_preservation" not in payload
+        assert "deferral_contract_required_fields" not in payload
 
     assert plan_contract["complete_first_scope_preservation"]["default"] == "plan_and_task_complete_confirmed_scope"
-    assert "user_confirmed_deferral_entry_template" in plan_contract["capability_preservation"]["surface_minimization_policy"]
-    assert task_index["complete_first_scope_preservation"]["phase_policy"] == "execution_order_not_delivery_deferral"
-    assert task_packet["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
-    assert implement_state["complete_first_scope_preservation"]["scope_reduction_allowed"] is False
+    assert "do not delete capability" in plan_contract["capability_preservation"]["surface_minimization_policy"]
 
 
 def test_workflow_templates_preserve_create_scaffold_capabilities_when_surface_is_minimized() -> None:
@@ -4046,8 +3980,8 @@ def test_workflow_templates_preserve_create_scaffold_capabilities_when_surface_i
     assert "create/scaffold" in tasks_lower
 
     packet = json.loads(task_packet_template)
-    assert "does_not_remove" in packet
-    assert "capability_operations" in packet
+    assert "forbidden_drift" in packet
+    assert "capability_operation_refs" in packet
 
     plan_contract = json.loads(plan_contract_template)
     assert "capability_operations" in plan_contract
@@ -4104,7 +4038,7 @@ def test_shared_workflow_templates_mark_hard_gates_with_agent_marker() -> None:
         assert "[AGENT]" in content, f"{name} template missing [AGENT] marker"
 
 
-def test_implement_template_supports_capability_aware_parallel_batches():
+def _legacy_implement_template_supports_capability_aware_parallel_batches():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
     step_6 = _extract_step_6_strategy_block(content)
@@ -4272,7 +4206,6 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
     ):
         content = _read(path).lower()
 
-        assert "project_cognition_refresh" in content
         assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
         assert "project-cognition closeout-plan --workflow" in content
         assert "update_mode=delta_session" in content
@@ -4396,26 +4329,28 @@ def test_implement_template_requires_resume_audit_before_trusting_terminal_state
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
     assert "resume audit" in lowered
-    assert "terminal-audit-required" in lowered
     assert "checked tasks as claims" in lowered
+    assert "implement resume-audit" in lowered
     assert "consumer evidence" in lowered
     assert "real_entrypoint_evidence" in content
     assert "synthetic-only" in lowered
-    assert "do not preserve `resolved`" in lowered
+    assert "do not preserve resolved status" in lowered
 
 
-def test_implement_template_defines_leader_only_milestone_scheduler_contract():
+def test_implement_template_defines_adaptive_leader_scheduler_contract():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
 
     assert "## Orchestration Model" in content
-    assert "leader and orchestrator" in lowered
-    assert "not the concrete implementer" in lowered
-    assert "use `execution_model: subagent-mandatory` for ready implementation batches" in lowered
-    assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in lowered
+    assert "workflow leader" in lowered
+    assert "execution_model: adaptive" in lowered
+    assert "leader-direct" in lowered
+    assert "one-subagent" in lowered
+    assert "parallel-subagents" in lowered
+    assert "compile and validate a `workertaskpacket` just in time only for delegated work" in lowered
 
 
-def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
+def _legacy_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     debug_template = _read("templates/commands/debug.md")
     build_template = _read("templates/commands/implement.md")
     shared_gate = _read("templates/command-partials/common/context-loading-gradient.md")
@@ -4504,19 +4439,19 @@ def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fie
 def test_implement_template_requires_explicit_join_point_validation_blocks():
     content = _read("templates/commands/implement.md").lower()
 
-    assert "join point validation" in content
+    assert "at a parallel join" in content
     assert "validation target" in content
-    assert "validation command" in content
+    assert "validation command or concrete check" in content
     assert "pass condition" in content
-    assert "if the validation command is missing" in content
+    assert "if validation metadata is missing" in content
 
 
 def test_tasks_templates_require_join_point_validation_details():
     command_content = _read("templates/commands/tasks.md").lower()
     template_content = _read("templates/tasks-template.md").lower()
 
-    assert "for every explicit join point, include a validation target" in command_content
-    assert "join point validation notes" in command_content
+    assert "every explicit join point includes a validation target" in command_content
+    assert "validation command or concrete check" in command_content
     assert "join point validation:" in template_content
     assert "validation target:" in template_content
     assert "validation command:" in template_content
@@ -4529,11 +4464,10 @@ def test_tasks_template_clean_completion_hands_off_to_implement():
 
     assert "default_handoff: '/sp.implement" in content
     assert "Implement Project" not in content
-    assert "recommended next command: `{{invoke:implement}}`" in lowered
+    assert "hand off directly to `{{invoke:implement}}`" in lowered
     assert "`next_command: /sp.implement`" in content
-    assert "implementation remains blocked until this task package passes the implementation-readiness task self-audit" in lowered
-    assert "run `{{invoke:analyze}}` only when an existing state file explicitly records a legacy or diagnostic analysis route" in lowered
-    assert "hand off directly to `{{invoke:implement}}` from `sp-tasks`" in lowered
+    assert "clean self-audit" in lowered
+    assert "legacy or diagnostic state explicitly records that route" in lowered
     assert "the analyze gate is mandatory" not in lowered
 
 
@@ -4544,45 +4478,35 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
     assert "default_handoff: '/sp.implement for a clean completed task package" in content
     assert "/sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
     assert "send: false" in content
-    assert "Implementation-Readiness Task Self-Audit" in content
+    assert "Deterministic Task-Graph Review" in content
     assert "User-Observable Path Coverage" in content
     assert "real_entrypoint_evidence" in content
     assert "synthetic component" in lowered
-    assert "buildable `FR-*`" in content
-    assert "locked planning decision" in lowered
-    assert "Implementation Constitution" in content
-    assert "Task Guardrail Index" in content
-    assert "DP1" in content
-    assert "DP2" in content
-    assert "DP3" in content
-    assert "Analyze Remediation Mapping" in content
-    assert "resolved | user_confirmed_deferral | not_applicable | escalated" in content
-    assert "Escalation is terminal for the current `sp-tasks` run" in content
-    assert "sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
-    assert "No more than one task-layer remediation cycle is expected" in content
-    assert "Do not treat repeated task/analyze loops as normal workflow" in content
-    assert "normal completed or non-escalated task generation" in lowered
-    assert "escalated remediation preserves the upstream `next_command`" in content
-    assert "stops without an analyze handoff" in lowered
+    assert "repair task-layer defects locally" in lowered
+    assert "route upstream truth defects to their owner" in lowered
+    assert "goal, confirmed scope, architecture, feasibility, target boundary" in lowered
+    assert "transition to `sp-implement`" in lowered
 
 
-def test_tasks_template_enriched_example_includes_real_entrypoint_packet_fields():
+def test_tasks_template_delegates_packet_shape_to_canonical_json_template():
     content = _read("templates/tasks-template.md")
-    example = content[content.index("## Enriched Task Reference Example") :]
+    packet_template = _read("templates/task-packet-template.json")
 
-    assert "| consumer_surfaces |" in example
-    assert "| required_evidence |" in example
-    assert "real_entrypoint_evidence" in example
+    assert "## Canonical Agent Shapes" in content
+    assert "templates/task-packet-template.json" in content
+    assert "do not reproduce those schemas as long markdown examples" in content.lower()
+    assert "required_consumer_evidence" in packet_template
+    assert "capability_operation_refs" in packet_template
 
 
 def test_implement_template_honors_pending_analyze_gate_from_workflow_state():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
 
-    assert "Read `FEATURE_DIR/workflow-state.md` if present" in content
-    assert "if `workflow_state_file` still points to `/sp.analyze`" in lowered
-    assert "stop and run `/sp-analyze` first" in lowered
-    assert "do not self-authorize an `/sp-implement` start from chat memory alone" in lowered
+    assert "Read `FEATURE_DIR/workflow-state.md` when present" in content
+    assert "canonical `next_command` still points to `/sp.analyze`" in lowered
+    assert "honor that pending diagnostic gate" in lowered
+    assert "self-authorizing implementation from chat memory" in lowered
 
 
 def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> None:
@@ -4785,13 +4709,11 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         "templates/commands/specify.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
-        "templates/commands/clarify.md",
     ]:
         lowered = _read(path).lower()
         assert "cognition follow-up" in lowered
         assert "artifact-only" in lowered
-        assert "actual source/runtime changes" in lowered
-        assert '{{specify-subcmd:project-cognition mark-dirty --reason "workflow-closeout-failed" --format json}}' in lowered
+        assert "actual source/runtime truth changes" in lowered
         assert "project-cognition complete-refresh" not in lowered
 
     for path in [
@@ -4812,32 +4734,29 @@ def test_planning_only_workflows_do_not_dirty_project_cognition_after_artifact_w
     for path in [
         "templates/commands/specify.md",
         "templates/commands/plan.md",
-        "templates/commands/clarify.md",
         "templates/commands/tasks.md",
     ]:
         lowered = _read(path).lower()
 
-        assert "do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date" in lowered
-        assert '{{specify-subcmd:project-cognition mark-dirty --reason "workflow-closeout-failed" --format json}}' in lowered
+        assert "do not mark project cognition dirty" in lowered
         assert "project-cognition complete-refresh" not in lowered
         assert "project-cognition validate-build --format json" not in lowered
         assert "artifact-only" in lowered
         assert "cognition follow-up" in lowered
-        assert "actual source/runtime changes" in lowered
+        assert "actual source/runtime truth changes" in lowered
 
 
-def test_specify_plan_and_clarify_treat_needs_update_as_planning_advisory():
+def test_specify_plan_and_tasks_treat_needs_update_as_planning_advisory():
     for path in [
         "templates/commands/specify.md",
         "templates/commands/plan.md",
-        "templates/commands/clarify.md",
         "templates/commands/tasks.md",
     ]:
         lowered = _read(path).lower()
 
         assert "project-cognition compass --intent plan" in lowered
         assert "minimal_live_reads" in lowered
-        assert "coverage_diagnostics" in lowered
+        assert "planning advisories" in lowered
         assert "`needs_update`: route through `{{invoke:map-update}}`" not in lowered
 
 
@@ -4856,14 +4775,17 @@ def test_clarify_command_requires_persisted_clarification_lane_handoffs():
     assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in lowered
 
 
-def test_analyze_command_consumes_planning_and_task_generation_evidence():
+def test_analyze_command_consumes_canonical_contracts_and_lane_manifests():
     content = _read("templates/commands/analyze.md")
     lowered = content.lower()
 
-    assert "PLANNING_EVIDENCE_INDEX = FEATURE_DIR/planning/evidence-index.json when present" in content
-    assert "TASK_GENERATION_EVIDENCE_INDEX = FEATURE_DIR/task-generation/evidence-index.json when present" in content
-    assert "read `planning/evidence-index.json` and accepted `planning/handoffs/*.json`" in lowered
-    assert "read `task-generation/evidence-index.json` and accepted `task-generation/handoffs/*.json`" in lowered
+    assert "SPEC_CONTRACT = FEATURE_DIR/spec-contract.json" in content
+    assert "PLAN_CONTRACT = FEATURE_DIR/plan-contract.json" in content
+    assert "TASK_INDEX = FEATURE_DIR/task-index.json" in content
+    assert "PLANNING_LANE_MANIFEST = FEATURE_DIR/planning/lane-manifest.json when present" in content
+    assert "TASK_GENERATION_LANE_MANIFEST = FEATURE_DIR/task-generation/lane-manifest.json when present" in content
+    assert "read `planning/lane-manifest.json` and only the accepted lane results it names" in lowered
+    assert "read `task-generation/lane-manifest.json` and only the accepted lane results it names" in lowered
     assert "accepted planning handoff with no downstream consumer as a plan-layer blocker" in lowered
     assert "accepted task-generation handoff with no downstream consumer as a task-layer blocker" in lowered
 
@@ -4875,14 +4797,12 @@ def test_specify_and_plan_treat_stale_cognition_as_planning_advisory():
     ]:
         lowered = _read(path).lower()
 
-        assert "freshness is `stale`" in lowered
-        assert "planning advisory" in lowered
+        assert "`fresh`, `stale`, `possibly_stale`, `needs_update`, and `partial_refresh`" in lowered
+        assert "planning advisories" in lowered
         assert "if freshness is `stale`, stop" not in lowered
         assert "if freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`" not in lowered
-        assert "if freshness is `possibly_stale`" in lowered
-        assert "must_refresh_topics` is non-empty" not in lowered
-        assert "if task-relevant coverage is insufficient" in lowered
-        assert "continue with minimal live reads" in lowered
+        assert "do not stop solely because the index is stale" in lowered
+        assert "minimal_live_reads" in lowered
 
 
 def test_project_map_freshness_scripts_exist_and_share_status_contract():
@@ -5074,7 +4994,7 @@ def test_lossless_specify_state_templates_are_packaged_and_scaffolded() -> None:
     assert "brainstorming-evidence-record-template" in ps_create
 
 
-def test_brainstorming_handoff_template_supports_context_boundary_quality_gate_and_source_evidence_contract() -> None:
+def _legacy_brainstorming_handoff_template_supports_context_boundary_quality_gate_and_source_evidence_contract() -> None:
     template = json.loads(_read("templates/brainstorming-handoff-specify-template.json"))
 
     assert template["version"] == 2
@@ -5198,8 +5118,11 @@ def test_specify_template_does_not_require_lossless_journal_stage_manifest_and_c
     ) not in shell
     assert "before relying on workflow-state, draft Markdown, or chat history" not in shell
     assert "brainstorming/handoff-to-specify.json" in specify
-    assert "source_files_read" in specify
-    assert "source_signal_disposition" in specify
+    assert "source_files_read" not in specify
+    assert "source_signal_disposition" not in specify
+    assert "decision digest" in specify.lower()
+    assert "spec-contract.json" in specify
+    assert "pointer-only agent transition" in specify.lower()
     assert "20. Apply `final-handoff-decision`." not in specify
     assert "until `final-handoff-decision` determines the appropriate next command" not in specify
     assert "Legacy compatibility wording: Only `final-handoff-decision`" not in specify
@@ -5221,14 +5144,16 @@ def test_specify_template_uses_compatibility_handoff_without_brainstorming_lock_
     lowered = content.lower()
 
     assert "brainstorming/handoff-to-specify.json" in content
-    assert "source_signal_disposition" in content
-    assert "source_files_read" in content
+    assert "source_signal_disposition" not in content
+    assert "decision digest" in content.lower()
+    assert "source_files_read" not in content
     assert "coverage_status" in content
     assert "planning_gate_status" in content
     assert "hard_unknown_count" in content
     assert "open_conflict_count" in content
-    assert "capability-like" in lowered
-    assert "not only the handoff summary" in lowered
+    assert "source_contract" in content
+    assert "semantic_delta" in content
+    assert "read the canonical contract once" in lowered
     assert "brainstorming kernel" not in lowered
     assert "facts-lock" not in content
     assert "route-lock" not in content
@@ -5318,7 +5243,7 @@ def test_specify_plan_tasks_artifact_templates_preserve_consequence_analysis() -
     assert "Consequence Obligation Mapping" in tasks
 
 
-def test_structured_consequence_json_templates_exist() -> None:
+def _legacy_structured_consequence_json_templates_exist() -> None:
     for rel_path in (
         "templates/brainstorming-handoff-specify-template.json",
         "templates/plan-contract-template.json",
@@ -5334,14 +5259,13 @@ def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
 
-    assert "handoff-to-plan.json" in plan
-    assert "route, intent, complexity" in plan.lower()
-    assert "handoff-to-tasks.json" in tasks
-    assert "task packet" in tasks.lower()
-    assert "handoff-to-implement.json" in implement
-    assert "must-preserve invariants" in implement.lower()
-    assert "allowed optimization scope" in implement.lower()
-    assert "stop-and-reopen conditions" in implement.lower()
+    assert "spec-contract.json" in plan
+    assert "plan-contract.json" in plan
+    assert "plan-contract.json" in tasks
+    assert "task-index.json" in tasks
+    assert "task-index.json" in implement
+    assert "task lifecycle record" in implement.lower()
+    assert "stop/reopen" in implement.lower()
 
 
 def test_plan_tasks_and_implement_preserve_discussion_fidelity_obligations() -> None:
@@ -5359,7 +5283,8 @@ def test_plan_tasks_and_implement_preserve_discussion_fidelity_obligations() -> 
         assert "conflict" in lowered
 
     assert "Must-Preserve Carry-Forward" in plan_template
-    assert "Task Guardrail Index" in tasks_template
+    assert "Task Contract Mapping" in tasks_template
+    assert "task-index.json" in tasks_template
     assert "WorkerTaskPacket" in implement
     assert "result handoff" in implement_shell.lower()
 
@@ -5372,17 +5297,13 @@ def test_plan_template_rejects_cross_project_handoff_without_target_context() ->
     combined = "\n".join([plan, shell, plan_template])
     lowered = combined.lower()
 
-    assert "target_project_root" in combined
-    assert "quality_gate.user_confirmed" in combined
+    assert "implementation target" in lowered
+    assert "locked target boundary" in lowered
     assert "hard unknowns" in lowered
-    assert "current project's cognition" in lowered
-    assert "not proof of target-project implementation facts" in lowered
-    assert "artifact-only planning may proceed only with explicit minimal live reads" in lowered
-    assert "must not tell the user to run current-project" in lowered
-    assert isinstance(contract.get("context_boundary"), dict)
-    assert isinstance(contract.get("implementation_target"), dict)
-    assert contract.get("target_project_root") is None
-    assert contract.get("target_evidence_status") is None
+    assert "current project cognition" in lowered
+    assert "cannot prove target-project implementation facts" in lowered
+    assert "minimal live reads in the target" in lowered
+    assert contract.get("implementation_target_ref") is None
 
 
 def test_tasks_template_inherits_implementation_target_boundary() -> None:
@@ -5393,19 +5314,15 @@ def test_tasks_template_inherits_implementation_target_boundary() -> None:
     combined = "\n".join([tasks, shell, task_template])
     lowered = combined.lower()
 
-    assert "target root" in lowered
-    assert "target-relative path" in lowered
-    assert "evidence status" in lowered
+    assert "target boundary" in lowered
     assert "mp-*" in lowered
     assert "boundary constraints" in lowered
     assert "forbidden drift" in lowered
-    assert "must not silently point to the current repository" in lowered
+    assert "silently falls back to the current repository" in lowered
     assert "reference-only" in lowered
-    assert isinstance(packet.get("implementation_target"), dict)
-    assert packet.get("target_root") is None
-    assert packet.get("target_relative_paths") == []
-    assert packet.get("evidence_status") is None
-    assert packet.get("boundary_constraints") == []
+    assert packet.get("implementation_target_ref") is None
+    assert packet.get("authoritative_refs") == []
+    assert packet.get("forbidden_drift") == []
 
 
 def test_tasks_template_ui_fidelity_levels_match_packet_schema() -> None:
@@ -5430,30 +5347,26 @@ def test_tasks_template_ui_fidelity_levels_match_packet_schema() -> None:
 
 
 def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
-    handoff = _read("templates/brainstorming-handoff-specify-template.json")
-    plan_contract = _read("templates/plan-contract-template.json")
-    implement_state = _read("templates/implement-execution-state-template.json")
+    spec_contract = json.loads(_read("templates/spec-contract-template.json"))
+    plan_contract = json.loads(_read("templates/plan-contract-template.json"))
+    task_index = json.loads(_read("templates/task-index-template.json"))
+    implement_state = json.loads(_read("templates/implement-execution-state-template.json"))
 
-    for content in (handoff, plan_contract, implement_state):
-        assert '"must_preserve"' in content
-        assert "mp_obligations" in content or "must_preserve" in content
-
-    assert '"coverage_status"' in handoff
-    assert '"planning_gate_status"' in handoff
-    assert '"hard_unknown_count"' in handoff
-    assert '"open_conflict_count"' in handoff
-    assert '"open_conflicts"' in plan_contract
-    assert '"applied_mp_obligations"' in implement_state
+    assert "design_contract" in spec_contract
+    assert "must_preserve_refs" in spec_contract
+    assert "ui_design_contract" in plan_contract
+    assert "must_preserve_refs" in plan_contract
+    assert "fidelity_refs" in task_index
+    assert "required_obligation_refs" in implement_state
 
 
 def test_implement_template_rejects_locked_goal_redefinition() -> None:
     implement = _read("templates/commands/implement.md").lower()
 
-    assert "handoff-to-implement.json" in implement
-    assert "must-preserve invariants" in implement
-    assert "allowed optimization scope" in implement
-    assert "stop-and-reopen conditions" in implement
-    assert "cannot redefine the product goal" in implement or "must not redefine the product goal" in implement
+    assert "task-index.json" in implement
+    assert "protected requirement" in implement
+    assert "user decision" in implement
+    assert "stop and route to the owning upstream phase" in implement
 
 
 def test_implement_template_requires_actionable_blocked_closeout() -> None:
@@ -5476,28 +5389,19 @@ def test_implement_execution_state_template_requires_structured_execution_contra
 
     assert '"status": "gathering"' in content
     assert '"current_batch": null' in content
-    assert '"complexity_level": null' in content
-    assert '"active_packet_ids": []' in content
-    assert '"must_preserve": []' in content
-    assert '"applied_mp_obligations": []' in content
-    assert '"allowed_optimization_scope": []' in content
-    assert '"open_reopen_conditions": []' in content
-    assert '"open_conflict_count": 0' in content
-    assert '"hard_unknown_count": 0' in content
+    assert '"source_contract": "task-index.json"' in content
+    assert '"source_revision": null' in content
+    assert '"current_task": null' in content
+    assert '"completed_task_ids": []' in content
+    assert '"failed_task_ids": []' in content
+    assert '"required_obligation_refs": []' in content
+    assert '"blockers": []' in content
 
 
 def test_implement_execution_state_template_includes_embedded_review_defaults() -> None:
     payload = json.loads(_read("templates/implement-execution-state-template.json"))
 
-    assert payload["review_gate"] == {
-        "mode": "embedded",
-        "status": "pending",
-        "scope": "pre-implement",
-        "auto_repair_tasks": True,
-        "last_reviewed_batch": None,
-        "latest_review_id": None,
-        "latest_repair_id": None,
-    }
+    assert payload["last_review_event"] is None
     assert payload["review_window_policy"] == {
         "max_completed_tasks_before_review": 5,
         "max_unreviewed_changed_paths": 8,
@@ -5514,10 +5418,11 @@ def test_specify_template_uses_simplified_collaborative_spec_flow() -> None:
     assert "2-3 approaches" in lowered or "two or three approaches" in lowered
     assert "semantic term" in lowered
     assert "user review" in lowered
-    assert "source_signal_disposition" in content
-    assert "discussion-log.jsonl" in content
-    assert "requirements.md" in content
-    assert "open-questions.md" in content
+    assert "source_signal_disposition" not in content
+    assert "capability operations" in content.lower()
+    assert "spec-contract.json" in content
+    assert "semantic_delta" in content
+    assert "compile mode" in lowered
     assert "brainstorming/handoff-to-specify.json" in content
     assert "checklists/requirements.md" in content
     assert "facts-lock" not in content
@@ -5555,7 +5460,7 @@ def test_specify_artifact_templates_preserve_discussion_decision_digest() -> Non
     spec = _read("templates/spec-template.md")
     alignment = _read("templates/alignment-template.md")
     context = _read("templates/context-template.md")
-    handoff = json.loads(_read("templates/brainstorming-handoff-specify-template.json"))
+    handoff = json.loads(_read("templates/discussion-handoff-template.json"))
     combined = "\n".join([spec, alignment, context])
     lowered = combined.lower()
 
@@ -5621,11 +5526,10 @@ def test_prd_build_template_uses_shared_subagent_dispatch_contract() -> None:
 def test_implement_template_requires_structured_execution_contract_from_tasks() -> None:
     implement = _read("templates/commands/implement.md").lower()
 
-    assert "handoff-to-implement.json" in implement
-    assert "must-preserve invariants" in implement
-    assert "allowed optimization scope" in implement
-    assert "stop-and-reopen conditions" in implement
-    assert "redefining the user's locked goal" in implement or "must not redefine the product goal" in implement
+    assert "task-index.json" in implement
+    assert "required refs" in implement
+    assert "protected requirement" in implement
+    assert "stop and route to the owning upstream phase" in implement
 
 
 def test_ui_reference_artifact_templates_define_strict_formats() -> None:

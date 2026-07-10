@@ -1,46 +1,40 @@
-Trigger: after ready batches, review windows, or parallel lane join points.
+Trigger: when repository/task-graph drift, a parallel join, write-scope drift, validation failure, worker concern, obligation conflict, or a sequential review-window limit appears.
 
-Purpose: preserve embedded implement review loop, review windows, auto-repair, and branch review preparation.
+Purpose: preserve implementation quality with event-triggered review while avoiding repeated full-package audits and per-task artifact fan-out.
 
-Preserved Contract: review is embedded in implementation and not a separate public command; join points must be reviewed before continuing.
+Preserved Contract: implementation review remains embedded, repairs task-layer defects safely, protects upstream truth, and blocks unsupported completion claims.
 
-## Embedded Implement Review Loop
+## Embedded Event-Triggered Review Loop
 
-This section is **mandatory**. `sp-implement` includes an internal review-and-repair loop. Do not expose, recommend, or route to a separate public review workflow.
+Do not expose or recommend a separate public review workflow. Review is event-triggered inside `sp-implement`.
 
-### Pre-Implement Review
+### Entry Revision Check
 
-Before the first implementation task, run a pre-implement review over `tasks.md`, `task-index.json`, `task-packets/*.json`, `handoff-to-implement.json`, `workflow-state.md`, and the upstream read-only truth artifacts needed to verify coverage.
+Before the first task, validate the canonical task-graph revision, ready-batch dependencies, current repository baseline, and required obligation refs.
 
-The review must check:
+- If the revision and relevant repository baseline are unchanged, trust the upstream task-readiness result and continue without rereading the complete spec/plan package.
+- If either changed, inspect only the affected tasks and required refs. Reopen the owning upstream phase when goal, scope, architecture, required evidence, `MP-*`, `CA-###`, feasibility, or user decision state changed.
 
-- every buildable requirement, locked planning decision, `MP-*` obligation, `CA-###` obligation, user-observable path, required evidence term, write set, dependency, join point, and packet-readiness condition still has executable coverage
-- the first executable batch is still valid from current repository evidence
-- downstream tasks do not depend on unverified assumptions from earlier unfinished work
+### Review Triggers
 
-If only task-layer defects exist, repair task-layer artifacts automatically and continue. If the defect changes goal, scope, architecture, required evidence, `MP-*`, `CA-###`, feasibility, or user decision state, stop and route to `/sp.clarify`, `/sp.deep-research`, `/sp.plan`, `/sp.tasks`, or `/sp.debug` as justified.
+Run a drift review when any of these occurs:
 
-### Join-Point Drift Review
+- parallel lanes join;
+- actual writes exceed or contradict expected write scope;
+- validation fails or becomes inconclusive;
+- a worker reports a concern, blocker, or required-reference mismatch;
+- an `MP-*` or `CA-###` obligation conflicts with implementation evidence;
+- dependency or task-order assumptions become false;
+- real-entrypoint or consumer evidence is missing;
+- the configured sequential window reaches its completed-task or changed-path threshold.
 
-After every phase, parallel batch, pipeline stage, join point, and sequential review window, run a drift review before downstream work continues.
+Do not review merely because a phase label, batch label, or pipeline stage ended. A low-risk leader-direct sequence with no trigger may proceed directly to final reconciliation.
 
-The drift review reads actual changed paths, worker handoffs, validation evidence, `implement-tracker.md`, open gaps, blockers, remaining tasks, task packets, and review records. It decides whether the remaining task package still matches implementation reality.
-
-### Sequential Review Window
-
-Do not execute a long sequential task list as one unreviewed queue. Run drift review whenever any limit is reached:
-
-```text
-max_completed_tasks_before_review = 5
-max_unreviewed_changed_paths = 8
-max_unreviewed_validation_failures = 0
-```
-
-Validation failure, stale handoff, worker concern, open gap, or missing real-entrypoint evidence triggers immediate drift review.
+At a parallel join, execute the join point validation target and recorded validation command or concrete check; accept only when its pass condition holds. If validation metadata is missing, reopen `sp-tasks` rather than inventing the gate during implementation.
 
 ### Review Decisions
 
-Each review must record one decision:
+Record exactly one decision in the current task lifecycle record or a separate review event when multiple tasks are affected:
 
 - `cleared`
 - `repair-and-continue`
@@ -53,67 +47,27 @@ Each review must record one decision:
 
 ### Safe Repair Boundary
 
-Review may repair `tasks.md`, `task-index.json`, `task-packets/*.json`, `handoff-to-implement.json`, `implement-tracker.md`, selected execution-review fields in `workflow-state.md`, and `implementation-review/*`.
+Review may repair the canonical task graph, just-in-time packet, execution state, and current task lifecycle record. Snapshot only artifacts that will actually be rewritten by automatic repair.
 
-Review must not rewrite upstream truth artifacts or upstream-derived workflow-state fields.
+Review must not rewrite upstream truth. If a protected requirement, decision, evidence obligation, or boundary is wrong, record the blocker and route to its owning workflow.
 
-### Workflow-State Write Allowlist
+### Task Lifecycle Record
 
-The workflow-state write allowlist for embedded review permits only:
+Maintain one agent-only record per executed task containing only:
 
-- `review_gate`
-- `review_window_policy`
-- `implementation_review`
-- current-run review blocker rows
-- `next_action`
-- `blocker_reason`
-- `blocked_reason`
-- `next_command` when stopping the current `sp-implement` run with a review decision
+- task id and canonical task ref;
+- packet ref for delegated work, or `leader-direct`;
+- result and changed paths;
+- validation evidence;
+- review trigger and verdict when review ran;
+- blockers, recovery action, and stop/reopen condition when not accepted.
 
-Embedded review must not rewrite:
+Do not create separate task briefs, review packages, or a duplicate task ledger. A human-readable view may be rendered on demand but is not handoff truth.
 
-- `active_profile`
-- `required_sections`
-- `activated_gates`
-- `task_shaping_rules`
-- `required_evidence`
-- `transition_policy`
-- `final_handoff_decision`
-- `authoritative_files`
-- `allowed_artifact_writes`
-- `forbidden_actions`
-- existing Analyze Gate truth
-- existing Reopen Contract truth
-- source discussion or must-preserve disposition fields
+### Task Identity And Completion
 
-If any protected field is wrong, stale, or insufficient, record a blocker and route to the owning upstream workflow.
-
-### Task Identity Stability
-
-- Completed task IDs are immutable and must not be renumbered.
-- Incomplete task IDs stay stable when their objective remains the same.
-- New repair and refinement tasks use append-only IDs after the highest existing numeric ID.
-- Completed-work gaps become follow-up repair tasks with `repair_for: T###` or `refines: T###`.
-- Superseded incomplete tasks remain traceable through `task-index.json`, task packets, dependencies, repair records, tracker state, and worker-result references.
-- After repair, dependency graph and `next_batch` metadata are authoritative for execution order.
-
-### Audit Artifacts
-
-Before automatic repair, snapshot changed task-layer artifacts under `FEATURE_DIR/implementation-review/snapshots/`.
-
-Record every review in `FEATURE_DIR/implementation-review/reviews.ndjson`.
-
-Record every automatic repair in `FEATURE_DIR/implementation-review/repairs.ndjson`.
-
-For every packetized implementation task accepted by `sp-implement`, maintain:
-
-- `FEATURE_DIR/implementation-review/task-briefs/<task-id>.md`
-- `FEATURE_DIR/implementation-review/review-packages/<task-id>.md`
-- `FEATURE_DIR/implementation-review/task-reviews/<task-id>.json`
-- `FEATURE_DIR/implementation-review/ledger.json`
-
-After all tasks are accepted and before closeout, write `FEATURE_DIR/implementation-review/branch-review.md`.
-
-Task acceptance requires an accepted task review. A checked task is a claim; a ledger entry with `status: accepted` plus `task-reviews/<task-id>.json` is reviewed execution evidence. Ordinary task review uses `spec_verdict`, `quality_verdict`, controller checks, UI fidelity result, and final assessment from the task reviewer.
-
-After repair, revalidate task-index consistency, packet readiness, dependencies, tracker state, and worker-result references before continuing.
+- Completed task IDs are immutable.
+- Incomplete task IDs stay stable when their objective is unchanged.
+- New repair tasks append after the highest existing ID and reference the task they repair or refine.
+- A checked task remains a claim until result, validation, and any triggered review evidence are accepted.
+- Before final closeout, reconcile actual changed paths, acceptance coverage, unresolved obligations, and required validation. Run a broad diff review only when a review trigger fired or the changed surface is high risk.

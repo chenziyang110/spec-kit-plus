@@ -69,7 +69,7 @@ def test_wheel_force_include_covers_deep_research_planning_handoff_contract() ->
     assert "Planning Handoff" in deep_research
     assert "PH-001" in deep_research
     assert "CAP-001" in deep_research
-    assert "Deep Research Traceability Matrix" in plan
+    assert "deep-research `PH-###` traceability" in plan
     assert "research finding or spike supports each design decision" in shell_partial
 
 

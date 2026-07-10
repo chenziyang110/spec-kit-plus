@@ -23,8 +23,9 @@
 ## Review State
 
 - last_user_reviewed_artifact_state: [not-requested | requested | changes-requested | approved]
-- source_files_read: [none | discussion source files read | repo context read]
-- source_signal_disposition_status: [not-applicable | incomplete | complete]
+- canonical_contract_ref: [handoff-to-specify.json | spec-contract.json | plan-contract.json | task-index.json | none]
+- canonical_contract_revision: [revision or none]
+- semantic_delta: [none | compact changed decision ids]
 
 ## Semantic Audit State
 
@@ -86,43 +87,28 @@
 
 ## Embedded Implement Review
 
-- review_gate:
-  - mode: [embedded]
-  - status: [pending | cleared | repaired | blocked]
-  - scope: [pre-implement | join-point-drift | sequential-window]
-  - auto_repair_tasks: [true | false]
-  - last_reviewed_batch: [batch id or none]
-  - latest_review_id: [review id or none]
-  - latest_repair_id: [repair id or none]
-- review_window_policy:
-  - max_completed_tasks_before_review: [5]
-  - max_unreviewed_changed_paths: [8]
-  - max_unreviewed_validation_failures: [0]
-- implementation_review:
-  - reviews: [implementation-review/reviews.ndjson]
-  - repairs: [implementation-review/repairs.ndjson]
-  - snapshots: [implementation-review/snapshots/]
-  - task_briefs: [implementation-review/task-briefs/]
-  - review_packages: [implementation-review/review-packages/]
-  - task_reviews: [implementation-review/task-reviews/]
-  - ledger: [implementation-review/ledger.json]
-  - branch_review: [implementation-review/branch-review.md]
+- current_task_id: [task id or none]
+- current_task_lifecycle_ref: [task lifecycle path or none]
+- review_status: [not-triggered | pending | cleared | repaired | blocked]
+- review_trigger: [none | repository-drift | parallel-join | write-scope-drift | validation-failure | worker-concern | obligation-conflict | real-entrypoint-gap | review-window]
+- latest_review_or_repair_ref: [event path or none; write only when multiple tasks are affected]
 - workflow_state_write_allowlist:
-  - review_gate
-  - review_window_policy
-  - implementation_review
+  - current_task_id
+  - current_task_lifecycle_ref
+  - review_status
+  - review_trigger
+  - latest_review_or_repair_ref
   - next_action
   - blocker_reason
   - blocked_reason
   - next_command
 - workflow_state_protected_fields: [all upstream truth, artifact ownership, evidence, transition, gate, and reopen fields outside the review allowlist]
 
-## Handoff Files
+## Canonical Phase Contract
 
-- handoff_to_specify: [path or none]
-- handoff_to_plan: [path or none]
-- handoff_to_tasks: [path or none]
-- handoff_to_implement: [path or none]
+- contract_ref: [handoff-to-specify.json | spec-contract.json | plan-contract.json | task-index.json | none]
+- contract_revision: [revision or none]
+- transition_status: [ready | blocked | complete | none]
 
 ## Allowed Artifact Writes
 

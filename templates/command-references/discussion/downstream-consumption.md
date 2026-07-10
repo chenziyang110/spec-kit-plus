@@ -1,13 +1,13 @@
-Trigger: when explaining how `sp-specify` or `sp-quick` consumes the handoff.
+Trigger: when explaining how `sp-specify` or `sp-quick` consumes a ready discussion contract.
 
-Purpose: preserve downstream consumption, decision digest, selected direction, target boundary, recommended consumer, and quick-task eligibility rules.
+Purpose: preserve downstream fidelity while preventing duplicate source sweeps and human-oriented handoff material.
 
-Preserved Contract: Migrated from `templates/commands/discussion.md`; this file preserves existing `sp-discussion` behavior and does not define new workflow behavior.
+Preserved Contract: consumers read canonical JSON, inherit confirmed truth by stable reference, and return integrity defects to `sp-discussion`.
 
 ## Downstream Consumption
 
-The handoff contains `consumer_eligibility`, `recommended_consumer`, `planning_constraints`, and `discussion_decision_digest` so downstream workflows preserve the selected direction, target boundary, next consumption path, rejected alternatives, accepted tradeoffs, experience commitments, review criteria, and `must_not_dilute` constraints.
+Consumers select `.specify/discussions/<slug>/handoff-to-specify.json`, verify ready/user-confirmed gates and current `review_digest`, then read the agent requirement contract, required evidence refs, task-relevant obligations, and reopen conditions.
 
-`sp-specify` consumption must preserve the confirmed unified discussion handoff without repair. `sp-quick` eligibility is allowed only when the handoff contract says the work is bounded enough for quick-task execution. Do not flatten the discussion into generic requirements or rediscover decisions that the handoff already locked.
+Do not require a Markdown companion. `specification-input.md`, `discussion-state.md`, and other discussion source files are not fallback handoffs. Do not scan discussion logs or checkpoint documents unless a named evidence reference is stale, missing, or contradictory. Do not rebuild `discussion_decision_digest`, flatten the selected direction, or re-ask confirmed questions when `semantic_delta` is empty.
 
-Downstream consumption begins only from the ready Markdown/JSON handoff pair or an unconsumed discussion whose state points to that pair. If the pair is missing, draft-only, stale, or not user-confirmed, the next action is `sp-discussion` repair or review, not `sp-specify` with `specification-input.md` or another source-file fallback.
+`sp-specify` compiles the contract into `spec-contract.json`. `sp-quick` consumes it only when quick eligibility remains bounded. The target boundary and next consumption path come from the contract. After successful consumption, bind downstream evidence to `source_contract` and `review_digest`, then mark the discussion consumed.

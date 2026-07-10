@@ -2,85 +2,12 @@
   "workflow": "plan",
   "source": "templates/commands/plan.md",
   "entries": [
-    {
-      "kind": "phase-lock",
-      "source_excerpt": "phase_mode: design-only",
-      "target": "templates/command-references/plan/spec-package-intake.md"
-    },
-    {
-      "kind": "intake",
-      "source_excerpt": "plan-contract.json",
-      "target": "templates/command-references/plan/plan-contract-fields.md"
-    },
-    {
-      "kind": "scope",
-      "source_excerpt": "The active feature scope is the complete user-confirmed scope from `spec.md`",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "design",
-      "source_excerpt": "Design System Adoption",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "capability",
-      "source_excerpt": "Capability Preservation Planning",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "artifact",
-      "source_excerpt": "Conditional: `data-model.md`",
-      "target": "templates/command-references/plan/data-model-contracts-and-quickstart.md"
-    },
-    {
-      "kind": "artifact",
-      "source_excerpt": "Conditional: `contracts/`",
-      "target": "templates/command-references/plan/data-model-contracts-and-quickstart.md"
-    },
-    {
-      "kind": "artifact",
-      "source_excerpt": "`quickstart.md`",
-      "target": "templates/command-references/plan/data-model-contracts-and-quickstart.md"
-    },
-    {
-      "kind": "constitution",
-      "source_excerpt": "Constitution Check",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "risk",
-      "source_excerpt": "Input Risks From Alignment",
-      "target": "templates/command-references/plan/constitution-risk-and-complexity.md"
-    },
-    {
-      "kind": "dispatch",
-      "source_excerpt": "choose_subagent_dispatch(command_name=\"plan\"",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "dispatch",
-      "source_excerpt": "planning/handoffs/<lane-id>.json",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "dispatch",
-      "source_excerpt": "planning/evidence-index.json",
-      "target": "templates/command-references/plan/subagent-dispatch.md"
-    },
-    {
-      "kind": "guardrail",
-      "source_excerpt": "Implementation Constitution",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "fidelity",
-      "source_excerpt": "Reference Fidelity Inputs",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    },
-    {
-      "kind": "closeout",
-      "source_excerpt": "delegated_planning_lanes: none",
-      "target": "templates/command-references/plan/research-and-design-lanes.md"
-    }
+    {"kind": "intake", "source_excerpt": "spec-contract.json", "target": "templates/command-references/plan/spec-package-intake.md"},
+    {"kind": "scope", "source_excerpt": "Complete-First Scope Preservation", "target": "templates/command-references/plan/research-and-design-lanes.md"},
+    {"kind": "design", "source_excerpt": "Design System Adoption", "target": "templates/command-references/plan/research-and-design-lanes.md"},
+    {"kind": "capability", "source_excerpt": "Capability Preservation", "target": "templates/command-references/plan/research-and-design-lanes.md"},
+    {"kind": "artifact", "source_excerpt": "Conditional Artifacts", "target": "templates/command-references/plan/plan-contract-fields.md"},
+    {"kind": "risk", "source_excerpt": "Input Risks From Alignment", "target": "templates/command-references/plan/constitution-risk-and-complexity.md"},
+    {"kind": "dispatch", "source_excerpt": "Adaptive Planning Lanes", "target": "templates/command-references/plan/research-and-design-lanes.md"}
   ]
 }

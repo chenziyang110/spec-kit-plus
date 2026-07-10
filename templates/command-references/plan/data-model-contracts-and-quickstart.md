@@ -2,25 +2,25 @@ Trigger: when generating conditional design artifacts and validation scenarios.
 
 Purpose: preserve data-model, contracts, quickstart, and agent-context artifact generation conditions.
 
-Preserved Contract: data-model.md and contracts/ remain conditional, quickstart.md remains required, and skipped artifacts must be noted.
+Preserved Contract: research.md, quickstart.md, data-model.md, and contracts/ are generated only when their planning or validation triggers are present.
 
 ## Phases
 
 ### Phase 0: Outline & Research
 
-1. Extract unknowns from Technical Context:
+1. Check the spec contract and context capsule for unresolved implementation-shaping unknowns:
    - For each `NEEDS CLARIFICATION` -> research task
    - For each dependency -> best-practices task
    - For each integration -> patterns task
    - For each high-risk architectural choice -> stack/pattern/pitfall task
    - For each external tool, runtime, or service dependency -> availability and fallback task
 
-2. Generate and dispatch research tasks.
+2. When at least one unresolved item can change architecture, dependency choice, compatibility, security, or validation, generate bounded research tasks.
    - Prefer official documentation, standards, and primary sources for factual claims.
    - Treat model memory as provisional unless confirmed by a primary source or direct repository evidence.
    - Research must reduce planning ambiguity, not accumulate background reading.
 
-3. Consolidate findings in `research.md` using:
+3. When research ran, consolidate findings in `research.md` using:
    - Decision
    - Rationale
    - Alternatives considered
@@ -39,15 +39,15 @@ Preserved Contract: data-model.md and contracts/ remain conditional, quickstart.
    - The finished `research.md` should answer: "What does the planner need to know to produce a high-quality implementation plan without rediscovering the domain?"
    - Use `templates/research-template.md` as the default structure for `research.md`; remove sections that are not relevant rather than leaving placeholder text behind.
 
-**Output**: `research.md` with all `NEEDS CLARIFICATION` resolved
+**Output**: conditional `research.md`; otherwise record `research_status: not-needed` in `plan-contract.json` without creating an empty file.
 
 ### Phase 1: Design & Contracts
 
-**Prerequisites:** `research.md` complete
+**Prerequisites:** all planning-critical unknowns resolved, whether from existing evidence or conditional research.
 
 1. **Conditional: `data-model.md`** — Required only when the spec introduces new entities, data structures, state transitions, or persistence concerns. For pure logic changes, bug fixes, or config-only work, skip and note the reason in plan.md.
 2. **Conditional: `contracts/`** — Required only when the feature defines new external interfaces, APIs, cross-service contracts, or protocol boundaries. For internal-only changes, skip and note the reason.
-3. **`quickstart.md`** — Generate for every feature. Keep it focused on a representative end-to-end validation scenario that proves the confirmed product scope works through the relevant integration boundary.
+3. **Conditional: `quickstart.md`** — Generate only when a representative end-to-end scenario materially reduces implementation or verification ambiguity. Otherwise keep the validation scenario in `plan-contract.json` and do not create a separate file.
 4. Run `{AGENT_SCRIPT}` to update agent-specific context.
 
-**Output**: `research.md` (required), `quickstart.md` (required), plus `data-model.md` and `contracts/*` when the feature scope demands them. Note skipped conditional artifacts in plan.md.
+**Output**: `plan-contract.json` always; `research.md`, `quickstart.md`, `data-model.md`, and `contracts/*` only when their triggers are present. Record skipped-trigger reasons compactly in the contract rather than adding placeholder documents.

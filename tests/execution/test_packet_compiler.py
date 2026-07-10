@@ -1,9 +1,65 @@
+import json
 from pathlib import Path
 
 import pytest
 
 from specify_cli.execution.packet_compiler import compile_worker_task_packet
 from specify_cli.execution.packet_validator import PacketValidationError
+
+
+def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    memory_dir = project_root / ".specify" / "memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "constitution.md").write_text(
+        "# Constitution\n\n- Preserve public behavior and prove validation.\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "tasks": [
+                    {
+                        "id": "T017",
+                        "objective": "Implement auth flow",
+                        "expected_write_scope": ["src/services/auth_service.py"],
+                        "read_scope": ["src/contracts/auth.py"],
+                        "required_refs": ["src/contracts/auth.py"],
+                        "forbidden_drift": ["Do not create a parallel auth stack"],
+                        "acceptance": ["Auth flow passes the real service test"],
+                        "verification": ["pytest tests/unit/test_auth_service.py -q"],
+                        "must_preserve_refs": ["MP-001"],
+                        "consequence_obligation_refs": ["CA-001"],
+                        "capability_operation_refs": ["CAP-auth"],
+                        "required_consumer_evidence": ["real_entrypoint_evidence"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T017",
+    )
+
+    assert packet.objective == "Implement auth flow"
+    assert packet.scope.write_scope == ["src/services/auth_service.py"]
+    assert "src/contracts/auth.py" in packet.scope.read_scope
+    assert packet.validation_gates == ["pytest tests/unit/test_auth_service.py -q"]
+    assert packet.acceptance_criteria == ["Auth flow passes the real service test"]
+    assert packet.capability_operations == ["CAP-auth"]
+    assert packet.required_evidence == ["real_entrypoint_evidence"]
+    assert [item.id for item in packet.must_preserve_obligations] == ["MP-001"]
+    assert [item.obligation_id for item in packet.consequence_obligations] == ["CA-001"]
 
 
 def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(

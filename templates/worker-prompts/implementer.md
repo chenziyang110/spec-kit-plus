@@ -11,9 +11,8 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - verification gates
   - done criteria
 - Provide platform guardrails and completion-handoff expectations explicitly when the lane depends on supported-platform constraints, conditional compilation, runtime-managed result channels, or a promised result handoff path.
-- Provide the task brief path under `FEATURE_DIR/implementation-review/task-briefs/<task-id>.md` when the runtime has written one.
-- Tell the worker that the task brief and packet are the authoritative contract for the lane.
-- For image-backed UI work, include every original PNG, screenshot, mockup, design export, or reference image named by `ui_contract.design_sources`, `ui_fidelity_requirements.design_inputs`, `review_inputs`, or the task brief. Pass it as a runtime image item/local_image when supported and include the stable project-relative path in the packet or brief when available.
+- Tell the worker that the current validated packet and its stable refs are the authoritative contract for the lane.
+- For image-backed UI work, include every original visual input named by the packet's fidelity refs. Pass it as a runtime image item/local_image when supported and include the stable project-relative path in the packet when available.
 - Do not reduce an original visual reference to prose-only instructions when the worker must make layout, spacing, color, hierarchy, or fidelity decisions.
 - Name the write set, shared surfaces, and forbidden drift explicitly.
 - For every behavior-changing task, bug fix, or refactor, tell the worker to write the failing test first, capture the RED state, and return the GREEN rerun evidence for the same gate after the fix.
@@ -30,7 +29,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - For any task that creates a reusable surface such as a UI component, route, provider, registry entry, factory branch, config field, API handler, or test file, return consumer evidence showing where that surface is imported, registered, rendered, executed, or included. A created but not wired file is not complete.
 - If the packet's `required_evidence` includes `real_entrypoint_evidence`, include a `consumer_evidence` item with `kind: real_entrypoint`, `entrypoint`, `producer`, `transformer`, `consumer`, `boundary_or_executor`, and `validation`. Synthetic component, reducer, helper, or hand-built state evidence may be included as support, but it does not satisfy the real-entrypoint requirement by itself.
 - If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
-- If the packet or task brief names a PNG, screenshot, mockup, design export, or reference image, inspect the original visual input before implementing visual structure. If the image is missing or inaccessible, return `NEEDS_CONTEXT` or `BLOCKED`; do not implement from a controller summary alone.
+- If the packet names a PNG, screenshot, mockup, design export, or reference image, inspect the original visual input before implementing visual structure. If it is missing or inaccessible, return `NEEDS_CONTEXT` or `BLOCKED`; do not implement from a controller summary alone.
 - If the packet includes `ui_contract.visual_target`, treat `ui-target.html` as a disposable visual target, not production source.
 - If the packet requires UI evidence, return `ui_evidence` with screenshots or captures, state coverage, console or terminal checks, accessibility or keyboard checks when relevant, and notes for any allowed deviation.
 - If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
@@ -43,7 +42,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - `allowed_optimization_scope`: areas where higher-quality redesign is allowed.
 - `stop_and_reopen_conditions`: conditions that require leader escalation instead of local guessing.
 
-Treat these fields as binding execution inputs from the worker packet or `handoff-to-implement.json`. If the packet asks for a change that conflicts with these fields, return `NEEDS_CONTEXT` or `BLOCKED`; do not guess.
+Treat these fields as binding execution inputs from the current worker packet and its canonical refs. If the packet conflicts with them, return `NEEDS_CONTEXT` or `BLOCKED`; do not guess.
 
 ## Minimum Return Payload
 
@@ -55,7 +54,7 @@ Treat these fields as binding execution inputs from the worker packet or `handof
 - GREEN state evidence for the same gate after the fix
 - Visual inputs inspected when the task used original PNGs, screenshots, mockups, design exports, or reference images
 - UI fidelity evidence when the packet's `ui_fidelity_requirements.applicable` is true.
-- Evidence paths that the leader can cite from `implementation-review/review-packages/<task-id>.md`.
+- Evidence paths that the leader can attach to the current task lifecycle record.
 - Remaining concern, blocker, or missing context
 - When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult`-style payload with validation evidence and explicit blocker metadata.
 - When the leader provides a delegated result handoff path, write the normalized result envelope there instead of replying with freeform prose only.

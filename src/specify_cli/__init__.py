@@ -1523,9 +1523,9 @@ def discussion_validate_handoff(
 def discussion_write_handoff(
     slug: str = typer.Argument(..., help="Discussion slug"),
     input_path: Path = typer.Option(..., "--input", help="Canonical handoff JSON draft"),
-    json_output: bool = typer.Option(False, "--json", help="Print rendered handoff paths and digest as JSON"),
+    json_output: bool = typer.Option(False, "--json", help="Print agent contract path and digest as JSON"),
 ):
-    """Write canonical JSON and deterministically render its Markdown view."""
+    """Write the canonical agent-only discussion contract."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_discussion_helper(
         "write-handoff",
@@ -1537,7 +1537,7 @@ def discussion_write_handoff(
         return
     console.print(
         f"Prepared handoff for {slug}. Review digest: {payload.get('review_digest')}\n"
-        f"JSON: {payload.get('json_path')}\nMarkdown: {payload.get('markdown_path')}"
+        f"Contract: {payload.get('json_path')}"
     )
 
 

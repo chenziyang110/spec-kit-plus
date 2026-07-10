@@ -38,10 +38,8 @@ def test_registry_contains_first_rollout_kinds():
         ".specify/features/*/plan/plan-contract.json",
     )
     assert plan_contract.validator == "json"
-    assert "allowed_optimization_scope" in plan_contract.agent_fill_required
-    assert plan_contract.fill_targets["allowed_optimization_scope"]["pointer"] == (
-        "/allowed_optimization_scope"
-    )
+    assert "acceptance_refs" in plan_contract.agent_fill_required
+    assert plan_contract.fill_targets["acceptance_refs"]["pointer"] == "/acceptance_refs"
 
 
 def test_validate_registry_reports_no_errors_for_first_rollout():
@@ -87,7 +85,7 @@ def test_audit_reports_fixed_savings_and_registry_metadata():
     assert plan_contract["recommendation"] == "builder"
     assert plan_contract["fixed_bytes"] > 500
     assert plan_contract["scriptability"] == "json-builder"
-    assert "route" in plan_contract["agent_fill_required"]
+    assert "intent" in plan_contract["agent_fill_required"]
     assert plan_contract["downstream_consumers"] == ["sp-tasks", "sp-analyze"]
 
 
@@ -514,9 +512,9 @@ def test_plan_contract_scaffold_rejects_unsafe_status_variables(
 @pytest.mark.parametrize(
     "variables",
     [
-        {"status": "pending"},
-        {"handoff_to_tasks_ready": False},
-        {"implementation_target": {"target_root": "src"}},
+        {"status": "draft"},
+        {"source_contract": "spec-contract.json"},
+        {"implementation_target_ref": "spec-contract.json#/context_capsule/boundary_ref"},
     ],
 )
 def test_plan_contract_scaffold_rejects_existing_non_fill_target_variables(
@@ -581,7 +579,7 @@ def test_plan_contract_scaffold_writes_safe_json_skeleton(tmp_path: Path):
         tmp_path,
         kind="plan-contract",
         out_path="specs/001-demo/plan-contract.json",
-        variables={"route": "quick", "ignored": "value"},
+        variables={"intent": "demo-plan", "architecture_decisions": ["use existing boundary"], "ignored": "value"},
     )
 
     output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
@@ -589,11 +587,12 @@ def test_plan_contract_scaffold_writes_safe_json_skeleton(tmp_path: Path):
 
     assert payload["status"] == "created"
     assert payload["path"] == "specs/001-demo/plan-contract.json"
-    assert data["status"] == "pending"
-    assert data["route"] == "quick"
+    assert data["status"] == "draft"
+    assert data["intent"] == "demo-plan"
+    assert data["architecture_decisions"] == ["use existing boundary"]
     assert "ignored" not in data
-    assert data["handoff_to_tasks_ready"] is False
-    assert payload["fill_targets"]["route"]["pointer"] == "/route"
+    assert data["transition"]["status"] == "blocked"
+    assert payload["fill_targets"]["intent"]["pointer"] == "/intent"
 
 
 def test_plan_contract_scaffold_rejects_project_template_with_unsafe_readiness(
@@ -604,15 +603,18 @@ def test_plan_contract_scaffold_rejects_project_template_with_unsafe_readiness(
     local_template.write_text(
         json.dumps(
             {
-                "version": 1,
+                "version": 2,
                 "status": "ready",
-                "route": None,
                 "intent": None,
                 "complexity_level": None,
-                "must_preserve": [],
-                "acceptance_obligations": [],
-                "allowed_optimization_scope": [],
-                "handoff_to_tasks_ready": True,
+                "architecture_decisions": [],
+                "interface_map": [],
+                "acceptance_refs": [],
+                "capability_operations": [],
+                "must_preserve_refs": [],
+                "consequence_obligation_refs": [],
+                "review_risk_notes": [],
+                "transition": {"status": "ready"},
             }
         ),
         encoding="utf-8",
@@ -637,14 +639,17 @@ def test_plan_contract_scaffold_rejects_project_template_missing_fill_target(
     local_template.write_text(
         json.dumps(
             {
-                "version": 1,
-                "status": "pending",
+                "version": 2,
+                "status": "draft",
                 "intent": None,
                 "complexity_level": None,
-                "must_preserve": [],
-                "acceptance_obligations": [],
-                "allowed_optimization_scope": [],
-                "handoff_to_tasks_ready": False,
+                "architecture_decisions": [],
+                "interface_map": [],
+                "capability_operations": [],
+                "must_preserve_refs": [],
+                "consequence_obligation_refs": [],
+                "review_risk_notes": [],
+                "transition": {"status": "blocked"},
             }
         ),
         encoding="utf-8",
@@ -678,12 +683,12 @@ def test_plan_contract_scaffold_rejects_project_template_terminal_status_default
     assert not output.exists()
 
 
-@pytest.mark.parametrize("ready_value", [True, 1, "yes", "on", "1"])
-def test_plan_contract_scaffold_rejects_project_template_truthy_readiness_defaults(
-    tmp_path: Path, ready_value: object
+@pytest.mark.parametrize("ready_value", ["ready", "complete"])
+def test_plan_contract_scaffold_rejects_project_template_ready_transition_defaults(
+    tmp_path: Path, ready_value: str
 ):
     _write_project_plan_contract_template(
-        tmp_path, handoff_to_tasks_ready=ready_value
+        tmp_path, transition={"status": ready_value}
     )
     output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
 
@@ -707,8 +712,8 @@ def test_plan_contract_scaffold_supports_nested_allowed_specs_plan_path(tmp_path
     output = tmp_path / "specs" / "001-demo" / "plan" / "plan-contract.json"
     data = json.loads(output.read_text(encoding="utf-8"))
 
-    assert data["status"] == "pending"
-    assert data["handoff_to_tasks_ready"] is False
+    assert data["status"] == "draft"
+    assert data["transition"]["status"] == "blocked"
 
 
 def _write_project_quick_status_template(
@@ -745,15 +750,18 @@ def _write_project_plan_contract_template(
     )
     local_template.parent.mkdir(parents=True)
     payload = {
-        "version": 1,
-        "status": "pending",
-        "route": None,
+        "version": 2,
+        "status": "draft",
         "intent": None,
         "complexity_level": None,
-        "must_preserve": [],
-        "acceptance_obligations": [],
-        "allowed_optimization_scope": [],
-        "handoff_to_tasks_ready": False,
+        "architecture_decisions": [],
+        "interface_map": [],
+        "acceptance_refs": [],
+        "capability_operations": [],
+        "must_preserve_refs": [],
+        "consequence_obligation_refs": [],
+        "review_risk_notes": [],
+        "transition": {"status": "blocked"},
     }
     payload.update(overrides)
     local_template.write_text(json.dumps(payload), encoding="utf-8")

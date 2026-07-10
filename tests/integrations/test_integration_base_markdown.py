@@ -207,7 +207,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in command_lower
     assert "persist them to `open-questions.md` only when they materially change" in command_lower
     assert "semantic checkpoints" in command_lower
-    assert "draft pair" in command_lower
+    assert "agent-only" in command_lower
+    assert "do not write a markdown companion" in command_lower
     assert "truth pass" in command_lower
     assert "verified_project_facts" in command_content
     assert "open_assumptions" in command_content
@@ -251,8 +252,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "handoff request-changes repair" in command_lower
     assert "blocked_by_handoff_integrity" in command_content
     assert "the repair belongs to `sp-discussion`" in command_lower
-    assert "render `handoff-to-specify.md` from that exact payload" in command_lower
-    assert "source_handoff_json" in command_content
+    assert "update canonical `handoff-to-specify.json`" in command_lower
+    assert "source_contract" in command_content
     assert "field-level validation errors" in command_content
     assert "review_digest" in command_content
     assert "recommendation-first is not questionless" in command_lower
@@ -263,13 +264,10 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "recommended_consumer" in command_content
     assert "planning_constraints" in command_content
     assert "quick_task_candidate" not in command_content
-    assert "Do not describe current execution or implementation progress" in command_content
-    assert "handoff-to-specify.md" in command_content
+    assert "do not describe current execution or implementation progress" in command_lower
     assert "handoff-to-specify.json" in command_content
-    assert "Handoff Reviewer Guide" in command_content
-    assert "Approve only if" in command_content
-    assert "Request changes if" in command_content
-    assert "does not know Spec Kit internals" in command_content
+    assert "Human Confirmation" in command_content
+    assert "current digest" in command_lower
     assert "quality_gate" in command_content
     assert "user confirmation" in command_lower
     assert "Must-Preserve Ledger" in command_content

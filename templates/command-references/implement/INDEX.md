@@ -6,4 +6,4 @@
 - [subagent-worker-contract.md](subagent-worker-contract.md): Trigger: before dispatching implementation work or accepting a worker result.
 - [join-point-review.md](join-point-review.md): Trigger: after ready batches, review windows, or parallel lane join points.
 - [safe-repair-loop.md](safe-repair-loop.md): Trigger: when validation fails, review rejects work, blockers appear, or task-layer defects are found.
-- [branch-review-and-closeout.md](branch-review-and-closeout.md): Trigger: before reporting completion, moving to the next batch, or closing a branch.
+- [branch-review-and-closeout.md](branch-review-and-closeout.md): Compatibility filename for final reconciliation and closeout; a broad diff review runs only when a review trigger or risk threshold requires it.

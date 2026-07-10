@@ -296,6 +296,17 @@ def _packetized_task_ids(feature_dir: Path) -> tuple[list[str], list[str]]:
     return sorted(task_ids), gaps
 
 
+def _uses_agent_native_task_lifecycle(feature_dir: Path) -> bool:
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.is_file():
+        return False
+    try:
+        payload = json.loads(task_index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return True
+    return isinstance(payload, dict) and payload.get("version") == 2
+
+
 def _packetized_review_gaps(
     feature_dir: Path,
     tasks: list[dict[str, Any]],
@@ -303,13 +314,50 @@ def _packetized_review_gaps(
     *,
     terminal: bool,
 ) -> list[str]:
+    checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    if lifecycle_dir.is_dir() or _uses_agent_native_task_lifecycle(feature_dir):
+        gaps: list[str] = []
+        for task_id in sorted(checked_task_ids):
+            relative = f"implementation-review/tasks/{task_id}.json"
+            lifecycle_path = lifecycle_dir / f"{task_id}.json"
+            if not lifecycle_path.is_file():
+                gaps.append(f"{relative} is missing for checked task {task_id}")
+                continue
+            try:
+                payload = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                gaps.append(f"{relative} is malformed: {exc}")
+                continue
+            if not isinstance(payload, dict):
+                gaps.append(f"{relative} must contain a top-level object")
+                continue
+            if str(payload.get("task_id") or "").upper() != task_id:
+                gaps.append(f"{relative} has mismatched task_id")
+            if payload.get("status") != "accepted":
+                gaps.append(f"{relative} status must be accepted")
+            if not isinstance(payload.get("changed_paths"), list):
+                gaps.append(f"{relative} changed_paths must be a list")
+            validation = payload.get("validation")
+            if not isinstance(validation, list) or not validation:
+                gaps.append(f"{relative} validation must be a non-empty list")
+            if not isinstance(payload.get("blockers"), list):
+                gaps.append(f"{relative} blockers must be a list")
+            review = payload.get("review")
+            if review is not None and (
+                not isinstance(review, dict)
+                or not str(review.get("trigger") or "").strip()
+                or not str(review.get("verdict") or "").strip()
+            ):
+                gaps.append(f"{relative} review must contain trigger and verdict when present")
+        return gaps
+
     packet_task_ids, packet_gaps = _packetized_task_ids(feature_dir)
     gaps: list[str] = []
     gaps.extend(packet_gaps)
     if not packet_task_ids:
         return gaps
 
-    checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
     if terminal:
         for packet_task_id in packet_task_ids:
             if packet_task_id not in checked_task_ids:

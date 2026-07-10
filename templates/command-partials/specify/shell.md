@@ -6,20 +6,20 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 
 ## Context
 
-- Primary inputs: the user's request, current repository context, passive memory, project cognition only as advisory navigation, and discussion source files when a handoff-ready discussion is supplied or uniquely discoverable.
-- Authoritative outputs: `spec.md`, `alignment.md`, `context.md`, `references.md` when useful, `workflow-state.md`, `checklists/requirements.md`, and a minimal `brainstorming/handoff-to-specify.json` compatibility handoff.
+- Primary inputs: the user's request for discovery mode, or canonical agent-only `handoff-to-specify.json` for compile mode; current repository context, passive memory, and project cognition are loaded only when the contract lacks fresh evidence for a planning-relevant claim.
+- Authoritative output: agent-only `spec-contract.json`. `spec.md` is the project-facing rendering; `alignment.md`, `context.md`, `references.md`, and requirements diagnostics are conditional views with independent value. `workflow-state.md` is resume state, not phase handoff truth.
 - This command is specification-only. It is not permission to implement code.
 
 ## Process
 
 - Create or resume the feature workspace and `workflow-state.md`.
 - Before creating a feature workspace, classify arguments as either a normal feature description or a discussion handoff path/JSON path/slug. If no arguments are supplied, use exactly one unconsumed `status: handoff-ready` discussion whose `next_command` is `/sp.specify` or `sp-specify`; if there are zero or multiple candidates, stop and ask for a feature description or specific handoff.
-- For a discussion handoff, require the Markdown/JSON pair, canonical JSON `status: handoff-ready`, `planning_gate_status: ready`, `quality_gate.status: user_confirmed`, matching `quality_gate.confirmed_digest` and `review_digest`, zero hard unknowns, zero open conflicts, a `Handoff Reviewer Guide`, and no rendered Markdown drift in protected `MP-*`, `CA-###`, source evidence, or settled-decision coverage.
-- If a discussion workspace contains `specification-input.md` or looks specification-ready but lacks the ready Markdown/JSON handoff pair, stop with `blocked_by_handoff_integrity` and route back to `sp-discussion` to write or repair `handoff-to-specify.md` and `handoff-to-specify.json`; do not ask the user to confirm `specification-input.md` as the feature input.
+- For a discussion handoff, require canonical JSON `status: handoff-ready`, `planning_gate_status: ready`, `quality_gate.status: user_confirmed`, matching `quality_gate.confirmed_digest` and `review_digest`, zero hard unknowns, zero open conflicts, and complete protected `MP-*`, `CA-###`, evidence, and settled-decision coverage.
+- If a discussion workspace contains `specification-input.md` or looks specification-ready but lacks the ready JSON contract, stop with `blocked_by_handoff_integrity` and route back to `sp-discussion` to write or repair `handoff-to-specify.json`; do not reconstruct it from supporting files.
 - Derive the feature description from `handoff_goal` plus the implementation target summary. Do not pass the raw handoff path, JSON path, or slug to the create-feature script as the feature description.
 - Explore project context only enough to understand ownership, constraints, adjacent surfaces, and source evidence.
-- If invoked from `sp-discussion`, re-read canonical `handoff-to-specify.json` and its rendered Markdown, then read only handoff-declared source files needed to resolve a named claim. Inspect `discussion-log.jsonl`, `requirements.md`, `open-questions.md`, `technical-options.md`, or `project-context.md` only when present and referenced or when integrity validation identifies a gap.
-- If invoked from `sp-discussion`, keep the source discussion slug from `.specify/discussions/<slug>/handoff-to-specify.md`; after the feature package is written and self-reviewed, run `specify discussion mark-consumed <slug> --feature-dir "$FEATURE_DIR"` or manually write `handoff_consumption_status: consumed`, `consumed_by_feature_dir: $FEATURE_DIR`, `status: completed`, and `next_command: none`.
+- If invoked from `sp-discussion`, read the canonical contract once, reuse its context capsule and decision digest, and inspect supporting discussion files only when a named evidence reference is stale, missing, or contradictory.
+- If invoked from `sp-discussion`, keep the source discussion slug from the contract; after `spec-contract.json` is written and self-reviewed, run `specify discussion mark-consumed <slug> --feature-dir "$FEATURE_DIR"` or update the equivalent consumption state.
 - Extract every upstream capability-like signal from those sources and assign exactly one disposition: `preserved`, `in_scope`, `deferred`, `dropped`, or `clarification_blocker`.
 - Ask one high-impact question at a time when the answer can change scope, acceptance, architecture, compatibility, security, data shape, external integration, or downstream planning.
 - Decompose ambiguous terms such as capability, real, usable, works, end-to-end, fetch, probe, health, model, endpoint, integration, auth, `new` command, `<tool> new`, create, scaffold, authoring, template creation, authoring workflow, CLI path, TUI path, `能力`, `真实`, and `可用` before compiling the spec.
@@ -37,16 +37,16 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - The `sp-specify` leader must not directly parse UI references and write the UI contract when UI reference input is present. The leader dispatches and validates the lane.
 - The writable UI reference lane may write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html` inside the active `FEATURE_DIR`.
 - Do not treat this as a read-only evidence lane; source code, tests, app styling, component implementation, package managers, builds, and app servers remain forbidden.
-- Present two or three approaches with trade-offs and a recommendation before committing to the spec shape.
-- Present the spec sections for user approval before final artifact release.
+- In discovery mode, present materially different approaches when they change behavior, boundary, compatibility, or acceptance proof. In compile mode, inherit the confirmed approach and emit only its semantic delta.
+- Do not repeat user review for an unchanged confirmed discussion contract. Ask again only when specification compilation changes scope, behavior, risk acceptance, target boundary, or another user-owned decision.
 - When entered through `sp-auto` with `auto_default_recommendation: true`, automatically accept a single safe recommended approach or section-shape option instead of stopping only for a `1`/`2`/`3` reply; do not use this to confirm scope reduction, dropped upstream signals, out-of-scope conflicts, or unresolved planning-critical ambiguity.
-- Write the artifact package, then self-review for placeholders, contradictions, ambiguous requirements, silent scope narrowing, dropped upstream signals, out-of-scope conflicts, missing acceptance proof, and unconfirmed product minimization.
-- Ask the user to review the written artifacts before recommending exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+- Write `spec-contract.json` first, render project-facing artifacts from it, then self-review for placeholders, contradictions, ambiguous requirements, silent scope narrowing, dropped upstream signals, out-of-scope conflicts, missing acceptance proof, and unconfirmed product minimization.
+- Ask the user only about a non-empty `semantic_delta` or unresolved user-owned decision before recommending exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 
 ## Output Contract
 
-- Write or update `spec.md`, `alignment.md`, `context.md`, `workflow-state.md`, `checklists/requirements.md`, and `references.md` when useful.
-- Write or update a minimal `brainstorming/handoff-to-specify.json` compatibility handoff with `version`, `status`, `entry_source`, `discussion_slug`, `source_handoff`, `source_handoff_json`, `review_digest`, `source_files_read`, `source_signal_disposition`, `must_preserve`, `coverage_status`, `planning_gate_status`, `hard_unknown_count`, `open_conflict_count`, and `quality_gate`.
+- Write or update canonical `spec-contract.json` using `templates/spec-contract-template.json`, then render `spec.md`. Write `alignment.md`, `context.md`, `references.md`, and requirements diagnostics only when their triggered content cannot be represented by a stable reference in the contract.
+- When compatibility requires `brainstorming/handoff-to-specify.json`, generate it as a pointer-only agent transition with `source_contract`, `review_digest`, `semantic_delta`, `required_refs`, blockers, and next action; do not copy the requirement contract.
 - When UI reference input exists, require `ui-reference-notes.md`; when the feature has a concrete UI surface, require `ui-brief.md`; create `ui-target.html` only when a disposable visual target materially reduces ambiguity.
 - For `approximate` and `high` UI reference fidelity, activate `Reference-Implementation`, populate `Fidelity Requirements`, persist canonical Reference-Implementation `required_evidence`, and record UI-specific labels only as aliases/mapping notes.
 - `alignment.md` must record `Semantic Term Decisions`, `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` when relevant.

@@ -17,8 +17,7 @@ updated: ""
 
 handoff_consumer: none
 source_discussion_slug: none
-source_handoff_md: none
-source_handoff_json: none
+source_contract: none
 review_digest: none
 source_files_read: []
 locked_direction: []

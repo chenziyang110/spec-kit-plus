@@ -21,6 +21,56 @@ func TestContractChecksPassForCurrentPlanningReadyPackage(t *testing.T) {
 	requireCheckStatus(t, results, "quality-gate-summary", statusPass)
 }
 
+func TestCanonicalSpecContractPassesWithoutLegacyArtifactFanout(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n\n## Need\nA compact canonical specification.\n")
+	contract := map[string]any{
+		"version":                     1,
+		"status":                      "planning-ready",
+		"target_need":                 "Produce a compact canonical specification.",
+		"scope":                       map[string]any{"in": []any{"canonical contract"}, "out": []any{}, "deferred": []any{}},
+		"constraints":                 []any{"Do not duplicate handoff truth."},
+		"acceptance_criteria":         []any{"Planner can consume spec-contract.json directly."},
+		"decisions":                   []any{},
+		"semantic_delta":              []any{},
+		"capability_operations":       []any{},
+		"must_preserve_refs":          []any{"MP-001"},
+		"consequence_obligation_refs": []any{},
+		"context_capsule": map[string]any{
+			"boundary_ref":          "repo-root",
+			"evidence_refs":         []any{},
+			"selected_capabilities": []any{},
+			"minimal_live_reads":    []any{},
+			"validation_routes":     []any{"spec-lint"},
+			"stale_if":              []any{},
+		},
+		"open_items": []any{},
+		"artifact_refs": map[string]any{
+			"spec": "spec.md", "alignment": nil, "context": nil, "references": nil,
+		},
+		"transition": map[string]any{
+			"version": 1, "status": "ready", "source_ref": "spec-contract.json",
+			"semantic_delta": []any{}, "required_refs": []any{}, "blockers": []any{},
+			"next_action": "/sp.plan", "recovery": nil,
+		},
+	}
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal canonical contract: %v", err)
+	}
+	writeFileForTest(t, dir, "spec-contract.json", string(data)+"\n")
+
+	results := runLintForTest(t, dir, "standard")
+	for _, name := range []string{
+		"required-artifacts", "workflow-state-readiness", "handoff-json-schema",
+		"planning-gate-ready", "source-signal-disposition", "must-preserve-coverage",
+		"review-state-approved", "quality-gate-summary", "scout-summary",
+		"capability-triage", "execution-mode", "change-propagation",
+	} {
+		requireCheckStatus(t, results, name, statusPass)
+	}
+}
+
 func TestContractChecksRejectPlanningBlockers(t *testing.T) {
 	tests := []struct {
 		name      string

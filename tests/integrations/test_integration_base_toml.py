@@ -205,7 +205,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in command_lower
     assert "persist them to `open-questions.md` only when they materially change" in command_lower
     assert "semantic checkpoints" in command_lower
-    assert "draft pair" in command_lower
+    assert "agent-only" in command_lower
+    assert "do not write a markdown companion" in command_lower
     assert "Context Boundary Gate" in command_content
     assert "target project root" in command_lower
     assert "adaptive question pack" in command_lower
@@ -241,8 +242,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "handoff request-changes repair" in command_lower
     assert "blocked_by_handoff_integrity" in command_content
     assert "the repair belongs to `sp-discussion`" in command_lower
-    assert "render `handoff-to-specify.md` from that exact payload" in command_lower
-    assert "source_handoff_json" in command_content
+    assert "update canonical `handoff-to-specify.json`" in command_lower
+    assert "source_contract" in command_content
     assert "field-level validation errors" in command_content
     assert "review_digest" in command_content
     assert "recommendation-first is not questionless" in command_lower
@@ -253,13 +254,10 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "recommended_consumer" in command_content
     assert "planning_constraints" in command_content
     assert "quick_task_candidate" not in command_content
-    assert "Do not describe current execution or implementation progress" in command_content
-    assert "handoff-to-specify.md" in command_content
+    assert "do not describe current execution or implementation progress" in command_lower
     assert "handoff-to-specify.json" in command_content
-    assert "Handoff Reviewer Guide" in command_content
-    assert "Approve only if" in command_content
-    assert "Request changes if" in command_content
-    assert "does not know Spec Kit internals" in command_content
+    assert "Human Confirmation" in command_content
+    assert "current digest" in command_lower
     assert "quality_gate" in command_content
     assert "user confirmation" in command_lower
     assert "Must-Preserve Ledger" in command_content
@@ -386,13 +384,11 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 def _assert_embedded_implement_review_contract(content: str) -> None:
     lowered = content.lower()
 
-    assert "embedded implement review" in lowered
-    assert "pre-implement review" in lowered
-    assert "join-point drift review" in lowered
-    assert "sequential review window" in lowered
-    assert "review_window_policy" in content
-    assert "implementation-review/reviews.ndjson" in content
-    assert "implementation-review/repairs.ndjson" in content
+    assert "event-triggered review" in lowered
+    assert "entry revision check" in lowered
+    assert "parallel lanes join" in lowered
+    assert "task lifecycle record" in lowered
+    assert "do not create separate task briefs, review packages, or a duplicate task ledger" in lowered
     assert "/sp.review" not in content
     assert "sp-review" not in content
 
@@ -751,27 +747,21 @@ class TomlIntegrationTests:
         content = parsed["prompt"]
         lowered = content.lower()
 
-        assert "handoff-ready" in content
-        assert "quality_gate.status: user_confirmed" in content
-        assert "planning_gate_status: ready" in content
-        assert "Derive the feature description" in content
-        assert "Do not pass the raw handoff" in content
+        assert "spec-contract.json" in content
+        assert "semantic_delta" in content
+        assert "decision_digest_ref" in content
         assert "blocked_by_handoff_integrity" in content
-        assert "discussion-log.md" in content
-        assert "requirements.md" in content
-        assert "open-questions.md" in content
-        assert "source_signal_disposition" in content
-        assert "Discussion Decision Digest" in content
         assert "discussion_decision_digest" in content
-        assert "review_criteria_carried_forward" in content
         assert "must_not_dilute" in content
-        assert "source_files_read" in content
+        assert "named evidence reference" in lowered
+        assert "stale, missing, or contradictory" in lowered
+        assert "source_files_read" not in content
+        assert "do not repeat user review" in lowered
         assert "choose_ui_reference_lane_dispatch" in content
         assert "ui-reference-artifact" in content
         assert "ui-reference-notes.md" in content
         assert "ui-brief.md" in content
         assert "Reference-Implementation" in content
-        assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
 

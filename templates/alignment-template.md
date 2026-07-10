@@ -87,8 +87,8 @@ Use this section when `entry_source: sp-discussion`. Every row should name the s
 
 ### Review Criteria Carry-Forward
 
-- criterion: [approval or change-request criterion from the Handoff Reviewer Guide]
-  source: [handoff-to-specify.md#Handoff Reviewer Guide]
+- criterion: [approval or change-request criterion that affects downstream correctness]
+  source: [requirement contract JSON pointer or confirmed digest review]
   artifact mapping: [spec review, acceptance proof, or readiness decision]
 
 ### Must Not Dilute

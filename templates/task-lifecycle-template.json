@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "task_id": null,
+  "task_ref": null,
+  "source_revision": null,
+  "execution_mode": "leader-direct",
+  "packet_ref": null,
+  "status": "pending",
+  "changed_paths": [],
+  "validation": [],
+  "review": null,
+  "obligation_evidence": [],
+  "blockers": [],
+  "recovery": null
+}

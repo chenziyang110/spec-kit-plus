@@ -92,7 +92,7 @@ def _invoke_in_project(project: Path, args: list[str]):
 def _create_ready_discussion(project: Path, slug: str) -> tuple[object, Path, str]:
     runtime = _load_discussion_runtime()
     initialized = runtime.initialize_discussion(project, slug, slug.replace("-", " ").title())
-    markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
     feature_dir = project / ".specify" / "features" / f"001-{initialized['slug']}"
     brainstorming = feature_dir / "brainstorming"
@@ -102,8 +102,7 @@ def _create_ready_discussion(project: Path, slug: str) -> tuple[object, Path, st
             {
                 "entry_source": "sp-discussion",
                 "discussion_slug": initialized["slug"],
-                "source_handoff": markdown_path.relative_to(project).as_posix(),
-                "source_handoff_json": json_path.relative_to(project).as_posix(),
+                "source_contract": json_path.relative_to(project).as_posix(),
                 "review_digest": review_digest,
             }
         )
@@ -164,7 +163,7 @@ def test_discussion_checkpoint_json_updates_dynamic_turn_context(tmp_path: Path)
     ]
 
 
-def test_discussion_write_handoff_renders_canonical_pair(tmp_path: Path):
+def test_discussion_write_handoff_writes_agent_only_contract(tmp_path: Path):
     project, _discussion_root = _setup_project(tmp_path)
     _invoke_in_project(
         project,
@@ -177,14 +176,14 @@ def test_discussion_write_handoff_renders_canonical_pair(tmp_path: Path):
     )
     payload["discussion_slug"] = "canonical-handoff"
     payload["handoff_goal"] = "Generate one canonical requirement contract."
-    payload["agent_requirement_contract"]["target_need"] = "A deterministic handoff pair."
+    payload["agent_requirement_contract"]["target_need"] = "A deterministic handoff contract."
     payload["must_preserve"] = [
         {
             "id": "MP-001",
             "type": "decision",
             "claim": "JSON remains canonical.",
             "source": "user confirmation",
-            "downstream_requirement": "Render Markdown from JSON.",
+            "downstream_requirement": "Preserve the agent-only JSON contract.",
             "blocking_level": "hard",
             "owner": "sp-discussion",
             "latest_resolve_phase": "review",
@@ -209,10 +208,10 @@ def test_discussion_write_handoff_renders_canonical_pair(tmp_path: Path):
     assert result.exit_code == 0, result.stdout
     written = json.loads(result.stdout)
     assert written["review_digest"]
-    assert Path(written["json_path"]).is_file()
-    markdown_path = Path(written["markdown_path"])
-    assert markdown_path.is_file()
-    assert "## Handoff Reviewer Guide" in markdown_path.read_text(encoding="utf-8")
+    contract_path = Path(written["json_path"])
+    assert contract_path.is_file()
+    assert "markdown_path" not in written
+    assert not contract_path.with_suffix(".md").exists()
 
 
 def test_discussion_validate_and_mark_ready_json_use_runtime_gate(tmp_path: Path):

@@ -32,6 +32,8 @@ packages = ["src/specify_cli"]
 # Bundle core assets so `specify init` works without network access (air-gapped / enterprise)
 # Page templates (exclude commands/ — bundled separately below to avoid duplication)
 "templates/agent-file-template.md" = "specify_cli/core_pack/templates/agent-file-template.md"
+"templates/agent-phase-transition-schema.json" = "specify_cli/core_pack/templates/agent-phase-transition-schema.json"
+"templates/agent-phase-transition-template.json" = "specify_cli/core_pack/templates/agent-phase-transition-template.json"
 "templates/alignment-template.md" = "specify_cli/core_pack/templates/alignment-template.md"
 "templates/brainstorming-complexity-template.json" = "specify_cli/core_pack/templates/brainstorming-complexity-template.json"
 "templates/brainstorming-domains-template.json" = "specify_cli/core_pack/templates/brainstorming-domains-template.json"
@@ -65,11 +67,13 @@ packages = ["src/specify_cli"]
 "templates/references-template.md" = "specify_cli/core_pack/templates/references-template.md"
 "templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"
 "templates/spec-template.md" = "specify_cli/core_pack/templates/spec-template.md"
+"templates/spec-contract-template.json" = "specify_cli/core_pack/templates/spec-contract-template.json"
 "templates/tasks-template.md" = "specify_cli/core_pack/templates/tasks-template.md"
 "templates/ui-reference-notes-template.md" = "specify_cli/core_pack/templates/ui-reference-notes-template.md"
 "templates/ui-brief-template.md" = "specify_cli/core_pack/templates/ui-brief-template.md"
 "templates/ui-target-template.html" = "specify_cli/core_pack/templates/ui-target-template.html"
 "templates/task-index-template.json" = "specify_cli/core_pack/templates/task-index-template.json"
+"templates/task-lifecycle-template.json" = "specify_cli/core_pack/templates/task-lifecycle-template.json"
 "templates/task-packet-template.json" = "specify_cli/core_pack/templates/task-packet-template.json"
 "templates/workflow-state-template.md" = "specify_cli/core_pack/templates/workflow-state-template.md"
 "templates/vscode-settings.json" = "specify_cli/core_pack/templates/vscode-settings.json"

@@ -166,7 +166,7 @@ When a lifecycle state needs specialized content, adapt the same contract:
 - UI interaction discussion covers the user journey, screen or component responsibilities, states, accessibility, responsive behavior, and copy expectations that affect the requirement.
 - Pre-handoff readiness covers the likely verdict, proposed handoff goal, recommended consumer, package scope, excluded scope, readiness checks, default next action, and override path without writing or claiming `handoff-assessment.md`.
 - Draft handoff review covers the decision requested, recommended route, scope to approve, excluded scope, readiness checks, package paths, and allowed approval or change-request responses without becoming a path receipt.
-- Handoff-ready closeout covers the handoff goal, selected direction, target boundary, Must-Preserve coverage, hard unknown and conflict counts, quality gate state, Markdown/JSON agreement, and exact downstream consumption path.
+- Handoff-ready closeout covers the handoff goal, selected direction, target boundary, Must-Preserve coverage, hard unknown and conflict counts, quality gate state, source-contract integrity, and exact downstream consumption path.
 - Blocked or evidence-conflict replies state the blocker, the smallest useful partial draft/checklist/evidence plan, and the user-owned decision or external condition required to continue.
 
 ### Frontstage Reply Gate
@@ -197,11 +197,11 @@ Stop short only when continuing would require user judgment, missing boundary ev
 
 ### Pre-Ready Handoff Next-Step Guard
 
-If a discussion is mature enough that the likely downstream consumer is `sp-specify`, but either `handoff-to-specify.md` or `handoff-to-specify.json` is missing, draft-only, not self-reviewed, or not user-confirmed, the visible default next step must stay inside `sp-discussion`.
+If a discussion is mature enough that the likely downstream consumer is `sp-specify`, but canonical `handoff-to-specify.json` is missing, draft-only, not self-reviewed, or not user-confirmed, the visible default next step must stay inside `sp-discussion`.
 
 Allowed next-step wording before `handoff-ready`: handoff assessment, draft handoff review, or handoff repair, with the concrete assessment preview, draft-review summary, or repair checklist in the same reply.
 
-Forbidden next-step wording before `handoff-ready`: do not tell the user their next sentence can be `sp-specify`; do not tell them to run, enter, or proceed to `sp-specify`; do not ask `sp-specify` to use `specification-input.md`, `discussion-state.md`, or any other discussion source file as a substitute for the required Markdown/JSON handoff pair.
+Forbidden next-step wording before `handoff-ready`: do not tell the user their next sentence can be `sp-specify`; do not tell them to run, enter, or proceed to `sp-specify`; do not ask `sp-specify` to use `specification-input.md`, `discussion-state.md`, or any other discussion source file as a substitute for the required JSON handoff contract.
 
 ### High-Throughput Rules
 
@@ -239,42 +239,11 @@ Each option must distinguish evidence-backed facts from assumptions. If an optio
 
 ## Optional UI and Interaction Discussion
 
-When the functional discussion is stable, no explicit handoff request is active,
-and the requirement includes UI-facing scope, offer an optional
-`ui-interaction-discussion` stage before handoff assessment. If the user has
-explicitly asked to hand off or continue to the next stage, run
-`handoff-assessment.md` first; return to `ui-interaction-discussion` only when
-the assessment finds UI decisions are blocking readiness or the user chooses to
-reopen UI discussion.
+When functional discussion is stable, no explicit handoff request is active, and UI-facing behavior affects the requirement, offer `ui-interaction-discussion`. If handoff was requested, run `handoff-assessment.md` first and reopen UI only when UI decisions block readiness or the user asks.
 
-Trigger examples:
-
-- screens, pages, views, panels, dashboards, forms, components, or navigation
-- user journeys, interaction flows, state transitions, or workflow feedback
-- visual hierarchy, layout, density, responsive behavior, or information architecture
-- loading, empty, success, warning, error, disabled, or permission states
-- accessibility, keyboard behavior, focus management, or user-facing copy that affects interaction quality
-
-Set `ui_discussion_status: offered` when presenting the optional stage. If the
-user accepts, set `ui_discussion_status: accepted` and guide the discussion as a
-senior UI and interaction designer with 15 years of practical UI delivery
-experience. Ask only high-impact UI questions. Provide opinionated
-recommendations when the user benefits from design judgment, and preserve
-confirmed UI decisions in active memory until the next semantic checkpoint or
-save trigger, then persist them to `requirements.md`, `technical-options.md`,
-`open-questions.md`, and the unified handoff pair when those artifacts are
-refreshed. When the UI pass is complete, set `ui_discussion_status: completed`
-at the next semantic checkpoint.
-
-If the user skips, treat `ui_discussion_status: skipped` or `deferred` as a semantic checkpoint field. Skipping the UI pass is not a blocking gate unless the feature cannot be specified without a UI decision. Preserve deferred UI decisions in active memory until the next semantic checkpoint or handoff refresh, then persist them to `open-questions.md` and the handoff's blocking or soft unknowns when applicable.
-
-ASCII sketches are allowed as optional text guidance. Use them to show rough layout, grouping, or flow, not pixel-perfect design. Markdown is the primary carrier for sketches because it preserves multi-line readability. JSON must not duplicate raw multi-line sketches; use `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference` to point back to the Markdown section.
-
-When UI-facing signals appear, record design intent and experience commitments in durable discussion state and handoff material:
-
-- `experience_commitments`
-- `design_system_requirements`
-- `design_system_status`
-- `design_risk_level`
-
-For new product UI, redesign or rebrand, core workflow experience, multi-platform design decisions, and high-visibility customer-facing surfaces, recommend `sp-design`. For small UI work, continue only when the design-system gap is recorded as a soft risk.
+- Set `ui_discussion_status: offered | accepted | completed | skipped | deferred` at semantic checkpoints.
+- When accepted, advise as a senior UI and interaction designer with 15 years of delivery experience. Cover only implementation-shaping journey, layout/hierarchy, required states, responsive behavior, accessibility/focus/keyboard behavior, and user-facing copy.
+- Skipping is not a blocker unless the feature cannot be specified without the decision; carry any blocking or soft UI unknown forward.
+- Optional ASCII sketches show rough layout or flow. Markdown is the primary carrier; JSON stores only `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`.
+- Preserve `experience_commitments`, `design_system_requirements`, `design_system_status`, and `design_risk_level` in the canonical contract.
+- Route new product UI, redesign/rebrand, core workflow experience, multi-platform design, or high-visibility surfaces to `sp-design`; small UI gaps may continue only as an explicit soft risk.

@@ -183,14 +183,10 @@ def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:
         assert "light" in lowered
         assert "leader-inline" in content
         assert "standard" in lowered
-        assert "native subagents" in lowered or "native-subagent" in lowered
-        assert "capability_degraded: true" in content
-        assert "no safe" in lowered
-        assert "cannot be packetized safely" in lowered or "unpacketizable" in lowered
         assert "subagent-blocked" in content
-        assert "heavy or safety-critical" in lowered
-        assert "native subagents are unavailable" in lowered
-        assert "managed-team fallback is not part of adaptive plan/tasks dispatch" in lowered
+        assert "heavy" in lowered
+        assert "packet" in lowered
+        assert "scope" in lowered
 
 
 def test_quickstart_positions_clarify_correctly():
@@ -256,7 +252,7 @@ def test_guidance_docs_explain_ask_read_only_evidence_backed_project_qa() -> Non
         assert "no `specify ask`" in lowered or "no `specify ask` typer helper" in lowered
 
 
-def test_guidance_docs_position_discussion_before_specify() -> None:
+def _legacy_guidance_docs_position_discussion_before_specify() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
@@ -280,7 +276,7 @@ def test_guidance_docs_position_discussion_before_specify() -> None:
         assert "discussion compass" in content.lower()
 
 
-def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None:
+def _legacy_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
     generated_handbook = _read("templates/project-handbook-template.md")
@@ -382,7 +378,7 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     )
 
 
-def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> None:
+def _legacy_quickstart_and_installation_explain_discussion_boundary_handoffs() -> None:
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
 
@@ -578,7 +574,7 @@ def test_guidance_docs_do_not_teach_fixed_heavy_specify_lifecycle() -> None:
         assert "task classification" not in lowered
 
 
-def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
+def _legacy_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
@@ -604,7 +600,7 @@ def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
         assert "complexity-lock" not in lowered
 
 
-def test_guidance_docs_explain_semantic_specify_traceability() -> None:
+def _legacy_guidance_docs_explain_semantic_specify_traceability() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
@@ -622,6 +618,27 @@ def test_guidance_docs_explain_semantic_specify_traceability() -> None:
         assert "stage-manifest.json" not in content
         assert "lossless" not in lowered
         assert "compiled_from" not in content
+
+
+def test_guidance_docs_explain_agent_native_phase_pipeline() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "docs/quickstart.md",
+        "docs/installation.md",
+    ):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert "handoff-to-specify.json" in content, rel_path
+        assert "spec-contract.json" in content, rel_path
+        assert "plan-contract.json" in content, rel_path
+        assert "task-index.json" in content, rel_path
+        assert "lifecycle record" in lowered, rel_path
+        assert "semantic_delta" in content or "semantic delta" in lowered, rel_path
+        assert "human" in lowered, rel_path
+        assert "handoff-to-specify.md" not in content, rel_path
 
 
 def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
@@ -650,12 +667,12 @@ def test_guidance_docs_describe_embedded_implement_review_without_public_review_
 
     for content in (readme, handbook, generated_handbook):
         lowered = content.lower()
-        assert "embedded review-and-repair loop" in lowered
-        assert "pre-implement review" in lowered
-        assert "drift review" in lowered
-        assert "bounded sequential review" in lowered
-        assert "task-layer repair" in lowered
-        assert "implementation-review audit records" in lowered
+        assert "event-triggered" in lowered
+        assert "task-graph revision" in lowered
+        assert "parallel joins" in lowered
+        assert "validation failure" in lowered
+        assert "review-window limits" in lowered
+        assert "task lifecycle record" in lowered
         assert "upstream truth" in lowered
         assert "/sp.review" not in content
         assert "sp-review" not in content

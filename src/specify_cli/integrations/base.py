@@ -375,12 +375,12 @@ class IntegrationBase(ABC):
             "specify": [
                 "planning-critical clarification",
                 "capability split confirmation",
-                "current-understanding confirmation before `Aligned: ready for plan`",
+                "user-owned semantic delta before planning readiness",
             ],
             "discussion": [
                 "one high-impact product or technical clarification",
                 "resume selection when multiple incomplete discussions exist",
-                "explicit handoff request and boundary confirmation before drafting `handoff-to-specify.md`",
+                "explicit handoff request and boundary confirmation before drafting agent-only `handoff-to-specify.json`",
                 "user confirmation before marking the handoff ready for `sp-specify`",
             ],
             "clarify": [
@@ -513,8 +513,9 @@ class IntegrationBase(ABC):
             "\n"
             "## Semantic Traceability Guidance\n\n"
             "- Preserve the concise `sp-specify` flow: explore project context, ask one high-impact question at a time, compare two or three approaches, write artifacts, self-review, and ask for user review.\n"
-            "- When `sp-specify` comes from `sp-discussion`, read discussion source files such as `discussion-log.md`, `requirements.md`, and `open-questions.md`, not only the handoff summary.\n"
-            "- Record inspected files in `source_files_read` and every capability-like upstream signal in `source_signal_disposition`.\n"
+            "- When `sp-specify` comes from `sp-discussion`, compile canonical `spec-contract.json` from the confirmed requirement contract and preserve its decision digest by reference.\n"
+            "- Read supporting discussion files only when a named evidence reference is stale, missing, or contradictory; record only the refs actually needed in the compact context capsule.\n"
+            "- Compute `semantic_delta`; when it is empty and deterministic review passes, do not repeat upstream questions or user confirmation.\n"
             "- Decompose semantic terms before narrowing scope and keep unconfirmed narrowing out of planning-ready state.\n"
             "- Downstream stages must reopen upstream intent explicitly instead of silently reinterpreting it.\n"
         )
@@ -534,14 +535,14 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- Before drafting or asking clarification questions, identify the scope boundary, key constraints, affected surface area, known unknowns, and safest next step.\n"
+            "- Before drafting or asking clarification questions, identify the target need, scope boundary, key constraints, acceptance proof, known unknowns, and safest next step.\n"
             "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
-            "- Run project cognition planning navigation with `project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json` first. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals, use `expansion_ref` only when coverage state or live evidence requires more map detail, and do not infer final edit scope from first-pass reads. Preserve the advanced `lexicon -> semantic_intake -> query` path with `project-cognition query --intent plan --query-plan` for explicit concept decisions or unresolved coverage.\n"
-            "- The coverage-model check should identify truth-owning surfaces, change-propagation hotspots, verification entry points, and known unknowns relevant to the request, including module ownership, reusable components/services/hooks, integration points, and neighboring workflow constraints.\n"
-            "- Read `.specify/templates/workflow-state-template.md`. Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known with `phase_mode: planning-only`. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
-            "- If the topical coverage for the touched area is missing, stale, or too broad: Run a codebase scout before clarification. Build a concise internal scout summary for the request area covering truth-owning surfaces and shared coordination surfaces, change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review, verification entry points and regression-sensitive checks, and known unknowns, stale evidence boundaries, or observability gaps.\n"
-            "- Clarify planning-critical ambiguity, decompose the request into capabilities when needed, use default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof. Write `context.md` to `CONTEXT_FILE`. Locked decisions are preserved in context.md. Provide the recommended review follow-up to `/sp.clarify` or `/sp.deep-research` when appropriate.\n"
+            "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json` intake only when a planning facet is absent or outdated; preserve `project-cognition query --intent plan --query-plan` as a precision escalation for an explicit unresolved concept.\n"
+            "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
+            "- Read `.specify/templates/workflow-state-template.md` and create or resume sparse `WORKFLOW_STATE_FILE` after `FEATURE_DIR` is known with `phase_mode: planning-only`. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
+            "- Write canonical `spec-contract.json` first. Render `spec.md`; write `alignment.md`, `context.md`, `references.md`, or diagnostics only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
+            "- Clarify only planning-critical ambiguity. Recommend `/sp.clarify` or `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
         )
         return content + addendum
@@ -615,10 +616,16 @@ class IntegrationBase(ABC):
             snapshot=snapshot,
         )
         managed_team_hint = descriptor.managed_team_hint
+        execution_model = "adaptive" if command_name == "implement" else "subagents-first"
+        local_route = (
+            "- Leader-direct route: valid for a small or tightly coupled task when it independently passes the workflow safety gate; record the selected route in the current lifecycle record.\n"
+            if command_name == "implement"
+            else "- Leader-inline fallback: record the reason before local execution.\n"
+        )
         addendum = (
             "\n"
             f"## {agent_name} {heading}\n\n"
-            "- Execution model: `subagents-first`\n"
+            f"- Execution model: `{execution_model}`\n"
             "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `subagent-blocked`\n"
             "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`\n"
             "- Delegation surface contract: preserve the native dispatch, fallback, worker result contract, and handoff path below.\n"
@@ -627,7 +634,7 @@ class IntegrationBase(ABC):
             f"- Native subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Join behavior: {descriptor.native_join_hint}\n"
             f"- Managed-team fallback: {managed_team_hint}\n"
-            "- Leader-inline fallback: record the reason before local execution.\n"
+            f"{local_route}"
             f"- Worker result contract: {descriptor.result_contract_hint}\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result handoff path: {descriptor.result_handoff_hint}\n"
@@ -657,7 +664,7 @@ class IntegrationBase(ABC):
         }[command_name]
         query_gate = self._project_cognition_query_gate_line(command_name=command_name, command_step=command_step)
         carry_forward = {
-            "implement": "- Carry forward the selected capability, minimal live reads, boundary constraints, required references, validation route, and evidence gaps into `implement-tracker.md` or the current `WorkerTaskPacket` before dispatch or code edits.\n",
+            "implement": "- Carry forward only the current task's selected capability, minimal live reads, boundary constraints, required references, validation route, and evidence gaps into its lifecycle record or just-in-time `WorkerTaskPacket`.\n",
             "debug": "- Carry forward the selected capability or symptom, evidence routes, minimal reads, competing truths, and unresolved coverage gaps into debug session state before root-cause claims.\n",
             "quick": "- Carry forward the selected capability, minimal reads, validation route, and known risk into quick-task `STATUS.md` before implementation proceeds.\n",
         }[command_name]
@@ -875,40 +882,24 @@ class IntegrationBase(ABC):
         gate_addendum = (
             "\n"
             f"## {agent_name} Leader Gate\n\n"
-            f"When running `sp-implement` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
+            f"When running `sp-implement` in {agent_name}, you are the leader and own route selection, execution-state truth, acceptance, and recovery.\n"
             "\n"
             f"{self._project_cognition_query_gate_line(command_name='implement', command_step='before any implementation actions')}\n"
             "\n"
-            "**Autonomous Blocker Recovery (Hard Rule)**:\n"
-            "- If technical blockers arise (e.g. build errors, missing toolchain components like Win32/x86, environment mismatches), you **MUST** attempt autonomous escalation to a specialist subagent (for example a build/toolchain specialist) **BEFORE** asking the user for intervention.\n"
-            "- Only stop and ask the user if the specialist lane confirms that manual human action (like physical installer execution) is the ONLY remaining path.\n"
-            "\n"
-            "Before any code edits, test edits, build commands, or implementation actions:\n"
-            "- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.\n"
-            "- Before choosing the next batch, compare `workflow-state.md` and `implement-tracker.md` so execution state does not silently disagree with planning state.\n"
+            "Before implementation actions:\n"
+            "- Read canonical `task-index.json` or the light direct task list, compact execution state, and the current task's required refs.\n"
             "- **Resume Audit**: If the tracker is `resolved`, all tasks appear checked, or the previous session exit is unknown, run `{{specify-subcmd:implement resume-audit --feature-dir \"$FEATURE_DIR\" --format json}}` before trusting completion.\n"
-            "- Treat checked tasks as claims until worker handoff, validation output, join point evidence, and consumer evidence prove them.\n"
-            "- Do not preserve `resolved` when resume audit reports `terminal-audit-required`, missing wiring, missing validation evidence, stale handoff, unresolved `open_gaps`, or planned validation that has not run.\n"
-            "- **Audit Missed Dispatches**: If you find tasks in the tracker that you performed yourself but could have been delegated, record them under a `missed_agent_dispatch` field in the tracker as a recovery debt.\n"
-            "- If `$ARGUMENTS` is non-empty, extract the important execution constraints or recovery hints from it and persist them under `## User Execution Notes` in `FEATURE_DIR/implement-tracker.md` before dispatching work.\n"
-            "- Read `tasks.md`, identify the current ready batch, and choose the `subagents-first` dispatch shape for that batch.\n"
-            "- Use subagents by default when the current batch can be delegated safely.\n"
-            "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready.\n"
-            "- Dispatch `parallel-subagents` when multiple validated packets have isolated write sets.\n"
-            "- Use the current runtime's `native-subagents` path first when `delegation_confidence` makes subagent execution safe.\n"
-            "- If delegation is unavailable, unsafe, or not packetized, use `subagent-blocked` after recording the blocker in `FEATURE_DIR/implement-tracker.md`.\n"
-            "- Before any subagent implementation work starts, compile and validate the packet for the current task or batch item.\n"
-            "- Before subagent dispatch, validate the packet contract in memory or through the runtime validator when the current runtime has written a packet file.\n"
-            "- Do **not** fall through from subagent dispatch into local self-execution just because the implementation looks feasible.\n"
-            "- If the subagent-readiness bar is not met, repair the missing context, hard rules, validation gates, or handoff requirements before dispatch. Do not dispatch an incomplete subagent lane just to satisfy a routing preference.\n"
+            "- Treat completed task markers as claims until changed paths, validation, required consumer evidence, review status, and mutation closeout prove them.\n"
+            "- Choose `leader-direct` for a small or tightly coupled ready task when delegation adds no quality or critical-path benefit and no high-risk trigger calls for an independent lane.\n"
+            "- Choose `one-subagent` for one independent bounded task and `parallel-subagents` only for validated lanes with isolated write sets and an explicit join point.\n"
+            "- Compile and validate a `WorkerTaskPacket` just in time only for delegated work; leader-direct work does not require one.\n"
+            "- If dispatch fails, record the event and re-evaluate route safety. Use leader-direct only if the task independently qualifies; otherwise repair the packet/surface or block truthfully.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
-            "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Require consumer evidence when a worker creates a reusable UI, route, provider, registry, factory, config, API, or test surface; a created but not wired file is not complete.\n"
             "- When a packet requires `real_entrypoint_evidence`, require `consumer_evidence` with `kind: real_entrypoint`, `entrypoint`, `producer`, `transformer`, `consumer`, `boundary_or_executor`, and `validation`; synthetic-only component, reducer, helper, or hand-built state evidence is not enough.\n"
-            "- Dispatch only from validated `WorkerTaskPacket`.\n"
-            "\n"
-            "**Hard rule:** The leader must not edit implementation files directly while subagent execution is active.\n"
+            "- The leader must not edit a delegated lane's write scope while that subagent is active.\n"
+            "- On technical blockers, attempt the smallest safe autonomous recovery or specialist lane before asking for manual intervention.\n"
         )
 
         if "## Outline" in content:
@@ -2590,7 +2581,7 @@ class SkillsIntegration(IntegrationBase):
         implement_skill: Path,
         snapshot: CapabilitySnapshot | None = None,
     ) -> None:
-        """Inject Leader Gate and subagents-first guidance into the implement skill."""
+        """Inject the adaptive leader/worker routing contract into the implement skill."""
         if not self._can_augment_generated_file(implement_skill, project_root):
             return
 
@@ -2609,38 +2600,27 @@ class SkillsIntegration(IntegrationBase):
             agent_name=agent_name,
         )
 
-        marker = f"## {agent_name} Subagents-First Execution"
+        marker = f"## {agent_name} Adaptive Execution"
         if marker not in content:
             addendum = (
                 "\n"
-                f"## {agent_name} Subagents-First Execution\n\n"
-                f"When running `sp-implement` in {agent_name}, use the `subagents-first` dispatch model.\n"
+                f"## {agent_name} Adaptive Execution\n\n"
+                f"When running `sp-implement` in {agent_name}, choose the lightest safe route for the current ready task.\n"
                 "\n"
-                "**Standard Dispatch Scenarios**:\n"
-                "1. **One Ready Lane**: If one validated `WorkerTaskPacket` is ready -> dispatch `one-subagent` on `native-subagents`.\n"
-                "2. **Parallel Creation**: If multiple packetized lanes have isolated write sets -> dispatch `parallel-subagents` on `native-subagents`.\n"
-                "3. **Durable Team State**: If durable coordination is required beyond one in-session wave -> use `managed-team`.\n"
-                "4. **Fallback**: If delegation is unavailable, unsafe, or not packetized -> record `subagent-blocked` and stop instead of executing on `leader-inline`.\n"
-                "5. **Build/Compile Failures**: If commands return non-zero exit codes -> dispatch `cpp-build-resolver` or specialist agent.\n"
-                "6. **Testing Tasks**: If paths involve `tests/` or `*_test.*` -> dispatch `tdd-guide` or build specialist.\n"
-                "7. **Cross-module Dependency**: If task affects >2 different directories -> dispatch one subagent per module when packet context is ready.\n"
+                "**Route Scenarios**:\n"
+                "1. **Leader-direct**: one small or tightly coupled task, no useful parallel lane, bounded write scope, and no high-risk review trigger.\n"
+                "2. **One delegated lane**: one independent bounded task whose specialist focus or context isolation materially improves quality. Compile one packet just in time, then use `one-subagent`.\n"
+                "3. **Parallel delegated lanes**: multiple ready tasks with exact isolated write sets and a defined join validation. Compile only the selected packets, then use `parallel-subagents`.\n"
+                "4. **Durable team state**: use `managed-team` only when coordination must outlive one in-session wave.\n"
+                "5. **Blocked**: if the selected safe route is unavailable and leader-direct is not independently safe, record the blocker and recovery instead of forcing execution.\n"
                 "\n"
-                "For each ready parallel batch:\n"
-                "- The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.\n"
-                f"- Keep the shared workload-safety checks, and for {agent_name} `sp-implement` use `execution_surface: native-subagents` whenever `snapshot.native_subagents` is true.\n"
+                "For delegated waves:\n"
+                f"- Use {agent_name}'s `native-subagents` lifecycle when available.\n"
                 "- Fixed runtime budget: `max_parallel_subagents = 4`.\n"
-                "- Use execution slots `implement-slot-1` through `implement-slot-4` for current-wave bookkeeping.\n"
-                f"- Use `spawn_agent` to dispatch disjoint subagents for the current selected wave of at most four validated isolated lanes, `wait_agent` to join them, and `close_agent` after integrating results.\n"
-                "- When `parallel-subagents` is selected, launch all selected lanes in the current `parallel-subagents` wave before waiting.\n"
-                "- Wait only at the current wave join point after the full wave has been launched.\n"
-                "- Do not assign the whole ready parallel batch to one implementer subagent.\n"
-                "- Use subagent execution only when the lane already has a validated `WorkerTaskPacket` with all required fields.\n"
-                f"- Decision order for {agent_name} `sp-implement` must stay fixed: safe packetized subagents -> `managed-team` only when durable team state is required -> `subagent-blocked` with reason.\n"
-                "- If subagent dispatch is unavailable or the packet is incomplete for the current selected wave or ready batch context, use `subagent-blocked`, record the blocker, and preserve the same join-point discipline.\n"
-                "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
-                "- The leader dispatches subagents rather than executing the implementation itself when the batch is ready for subagent work.\n"
-                "- Once one safe lane clears the subagent-readiness bar, do **not** ask the user whether it should switch to subagent execution; dispatch the subagent by default, and if native dispatch concretely fails, report that runtime event in the response and stop without writing a durable fallback decision to `implement-tracker.md`.\n"
-                "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
+                f"- Use `spawn_agent` for at most four validated isolated lanes, `wait_agent` at the explicit join, and `close_agent` after results are integrated.\n"
+                "- Launch the selected parallel wave before waiting; never merge lanes with overlapping writes merely to fill capacity.\n"
+                "- Re-check route safety after drift, dispatch failure, and every join. Run event-triggered review when the recorded review triggers fire.\n"
+                "- Continue automatically from the smallest ready task until the confirmed scope is complete or genuinely blocked.\n"
             )
             content += addendum
 
@@ -2934,10 +2914,10 @@ class SkillsIntegration(IntegrationBase):
             f"`{canonical_command}` remains the canonical implementation workflow. "
             f"`{teams_command}` is the same execution contract with the concrete team-managed work pinned to {backend_label}.\n\n"
             f"When you use `{teams_command}`, keep the same leader-owned execution semantics that `{canonical_command}` requires:\n\n"
-            "1. keep `FEATURE_DIR/implement-tracker.md` as the execution-state source of truth\n"
-            "2. compile and validate a `WorkerTaskPacket` before assigning each team-managed execution task\n"
+            "1. keep canonical task status, compact execution state, and one lifecycle record per executed task aligned\n"
+            "2. compile and validate a `WorkerTaskPacket` just in time before assigning each team-managed execution task\n"
             "3. for implementation-oriented teams flows, preserve the user-visible fields `execution_model`, `dispatch_shape`, and `execution_surface`\n"
-            "4. preserve explicit join point behavior, blocker reporting, retry-pending state, and completion checks\n"
+            "4. preserve explicit join behavior, blocker/recovery reporting, event-triggered review, and completion checks\n"
             "5. preserve the team result contract and canonical result file handoff path\n"
             "6. preserve final-completion truthfulness: do not describe `core implementation complete`, `implementation complete`, or `ready for integration testing` as overall feature completion while required E2E, Polish, documentation, quickstart, or validation work remains\n\n"
             "Every team-managed task in the teams-backed flow must still behave like an explicit execution packet, not a chat-only summary. Preserve these fields whenever the backend exposes task records, mailbox messages, or equivalent runtime-managed assignments:\n\n"
@@ -2949,7 +2929,7 @@ class SkillsIntegration(IntegrationBase):
             "6. completion-handoff protocol covering start, blocker, and final completion evidence\n"
             "7. platform guardrails such as supported platforms, conditional compilation requirements, or other environment-sensitive constraints\n\n"
             f"Before {backend_label} starts concrete work, ensure the current ready batch is prepared the same way `{canonical_command}` would prepare it:\n\n"
-            "1. the current batch is recorded in `implement-tracker.md`\n"
+            "1. the current batch is recorded in canonical task and compact execution state\n"
             "2. each team-managed task has a validated `WorkerTaskPacket`\n"
             "3. join point expectations and result handoff expectations are explicit\n"
             "4. the team-managed lane cannot be treated as complete from a status flip alone; the leader still needs the promised completion handoff or result evidence\n\n"

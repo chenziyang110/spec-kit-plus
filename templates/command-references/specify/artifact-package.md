@@ -1,39 +1,23 @@
-Trigger: when writing or refreshing the planning-ready specification package.
+Trigger: when writing or refreshing planning-ready specification outputs.
 
-Purpose: preserve artifact package content, compatibility handoff fields, extension hooks, and generated output expectations.
+Purpose: keep one agent authority while retaining project-facing documents only when they provide independent review value.
 
-Preserved Contract: spec.md, alignment.md, context.md, references.md, workflow-state.md, requirements checklist, and compatibility handoff fields stay intact.
+Preserved Contract: confirmed scope, acceptance proof, decisions, evidence, fidelity, and consequence obligations remain planning-ready and traceable.
 
 ## Artifact Writing Contract
 
-Write the specification package after context intake, necessary clarification, semantic decomposition, approach comparison, and section approval.
+Write `spec-contract.json` first from `templates/spec-contract-template.json`.
 
-- `spec.md` must capture the product requirement in planning-ready form with confirmed scope, scenarios, capability decomposition, requirements, acceptance proof, decision capture, and risks.
-- `alignment.md` must capture current understanding, confirmed facts, assumptions, open questions, `Semantic Term Decisions`, `Upstream Intent Disposition`, `Out-Of-Scope Conflicts`, must-preserve coverage, and readiness decision.
-- `context.md` must capture planning context, repository context, reuse notes, integration boundaries, product constraints, change propagation, locked decisions, canonical references, open questions, and deferred ideas.
-- When the source is `sp-discussion`, `spec.md`, `alignment.md`, and `context.md` must preserve the `Discussion Decision Digest`: selected direction, rejected alternatives, accepted tradeoffs, experience commitments, review criteria carried forward, and must-not-dilute constraints.
-- `references.md` is optional and should be written when external docs, repository examples, issue links, discussion artifacts, or user-provided references materially shaped the spec.
-- `workflow-state.md` must record current stage, review state, source-file sweep status, source-signal disposition status, final handoff decision, and next command.
-- `checklists/requirements.md` must exist for first-release compatibility and must validate the written spec, not resurrect legacy state machinery.
-- `brainstorming/handoff-to-specify.json` must exist as a minimal compatibility handoff for downstream commands. It must include:
-  - `version`
-  - `status`
-  - `entry_source`
-  - `discussion_slug`
-  - `source_handoff`
-  - `source_handoff_json`
-  - `review_digest`
-  - `source_files_read`
-  - `source_signal_disposition`
-  - `discussion_decision_digest`
-  - `must_preserve`
-  - `coverage_status`
-  - `planning_gate_status`
-  - `hard_unknown_count`
-  - `open_conflict_count`
-  - `quality_gate`
-- Preserve fidelity requirements and reference behavior inventory when the feature is reference-sensitive or rewrite-style.
-- Preserve Senior Consequence Analysis Gate outputs as `CA-###` obligations when triggered: affected object map, state-behavior matrix, dependency impact table, recovery and validation contract, coverage gaps, lifecycle operations, running state behavior, destructive operations, shared state, downstream consumers, and stand-down reason.
+- Store target need, in/out/deferred scope, constraints, objective acceptance criteria, locked decisions, `semantic_delta`, protected obligation refs, context capsule, unresolved items, artifact refs, and the agent phase transition.
+- Render `spec.md` from the contract as the primary project-facing specification.
+- Write `alignment.md` only when semantic mapping, upstream disposition, conflict, deferral, fidelity, or readiness analysis has content that maintainers need to review independently.
+- Write `context.md` only when repository placement, reuse, integration, propagation, or boundary evidence cannot be represented adequately by stable refs in the context capsule.
+- Write `references.md` only when external or retained references materially shape behavior or proof.
+- Produce requirements diagnostics from deterministic validation; persist `checklists/requirements.md` only when compatibility or human review requires it.
+- Keep `workflow-state.md` as sparse resume state, not a copy of specification truth.
+- When compatibility requires `brainstorming/handoff-to-specify.json`, make it a pointer-only agent transition: `source_contract`, `review_digest`, `semantic_delta`, required refs, blockers, and next action.
+
+Preserve reference fidelity and `CA-###`/`MP-*` obligations by stable ref. Copy a full obligation body only when the next phase cannot safely act from the reference.
 
 ## Extension Hooks
 

@@ -19,7 +19,7 @@ from typing import Any
 
 
 STATE_VERSION = 2
-HANDOFF_VERSION = 3
+HANDOFF_VERSION = 4
 TERMINAL_STATUSES = {"completed", "abandoned"}
 INCOMPLETE_STATUSES = {"active", "blocked", "handoff-ready"}
 LIFECYCLE_PHASES = {
@@ -160,8 +160,7 @@ def _new_state(slug: str, topic: str) -> dict[str, Any]:
             "review_status": "not-started",
             "quality_gate_status": "draft",
             "review_digest": None,
-            "markdown_path": None,
-            "json_path": None,
+            "contract_path": None,
             "recommended_consumer": "continue-discussion",
         },
         "consumption": {
@@ -209,11 +208,10 @@ def _legacy_state(workspace: Path, text: str) -> dict[str, Any]:
     state["handoff"]["quality_gate_status"] = (
         fields.get("quality_gate_status") or "draft"
     )
-    state["handoff"]["markdown_path"] = _none_if_placeholder(
-        fields.get("handoff_to_specify")
-    )
-    state["handoff"]["json_path"] = _none_if_placeholder(
-        fields.get("handoff_to_specify_json")
+    state["handoff"]["contract_path"] = _none_if_placeholder(
+        fields.get("handoff_contract")
+        or fields.get("handoff_to_specify_json")
+        or fields.get("handoff_to_specify")
     )
     state["consumption"]["status"] = (
         fields.get("handoff_consumption_status") or "not_consumed"
@@ -287,8 +285,7 @@ def _render_state_markdown(state: dict[str, Any]) -> str:
         f"- handoff_review_status: {handoff['review_status']}",
         f"- quality_gate_status: {handoff['quality_gate_status']}",
         f"- handoff_review_digest: {handoff['review_digest'] or 'none'}",
-        f"- handoff_to_specify: {handoff['markdown_path'] or 'none'}",
-        f"- handoff_to_specify_json: {handoff['json_path'] or 'none'}",
+        f"- handoff_contract: {handoff['contract_path'] or 'none'}",
         f"- recommended_consumer: {handoff['recommended_consumer']}",
         "",
         "## Consumption",
@@ -310,6 +307,11 @@ def _load_state(workspace: Path) -> tuple[dict[str, Any], bool]:
         payload = json.loads(json_path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"invalid discussion state: {json_path}")
+        handoff = payload.get("handoff")
+        if isinstance(handoff, dict) and "contract_path" not in handoff:
+            handoff["contract_path"] = handoff.get("json_path") or handoff.get(
+                "markdown_path"
+            )
         return payload, False
     markdown_path = workspace / "discussion-state.md"
     if not markdown_path.is_file():
@@ -579,141 +581,6 @@ def compute_review_digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _markdown_bullets(values: Any, empty: str = "None.") -> list[str]:
-    if not isinstance(values, list) or not values:
-        return [f"- {empty}"]
-    rendered: list[str] = []
-    for value in values:
-        if isinstance(value, dict):
-            label = (
-                value.get("id") or value.get("claim") or value.get("source") or "item"
-            )
-            detail = (
-                value.get("claim") or value.get("reason") or value.get("status") or ""
-            )
-            rendered.append(
-                f"- **{label}**: {detail}"
-                if detail and detail != label
-                else f"- {label}"
-            )
-        else:
-            rendered.append(f"- {value}")
-    return rendered
-
-
-def render_handoff_markdown(payload: dict[str, Any]) -> str:
-    contract = (
-        payload.get("agent_requirement_contract")
-        if isinstance(payload.get("agent_requirement_contract"), dict)
-        else {}
-    )
-    scope = contract.get("scope") if isinstance(contract.get("scope"), dict) else {}
-    guide = (
-        payload.get("handoff_reviewer_guide")
-        if isinstance(payload.get("handoff_reviewer_guide"), dict)
-        else {}
-    )
-    boundary = (
-        payload.get("context_boundary")
-        if isinstance(payload.get("context_boundary"), dict)
-        else {}
-    )
-    instructions = (
-        payload.get("downstream_instructions")
-        if isinstance(payload.get("downstream_instructions"), dict)
-        else {}
-    )
-    digest = payload.get("review_digest") or "not-computed"
-    lines = [
-        f"# Requirement Handoff: {payload.get('handoff_goal') or 'Unspecified goal'}",
-        "",
-        "This package captures the product and technical direction approved for downstream work.",
-        "",
-        f"- discussion_slug: {payload.get('discussion_slug') or 'unknown'}",
-        f"- review_digest: {digest}",
-        f"- recommended_consumer: {payload.get('recommended_consumer') or 'continue-discussion'}",
-        "",
-        "## What this handoff must achieve",
-        "",
-        str(
-            contract.get("target_need")
-            or payload.get("handoff_goal")
-            or "Target need is not defined."
-        ),
-        "",
-        "## Success criteria",
-        "",
-        *_markdown_bullets(contract.get("success_criteria")),
-        "",
-        "## Constraints and scope",
-        "",
-        "### Constraints",
-        "",
-        *_markdown_bullets(contract.get("constraints")),
-        "",
-        "### In scope",
-        "",
-        *_markdown_bullets(scope.get("in")),
-        "",
-        "### Out of scope",
-        "",
-        *_markdown_bullets(scope.get("out")),
-        "",
-        "### Deferred",
-        "",
-        *_markdown_bullets(scope.get("deferred")),
-        "",
-        "## Selected direction",
-        "",
-        *_markdown_bullets(contract.get("design_direction")),
-        "",
-        "## Optimal solution approach",
-        "",
-        *_markdown_bullets(contract.get("optimal_solution_approach")),
-        "",
-        "## Context boundary",
-        "",
-        f"- status: {boundary.get('status') or 'unknown'}",
-        f"- current_project_root: {boundary.get('current_project_root') or 'none'}",
-        f"- target_project_root: {boundary.get('target_project_root') or 'none'}",
-        "- evidence authority: live evidence and explicit user confirmation",
-        "",
-        "## Source evidence",
-        "",
-        *_markdown_bullets(payload.get("source_evidence")),
-        "",
-        "## Blocking unknowns",
-        "",
-        *_markdown_bullets(payload.get("blocking_unknowns")),
-        "",
-        "## Planning constraints",
-        "",
-        *_markdown_bullets(instructions.get("planning_constraints")),
-        "",
-        "## Must-Preserve Ledger",
-        "",
-        *_markdown_bullets(payload.get("must_preserve")),
-        "",
-        "## Handoff Reviewer Guide",
-        "",
-        str(
-            guide.get("decision")
-            or "Confirm that the handoff matches the intended direction."
-        ),
-        "",
-        "Review in this order:",
-        *_markdown_bullets(guide.get("review_order")),
-        "",
-        "Approve when:",
-        *_markdown_bullets(guide.get("approve_if")),
-        "",
-        "Request changes when:",
-        *_markdown_bullets(guide.get("request_changes_if")),
-        "",
-    ]
-    return "\n".join(lines)
-
-
 def write_handoff(
     project_root: Path, slug: str, handoff_payload: dict[str, Any]
 ) -> dict[str, Any]:
@@ -728,8 +595,7 @@ def write_handoff(
             "handoff_kind": "discussion_requirement_contract",
             "entry_source": "sp-discussion",
             "discussion_slug": slug,
-            "source_handoff": f".specify/discussions/{slug}/handoff-to-specify.md",
-            "source_handoff_json": f".specify/discussions/{slug}/handoff-to-specify.json",
+            "source_contract": f".specify/discussions/{slug}/handoff-to-specify.json",
         }
     )
     review_digest = compute_review_digest(payload)
@@ -741,9 +607,7 @@ def write_handoff(
     }:
         quality_gate["confirmed_digest"] = review_digest
     json_path = workspace / "handoff-to-specify.json"
-    markdown_path = workspace / "handoff-to-specify.md"
     _atomic_write_json(json_path, payload)
-    _atomic_write_text(markdown_path, render_handoff_markdown(payload))
     timestamp = now_utc()
     state.update(
         {"status": "active", "lifecycle_phase": "review", "updated_at": timestamp}
@@ -766,8 +630,7 @@ def write_handoff(
             if isinstance(quality_gate, dict)
             else "draft",
             "review_digest": review_digest,
-            "markdown_path": payload["source_handoff"],
-            "json_path": payload["source_handoff_json"],
+            "contract_path": payload["source_contract"],
             "recommended_consumer": payload.get(
                 "recommended_consumer", "continue-discussion"
             ),
@@ -778,7 +641,6 @@ def write_handoff(
     return {
         "discussion": {**_record(workspace, state, False), **copy.deepcopy(state)},
         "review_digest": review_digest,
-        "markdown_path": str(markdown_path.resolve()),
         "json_path": str(json_path.resolve()),
     }
 
@@ -812,24 +674,16 @@ def _error(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
 
 
-def _handoff_paths(project_root: Path, slug: str) -> tuple[Path, Path, Path]:
+def _handoff_paths(project_root: Path, slug: str) -> tuple[Path, Path]:
     workspace, archived = _find_workspace(project_root, slug, include_archived=False)
     if archived:
         raise ValueError("archived discussion has no active handoff")
-    return (
-        workspace,
-        workspace / "handoff-to-specify.md",
-        workspace / "handoff-to-specify.json",
-    )
+    return workspace, workspace / "handoff-to-specify.json"
 
 
 def validate_handoff(project_root: Path, slug: str) -> dict[str, Any]:
-    workspace, markdown_path, json_path = _handoff_paths(project_root, slug)
+    workspace, json_path = _handoff_paths(project_root, slug)
     errors: list[dict[str, str]] = []
-    if not markdown_path.is_file():
-        errors.append(
-            _error("missing_handoff_markdown", "handoff Markdown is required")
-        )
     if not json_path.is_file():
         errors.append(_error("missing_handoff_json", "handoff JSON is required"))
     if errors:
@@ -844,15 +698,12 @@ def validate_handoff(project_root: Path, slug: str) -> dict[str, Any]:
             _error("invalid_handoff_payload", "handoff JSON must be an object")
         )
         return _validation_payload(workspace, errors, None)
-    _validate_handoff_fields(
-        payload, markdown_path.read_text(encoding="utf-8"), slug, errors
-    )
+    _validate_handoff_fields(payload, slug, errors)
     return _validation_payload(workspace, errors, payload)
 
 
 def _validate_handoff_fields(
     payload: dict[str, Any],
-    markdown: str,
     slug: str,
     errors: list[dict[str, str]],
 ) -> None:
@@ -861,6 +712,7 @@ def _validate_handoff_fields(
         "handoff_kind": "discussion_requirement_contract",
         "entry_source": "sp-discussion",
         "discussion_slug": slug,
+        "source_contract": f".specify/discussions/{slug}/handoff-to-specify.json",
         "coverage_status": "complete",
         "planning_gate_status": "ready",
         "hard_unknown_count": 0,
@@ -892,15 +744,7 @@ def _validate_handoff_fields(
             _error("legacy_recommended_sequence", "recommended_sequence is not allowed")
         )
     _validate_consumers(payload, errors)
-    _validate_review_digest(payload, markdown, errors)
-    if "Handoff Reviewer Guide" not in markdown:
-        errors.append(
-            _error("missing_reviewer_guide", "Handoff Reviewer Guide is required")
-        )
-    if "Must-Preserve Ledger" not in markdown:
-        errors.append(
-            _error("missing_markdown_ledger", "Must-Preserve Ledger is required")
-        )
+    _validate_review_digest(payload, errors)
 
 
 def _validate_boundary(boundary: Any, errors: list[dict[str, str]]) -> None:
@@ -951,7 +795,6 @@ def _validate_consumers(payload: dict[str, Any], errors: list[dict[str, str]]) -
 
 def _validate_review_digest(
     payload: dict[str, Any],
-    markdown: str,
     errors: list[dict[str, str]],
 ) -> None:
     review_digest = str(payload.get("review_digest") or "")
@@ -991,13 +834,6 @@ def _validate_review_digest(
                 "confirmation does not match review_digest",
             )
         )
-    if review_digest and review_digest not in markdown:
-        errors.append(
-            _error(
-                "markdown_review_digest_mismatch",
-                "Markdown does not carry the reviewed digest",
-            )
-        )
 
 
 def _validation_payload(
@@ -1019,7 +855,7 @@ def mark_ready(project_root: Path, slug: str) -> dict[str, Any]:
     if not validation["valid"]:
         codes = ", ".join(validation["error_codes"])
         raise ValueError(f"discussion handoff is not ready: {codes}")
-    workspace, _markdown_path, json_path = _handoff_paths(project_root, slug)
+    workspace, json_path = _handoff_paths(project_root, slug)
     state, _legacy = _load_state(workspace)
     handoff = json.loads(json_path.read_text(encoding="utf-8"))
     handoff["status"] = "handoff-ready"
@@ -1041,8 +877,7 @@ def mark_ready(project_root: Path, slug: str) -> dict[str, Any]:
         "review_status": "user-confirmed",
         "quality_gate_status": "user_confirmed",
         "review_digest": validation["review_digest"],
-        "markdown_path": f".specify/discussions/{slug}/handoff-to-specify.md",
-        "json_path": f".specify/discussions/{slug}/handoff-to-specify.json",
+        "contract_path": f".specify/discussions/{slug}/handoff-to-specify.json",
         "recommended_consumer": handoff["recommended_consumer"],
     }
     state["next_command"] = handoff["recommended_consumer"]
@@ -1087,8 +922,7 @@ def _validate_consumer_evidence(
     review_digest: str,
     evidence_path: Path,
 ) -> None:
-    expected_markdown = f".specify/discussions/{slug}/handoff-to-specify.md"
-    expected_json = f".specify/discussions/{slug}/handoff-to-specify.json"
+    expected_contract = f".specify/discussions/{slug}/handoff-to-specify.json"
     if evidence_path.suffix.lower() == ".md":
         text = evidence_path.read_text(encoding="utf-8")
         scalar_fields = {
@@ -1105,12 +939,9 @@ def _validate_consumer_evidence(
             raise ValueError(
                 "consumer evidence does not reference the reviewed discussion"
             )
-        if (
-            scalar_fields.get("source_handoff_md") != expected_markdown
-            or scalar_fields.get("source_handoff_json") != expected_json
-        ):
+        if scalar_fields.get("source_contract") != expected_contract:
             raise ValueError(
-                "consumer evidence does not bind the source handoff paths"
+                "consumer evidence does not bind the source contract"
             )
         return
     try:
@@ -1121,8 +952,7 @@ def _validate_consumer_evidence(
         raise ValueError("consumer evidence must be an object")
     expected = {
         "discussion_slug": slug,
-        "source_handoff": expected_markdown,
-        "source_handoff_json": expected_json,
+        "source_contract": expected_contract,
         "review_digest": review_digest,
     }
     mismatched = [

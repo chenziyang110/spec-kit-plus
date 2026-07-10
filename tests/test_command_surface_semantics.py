@@ -78,12 +78,13 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
 
     assert "## Invocation Syntax" in content
     assert "`$sp-plan`-style syntax" in content
-    assert "final-handoff-decision" in content
+    assert "semantic_delta" in content
+    assert "spec-contract.json" in content
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
-    assert "readiness for the next phase (`$sp-plan` for the mainline" in content
-    assert "`next_command: /sp.plan`" in content
+    assert "Choose exactly one next command" in content
+    assert "`next_action`" in content or "next_action" in content
 
     passive = read_template("templates/passive-skills/python-testing/SKILL.md")
     assert "## Invocation Syntax" not in passive

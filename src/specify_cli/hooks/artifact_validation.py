@@ -18,11 +18,9 @@ from .types import HookResult, QualityHookError
 FILE_REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
     "specify": (
+        "spec-contract.json",
         "spec.md",
-        "alignment.md",
-        "context.md",
         "workflow-state.md",
-        "brainstorming/handoff-to-specify.json",
     ),
     "clarify": (
         "spec.md",
@@ -36,19 +34,11 @@ FILE_REQUIRED_ARTIFACTS = {
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": (
         "plan.md",
-        "research.md",
-        "quickstart.md",
         "workflow-state.md",
-        "planning/evidence-index.json",
-        "planning/checkpoints.ndjson",
     ),
     "tasks": (
         "tasks.md",
         "workflow-state.md",
-        "handoff-to-tasks.json",
-        "task-index.json",
-        "task-generation/evidence-index.json",
-        "task-generation/checkpoints.ndjson",
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
@@ -105,8 +95,8 @@ FILE_REQUIRED_ARTIFACTS = {
 DIRECTORY_REQUIRED_ARTIFACTS = {
     "specify": (),
     "clarify": ("clarification/handoffs",),
-    "plan": ("planning/handoffs",),
-    "tasks": ("task-packets", "task-generation/handoffs"),
+    "plan": (),
+    "tasks": (),
     "map-scan": ("evidence",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
@@ -128,11 +118,9 @@ SPECIFY_LOSSLESS_REQUIRED_ARTIFACTS = frozenset(
 REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
     "specify": (
+        "spec-contract.json",
         "spec.md",
-        "alignment.md",
-        "context.md",
         "workflow-state.md",
-        "brainstorming/handoff-to-specify.json",
     ),
     "clarify": (
         "spec.md",
@@ -147,22 +135,11 @@ REQUIRED_ARTIFACTS = {
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": (
         "plan.md",
-        "research.md",
-        "quickstart.md",
         "workflow-state.md",
-        "planning/evidence-index.json",
-        "planning/checkpoints.ndjson",
-        "planning/handoffs",
     ),
     "tasks": (
         "tasks.md",
         "workflow-state.md",
-        "handoff-to-tasks.json",
-        "task-index.json",
-        "task-generation/evidence-index.json",
-        "task-generation/checkpoints.ndjson",
-        "task-packets",
-        "task-generation/handoffs",
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
@@ -660,8 +637,63 @@ def _validate_accepted_ledger_artifact_reference(
     return []
 
 
+def _validate_task_lifecycle_records(
+    feature_dir: Path,
+    task_ids: list[str],
+) -> list[str]:
+    errors: list[str] = []
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    for task_id in task_ids:
+        relative = f"implementation-review/tasks/{task_id}.json"
+        payload, read_errors = _read_json_artifact(
+            lifecycle_dir / f"{task_id}.json", relative
+        )
+        if read_errors:
+            errors.extend(read_errors)
+            continue
+        if not isinstance(payload, dict):
+            errors.append(f"{relative} must contain a top-level object")
+            continue
+        if str(payload.get("task_id") or "").upper() != task_id:
+            errors.append(f"{relative} has mismatched task_id")
+        if payload.get("status") != "accepted":
+            errors.append(f"{relative} status must be accepted")
+        if not isinstance(payload.get("changed_paths"), list):
+            errors.append(f"{relative} changed_paths must be a list")
+        validation = payload.get("validation")
+        if not isinstance(validation, list) or not validation:
+            errors.append(f"{relative} validation must be a non-empty list")
+        if not isinstance(payload.get("blockers"), list):
+            errors.append(f"{relative} blockers must be a list")
+        review = payload.get("review")
+        if review is not None and (
+            not isinstance(review, dict)
+            or not str(review.get("trigger") or "").strip()
+            or not str(review.get("verdict") or "").strip()
+        ):
+            errors.append(f"{relative} review must contain trigger and verdict when present")
+    return errors
+
+
+def _uses_agent_native_task_lifecycle(feature_dir: Path) -> bool:
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.is_file():
+        return False
+    try:
+        payload = json.loads(task_index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return True
+    return isinstance(payload, dict) and payload.get("version") == 2
+
+
 def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[str]:
     checked_task_id_set = set(_checked_implement_task_ids(feature_dir))
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    if lifecycle_dir.is_dir() or _uses_agent_native_task_lifecycle(feature_dir):
+        return _validate_task_lifecycle_records(
+            feature_dir, sorted(checked_task_id_set)
+        )
+
     packet_task_id_list, packet_errors = _packetized_task_ids(feature_dir)
     packet_task_ids = set(packet_task_id_list)
     checked_task_ids = sorted(checked_task_id_set & packet_task_ids)
@@ -943,6 +975,17 @@ def _derived_hard_unknown_count(payload: dict[str, Any]) -> int:
 def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
     errors = _validate_unknown_objects(payload, label)
     if not isinstance(payload, dict):
+        return errors
+
+    source_contract = str(payload.get("source_contract") or "").strip()
+    if source_contract:
+        if not str(payload.get("review_digest") or "").strip():
+            errors.append(f"{label} review_digest is required")
+        for field in ("semantic_delta", "required_refs", "blockers"):
+            if not isinstance(payload.get(field), list):
+                errors.append(f"{label} {field} must be a list")
+        if not str(payload.get("next_action") or "").strip():
+            errors.append(f"{label} next_action is required")
         return errors
 
     stage = str(payload.get("stage") or "").strip()
@@ -2250,8 +2293,94 @@ def _is_legacy_specify_package(feature_dir: Path, workflow_state_content: str) -
     )
 
 
+def _validate_agent_transition(payload: Any, label: str) -> list[str]:
+    if not isinstance(payload, dict):
+        return [f"{label} must be an object"]
+    errors: list[str] = []
+    required = (
+        "version",
+        "status",
+        "source_ref",
+        "semantic_delta",
+        "required_refs",
+        "blockers",
+        "next_action",
+    )
+    for field in required:
+        if field not in payload:
+            errors.append(f"{label} missing {field}")
+    if payload.get("version") != 1:
+        errors.append(f"{label} version must be 1")
+    if payload.get("status") not in {"ready", "blocked"}:
+        errors.append(f"{label} status must be ready or blocked")
+    for field in ("semantic_delta", "required_refs", "blockers"):
+        if field in payload and not isinstance(payload.get(field), list):
+            errors.append(f"{label} {field} must be a list")
+    return errors
+
+
+def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
+    path = feature_dir / "spec-contract.json"
+    payload, errors = _read_json_artifact(path, "spec-contract.json")
+    if errors:
+        return errors
+    if not isinstance(payload, dict):
+        return ["spec-contract.json must contain a top-level object"]
+
+    required = (
+        "version",
+        "status",
+        "target_need",
+        "scope",
+        "constraints",
+        "acceptance_criteria",
+        "decisions",
+        "semantic_delta",
+        "must_preserve_refs",
+        "consequence_obligation_refs",
+        "context_capsule",
+        "open_items",
+        "artifact_refs",
+        "transition",
+    )
+    for field in required:
+        if field not in payload:
+            errors.append(f"spec-contract.json missing {field}")
+    if payload.get("version") != 1:
+        errors.append("spec-contract.json version must be 1")
+    if payload.get("status") != "planning-ready":
+        errors.append("spec-contract.json status must be planning-ready")
+    if not str(payload.get("target_need") or "").strip():
+        errors.append("spec-contract.json target_need must not be empty")
+    scope = payload.get("scope")
+    if not isinstance(scope, dict) or not isinstance(scope.get("in"), list):
+        errors.append("spec-contract.json scope.in must be a list")
+    acceptance = payload.get("acceptance_criteria")
+    if not isinstance(acceptance, list) or not acceptance:
+        errors.append("spec-contract.json acceptance_criteria must be a non-empty list")
+    context_capsule = payload.get("context_capsule")
+    if not isinstance(context_capsule, dict):
+        errors.append("spec-contract.json context_capsule must be an object")
+    errors.extend(_validate_agent_transition(payload.get("transition"), "spec-contract.json transition"))
+
+    artifact_refs = payload.get("artifact_refs")
+    if isinstance(artifact_refs, dict):
+        for name, relative_path in artifact_refs.items():
+            if relative_path is None:
+                continue
+            if not isinstance(relative_path, str) or not relative_path.strip():
+                errors.append(f"spec-contract.json artifact_refs.{name} must be a path or null")
+            elif not (feature_dir / relative_path).is_file():
+                errors.append(f"spec-contract.json artifact_refs.{name} is missing: {relative_path}")
+    else:
+        errors.append("spec-contract.json artifact_refs must be an object")
+    return errors
+
+
 def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_state: bool = True) -> list[str]:
     errors: list[str] = []
+    if (feature_dir / "spec-contract.json").is_file():
+        return _validate_spec_contract_artifacts(feature_dir)
     alignment_path = feature_dir / "alignment.md"
     context_path = feature_dir / "context.md"
     workflow_state_path = feature_dir / "workflow-state.md"
@@ -2409,7 +2538,18 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
             data={"feature_dir": str(feature_dir)},
         )
 
-    missing = [name for name in REQUIRED_ARTIFACTS[command_name] if not (feature_dir / name).exists()]
+    required_artifacts = REQUIRED_ARTIFACTS[command_name]
+    if command_name == "specify" and not (feature_dir / "spec-contract.json").exists():
+        legacy_specify_artifacts = (
+            "spec.md",
+            "alignment.md",
+            "context.md",
+            "workflow-state.md",
+            "brainstorming/handoff-to-specify.json",
+        )
+        if all((feature_dir / name).exists() for name in legacy_specify_artifacts):
+            required_artifacts = legacy_specify_artifacts
+    missing = [name for name in required_artifacts if not (feature_dir / name).exists()]
     type_errors: list[str] = []
     if command_name == "plan":
         contract_paths = _consequence_contract_paths(feature_dir)

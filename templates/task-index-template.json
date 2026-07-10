@@ -1,56 +1,30 @@
 {
-  "version": 1,
-  "status": "pending",
+  "version": 2,
+  "status": "draft",
+  "source_contract": "plan-contract.json",
+  "source_revision": null,
+  "semantic_delta": [],
   "confirmed_delivery_scope": [],
-  "complete_first_scope_preservation": {
-    "default": "plan_and_task_complete_confirmed_scope",
-    "scope_reduction_allowed": false,
-    "complexity_response": "decompose_order_validate_refine_without_shrinking",
-    "phase_policy": "execution_order_not_delivery_deferral",
-    "adaptive_blocker_carve_out": "Runtime capability limits block only under adaptive execution for heavy, safety-critical, or unpacketizable work; they do not reduce scope.",
-    "priority_label_policy": "User story P1/P2/P3 labels are ordering labels, not delivery-scope buckets.",
-    "forbidden_reduction_patterns": [
-      "mvp_by_default",
-      "pilot_by_default",
-      "prototype_by_default",
-      "first_release_slice",
-      "agent_invented_v1_v2",
-      "agent_invented_p0_p1",
-      "future_work_delivery_slice"
-    ]
-  },
-  "user_confirmed_deferrals": [],
-  "deferral_contract_required_fields": [
-    "confirmation_source",
-    "exact_excluded_behavior",
-    "residual_risk",
-    "reopen_or_stop_condition",
-    "downstream_artifact"
-  ],
-  "user_confirmed_deferral_entry_template": {
-    "confirmation_source": "",
-    "exact_excluded_behavior": "",
-    "residual_risk": "",
-    "reopen_or_stop_condition": "",
-    "downstream_artifact": ""
-  },
+  "policy_refs": ["plan-contract.json#/complete_first_scope_preservation"],
+  "user_confirmed_deferral_refs": [],
+  "implementation_target_ref": null,
+  "acceptance_refs": [],
+  "capability_operation_refs": [],
+  "must_preserve_refs": [],
+  "consequence_obligation_refs": [],
+  "fidelity_refs": [],
   "tasks": [],
   "parallel_batches": [],
   "join_points": [],
-  "consequence_gate": {
-    "triggered": false,
-    "trigger_reason": null,
-    "status": "not-applicable",
-    "stand_down_reason": null
-  },
-  "consequence_analysis": {
-    "affected_object_map": [],
-    "state_behavior_matrix": [],
-    "dependency_impact": [],
-    "recovery_and_validation": [],
-    "coverage_gaps": []
-  },
-  "consequence_obligations": [],
-  "consequence_task_map": [],
-  "stop_and_reopen_conditions": []
+  "validation": [],
+  "transition": {
+    "version": 1,
+    "status": "blocked",
+    "source_ref": "task-index.json",
+    "semantic_delta": [],
+    "required_refs": [],
+    "blockers": [],
+    "next_action": null,
+    "recovery": null
+  }
 }

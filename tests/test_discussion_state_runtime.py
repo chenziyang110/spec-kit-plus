@@ -25,20 +25,17 @@ def _setup_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, Path, str]:
+def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, str]:
     workspace = project / ".specify" / "discussions" / slug
-    markdown_path = workspace / "handoff-to-specify.md"
     json_path = workspace / "handoff-to-specify.json"
-    source_markdown = f".specify/discussions/{slug}/handoff-to-specify.md"
-    source_json = f".specify/discussions/{slug}/handoff-to-specify.json"
+    source_contract = f".specify/discussions/{slug}/handoff-to-specify.json"
     payload = {
-        "version": 3,
+        "version": 4,
         "handoff_kind": "discussion_requirement_contract",
         "status": "draft",
         "entry_source": "sp-discussion",
         "discussion_slug": slug,
-        "source_handoff": source_markdown,
-        "source_handoff_json": source_json,
+        "source_contract": source_contract,
         "handoff_goal": "Make discussion state deterministic and agent-efficient.",
         "agent_requirement_contract": {
             "target_need": "A compact and reliable discussion workflow.",
@@ -112,12 +109,6 @@ def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, P
             "confirmed_digest": None,
             "blocked_reasons": [],
         },
-        "handoff_reviewer_guide": {
-            "decision": "Confirm that this contract preserves the intended requirement.",
-            "review_order": ["goal", "boundary", "evidence", "Must-Preserve items"],
-            "approve_if": ["The goal and protected decisions are correct."],
-            "request_changes_if": ["The target, evidence, or protected decisions are wrong."],
-        },
         "discussion_decision_digest": {
             "locked_direction": ["Layered agent-native architecture."],
             "rejected_alternatives": ["Prompt-only enforcement."],
@@ -148,7 +139,7 @@ def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, P
     }
     written = runtime.write_handoff(project, slug, payload)
     review_digest = written["review_digest"]
-    return markdown_path, json_path, review_digest
+    return json_path, review_digest
 
 
 def test_initialize_discussion_creates_minimal_typed_state(runtime, tmp_path: Path):
@@ -205,7 +196,7 @@ def test_legacy_markdown_state_migrates_to_typed_shape(runtime, tmp_path: Path):
     assert payload["summary"] == "Legacy review summary"
     assert payload["lifecycle_phase"] == "review"
     assert payload["turn_packet"]["current_decision_frame"] == "Review the migrated contract"
-    assert payload["handoff"]["markdown_path"] is None
+    assert payload["handoff"]["contract_path"] is None
     assert runtime._legacy_phase("context-grounding", "active") == "ground"
     assert runtime._legacy_phase("handoff-ready", "handoff-ready") == "ready"
     assert runtime._legacy_phase("anything", "completed") == "closed"
@@ -272,7 +263,7 @@ def test_checkpoint_updates_typed_state_and_compact_event_log(runtime, tmp_path:
 def test_validate_and_mark_ready_require_exact_confirmed_digest(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Handoff", "Handoff integrity")
-    _markdown, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
 
     validation = runtime.validate_handoff(project, initialized["slug"])
     ready = runtime.mark_ready(project, initialized["slug"])
@@ -288,7 +279,7 @@ def test_validate_and_mark_ready_require_exact_confirmed_digest(runtime, tmp_pat
 def test_review_digest_ignores_confirmation_metadata_but_tracks_protected_changes(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Digest", "Digest behavior")
-    _markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     payload["quality_gate"]["user_confirmed_at"] = "2030-01-01T00:00:00Z"
     payload["quality_gate"]["self_reviewed_at"] = "2030-01-01T00:00:01Z"
@@ -300,33 +291,31 @@ def test_review_digest_ignores_confirmation_metadata_but_tracks_protected_change
     assert runtime.compute_review_digest(payload) != review_digest
 
 
-def test_write_handoff_renders_human_review_view_from_canonical_payload(runtime, tmp_path: Path):
+def test_write_handoff_persists_only_agent_contract(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Rendered Handoff", "Rendered handoff")
-    markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
 
-    markdown = markdown_path.read_text(encoding="utf-8")
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["review_digest"] == review_digest
     assert payload["quality_gate"]["confirmed_digest"] == review_digest
-    assert review_digest in markdown
-    assert payload["handoff_goal"] in markdown
-    assert "Human replies remain human-centered." in markdown
-    assert "Confirm that this contract preserves the intended requirement." in markdown
+    assert payload["source_contract"] == json_path.relative_to(project).as_posix()
+    assert not json_path.with_suffix(".md").exists()
 
 
-def test_validate_handoff_rejects_missing_markdown_and_stale_confirmation(runtime, tmp_path: Path):
+def test_validate_handoff_rejects_missing_json_and_stale_confirmation(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Invalid Handoff", "Invalid handoff")
-    markdown_path, json_path, _digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
-    markdown_path.unlink()
+    json_path, _digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    original = json_path.read_text(encoding="utf-8")
+    json_path.unlink()
 
     missing = runtime.validate_handoff(project, initialized["slug"])
 
     assert missing["valid"] is False
-    assert "missing_handoff_markdown" in missing["error_codes"]
+    assert "missing_handoff_json" in missing["error_codes"]
 
-    markdown_path.write_text("# Restored\n", encoding="utf-8")
+    json_path.write_text(original, encoding="utf-8")
     handoff = json.loads(json_path.read_text(encoding="utf-8"))
     handoff["handoff_goal"] = "Changed after approval."
     json_path.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
@@ -340,7 +329,7 @@ def test_validate_handoff_rejects_missing_markdown_and_stale_confirmation(runtim
 def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Consumption", "Consumption integrity")
-    markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
     feature_dir = project / ".specify" / "features" / "001-consumption"
     brainstorming = feature_dir / "brainstorming"
@@ -350,8 +339,7 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
             {
                 "entry_source": "sp-discussion",
                 "discussion_slug": initialized["slug"],
-                "source_handoff": str(markdown_path.relative_to(project).as_posix()),
-                "source_handoff_json": str(json_path.relative_to(project).as_posix()),
+                "source_contract": str(json_path.relative_to(project).as_posix()),
                 "review_digest": review_digest,
             }
         )
@@ -369,7 +357,7 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
 def test_mark_consumed_requires_quick_status_to_bind_paths_and_digest(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Quick consumption", "Quick consumption integrity")
-    markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
     quick_dir = project / ".planning" / "quick" / "001-quick-consumption"
     quick_dir.mkdir(parents=True)
@@ -379,15 +367,14 @@ def test_mark_consumed_requires_quick_status_to_bind_paths_and_digest(runtime, t
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="source handoff paths"):
+    with pytest.raises(ValueError, match="source contract"):
         runtime.mark_consumed(project, initialized["slug"], str(quick_dir.relative_to(project)))
 
     status_path.write_text(
         "\n".join(
             [
                 f"source_discussion_slug: {initialized['slug']}",
-                f"source_handoff_md: {markdown_path.relative_to(project).as_posix()}",
-                f"source_handoff_json: {json_path.relative_to(project).as_posix()}",
+                f"source_contract: {json_path.relative_to(project).as_posix()}",
                 f"review_digest: {review_digest}",
             ]
         )
@@ -439,7 +426,7 @@ def test_runtime_main_dispatches_complete_lifecycle(runtime, tmp_path: Path, mon
     )
     assert checkpoint["discussion"]["lifecycle_phase"] == "prepare"
 
-    markdown_path, json_path, _digest = _write_confirmed_handoff(runtime, project, slug)
+    json_path, _digest = _write_confirmed_handoff(runtime, project, slug)
     written = call("write-handoff", slug, str(json_path))
     assert written["review_digest"]
     assert call("validate-handoff", slug)["valid"] is True
@@ -452,8 +439,7 @@ def test_runtime_main_dispatches_complete_lifecycle(runtime, tmp_path: Path, mon
         json.dumps(
             {
                 "discussion_slug": slug,
-                "source_handoff": markdown_path.relative_to(project).as_posix(),
-                "source_handoff_json": json_path.relative_to(project).as_posix(),
+                "source_contract": json_path.relative_to(project).as_posix(),
                 "review_digest": written["review_digest"],
             }
         ),

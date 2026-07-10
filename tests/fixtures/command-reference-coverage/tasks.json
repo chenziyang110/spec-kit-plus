@@ -2,85 +2,12 @@
   "workflow": "tasks",
   "source": "templates/commands/tasks.md",
   "entries": [
-    {
-      "kind": "phase-lock",
-      "source_excerpt": "active_command: sp-tasks",
-      "target": "templates/command-references/tasks/plan-intake.md"
-    },
-    {
-      "kind": "phase-lock",
-      "source_excerpt": "phase_mode: task-generation-only",
-      "target": "templates/command-references/tasks/plan-intake.md"
-    },
-    {
-      "kind": "cognition",
-      "source_excerpt": "project-cognition compass --intent plan",
-      "target": "templates/command-references/tasks/task-generation-sequence.md"
-    },
-    {
-      "kind": "sequence",
-      "source_excerpt": "choose_subagent_dispatch(command_name=\"tasks\"",
-      "target": "templates/command-references/tasks/review-and-repair.md"
-    },
-    {
-      "kind": "sequence",
-      "source_excerpt": "task-generation/handoffs/<lane-id>.json",
-      "target": "templates/command-references/tasks/review-and-repair.md"
-    },
-    {
-      "kind": "sequence",
-      "source_excerpt": "Do not synthesize `tasks.md` from chat-only delegated lane results",
-      "target": "templates/command-references/tasks/review-and-repair.md"
-    },
-    {
-      "kind": "packet",
-      "source_excerpt": "task-packets/*.json",
-      "target": "templates/command-references/tasks/task-packet-schema.md"
-    },
-    {
-      "kind": "packet",
-      "source_excerpt": "embedded_review_gate: required",
-      "target": "templates/command-references/tasks/review-and-repair.md"
-    },
-    {
-      "kind": "parallel",
-      "source_excerpt": "`[P]` means the task is parallel-eligible",
-      "target": "templates/command-references/tasks/dependencies-and-parallel-safety.md"
-    },
-    {
-      "kind": "parallel",
-      "source_excerpt": "Every parallel batch MUST be followed by a join point",
-      "target": "templates/command-references/tasks/dependencies-and-parallel-safety.md"
-    },
-    {
-      "kind": "obligation",
-      "source_excerpt": "CA-###",
-      "target": "templates/command-references/tasks/must-preserve-ledger.md"
-    },
-    {
-      "kind": "capability",
-      "source_excerpt": "Capability Operation Coverage",
-      "target": "templates/command-references/tasks/must-preserve-ledger.md"
-    },
-    {
-      "kind": "path",
-      "source_excerpt": "User-Observable Path Coverage",
-      "target": "templates/command-references/tasks/must-preserve-ledger.md"
-    },
-    {
-      "kind": "review",
-      "source_excerpt": "Implementation-Readiness Task Self-Audit",
-      "target": "templates/command-references/tasks/review-and-repair.md"
-    },
-    {
-      "kind": "review",
-      "source_excerpt": "Task Guardrail Index",
-      "target": "templates/command-references/tasks/review-and-repair.md"
-    },
-    {
-      "kind": "handoff",
-      "source_excerpt": "Recommended next command: `{{invoke:implement}}`",
-      "target": "templates/command-references/tasks/review-and-repair.md"
-    }
+    {"kind": "intake", "source_excerpt": "plan-contract.json", "target": "templates/command-references/tasks/plan-intake.md"},
+    {"kind": "cognition", "source_excerpt": "project-cognition compass --intent plan", "target": "templates/command-references/tasks/task-generation-sequence.md"},
+    {"kind": "sequence", "source_excerpt": "task-index.json", "target": "templates/command-references/tasks/task-generation-sequence.md"},
+    {"kind": "packet", "source_excerpt": "WorkerTaskPacket", "target": "templates/command-references/tasks/task-packet-schema.md"},
+    {"kind": "parallel", "source_excerpt": "Every parallel batch MUST be followed by a join point", "target": "templates/command-references/tasks/dependencies-and-parallel-safety.md"},
+    {"kind": "obligation", "source_excerpt": "Consequence Obligation Mapping", "target": "templates/command-references/tasks/must-preserve-ledger.md"},
+    {"kind": "review", "source_excerpt": "Deterministic Task-Graph Review", "target": "templates/command-references/tasks/review-and-repair.md"}
   ]
 }

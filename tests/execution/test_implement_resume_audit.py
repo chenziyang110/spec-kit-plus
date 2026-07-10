@@ -142,6 +142,100 @@ def _write_packetized_review_state(
         branch_review_path(feature_dir).write_text("# Branch Review\n\nAccepted.\n", encoding="utf-8")
 
 
+def test_resolved_state_accepts_single_task_lifecycle_without_legacy_review_fanout(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [X] T001 [US1] Update implementation in src/demo.py\n",
+        encoding="utf-8",
+    )
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    (result_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "success",
+                "changed_files": ["src/demo.py"],
+                "validation_results": [
+                    {"command": "pytest tests/test_demo.py -q", "status": "passed", "output": "PASS"}
+                ],
+                "summary": "Updated demo implementation",
+            }
+        ),
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "task_id": "T001",
+                "task_ref": "task-index.json#/tasks/T001",
+                "source_revision": "r1",
+                "execution_mode": "leader-direct",
+                "packet_ref": None,
+                "status": "accepted",
+                "changed_paths": ["src/demo.py"],
+                "validation": [
+                    {"command": "pytest tests/test_demo.py -q", "status": "passed"}
+                ],
+                "review": None,
+                "obligation_evidence": [],
+                "blockers": [],
+                "recovery": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is True
+    assert not any("implementation-review/ledger.json" in gap for gap in payload["open_gaps"])
+    assert not any("branch-review.md" in gap for gap in payload["open_gaps"])
+
+
+def test_agent_native_task_index_requires_lifecycle_for_each_checked_task(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps({"version": 2, "status": "ready", "tasks": [{"id": "T001"}]}),
+        encoding="utf-8",
+    )
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    (result_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "success",
+                "changed_files": [
+                    "apps/web/src/features/providers/forms/ClaudeForm.tsx"
+                ],
+                "validation_results": [
+                    {"command": "pytest -q", "status": "passed", "output": "PASS"}
+                ],
+                "summary": "Implemented the task",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any(
+        "implementation-review/tasks/T001.json is missing" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 def test_resolved_tracker_with_checked_task_but_no_worker_result_requires_audit_recovery(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_basic_feature(feature_dir)

@@ -18,8 +18,8 @@ consumer eligibility, persistence mode, and confirmation as orthogonal fields:
    recommend the best direction, and record confirmed or rejected choices.
 4. `prepare`: when explicit handoff is requested, decide `ready-for-handoff` or
    `continue-discussion`. If ready, assemble one canonical JSON payload from the
-   selected scope and render its Markdown view.
-5. `review`: validate exact schema/Markdown agreement, Must-Preserve and
+   selected scope.
+5. `review`: validate exact schema/source-contract integrity, Must-Preserve and
    consequence coverage, zero hard blockers/conflicts, evidence provenance,
    reviewer guidance, and the stable review digest. Ask the human to approve
    the meaning of that digest, not machine bookkeeping.
@@ -27,7 +27,7 @@ consumer eligibility, persistence mode, and confirmation as orthogonal fields:
    confirmation of the current digest. Name the eligible downstream consumer;
    do not invoke it automatically.
 7. `consumed`: require downstream evidence binding the consumer artifact to the
-   source handoff paths and review digest.
+   source contract and review digest.
 8. `closed`: explicit terminal state for completed or abandoned discussions;
    archive only after a terminal transition.
 
@@ -36,11 +36,11 @@ After functional direction is stable, offer an optional UI and interaction
 discussion only when no explicit handoff request is active. If UI decisions block readiness,
 remain in `decide` or `prepare`; do not invent a separate primary stage.
 
-If a discussion is mature enough for specification but lacks `handoff-to-specify.md` or `handoff-to-specify.json`, close the turn with handoff assessment, draft review, or repair guidance inside `sp-discussion`. Do not tell the user their next sentence should be `sp-specify`, and do not send `specification-input.md` to `sp-specify` as a fallback.
+If a discussion is mature enough for specification but lacks ready canonical `handoff-to-specify.json`, close the turn with handoff assessment, draft review, or repair guidance inside `sp-discussion`. Do not tell the user their next sentence should be `sp-specify`, and do not send `specification-input.md` to `sp-specify` as a fallback.
 
 ## Quality And Closeout
 
-Handoff-ready closeout covers the handoff goal, selected direction, target boundary, Must-Preserve coverage, hard unknown and conflict counts, quality gate state, Markdown/JSON agreement, and exact downstream consumption path.
+Handoff-ready closeout covers the handoff goal, selected direction, target boundary, Must-Preserve coverage, hard unknown and conflict counts, quality gate state, source-contract integrity, and exact downstream consumption path.
 
 Do not close with only file paths, status counters, or a next command. Keep ready-summary quality checks internal until the visible reply translates them into decision-level meaning.
 

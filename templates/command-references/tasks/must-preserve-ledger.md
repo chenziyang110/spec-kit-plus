@@ -8,17 +8,17 @@ Preserved Contract: confirmed obligations must map to tasks, packet fields, join
 
 Before the task package is complete, map every triggered `CA-###` consequence obligation into executable work or an explicit downstream stop condition.
 
-- Read upstream consequence analysis from `spec.md`, `alignment.md`, `context.md`, `references.md`, `plan.md`, `plan-contract.json`, and any handoff JSON present.
+- Read consequence and must-preserve refs from canonical `plan-contract.json`; open a referenced spec/plan view only when the ref or evidence is missing, stale, or contradictory.
 - For each `CA-###`, name the affected objects, required state behavior, dependency impact, recovery and validation requirement, owning task or join point, and latest safe resolve phase.
 - Map each obligation to at least one task, packet field, join point, validation task, review checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - Each mapped task or packet must include objective, write set, affected state or dependency, required references, forbidden drift, validation command or concrete manual check, done condition, and stop-and-reopen condition.
-- Emit the mapping in `tasks.md`, `handoff-to-tasks.json`, `task-index.json`, and per-task JSON under `task-packets/` when those machine-readable artifacts are generated.
-- Preserve `CA-###` IDs verbatim in `tasks.md`, handoff-to-tasks metadata, task-index metadata, and worker packet shaping instructions so `sp-analyze` and `sp-implement` cannot drop them.
+- Emit each mapping once in canonical `task-index.json`; render it in `tasks.md` only when it has project-review value. A compatibility transition references the canonical mapping instead of copying it.
+- Preserve `CA-###` IDs verbatim in task-index metadata and just-in-time worker packet shaping instructions so `sp-analyze` and `sp-implement` cannot drop them.
 - If a consequence obligation is unmapped, do not emit a normal `/sp.analyze` handoff. Repair the task package or route back to `{{invoke:plan}}`, `{{invoke:clarify}}`, or `{{invoke:deep-research}}` with the unmapped obligation named.
 
 ## Capability Operation Coverage
 
-Before finalizing `tasks.md`, map every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`.
+Before finalizing the task graph, map every preserved or in-scope operation-shaped capability referenced by `plan-contract.json`.
 
 - Operation-shaped capabilities include new/create/scaffold/authoring/template-creation, CLI path, TUI path, lifecycle action, API entry point, and any user workflow verb that changes implementation or validation shape.
 - For each capability operation, create at least one implementation task, test/quickstart task, join point, packet field, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
@@ -33,5 +33,5 @@ Before finalizing `tasks.md`, add a real-entrypoint validation path for every us
 
 - For each visible or runtime-consumed behavior, map: real entrypoint -> producer data -> transformer/state builder -> consumer surface -> executor/boundary -> validation task.
 - Do not treat synthetic component, reducer, helper, or hand-built state tests as sufficient by themselves when the feature is visible through a real route, command, TUI screen, API, installer, or runtime executor.
-- At least one task for each mapped path must carry `consumer_surfaces` and `required_evidence` including `real_entrypoint_evidence` in its packet fields.
+- At least one task for each mapped path must carry required consumer and real-entrypoint evidence refs for leader-direct execution or just-in-time packet compilation.
 - If no real-entrypoint validation surface exists yet, create the smallest feasible validation task, add a refinement checkpoint, identify a valid blocker, or record a user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.

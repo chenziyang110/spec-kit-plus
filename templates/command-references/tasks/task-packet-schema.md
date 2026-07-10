@@ -1,17 +1,16 @@
-Trigger: when writing task-index.json, handoff-to-tasks.json, task-packets/*.json, or worker packet metadata.
+Trigger: when shaping task-index.json, a compact compatibility transition, or fields needed for just-in-time WorkerTaskPacket compilation.
 
-Purpose: preserve packet fields, implementation-review preparation, evidence requirements, and light/standard/heavy output contracts.
+Purpose: preserve the minimum task-graph fields required to compile a correct worker packet at execution time without repeating project intake.
 
-Preserved Contract: task packets must carry objective, write set, required references, forbidden drift, validation, done condition, and review metadata.
+Preserved Contract: leader-direct tasks stay compact; delegated packets carry objective, scope, required references, forbidden drift, validation, done condition, task-relevant obligations, and recovery.
 
 ## Task Packet Schema
 
-   - When lane resolution returns a materialized lane worktree, continue task generation from that isolated worktree context so downstream execution packets inherit the same lane boundary.
-     - `allowed_artifact_writes: tasks.md, handoff-to-tasks.json, task-index.json, task-packets/*.json, task-generation/handoffs/*.json, task-generation/evidence-index.json, task-generation/checkpoints.ndjson, workflow-state.md`
-     - `authoritative_files: spec.md, alignment.md, context.md, plan.md, tasks.md, handoff-to-tasks.json, task-index.json, task-packets/*.json, task-generation/handoffs/*.json, task-generation/evidence-index.json`
-   - **Required when present**: brainstorming/handoff-to-tasks.json (route, intent, complexity, task packet shaping, and handoff constraints)
-   - **Required**: [AGENT] Query project cognition with `{{specify-subcmd:project-cognition compass --intent plan --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Do not treat first-pass reads as the final edit scope. Use `project-cognition expand` only when the packet's coverage state or live evidence requires it. Use the advanced `lexicon -> semantic_intake -> query` flow only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, run `project-cognition query --query-plan "<query_plan_json>"` with `query_plan`, `semantic_intake`, `concept_decisions`, and facet coverage
-After the default compass packet, run the advanced `lexicon -> semantic_intake -> query` path only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, use `project-cognition lexicon --mode catalog` as the alias catalog, write agent-authored `semantic_intake` and `concept_decisions`, then run `project-cognition query --query-plan "<query_plan_json>"`; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `repository_search_terms`, project-language search terms, and facet coverage; do not search only the raw user words before source search. Agent-owned semantic normalization remains mandatory: `agent_normalization` and raw lexicon ranking are bootstrap signals only; if `agent_normalization` is omitted, treat it as `required=false`; use `write_semantic_intake_from_alias_catalog` when needed. Raw lexicon ranking is only a bootstrap; CJK or mixed CJK/ASCII input still requires agent-owned normalization even when positive raw lexical matches exist. The agent still owns translation. Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`.
-  `task-index.json`, and task packets.
-- Carry `global_constraints`, `interfaces.consumes`, `interfaces.produces`, `review_inputs`, `review_risks`, `ui_fidelity_requirements`, and `controller_checks_required` into task packets when relevant.
-- Carry implementation-review artifact paths into generated state and task guidance when relevant: `implementation-review/task-briefs/`, `implementation-review/review-packages/`, `implementation-review/task-reviews/`, `implementation-review/ledger.json`, and `implementation-review/branch-review.md`.
+- When lane resolution returns a materialized lane worktree, record that lane ref in the canonical task graph.
+- Do not run project cognition from packet shaping. Reuse the context capsule and validation routes already stored by planning/task intake.
+- Store only task-shaping fields in task-index.json: objective, dependencies, expected write scope, required refs, acceptance, verification, obligation refs, join point, and packet mode.
+- Use `packet_mode: leader-direct | delegated | parallel-high-risk`.
+- `leader-direct` tasks do not need a WorkerTaskPacket.
+- For delegated work, `sp-implement` compiles and validates the packet just in time from the current task, live repository state, and stable contract refs.
+- Carry `global_constraints`, interfaces, review risks, UI fidelity, controller checks, `MP-*`, and `CA-###` only when they affect that task.
+- If live evidence invalidates a predicted path or dependency, repair the task graph or stop/reopen; do not hide drift by expanding worker scope silently.

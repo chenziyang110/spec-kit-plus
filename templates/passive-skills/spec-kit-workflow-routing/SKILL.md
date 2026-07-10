@@ -60,7 +60,7 @@ explicit numeric option.
   those triggers implicit.
 - `spec-kit-discussion-handoff-review` owns review discipline for
   `sp-discussion` handoff packages. Use it when checking whether
-  `handoff-to-specify.md` plus `handoff-to-specify.json` can become or remain
+  canonical `handoff-to-specify.json` can become or remain
   `handoff-ready`, or when a ready closeout summary needs review-quality
   context instead of only file paths and counters.
 
@@ -70,7 +70,7 @@ explicit numeric option.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
-- `sp-quick` performs one Understanding Checkpoint before substantive execution:
+- `sp-quick` performs one Understanding Checkpoint before substantive execution for a raw quick request. A user-confirmed discussion contract with no quick-stage `semantic_delta` reuses its confirmed digest instead of asking again. When a checkpoint is needed:
   render the fixed Quick Checkpoint Markdown table with
   `| Item | Current understanding |` and rows for issue, target outcome,
   boundaries, known facts/assumptions, affected surfaces, implementation plan,
@@ -97,10 +97,10 @@ explicit numeric option.
 - `sp-discussion` must run the Context Boundary Gate before project-specific technical options, affected-file claims, or handoff generation.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
-- A valid explicit handoff from discussion is one pair: `handoff-to-specify.md` and `handoff-to-specify.json`, with self-review and user confirmation. Route that pair to `sp-specify` by passing the handoff Markdown path, JSON path, or discussion slug; when exactly one unconsumed `handoff-ready` discussion exists, `sp-specify` may consume it directly. Before that ready pair exists, do not tell the user to run `sp-specify`; the next action is `sp-discussion` handoff creation, review, or repair. `specification-input.md` is not a substitute handoff. `sp-specify` must validate ready planning status, user-confirmed quality gate status, zero hard unknowns, zero open conflicts, and Markdown/JSON agreement before feature creation.
+- A valid explicit handoff from discussion is one canonical agent-only JSON contract: `handoff-to-specify.json`, with self-review and user confirmation. Route that contract to `sp-specify` by passing the JSON path or discussion slug; when exactly one unconsumed `handoff-ready` discussion exists, `sp-specify` may consume it directly. Before that ready contract exists, do not tell the user to run `sp-specify`; the next action is `sp-discussion` handoff creation, review, or repair. `specification-input.md` is not a substitute handoff. `sp-specify` must validate ready planning status, user-confirmed quality gate status, zero hard unknowns, zero open conflicts, and source-contract integrity before feature creation.
 - When asked to review a discussion handoff, apply
-  `spec-kit-discussion-handoff-review`: return `approve-handoff-ready`,
-  `request-changes`, or `block-handoff`, apply the ready summary quality check,
+  `spec-kit-discussion-handoff-review`: return `approve`,
+  `request-changes`, or `blocked`, apply the ready summary quality check,
   and keep final closeout as a concise handoff card rather than a minimal
   "files updated, next command" summary.
 - Use `sp-specify` for new capability, behavior, or requirement changes that are
@@ -124,8 +124,8 @@ explicit numeric option.
   `sp-research` artifacts or workflow state.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
-- Use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`. `sp-implement` owns the embedded pre-implement review, join-point drift review, bounded sequential review windows, and safe task-layer repair loop. Safe repairs may update remaining tasks, packets, handoff state, tracker state, and implementation-review audit records; product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
-- Route planned implementation to `sp-implement`; task review is embedded through task briefs, review packages, task reviews, ledger state, and branch review. Do not route to a separate public review command.
+- Use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`. `sp-implement` selects leader-direct or delegated execution per task, compiles delegated packets just in time, runs event-triggered review, and records result/validation/review/recovery once in the task lifecycle record. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
+- Route planned implementation to `sp-implement`; review is embedded and event-triggered. Do not route to a separate public review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use
@@ -221,13 +221,16 @@ user what to type:
 - If multiple workflow recommendations seem plausible, suggest the smallest safe workflow route and make the next escalation trigger explicit.
 - Complete-first scope preservation: workflow-route minimization is only about choosing the command surface. Preserve the user's complete user-confirmed scope; do not shrink scope toward a smaller MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, or agent-invented `P0/P1` unless the user asked for that shape or confirmed it after a named constraint/trade-off. Complexity alone is not a valid reason to defer or block ordinary work; use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 - If the user intent is effectively "continue with the recommended next step",
-  prefer `sp-auto` over guessing which canonical workflow they meant from chat alone.
-- Clean completed `sp-tasks` state with `/sp.implement` should route through `sp-auto` to `sp-implement`.
+  follow the uniquely recorded canonical `next_command` directly. Use `sp-auto`
+  only when the user explicitly chooses automatic state reconciliation or no
+  unique canonical next command can be proven safely.
+- Clean completed `sp-tasks` state with `/sp.implement` routes directly to
+  `sp-implement`; it does not need an `sp-auto` hop.
 - Keep `sp-*` workflows as visible optional entrypoints. This passive skill should
   recommend them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.
 - Do not skip from `sp-discussion` into `sp-specify` unless the user explicitly
-  requests handoff and the ready Markdown/JSON handoff pair exists.
+  requests handoff and the ready JSON contract exists.
 - If a required next step is a user-invoked workflow entrypoint rather than an
   in-workflow action, stop the current flow and tell the user exactly what to run.
 - Do not self-execute a different explicit `sp-*` workflow just because the current

@@ -4,39 +4,20 @@ Purpose: preserve RED-first expectations, pre-dispatch validation, validation ev
 
 Preserved Contract: implementation must prove red/validation state before changes and verify completed work before closeout.
 
-## Pre-Dispatch Validation
+## Current Task Gate
 
-Before dispatching any subagent, the leader MUST validate each task contract:
+Before code changes:
 
-### Required Checks (BLOCK on failure)
+1. Validate current task dependencies, required refs, expected write scope, forbidden drift, acceptance, and verification route. If delegated, validate the just-in-time WorkerTaskPacket; leader-direct work uses the same task gate without packet boilerplate.
+2. For parallel lanes, require zero overlapping writes and an explicit join validation target. Serialize overlapping work.
+3. For a behavior change, bug fix, or refactor, write or select the smallest failing test or reproducible check first and run it before production edits. Record the RED command/check and expected failure in the task lifecycle record.
+4. If an honest RED state cannot be produced, record why, the replacement baseline, and residual risk; block when acceptance cannot be proven.
 
-1. **agent_exists**: Confirm the task's `agent` role exists in the agent-teams role pool: security-reviewer, test-engineer, style-reviewer, performance-reviewer, quality-reviewer, api-reviewer, debugger, code-simplifier, build-fixer, executor. If missing, auto-correct to the closest matching role or `executor`.
+## GREEN And Closeout
 
-2. **deps_acyclic**: Confirm `depends_on` does not form a cycle. Walk the dependency chain; if a cycle is detected, stop and require tasks.md correction before dispatch.
+After the change:
 
-### Advisory Checks (WARN but continue)
-
-3. **scope_paths_exist**: Confirm each path in `write_scope` and `read_scope` exists in the repository or will be created by this task. Missing paths that are not created by earlier tasks should be flagged.
-
-4. **context_nav_valid**: Spot-check context navigation pointers — verify the pointed-to files exist and the referenced sections are present. Missing pointers should be noted but do not block dispatch.
-
-5. **forbidden_safe**: Verify that `forbidden` includes `.env`, credential files, secrets directories, and other sensitive paths. If missing, auto-append the default forbidden patterns before dispatch.
-
-### Parallel Safety Check
-
-6. **write_set_isolation**: For any two tasks in the same parallel batch, confirm their `write_scope` sets have zero overlap. Tasks with overlapping write sets MUST be serialized even if both are marked `[P]`.
-
-### Validation Output
-
-After checks complete, record results in `implement-tracker.md`:
-- `pre_dispatch_validation`: pass | warnings | blocked
-- `validation_warnings`: [list of advisory warnings]
-- `auto_corrections`: [list of fields auto-corrected]
-
-## Validation
-planned_checks:
-  - [independent tests, acceptance checks, or validation commands]
-completed_checks:
-  - [checks already run]
-human_needed_checks:
-  - [manual verification still required]
+1. Rerun the same RED gate and require GREEN.
+2. Run task-specific acceptance and regression checks, including real-entrypoint or UI evidence when required.
+3. Record commands/checks, outcomes, changed paths, and remaining manual checks once in the task lifecycle record.
+4. Do not claim success from task markers, worker narration, or unrelated passing tests.

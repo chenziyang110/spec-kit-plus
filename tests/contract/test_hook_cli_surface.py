@@ -2207,7 +2207,7 @@ def test_hook_validate_artifacts_blocks_specify_when_semantic_ready_state_is_mis
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("brainstorming/handoff-to-specify.json" in message for message in payload["errors"])
+    assert any("spec-contract.json" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):

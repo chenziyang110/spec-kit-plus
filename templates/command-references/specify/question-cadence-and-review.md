@@ -1,42 +1,26 @@
-Trigger: before asking requirement-shaping questions or routing the user to the next command.
+Trigger: before asking requirement-shaping questions or choosing the next command.
 
-Purpose: preserve user review, next-command selection, and checkpoint wording behavior.
+Purpose: ask only for user-owned semantic decisions and avoid reconfirming unchanged upstream truth.
 
-Preserved Contract: user review remains mandatory and only the user review gate decides the canonical next command.
+Preserved Contract: user-owned scope, behavior, boundary, risk, and deferral changes require confirmation; repository-discoverable facts and unchanged confirmed decisions do not.
 
-## User Review Gate
+## Semantic Delta Review Gate
 
-- Ask the user to review the written artifact set before planning.
-- Present a current-understanding summary as a misunderstanding-correction gate and ask the user to confirm or correct the current understanding before the final handoff decision is locked.
-- Summarize what was confirmed, what remains open, what was deferred or dropped, and what risk remains.
-- Use the user's current language for the review summary and cover Business Goals, Users & Roles, confirmed product scope, user-confirmed delivery sequence, business rules, Technical Constraints / Assumptions, confirmed decisions, and Outstanding Questions.
-- If the user requests artifact edits, stay in `sp-specify`, update the artifacts, and repeat artifact self-review.
-- Recommend exactly one next command:
-  - `/sp.plan` when the artifact package is `Aligned: ready for plan`.
-  - `/sp.clarify` when planning-critical ambiguity remains.
-  - `/sp.deep-research` when requirements are clear enough but feasibility, external evidence, or an implementation-chain proof is still needed.
-- Do not present multiple next commands as equally valid.
-- No alternative next command is valid for the current state.
-- report the single valid next path for the current state. Do not emit a second alternative next command. Do not present multiple downstream command options.
-- Only the user review gate may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
-- The completion state must preserve the literal `next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
-- After the feature package is written, self-reviewed, and `workflow-state.md` records the single next command, mark the source discussion consumed when this run came from `sp-discussion`: run `specify discussion mark-consumed <slug> --feature-dir "$FEATURE_DIR"` where `<slug>` is derived from `.specify/discussions/<slug>/handoff-to-specify.md`. This writes `handoff_consumption_status: consumed`, `consumed_by_feature_dir: $FEATURE_DIR`, `status: completed`, and `next_command: none` in the source `discussion-state.md`, preventing stale `handoff-ready` discussions from blocking future `sp-auto` routing. If the helper command is unavailable, update those same fields manually and note the fallback in the completion report. Do not mark consumed before the artifacts exist and pass self-review.
+- In discovery mode, ask one planning-critical question at a time when no safe default exists.
+- In compile mode, compare `spec-contract.json` with the confirmed requirement contract.
+- If `semantic_delta` is empty and deterministic review passes, do not repeat user review; continue to the single valid next route.
+- If a delta changes scope, product behavior, target boundary, risk acceptance, deferral, or another user-owned decision, present only that delta with the recommended resolution and meaningful alternatives.
+- Resolve repository facts with bounded evidence instead of asking the user to restate them.
+- If changes are requested, update the canonical contract, rerun deterministic review, and recompute the delta.
+
+Choose exactly one next command:
+
+- `/sp.plan` when the spec contract is planning-ready;
+- `/sp.clarify` when planning-critical ambiguity remains;
+- `/sp.deep-research` when requirements are clear but feasibility or implementation-chain evidence is missing.
+
+After canonical specification output passes review, mark the source discussion consumed using the slug from `SOURCE_CONTRACT`. Do not depend on or reconstruct a Markdown handoff path.
 
 ## Completion Report
 
-Report completion in the user's current language while preserving literal paths, command names, and fixed status values.
-
-Include:
-- branch name
-- `spec.md` path
-- `alignment.md` path
-- `context.md` path
-- `references.md` path when created
-- `workflow-state.md` path
-- `checklists/requirements.md` path
-- `brainstorming/handoff-to-specify.json` path
-- source-file sweep status
-- source-signal disposition status
-- readiness decision
-- single next command
-- cognition follow-up for artifact-only advisory state, if relevant
+Report the human-relevant outcome: what is now specified, any confirmed delta, remaining risk, canonical contract path, project-facing spec path, and the single next command. Keep agent-only transition fields backstage unless diagnostics are requested.

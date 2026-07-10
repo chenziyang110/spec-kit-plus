@@ -205,6 +205,35 @@ def _write_valid_specify_semantic_artifacts(feature_dir: Path) -> None:
     (brainstorming_dir / "handoff-to-specify.json").write_text(_valid_must_preserve_handoff_payload(), encoding="utf-8")
 
 
+def _write_valid_spec_contract(feature_dir: Path) -> None:
+    payload = {
+        "version": 1,
+        "status": "planning-ready",
+        "target_need": "Demo need",
+        "scope": {"in": ["Demo behavior"], "out": [], "deferred": []},
+        "constraints": [],
+        "acceptance_criteria": ["Demo behavior is verifiable"],
+        "decisions": [],
+        "semantic_delta": [],
+        "must_preserve_refs": [],
+        "consequence_obligation_refs": [],
+        "context_capsule": {},
+        "open_items": [],
+        "artifact_refs": {"spec": "spec.md", "alignment": None, "context": None, "references": None},
+        "transition": {
+            "version": 1,
+            "status": "ready",
+            "source_ref": "spec-contract.json",
+            "semantic_delta": [],
+            "required_refs": [],
+            "blockers": [],
+            "next_action": "sp-plan",
+            "recovery": None,
+        },
+    }
+    (feature_dir / "spec-contract.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _write_valid_brainstorming_truth_files(feature_dir: Path) -> None:
     brainstorming_dir = feature_dir / "brainstorming"
     brainstorming_dir.mkdir(parents=True, exist_ok=True)
@@ -640,11 +669,11 @@ def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Pa
     )
 
     assert result.status == "blocked"
-    assert any("alignment.md" in message for message in result.errors)
-    assert any("context.md" in message for message in result.errors)
+    assert any("spec-contract.json" in message for message in result.errors)
+    assert any("workflow-state.md" in message for message in result.errors)
 
 
-def test_specify_artifact_validation_requires_compatibility_handoff(tmp_path: Path):
+def test_specify_artifact_validation_does_not_require_compatibility_handoff(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
@@ -652,6 +681,7 @@ def test_specify_artifact_validation_requires_compatibility_handoff(tmp_path: Pa
     _write_valid_specify_workflow_state(feature_dir)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "brainstorming" / "handoff-to-specify.json").unlink()
+    _write_valid_spec_contract(feature_dir)
 
     result = run_quality_hook(
         project_root=project,
@@ -659,8 +689,40 @@ def test_specify_artifact_validation_requires_compatibility_handoff(tmp_path: Pa
         payload={"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_agent_native_implement_artifacts_require_checked_task_lifecycle(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: resolved\n---\n\nnext_action: complete\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [X] T001 Implement the canonical path\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps({"version": 2, "status": "ready", "tasks": [{"id": "T001"}]}),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "implement", "feature_dir": str(feature_dir)},
+    )
+
     assert result.status == "blocked"
-    assert any("brainstorming/handoff-to-specify.json" in message for message in result.errors)
+    assert any(
+        "implementation-review/tasks/T001.json" in message
+        for message in result.errors
+    )
 
 
 def test_specify_artifact_validation_requires_source_signal_disposition(tmp_path: Path):
@@ -1015,7 +1077,7 @@ def test_specify_artifact_validation_blocks_resolved_item_without_resolution_evi
     assert any("MP-001" in message and "resolution_evidence" in message for message in result.errors)
 
 
-def test_validate_artifacts_blocks_specify_when_handoff_artifact_is_missing(tmp_path: Path):
+def test_validate_artifacts_blocks_specify_when_canonical_contract_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -1037,7 +1099,7 @@ def test_validate_artifacts_blocks_specify_when_handoff_artifact_is_missing(tmp_
     )
 
     assert result.status == "blocked"
-    assert any("brainstorming/handoff-to-specify.json" in message for message in result.errors)
+    assert any("spec-contract.json" in message for message in result.errors)
 
 
 def test_validate_artifacts_blocks_specify_when_semantic_alignment_is_missing(tmp_path: Path):
@@ -1192,8 +1254,9 @@ def test_workflow_state_template_records_simplified_specify_review_contract() ->
     assert "artifact-review" in workflow_state_template
     assert "user-review" in workflow_state_template
     assert "last_user_reviewed_artifact_state" in workflow_state_template
-    assert "source_files_read" in workflow_state_template
-    assert "source_signal_disposition_status" in workflow_state_template
+    assert "canonical_contract_ref" in workflow_state_template
+    assert "canonical_contract_revision" in workflow_state_template
+    assert "semantic_delta" in workflow_state_template
     assert "next_action" in workflow_state_template
     assert "blocker_reason" in workflow_state_template
     assert "final_handoff_decision" in workflow_state_template
@@ -1995,7 +2058,7 @@ def test_validate_artifacts_accepts_tasks_outputs_when_present(tmp_path: Path):
     assert result.errors == []
 
 
-def test_validate_artifacts_blocks_tasks_without_task_generation_evidence_outputs(tmp_path: Path):
+def test_validate_artifacts_accepts_tasks_without_unused_lane_outputs(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -2008,10 +2071,8 @@ def test_validate_artifacts_blocks_tasks_without_task_generation_evidence_output
         {"command_name": "tasks", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("handoff-to-tasks.json" in message for message in result.errors)
-    assert any("task-generation/evidence-index.json" in message for message in result.errors)
-    assert any("task-generation/handoffs" in message for message in result.errors)
+    assert result.status == "ok"
+    assert result.errors == []
 
 
 def test_validate_artifacts_accepts_clarify_outputs_when_present(tmp_path: Path):
@@ -2048,7 +2109,7 @@ def test_validate_artifacts_accepts_plan_outputs_when_present(tmp_path: Path):
     assert result.errors == []
 
 
-def test_validate_artifacts_blocks_plan_without_planning_evidence_outputs(tmp_path: Path):
+def test_validate_artifacts_accepts_plan_without_unused_lane_outputs(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -2064,10 +2125,8 @@ def test_validate_artifacts_blocks_plan_without_planning_evidence_outputs(tmp_pa
         {"command_name": "plan", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("planning/evidence-index.json" in message for message in result.errors)
-    assert any("planning/checkpoints.ndjson" in message for message in result.errors)
-    assert any("planning/handoffs" in message for message in result.errors)
+    assert result.status == "ok"
+    assert result.errors == []
 
 
 def test_validate_artifacts_accepts_plan_with_nested_plan_contract(tmp_path: Path):

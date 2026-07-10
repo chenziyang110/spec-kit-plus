@@ -111,12 +111,11 @@ Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_
 - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}` before guessing from branch-only context.
 - When lane resolution returns a materialized lane worktree, continue analysis from that isolated worktree context so downstream gate decisions stay attached to the same lane boundary.
 
-- SPEC = FEATURE_DIR/spec.md
-- CONTEXT = FEATURE_DIR/context.md
-- PLAN = FEATURE_DIR/plan.md
-- TASKS = FEATURE_DIR/tasks.md
-- PLANNING_EVIDENCE_INDEX = FEATURE_DIR/planning/evidence-index.json when present
-- TASK_GENERATION_EVIDENCE_INDEX = FEATURE_DIR/task-generation/evidence-index.json when present
+- SPEC_CONTRACT = FEATURE_DIR/spec-contract.json
+- PLAN_CONTRACT = FEATURE_DIR/plan-contract.json
+- TASK_INDEX = FEATURE_DIR/task-index.json for standard/heavy work, otherwise TASKS = FEATURE_DIR/tasks.md
+- PLANNING_LANE_MANIFEST = FEATURE_DIR/planning/lane-manifest.json when present
+- TASK_GENERATION_LANE_MANIFEST = FEATURE_DIR/task-generation/lane-manifest.json when present
 
 Abort with an error message if any required file is missing (instruct the user to run missing prerequisite command).
 For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
@@ -159,7 +158,7 @@ Load only the minimal necessary context from each artifact:
 - Inspect only returned `minimal_live_reads` when the bundle does not fully cover ownership, propagation, or verification routes.
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, use `/sp-map-update` with changed paths or affected surfaces; rebuild through `/sp-map-scan` followed by `/sp-map-build` only for the explicit rebuild conditions above, then inspect the minimum live files still needed to replace guesswork with evidence
 
-**From spec.md:**
+**From spec-contract.json first (open spec.md/context.md only for a named detail or contradiction):**
 
 - Overview/Context
 - Functional Requirements
@@ -167,7 +166,7 @@ Load only the minimal necessary context from each artifact:
 - User Stories
 - Edge Cases (if present)
 
-**From context.md:**
+**From conditional context view when referenced:**
 
 - Locked Decisions
 - Claude Discretion
@@ -176,7 +175,7 @@ Load only the minimal necessary context from each artifact:
 - Specific User Signals
 - Outstanding Questions
 
-**From plan.md:**
+**From plan-contract.json first (open plan.md or conditional design artifacts only for a named detail or contradiction):**
 
 - Architecture/stack choices
 - Locked Planning Decisions
@@ -186,7 +185,7 @@ Load only the minimal necessary context from each artifact:
 - Phases
 - Technical constraints
 
-**From tasks.md:**
+**From task-index.json, or tasks.md for light direct work:**
 
 - Task IDs
 - Descriptions
@@ -194,16 +193,16 @@ Load only the minimal necessary context from each artifact:
 - Parallel markers [P]
 - Referenced file paths
 
-**From planning evidence when present:**
+**From delegated planning lanes when present:**
 
-- Read `planning/evidence-index.json` and accepted `planning/handoffs/*.json`.
-- Verify each accepted planning handoff is consumed by `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, `plan-contract.json`, or is explicitly deferred or blocked.
+- Read `planning/lane-manifest.json` and only the accepted lane results it names.
+- Verify each accepted result is consumed by `plan-contract.json` or a referenced conditional artifact, or is explicitly deferred or blocked.
 - Treat an accepted planning handoff with no downstream consumer as a plan-layer blocker, not harmless leftover evidence.
 
-**From task-generation evidence when present:**
+**From delegated task-generation lanes when present:**
 
-- Read `task-generation/evidence-index.json` and accepted `task-generation/handoffs/*.json`.
-- Verify each accepted task-generation handoff is consumed by `tasks.md`, `handoff-to-tasks.json`, `task-index.json`, `task-packets/*.json`, or is explicitly deferred, escalated, or blocked.
+- Read `task-generation/lane-manifest.json` and only the accepted lane results it names.
+- Verify each accepted result is consumed by `task-index.json` or the light direct task list, or is explicitly deferred, escalated, or blocked.
 - Treat an accepted task-generation handoff with no downstream consumer as a task-layer blocker before implementation can proceed.
 
 **From constitution:**

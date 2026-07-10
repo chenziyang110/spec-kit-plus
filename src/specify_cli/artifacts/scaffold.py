@@ -302,8 +302,12 @@ def _validate_json_rendered_template(
         )
 
     if artifact_kind.kind == "plan-contract":
-        _require_json_default(payload, "status", "pending")
-        _require_json_default(payload, "handoff_to_tasks_ready", False)
+        _require_json_default(payload, "status", "draft")
+        transition = payload.get("transition")
+        if not isinstance(transition, dict) or transition.get("status") != "blocked":
+            raise ArtifactScaffoldError(
+                "unsafe_status: plan-contract transition.status must default to blocked"
+            )
 
     _reject_unsafe_status(payload)
 
@@ -697,6 +701,8 @@ def _reject_unsafe_status_scalar(value: Any) -> None:
     safe_values = {
         "",
         "false",
+        "blocked",
+        "draft",
         "gathering",
         "none",
         "not applicable",

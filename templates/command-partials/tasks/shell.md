@@ -2,87 +2,35 @@
 
 ## Objective
 
-Convert the plan package into dependency-aware execution tasks that preserve planning guardrails, expose parallel-safe batches, and make implementation resumable.
+Compile a ready plan contract into the smallest dependency-safe execution graph that preserves scope, boundaries, obligations, verification, and recovery.
 
 ## Context
 
-- Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, `plan-contract.json` when present, and the task-local project cognition query bundle with readiness and returned `minimal_live_reads`.
-- Working state lives in `FEATURE_DIR/tasks.md` plus durable decomposition metadata for later analysis or implementation routing: `handoff-to-tasks.json`, `task-index.json`, `task-packets/`, `task-generation/handoffs/`, `task-generation/evidence-index.json`, and `task-generation/checkpoints.ndjson`.
-- This command is task-generation-only. It should not cross into execution.
+- Primary authority: `plan-contract.json`; `tasks.md` is the project-facing view and `task-index.json` is canonical for standard/heavy work.
+- Read conditional plan/spec views only through a required ref or stale condition.
+- Task generation is artifact-only and does not authorize source/test edits.
 
 ## Process
 
-- Load the current plan package and recover the active workflow-state context.
-- Load implementation target boundary from `plan.md`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`.
-- Carry target root, target-relative paths or discovery steps, evidence status, relevant `MP-*` obligations, and boundary constraints into every implementation-shaping task.
-- Reject task packages that silently use the current repository when the handoff identifies another implementation target.
-- Mark reference project paths as reference-only or transfer evidence instead of implementation paths.
-- Carry locked planning decisions and implementation constitution rules forward into execution slices.
-- Map every open `CA-###` consequence obligation to tasks, packet fields, validation commands, join points, or explicit stop-and-reopen conditions.
-- Map every preserved operation-shaped capability such as new/create/scaffold/authoring/template creation to implementation tasks, validation tasks, packet fields, or explicit user-confirmed deferrals. Do not degrade a confirmed operation to manual copy docs or static template-only support.
-- Generate dependency ordering, parallel-safe batches, join points, and guardrail indexes.
-- Validate the resulting task graph before handing off to analysis or implementation.
+- If `FEATURE_DIR` is not explicit, run `{{specify-subcmd:lane resolve --command tasks --ensure-worktree}}`; honor a materialized worktree and stop on `uncertain`.
+- Validate plan revision, target boundary, complete confirmed scope, interfaces, acceptance, `MP-*`, `CA-###`, capability, fidelity, and stop/reopen refs.
+- Reject a target that silently falls back to the current repository when another implementation target was confirmed.
+- Select `light`, `standard`, or `heavy`; delegate only isolated decomposition lanes whose benefit exceeds handoff cost.
+- Build outcome-oriented tasks, dependency edges, safe parallel batches, and explicit join points. Every join point records validation target, command/check, pass condition, and recovery.
+- Run deterministic graph review; repair task-layer defects locally and route upstream truth defects to their owner.
 
-## Output Contract
+## Tiered Contract
 
-- Write `tasks.md` as the authoritative execution breakdown for the current feature.
-- Produce both human-readable `tasks.md` and machine-readable execution packets: `handoff-to-tasks.json`, `task-index.json`, and per-task JSON under `task-packets/` for downstream implementers.
-- Persist task-generation lane evidence before synthesis: every delegated decomposition lane writes `task-generation/handoffs/<lane-id>.json`, the leader updates `task-generation/evidence-index.json`, and checkpoint records go to `task-generation/checkpoints.ndjson`.
-- Consume every accepted task-generation handoff before final synthesis: each accepted handoff must shape at least one task, dependency edge, write-set decision, parallel batch, join point, guardrail, packet field, or explicit escalation/deferral.
-- Make execution ordering, parallelization boundaries, and required verification steps explicit.
-- Preserve the guardrail information later subagent execution packets and leaders must consume.
+- `leader-direct`: id, objective, dependencies, expected path/discovery scope, acceptance, verification.
+- `delegated`: add bounded reads/writes, forbidden drift, authoritative refs, done condition, and recovery.
+- `parallel/high-risk`: add exact write isolation, task-relevant obligation/fidelity refs, consumer evidence, join point, and stop/reopen conditions.
 
-### Subagent-Ready Task Contract
+Exact delegated packet shape lives in `templates/task-packet-template.json`. `sp-implement` renders and validates only the current packet against live code; do not copy the schema into `tasks.md` or pre-generate all packets.
 
-Every task written into `tasks.md` MUST carry the enriched fields below so that a worker subagent can read a single task body and begin work immediately — without asking the leader for clarification, without exploring the codebase to discover conventions, and without guessing acceptance criteria.
+## Output
 
-**Identity & Ordering**
-
-- `agent`: Role from the agent-teams pool assigned to this task. Choose from: `security-reviewer`, `test-engineer`, `style-reviewer`, `performance-reviewer`, `quality-reviewer`, `api-reviewer`, `debugger`, `code-simplifier`, `build-fixer`, `git-master`, `executor`. Default to `executor` when no specialist role matches.
-- `depends_on`: List of task IDs (with one-line descriptions) that must complete before this task can start.
-- `parallel_safe`: `true` when this task's `write_scope` has zero overlap with any other task in the same ready batch, and no shared-state conflicts exist. Otherwise `false`.
-
-**Context Navigation (pointers only — do not duplicate content)**
-
-- Provide a table mapping each piece of knowledge the worker needs to its precise location: `file.md#section-heading`. Include at minimum: the relevant design decision from plan.md, the data model entity from data-model.md, the API contract from contracts/, and a reference implementation in the repo that follows the same pattern (if one exists).
-
-**Scope Boundaries**
-
-- `write_scope`: Exact list of files this task will create or modify.
-- `read_scope`: Files and directories the worker may read but not modify.
-- `forbidden`: Paths the worker MUST NOT touch. Always include `.env`, credential files, secrets directories, and any config surfaces the task does not own.
-
-**Expected Outputs & Anti-Goals**
-
-- `expected_outputs`: Concrete file list with annotations: `（新建）` or `（修改）`.
-- `anti_goals`: Behaviors explicitly forbidden for this task. Examples: "do not introduce new dependencies", "do not modify the public API surface", "do not touch the database schema".
-- `does_not_remove`: Capability operations, acceptance signals, and preserved entry points this task's anti-goals must not delete.
-- `capability_operations`: Upstream operation-shaped capabilities this task implements, validates, preserves, defers, or explicitly does not own.
-
-**Acceptance & Verification**
-
-- `acceptance_criteria`: Verifiable, objective conditions — not subjective judgments.
-- `verify_commands`: Runnable shell commands the worker executes to self-validate before handing off. Include the exact test runner, linter, and type-check commands.
-
-**Handoff Format**
-
-- `status`: `success` | `failed` | `blocked`
-- `changed_files`: Precise list of paths modified
-- `validation_output`: Map of command → output for each verify command
-- `concerns`: Issues the leader should know about (empty list if none)
-- `recovery_hints`: If failed or blocked, the smallest safe recovery step
-
-**Failure & Escalation**
-
-- `retry_max`: Maximum retry attempts before escalation (default `2`).
-- `escalation`: Role to escalate to after retries are exhausted (default `debugger`).
-
-### Independent Executability Gate
-
-Before finalizing any task, confirm: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader a single question. If the answer is no, the task is not ready — refine it until it is.
-
-## Guardrails
-
-- Do not implement code, edit tests, or treat task generation as implicit execution approval.
-- Do not emit raw task lists that lose boundary rules, locked decisions, or verification expectations.
-- Do not assume stale or overly broad project cognition query coverage is good enough for decomposition.
+- Light: compact `tasks.md` unless a graph adds real resume value.
+- Standard/heavy: canonical `task-index.json` plus rendered `tasks.md`.
+- Delegated decomposition only: one lane manifest plus lane results.
+- Consume every accepted task-generation lane result into a task, edge, batch, join point, guardrail, or explicit blocker/deferral; chat-only lane output is not handoff truth.
+- Ready transition: canonical task ref, semantic delta, required refs, blockers/recovery, and exactly one next action.

@@ -5,8 +5,8 @@ description: "Task list template for feature implementation"
 
 # Tasks: [FEATURE NAME]
 
-**Input**: Design documents from `/.specify/features/[###-feature-name]/`
-**Prerequisites**: plan.md (required), spec.md (required for user stories), alignment.md and context.md when present or required for scenario profile inputs, research.md, data-model.md, contracts/
+**Input**: Canonical `plan-contract.json` plus only the project-facing or conditional artifacts named by its required refs.
+**Output authority**: `task-index.json` for standard/heavy work; this Markdown is the project-facing view. Light leader-direct work may use this file alone.
 
 **Tests**: The examples below include test tasks. Tests are expected by default for affected behavior changes and bug fixes. Only omit them when the plan explicitly justifies the omission.
 
@@ -14,8 +14,8 @@ description: "Task list template for feature implementation"
 
 ## Planning Inputs
 
-- **Locked planning decisions**: Copy every non-negotiable implementation, compatibility, rollout, or validation constraint from `plan.md`, `spec.md`, and `alignment.md`. Do not silently drop any locked decision.
-- **Implementation constitution**: Carry forward all architecture invariants, boundary ownership rules, forbidden drift, required references, and review focus from `plan.md`.
+- **Locked planning decisions**: Reference every task-relevant non-negotiable decision from `plan-contract.json`; do not copy full upstream bodies or silently drop a decision.
+- **Implementation constitution**: Carry task-relevant architecture, boundary ownership, forbidden drift, required-reference, and review-risk refs from the plan contract.
 - **Scenario profile inputs**: Record exactly one active profile and carry forward every profile-driven constraint, reference fidelity rule, allowed deviation rule, and required evidence obligation from `plan.md`, `spec.md`, `alignment.md`, and `context.md`.
 - **Reference fidelity inventory**: When the spec/plan package defines reference behavior inventory items, map every preserved or redesigned behavior to at least one task, checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
@@ -23,7 +23,7 @@ description: "Task list template for feature implementation"
 - **Task Interface Map**: Record known consumes/produces relationships so downstream packets can expose interface expectations before implementation.
 - **Review-Risk Notes**: Preserve plan-approved residual risks, manual checks, UI/reference fidelity risks, and quality tradeoffs for task reviewers.
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
-- **Must-preserve discussion obligations**: Copy relevant `MP-*` items from `plan.md`, `spec.md`, `alignment.md`, `context.md`, `references.md`, and `brainstorming/handoff-to-specify.json`. Each implementation-shaping item must appear in the Task Guardrail Index, a required reference, a validation checkpoint, a task packet field, a refinement checkpoint, a valid blocker, or a user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
+- **Must-preserve discussion obligations**: Preserve relevant `MP-*` and `CA-###` refs once in `task-index.json`; map each to a task, join/validation point, blocker, or user-confirmed deferral with its reopen condition.
 - **Capability operations**: Copy every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
 - **User-observable paths**: For any UI, TUI, CLI, API route, installer, registry/factory/config wiring, or generated asset consumed by runtime behavior, record the real entrypoint path from producer data through transformer/state builder to the consumer surface and executor/boundary.
 - Do not silently drop a locked planning decision; if a user-confirmed deferral applies, record it in the phase or dependency notes with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact
@@ -50,11 +50,11 @@ description: "Task list template for feature implementation"
 - If the user did not confirm the deferral, task the behavior, create a refinement or
   validation checkpoint, or record a valid hard blocker.
 
-## Task Guardrail Index
+## Task Contract Mapping
 
-- Map each implementation task to the delegated-execution rules it inherits from `plan.md`, `tasks.md`, and `.specify/memory/constitution.md`
-- Keep the mapping compact and task-specific so packet compilation can resolve applicable hard rules without copying the full constitution into every task body
-- Include task-to-guardrail mapping entries such as ``T017 -> G-PRESERVE-BOUNDARY, G-VALIDATE-AUTH`` when subagent execution needs explicit execution constraints
+- Keep canonical task-to-guardrail, obligation, acceptance, and required-reference mappings in `task-index.json`; render only entries with project-review value here.
+- Keep mappings compact and task-specific so leader-direct execution or just-in-time packet compilation can resolve hard rules without copying the full constitution.
+- Example: `T017 -> G-PRESERVE-BOUNDARY, MP-004, CA-012`.
 - Include `MP-*` IDs for any task that carries a discussion-derived goal, non-goal, decision, reference, trade-off, acceptance signal, or stop-and-reopen condition.
 - Include capability operation IDs or labels for any task that implements, validates, preserves, defers, or explicitly does not own a new/create/scaffold/authoring workflow.
 - For each `[P]` task or explicit parallel batch, include enough detail that the leader can compile a bounded subagent execution packet: objective, write set, required references, forbidden drift, validation command, and done condition
@@ -103,13 +103,11 @@ description: "Task list template for feature implementation"
 - **MP obligations**: [MP-* IDs that shape implementation location, scope, validation, or stop conditions]
 - **Reference-only paths**: [paths used only as transfer evidence, not as implementation write targets]
 
-## Task-Generation Evidence Index
+## Delegated Lane Integration
 
-- `task-generation/evidence-index.json`: accepted task-generation lane handoffs and the task, dependency, write-set, batch, join-point, guardrail, or escalation decisions each handoff shaped.
-- `task-generation/checkpoints.ndjson`: `task_generation_checkpoint` records written before delegated decomposition lanes, major synthesis points, and compaction-risk stops.
-- `task-generation/handoffs/`: one structured handoff per accepted task-generation lane, named by stable lane id.
-- Every task, dependency edge, write-set decision, parallel batch, join point, guardrail, or escalation below should be traceable to upstream artifacts and, when delegated lanes were used, to at least one accepted task-generation handoff.
-- Every accepted task-generation handoff must have a consumer recorded in `task-generation/evidence-index.json`: a task ID, packet field, dependency edge, write-set decision, join point, guardrail, refinement checkpoint, `user_confirmed_deferrals` entry carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact, escalation, or blocker reason.
+- When task decomposition is delegated, write one `task-generation/lane-manifest.json` and one result per lane under `task-generation/handoffs/`.
+- Record each accepted result's consumer once in the manifest: task, edge, batch, join, guardrail, deferral, escalation, or blocker.
+- Do not create separate evidence-index and checkpoint logs for the same events.
 
 ## Reference Fidelity Mapping
 
@@ -149,28 +147,22 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 
 ## Task Shaping Rules
 
-- Top-level tasks should stay bounded enough to finish in one coffee break sized implementation slice, usually roughly 10-20 minutes.
-- Each task should preserve one stable objective, one isolated write set, and one verification path.
-- Delegated workers may still break a task into smaller 2-5 minute atomic internal steps, but `tasks.md` should stop at the smallest unit worth explicit orchestration.
+- Each task should preserve one stable objective, a bounded expected write scope, and one verification path.
 - Stop decomposition once the current executable window is atomic.
 - Leave later execution phases at the coarser story or phase level only when their exact task shape depends on earlier join points, then refine them after the checkpoint inside the current confirmed delivery instead of guessing too early.
-- Every task MUST carry the enriched subagent contract fields defined in the `sp-tasks` shell output contract: agent, depends_on, parallel_safe, context navigation table, scope boundaries (write_scope / read_scope / forbidden), expected outputs, anti_goals, acceptance criteria, verify commands, handoff format, and failure handling (retry_max, escalation).
-- Carry `global_constraints`, `interfaces.consumes`, `interfaces.produces`, `review_inputs`, `review_risks`, `ui_fidelity_requirements`, and `controller_checks_required` into task packets when relevant.
+- Store only task-shaping fields in `task-index.json`: objective, dependencies, expected write scope, required refs, forbidden drift, acceptance, verification, obligation refs, join point, and packet mode.
+- Carry interfaces, review risks, fidelity requirements, controller checks, and real-entrypoint evidence only when they affect the current task.
 - Tasks that appear in User-Observable Path Coverage MUST also include `consumer_surfaces` and `required_evidence` with `real_entrypoint_evidence` so `sp-implement` can reject synthetic-only consumer proof.
-- Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, the task MUST be refined before `tasks.md` can be finalized.
+- Before finalizing a task, confirm it can run leader-direct or be compiled into a bounded delegated packet from the task plus named refs and live code. If neither route is safe, refine or block it.
 - If the active profile has a reference fidelity contract, add an explicit Fidelity Checkpoint before any implementation batch that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
 - Any task that intentionally departs from the reference object MUST name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
 
 ## Embedded Implement Review Policy
 
-- `sp-implement` must run an embedded pre-implement review before the first code-writing task.
-- `sp-implement` must run join-point drift review after each parallel batch, phase, pipeline stage, and sequential review window.
-- Default review window limits: `max_completed_tasks_before_review=5`, `max_unreviewed_changed_paths=8`, `max_unreviewed_validation_failures=0`.
+- `sp-implement` runs event-triggered review for repository/task drift, parallel joins, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gaps, or a sequential review-window threshold.
 - Automatic task-layer repair is allowed only when the accepted goal and plan remain valid.
 - Automatic task-layer repair may not rewrite spec, alignment, context, plan, upstream-derived profile fields, required evidence, final handoff decisions, Analyze Gate, or Reopen Contract.
-- Audit records must be written to `implementation-review/reviews.ndjson` and `implementation-review/repairs.ndjson`, with snapshots under `implementation-review/snapshots/`.
-- Accepted packetized tasks must have `implementation-review/task-briefs/<task-id>.md`, `implementation-review/review-packages/<task-id>.md`, `implementation-review/task-reviews/<task-id>.json`, and `implementation-review/ledger.json`.
-- Final closeout must include `implementation-review/branch-review.md`.
+- Keep packet/ref, result, validation, review verdict, and recovery in one task lifecycle record. Create an extra review/repair event only when multiple tasks are affected; do not create separate briefs, packages, or ledgers.
 
 ### Task Identity Stability
 
@@ -178,7 +170,7 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 - Incomplete task IDs stay stable when the objective remains the same.
 - New repair or refinement tasks use append-only IDs.
 - Follow-up repair tasks carry `repair_for: T###` or `refines: T###`.
-- Superseded incomplete tasks remain traceable through `task-index.json`, `task-packets/` metadata, repair records, dependencies, `implement-tracker.md`, and worker-result references.
+- Superseded incomplete tasks remain traceable through `task-index.json`, dependencies, lifecycle records, and worker-result refs.
 - The dependency graph and `next_batch` are authoritative after repair.
 
 ## Implementation-Readiness Task Self-Audit
@@ -187,14 +179,14 @@ Before final handoff to `sp-implement`, confirm:
 
 - Buildable `FR-*` and buildable success criteria have task, checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact coverage.
 - Locked planning decisions that affect implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails are preserved in this task package.
-- `Implementation Constitution` rules from `plan.md` are preserved through the implementation guardrails phase, `Task Guardrail Index`, task notes, or explicit escalation.
-- `Task Guardrail Index` entries map applicable guardrails to concrete implementation tasks.
+- `Implementation Constitution` rules are preserved through task contract mappings, task refs, or explicit escalation.
+- `task-index.json` maps applicable guardrails and obligations to concrete tasks.
 - Preserved capability operations map to implementation tasks, validation tasks, packet fields, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - User-observable UI/TUI/CLI/API/runtime paths map to at least one real-entrypoint validation task, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - No operation-shaped create/scaffold capability has degraded to template-only task output, manual copy docs, or an authoring guide without an executable entry point.
 - Anti-goals that restrict public surfaces include does-not-remove guards.
 - Each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
-- Task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
+- Delegated packet compilation inputs cover `DP1`, `DP2`, and `DP3` as far as task generation can determine before live implementation intake.
 - Reference fidelity behavior items map to task IDs, checkpoints, join points, refinement checkpoints, valid blockers, or user-confirmed deferrals carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - Unmapped tasks are justified as setup, polish, verification, or cross-cutting work, or removed.
 - Task dependencies and parallel batches do not contain obvious write-set conflicts.
@@ -457,20 +449,11 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
   - parallel-ready after foundational work
 - Do not use the current batch execution strategy as a blanket label for the whole feature.
 
-### Current Ready Batch Dispatch
+### Current Ready Task Route
 
-- Record the mandatory subagent dispatch decision for the **next executable batch only**:
-  - `execution_model: subagent-mandatory`
-  - `dispatch_shape: one-subagent | parallel-subagents | subagent-blocked`
-  - `execution_surface: native-subagents`
-- Also record the policy reason code, for example:
-  - `safe-one-subagent`
-  - `safe-parallel-subagents`
-  - `no-safe-delegated-lane`
-  - `packet-not-ready`
-  - `runtime-no-subagents`
-  - `low-delegation-confidence`
-- If later batches are parallelizable but the current batch is not, say that explicitly instead of implying the whole feature has no parallelism.
+- `sp-implement` selects `leader-direct`, `one-subagent`, `parallel-subagents`, or blocked from the current task and live repository state.
+- Task generation records route-shaping facts, not a mandatory runtime route: expected write scope, dependencies, packet mode, risk triggers, and join validation.
+- WorkerTaskPackets are compiled just in time only for selected delegated lanes.
 
 ### Confirmed Delivery Boundary
 
@@ -502,86 +485,12 @@ With multiple developers:
 
 ---
 
-## Enriched Task Reference Example
+## Canonical Agent Shapes
 
-Below is a complete enriched task showing every required subagent contract field. Generated `tasks.md` files must use this shape for every implementation task.
-
-```markdown
-## T017: Implement JWT auth middleware
-
-### Identity
-| Field | Value |
-|-------|-------|
-| agent | security-reviewer |
-| depends_on | [T015: AuthService interface, T016: JWT utility functions] |
-| parallel_safe | true |
-
-### Context Navigation
-| Need | Find it at |
-|------|-----------|
-| JWT payload structure | data-model.md#AuthPayload |
-| Token expiry strategy | plan.md#token-expiry-strategy |
-| Protected route list | contracts/auth-api.md |
-| Standard error response format | contracts/error-response.md |
-| Reference implementation | src/middleware/ratelimit.ts（same middleware pattern） |
-
-### Scope Boundaries
-| Field | Value |
-|-------|-------|
-| write_scope | [src/middleware/auth.ts, tests/auth/middleware.test.ts] |
-| read_scope | [src/auth/types.ts, contracts/auth-api.md, contracts/error-response.md] |
-| forbidden | [src/db/, .env, src/config/] |
-| does_not_remove | [login capability through middleware contract, scaffold capability through TUI route] |
-| capability_operations | [implements auth middleware, does not own scaffold operation] |
-| consumer_surfaces | [Protected route middleware invoked through real HTTP request path] |
-| required_evidence | [consumer_evidence, real_entrypoint_evidence] |
-| global_constraints | [Use project design tokens] |
-| consumes | [SettingsRoute registration] |
-| produces | [SettingsPanel component] |
-| review_inputs | [DESIGN.md, ui-brief.md, ui-target.html] |
-| review_risks | [visual comparison may require browser screenshot] |
-| ui_fidelity_level | [high] |
-| design_inputs | [DESIGN.md, ui-brief.md, ui-target.html] |
-| ui_required_evidence | [screenshot_evidence, visual_comparison_evidence] |
-| controller_checks_required | [human review if agent visual comparison is unavailable] |
-
-### Expected Outputs
-- src/middleware/auth.ts （新建）
-- tests/auth/middleware.test.ts （新建，>=80% coverage）
-
-### Anti-Goals
-- Do not introduce new npm dependencies
-- Do not access the database directly（use AuthService interface）
-- Do not modify existing public types in src/auth/types.ts
-
-### Acceptance Criteria
-- [ ] Valid token -> inject AuthPayload into req.context, continue chain
-- [ ] Expired token -> return 401 with standard error format
-- [ ] Missing Authorization header -> return 401
-- [ ] Malformed token -> return 400
-- [ ] Whitelist paths pass through untouched
-- [ ] Security lint is clean
-
-### Verify Commands
-```
-npx jest tests/auth/middleware.test.ts --coverage
-npx eslint src/middleware/auth.ts
-npx tsc --noEmit
-```
-
-### Handoff Format
-- status: success | failed | blocked
-- changed_files: ["src/middleware/auth.ts", "tests/auth/middleware.test.ts"]
-- validation_output: {"jest": "PASS", "eslint": "clean", "tsc": "clean"}
-- concerns: [] | ["specific concern"]
-- recovery_hints: [] | ["suggested recovery direction"]
-
-### Failure Handling
-| Field | Value |
-|-------|-------|
-| retry_max | 2 |
-| escalation | debugger（escalate for diagnosis after retries exhausted） |
-```
+- `task-index.json` owns task graph, mappings, batches, joins, and transition state.
+- `templates/task-packet-template.json` owns delegated WorkerTaskPacket shape; `sp-implement` renders only the current packet.
+- `templates/task-lifecycle-template.json` owns execution result, validation, review, and recovery state.
+- Do not reproduce those schemas as long Markdown examples here.
 
 ---
 

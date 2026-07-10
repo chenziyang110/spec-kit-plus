@@ -15,7 +15,7 @@ var (
 )
 
 func main() {
-	dir := flag.String("dir", ".", "feature directory path (containing spec.md, alignment.md, etc.)")
+	dir := flag.String("dir", ".", "feature directory path (containing spec-contract.json and spec.md, or a legacy spec package)")
 	tier := flag.String("tier", "standard", "check tier: light, standard, deep")
 	printVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -56,6 +56,7 @@ func loadArtifacts(dir string) artifactSet {
 		workflowState: read("workflow-state.md"),
 		requirements:  read(filepath.Join("checklists", "requirements.md")),
 		handoff:       read(filepath.Join("brainstorming", "handoff-to-specify.json")),
+		specContract:  read("spec-contract.json"),
 	}
 }
 

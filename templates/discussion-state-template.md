@@ -141,7 +141,6 @@
 - project-context.md
 - open-questions.md
 - handoff-assessment.md only after explicit user request
-- handoff-to-specify.md draft after explicit user request and boundary lock; mark handoff-ready only after self-review pass and user confirmation
 - handoff-to-specify.json draft after explicit user request and boundary lock; mark handoff-ready only after self-review pass and user confirmation
 
 ## Forbidden Actions
@@ -159,7 +158,7 @@
 - add, recommend, or route to sp-split
 - write separate split planning artifacts
 - write candidate-specific handoff Markdown or JSON
-- write pointer-only handoff-to-specify.md or handoff-to-specify.json
+- write pointer-only handoff-to-specify.json
 - use current project cognition to prove another project's implementation facts
 
 ## Authoritative Files
@@ -171,8 +170,7 @@
 - project-context.md
 - open-questions.md
 - handoff-assessment.md when present
-- handoff-to-specify.json as the canonical handoff payload
-- handoff-to-specify.md as its deterministic human-readable rendering
+- handoff-to-specify.json as the canonical agent-only handoff contract
 
 ## Senior Consequence Analysis
 
@@ -185,8 +183,7 @@
 
 ## Handoff
 
-- handoff_to_specify: none
-- handoff_to_specify_json: none
+- handoff_contract: none
 - handoff_kind: discussion_requirement_contract | legacy_specify_handoff | none
 - handoff_goal: none
 - consumer_eligibility: sp-specify=blocked; sp-quick=blocked

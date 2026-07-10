@@ -134,29 +134,31 @@ ARTIFACT_REGISTRY: dict[str, ArtifactKind] = {
         ),
         fixed_anchors=(),
         agent_fill_required=(
-            "route",
             "intent",
             "complexity_level",
-            "must_preserve",
-            "acceptance_obligations",
-            "allowed_optimization_scope",
+            "architecture_decisions",
+            "interface_map",
+            "acceptance_refs",
         ),
         fill_targets={
-            "route": {"type": "json_pointer", "pointer": "/route"},
             "intent": {"type": "json_pointer", "pointer": "/intent"},
             "complexity_level": {
                 "type": "json_pointer",
                 "pointer": "/complexity_level",
             },
-            "must_preserve": {"type": "json_pointer", "pointer": "/must_preserve"},
-            "acceptance_obligations": {
+            "architecture_decisions": {
                 "type": "json_pointer",
-                "pointer": "/acceptance_obligations",
+                "pointer": "/architecture_decisions",
             },
-            "allowed_optimization_scope": {
+            "interface_map": {
                 "type": "json_pointer",
-                "pointer": "/allowed_optimization_scope",
+                "pointer": "/interface_map",
             },
+            "acceptance_refs": {"type": "json_pointer", "pointer": "/acceptance_refs"},
+            "capability_operations": {"type": "json_pointer", "pointer": "/capability_operations"},
+            "must_preserve_refs": {"type": "json_pointer", "pointer": "/must_preserve_refs"},
+            "consequence_obligation_refs": {"type": "json_pointer", "pointer": "/consequence_obligation_refs"},
+            "review_risk_notes": {"type": "json_pointer", "pointer": "/review_risk_notes"},
         },
         validator="json",
         downstream_consumers=("sp-tasks", "sp-analyze"),
@@ -164,8 +166,8 @@ ARTIFACT_REGISTRY: dict[str, ArtifactKind] = {
         scriptability="json-builder",
         quality_risk="low",
         recommendation="builder",
-        fixed_bytes_estimate=900,
-        semantic_bytes_estimate=320,
+        fixed_bytes_estimate=1450,
+        semantic_bytes_estimate=420,
     ),
 }
 

@@ -1,11 +1,10 @@
 {
-  "version": 3,
+  "version": 4,
   "handoff_kind": "discussion_requirement_contract",
   "status": "draft",
   "entry_source": "sp-discussion",
   "discussion_slug": null,
-  "source_handoff": null,
-  "source_handoff_json": null,
+  "source_contract": null,
   "handoff_goal": null,
   "agent_requirement_contract": {
     "target_need": null,
@@ -58,17 +57,14 @@
     "confirmed_digest": null,
     "blocked_reasons": []
   },
-  "handoff_reviewer_guide": {
-    "decision": "Confirm that this handoff matches the intended direction and is safe for downstream use.",
-    "review_order": ["goal", "context boundary", "source evidence", "blocking unknowns", "Must-Preserve items"],
-    "approve_if": ["The goal, target, evidence boundary, and protected decisions are correct."],
-    "request_changes_if": ["The target, evidence, scope, or protected decisions are wrong or incomplete."]
-  },
   "discussion_decision_digest": {
     "locked_direction": [],
     "rejected_alternatives": [],
     "accepted_tradeoffs": [],
     "experience_commitments": [],
+    "design_system_requirements": [],
+    "design_system_status": "not-applicable",
+    "design_risk_level": "none",
     "review_criteria_carried_forward": [],
     "must_not_dilute": []
   },

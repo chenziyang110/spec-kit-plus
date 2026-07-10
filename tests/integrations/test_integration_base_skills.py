@@ -154,15 +154,17 @@ def test_generated_specify_skill_teaches_simplified_specify_contract(tmp_path):
     assert "one high-impact question at a time" in content
     assert "two or three approaches" in content or "2-3 approaches" in content
     assert "semantic term" in content
-    assert "source_signal_disposition" in content
+    assert "source_signal_disposition" not in content
+    assert "decision digest" in content
+    assert "capability operations" in content
     assert "handoff-ready" in content
     assert "quality_gate.status: user_confirmed" in content
     assert "planning_gate_status: ready" in content
     assert "derive the feature description" in content
     assert "do not pass the raw handoff" in content
-    assert "discussion-log.jsonl" in content
-    assert "requirements.md" in content
-    assert "open-questions.md" in content
+    assert "spec-contract.json" in content
+    assert "semantic_delta" in content
+    assert "named evidence reference is stale, missing, or contradictory" in content
     assert "facts-lock" not in content
     assert "route-lock" not in content
     assert "intent-lock" not in content
@@ -196,7 +198,8 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in skill_lower
     assert "persist them to `open-questions.md` only when they materially change" in skill_lower
     assert "semantic checkpoints" in skill_lower
-    assert "draft pair" in skill_lower
+    assert "agent-only" in skill_lower
+    assert "do not write a markdown companion" in skill_lower
     assert "truth pass" in skill_lower
     assert "verified_project_facts" in skill_content
     assert "open_assumptions" in skill_content
@@ -240,8 +243,8 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "handoff request-changes repair" in skill_lower
     assert "blocked_by_handoff_integrity" in skill_content
     assert "the repair belongs to `sp-discussion`" in skill_lower
-    assert "render `handoff-to-specify.md` from that exact payload" in skill_lower
-    assert "source_handoff_json" in skill_content
+    assert "update canonical `handoff-to-specify.json`" in skill_lower
+    assert "source_contract" in skill_content
     assert "field-level validation errors" in skill_content
     assert "review_digest" in skill_content
     assert "recommendation-first is not questionless" in skill_lower
@@ -252,13 +255,10 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "recommended_consumer" in skill_content
     assert "planning_constraints" in skill_content
     assert "quick_task_candidate" not in skill_content
-    assert "Do not describe current execution or implementation progress" in skill_content
-    assert "handoff-to-specify.md" in skill_content
+    assert "do not describe current execution or implementation progress" in skill_lower
     assert "handoff-to-specify.json" in skill_content
-    assert "Handoff Reviewer Guide" in skill_content
-    assert "Approve only if" in skill_content
-    assert "Request changes if" in skill_content
-    assert "does not know Spec Kit internals" in skill_content
+    assert "Human Confirmation" in skill_content
+    assert "current digest" in skill_lower
     assert "quality_gate" in skill_content
     assert "user confirmation" in skill_lower
     assert "Must-Preserve Ledger" in skill_content
@@ -385,13 +385,11 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 def _assert_embedded_implement_review_contract(content: str) -> None:
     lowered = content.lower()
 
-    assert "embedded implement review" in lowered
-    assert "pre-implement review" in lowered
-    assert "join-point drift review" in lowered
-    assert "sequential review window" in lowered
-    assert "review_window_policy" in content
-    assert "implementation-review/reviews.ndjson" in content
-    assert "implementation-review/repairs.ndjson" in content
+    assert "event-triggered review" in lowered
+    assert "entry revision check" in lowered
+    assert "parallel lanes join" in lowered
+    assert "task lifecycle record" in lowered
+    assert "do not create separate task briefs, review packages, or a duplicate task ledger" in lowered
     assert "/sp.review" not in content
     assert "sp-review" not in content
 
@@ -978,28 +976,24 @@ class SkillsIntegrationTests:
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
-        content = (i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+        content = _read_skill_with_references(i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md")
         lowered = content.lower()
 
         assert "Must-Preserve Ledger" in content
-        assert "coverage_status" in content
-        assert "planning_gate_status" in content
-        assert "entry_source: sp-discussion" in content
-        assert "discussion-log.md" in content
-        assert "requirements.md" in content
-        assert "open-questions.md" in content
-        assert "source_signal_disposition" in content
-        assert "Discussion Decision Digest" in content
+        assert "spec-contract.json" in content
+        assert "semantic_delta" in content
+        assert "decision_digest_ref" in content
         assert "discussion_decision_digest" in content
-        assert "review_criteria_carried_forward" in content
         assert "must_not_dilute" in content
-        assert "source_files_read" in content
+        assert "named evidence reference" in lowered
+        assert "stale, missing, or contradictory" in lowered
+        assert "source_files_read" not in content
+        assert "do not repeat user review" in lowered
         assert "choose_ui_reference_lane_dispatch" in content
         assert "ui-reference-artifact" in content
         assert "ui-reference-notes.md" in content
         assert "ui-brief.md" in content
         assert "Reference-Implementation" in content
-        assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
         assert "do not silently" in lowered
@@ -1198,8 +1192,10 @@ class SkillsIntegrationTests:
         assert "resolve discussion handoff intake before quick-task execution" in quick_content
         assert "discussion_requirement_contract" in quick_content
         assert "consumer_eligibility.sp-quick.status" in quick_content
-        assert "quick_task_candidate" in quick_content
-        assert "do not skip the understanding checkpoint" in quick_content
+        assert "planning constraints" in quick_content
+        assert "review_digest" in quick_content
+        assert "quick_task_candidate" not in quick_content
+        assert "do not repeat user confirmation" in quick_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
