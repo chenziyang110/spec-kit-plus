@@ -37,6 +37,8 @@ For each `unknown_path_dispositions[]` item, set `agent_disposition` to exactly 
 - `ignored`: path remains excluded and must not enter payloads, records, route indexes, evidence, aliases, or minimal live reads.
 - `blocking_known_unknown`: record it as a known unknown and report partial or blocked cognition closeout.
 
+`agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded. Runtime adoption still requires a usable active project-cognition DB, at least one passing verification evidence item, and no blocking `known_unknowns`. After `update_argv` runs, inspect `result_state`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`; do not explain a remaining `partial_refresh` as "path_index missing" until those fields show which adoption gate failed.
+
 If `update_mode=delta_session`, complete `delta_append_draft.argv_prefix` with agent-owned repeatable flags such as `--behavior-surface`, `--generated-surface`, `--verification`, and accepted `--known-unknown` values from `delta_append_draft.argv_placeholders`. Then append the delta event and run `update_argv`. `delta_append_command` and `update_command` are display-only placeholders, not execution strings.
 
 If `update_mode=payload_file`, write the completed `payload_draft` to the planner's `payload_path`. Then run `update_argv`. `update_command` is a display-only placeholder, not an execution string.
@@ -48,10 +50,12 @@ For compatibility with worker handoffs and delta packets, the runtime also accep
 Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone:
 
 - `ready` or `no_op`: project cognition closeout may be clean when ordinary verification also passed.
-- `partial_refresh`: useful update data was written, but the final workflow state must report partial cognition closeout and the returned `minimal_live_reads`.
+- `partial_refresh`: useful update data was written, but the final workflow state must report partial cognition closeout, `partial_refresh_reasons`, and the returned `minimal_live_reads`. If `partial_refresh_reasons` includes `missing_passing_verification_result`, repair the payload or delta evidence and rerun `update_argv` before final closeout; do not route that to `sp-map-update`. If verified workflow-owned paths still remain in `review_paths` after the update, report implementation completion separately from project-cognition maintenance and name `{{invoke:map-update}}` as follow-up repair.
 - `needs_rebuild`: report the exact rebuild condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - `blocked`: report the runtime or validation blocker and the exact recovery command.
 - `recorded`: legacy recorded-only output; treat it as partial or blocked, never as clean completion.
+
+Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`; those helpers are only for states that the runtime and validation prove ready.
 
 Dirty fallback command shape: `{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}`.
 Use `{{specify-subcmd:project-cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when inline update cannot complete: when the planner or update command is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.

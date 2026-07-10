@@ -368,6 +368,19 @@ func TestRunUpdatePathOnlyUnknownCoverageReturnsPartialRefresh(t *testing.T) {
 	if !containsString(payload.MinimalLiveReads, "src/new-feature.go") {
 		t.Fatalf("MinimalLiveReads = %#v, want changed path", payload.MinimalLiveReads)
 	}
+	if !containsString(payload.PartialRefreshReasons, "changed_paths_missing_active_path_index") {
+		t.Fatalf("PartialRefreshReasons = %#v, want missing path_index diagnostic", payload.PartialRefreshReasons)
+	}
+	if !containsString(payload.PartialRefreshReasons, "missing_passing_verification_result") {
+		t.Fatalf("PartialRefreshReasons = %#v, want missing verification diagnostic", payload.PartialRefreshReasons)
+	}
+	reasons, ok := payload.PathAdoption["partial_refresh_reasons"].([]string)
+	if !ok {
+		t.Fatalf("path adoption partial_refresh_reasons = %#v, want []string", payload.PathAdoption["partial_refresh_reasons"])
+	}
+	if !containsString(reasons, "missing_passing_verification_result") {
+		t.Fatalf("path adoption partial_refresh_reasons = %#v, want missing verification", reasons)
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		t.Fatal(err)
@@ -554,6 +567,55 @@ func TestRunUpdatePayloadFileAcceptsVerificationEvidenceAlias(t *testing.T) {
 	}
 	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
 		t.Fatalf("AdoptedPaths = %#v, want payload alias path adoption", payload.AdoptedPaths)
+	}
+}
+
+func TestRunUpdatePayloadFileNormalizesPassedVerificationAliases(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	payloadPath := filepath.Join(paths.RuntimeDir, "updates", "workflow-finalize.json")
+	if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte(`{
+  "workflow": "sp-implement",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/pass-alias.go"],
+  "behavior_surfaces": ["pass alias entrypoint"],
+  "verification": [
+    {"command": "go test ./...", "result": "pass"}
+  ],
+  "known_unknowns": []
+}`)
+	if err := os.WriteFile(payloadPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		PayloadFile: payloadPath,
+		Reason:      "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/pass-alias.go") {
+		t.Fatalf("AdoptedPaths = %#v, want pass-alias adoption", payload.AdoptedPaths)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var attrsJSON string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT attrs_json FROM updates WHERE id = ?`, payload.UpdateID).Scan(&attrsJSON); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(attrsJSON, `"result":"passed"`) {
+		t.Fatalf("attrs_json = %s, want normalized passed result", attrsJSON)
 	}
 }
 

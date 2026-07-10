@@ -379,6 +379,10 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "delta_append_draft.argv_prefix",
         "display-only `update_command`",
         "display-only `delta_append_command`",
+        "partial_refresh_reasons",
+        "adopted_paths",
+        "review_paths",
+        "missing_passing_verification_result",
     )
     for term in required_planner_terms:
         assert term in shared, f"inline closeout partial missing {term}"
@@ -396,6 +400,9 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     assert "recorded" in shared
     assert "verification_evidence" in shared
     assert "generated_surface_notes" in shared
+    assert "`agent_disposition=adoptable` is an agent accounting decision" in shared
+    assert "do not route that to `sp-map-update`" in shared
+    assert "Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`" in shared
 
     for path in INLINE_CLOSEOUT_SURFACES[1:]:
         content = _read(path)
@@ -404,6 +411,9 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         assert "fields listed in `required_agent_fields`" in content, path
         assert "populated only when evidence supports them" in content, path
         assert "Use `known_unknowns` only for blockers that make the cognition update unsafe to trust" in content, path
+        assert "`agent_disposition=adoptable` is an agent accounting decision" in content, path
+        assert "partial_refresh_reasons" in content, path
+        assert "missing_passing_verification_result" in content, path
 
     for path in (
         "templates/worker-prompts/implementer.md",
