@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from specify_cli.hooks.engine import run_quality_hook
 
 
@@ -209,15 +211,36 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
     payload = {
         "version": 1,
         "status": "planning-ready",
+        "source_contract": None,
+        "source_revision": None,
+        "decision_digest_ref": None,
         "target_need": "Demo need",
         "scope": {"in": ["Demo behavior"], "out": [], "deferred": []},
         "constraints": [],
         "acceptance_criteria": ["Demo behavior is verifiable"],
         "decisions": [],
         "semantic_delta": [],
+        "capability_operations": [],
         "must_preserve_refs": [],
         "consequence_obligation_refs": [],
-        "context_capsule": {},
+        "design_contract": {
+            "experience_requirements": [],
+            "design_source_refs": [],
+            "design_system_requirements": [],
+            "design_system_status": "not-applicable",
+            "design_risk_level": "none",
+            "fidelity_refs": [],
+            "required_states": [],
+            "validation_refs": [],
+        },
+        "context_capsule": {
+            "boundary_ref": None,
+            "evidence_refs": [],
+            "selected_capabilities": [],
+            "minimal_live_reads": [],
+            "validation_routes": [],
+            "stale_if": [],
+        },
         "open_items": [],
         "artifact_refs": {"spec": "spec.md", "alignment": None, "context": None, "references": None},
         "transition": {
@@ -227,7 +250,7 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
             "semantic_delta": [],
             "required_refs": [],
             "blockers": [],
-            "next_action": "sp-plan",
+            "next_action": "/sp.plan",
             "recovery": None,
         },
     }
@@ -693,8 +716,63 @@ def test_specify_artifact_validation_does_not_require_compatibility_handoff(tmp_
     assert result.errors == []
 
 
+@pytest.mark.parametrize(
+    ("mutation", "expected_error"),
+    [
+        (
+            lambda payload: payload.pop("capability_operations"),
+            "missing capability_operations",
+        ),
+        (
+            lambda payload: payload["transition"].update({"next_action": None}),
+            "transition next_action must be a non-empty string when ready",
+        ),
+        (
+            lambda payload: payload["artifact_refs"].update(
+                {"context": "../../outside-context.md"}
+            ),
+            "artifact_refs.context must stay inside the feature directory",
+        ),
+        (
+            lambda payload: payload.update(
+                {"semantic_delta": [{"ref": "DEC-001", "change": "Changed scope"}]}
+            ),
+            "non-empty semantic_delta requires approved user review",
+        ),
+    ],
+)
+def test_spec_contract_validation_rejects_incomplete_or_unsafe_agent_contract(
+    tmp_path: Path,
+    mutation,
+    expected_error: str,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_spec_contract(feature_dir)
+    contract_path = feature_dir / "spec-contract.json"
+    payload = json.loads(contract_path.read_text(encoding="utf-8"))
+    mutation(payload)
+    contract_path.write_text(json.dumps(payload), encoding="utf-8")
+    (project / "outside-context.md").write_text("# Outside\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any(expected_error in message for message in result.errors)
+
+
+@pytest.mark.parametrize("task_index_version", [2, 3])
 def test_agent_native_implement_artifacts_require_checked_task_lifecycle(
     tmp_path: Path,
+    task_index_version: int,
 ) -> None:
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -708,7 +786,13 @@ def test_agent_native_implement_artifacts_require_checked_task_lifecycle(
         encoding="utf-8",
     )
     (feature_dir / "task-index.json").write_text(
-        json.dumps({"version": 2, "status": "ready", "tasks": [{"id": "T001"}]}),
+        json.dumps(
+            {
+                "version": task_index_version,
+                "status": "ready",
+                "tasks": [{"id": "T001"}],
+            }
+        ),
         encoding="utf-8",
     )
 

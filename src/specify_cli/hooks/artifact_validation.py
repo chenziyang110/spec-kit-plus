@@ -683,7 +683,10 @@ def _uses_agent_native_task_lifecycle(feature_dir: Path) -> bool:
         payload = json.loads(task_index_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return True
-    return isinstance(payload, dict) and payload.get("version") == 2
+    if not isinstance(payload, dict):
+        return False
+    version = payload.get("version")
+    return isinstance(version, int) and not isinstance(version, bool) and version >= 2
 
 
 def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[str]:
@@ -2313,9 +2316,19 @@ def _validate_agent_transition(payload: Any, label: str) -> list[str]:
         errors.append(f"{label} version must be 1")
     if payload.get("status") not in {"ready", "blocked"}:
         errors.append(f"{label} status must be ready or blocked")
+    if not str(payload.get("source_ref") or "").strip():
+        errors.append(f"{label} source_ref must be a non-empty string")
     for field in ("semantic_delta", "required_refs", "blockers"):
         if field in payload and not isinstance(payload.get(field), list):
             errors.append(f"{label} {field} must be a list")
+    if payload.get("status") == "ready":
+        if not str(payload.get("next_action") or "").strip():
+            errors.append(
+                f"{label} next_action must be a non-empty string when ready"
+            )
+        blockers = payload.get("blockers")
+        if isinstance(blockers, list) and blockers:
+            errors.append(f"{label} blockers must be empty when ready")
     return errors
 
 
@@ -2330,14 +2343,19 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
     required = (
         "version",
         "status",
+        "source_contract",
+        "source_revision",
+        "decision_digest_ref",
         "target_need",
         "scope",
         "constraints",
         "acceptance_criteria",
         "decisions",
         "semantic_delta",
+        "capability_operations",
         "must_preserve_refs",
         "consequence_obligation_refs",
+        "design_contract",
         "context_capsule",
         "open_items",
         "artifact_refs",
@@ -2353,25 +2371,107 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
     if not str(payload.get("target_need") or "").strip():
         errors.append("spec-contract.json target_need must not be empty")
     scope = payload.get("scope")
-    if not isinstance(scope, dict) or not isinstance(scope.get("in"), list):
-        errors.append("spec-contract.json scope.in must be a list")
+    if not isinstance(scope, dict):
+        errors.append("spec-contract.json scope must be an object")
+    else:
+        for field in ("in", "out", "deferred"):
+            if not isinstance(scope.get(field), list):
+                errors.append(f"spec-contract.json scope.{field} must be a list")
+    for field in (
+        "constraints",
+        "acceptance_criteria",
+        "decisions",
+        "semantic_delta",
+        "capability_operations",
+        "must_preserve_refs",
+        "consequence_obligation_refs",
+        "open_items",
+    ):
+        if field in payload and not isinstance(payload.get(field), list):
+            errors.append(f"spec-contract.json {field} must be a list")
     acceptance = payload.get("acceptance_criteria")
     if not isinstance(acceptance, list) or not acceptance:
         errors.append("spec-contract.json acceptance_criteria must be a non-empty list")
+    semantic_delta = payload.get("semantic_delta")
+    if isinstance(semantic_delta, list) and semantic_delta:
+        workflow_state_path = feature_dir / "workflow-state.md"
+        workflow_state = (
+            workflow_state_path.read_text(encoding="utf-8", errors="replace")
+            if workflow_state_path.is_file()
+            else ""
+        )
+        review_state = _extract_markdown_section(workflow_state, "Review State")
+        if extract_field(review_state, "last_user_reviewed_artifact_state") != "approved":
+            errors.append(
+                "spec-contract.json non-empty semantic_delta requires approved user review"
+            )
+    design_contract = payload.get("design_contract")
+    if not isinstance(design_contract, dict):
+        errors.append("spec-contract.json design_contract must be an object")
+    else:
+        for field in (
+            "experience_requirements",
+            "design_source_refs",
+            "design_system_requirements",
+            "fidelity_refs",
+            "required_states",
+            "validation_refs",
+        ):
+            if not isinstance(design_contract.get(field), list):
+                errors.append(
+                    f"spec-contract.json design_contract.{field} must be a list"
+                )
     context_capsule = payload.get("context_capsule")
     if not isinstance(context_capsule, dict):
         errors.append("spec-contract.json context_capsule must be an object")
+    else:
+        for field in (
+            "evidence_refs",
+            "selected_capabilities",
+            "minimal_live_reads",
+            "validation_routes",
+            "stale_if",
+        ):
+            if not isinstance(context_capsule.get(field), list):
+                errors.append(
+                    f"spec-contract.json context_capsule.{field} must be a list"
+                )
     errors.extend(_validate_agent_transition(payload.get("transition"), "spec-contract.json transition"))
+    transition = payload.get("transition")
+    if isinstance(transition, dict) and transition.get("status") == "ready":
+        if transition.get("next_action") != "/sp.plan":
+            errors.append(
+                "spec-contract.json transition.next_action must be /sp.plan when planning-ready"
+            )
 
     artifact_refs = payload.get("artifact_refs")
     if isinstance(artifact_refs, dict):
         for name, relative_path in artifact_refs.items():
             if relative_path is None:
+                if name == "spec":
+                    errors.append("spec-contract.json artifact_refs.spec must not be null")
                 continue
             if not isinstance(relative_path, str) or not relative_path.strip():
                 errors.append(f"spec-contract.json artifact_refs.{name} must be a path or null")
-            elif not (feature_dir / relative_path).is_file():
-                errors.append(f"spec-contract.json artifact_refs.{name} is missing: {relative_path}")
+                continue
+            candidate = Path(relative_path)
+            try:
+                resolved = (feature_dir / candidate).resolve(strict=False)
+                resolved.relative_to(feature_dir.resolve(strict=False))
+            except ValueError:
+                errors.append(
+                    f"spec-contract.json artifact_refs.{name} must stay inside the feature directory"
+                )
+                continue
+            if candidate.is_absolute() or not resolved.is_file():
+                if candidate.is_absolute():
+                    errors.append(
+                        f"spec-contract.json artifact_refs.{name} must stay inside the feature directory"
+                    )
+                else:
+                    errors.append(
+                        f"spec-contract.json artifact_refs.{name} is missing: {relative_path}"
+                    )
     else:
         errors.append("spec-contract.json artifact_refs must be an object")
     return errors

@@ -199,13 +199,21 @@ def test_resolved_state_accepts_single_task_lifecycle_without_legacy_review_fano
     assert not any("branch-review.md" in gap for gap in payload["open_gaps"])
 
 
+@pytest.mark.parametrize("task_index_version", [2, 3])
 def test_agent_native_task_index_requires_lifecycle_for_each_checked_task(
     tmp_path: Path,
+    task_index_version: int,
 ) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     _write_basic_feature(feature_dir)
     (feature_dir / "task-index.json").write_text(
-        json.dumps({"version": 2, "status": "ready", "tasks": [{"id": "T001"}]}),
+        json.dumps(
+            {
+                "version": task_index_version,
+                "status": "ready",
+                "tasks": [{"id": "T001"}],
+            }
+        ),
         encoding="utf-8",
     )
     result_dir = feature_dir / "worker-results"

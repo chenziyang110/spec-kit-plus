@@ -304,7 +304,10 @@ def _uses_agent_native_task_lifecycle(feature_dir: Path) -> bool:
         payload = json.loads(task_index_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return True
-    return isinstance(payload, dict) and payload.get("version") == 2
+    if not isinstance(payload, dict):
+        return False
+    version = payload.get("version")
+    return isinstance(version, int) and not isinstance(version, bool) and version >= 2
 
 
 def _packetized_review_gaps(

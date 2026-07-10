@@ -15,7 +15,7 @@ func allChecks() []check {
 		{name: "planning-gate-ready", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkPlanningGateReady},
 		{name: "source-signal-disposition", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkSourceSignalDisposition},
 		{name: "must-preserve-coverage", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkMustPreserveCoverage},
-		{name: "review-state-approved", tiers: []string{"light", "standard", "deep"}, severity: statusWarn, run: checkReviewStateApproved},
+		{name: "review-state-approved", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkReviewStateApproved},
 		{name: "quality-gate-summary", tiers: []string{"light", "standard", "deep"}, severity: statusWarn, run: checkQualityGateSummary},
 		{name: "scout-summary", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkScoutSummary},
 		{name: "capability-triage", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkCapabilityTriage},
@@ -35,9 +35,6 @@ func checkRequiredArtifacts(a artifactSet) checkResult {
 		missing := []string{}
 		if strings.TrimSpace(a.spec) == "" {
 			missing = append(missing, "spec.md")
-		}
-		if strings.TrimSpace(a.specContract) == "" {
-			missing = append(missing, "spec-contract.json")
 		}
 		if len(missing) > 0 {
 			return checkResult{status: statusFail, message: fmt.Sprintf("missing or empty required artifacts: %s", strings.Join(missing, ", "))}
@@ -131,7 +128,7 @@ func checkHandoffJSONSchema(a artifactSet) checkResult {
 		if result.status != statusPass {
 			return result
 		}
-		required := []string{"version", "status", "target_need", "scope", "constraints", "acceptance_criteria", "decisions", "semantic_delta", "capability_operations", "must_preserve_refs", "consequence_obligation_refs", "context_capsule", "open_items", "artifact_refs", "transition"}
+		required := []string{"version", "status", "source_contract", "source_revision", "decision_digest_ref", "target_need", "scope", "constraints", "acceptance_criteria", "decisions", "semantic_delta", "capability_operations", "must_preserve_refs", "consequence_obligation_refs", "design_contract", "context_capsule", "open_items", "artifact_refs", "transition"}
 		missing := []string{}
 		for _, key := range required {
 			if _, ok := contract[key]; !ok {
@@ -141,14 +138,37 @@ func checkHandoffJSONSchema(a artifactSet) checkResult {
 		if len(missing) > 0 {
 			return checkResult{status: statusFail, message: fmt.Sprintf("missing required spec-contract fields: %s", strings.Join(missing, ", "))}
 		}
+		version, versionOK := numericValue(contract["version"])
+		if !versionOK || version != 1 {
+			return checkResult{status: statusFail, message: "spec-contract version must be 1"}
+		}
 		for _, key := range []string{"constraints", "acceptance_criteria", "decisions", "semantic_delta", "capability_operations", "must_preserve_refs", "consequence_obligation_refs", "open_items"} {
 			if _, ok := arrayValue(contract[key]); !ok {
 				return checkResult{status: statusFail, message: fmt.Sprintf("spec-contract %s must be an array", key)}
 			}
 		}
-		for _, key := range []string{"scope", "context_capsule", "artifact_refs", "transition"} {
+		for _, key := range []string{"scope", "design_contract", "context_capsule", "artifact_refs", "transition"} {
 			if _, ok := objectValue(contract[key]); !ok {
 				return checkResult{status: statusFail, message: fmt.Sprintf("spec-contract %s must be an object", key)}
+			}
+		}
+		scope, _ := objectValue(contract["scope"])
+		for _, key := range []string{"in", "out", "deferred"} {
+			if _, ok := arrayValue(scope[key]); !ok {
+				return checkResult{status: statusFail, message: fmt.Sprintf("spec-contract scope.%s must be an array", key)}
+			}
+		}
+		transition, _ := objectValue(contract["transition"])
+		transitionVersion, transitionVersionOK := numericValue(transition["version"])
+		if !transitionVersionOK || transitionVersion != 1 {
+			return checkResult{status: statusFail, message: "spec-contract transition.version must be 1"}
+		}
+		if strings.TrimSpace(valueString(transition["source_ref"])) == "" {
+			return checkResult{status: statusFail, message: "spec-contract transition.source_ref must be non-empty"}
+		}
+		for _, key := range []string{"semantic_delta", "required_refs", "blockers"} {
+			if _, ok := arrayValue(transition[key]); !ok {
+				return checkResult{status: statusFail, message: fmt.Sprintf("spec-contract transition.%s must be an array", key)}
 			}
 		}
 		return checkResult{status: statusPass}
@@ -399,11 +419,11 @@ func checkReviewStateApproved(a artifactSet) checkResult {
 		if reviewState == "approved" {
 			return checkResult{status: statusPass}
 		}
-		return checkResult{status: statusWarn, message: "semantic delta is non-empty without approved user review state"}
+		return checkResult{status: statusFail, message: "semantic delta is non-empty without approved user review state"}
 	}
 
 	if strings.TrimSpace(a.workflowState) == "" {
-		return fileMissing("workflow-state.md")
+		return checkResult{status: statusWarn, message: "workflow-state.md is missing review state"}
 	}
 	state := parseMarkdownKeyValues(a.workflowState)
 	reviewState := normalizeBareValue(state["last_user_reviewed_artifact_state"])
@@ -413,7 +433,7 @@ func checkReviewStateApproved(a artifactSet) checkResult {
 	if reviewState == "requested" {
 		return checkResult{status: statusWarn, message: "user review was requested but explicit approval is not recorded"}
 	}
-	return checkResult{status: statusFail, message: "last_user_reviewed_artifact_state must be requested or approved"}
+	return checkResult{status: statusWarn, message: "last_user_reviewed_artifact_state must be requested or approved"}
 }
 
 func checkQualityGateSummary(a artifactSet) checkResult {

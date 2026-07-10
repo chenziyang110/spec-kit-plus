@@ -19,7 +19,7 @@ from .packet_schema import (
     UIContract,
     WorkerTaskPacket,
 )
-from .packet_validator import validate_worker_task_packet
+from .packet_validator import PacketValidationError, validate_worker_task_packet
 
 
 SECTION_RE = re.compile(r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)")
@@ -43,9 +43,19 @@ def _read_json_object(path: Path) -> dict[str, object]:
         return {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    except OSError as exc:
+        raise PacketValidationError(
+            "DP0", f"{path.name} could not be read: {exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise PacketValidationError(
+            "DP0", f"{path.name} is malformed JSON: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise PacketValidationError(
+            "DP0", f"{path.name} must contain a top-level object"
+        )
+    return payload
 
 
 def _string_list(value: object) -> list[str]:
@@ -571,6 +581,16 @@ def compile_worker_task_packet(
     tasks_text = _read(feature_dir / "tasks.md")
     task_index = _read_json_object(feature_dir / "task-index.json")
     task_entry = _task_index_entry(task_index, task_id)
+    task_index_version = task_index.get("version")
+    canonical_task_index = (
+        isinstance(task_index_version, int)
+        and not isinstance(task_index_version, bool)
+        and task_index_version >= 2
+    )
+    if canonical_task_index and not task_entry:
+        raise PacketValidationError(
+            "DP0", f"{task_id} is missing from canonical task-index.json"
+        )
 
     indexed_objective = str(task_entry.get("objective") or "").strip()
     resolved_task_body = (

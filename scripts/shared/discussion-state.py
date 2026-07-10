@@ -312,6 +312,9 @@ def _load_state(workspace: Path) -> tuple[dict[str, Any], bool]:
             handoff["contract_path"] = handoff.get("json_path") or handoff.get(
                 "markdown_path"
             )
+        if isinstance(handoff, dict):
+            handoff.pop("json_path", None)
+            handoff.pop("markdown_path", None)
         return payload, False
     markdown_path = workspace / "discussion-state.md"
     if not markdown_path.is_file():

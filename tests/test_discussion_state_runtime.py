@@ -202,6 +202,23 @@ def test_legacy_markdown_state_migrates_to_typed_shape(runtime, tmp_path: Path):
     assert runtime._legacy_phase("anything", "completed") == "closed"
 
 
+def test_legacy_json_state_drops_duplicate_handoff_path_fields(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "legacy-json", "Legacy JSON")
+    state_path = Path(initialized["workspace_path"]) / "discussion-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["handoff"].pop("contract_path")
+    state["handoff"]["markdown_path"] = ".specify/discussions/legacy-json/handoff-to-specify.md"
+    state["handoff"]["json_path"] = ".specify/discussions/legacy-json/handoff-to-specify.json"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    payload = runtime.discussion_status(project, "legacy-json")["discussion"]
+
+    assert payload["handoff"]["contract_path"].endswith("handoff-to-specify.json")
+    assert "markdown_path" not in payload["handoff"]
+    assert "json_path" not in payload["handoff"]
+
+
 def test_initialize_discussion_uses_collision_safe_slug(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
 

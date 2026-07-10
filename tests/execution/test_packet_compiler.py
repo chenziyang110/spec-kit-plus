@@ -62,6 +62,49 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
     assert [item.obligation_id for item in packet.consequence_obligations] == ["CA-001"]
 
 
+def test_compile_worker_task_packet_rejects_malformed_canonical_task_index(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text("{not-json", encoding="utf-8")
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T017 Implement fallback behavior in src/fallback.py\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PacketValidationError, match="task-index.json is malformed"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T017",
+        )
+
+
+def test_compile_worker_task_packet_rejects_task_missing_from_canonical_index(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps({"version": 2, "status": "ready", "tasks": []}),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T017 Implement stale rendered behavior in src/stale.py\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PacketValidationError, match="T017 is missing from canonical task-index.json"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T017",
+        )
+
+
 def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     tmp_path: Path,
 ) -> None:
