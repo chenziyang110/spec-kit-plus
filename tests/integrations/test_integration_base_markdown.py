@@ -808,10 +808,16 @@ class MarkdownIntegrationTests:
         assert len(cmd_files) == 3
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
-            assert "crucial first step" in content
             command_name = f.stem.removeprefix("sp.")
             _assert_runtime_cognition_carry_forward(content, command_name)
-            if f.name == "sp.debug.md":
+            if command_name == "implement":
+                assert "current-task navigation repair" in content
+                assert "only when a required ref is stale, missing, or contradicted by live code" in content
+                assert "project-cognition query --query-plan" not in content
+                assert "current task's required refs" in content
+                assert "minimal_live_reads" in content
+            elif f.name == "sp.debug.md":
+                assert "crucial first step" in content
                 assert "project cognition" in content
                 assert "project-cognition query --query-plan" in content
                 assert "alias catalog" in content
@@ -824,6 +830,7 @@ class MarkdownIntegrationTests:
                 assert "returned map terms" not in content
                 assert "debug-handbook.md" not in content
             else:
+                assert "crucial first step" in content
                 assert "project cognition" in content
                 assert "project-cognition lexicon" in content
                 assert "project-cognition query" in content

@@ -125,7 +125,7 @@ explicit numeric option.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`. `sp-implement` selects leader-direct or delegated execution per task, compiles delegated packets just in time, runs event-triggered review, and records result/validation/review/recovery once in the task lifecycle record. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
-- Route planned implementation to `sp-implement`; review is embedded and event-triggered. Do not route to a separate public review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
+- Route planned implementation to `sp-implement`; review is embedded and event-triggered by drift, parallel joins, validation failure, obligation conflicts, or the review-window threshold. Repair only task-layer defects locally and route upstream truth defects to their owner. Do not route to a separate public review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use

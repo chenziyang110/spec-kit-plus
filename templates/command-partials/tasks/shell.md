@@ -27,10 +27,16 @@ Compile a ready plan contract into the smallest dependency-safe execution graph 
 
 Exact delegated packet shape lives in `templates/task-packet-template.json`. `sp-implement` renders and validates only the current packet against live code; do not copy the schema into `tasks.md` or pre-generate all packets.
 
-## Output
+## Output Contract
 
 - Light: compact `tasks.md` unless a graph adds real resume value.
 - Standard/heavy: canonical `task-index.json` plus rendered `tasks.md`.
 - Delegated decomposition only: one lane manifest plus lane results.
 - Consume every accepted task-generation lane result into a task, edge, batch, join point, guardrail, or explicit blocker/deferral; chat-only lane output is not handoff truth.
 - Ready transition: canonical task ref, semantic delta, required refs, blockers/recovery, and exactly one next action.
+
+## Guardrails
+
+- Do not duplicate full upstream contracts, pre-generate every worker packet, or turn task generation into implementation.
+- Do not mark a task ready when dependencies, acceptance, required refs, verification, write isolation, or recovery are unresolved.
+- Route spec or plan truth defects upstream; repair only task-graph defects locally.

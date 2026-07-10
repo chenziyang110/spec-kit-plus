@@ -7,13 +7,7 @@ Preserved Contract: complete scope, boundaries, interfaces, obligations, verific
 ## Sequence
 
 1. Resolve the feature lane and read canonical `plan-contract.json`.
-2. Reuse its context capsule. Query project cognition at most once for this unchanged task-generation pass:
-
-```text
-{{specify-subcmd:project-cognition compass --intent plan --query="$ARGUMENTS" --format json}}
-```
-
-Use returned minimal live reads only for missing or stale task-shaping facets. Carry selected capability refs, expected paths, validation routes, forbidden drift, and known unknowns into the task graph. Do not query again while shaping packets.
+2. Reuse its context capsule and the phase-level optional `project-cognition compass --intent plan` intake; that shared intake is the only cognition call for an unchanged task-generation pass. Use returned minimal live reads only for missing or stale task-shaping facets. Carry selected capability refs, expected paths, validation routes, forbidden drift, and known unknowns into the task graph. Do not rerun cognition while shaping tasks or packets.
 
 3. Select execution mode:
 

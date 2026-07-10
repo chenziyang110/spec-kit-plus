@@ -178,15 +178,24 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         assert "recorded-only output" in content
         assert "project-cognition update --changed-path" not in content
         assert "sp-map-update is for manual/external maintenance" in content
-        assert "crucial first step" in content
+        if "sp-implement" in rel:
+            assert "current-task navigation repair" in content
+            assert "only when a required ref is stale, missing, or contradicted by live code" in content
+            assert "project-cognition query --query-plan" not in content
+        else:
+            assert "crucial first step" in content
         if "sp-debug" in rel:
             assert "query --intent debug" in content
             assert "debug session state" in content
             assert "debug-handbook.md" not in content
             assert "debug-workflow-contract" not in content
+        elif "sp-implement" in rel:
+            assert "compass --intent implement" in content
+            assert "current task's required refs" in content
+            assert "minimal_live_reads" in content
         else:
             assert "query --intent implement" in content
-            assert "task-local bundle" in content
+            assert "minimal_live_reads" in content
             assert "minimal_live_reads" in content
             assert "build-handbook.md" not in content
             assert "build-workflow-contract" not in content

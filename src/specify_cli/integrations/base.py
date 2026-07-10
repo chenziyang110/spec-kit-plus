@@ -708,6 +708,15 @@ class IntegrationBase(ABC):
             "implement": "implement",
             "quick": "implement",
         }.get(command_name, "implement")
+        if command_name == "implement":
+            return (
+                "**Current-Task Navigation Repair**: Reuse the current task's required refs and live touched-area evidence. "
+                "Only when a required ref is stale, missing, or contradicted by live code, run at most one "
+                "`{{specify-subcmd:project-cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` "
+                f"{command_step}. Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, "
+                "and `expansion_ref` only to repair current-task context; they do not replace live proof or authorize "
+                "broader implementation scope."
+            )
         return (
             "**Crucial First Step**: You MUST use project cognition compass first: "
             f"run `{{{{specify-subcmd:project-cognition compass --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}` "

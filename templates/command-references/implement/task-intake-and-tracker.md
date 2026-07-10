@@ -13,6 +13,16 @@ Preserved Contract: implementation remains resumable, task-driven, evidence-back
 5. Load constitution/rules/learning details only when the task graph lacks a current ref or the selected area has a known relevant lesson.
 6. Do not reread the full spec/plan/discussion package unless revision drift, evidence conflict, or a stop/reopen condition requires it.
 
+If the current task's required refs are stale, missing, or contradicted by live code, run at most one task-local navigation intake before expanding reads:
+
+Run or emulate:
+
+```text
+{{specify-subcmd:project-cognition compass --intent implement --query="$ARGUMENTS" --format json}}
+```
+
+Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, and `expansion_ref` only to repair the current task context; they do not replace live proof or authorize a broader implementation scope.
+
 ## Execution State
 
 Keep compact agent state with status, current batch/task, next action, completed/failed task IDs, retry count, blockers, recovery, open gaps, validation state, and binding user execution notes. Update at semantic transitions: task start, result acceptance/failure, triggered review, validation, replanning, and terminal closeout—not every tool call.

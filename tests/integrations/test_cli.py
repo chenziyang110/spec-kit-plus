@@ -166,16 +166,16 @@ class TestInitIntegrationFlag:
         implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
         assert implement_skill.exists()
         content = _read_skill_with_references(implement_skill)
-        assert "execution_model: subagent-mandatory" in content
-        assert "dispatch_shape: one-subagent | parallel-subagents" in content
-        assert "execution_surface: native-subagents" in content
-        assert "compass --intent implement" in content
-        assert "lexicon -> semantic_intake -> query" in content
-        assert "project-cognition query --query-plan" in content
-        assert "--query-plan" in content
-        assert "readiness" in content
-        assert "task-local bundle" in content
-        assert "minimal_live_reads" in content
+        lowered = content.lower()
+        assert "execution_model: adaptive" in lowered
+        assert "leader-direct" in lowered
+        assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
+        assert "managed-team" in lowered
+        assert "compass --intent implement" in lowered
+        assert "only when a required ref is stale, missing, or contradicted by live code" in lowered
+        assert "project-cognition query --query-plan" not in lowered
+        assert "current task's required refs" in lowered
+        assert "minimal_live_reads" in lowered
         assert ".specify/project-cognition/slices/change.json" not in content.lower()
         assert "status and slice artifacts" not in content.lower()
         assert "build-handbook.md" not in content.lower()

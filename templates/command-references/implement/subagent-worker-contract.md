@@ -15,9 +15,12 @@ You are the workflow leader. You own routing, execution-state truth, acceptance,
 - Read canonical `task-index.json` or the light direct task list, compact execution state, and only the current task's required refs.
 - Use `leader-direct` for a small or tightly coupled ready task when delegation would add more coordination than execution value and no high-risk trigger requires an independent lane.
 - Use `one-subagent` for one independent bounded task; use `parallel-subagents` only for multiple validated lanes with isolated write sets and an explicit join point.
+- Use `managed-team` only when the runtime supports it and durable team state, explicit multi-wave join tracking, or lifecycle control is required beyond an in-session subagent burst. It is not an ordinary dispatch fallback.
 - Compile and validate a `WorkerTaskPacket` just in time only for delegated work. Leader-direct tasks do not require a packet.
 - Use `native-subagents` when selected and available. Re-evaluate the route after drift, failure, or each join instead of treating dispatch preference as a blocker by itself.
 - Treat non-empty `$ARGUMENTS` as first-class implementation context, not disposable chat-only guidance
+
+Route in this order: `leader-direct` when it independently qualifies, then `one-subagent`, `parallel-subagents`, or `managed-team` as their coordination value and state requirements justify. Use `subagent-blocked` only when selected delegated work cannot be made safe and the task does not independently qualify for leader-direct execution.
 
 ### Delegated Lane Contract
 
@@ -36,6 +39,8 @@ When delegation is selected, the leader compiles the current packet, dispatches,
 - Idle subagent is not an accepted result
 - Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success
 - Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly
+
+Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, validation results, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Merge that payload into the existing task lifecycle record; do not create a second result ledger.
 
 ### Autonomous Blocker Recovery
 

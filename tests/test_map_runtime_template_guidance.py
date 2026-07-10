@@ -33,6 +33,10 @@ COGNITION_INTAKE_COMMANDS = (
     "prd-scan.md",
     "map-build.md",
 )
+OPTIMIZED_PHASE_COMMANDS = ("specify.md", "plan.md", "tasks.md", "implement.md")
+ADVANCED_COGNITION_INTAKE_COMMANDS = tuple(
+    name for name in COGNITION_INTAKE_COMMANDS if name not in OPTIMIZED_PHASE_COMMANDS
+)
 SEMANTIC_WORK_CONTRACT_COMMANDS = (
     *COGNITION_INTAKE_COMMANDS,
     "implement-teams.md",
@@ -191,6 +195,13 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
         assert "minimal_live_reads" in content
         assert "first_pass_paths" in content
         assert "coverage_diagnostics" in content
+        if name in OPTIMIZED_PHASE_COMMANDS:
+            assert "expansion_ref" in content
+            assert "at most one" in content
+            assert "context capsule" in content
+            assert "project-cognition query --query-plan" not in content
+            assert "lexicon -> semantic_intake -> query" not in content
+            continue
         assert (
             "lexicon -> semantic_intake -> query" in content
             or "lexicon -> semantic_intake -> project-cognition query" in content
@@ -258,23 +269,37 @@ def test_default_runnable_cognition_blocks_only_run_compass() -> None:
 def test_specify_default_intake_does_not_use_old_ready_readiness() -> None:
     content = _read_command("specify.md").lower()
     assert "when cognition reports `ready`, use the returned task-local bundle" not in content
-    assert "when compass reports `query_ready`" in content
-    assert "read top-level `minimal_live_reads` first" in content
-    assert "then use lane-level `first_pass_paths`" in content
+    assert "at most one `project-cognition compass --intent plan` intake" in content
+    assert "canonical context capsule lacks a required facet" in content
+    assert "`minimal_live_reads`" in content
+    assert "`first_pass_paths`" in content
+    assert "`coverage_diagnostics`" in content
 
 
-def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
-    partials = [
+def test_included_workflow_partials_use_phase_appropriate_runtime_inputs() -> None:
+    optimized_partials = [
         "templates/command-partials/plan/shell.md",
         "templates/command-partials/tasks/shell.md",
         "templates/command-partials/implement/shell.md",
+    ]
+    advanced_partials = [
         "templates/command-partials/debug/shell.md",
         "templates/command-partials/quick/shell.md",
         "templates/command-partials/analyze/shell.md",
         "templates/command-partials/common/navigation-check.md",
     ]
 
-    for path in partials:
+    for path in optimized_partials:
+        content = _read(path).lower()
+        assert "primary" in content
+        assert "required ref" in content or "required_refs" in content
+        assert "context capsule" in content or "full upstream" in content or "full plan/spec" in content
+        assert "required slices" not in content
+        assert "graph artifacts" not in content
+        assert "slices/change.json" not in content
+        assert "slices/debug.json" not in content
+
+    for path in advanced_partials:
         content = _read(path).lower()
         assert "project-cognition query" in content or "project cognition query" in content
         assert "task-local" in content
@@ -677,10 +702,22 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
         "raw lexicon ranking is only a bootstrap",
     )
 
-    for name in COGNITION_INTAKE_COMMANDS:
+    for name in ADVANCED_COGNITION_INTAKE_COMMANDS:
         content = _read_command(name).lower()
         for term in required_terms:
             assert term in content, f"{name} missing shared cognition intake term {term}"
+
+    for name in OPTIMIZED_PHASE_COMMANDS:
+        content = _read_command(name).lower()
+        for term in (
+            "project-cognition compass",
+            "minimal_live_reads",
+            "first_pass_paths",
+            "coverage_diagnostics",
+            "expansion_ref",
+        ):
+            assert term in content, f"{name} missing compact cognition intake term {term}"
+        assert "project-cognition query --query-plan" not in content
 
 
 def test_docs_describe_compass_default_and_advanced_query_path() -> None:
@@ -732,7 +769,7 @@ def test_cognition_workflows_preserve_direct_agent_normalization_guidance() -> N
         "agent still owns translation",
     )
 
-    for name in COGNITION_INTAKE_COMMANDS:
+    for name in ADVANCED_COGNITION_INTAKE_COMMANDS:
         content = _read_command(name).lower()
         for term in required_terms:
             assert term in content, f"{name} missing direct agent_normalization guidance term: {term}"
@@ -782,7 +819,10 @@ def test_learning_start_hardening_scope_matches_command_templates() -> None:
         for match in re.finditer(r"learning start --command ([a-z-]+) --format json", content):
             commands_with_learning_start.add(match.group(1))
 
-    assert {"debug", "plan", "implement", "constitution", "map-scan", "map-build"} <= commands_with_learning_start
+    assert {"debug", "constitution", "map-scan", "map-build"} <= commands_with_learning_start
+    assert {"plan", "implement"}.isdisjoint(commands_with_learning_start)
+    assert "context capsule" in _read_command("plan.md").lower()
+    assert "current task's required refs" in _read_command("implement.md").lower()
 
 
 def test_semantic_intake_contract_is_not_debug_only() -> None:

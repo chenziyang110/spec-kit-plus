@@ -797,14 +797,21 @@ class TomlIntegrationTests:
         assert len(cmd_files) == 3
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
-            assert "crucial first step" in content
             command_name = f.stem.split(".")[1]
             _assert_runtime_cognition_carry_forward(content, command_name)
-            if "debug" in f.name:
+            if command_name == "implement":
+                assert "current-task navigation repair" in content
+                assert "only when a required ref is stale, missing, or contradicted by live code" in content
+                assert "project-cognition query --query-plan" not in content
+                assert "current task's required refs" in content
+                assert "minimal_live_reads" in content
+            elif "debug" in f.name:
+                assert "crucial first step" in content
                 assert "runtime handbook contract" in content
                 assert "debug-handbook.md" in content
                 assert "fixed chapter ids required for debug" in content
             else:
+                assert "crucial first step" in content
                 assert "project cognition" in content
                 assert "project-cognition query" in content
                 assert "alias catalog" in content

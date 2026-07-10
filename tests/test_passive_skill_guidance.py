@@ -31,7 +31,8 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "learning-start" in content
     assert "learning-capture" in content
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
-    assert "handoff markdown path, json path, or discussion slug" in content
+    assert "passing the json path or discussion slug" in content
+    assert "handoff-to-specify.json" in content
     assert "exactly one unconsumed `handoff-ready` discussion" in content
     assert "before feature creation" in content
 
@@ -42,10 +43,11 @@ def test_workflow_routing_keeps_review_embedded_in_implement() -> None:
 
     assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in lowered
     assert "no visible separate review route" in lowered
-    assert "embedded pre-implement review" in lowered
-    assert "join-point drift review" in lowered
-    assert "bounded sequential review windows" in lowered
-    assert "safe task-layer repair loop" in lowered
+    assert "review is embedded and event-triggered" in lowered
+    assert "parallel joins" in lowered
+    assert "validation failure" in lowered
+    assert "review-window" in lowered
+    assert "repair only task-layer defects locally" in lowered
     assert "{{invoke:implement}}" in content
     assert "/sp.review" not in content
     assert "sp-review" not in content
@@ -226,8 +228,9 @@ def test_subagent_driven_development_prefers_native_dispatch_contract() -> None:
     assert "validated `workertaskpacket`" in content
     assert "must not dispatch from raw task text" in content
     assert "structured handoff" in content
-    assert "spec compliance review" in content
-    assert "code quality review" in content
+    assert "single task reviewer" in content
+    assert "event-triggered review" in content
+    assert "task lifecycle record" in content
     assert "`sp-teams` only" in content
     assert "we do not manually dispatch ad-hoc subagents" not in content
 

@@ -13,7 +13,6 @@ MANDATORY_COMMANDS = (
     "constitution",
     "deep-research",
     "explain",
-    "implement",
     "map-build",
     "map-scan",
     "quick",
@@ -48,6 +47,20 @@ def test_plan_and_tasks_use_adaptive_execution_instead_of_mandatory_partial() ->
         assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in content, command_name
         assert "workflow_status: ready | blocked" in content, command_name
         assert "execution_model: subagent-mandatory" not in content, command_name
+
+
+def test_implement_uses_adaptive_jit_execution() -> None:
+    content = _read_command("implement").lower()
+
+    assert "execution_model: adaptive" in content
+    assert "leader-direct" in content
+    assert "one-subagent" in content
+    assert "parallel-subagents" in content
+    assert "managed-team" in content
+    assert "subagent-blocked" in content
+    assert "just in time" in content
+    assert "event-triggered review" in content
+    assert "execution_model: subagent-mandatory" not in content
 
 
 def test_debug_uses_complexity_based_execution_instead_of_mandatory_subagents() -> None:
@@ -106,7 +119,8 @@ def test_ordinary_templates_do_not_allow_leader_or_team_fallback_for_subagent_wo
 
     implement_content = _read_command("implement").lower()
     assert "sp-teams" not in implement_content
-    assert "managed-team" not in implement_content
+    assert "managed-team" in implement_content
+    assert "not an ordinary dispatch fallback" in implement_content
 
 
 def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() -> None:
@@ -232,8 +246,10 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
     fast_content = _read_command("fast").lower()
     debug_content = _read_command("debug").lower()
 
-    assert "substantive implementation lanes must be delegated" in implement_content
-    assert "leader owns sequencing, review, and acceptance" in implement_content
+    assert "choose leader-direct or delegated execution" in implement_content
+    assert "the leader owns tracker truth, execution strategy, join points, blocker handling, and final validation" in implement_content
+    assert "compile and validate a workertaskpacket just in time only for delegated work" in implement_content
+    assert "event-triggered review" in implement_content
     assert "for implementation work, prefer subagent execution only when" not in implement_content
     assert "apply the smallest direct change" not in fast_content
     assert "the leader performs the change directly" in fast_content

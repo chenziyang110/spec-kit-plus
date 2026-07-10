@@ -821,21 +821,32 @@ class SkillsIntegrationTests:
 
             assert "advisory gate" in content
             assert "project cognition" in content
-            assert "project-cognition query" in content
-            assert "alias catalog" in content
-            assert "semantic_intake" in content
-            assert "facet coverage" in content
-            assert "concept_decisions" in content
-            assert "lexicon_generation_id" in content
             assert "minimal_live_reads" in content
             assert "returned map terms" not in content
             assert "map-scan" in content
             assert "map-build" in content
             _assert_runtime_cognition_carry_forward(content, name)
-            if name == "debug":
+            if name == "implement":
+                assert "current-task navigation repair" in content
+                assert "only when a required ref is stale, missing, or contradicted by live code" in content
+                assert "project-cognition query --query-plan" not in content
+                assert "current task's required refs" in content
+            elif name == "debug":
+                assert "project-cognition query" in content
+                assert "alias catalog" in content
+                assert "semantic_intake" in content
+                assert "facet coverage" in content
+                assert "concept_decisions" in content
+                assert "lexicon_generation_id" in content
                 assert "project-cognition query --query-plan" in content
                 assert "debug-handbook.md" not in content
             else:
+                assert "project-cognition query" in content
+                assert "alias catalog" in content
+                assert "semantic_intake" in content
+                assert "facet coverage" in content
+                assert "concept_decisions" in content
+                assert "lexicon_generation_id" in content
                 assert "build-handbook.md" not in content
                 assert "map-update" in content
 

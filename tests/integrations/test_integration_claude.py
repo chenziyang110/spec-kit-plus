@@ -2784,27 +2784,25 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
 
     assert "/sp-implement-teams" not in content
     assert "## orchestration model" in content
-    assert "leader and orchestrator" in content
-    assert "not the concrete implementer" in content
+    assert "you are the workflow leader" in content
+    assert "you own routing, execution-state truth, acceptance, and recovery" in content
+    assert "whether work is leader-direct or delegated" in content
     assert "autonomous blocker recovery" in content
     assert "delegation surface contract" in content
     assert "claude code subagent result contract" in content
-    assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in content
-    assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
+    assert "one independent bounded task" in content
+    assert "multiple validated lanes with isolated write sets and an explicit join point" in content
     assert "dispatch only from validated `workertaskpacket`" in content
-    assert "max_parallel_subagents = 4" in content
-    assert "implement-slot-1" in content
-    assert "current selected wave" in content
-    assert "at most four validated isolated lanes" in content
-    assert "more than four dispatch-ready isolated lanes" in content
-    assert "execute multiple waves" in content
-    assert "launch all selected lanes in the current `parallel-subagents` wave before waiting".lower() in content
-    assert "whole ready parallel batch" in content
+    assert "compile and validate a `workertaskpacket` just in time only for delegated work" in content
+    assert "event-triggered review" in content
+    assert "managed-team" in content
+    assert "durable team state" in content
     assert "current batch, `wait_agent` to join them" not in content
     assert "## claude dispatch-first gate" not in content
     assert "attempt native subagent execution before leader-inline fallback" not in content
     assert "concrete fallback reason in `feature_dir/implement-tracker.md`" not in content
-    assert "dispatch fallback" not in content
+    assert "managed-team` only when" in content
+    assert "not an ordinary dispatch fallback" in content
     assert "actual_surface: leader-inline" not in content
 
 
@@ -2936,7 +2934,9 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "minimal readiness probe message before task assignment" in lower
     assert "shared contract with `/sp-implement`" in lower
     assert "canonical implementation workflow" in lower
-    assert "implement-tracker.md" in lower
+    assert "canonical task status" in lower
+    assert "compact execution state" in lower
+    assert "one lifecycle record per executed task" in lower
     assert "workertaskpacket" in lower
     assert "execution_model" in lower
     assert "dispatch_shape" in lower

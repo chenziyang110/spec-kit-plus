@@ -12,7 +12,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - done criteria
 - Provide platform guardrails and completion-handoff expectations explicitly when the lane depends on supported-platform constraints, conditional compilation, runtime-managed result channels, or a promised result handoff path.
 - Tell the worker that the current validated packet and its stable refs are the authoritative contract for the lane.
-- For image-backed UI work, include every original visual input named by the packet's fidelity refs. Pass it as a runtime image item/local_image when supported and include the stable project-relative path in the packet when available.
+- For image-backed UI work, include every original PNG, screenshot, mockup, design export, or reference image named by the packet's fidelity refs. Pass it as a runtime image item/local_image when supported and include the stable project-relative path in the packet when available.
 - Do not reduce an original visual reference to prose-only instructions when the worker must make layout, spacing, color, hierarchy, or fidelity decisions.
 - Name the write set, shared surfaces, and forbidden drift explicitly.
 - For every behavior-changing task, bug fix, or refactor, tell the worker to write the failing test first, capture the RED state, and return the GREEN rerun evidence for the same gate after the fix.

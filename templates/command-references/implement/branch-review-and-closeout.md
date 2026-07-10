@@ -50,4 +50,4 @@ Before completion:
 - run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` when available;
 - update project cognition once from final changed paths and verification evidence when project truth changed.
 
-Write `implementation-summary.md` for project/human value. Keep agent-only lifecycle and transition fields out of the visible reply unless diagnostics are requested.
+Write `implementation-summary.md` for project/human value and expose its reference as `implementation_summary` in closeout state. Derive the summary from the accepted lifecycle evidence plus actual `git diff --stat` and `git diff --name-status`; answer, in human terms, what changed, how to verify it, and what differs from the previous version. Keep agent-only lifecycle and transition fields out of the visible reply unless diagnostics are requested.
