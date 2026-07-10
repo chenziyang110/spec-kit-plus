@@ -657,14 +657,15 @@ def test_discussion_helper_uses_active_python_interpreter() -> None:
     powershell = (PROJECT_ROOT / "scripts" / "powershell" / "discussion-state.ps1").read_text(
         encoding="utf-8"
     )
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     discussion_helper = cli.split("def _run_discussion_helper", 1)[1].split(
         "def _prd_helper_script", 1
     )[0]
 
     assert 'env.setdefault("SPECIFY_PYTHON", sys.executable)' in discussion_helper
     assert 'PYTHON_BIN="${SPECIFY_PYTHON:-python}"' in bash
-    assert 'scripts/shared/discussion-state.py' in pyproject
-    assert 'command -v python3' in bash
+    assert '"scripts/shared" = "specify_cli/core_pack/scripts/shared"' in pyproject
+    assert 'SHARED_HELPER="$SCRIPT_DIR/../shared/discussion-state.py"' in bash
     assert "$pythonBin = if ($env:SPECIFY_PYTHON)" in powershell
 
 

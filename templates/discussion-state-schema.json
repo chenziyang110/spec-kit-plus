@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/discussion-state-v2.json",
+  "title": "Spec Kit Plus Discussion State",
+  "type": "object",
+  "required": [
+    "version",
+    "status_family",
+    "slug",
+    "status",
+    "lifecycle_phase",
+    "summary",
+    "turn_packet",
+    "handoff",
+    "consumption"
+  ],
+  "properties": {
+    "version": {"const": 2},
+    "status_family": {"const": "discussion"},
+    "slug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "topic": {"type": "string", "minLength": 1},
+    "status": {
+      "enum": ["active", "blocked", "handoff-ready", "completed", "abandoned"]
+    },
+    "lifecycle_phase": {
+      "enum": ["explore", "ground", "decide", "prepare", "review", "ready", "consumed", "closed"]
+    },
+    "summary": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string"},
+    "updated_at": {"type": "string"},
+    "closed_at": {"type": ["string", "null"]},
+    "archived_at": {"type": ["string", "null"]},
+    "blocker_reason": {"type": ["string", "null"]},
+    "turn_packet": {
+      "type": "object",
+      "required": [
+        "version",
+        "discussion_slug",
+        "lifecycle_phase",
+        "turn_class",
+        "user_goal",
+        "current_decision_frame",
+        "confirmed_decisions",
+        "context_boundary",
+        "open_questions",
+        "current_recommendation",
+        "allowed_actions",
+        "persistence_mode",
+        "next_gate"
+      ]
+    },
+    "latest_checkpoint": {"type": ["object", "null"]},
+    "handoff": {"type": "object"},
+    "consumption": {"type": "object"},
+    "next_command": {"type": "string"}
+  },
+  "additionalProperties": false
+}

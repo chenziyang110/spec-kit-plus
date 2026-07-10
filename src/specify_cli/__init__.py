@@ -1381,35 +1381,62 @@ def prd_command(
 @discussion_app.command("list")
 def discussion_list(
     all_discussions: bool = typer.Option(False, "--all", help="Include closed and archived discussions"),
+    json_output: bool = typer.Option(False, "--json", help="Print discussion records as JSON"),
 ):
     """List tracked discussion sessions."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_discussion_helper("list", include_all=all_discussions)
     discussions = payload.get("discussions", [])
+    if json_output:
+        print_json(payload, indent=2)
+        return
     if not discussions:
         console.print("No discussions found.")
         return
     _render_discussion_table(discussions)
 
 
+@discussion_app.command("init")
+def discussion_init(
+    topic: str = typer.Argument(..., help="Human-readable discussion topic"),
+    slug: str = typer.Option("", "--slug", help="Optional stable discussion slug"),
+    json_output: bool = typer.Option(False, "--json", help="Print initialized state as JSON"),
+):
+    """Initialize a minimal typed discussion session."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("init", slug=slug.strip() or topic, status=topic)
+    if json_output:
+        print_json(payload, indent=2)
+        return
+    discussion = payload.get("discussion", {})
+    console.print(
+        f"Started discussion {payload.get('slug')}: {discussion.get('summary', topic)}\n"
+        f"Workspace: {payload.get('workspace_path')}"
+    )
+
+
 @discussion_app.command("status")
 def discussion_status(
     slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+    json_output: bool = typer.Option(False, "--json", help="Print typed discussion state as JSON"),
 ):
-    """Show discussion-state.md-backed details for a discussion."""
+    """Show typed discussion state and its compatibility projection."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_discussion_helper("status", slug=slug)
     discussion = payload.get("discussion")
     if not isinstance(discussion, dict):
         console.print("[red]Error:[/red] Discussion not found")
         raise typer.Exit(1)
+    if json_output:
+        print_json(payload, indent=2)
+        return
 
     details = _labeled_grid(
         [
             ("Slug", str(discussion.get("slug", ""))),
             ("Status", str(discussion.get("status", ""))),
             ("Summary", str(discussion.get("summary", ""))),
-            ("Stage", str(discussion.get("current_stage", ""))),
+            ("Phase", str(discussion.get("lifecycle_phase", discussion.get("current_stage", "")))),
             ("Next", str(discussion.get("next_command", ""))),
             ("Workspace", str(discussion.get("workspace_path", ""))),
         ]
@@ -1420,18 +1447,94 @@ def discussion_status(
 @discussion_app.command("resume")
 def discussion_resume(
     slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+    json_output: bool = typer.Option(False, "--json", help="Print the compact DiscussionTurnPacket as JSON"),
 ):
-    """Print compact resume guidance for a discussion."""
+    """Return compact state and post-checkpoint events for agent resume."""
     _require_spec_kit_plus_project(Path.cwd())
-    payload = _run_discussion_helper("status", slug=slug)
+    payload = _run_discussion_helper("resume-context", slug=slug)
     discussion = payload.get("discussion")
     if not isinstance(discussion, dict):
         console.print("[red]Error:[/red] Discussion not found")
         raise typer.Exit(1)
+    if json_output:
+        print_json(payload, indent=2)
+        return
 
-    console.print(f"Resume discussion {discussion.get('slug')}: {discussion.get('summary')}")
-    console.print(f"Status: {discussion.get('status')}")
-    console.print(f"Workspace: {discussion.get('workspace_path')}")
+    packet = payload.get("turn_packet", {})
+    console.print(f"Resume {discussion.get('slug')}: {discussion.get('summary')}")
+    console.print(
+        f"Recommended direction: {packet.get('current_recommendation', 'Continue shaping the discussion.')}"
+    )
+    console.print(f"Next decision gate: {packet.get('next_gate', 'none')}")
+
+
+@discussion_app.command("checkpoint")
+def discussion_checkpoint(
+    slug: str = typer.Argument(..., help="Discussion slug"),
+    summary: str = typer.Option(..., "--summary", help="Durable decision-level checkpoint summary"),
+    phase: str = typer.Option("", "--phase", help="Optional lifecycle phase after the checkpoint"),
+    decision: list[str] = typer.Option([], "--decision", help="Confirmed decision; repeat for multiple values"),
+    recommendation: str = typer.Option("", "--recommendation", help="Current recommended direction"),
+    json_output: bool = typer.Option(False, "--json", help="Print checkpoint state as JSON"),
+):
+    """Persist a compact semantic checkpoint without writing a transcript."""
+    _require_spec_kit_plus_project(Path.cwd())
+    changes: dict[str, Any] = {"summary": summary}
+    if phase.strip():
+        changes["lifecycle_phase"] = phase.strip().lower()
+    if decision:
+        changes["confirmed_decisions"] = decision
+    if recommendation.strip():
+        changes["current_recommendation"] = recommendation.strip()
+    payload = _run_discussion_helper(
+        "checkpoint", slug=slug, status=json.dumps(changes, ensure_ascii=False)
+    )
+    if json_output:
+        print_json(payload, indent=2)
+        return
+    discussion = payload.get("discussion", {})
+    console.print(f"Saved checkpoint for {discussion.get('slug')}: {discussion.get('summary')}")
+
+
+@discussion_app.command("validate-handoff")
+def discussion_validate_handoff(
+    slug: str = typer.Argument(..., help="Discussion slug"),
+    json_output: bool = typer.Option(False, "--json", help="Print field-level validation as JSON"),
+):
+    """Validate the canonical discussion handoff without changing lifecycle state."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("validate-handoff", slug=slug)
+    if json_output:
+        print_json(payload, indent=2)
+    elif payload.get("valid"):
+        console.print(f"Discussion {slug} handoff is valid and ready for the ready transition.")
+    else:
+        messages = [
+            str(item.get("message", ""))
+            for item in payload.get("errors", [])
+            if isinstance(item, dict)
+        ]
+        console.print("[red]Handoff validation failed:[/red] " + "; ".join(messages))
+    if not payload.get("valid"):
+        raise typer.Exit(1)
+
+
+@discussion_app.command("mark-ready")
+def discussion_mark_ready(
+    slug: str = typer.Argument(..., help="Discussion slug"),
+    json_output: bool = typer.Option(False, "--json", help="Print ready state as JSON"),
+):
+    """Mark only an exact, user-confirmed, validated handoff ready."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper("mark-ready", slug=slug)
+    if json_output:
+        print_json(payload, indent=2)
+        return
+    discussion = payload.get("discussion", {})
+    console.print(
+        f"Discussion {discussion.get('slug')} is handoff-ready for "
+        f"{discussion.get('handoff', {}).get('recommended_consumer', 'an eligible consumer')}."
+    )
 
 
 @discussion_app.command("close")
@@ -1442,6 +1545,7 @@ def discussion_close(
         "--status",
         help="Terminal discussion status (completed or abandoned)",
     ),
+    json_output: bool = typer.Option(False, "--json", help="Print closed state as JSON"),
 ):
     """Mark a discussion as closed in discussion-state.md."""
     status_value = status.strip().lower()
@@ -1452,6 +1556,9 @@ def discussion_close(
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_discussion_helper("close", slug=slug, status=status_value)
     discussion = payload.get("discussion", {})
+    if json_output:
+        print_json(payload, indent=2)
+        return
     console.print(f"Closed discussion {discussion.get('slug')} with status {discussion.get('status')}.")
 
 
@@ -1464,6 +1571,7 @@ def discussion_mark_consumed(
         help="Feature directory that consumed the discussion handoff",
     ),
     archive: bool = typer.Option(False, "--archive", help="Archive the consumed discussion after closing it"),
+    json_output: bool = typer.Option(False, "--json", help="Print consumption state as JSON"),
 ):
     """Mark a handoff-ready discussion as consumed by a downstream feature."""
     consumed_by = feature_dir.strip()
@@ -1481,17 +1589,24 @@ def discussion_mark_consumed(
             f"Marked discussion {discussion.get('slug')} consumed by {consumed_by} and archived it."
         )
         return
+    if json_output:
+        print_json(payload, indent=2)
+        return
     console.print(f"Marked discussion {discussion.get('slug')} consumed by {consumed_by}.")
 
 
 @discussion_app.command("archive")
 def discussion_archive(
     slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
+    json_output: bool = typer.Option(False, "--json", help="Print archived state as JSON"),
 ):
     """Archive a closed discussion workspace."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_discussion_helper("archive", slug=slug)
     discussion = payload.get("discussion", {})
+    if json_output:
+        print_json(payload, indent=2)
+        return
     console.print(f"Archived discussion {discussion.get('slug')} to {discussion.get('workspace_path')}.")
 
 
