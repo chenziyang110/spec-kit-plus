@@ -310,7 +310,7 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
 
     assert consumed["discussion"]["status"] == "completed"
     assert consumed["discussion"]["consumption"]["status"] == "consumed"
-    assert consumed["discussion"]["consumption"]["consumer_path"] == str(feature_dir.relative_to(project))
+    assert consumed["discussion"]["consumption"]["consumer_path"] == feature_dir.relative_to(project).as_posix()
 
 
 def test_mark_consumed_rejects_missing_mismatched_and_escaping_targets(runtime, tmp_path: Path):
@@ -351,4 +351,3 @@ def test_discussion_templates_define_typed_state_and_consumer_neutral_handoff():
     assert "recommended_sequence" not in handoff_template["downstream_instructions"]
     assert "candidate_id" not in handoff_template
     assert handoff_template["handoff_kind"] == "discussion_requirement_contract"
-

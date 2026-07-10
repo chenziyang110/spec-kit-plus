@@ -6,9 +6,21 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from tests.conftest import strip_ansi
+from tests.test_discussion_state_runtime import RUNTIME_PATH, _write_confirmed_handoff
 
 
 runner = CliRunner()
+
+
+def _load_discussion_runtime():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("discussion_state_runtime_for_cli_tests", RUNTIME_PATH)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 def _setup_project(tmp_path: Path) -> tuple[Path, Path]:
@@ -77,6 +89,99 @@ def _invoke_in_project(project: Path, args: list[str]):
         os.chdir(old_cwd)
 
 
+def _create_ready_discussion(project: Path, slug: str) -> tuple[object, Path, str]:
+    runtime = _load_discussion_runtime()
+    initialized = runtime.initialize_discussion(project, slug, slug.replace("-", " ").title())
+    markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    runtime.mark_ready(project, initialized["slug"])
+    feature_dir = project / ".specify" / "features" / f"001-{initialized['slug']}"
+    brainstorming = feature_dir / "brainstorming"
+    brainstorming.mkdir(parents=True)
+    (brainstorming / "handoff-to-specify.json").write_text(
+        json.dumps(
+            {
+                "entry_source": "sp-discussion",
+                "discussion_slug": initialized["slug"],
+                "source_handoff": markdown_path.relative_to(project).as_posix(),
+                "source_handoff_json": json_path.relative_to(project).as_posix(),
+                "review_digest": review_digest,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return runtime, feature_dir, initialized["slug"]
+
+
+def test_discussion_init_and_resume_json_emit_compact_turn_packet(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+
+    initialized = _invoke_in_project(
+        project,
+        ["discussion", "init", "Agent-friendly discussion", "--slug", "agent-discussion", "--json"],
+    )
+    resumed = _invoke_in_project(project, ["discussion", "resume", "agent-discussion", "--json"])
+
+    assert initialized.exit_code == 0, initialized.stdout
+    assert resumed.exit_code == 0, resumed.stdout
+    init_payload = json.loads(initialized.stdout)
+    resume_payload = json.loads(resumed.stdout)
+    assert init_payload["slug"] == "agent-discussion"
+    assert resume_payload["turn_packet"]["discussion_slug"] == "agent-discussion"
+    assert resume_payload["turn_packet"]["persistence_mode"] == "frontstage-only"
+
+
+def test_discussion_checkpoint_json_updates_dynamic_turn_context(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    _invoke_in_project(
+        project,
+        ["discussion", "init", "Checkpoint discussion", "--slug", "checkpoint-discussion"],
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "checkpoint",
+            "checkpoint-discussion",
+            "--summary",
+            "Human frontstage is confirmed.",
+            "--phase",
+            "decide",
+            "--decision",
+            "Keep typed state backstage.",
+            "--recommendation",
+            "Use the shared runtime.",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["discussion"]["lifecycle_phase"] == "decide"
+    assert payload["discussion"]["turn_packet"]["confirmed_decisions"] == [
+        "Keep typed state backstage."
+    ]
+
+
+def test_discussion_validate_and_mark_ready_json_use_runtime_gate(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    runtime = _load_discussion_runtime()
+    initialized = runtime.initialize_discussion(project, "validated-handoff", "Validated handoff")
+    _write_confirmed_handoff(runtime, project, initialized["slug"])
+
+    validation = _invoke_in_project(
+        project,
+        ["discussion", "validate-handoff", initialized["slug"], "--json"],
+    )
+    ready = _invoke_in_project(project, ["discussion", "mark-ready", initialized["slug"], "--json"])
+
+    assert validation.exit_code == 0, validation.stdout
+    assert ready.exit_code == 0, ready.stdout
+    assert json.loads(validation.stdout)["valid"] is True
+    assert json.loads(ready.stdout)["discussion"]["status"] == "handoff-ready"
+
+
 def test_discussion_list_defaults_to_unclosed_discussions(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
     _write_discussion(
@@ -121,7 +226,7 @@ def test_discussion_archive_rejects_handoff_ready_until_closed(tmp_path: Path):
     result = _invoke_in_project(project, ["discussion", "archive", "workflow-template-management"])
 
     assert result.exit_code == 1
-    assert "only completed or abandoned discussions can be archived" in strip_ansi(result.stdout).lower()
+    assert "only closed completed or abandoned discussions can be archived" in strip_ansi(result.stdout).lower()
 
 
 def test_discussion_close_then_archive_removes_session_from_default_list(tmp_path: Path):
@@ -149,22 +254,16 @@ def test_discussion_close_then_archive_removes_session_from_default_list(tmp_pat
 
 def test_discussion_mark_consumed_closes_handoff_ready_session(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
-    _write_discussion(
-        discussion_root,
-        "workflow-template-management",
-        status="handoff-ready",
-        summary="Workflow template management",
-        next_command="sp-specify",
-    )
+    _runtime, feature_dir, slug = _create_ready_discussion(project, "workflow-template-management")
 
     consumed_result = _invoke_in_project(
         project,
         [
             "discussion",
             "mark-consumed",
-            "workflow-template-management",
+            slug,
             "--feature-dir",
-            ".specify/features/009-workflow-template-management",
+            feature_dir.relative_to(project).as_posix(),
         ],
     )
     list_result = _invoke_in_project(project, ["discussion", "list"])
@@ -180,28 +279,22 @@ def test_discussion_mark_consumed_closes_handoff_ready_session(tmp_path: Path):
     )
     assert "- status: completed" in state_text
     assert "- handoff_consumption_status: consumed" in state_text
-    assert "- consumed_by_feature_dir: .specify/features/009-workflow-template-management" in state_text
+    assert f"- consumed_by_feature_dir: {feature_dir.relative_to(project).as_posix()}" in state_text
     assert "- next_command: none" in state_text
 
 
 def test_discussion_mark_consumed_can_archive_closed_session(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
-    _write_discussion(
-        discussion_root,
-        "workflow-template-management",
-        status="handoff-ready",
-        summary="Workflow template management",
-        next_command="sp-specify",
-    )
+    _runtime, feature_dir, slug = _create_ready_discussion(project, "workflow-template-management")
 
     result = _invoke_in_project(
         project,
         [
             "discussion",
             "mark-consumed",
-            "workflow-template-management",
+            slug,
             "--feature-dir",
-            ".specify/features/009-workflow-template-management",
+            feature_dir.relative_to(project).as_posix(),
             "--archive",
         ],
     )
@@ -211,7 +304,7 @@ def test_discussion_mark_consumed_can_archive_closed_session(tmp_path: Path):
     assert (discussion_root / "archive" / "workflow-template-management" / "discussion-state.md").exists()
 
 
-def test_discussion_list_rebuilds_index_with_archive_state(tmp_path: Path):
+def test_discussion_list_is_read_only_when_index_is_missing(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
     _write_discussion(
         discussion_root,
@@ -230,7 +323,6 @@ def test_discussion_list_rebuilds_index_with_archive_state(tmp_path: Path):
     result = _invoke_in_project(project, ["discussion", "list", "--all"])
 
     assert result.exit_code == 0, result.stdout
-    index_payload = json.loads((discussion_root / "index.json").read_text(encoding="utf-8"))
-    indexed = {item["slug"]: item for item in index_payload["discussions"]}
-    assert indexed["handoff-ready-demo"]["archived"] is False
-    assert indexed["archived-demo"]["archived"] is True
+    assert not (discussion_root / "index.json").exists()
+    assert "handoff-ready-demo" in result.stdout
+    assert "archived-demo" in result.stdout

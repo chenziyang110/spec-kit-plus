@@ -662,7 +662,8 @@ def test_discussion_helper_uses_active_python_interpreter() -> None:
     )[0]
 
     assert 'env.setdefault("SPECIFY_PYTHON", sys.executable)' in discussion_helper
-    assert 'PYTHON_BIN="${SPECIFY_PYTHON:-}"' in bash
+    assert 'PYTHON_BIN="${SPECIFY_PYTHON:-python}"' in bash
+    assert 'scripts/shared/discussion-state.py' in pyproject
     assert 'command -v python3' in bash
     assert "$pythonBin = if ($env:SPECIFY_PYTHON)" in powershell
 
