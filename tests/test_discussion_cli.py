@@ -164,6 +164,57 @@ def test_discussion_checkpoint_json_updates_dynamic_turn_context(tmp_path: Path)
     ]
 
 
+def test_discussion_write_handoff_renders_canonical_pair(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    _invoke_in_project(
+        project,
+        ["discussion", "init", "Canonical handoff", "--slug", "canonical-handoff"],
+    )
+    payload = json.loads(
+        (Path(__file__).resolve().parents[1] / "templates" / "discussion-handoff-template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    payload["discussion_slug"] = "canonical-handoff"
+    payload["handoff_goal"] = "Generate one canonical requirement contract."
+    payload["agent_requirement_contract"]["target_need"] = "A deterministic handoff pair."
+    payload["must_preserve"] = [
+        {
+            "id": "MP-001",
+            "type": "decision",
+            "claim": "JSON remains canonical.",
+            "source": "user confirmation",
+            "downstream_requirement": "Render Markdown from JSON.",
+            "blocking_level": "hard",
+            "owner": "sp-discussion",
+            "latest_resolve_phase": "review",
+            "status": "confirmed",
+        }
+    ]
+    input_path = project / "handoff-draft.json"
+    input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "write-handoff",
+            "canonical-handoff",
+            "--input",
+            str(input_path),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    written = json.loads(result.stdout)
+    assert written["review_digest"]
+    assert Path(written["json_path"]).is_file()
+    markdown_path = Path(written["markdown_path"])
+    assert markdown_path.is_file()
+    assert "## Handoff Reviewer Guide" in markdown_path.read_text(encoding="utf-8")
+
+
 def test_discussion_validate_and_mark_ready_json_use_runtime_gate(tmp_path: Path):
     project, _discussion_root = _setup_project(tmp_path)
     runtime = _load_discussion_runtime()
