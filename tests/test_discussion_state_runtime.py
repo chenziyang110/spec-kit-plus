@@ -112,6 +112,12 @@ def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, P
             "confirmed_digest": None,
             "blocked_reasons": [],
         },
+        "handoff_reviewer_guide": {
+            "decision": "Confirm that this contract preserves the intended requirement.",
+            "review_order": ["goal", "boundary", "evidence", "Must-Preserve items"],
+            "approve_if": ["The goal and protected decisions are correct."],
+            "request_changes_if": ["The target, evidence, or protected decisions are wrong."],
+        },
         "discussion_decision_digest": {
             "locked_direction": ["Layered agent-native architecture."],
             "rejected_alternatives": ["Prompt-only enforcement."],
@@ -140,31 +146,8 @@ def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, P
         "open_conflict_count": 0,
         "review_digest": None,
     }
-    review_digest = runtime.compute_review_digest(payload)
-    payload["review_digest"] = review_digest
-    payload["quality_gate"]["confirmed_digest"] = review_digest
-    json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    markdown_path.write_text(
-        "\n".join(
-            [
-                "# Discussion Handoff",
-                "",
-                f"- discussion_slug: {slug}",
-                f"- review_digest: {review_digest}",
-                "- handoff_goal: Make discussion state deterministic and agent-efficient.",
-                "",
-                "## Handoff Reviewer Guide",
-                "",
-                "Approve only when the goal, boundary, and Must-Preserve items are correct.",
-                "",
-                "## Must-Preserve Ledger",
-                "",
-                "- MP-001: Human replies remain human-centered.",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    written = runtime.write_handoff(project, slug, payload)
+    review_digest = written["review_digest"]
     return markdown_path, json_path, review_digest
 
 
@@ -262,6 +245,36 @@ def test_validate_and_mark_ready_require_exact_confirmed_digest(runtime, tmp_pat
     assert handoff["status"] == "handoff-ready"
 
 
+def test_review_digest_ignores_confirmation_metadata_but_tracks_protected_changes(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Digest", "Digest behavior")
+    _markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    payload["quality_gate"]["user_confirmed_at"] = "2030-01-01T00:00:00Z"
+    payload["quality_gate"]["self_reviewed_at"] = "2030-01-01T00:00:01Z"
+    payload["quality_gate"]["status"] = "draft"
+
+    assert runtime.compute_review_digest(payload) == review_digest
+
+    payload["handoff_goal"] = "A materially changed protected goal."
+    assert runtime.compute_review_digest(payload) != review_digest
+
+
+def test_write_handoff_renders_human_review_view_from_canonical_payload(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Rendered Handoff", "Rendered handoff")
+    markdown_path, json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+
+    markdown = markdown_path.read_text(encoding="utf-8")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["review_digest"] == review_digest
+    assert payload["quality_gate"]["confirmed_digest"] == review_digest
+    assert review_digest in markdown
+    assert payload["handoff_goal"] in markdown
+    assert "Human replies remain human-centered." in markdown
+    assert "Confirm that this contract preserves the intended requirement." in markdown
+
+
 def test_validate_handoff_rejects_missing_markdown_and_stale_confirmation(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Invalid Handoff", "Invalid handoff")
@@ -351,3 +364,10 @@ def test_discussion_templates_define_typed_state_and_consumer_neutral_handoff():
     assert "recommended_sequence" not in handoff_template["downstream_instructions"]
     assert "candidate_id" not in handoff_template
     assert handoff_template["handoff_kind"] == "discussion_requirement_contract"
+    assert handoff_schema["properties"]["coverage_status"]["enum"] == [
+        "not_started",
+        "in_progress",
+        "complete",
+        "blocked_by_handoff_integrity",
+    ]
+    assert any("if" in rule and "then" in rule for rule in handoff_schema["allOf"])
