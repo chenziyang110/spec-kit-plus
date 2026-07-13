@@ -281,6 +281,25 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "workflow-operational reachability validation" in lowered
 
 
+def test_map_build_exposes_deterministic_proposal_compilation_gate() -> None:
+    build = _read("templates/commands/map-build.md")
+    shell = _read("templates/command-partials/map-build/shell.md")
+    required = [
+        "deterministic cognition proposal compiler",
+        "before any graph-store mutation",
+        "compilation.publication_allowed=false",
+        "route candidates rather than repository facts",
+    ]
+    for phrase in required:
+        assert phrase in build
+        assert phrase in shell
+
+    for path in ["README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"]:
+        content = _read(path)
+        assert "deterministic cognition proposal compiler" in content
+        assert "before SQLite publication" in content
+
+
 def test_map_workflow_templates_require_project_concept_lexicon_signals() -> None:
     scan_content = _read("templates/commands/map-scan.md")
     build_content = _read("templates/commands/map-build.md")
