@@ -48,6 +48,12 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	if payload.MergeRecords == nil {
 		t.Fatal("MergeRecords is nil, want present empty slice")
 	}
+	if payload.Compilation.ContractVersion != 1 || payload.Compilation.Status != "compiled" || !payload.Compilation.PublicationAllowed {
+		t.Fatalf("Compilation = %#v, want publishable contract v1", payload.Compilation)
+	}
+	if payload.Compilation.ProposalFingerprint == "" || payload.Compilation.CompiledFingerprint == "" {
+		t.Fatalf("Compilation = %#v, want deterministic fingerprints", payload.Compilation)
+	}
 
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
@@ -87,6 +93,36 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 	if !snapshot.CoveragePaths["src/app.go"] {
 		t.Fatalf("snapshot coverage paths = %#v, want src/app.go", snapshot.CoveragePaths)
+	}
+}
+
+func TestRunBlocksCompilerConflictBeforeCreatingGraphStore(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id": "N-app", "type": "capability", "title": "App", "confidence": "high",
+				"paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"},
+			},
+			{
+				"id": "N-app", "type": "capability", "title": "Conflicting App", "confidence": "high",
+				"paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"},
+			},
+		},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "blocked" || payload.Compilation.PublicationAllowed {
+		t.Fatalf("payload = %#v, want compiler-blocked publication", payload)
+	}
+	if payload.ActiveGenerationID != "" {
+		t.Fatalf("ActiveGenerationID = %q, want empty", payload.ActiveGenerationID)
+	}
+	if _, err := os.Stat(paths.DatabasePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("graph store stat error = %v, want not exist", err)
 	}
 }
 
