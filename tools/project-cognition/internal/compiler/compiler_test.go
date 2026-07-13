@@ -131,6 +131,27 @@ func TestCompileResultHasCompactStableJSONContract(t *testing.T) {
 	}
 }
 
+func TestCompileDoesNotMutateAgentProposal(t *testing.T) {
+	pkg := legacyPackageFixture()
+	pkg.Nodes[0].Paths = []string{"src/z.go", "src/app.go"}
+	pkg.Edges[0].EvidenceIDs = []string{"E-worker", "E-app"}
+	proposal := AdaptLegacy(pkg)
+	before, err := json.Marshal(proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	Compile(proposal)
+
+	after, err := json.Marshal(proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("Compile mutated proposal:\nbefore=%s\nafter=%s", before, after)
+	}
+}
+
 func hasDecisionReason(decisions []Decision, reason string) bool {
 	for _, decision := range decisions {
 		if decision.Reason == reason {
