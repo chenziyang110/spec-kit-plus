@@ -21,6 +21,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reconcile"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
@@ -92,6 +93,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return closeoutPlanCommand(args[1:], stdout, stderr, paths)
 	case "update":
 		return updateCommand(args[1:], stdout, stderr, paths)
+	case "claim-reconcile":
+		return claimReconcileCommand(args[1:], stdout, stderr, paths)
 	case "lexicon":
 		return lexiconCommand(args[1:], stdout, stderr, paths)
 	case "query":
@@ -123,7 +126,39 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+}
+
+func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("claim-reconcile", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Claim reconciliation JSON input file; omit for stdin")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("claim-reconcile supports only --format json")))
+	}
+	var data []byte
+	var err error
+	if strings.TrimSpace(*inputFile) != "" {
+		data, err = os.ReadFile(*inputFile)
+	} else {
+		data, err = io.ReadAll(os.Stdin)
+	}
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("read claim reconciliation input: %w", err)))
+	}
+	packet, err := reconcile.ParsePacket(data)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(err))
+	}
+	payload, err := reconcile.Run(paths, packet)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(err))
+	}
+	return writeCompactJSON(stdout, payload)
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
