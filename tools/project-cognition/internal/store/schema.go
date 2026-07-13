@@ -1,6 +1,6 @@
 package store
 
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS metadata (
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS updates (
 );
 `
 
-const schemaV3ClaimSQL = `
+const schemaV4ClaimSQL = `
 CREATE TABLE IF NOT EXISTS claims (
 	id TEXT PRIMARY KEY,
 	generation_id TEXT NOT NULL REFERENCES generations(id) ON DELETE CASCADE,
@@ -163,9 +163,12 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
 	claim_id TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
 	evidence_id TEXT NOT NULL REFERENCES evidence(id) ON DELETE CASCADE,
 	role TEXT NOT NULL,
+	reconciliation_id TEXT NOT NULL DEFAULT '',
+	basis_state TEXT NOT NULL DEFAULT 'current',
 	PRIMARY KEY(claim_id, evidence_id, role)
 );
 CREATE INDEX IF NOT EXISTS idx_claim_evidence_evidence ON claim_evidence(evidence_id);
+CREATE INDEX IF NOT EXISTS idx_claim_evidence_current ON claim_evidence(claim_id, basis_state);
 
 CREATE TABLE IF NOT EXISTS claim_verifications (
 	id TEXT PRIMARY KEY,
@@ -191,6 +194,17 @@ CREATE TABLE IF NOT EXISTS claim_transitions (
 	attrs_json TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_claim_transitions_claim ON claim_transitions(claim_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS claim_reconciliations (
+	id TEXT PRIMARY KEY,
+	generation_id TEXT NOT NULL REFERENCES generations(id) ON DELETE CASCADE,
+	workflow TEXT NOT NULL,
+	observed_at TEXT NOT NULL,
+	packet_hash TEXT NOT NULL,
+	result_state TEXT NOT NULL,
+	attrs_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_claim_reconciliations_generation ON claim_reconciliations(generation_id, observed_at);
 `
 
 func RequiredTables() []string {
@@ -210,6 +224,7 @@ func RequiredTables() []string {
 		"claim_evidence",
 		"claim_verifications",
 		"claim_transitions",
+		"claim_reconciliations",
 		"updates",
 	}
 }
@@ -253,13 +268,16 @@ func RequiredTableColumns() map[string][]string {
 			"id", "generation_id", "node_id", "graph_claim_type", "summary", "state", "prior_state", "freshness", "state_reason", "attrs_json", "created_at", "updated_at",
 		},
 		"claim_evidence": {
-			"claim_id", "evidence_id", "role",
+			"claim_id", "evidence_id", "role", "reconciliation_id", "basis_state",
 		},
 		"claim_verifications": {
 			"id", "claim_id", "generation_id", "result", "command", "evidence_id", "observed_at", "attrs_json",
 		},
 		"claim_transitions": {
 			"id", "claim_id", "generation_id", "from_state", "to_state", "reason", "evidence_id", "occurred_at", "attrs_json",
+		},
+		"claim_reconciliations": {
+			"id", "generation_id", "workflow", "observed_at", "packet_hash", "result_state", "attrs_json",
 		},
 		"updates": {
 			"id", "generation_id", "trigger", "changed_paths_json", "affected_nodes_json", "affected_claims_json", "affected_slices_json", "result_state", "completed_at", "attrs_json",

@@ -46,6 +46,19 @@ type Verification struct {
 	Attrs      map[string]any     `json:"attrs,omitempty"`
 }
 
+// ReconciliationSignals are runtime-validated observations. They deliberately
+// contain no requested target state: the lifecycle derives that state.
+type ReconciliationSignals struct {
+	SupportingEvidence    bool
+	ContradictingEvidence bool
+	VerificationResult    VerificationResult
+}
+
+type ReconciliationDecision struct {
+	State     State
+	Freshness Freshness
+}
+
 type Candidate struct {
 	ID                       string         `json:"id"`
 	NodeID                   string         `json:"node_id"`
@@ -125,6 +138,52 @@ func CanTransition(from, to State) bool {
 		return to == StateStale
 	default:
 		return false
+	}
+}
+
+// CanReconcileTransition is intentionally separate from CanTransition. Only
+// the evidence-validating reconciliation path may replace a stale or
+// contradicted basis and recover a graph claim within the active generation.
+func CanReconcileTransition(from, to State) bool {
+	if from == to {
+		return true
+	}
+	switch from {
+	case StateCandidate:
+		return to == StateSupported || to == StateVerified || to == StateContradicted || to == StateStale
+	case StateSupported:
+		return to == StateVerified || to == StateContradicted || to == StateStale
+	case StateVerified:
+		return to == StateSupported || to == StateContradicted || to == StateStale
+	case StateContradicted, StateStale:
+		return to == StateSupported || to == StateVerified || to == StateContradicted || to == StateStale
+	default:
+		return false
+	}
+}
+
+// DeriveReconciliation computes the head state from a new, bounded evidence
+// basis. A failed or blocked command is not itself falsifying evidence.
+func DeriveReconciliation(from State, currentFreshness Freshness, signals ReconciliationSignals) ReconciliationDecision {
+	decision := ReconciliationDecision{State: from, Freshness: currentFreshness}
+	if signals.ContradictingEvidence || signals.VerificationResult == VerificationContradicted {
+		return ReconciliationDecision{State: StateContradicted, Freshness: FreshnessFresh}
+	}
+	switch signals.VerificationResult {
+	case VerificationFailed, VerificationBlocked, VerificationInconclusive:
+		return decision
+	case VerificationPassed:
+		if signals.SupportingEvidence {
+			return ReconciliationDecision{State: StateVerified, Freshness: FreshnessFresh}
+		}
+		return decision
+	case "":
+		if signals.SupportingEvidence {
+			return ReconciliationDecision{State: StateSupported, Freshness: FreshnessFresh}
+		}
+		return decision
+	default:
+		return decision
 	}
 }
 

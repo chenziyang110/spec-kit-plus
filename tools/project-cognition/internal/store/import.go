@@ -210,12 +210,12 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 			return "", fmt.Errorf("insert claim %s: %w", graphClaim.ID, err)
 		}
 		for _, evidenceID := range graphClaim.SupportingEvidenceIDs {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES(?, ?, 'supporting')`, graphClaim.ID, evidenceID); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role, reconciliation_id, basis_state) VALUES(?, ?, 'supporting', ?, 'current')`, graphClaim.ID, evidenceID, "build:"+input.GenerationID); err != nil {
 				return "", fmt.Errorf("insert supporting claim evidence %s/%s: %w", graphClaim.ID, evidenceID, err)
 			}
 		}
 		for _, evidenceID := range graphClaim.ContradictingEvidenceIDs {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES(?, ?, 'contradicting')`, graphClaim.ID, evidenceID); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role, reconciliation_id, basis_state) VALUES(?, ?, 'contradicting', ?, 'current')`, graphClaim.ID, evidenceID, "build:"+input.GenerationID); err != nil {
 				return "", fmt.Errorf("insert contradicting claim evidence %s/%s: %w", graphClaim.ID, evidenceID, err)
 			}
 		}
@@ -554,6 +554,7 @@ func supersedeAndDeleteActiveGenerationData(ctx context.Context, tx *sql.Tx, new
 
 func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) error {
 	statements := []string{
+		`DELETE FROM claim_reconciliations WHERE generation_id = ?`,
 		`DELETE FROM claim_transitions WHERE generation_id = ?`,
 		`DELETE FROM claim_verifications WHERE generation_id = ?`,
 		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claims WHERE generation_id = ?)`,

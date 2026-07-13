@@ -374,7 +374,7 @@ func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schemaSQL); err != nil {
 		return fmt.Errorf("initialize schema: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, schemaV3ClaimSQL); err != nil {
+	if _, err := s.db.ExecContext(ctx, schemaV4ClaimSQL); err != nil {
 		return fmt.Errorf("initialize claim schema: %w", err)
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -683,7 +683,7 @@ func (s *Store) ClaimEvidenceForNodeIDs(ctx context.Context, nodeIDs []string) (
 	for _, claimID := range claimIDs {
 		evidenceArgs = append(evidenceArgs, claimID)
 	}
-	evidenceRows, err := s.db.QueryContext(ctx, `SELECT ce.claim_id, e.id, ce.role, e.source_kind, e.source_path, e.span, e.commit_sha FROM claim_evidence ce JOIN evidence e ON e.id = ce.evidence_id WHERE e.generation_id = ? AND ce.claim_id IN (`+claimPlaceholders+`) ORDER BY ce.claim_id, CASE ce.role WHEN 'contradicting' THEN 0 ELSE 1 END, e.id`, evidenceArgs...)
+	evidenceRows, err := s.db.QueryContext(ctx, `SELECT ce.claim_id, e.id, ce.role, e.source_kind, e.source_path, e.span, e.commit_sha FROM claim_evidence ce JOIN evidence e ON e.id = ce.evidence_id WHERE e.generation_id = ? AND ce.basis_state = 'current' AND ce.claim_id IN (`+claimPlaceholders+`) ORDER BY ce.claim_id, CASE ce.role WHEN 'contradicting' THEN 0 ELSE 1 END, e.id`, evidenceArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("read graph claim evidence refs: %w", err)
 	}
@@ -764,7 +764,7 @@ func (s *Store) claimIDsForNodesAndPaths(ctx context.Context, nodeIDs, paths []s
 		if candidate == "" {
 			continue
 		}
-		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT c.id FROM claims c JOIN claim_evidence ce ON ce.claim_id = c.id JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = c.generation_id WHERE c.generation_id = ? AND (e.source_path = ? OR e.source_path LIKE ? OR ? LIKE e.source_path || '/%')`, generationID, candidate, candidate+"/%", candidate)
+		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT c.id FROM claims c JOIN claim_evidence ce ON ce.claim_id = c.id AND ce.basis_state = 'current' JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = c.generation_id WHERE c.generation_id = ? AND (e.source_path = ? OR e.source_path LIKE ? OR ? LIKE e.source_path || '/%')`, generationID, candidate, candidate+"/%", candidate)
 		if err != nil {
 			return nil, fmt.Errorf("read claims for affected evidence paths: %w", err)
 		}
