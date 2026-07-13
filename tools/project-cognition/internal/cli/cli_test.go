@@ -32,11 +32,34 @@ func TestVersionPrintsBinaryName(t *testing.T) {
 	}
 }
 
-func TestHelpListsClaimReconcile(t *testing.T) {
+func TestHelpListsClaimReconcileCommands(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"--help"}, &stdout, &stderr, "test")
-	if code != 0 || !strings.Contains(stdout.String(), "claim-reconcile") {
-		t.Fatalf("code=%d stderr=%s help=%s, want claim-reconcile", code, stderr.String(), stdout.String())
+	if code != 0 || !strings.Contains(stdout.String(), "claim-reconcile prepare|apply") {
+		t.Fatalf("code=%d stderr=%s help=%s, want prepare and apply commands", code, stderr.String(), stdout.String())
+	}
+}
+
+func TestClaimReconcilePrepareReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
+	temp := t.TempDir()
+	inputPath := filepath.Join(temp, "prepare.json")
+	if err := os.WriteFile(inputPath, []byte(`{"claim_reconciliation_prepare_contract_version":0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "prepare", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code=%d stdout=%s, want blocked prepare", code, stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode output %q: %v", stdout.String(), err)
+	}
+	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_prepare_contract_version"] != float64(1) {
+		t.Fatalf("payload = %#v, want current prepare error contract", payload)
+	}
+	if payload["error_code"] != "invalid_claim_reconciliation_prepare" {
+		t.Fatalf("error_code = %#v", payload["error_code"])
 	}
 }
 
