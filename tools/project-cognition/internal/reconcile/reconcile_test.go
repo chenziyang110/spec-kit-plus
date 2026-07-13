@@ -214,6 +214,7 @@ func TestPacketValidationRejectsAmbiguousOrIncompleteInputs(t *testing.T) {
 	tests := map[string]func(*Packet){
 		"missing generation":        func(packet *Packet) { packet.ExpectedGenerationID = "" },
 		"invalid observed time":     func(packet *Packet) { packet.ObservedAt = "yesterday" },
+		"future observed time":      func(packet *Packet) { packet.ObservedAt = "2099-01-01T00:00:00Z" },
 		"missing items":             func(packet *Packet) { packet.Items = nil },
 		"invalid expected state":    func(packet *Packet) { packet.Items[0].ExpectedState = "verified" },
 		"duplicate claim":           func(packet *Packet) { packet.Items = append(packet.Items, packet.Items[0]) },
