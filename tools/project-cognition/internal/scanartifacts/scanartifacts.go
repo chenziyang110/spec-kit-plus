@@ -215,6 +215,7 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadEdges(paths, &pkg, &result)
 	normalizeEdgeEndpoints(&pkg)
 	loadObservations(paths, &pkg, &result)
+	loadClaims(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
 	boundary := loadBoundary(paths, &result)
 	pkg.AcceptedGaps = acceptedNonblockingGapPaths(paths, boundary)
@@ -765,6 +766,75 @@ func loadObservations(paths rt.Paths, pkg *Package, result *Result) {
 		}
 		pkg.Observations = append(pkg.Observations, item)
 	}
+}
+
+func loadClaims(paths rt.Paths, pkg *Package, result *Result) {
+	claimPath := filepath.Join(paths.RuntimeDir, "provisional", "claims.json")
+	if _, err := os.Stat(claimPath); errors.Is(err, os.ErrNotExist) {
+		return
+	} else if err != nil {
+		result.Errors = append(result.Errors, "claims.json: "+err.Error())
+		return
+	}
+	raw, err := readJSONFile(claimPath, "claims.json")
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return
+	}
+	rows, err := arrayRows(raw, "claims")
+	if err != nil {
+		result.Errors = append(result.Errors, "claims.json: "+err.Error())
+		return
+	}
+	for i, row := range rows {
+		verifications, err := claimVerifications(row["verifications"])
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("claims.json claim row %d: %v", i, err))
+			continue
+		}
+		item := ClaimRow{
+			ID:                       normalizedIdentityString(firstValue(row, "id", "claim_id")),
+			NodeID:                   firstNormalizedString(row, "node_id", "subject_node_id"),
+			GraphClaimType:           firstNormalizedString(row, "graph_claim_type", "type"),
+			Summary:                  firstNormalizedString(row, "summary", "statement"),
+			RequestedState:           claim.State(normalizedString(row["requested_state"])),
+			SupportingEvidenceIDs:    uniqueStrings(normalizedStringSlice(row["supporting_evidence_ids"])),
+			ContradictingEvidenceIDs: uniqueStrings(normalizedStringSlice(row["contradicting_evidence_ids"])),
+			Verifications:            verifications,
+			StaleReason:              normalizedString(row["stale_reason"]),
+			Attrs:                    objectMapFromAliases(row, "attrs", "attrs_json"),
+		}
+		if item.ID == "" {
+			item.ID = generatedRowID("CLAIM", row, i, item.NodeID, item.GraphClaimType, item.Summary)
+		}
+		pkg.Claims = append(pkg.Claims, item)
+	}
+}
+
+func claimVerifications(value any) ([]claim.Verification, error) {
+	if value == nil {
+		return []claim.Verification{}, nil
+	}
+	rows, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("verifications must be an array")
+	}
+	out := make([]claim.Verification, 0, len(rows))
+	for index, value := range rows {
+		row, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("verification row %d must be an object", index)
+		}
+		out = append(out, claim.Verification{
+			ID:         normalizedIdentityString(firstValue(row, "id", "verification_id")),
+			Result:     claim.VerificationResult(normalizedString(row["result"])),
+			Command:    normalizedString(row["command"]),
+			EvidenceID: normalizedIdentityString(row["evidence_id"]),
+			ObservedAt: normalizedString(row["observed_at"]),
+			Attrs:      objectMapFromAliases(row, "attrs", "attrs_json"),
+		})
+	}
+	return out, nil
 }
 
 func normalizeEdgeEndpoints(pkg *Package) {
@@ -2060,6 +2130,9 @@ func buildIdentities(pkg *Package) {
 	}
 	for _, row := range pkg.Observations {
 		pkg.Identities.Observations[row.ID] = true
+	}
+	for _, row := range pkg.Claims {
+		pkg.Identities.Claims[row.ID] = true
 	}
 	for _, path := range pkg.CoveragePaths {
 		pkg.Identities.CoveragePaths[path] = true

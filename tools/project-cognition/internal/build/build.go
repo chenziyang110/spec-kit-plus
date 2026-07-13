@@ -283,6 +283,7 @@ func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 		Nodes:        nodeImports(pkg.Nodes),
 		Edges:        edgeImports(pkg.Edges),
 		Observations: observationImports(pkg.Observations),
+		Claims:       claimImports(pkg.Claims),
 		PathIndex:    pathIndexImports(pkg.Nodes),
 		Aliases:      aliasImports(generationID, pkg),
 		Rejections:   []store.RowDecision{},
@@ -352,6 +353,26 @@ func observationImports(rows []scanartifacts.ObservationRow) []store.Observation
 	return out
 }
 
+func claimImports(rows []scanartifacts.ClaimRow) []store.ClaimImport {
+	out := make([]store.ClaimImport, 0, len(rows))
+	for _, row := range rows {
+		verifications := make([]store.ClaimVerificationImport, 0, len(row.Verifications))
+		for _, verification := range row.Verifications {
+			verifications = append(verifications, store.ClaimVerificationImport{
+				ID: verification.ID, Result: verification.Result, Command: verification.Command,
+				EvidenceID: verification.EvidenceID, ObservedAt: verification.ObservedAt, Attrs: verification.Attrs,
+			})
+		}
+		out = append(out, store.ClaimImport{
+			ID: row.ID, NodeID: row.NodeID, GraphClaimType: row.GraphClaimType, Summary: row.Summary,
+			State: row.State, PriorState: row.PriorState, Freshness: row.Freshness, StateReason: row.StateReason,
+			SupportingEvidenceIDs: row.SupportingEvidenceIDs, ContradictingEvidenceIDs: row.ContradictingEvidenceIDs,
+			Verifications: verifications, Attrs: row.Attrs,
+		})
+	}
+	return out
+}
+
 func pathIndexImports(nodes []scanartifacts.NodeRow) []store.PathIndexImport {
 	out := []store.PathIndexImport{}
 	for _, node := range nodes {
@@ -390,6 +411,7 @@ func scanCounts(pkg scanartifacts.Package) map[string]int {
 		"nodes":          len(pkg.Identities.Nodes),
 		"edges":          len(pkg.Identities.Edges),
 		"observations":   len(pkg.Identities.Observations),
+		"claims":         len(pkg.Identities.Claims),
 		"coverage_paths": len(pkg.Identities.CoveragePaths),
 	}
 }
@@ -400,6 +422,7 @@ func dbCounts(snapshot store.IdentitySnapshot) map[string]int {
 		"nodes":          len(snapshot.Nodes),
 		"edges":          len(snapshot.Edges),
 		"observations":   len(snapshot.Observations),
+		"claims":         len(snapshot.Claims),
 		"coverage_paths": len(snapshot.CoveragePaths),
 	}
 }
@@ -410,6 +433,7 @@ func summarizeReconciliation(expected scanartifacts.IdentitySet, actual store.Id
 		"nodes":          compareIdentityMaps(expected.Nodes, actual.Nodes),
 		"edges":          compareIdentityMaps(expected.Edges, actual.Edges),
 		"observations":   compareIdentityMaps(expected.Observations, actual.Observations),
+		"claims":         compareIdentityMaps(expected.Claims, actual.Claims),
 		"coverage_paths": compareIdentityMaps(expected.CoveragePaths, actual.CoveragePaths),
 	}
 }
@@ -498,6 +522,8 @@ func identityErrorNoun(category string) string {
 		return "edge"
 	case "observation":
 		return "observation"
+	case "claim":
+		return "claim"
 	default:
 		return category
 	}
@@ -509,6 +535,7 @@ func emptyCounts() map[string]int {
 		"nodes":          0,
 		"edges":          0,
 		"observations":   0,
+		"claims":         0,
 		"coverage_paths": 0,
 	}
 }
@@ -519,6 +546,7 @@ func emptyReconciliation() map[string]ReconciliationCategory {
 		"nodes":          notRunReconciliation(),
 		"edges":          notRunReconciliation(),
 		"observations":   notRunReconciliation(),
+		"claims":         notRunReconciliation(),
 		"coverage_paths": notRunReconciliation(),
 	}
 }

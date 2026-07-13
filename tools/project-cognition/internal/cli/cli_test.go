@@ -1221,7 +1221,7 @@ func TestBuildFromScanCommandWritesAliasIndexRows(t *testing.T) {
 	}
 }
 
-func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
+func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV3(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
@@ -1280,8 +1280,8 @@ func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
 	if err := reopened.QueryRowContext(context.Background(), `SELECT value_json FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != "2" {
-		t.Fatalf("schema_version = %q, want 2", version)
+	if version != "3" {
+		t.Fatalf("schema_version = %q, want 3", version)
 	}
 	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
 		t.Fatalf("legacy archive missing: %v", err)
@@ -1741,7 +1741,7 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 		t.Fatalf("errors = %#v, want non-empty array; payload = %#v", payload["errors"], payload)
 	}
 	diagnostic := strings.Join(jsonAnySliceStrings(errors), " ")
-	if !strings.Contains(diagnostic, "schema_version") || !strings.Contains(diagnostic, `expected "2"`) {
+	if !strings.Contains(diagnostic, "schema_version") || !strings.Contains(diagnostic, `expected "3"`) {
 		t.Fatalf("errors = %#v, want schema_version expected version diagnostic", payload["errors"])
 	}
 	if payload["recommended_next_action"] != "run_map_scan_build" {

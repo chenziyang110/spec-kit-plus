@@ -19,6 +19,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
@@ -63,6 +64,13 @@ type AffectedClosure struct {
 	NodeIDs  []string
 	ClaimIDs []string
 	SliceIDs []string
+}
+
+type ClaimTransition struct {
+	ClaimID   string
+	FromState claim.State
+	ToState   claim.State
+	Reason    string
 }
 
 type PathCoverageRefresh struct {
@@ -627,10 +635,27 @@ func (s *Store) RecordStructuredUpdate(ctx context.Context, record UpdateRecord)
 	if err != nil {
 		return fmt.Errorf("encode update attrs: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO updates(id, generation_id, trigger, changed_paths_json, affected_nodes_json, affected_claims_json, affected_slices_json, result_state, completed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, record.ID, generationID, record.Trigger, string(changedJSON), string(nodesJSON), string(claimsJSON), string(slicesJSON), record.ResultState, now, attrs)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin structured update: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err := markClaimsStaleTx(ctx, tx, generationID, record.AffectedClaims, changedPathReason(record.ChangedPaths), record.ID, now); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO updates(id, generation_id, trigger, changed_paths_json, affected_nodes_json, affected_claims_json, affected_slices_json, result_state, completed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, record.ID, generationID, record.Trigger, string(changedJSON), string(nodesJSON), string(claimsJSON), string(slicesJSON), record.ResultState, now, attrs)
 	if err != nil {
 		return fmt.Errorf("record structured update: %w", err)
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit structured update: %w", err)
+	}
+	committed = true
 	return nil
 }
 
@@ -639,11 +664,177 @@ func (s *Store) AffectedClosureForPaths(ctx context.Context, paths []string) (Af
 	if err != nil {
 		return AffectedClosure{}, err
 	}
+	nodeIDs := uniqueSorted(nodeIDsFromMaps(nodes))
+	claimIDs, err := s.claimIDsForNodesAndPaths(ctx, nodeIDs, paths)
+	if err != nil {
+		return AffectedClosure{}, err
+	}
 	return AffectedClosure{
-		NodeIDs:  uniqueSorted(nodeIDsFromMaps(nodes)),
-		ClaimIDs: []string{},
+		NodeIDs:  nodeIDs,
+		ClaimIDs: claimIDs,
 		SliceIDs: []string{},
 	}, nil
+}
+
+func (s *Store) ClaimsForNodeIDs(ctx context.Context, nodeIDs []string) ([]map[string]any, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" || len(nodeIDs) == 0 {
+		return []map[string]any{}, err
+	}
+	nodeIDs = uniqueSorted(nodeIDs)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(nodeIDs)), ",")
+	args := make([]any, 0, len(nodeIDs)+1)
+	args = append(args, generationID)
+	for _, nodeID := range nodeIDs {
+		args = append(args, nodeID)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, node_id, graph_claim_type, summary, state, freshness, state_reason FROM claims WHERE generation_id = ? AND node_id IN (`+placeholders+`) ORDER BY id LIMIT 25`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("read compact graph claims: %w", err)
+	}
+	defer rows.Close()
+	out := []map[string]any{}
+	for rows.Next() {
+		var id, nodeID, graphClaimType, summary, state, freshness, stateReason string
+		if err := rows.Scan(&id, &nodeID, &graphClaimType, &summary, &state, &freshness, &stateReason); err != nil {
+			return nil, fmt.Errorf("scan compact graph claim: %w", err)
+		}
+		out = append(out, map[string]any{
+			"id": id, "node_id": nodeID, "graph_claim_type": graphClaimType, "summary": summary,
+			"state": state, "freshness": freshness, "state_reason": stateReason,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate compact graph claims: %w", err)
+	}
+	return out, nil
+}
+
+func (s *Store) MarkClaimsStale(ctx context.Context, claimIDs []string, reason, transitionIDPrefix string) ([]ClaimTransition, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" || len(claimIDs) == 0 {
+		return []ClaimTransition{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin claim invalidation: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	transitions, err := markClaimsStaleTx(ctx, tx, generationID, claimIDs, reason, transitionIDPrefix, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit claim invalidation: %w", err)
+	}
+	committed = true
+	return transitions, nil
+}
+
+func (s *Store) claimIDsForNodesAndPaths(ctx context.Context, nodeIDs, paths []string) ([]string, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" {
+		return []string{}, err
+	}
+	ids := map[string]bool{}
+	if len(nodeIDs) > 0 {
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(nodeIDs)), ",")
+		args := make([]any, 0, len(nodeIDs)+1)
+		args = append(args, generationID)
+		for _, nodeID := range nodeIDs {
+			args = append(args, nodeID)
+		}
+		rows, err := s.db.QueryContext(ctx, `SELECT id FROM claims WHERE generation_id = ? AND node_id IN (`+placeholders+`)`, args...)
+		if err != nil {
+			return nil, fmt.Errorf("read claims for affected nodes: %w", err)
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			ids[id] = true
+		}
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+	}
+	for _, candidate := range uniqueSorted(paths) {
+		candidate = strings.Trim(strings.TrimSpace(candidate), "/")
+		if candidate == "" {
+			continue
+		}
+		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT c.id FROM claims c JOIN claim_evidence ce ON ce.claim_id = c.id JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = c.generation_id WHERE c.generation_id = ? AND (e.source_path = ? OR e.source_path LIKE ? OR ? LIKE e.source_path || '/%')`, generationID, candidate, candidate+"/%", candidate)
+		if err != nil {
+			return nil, fmt.Errorf("read claims for affected evidence paths: %w", err)
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			ids[id] = true
+		}
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+	}
+	out := make([]string, 0, len(ids))
+	for id := range ids {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func markClaimsStaleTx(ctx context.Context, tx *sql.Tx, generationID string, claimIDs []string, reason, transitionIDPrefix, now string) ([]ClaimTransition, error) {
+	reason = defaultString(reason, "affected_dependency_changed")
+	transitionIDPrefix = defaultString(transitionIDPrefix, "manual")
+	transitions := []ClaimTransition{}
+	for _, claimID := range uniqueSorted(claimIDs) {
+		var stateValue string
+		err := tx.QueryRowContext(ctx, `SELECT state FROM claims WHERE generation_id = ? AND id = ?`, generationID, claimID).Scan(&stateValue)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read claim %s before invalidation: %w", claimID, err)
+		}
+		from := claim.State(stateValue)
+		if from == claim.StateStale {
+			continue
+		}
+		if !claim.CanTransition(from, claim.StateStale) {
+			return nil, fmt.Errorf("claim %s cannot transition from %s to stale", claimID, from)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE claims SET prior_state = state, state = ?, freshness = ?, state_reason = ?, updated_at = ? WHERE generation_id = ? AND id = ?`, claim.StateStale, claim.FreshnessStale, reason, now, generationID, claimID); err != nil {
+			return nil, fmt.Errorf("mark claim %s stale: %w", claimID, err)
+		}
+		transitionID := "claim-transition:" + stableIDPart(transitionIDPrefix) + ":" + stableIDPart(claimID)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO claim_transitions(id, claim_id, generation_id, from_state, to_state, reason, evidence_id, occurred_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, '', ?, '{}')`, transitionID, claimID, generationID, from, claim.StateStale, reason, now); err != nil {
+			return nil, fmt.Errorf("record claim %s stale transition: %w", claimID, err)
+		}
+		transitions = append(transitions, ClaimTransition{ClaimID: claimID, FromState: from, ToState: claim.StateStale, Reason: reason})
+	}
+	return transitions, nil
+}
+
+func changedPathReason(paths []string) string {
+	paths = uniqueSorted(paths)
+	if len(paths) == 1 {
+		return "changed_path:" + paths[0]
+	}
+	if len(paths) > 1 {
+		return "changed_paths:" + strings.Join(paths, ",")
+	}
+	return "affected_dependency_changed"
 }
 
 func (s *Store) RefreshPathCoverage(ctx context.Context, refresh PathCoverageRefresh) (PathCoverageRefreshResult, error) {

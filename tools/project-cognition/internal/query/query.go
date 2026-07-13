@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -481,16 +482,24 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		readiness = "review"
 		recommendedNextAction = "use_minimal_live_reads_and_review_missing_coverage"
 	}
+	claims := []map[string]any{}
+	if st != nil {
+		claims, err = st.ClaimsForNodeIDs(context.Background(), nodeIDListFromNodes(nodes))
+		if err != nil {
+			return QueryPayload{}, err
+		}
+	}
 	routePack := map[string]any{
 		"items":              nodes,
 		"routes":             plan.Paths,
 		"minimal_live_reads": reads,
+		"claims":             claims,
 		"why_these_reads":    "Selected from query plan paths and active project cognition graph metadata.",
 	}
 	subgraph := map[string]any{
 		"nodes":     nodes,
 		"edges":     []map[string]any{},
-		"claims":    []map[string]any{},
+		"claims":    claims,
 		"conflicts": []map[string]any{},
 	}
 	return QueryPayload{
@@ -736,6 +745,16 @@ func nodeIDsFromNodes(nodes []map[string]any) map[string]bool {
 		ids[id] = true
 	}
 	return ids
+}
+
+func nodeIDListFromNodes(nodes []map[string]any) []string {
+	ids := nodeIDsFromNodes(nodes)
+	out := make([]string, 0, len(ids))
+	for id := range ids {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func appendMissingCoverage(values []string, value string) []string {
