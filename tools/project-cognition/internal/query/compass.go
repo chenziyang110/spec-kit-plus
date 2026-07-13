@@ -109,9 +109,9 @@ type CoverageDiagnostic struct {
 
 type ExpansionRef struct {
 	ID                            string                          `json:"id,omitempty"`
-	ClaimRetrievalContractVersion int                             `json:"claim_retrieval_contract_version,omitempty"`
+	ClaimRetrievalContractVersion int                             `json:"claim_retrieval_contract_version"`
 	ActiveGenerationID            string                          `json:"active_generation_id,omitempty"`
-	CandidateUniverseVersion      int                             `json:"candidate_universe_version,omitempty"`
+	CandidateUniverseVersion      int                             `json:"candidate_universe_version"`
 	QueryFingerprint              string                          `json:"query_fingerprint,omitempty"`
 	AvailableSections             map[string]ExpansionSectionMeta `json:"available_sections,omitempty"`
 	StaleBehavior                 string                          `json:"stale_behavior,omitempty"`
@@ -279,8 +279,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			"graph_neighbors": []map[string]any{},
 			"claim_evidence":  claimSignals(claimRecords, maxExpansionClaimSignals, maxExpansionEvidenceRefs),
 		}
-		ref, err := writeExpansionBundle(paths, ExpansionBundle{
-			ID:                            "exp-" + payload.QueryFingerprint,
+		bundle := ExpansionBundle{
 			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
 			ActiveGenerationID:            payload.ActiveGenerationID,
 			CandidateUniverseVersion:      payload.CandidateUniverseVersion,
@@ -288,7 +287,9 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			Sections:                      expansionSectionMeta(sectionPayloads),
 			SectionPayloads:               sectionPayloads,
 			CreatedAt:                     deterministicExpansionCreatedAt(payload.QueryFingerprint),
-		})
+		}
+		bundle.ID = expansionBundleID(bundle)
+		ref, err := writeExpansionBundle(paths, bundle)
 		if err != nil {
 			payload.Warnings = appendDiagnosticString(payload.Warnings, "expansion_bundle_write_failed:"+err.Error())
 		} else {

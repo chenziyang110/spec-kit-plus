@@ -154,7 +154,7 @@ func TestRunScopesClaimRouteConfidenceWithoutUpgradingGraphTruth(t *testing.T) {
 }
 
 func TestParsePlanNormalizesLegacyAliases(t *testing.T) {
-	plan, err := ParsePlan(`{"path_hints":["./src/a.go"],"reason":"because"}`, "")
+	plan, err := ParsePlan(`{"candidate_universe_version":2,"path_hints":["./src/a.go"],"reason":"because"}`, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,6 +204,7 @@ func TestParsePlanAcceptsConceptDecisionsAndGeneration(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"raw_query": "GUI feels laggy",
 		"lexicon_generation_id": "GEN-ui",
+		"candidate_universe_version": 2,
 		"selected_concepts": ["concept:GEN-ui:N-gui"],
 		"rejected_concepts": ["concept:GEN-ui:N-login"],
 		"concept_decisions": [
@@ -240,6 +241,7 @@ func TestParsePlanAcceptsConceptDecisionsAndGeneration(t *testing.T) {
 func TestParsePlanPreservesRepositorySearchTerms(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"raw_query": "Complete button should live in workflow status",
+		"candidate_universe_version": 2,
 		"repository_search_terms": [
 			"workflow status",
 			"Complete",
@@ -265,6 +267,7 @@ func TestParsePlanPreservesRepositorySearchTerms(t *testing.T) {
 func TestParsePlanAcceptsSemanticIntakeAndFacetCoverageDecisions(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"raw_query": "Token usage today says 230M, is that wrong?",
+		"candidate_universe_version": 2,
 		"semantic_intake": {
 			"workflow_intent": "debug",
 			"normalized_query": "Investigate local CLI session token usage aggregation and daily accounting accuracy.",
@@ -313,6 +316,7 @@ func TestParsePlanAcceptsSemanticIntakeAndFacetCoverageDecisions(t *testing.T) {
 
 func TestParsePlanMergesTopLevelSemanticIntakeAliases(t *testing.T) {
 	plan, err := ParsePlan(`{
+		"candidate_universe_version": 2,
 		"workflow_intent": " debug ",
 		"normalized_query": " token usage accounting ",
 		"intent_facets": ["token accounting", "token accounting", "daily total"],
@@ -344,6 +348,7 @@ func TestParsePlanMergesTopLevelSemanticIntakeAliases(t *testing.T) {
 
 func TestParsePlanWithDiagnosticsCoercesTopLevelStringAliases(t *testing.T) {
 	plan, diagnostics, err := ParsePlanWithDiagnostics(`{
+		"candidate_universe_version": 2,
 		"normalized_query": "WinPE driver download stall",
 		"alias_interpretations": ["PE程序"]
 	}`, "")
@@ -369,6 +374,7 @@ func TestParsePlanWithDiagnosticsCoercesTopLevelStringAliases(t *testing.T) {
 func TestParsePlanWithDiagnosticsCoercesNestedStringAliases(t *testing.T) {
 	plan, diagnostics, err := ParsePlanWithDiagnostics(`{
 		"lexicon_generation_id": "GEN-debug",
+		"candidate_universe_version": 2,
 		"semantic_intake": {
 			"normalized_query": "WinPE driver download stall",
 			"alias_interpretations": ["PE程序"]
@@ -389,6 +395,7 @@ func TestParsePlanWithDiagnosticsCoercesNestedStringAliases(t *testing.T) {
 
 func TestParsePlanKeepsNestedSemanticIntakeOverTopLevelAliases(t *testing.T) {
 	plan, err := ParsePlan(`{
+		"candidate_universe_version": 2,
 		"normalized_query": "top level query",
 		"intent_facets": ["top facet"],
 		"alias_interpretations": [
@@ -421,6 +428,7 @@ func TestParsePlanKeepsNestedSemanticIntakeOverTopLevelAliases(t *testing.T) {
 func TestParsePlanWithDiagnosticsRejectsUnsupportedAliasShape(t *testing.T) {
 	_, _, err := ParsePlanWithDiagnostics(`{
 		"lexicon_generation_id": "GEN-debug",
+		"candidate_universe_version": 2,
 		"semantic_intake": {
 			"alias_interpretations": [{"alias": 95}]
 		}
@@ -515,7 +523,7 @@ func TestNormalizePlanBackfillsMissingLegacyDecisionsForMixedInput(t *testing.T)
 func TestParsePlanSupportsAtFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "plan.json")
-	if err := os.WriteFile(path, []byte(`{"paths":["docs/x.md"]}`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`{"candidate_universe_version":2,"paths":["docs/x.md"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := ParsePlan("@"+path, "")
@@ -1463,8 +1471,8 @@ func TestRunBlocksIncompatibleDatabaseWithoutArchiving(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected incompatible DB agreement error")
 	}
-	if !strings.Contains(err.Error(), "schema is incompatible") {
-		t.Fatalf("error = %q, want incompatible schema", err.Error())
+	if !strings.Contains(err.Error(), "current runtime requires 3") {
+		t.Fatalf("error = %q, want current schema requirement", err.Error())
 	}
 	if _, statErr := os.Stat(paths.DatabasePath + ".legacy"); !os.IsNotExist(statErr) {
 		t.Fatalf("legacy archive stat err = %v, want no archive", statErr)

@@ -313,6 +313,7 @@ func queryPlanningContract() map[string]any {
 			"rejected_concepts",
 			"concept_decisions",
 			"lexicon_generation_id",
+			"candidate_universe_version",
 			"selection_reason",
 			"reason",
 		},
@@ -335,8 +336,9 @@ func queryPlanningContract() map[string]any {
 			"risk",
 			"paths",
 		},
-		"path_hint_alias": "paths",
-		"reason_alias":    "selection_reason",
+		"path_hint_alias":            "paths",
+		"reason_alias":               "selection_reason",
+		"candidate_universe_version": CandidateUniverseVersion,
 	}
 }
 

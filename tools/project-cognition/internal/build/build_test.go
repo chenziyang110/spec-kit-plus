@@ -505,7 +505,7 @@ func TestReconciliationErrorsRequireExplicitDecisionRecords(t *testing.T) {
 	}
 }
 
-func TestRunReplacesLegacyStatus(t *testing.T) {
+func TestRunRejectsLegacyStatusWithoutReplacement(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	data, _ := json.Marshal(map[string]any{"freshness": "fresh", "graph_ready": true})
 	if err := os.WriteFile(paths.StatusPath, data, 0o644); err != nil {
@@ -513,18 +513,18 @@ func TestRunReplacesLegacyStatus(t *testing.T) {
 	}
 
 	payload, err := Run(paths)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
+	if !errors.Is(err, rt.ErrUnsupportedLegacy) {
+		t.Fatalf("Run() error = %v, want current-runtime-only rejection", err)
 	}
-	if !payload.LegacyRuntimeReplaced {
-		t.Fatal("LegacyRuntimeReplaced = false, want true")
+	if !strings.Contains(strings.Join(payload.Errors, "\n"), "unsupported legacy project cognition runtime") {
+		t.Fatalf("Errors = %#v, want explicit legacy status rejection", payload.Errors)
 	}
-	status, err := rt.ReadStatus(paths)
+	unchanged, err := os.ReadFile(paths.StatusPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.RuntimeFormat != rt.RuntimeFormat {
-		t.Fatalf("RuntimeFormat = %q, want %q", status.RuntimeFormat, rt.RuntimeFormat)
+	if string(unchanged) != string(data) {
+		t.Fatalf("legacy status changed: got %s want %s", unchanged, data)
 	}
 }
 
@@ -885,7 +885,7 @@ func TestRunCompilerFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
 	}
 }
 
-func TestRunArchivesLegacyThinDatabaseBeforeImport(t *testing.T) {
+func TestRunRejectsLegacyThinDatabaseWithoutReplacement(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -910,41 +910,30 @@ func TestRunArchivesLegacyThinDatabaseBeforeImport(t *testing.T) {
 	}
 
 	payload, err := Run(paths)
-	if err != nil {
-		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	if err == nil {
+		t.Fatalf("Run() error = nil, want current-schema-only rejection; payload=%#v", payload)
 	}
-	if payload.Status != "ok" {
-		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	if !strings.Contains(strings.Join(payload.Errors, "\n"), "schema_version 0") {
+		t.Fatalf("Errors = %#v, want explicit schema v0 rejection", payload.Errors)
 	}
-	if !payload.LegacyRuntimeReplaced {
-		t.Fatal("LegacyRuntimeReplaced = false, want true")
+	if payload.ActiveGenerationID != "" {
+		t.Fatalf("ActiveGenerationID = %q, want no import", payload.ActiveGenerationID)
 	}
-	if payload.ActiveGenerationID == "" || payload.ActiveGenerationID == "GEN-legacy" {
-		t.Fatalf("ActiveGenerationID = %q, want fresh non-legacy generation", payload.ActiveGenerationID)
-	}
-
-	status, err := rt.ReadStatus(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.ActiveGenerationID != payload.ActiveGenerationID || !status.GraphReady {
-		t.Fatalf("status = %#v, want active fresh graph", status)
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want no implicit archive", err)
 	}
 
-	st, err := store.OpenExisting(paths)
+	reopened, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
-	activeID, err := st.ActiveGenerationID(context.Background())
-	if err != nil {
+	defer reopened.Close()
+	var activeID string
+	if err := reopened.QueryRow(`SELECT id FROM generations WHERE state = 'active'`).Scan(&activeID); err != nil {
 		t.Fatal(err)
 	}
-	if activeID != payload.ActiveGenerationID {
-		t.Fatalf("active generation = %q, want payload %q", activeID, payload.ActiveGenerationID)
-	}
-	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
-		t.Fatalf("legacy database archive missing: %v", err)
+	if activeID != "GEN-legacy" {
+		t.Fatalf("active generation = %q, want untouched GEN-legacy", activeID)
 	}
 }
 

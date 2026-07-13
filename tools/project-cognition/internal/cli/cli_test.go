@@ -1456,8 +1456,8 @@ func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
 	if !ok || generationID == "" {
 		t.Fatalf("active_generation_id missing from payload = %#v", payload)
 	}
-	if payload["candidate_universe_version"] != float64(1) {
-		t.Fatalf("candidate_universe_version = %#v, want 1; payload = %#v", payload["candidate_universe_version"], payload)
+	if payload["candidate_universe_version"] != float64(2) {
+		t.Fatalf("candidate_universe_version = %#v, want 2; payload = %#v", payload["candidate_universe_version"], payload)
 	}
 	if _, ok := payload["candidate_universe"].(map[string]any); !ok {
 		t.Fatalf("candidate_universe missing from payload = %#v", payload)
@@ -1742,8 +1742,8 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 		t.Fatalf("errors = %#v, want non-empty array; payload = %#v", payload["errors"], payload)
 	}
 	diagnostic := strings.Join(jsonAnySliceStrings(errors), " ")
-	if !strings.Contains(diagnostic, "schema_version") || !strings.Contains(diagnostic, `expected "3"`) {
-		t.Fatalf("errors = %#v, want schema_version expected version diagnostic", payload["errors"])
+	if !strings.Contains(diagnostic, "schema_version 1") || !strings.Contains(diagnostic, "current runtime requires 3") {
+		t.Fatalf("errors = %#v, want current schema diagnostic", payload["errors"])
 	}
 	if payload["recommended_next_action"] != "run_map_scan_build" {
 		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
@@ -1941,8 +1941,9 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 		"concept_decisions": []map[string]any{{
 			"concept_id":       conceptID,
 			"decision":         "selected",
@@ -1991,8 +1992,9 @@ func TestQueryCommandAcceptsAskIntentQueryPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 		"concept_decisions": []map[string]any{{
 			"concept_id":       conceptID,
 			"decision":         "selected",
@@ -2022,13 +2024,14 @@ func TestQueryCommandAcceptsAskIntentQueryPlan(t *testing.T) {
 func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInputs(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"raw_query":               "PE程序下驱动下载卡在95",
-		"normalized_query":        "Investigate WinPE driver download progress stalling at 95 percent.",
-		"intent_facets":           []string{"WinPE runtime", "driver download", "95 percent stall"},
-		"alias_interpretations":   []string{"PE程序"},
-		"expanded_queries":        []string{"WinPE driver download progress stall"},
-		"paths":                   []string{"src/app.go"},
-		"open_semantic_questions": []string{},
+		"candidate_universe_version": 2,
+		"raw_query":                  "PE程序下驱动下载卡在95",
+		"normalized_query":           "Investigate WinPE driver download progress stalling at 95 percent.",
+		"intent_facets":              []string{"WinPE runtime", "driver download", "95 percent stall"},
+		"alias_interpretations":      []string{"PE程序"},
+		"expanded_queries":           []string{"WinPE driver download progress stall"},
+		"paths":                      []string{"src/app.go"},
+		"open_semantic_questions":    []string{},
 	})
 	queryPlanFile := filepath.Join(root, "query-plan.json")
 	if err := os.WriteFile(queryPlanFile, []byte(queryPlan), 0o644); err != nil {
@@ -2097,7 +2100,7 @@ func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInp
 
 func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *testing.T) {
 	setupReadyMinimalCLIRuntime(t)
-	queryPlan := `{"semantic_intake":{"alias_interpretations":[{"alias":95}]}}`
+	queryPlan := `{"candidate_universe_version":2,"semantic_intake":{"alias_interpretations":[{"alias":95}]}}`
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
@@ -2141,8 +2144,9 @@ func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *test
 func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	initEmptyCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"raw_query": "build login",
-		"paths":     []string{"docs/login.md"},
+		"candidate_universe_version": 2,
+		"raw_query":                  "build login",
+		"paths":                      []string{"docs/login.md"},
 	})
 
 	var stdout, stderr bytes.Buffer
@@ -2183,8 +2187,9 @@ func TestQueryCommandAcceptsSuffixConceptIDPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app:alias:app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 	})
 
 	var stdout, stderr bytes.Buffer

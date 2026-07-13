@@ -43,7 +43,6 @@ type Payload struct {
 	StatusPath             string                            `json:"status_path"`
 	GraphStorePath         string                            `json:"graph_store_path"`
 	ActiveGenerationID     string                            `json:"active_generation_id,omitempty"`
-	LegacyRuntimeReplaced  bool                              `json:"legacy_runtime_replaced"`
 }
 
 type ReconciliationCategory struct {
@@ -72,29 +71,9 @@ func Run(paths rt.Paths) (Payload, error) {
 	pkg = compiled.Package
 
 	_, err := rt.ReadStatus(paths)
-	if errors.Is(err, rt.ErrUnsupportedLegacy) {
-		payload.LegacyRuntimeReplaced = true
-	} else if err != nil {
+	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("read status: %v", err))
 		return payload, err
-	}
-
-	replacedDB, err := store.ReplaceIncompatibleDatabase(paths)
-	if err != nil {
-		payload.Errors = append(payload.Errors, fmt.Sprintf("recover graph store: %v", err))
-		return payload, err
-	}
-	if replacedDB {
-		payload.LegacyRuntimeReplaced = true
-	}
-
-	replacedOutdatedDB, err := store.ReplaceOutdatedDatabase(paths)
-	if err != nil {
-		payload.Errors = append(payload.Errors, fmt.Sprintf("recover outdated graph store: %v", err))
-		return payload, err
-	}
-	if replacedOutdatedDB {
-		payload.LegacyRuntimeReplaced = true
 	}
 
 	st, err := store.Open(paths)

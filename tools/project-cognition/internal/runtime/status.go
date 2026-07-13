@@ -109,6 +109,9 @@ func ReadStatus(paths Paths) (Status, error) {
 	if err := json.Unmarshal(data, &status); err != nil {
 		return Status{}, fmt.Errorf("decode status: %w", err)
 	}
+	if status.RuntimeSchema != RuntimeSchema {
+		return Status{}, ErrUnsupportedLegacy
+	}
 	status.StatusPath = slash(paths.StatusPath)
 	if status.GraphStorePath == "" {
 		status.GraphStorePath = ".specify/project-cognition/project-cognition.db"

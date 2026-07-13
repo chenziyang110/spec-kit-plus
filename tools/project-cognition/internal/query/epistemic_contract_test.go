@@ -62,16 +62,18 @@ func TestExpandPublishesEpistemicContractForCandidateDataAndMissingBundles(t *te
 	assertAdvisoryEpistemicContract(t, missing.EpistemicContract)
 	assertSerializedEpistemicContract(t, missing)
 
-	bundleID := "exp-12345678"
-	_, err = writeExpansionBundle(paths, ExpansionBundle{
-		ID:                            bundleID,
+	bundle := ExpansionBundle{
 		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		ActiveGenerationID:            "",
 		CandidateUniverseVersion:      CandidateUniverseVersion,
 		QueryFingerprint:              "12345678",
 		SectionPayloads: map[string]any{
 			"raw_candidates": []map[string]any{{"id": "candidate-1"}},
 		},
-	})
+	}
+	bundle.ID = expansionBundleID(bundle)
+	bundleID := bundle.ID
+	_, err = writeExpansionBundle(paths, bundle)
 	if err != nil {
 		t.Fatal(err)
 	}

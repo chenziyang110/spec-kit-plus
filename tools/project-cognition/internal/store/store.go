@@ -135,13 +135,7 @@ func Open(paths rt.Paths) (*Store, error) {
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create runtime dir: %w", err)
 	}
-	if _, err := migrateSchemaV2ToV3(paths); err != nil {
-		return nil, err
-	}
-	if _, err := ReplaceIncompatibleDatabase(paths); err != nil {
-		return nil, err
-	}
-	if _, err := ReplaceOutdatedDatabase(paths); err != nil {
+	if _, err := requireCurrentDatabase(paths); err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
@@ -154,135 +148,6 @@ func Open(paths rt.Paths) (*Store, error) {
 		return nil, err
 	}
 	return store, nil
-}
-
-func migrateSchemaV2ToV3(paths rt.Paths) (bool, error) {
-	version, exists, err := ExistingDatabaseSchemaVersion(paths)
-	if err != nil || !exists || version != 2 {
-		return false, err
-	}
-	db, err := sql.Open("sqlite", paths.DatabasePath)
-	if err != nil {
-		return false, fmt.Errorf("open sqlite for schema v3 migration: %w", err)
-	}
-	defer db.Close()
-	compatible, err := schemaV2Compatible(context.Background(), db)
-	if err != nil {
-		return false, err
-	}
-	if !compatible {
-		return false, nil
-	}
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return false, fmt.Errorf("begin schema v3 migration: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
-		}
-	}()
-	if _, err := tx.ExecContext(context.Background(), schemaV3ClaimSQL); err != nil {
-		return false, fmt.Errorf("create schema v3 claim tables: %w", err)
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	if _, err := tx.ExecContext(context.Background(), `UPDATE metadata SET value_json = ?, updated_at = ? WHERE key = 'schema_version'`, strconv.Itoa(SchemaVersion), now); err != nil {
-		return false, fmt.Errorf("record schema v3 migration: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("commit schema v3 migration: %w", err)
-	}
-	committed = true
-	return true, nil
-}
-
-func schemaV2Compatible(ctx context.Context, db *sql.DB) (bool, error) {
-	claimTables := map[string]bool{
-		"claims": true, "claim_evidence": true, "claim_verifications": true, "claim_transitions": true,
-	}
-	for _, table := range RequiredTables() {
-		if claimTables[table] {
-			continue
-		}
-		exists, err := tableExists(ctx, db, table)
-		if err != nil || !exists {
-			return false, err
-		}
-	}
-	for table, requiredColumns := range RequiredTableColumns() {
-		if claimTables[table] {
-			continue
-		}
-		columns, err := tableColumns(ctx, db, table)
-		if err != nil {
-			return false, err
-		}
-		for _, column := range requiredColumns {
-			if !columns[column] {
-				return false, nil
-			}
-		}
-	}
-	return true, nil
-}
-
-func ReplaceIncompatibleDatabase(paths rt.Paths) (bool, error) {
-	compatible, err := ExistingDatabaseCompatible(paths)
-	if err != nil {
-		return false, err
-	}
-	if compatible {
-		return false, nil
-	}
-	archivePath, err := archiveDatabasePath(paths.DatabasePath)
-	if err != nil {
-		return false, err
-	}
-	if err := os.Rename(paths.DatabasePath, archivePath); err != nil {
-		return false, fmt.Errorf("archive incompatible project-cognition.db: %w", err)
-	}
-	return true, nil
-}
-
-func ExistingDatabaseCompatible(paths rt.Paths) (bool, error) {
-	info, err := os.Stat(paths.DatabasePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return true, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("stat project-cognition.db: %w", err)
-	}
-	if info.Size() == 0 {
-		return false, nil
-	}
-	db, err := sql.Open("sqlite", paths.DatabasePath)
-	if err != nil {
-		return false, fmt.Errorf("open sqlite for schema compatibility check: %w", err)
-	}
-	defer db.Close()
-	if err := db.PingContext(context.Background()); err != nil {
-		return false, fmt.Errorf("open sqlite for schema compatibility check: %w", err)
-	}
-	return SchemaCompatible(context.Background(), db)
-}
-
-func ReplaceOutdatedDatabase(paths rt.Paths) (bool, error) {
-	version, exists, err := ExistingDatabaseSchemaVersion(paths)
-	if err != nil {
-		return false, err
-	}
-	if !exists || version >= SchemaVersion {
-		return false, nil
-	}
-	archivePath, err := archiveDatabasePath(paths.DatabasePath)
-	if err != nil {
-		return false, err
-	}
-	if err := os.Rename(paths.DatabasePath, archivePath); err != nil {
-		return false, fmt.Errorf("archive outdated project-cognition.db: %w", err)
-	}
-	return true, nil
 }
 
 func ExistingDatabaseSchemaVersion(paths rt.Paths) (int, bool, error) {
@@ -311,6 +176,42 @@ func ExistingDatabaseSchemaVersion(paths rt.Paths) (int, bool, error) {
 	return version, true, nil
 }
 
+func requireCurrentDatabase(paths rt.Paths) (bool, error) {
+	info, err := os.Stat(paths.DatabasePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("stat project-cognition.db: %w", err)
+	}
+	if info.Size() == 0 {
+		return true, fmt.Errorf("project-cognition.db is empty; current runtime requires schema_version %d; remove the database and run sp-map-scan followed by sp-map-build", SchemaVersion)
+	}
+	version, _, err := ExistingDatabaseSchemaVersion(paths)
+	if err != nil {
+		return true, err
+	}
+	if version != SchemaVersion {
+		return true, fmt.Errorf("project-cognition.db schema_version %d is unsupported; current runtime requires %d; remove the database and run sp-map-scan followed by sp-map-build", version, SchemaVersion)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		return true, fmt.Errorf("open sqlite for current schema check: %w", err)
+	}
+	defer db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		return true, fmt.Errorf("open sqlite for current schema check: %w", err)
+	}
+	compatible, err := SchemaCompatible(context.Background(), db)
+	if err != nil {
+		return true, fmt.Errorf("check current sqlite schema: %w", err)
+	}
+	if !compatible {
+		return true, fmt.Errorf("project-cognition.db schema_version %d is structurally incompatible; current runtime requires the complete schema; remove the database and run sp-map-scan followed by sp-map-build", SchemaVersion)
+	}
+	return true, nil
+}
+
 func SchemaCompatible(ctx context.Context, db *sql.DB) (bool, error) {
 	for _, table := range RequiredTables() {
 		exists, err := tableExists(ctx, db, table)
@@ -336,12 +237,12 @@ func SchemaCompatible(ctx context.Context, db *sql.DB) (bool, error) {
 }
 
 func OpenExisting(paths rt.Paths) (*Store, error) {
-	info, err := os.Stat(paths.DatabasePath)
+	exists, err := requireCurrentDatabase(paths)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, err
 	}
-	if info.Size() == 0 {
-		return nil, fmt.Errorf("open sqlite: %s must not be empty", paths.DatabasePath)
+	if !exists {
+		return nil, fmt.Errorf("open sqlite: %w", os.ErrNotExist)
 	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
@@ -350,15 +251,6 @@ func OpenExisting(paths rt.Paths) (*Store, error) {
 	if err := db.PingContext(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	compatible, err := SchemaCompatible(context.Background(), db)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("check sqlite schema compatibility: %w", err)
-	}
-	if !compatible {
-		_ = db.Close()
-		return nil, fmt.Errorf("project-cognition.db schema is incompatible; run sp-map-scan followed by sp-map-build")
 	}
 	return &Store{db: db}, nil
 }
@@ -394,28 +286,6 @@ func tableColumns(ctx context.Context, db *sql.DB, table string) (map[string]boo
 		columns[name] = true
 	}
 	return columns, rows.Err()
-}
-
-func archiveDatabasePath(databasePath string) (string, error) {
-	base := databasePath + ".legacy"
-	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
-		return base, nil
-	} else if err != nil {
-		return "", fmt.Errorf("stat legacy database archive: %w", err)
-	}
-	now := time.Now().UTC().Format("20060102T150405.000000000Z")
-	for i := 0; i < 100; i++ {
-		candidate := filepath.Join(filepath.Dir(databasePath), filepath.Base(databasePath)+".legacy."+now)
-		if i > 0 {
-			candidate = fmt.Sprintf("%s.%02d", candidate, i)
-		}
-		if _, err := os.Stat(candidate); errors.Is(err, os.ErrNotExist) {
-			return candidate, nil
-		} else if err != nil {
-			return "", fmt.Errorf("stat legacy database archive: %w", err)
-		}
-	}
-	return "", fmt.Errorf("could not choose legacy database archive path for %s", databasePath)
 }
 
 func quoteSQLiteIdentifier(identifier string) string {
