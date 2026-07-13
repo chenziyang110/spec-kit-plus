@@ -275,7 +275,6 @@ func compilerMergeRecords(records []compiler.MergeRecord) []store.MergeRecord {
 
 func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 	generationID := newGenerationID()
-	rejections := coverageRejections(pkg)
 	return store.ImportInput{
 		GenerationID: generationID,
 		Kind:         rt.BaselineKindBrownfieldFull,
@@ -286,7 +285,7 @@ func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 		Observations: observationImports(pkg.Observations),
 		PathIndex:    pathIndexImports(pkg.Nodes),
 		Aliases:      aliasImports(generationID, pkg),
-		Rejections:   rejections,
+		Rejections:   []store.RowDecision{},
 		MergeRecords: []store.MergeRecord{},
 	}
 }
@@ -383,26 +382,6 @@ func pathIndexID(path, nodeID string) string {
 	normalizedPath = strings.TrimPrefix(normalizedPath, "./")
 	hash := sha256.Sum256([]byte(normalizedPath + "\x00" + nodeID))
 	return "PI-" + sanitizeIDPart(normalizedPath) + "-" + sanitizeIDPart(nodeID) + "-" + hex.EncodeToString(hash[:])[:16]
-}
-
-func coverageRejections(pkg scanartifacts.Package) []store.RowDecision {
-	relatedPaths := map[string]bool{}
-	for _, node := range pkg.Nodes {
-		for _, path := range node.Paths {
-			relatedPaths[path] = true
-		}
-	}
-	rejections := []store.RowDecision{}
-	for _, path := range pkg.CoveragePaths {
-		if !relatedPaths[path] {
-			rejections = append(rejections, store.RowDecision{
-				Category: "coverage",
-				Identity: path,
-				Reason:   "no_node_relation",
-			})
-		}
-	}
-	return rejections
 }
 
 func scanCounts(pkg scanartifacts.Package) map[string]int {

@@ -104,6 +104,7 @@ func Compile(proposal CognitionProposal) (CompiledProposal, Result) {
 	validatePaths(pkg, &result)
 	validateScope(canonicalProposal.Scope, pkg, &result)
 	validateReferences(pkg, &result)
+	compileCoverageDecisions(pkg, &result)
 	rebuildIdentities(&pkg)
 	sortDecisions(&result)
 
@@ -297,6 +298,24 @@ func validateEvidenceReferences(category, identity string, references []string, 
 	for _, evidenceID := range references {
 		if !evidenceIDs[evidenceID] {
 			result.Conflicts = append(result.Conflicts, Decision{Category: category, Identity: identity, Reason: "missing_evidence:" + evidenceID})
+		}
+	}
+}
+
+func compileCoverageDecisions(pkg scanartifacts.Package, result *Result) {
+	relatedPaths := map[string]bool{}
+	for _, node := range pkg.Nodes {
+		for _, candidate := range node.Paths {
+			relatedPaths[candidate] = true
+		}
+	}
+	for _, candidate := range pkg.CoveragePaths {
+		if !relatedPaths[candidate] {
+			result.Rejections = append(result.Rejections, Decision{
+				Category: "coverage",
+				Identity: candidate,
+				Reason:   "no_node_relation",
+			})
 		}
 	}
 }
