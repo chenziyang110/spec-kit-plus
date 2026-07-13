@@ -32,6 +32,46 @@ func TestVersionPrintsBinaryName(t *testing.T) {
 	}
 }
 
+func TestHelpListsClaimReconcile(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 || !strings.Contains(stdout.String(), "claim-reconcile") {
+		t.Fatalf("code=%d stderr=%s help=%s, want claim-reconcile", code, stderr.String(), stdout.String())
+	}
+}
+
+func TestClaimReconcileReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inputPath := filepath.Join(root, "claim-reconciliation.json")
+	if err := os.WriteFile(inputPath, []byte(`{"claim_reconciliation_contract_version":0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit 1", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode blocked payload: %v stdout=%s", err, stdout.String())
+	}
+	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_contract_version"] != float64(1) {
+		t.Fatalf("payload = %#v, want current-contract blocked response", payload)
+	}
+}
+
 func TestStatusReturnsUnsupportedLegacyJSON(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, ".specify", "project-cognition")
