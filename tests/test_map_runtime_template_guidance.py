@@ -357,6 +357,64 @@ def test_project_cognition_consumers_enforce_machine_readable_epistemic_contract
         content = _compact(_read(path).lower())
         for term in EPISTEMIC_CONTRACT_TERMS:
             assert term in content, f"{path} missing epistemic contract term: {term}"
+
+
+def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() -> None:
+    scan = _compact(_read("templates/commands/map-scan.md").lower())
+    for term in (
+        "provisional/claims.json",
+        "graph_claim_type",
+        "requested_state",
+        "supporting_evidence_ids",
+        "contradicting_evidence_ids",
+        "verifications",
+    ):
+        assert term in scan
+    assert "optional" in scan
+
+    build = _compact(_read("templates/commands/map-build.md").lower())
+    for term in (
+        "schema v3 runtime contract",
+        "claims",
+        "claim_evidence",
+        "claim_verifications",
+        "claim_transitions",
+        "verified_in_graph_generation",
+    ):
+        assert term in build
+    assert "future semantic tables such as claims" not in build
+
+    update = _compact(_read("templates/commands/map-update.md").lower())
+    assert "affected_graph_claims" in update
+    assert "changed paths" in update
+    assert "mark" in update and "stale" in update
+    assert "must not re-promote" in update
+
+    semantic_contract = _compact(_read(SEMANTIC_WORK_CONTRACT_PARTIAL).lower())
+    for term in (
+        "graph claim namespace",
+        "graph_claim_type",
+        "verified_in_graph_generation",
+        "workflow final claim namespace",
+        "claim_readiness.claim_type",
+        "cannot set workflow `claim_ready=true`",
+        "must not populate `claim_verification_refs`",
+    ):
+        assert term in semantic_contract
+
+    shared_surfaces = (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "src/specify_cli/integrations/base.py",
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    )
+    for path in shared_surfaces:
+        content = _compact(_read(path).lower())
+        assert "graph claims are indexed assertions" in content, path
+        assert "verified_in_graph_generation" in content, path
+        assert "cannot set workflow `claim_ready=true`" in content, path
         assert "cannot authorize source changes" in content
         assert "cannot prove current behavior" in content
 
