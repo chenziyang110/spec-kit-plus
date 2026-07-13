@@ -33,6 +33,47 @@ def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
         assert "alias catalog" in content
 
 
+def test_project_cognition_schema_v3_is_current_only_across_runtime_guidance() -> None:
+    for rel_path in (
+        "AGENTS.md",
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "templates/commands/map-build.md",
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+    ):
+        content = " ".join(_read(rel_path).lower().split())
+
+        assert "schema v3 is current-only" in content, rel_path
+        assert "does not migrate schema v2" in content, rel_path
+        assert "does not archive or replace old databases" in content, rel_path
+        assert "remove the incompatible project-cognition.db" in content, rel_path
+
+
+def test_current_query_contract_versions_propagate_to_agent_routing_surfaces() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    ):
+        content = " ".join(_read(rel_path).lower().split())
+
+        assert "claim_retrieval_contract_version=2" in content, rel_path
+        assert "candidate_universe_version=2" in content, rel_path
+        assert "never parse missing or non-current versions as legacy input" in content, rel_path
+
+    for rel_path in (
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+    ):
+        assert '"candidate_universe_version": 2' in _read(rel_path), rel_path
+
+
 def test_runtime_docs_describe_debug_understanding_checkpoint() -> None:
     for rel_path in ("README.md", "PROJECT-HANDBOOK.md"):
         content = _read(rel_path).lower()
