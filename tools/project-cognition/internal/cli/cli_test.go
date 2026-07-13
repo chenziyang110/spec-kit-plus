@@ -93,6 +93,39 @@ func TestClaimReconcileApplyReturnsStructuredBlockedPayloadForLegacyContract(t *
 	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_contract_version"] != float64(2) {
 		t.Fatalf("payload = %#v, want current-contract blocked response", payload)
 	}
+	errorsList, _ := payload["errors"].([]any)
+	if !jsonAnySliceContainsSubstring(errorsList, "runtime-prepared") {
+		t.Fatalf("errors = %#v, want runtime-prepared packet boundary", payload["errors"])
+	}
+}
+
+func TestClaimReconcileApplyRequiresPreparedPacketPathInsteadOfStdin(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "apply", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit 1", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	errorsList, _ := payload["errors"].([]any)
+	if !jsonAnySliceContainsSubstring(errorsList, "--input") || !jsonAnySliceContainsSubstring(errorsList, "runtime-prepared") {
+		t.Fatalf("errors = %#v, want required runtime-prepared --input", payload["errors"])
+	}
 }
 
 func TestStatusReturnsUnsupportedLegacyJSON(t *testing.T) {
