@@ -357,6 +357,60 @@ def test_project_cognition_consumers_enforce_machine_readable_epistemic_contract
         content = _compact(_read(path).lower())
         for term in EPISTEMIC_CONTRACT_TERMS:
             assert term in content, f"{path} missing epistemic contract term: {term}"
+
+
+def test_claim_aware_retrieval_contract_propagates_to_agent_consumers() -> None:
+    runtime_source = _compact(
+        (
+            _read("tools/project-cognition/internal/query/query.go")
+            + _read("tools/project-cognition/internal/query/compass.go")
+            + _read("tools/project-cognition/internal/query/claim_signal.go")
+        ).lower()
+    )
+    for term in (
+        'json:"claim_signals,omitempty"',
+        'json:"claim_refs,omitempty"',
+        '"claim_evidence"',
+        'json:"route_confidence"',
+        'json:"confidence_scope"',
+        'json:"evidence_refs"',
+        'json:"live_verification_required"',
+    ):
+        assert term in runtime_source
+
+    for path in (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/commands/map-build.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_refs",
+            "claim_signals",
+            "claim_evidence",
+            "route_confidence",
+            "confidence_scope",
+        ):
+            assert term in content, f"{path} missing claim-aware retrieval term: {term}"
+        assert "route candidate" in content
+        assert "live verification" in content
+
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_refs",
+            "claim_signals",
+            "claim_evidence",
+            "route_confidence",
+            "confidence_scope=route_candidate",
+        ):
+            assert term in content, f"{path} missing claim-aware retrieval term: {term}"
+        assert "source_path" in content and "span" in content
+        assert "cannot prove current repository truth" in content
         assert "cannot authorize source changes" in content
         assert "cannot prove current behavior" in content
 
