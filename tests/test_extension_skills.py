@@ -538,7 +538,7 @@ class TestBuiltInSkillGeneration:
         assert "query-ready baseline" in build_body
         assert "Do not publish handbook-first runtime truth" in build_body
         assert "validate scan completeness for graph reconstruction" in build_body
-        assert "build schema v3 `alias_index` rows" in build_body
+        assert "build schema v4 `alias_index` rows" in build_body
         assert "synthesize `concept_candidates` from graph-backed aliases" in build_body
         assert "status.json` reflects a query-ready baseline" in build_body
 

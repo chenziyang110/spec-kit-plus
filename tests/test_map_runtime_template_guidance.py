@@ -498,7 +498,7 @@ def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() ->
 
     build = _compact(_read("templates/commands/map-build.md").lower())
     for term in (
-        "schema v3 runtime contract",
+        "schema v4 runtime contract",
         "claims",
         "claim_evidence",
         "claim_verifications",
@@ -539,6 +539,72 @@ def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() ->
         assert "graph claims are indexed assertions" in content, path
         assert "verified_in_graph_generation" in content, path
         assert "cannot set workflow `claim_ready=true`" in content, path
+
+
+def test_live_claim_reconciliation_contract_propagates_without_authorization_leakage() -> None:
+    runtime = _compact(
+        (
+            _read("tools/project-cognition/internal/reconcile/reconcile.go")
+            + _read("tools/project-cognition/internal/query/epistemic_contract.go")
+        ).lower()
+    )
+    for term in (
+        "currentcontractversion = 1",
+        "claim_reconciliation_contract_version",
+        "expected_generation_id",
+        "expected_state",
+        "expected_content_hash",
+        "route_candidate_only",
+        "rerun_compass_once",
+    ):
+        assert term in runtime
+
+    guidance_surfaces = (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/command-partials/common/inline-project-cognition-update.md",
+        "templates/commands/map-update.md",
+    )
+    for path in guidance_surfaces:
+        content = _compact(_read(path).lower())
+        for term in (
+            "project-cognition claim-reconcile",
+            "claim_reconciliation_contract_version",
+            "expected_generation_id",
+            "expected_state",
+            "expected_content_hash",
+            "claim-specific",
+        ):
+            assert term in content, f"{path} missing claim reconciliation term: {term}"
+        assert "runtime derives" in content or "runtime-derived" in content
+        assert "rerun compass" in content
+
+    for path in (
+        "templates/command-partials/common/inline-project-cognition-update.md",
+        "templates/commands/map-update.md",
+    ):
+        content = _compact(_read(path).lower())
+        assert "affected_graph_claims" in content
+        assert "generic" in content and "result_state=ready" in content
+        assert "must not" in content and "re-promote" in content
+
+    semantic = _compact(_read(SEMANTIC_WORK_CONTRACT_PARTIAL).lower())
+    assert "project-cognition claim-reconcile" in semantic
+    assert "does not populate" in semantic
+    assert "claim_verification_refs" in semantic
+    assert "workflow_authorization" in semantic
+
+    for path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
+        content = _compact(_read(path).lower())
+        for term in (
+            "schema v4",
+            "project-cognition claim-reconcile",
+            "claim_reconciliation_contract_version=1",
+            "current evidence basis",
+            "schema v3",
+        ):
+            assert term in content, f"{path} missing current claim reconciliation documentation: {term}"
+        assert "does not migrate schema v3" in content
 
 
 def test_shared_semantic_work_contract_partial_defines_permission_and_learning_gates() -> None:

@@ -42,7 +42,7 @@ def test_map_guidance_documents_schema_v3_alias_and_claim_readiness() -> None:
     planning_context = _read("templates/command-partials/common/planning-context-loading-gradient.md").lower()
 
     for content in (scan_content, build_content, shared_context, planning_context):
-        assert "schema v3" in content
+        assert "schema v4" in content
         assert "alias_index" in content
         assert "alias catalog" in content
         assert "normalize user input" in content

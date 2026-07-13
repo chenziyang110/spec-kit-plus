@@ -25,8 +25,8 @@ def test_root_agents_documents_current_managed_context_and_schema_v3_rules() -> 
     assert ".specify/memory/project-learnings.md` remains a compatibility summary" in content
     assert "## Workflow Activation Discipline" not in content
     assert "## Lane Recovery Rules" not in content
-    assert "### Project Cognition Schema v3 Maintenance" in content
-    assert "schema v3 runtime readiness is graph, alias, and typed graph-claim lifecycle first" in lowered
+    assert "### Project Cognition Schema v4 Maintenance" in content
+    assert "schema v4 runtime readiness is graph, alias, and typed graph-claim reconciliation first" in lowered
     assert "`alias_index` is the route vocabulary" in lowered
     assert "v1, v2, and old broad-schema dbs are diagnostic/inspect-only" in lowered
     assert "does not migrate schema v2" in lowered

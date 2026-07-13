@@ -26,7 +26,7 @@ def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
     readme = _read("README.md").lower()
     for content in (handbook, readme):
         assert "alias_index" in content
-        assert "schema v3" in content
+        assert "schema v4" in content
         assert "v1" in content
         assert "rebuild" in content
         assert "alias_index" in content
@@ -45,7 +45,8 @@ def test_project_cognition_schema_v3_is_current_only_across_runtime_guidance() -
     ):
         content = " ".join(_read(rel_path).lower().split())
 
-        assert "schema v3 is current-only" in content, rel_path
+        assert "schema v4 is current-only" in content, rel_path
+        assert "does not migrate schema v3" in content, rel_path
         assert "does not migrate schema v2" in content, rel_path
         assert "does not archive or replace old databases" in content, rel_path
         assert "remove the incompatible project-cognition.db" in content, rel_path
