@@ -184,7 +184,7 @@ func TestCheckAgreementBlocksIncompatibleDatabaseWithoutArchiving(t *testing.T) 
 	if agreement.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked; errors=%v", agreement.Status, agreement.Errors)
 	}
-	if !strings.Contains(strings.Join(agreement.Errors, "\n"), "current runtime requires 4") {
+	if !strings.Contains(strings.Join(agreement.Errors, "\n"), "current runtime requires 5") {
 		t.Fatalf("Errors = %#v, want current schema requirement", agreement.Errors)
 	}
 	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !os.IsNotExist(err) {

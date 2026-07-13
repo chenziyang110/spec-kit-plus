@@ -90,7 +90,7 @@ func TestClaimReconcileApplyReturnsStructuredBlockedPayloadForLegacyContract(t *
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("decode blocked payload: %v stdout=%s", err, stdout.String())
 	}
-	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_contract_version"] != float64(1) {
+	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_contract_version"] != float64(2) {
 		t.Fatalf("payload = %#v, want current-contract blocked response", payload)
 	}
 }
@@ -1805,7 +1805,7 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 		t.Fatalf("errors = %#v, want non-empty array; payload = %#v", payload["errors"], payload)
 	}
 	diagnostic := strings.Join(jsonAnySliceStrings(errors), " ")
-	if !strings.Contains(diagnostic, "schema_version 1") || !strings.Contains(diagnostic, "current runtime requires 4") {
+	if !strings.Contains(diagnostic, "schema_version 1") || !strings.Contains(diagnostic, "current runtime requires 5") {
 		t.Fatalf("errors = %#v, want current schema diagnostic", payload["errors"])
 	}
 	if payload["recommended_next_action"] != "run_map_scan_build" {

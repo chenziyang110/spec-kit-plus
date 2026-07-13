@@ -1471,7 +1471,7 @@ func TestRunBlocksIncompatibleDatabaseWithoutArchiving(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected incompatible DB agreement error")
 	}
-	if !strings.Contains(err.Error(), "current runtime requires 4") {
+	if !strings.Contains(err.Error(), "current runtime requires 5") {
 		t.Fatalf("error = %q, want current schema requirement", err.Error())
 	}
 	if _, statErr := os.Stat(paths.DatabasePath + ".legacy"); !os.IsNotExist(statErr) {
