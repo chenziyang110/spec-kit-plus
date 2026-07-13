@@ -84,6 +84,31 @@ func TestReadStatusRejectsNonCurrentRuntimeSchema(t *testing.T) {
 	}
 }
 
+func TestReadStatusRejectsMissingCurrentGraphStorePath(t *testing.T) {
+	root := t.TempDir()
+	paths, err := ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status := DefaultStatus(paths)
+	status.GraphStorePath = ""
+	data, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.StatusPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ReadStatus(paths)
+	if !errors.Is(err, ErrUnsupportedLegacy) {
+		t.Fatalf("ReadStatus(missing graph_store_path) error = %v, want current-only status rejection", err)
+	}
+}
+
 func TestWriteStatusUsesGoRuntimeMarker(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {

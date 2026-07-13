@@ -150,3 +150,34 @@ func TestOpenRejectsSchemaV2WithoutMigrationOrArchive(t *testing.T) {
 		t.Fatalf("legacy archive stat error = %v, want no implicit archive", err)
 	}
 }
+
+func TestOpenRejectsLegacyMetadataValueColumn(t *testing.T) {
+	paths := testPaths(t)
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		`CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+		`INSERT INTO metadata(key, value) VALUES('schema_version', '3')`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			_ = db.Close()
+			t.Fatal(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Open(paths)
+	if err == nil || !strings.Contains(err.Error(), "no value_json column") {
+		t.Fatalf("Open() error = %v, want current metadata column rejection", err)
+	}
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want old database untouched", err)
+	}
+}
