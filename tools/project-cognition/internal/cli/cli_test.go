@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
@@ -125,6 +126,81 @@ func TestClaimReconcileApplyRequiresPreparedPacketPathInsteadOfStdin(t *testing.
 	errorsList, _ := payload["errors"].([]any)
 	if !jsonAnySliceContainsSubstring(errorsList, "--input") || !jsonAnySliceContainsSubstring(errorsList, "runtime-prepared") {
 		t.Fatalf("errors = %#v, want required runtime-prepared --input", payload["errors"])
+	}
+}
+
+func TestClaimReconcilePrepareApplyArgvWorksFromProjectSubdirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-cli-prepare", Kind: "full", SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{ID: "E-old", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "old"}},
+		Nodes:    []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-old"}}},
+		Claims: []store.ClaimImport{{
+			ID: "claim:app", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "App owns runtime",
+			State: claim.StateStale, Freshness: claim.FreshnessStale, StateReason: "changed", SupportingEvidenceIDs: []string{"E-old"},
+		}},
+	})
+	if err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	intentPath := filepath.Join(root, "intent.json")
+	if err := os.WriteFile(intentPath, []byte(`{"claim_reconciliation_prepare_contract_version":1,"workflow":"sp-plan","items":[{"claim_id":"claim:app","reason":"bounded source evidence","evidence":[{"source_path":"src/app.go","span":"L1","role":"supporting"}]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	subdir := filepath.Join(root, "src")
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(subdir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var prepareOut, prepareErr bytes.Buffer
+	if code := Run([]string{"claim-reconcile", "prepare", "--input", intentPath, "--format", "json"}, &prepareOut, &prepareErr, "test"); code != 0 {
+		t.Fatalf("prepare code=%d stderr=%s stdout=%s", code, prepareErr.String(), prepareOut.String())
+	}
+	var prepared map[string]any
+	if err := json.Unmarshal(prepareOut.Bytes(), &prepared); err != nil {
+		t.Fatal(err)
+	}
+	packetPath, _ := prepared["prepared_packet_path"].(string)
+	argv, _ := prepared["apply_argv"].([]any)
+	if packetPath == "" || len(argv) != 7 {
+		t.Fatalf("prepared = %#v", prepared)
+	}
+	var applyOut, applyErr bytes.Buffer
+	if code := Run([]string{"claim-reconcile", "apply", "--input", packetPath, "--format", "json"}, &applyOut, &applyErr, "test"); code != 0 {
+		t.Fatalf("apply code=%d stderr=%s stdout=%s", code, applyErr.String(), applyOut.String())
+	}
+	var applied map[string]any
+	if err := json.Unmarshal(applyOut.Bytes(), &applied); err != nil {
+		t.Fatal(err)
+	}
+	if applied["status"] != "ok" || applied["result_state"] != "ready" {
+		t.Fatalf("applied = %#v", applied)
 	}
 }
 
