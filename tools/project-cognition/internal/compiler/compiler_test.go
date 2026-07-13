@@ -278,9 +278,32 @@ func TestCompileEnforcesDeclaredProposalScope(t *testing.T) {
 	}
 }
 
+func TestCompileRejectsUnrelatedCoverageWithoutBlockingPublication(t *testing.T) {
+	pkg := legacyPackageFixture()
+	pkg.CoveragePaths = append(pkg.CoveragePaths, "docs/guide.md")
+
+	_, result := Compile(AdaptLegacy(pkg))
+
+	if !result.PublicationAllowed {
+		t.Fatalf("publication_allowed = false; conflicts=%#v", result.Conflicts)
+	}
+	if !hasDecision(result.Rejections, "coverage", "docs/guide.md", "no_node_relation") {
+		t.Fatalf("rejections = %#v, want explicit unrelated coverage decision", result.Rejections)
+	}
+}
+
 func hasDecisionReason(decisions []Decision, reason string) bool {
 	for _, decision := range decisions {
 		if decision.Reason == reason {
+			return true
+		}
+	}
+	return false
+}
+
+func hasDecision(decisions []Decision, category, identity, reason string) bool {
+	for _, decision := range decisions {
+		if decision.Category == category && decision.Identity == identity && decision.Reason == reason {
 			return true
 		}
 	}
