@@ -33,7 +33,7 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if compass.ExpansionRef.StaleBehavior == expansionRecommendedActionRerun {
 		t.Fatalf("StaleBehavior = %q, want behavior statement distinct from rerun action", compass.ExpansionRef.StaleBehavior)
 	}
-	for _, section := range []string{"related_paths", "raw_candidates", "coverage_gaps", "graph_neighbors"} {
+	for _, section := range []string{"related_paths", "raw_candidates", "coverage_gaps", "graph_neighbors", "claim_evidence"} {
 		if _, ok := compass.ExpansionRef.AvailableSections[section]; !ok {
 			t.Fatalf("ExpansionRef.AvailableSections missing %q: %#v", section, compass.ExpansionRef.AvailableSections)
 		}
@@ -73,6 +73,26 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	rawCandidates, ok := rawExpanded.Data.([]any)
 	if !ok || len(rawCandidates) == 0 {
 		t.Fatalf("raw candidate data = %T %#v, want non-empty []any", rawExpanded.Data, rawExpanded.Data)
+	}
+
+	claimExpanded, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID, Section: "claim_evidence"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimPackets, ok := claimExpanded.Data.([]any)
+	if !ok || len(claimPackets) < 2 {
+		t.Fatalf("claim evidence data = %T %#v, want claim packets for matched candidates", claimExpanded.Data, claimExpanded.Data)
+	}
+	firstClaim, ok := claimPackets[0].(map[string]any)
+	if !ok {
+		t.Fatalf("claim evidence item = %T %#v, want object", claimPackets[0], claimPackets[0])
+	}
+	if firstClaim["retrieval_confidence"] == nil || firstClaim["live_verification_required"] != true {
+		t.Fatalf("claim evidence contract = %#v", firstClaim)
+	}
+	refs, ok := firstClaim["evidence"].([]any)
+	if !ok || len(refs) == 0 {
+		t.Fatalf("claim evidence refs = %T %#v, want non-empty array", firstClaim["evidence"], firstClaim["evidence"])
 	}
 }
 

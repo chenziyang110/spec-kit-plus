@@ -61,6 +61,19 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 	if !compassCoveredFacetHasFirstPassRisk(payload.IntentFacets) {
 		t.Fatalf("IntentFacets = %#v, want covered facet risk to guard first-pass scope", payload.IntentFacets)
 	}
+	providerLane := compassLaneByTitle(payload.EvidenceLanes, "Provider Runtime Override")
+	if providerLane == nil || len(providerLane.ClaimEvidence) != 1 {
+		t.Fatalf("provider lane claim evidence = %#v, want one compact claim packet", providerLane)
+	}
+	if providerLane.ClaimEvidence[0].ID != "claim:provider-runtime-owner" {
+		t.Fatalf("provider claim id = %q", providerLane.ClaimEvidence[0].ID)
+	}
+	if providerLane.ClaimEvidence[0].RetrievalConfidence != "medium" || providerLane.ClaimEvidence[0].LiveVerificationRequired != true {
+		t.Fatalf("provider claim contract = %#v", providerLane.ClaimEvidence[0])
+	}
+	if len(providerLane.ClaimEvidence[0].Evidence) != 1 || providerLane.ClaimEvidence[0].Evidence[0].Span != "18:1-44:2" {
+		t.Fatalf("provider claim evidence refs = %#v", providerLane.ClaimEvidence[0].Evidence)
+	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -569,7 +582,7 @@ func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 		Kind:         "full",
 		SourceCommit: "abc123",
 		Evidence: []store.EvidenceImport{
-			{ID: "E-model-selector", SourceKind: "source", SourcePath: "desktop/src/components/controls/ModelSelector.tsx", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-model"},
+			{ID: "E-model-selector", SourceKind: "source", SourcePath: "desktop/src/components/controls/ModelSelector.tsx", CommitSHA: "abc123", Span: "18:1-44:2", Extractor: "test", ContentHash: "hash-model"},
 			{ID: "E-ws-handler", SourceKind: "source", SourcePath: "src/server/ws/handler.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-ws"},
 			{ID: "E-fonts", SourceKind: "source", SourcePath: "desktop/src/styles/global.css", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-fonts"},
 			{ID: "E-window", SourceKind: "source", SourcePath: "desktop/src-tauri/tauri.conf.json", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-window"},
@@ -612,6 +625,10 @@ func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 					"coverage_fallback": true,
 				},
 			},
+		},
+		Claims: []store.ClaimImport{
+			{ID: "claim:provider-runtime-owner", NodeID: "N-provider-runtime", GraphClaimType: "runtime_owner", Summary: "Provider runtime owns model override behavior", State: "supported", Freshness: "fresh", StateReason: "supporting_evidence", SupportingEvidenceIDs: []string{"E-model-selector"}},
+			{ID: "claim:ui-readability-owner", NodeID: "N-ui-readability", GraphClaimType: "ui_owner", Summary: "Desktop shell owns readability behavior", State: "supported", Freshness: "fresh", StateReason: "supporting_evidence", SupportingEvidenceIDs: []string{"E-fonts"}},
 		},
 		PathIndex: []store.PathIndexImport{
 			{ID: "P-model-selector", Path: "desktop/src/components/controls/ModelSelector.tsx", NodeID: "N-provider-runtime", Relation: "owns", Confidence: "verified", EvidenceID: "E-model-selector"},
@@ -728,6 +745,15 @@ func compassLaneTitleContains(lanes []EvidenceLane, title string) bool {
 		}
 	}
 	return false
+}
+
+func compassLaneByTitle(lanes []EvidenceLane, title string) *EvidenceLane {
+	for index := range lanes {
+		if lanes[index].Title == title {
+			return &lanes[index]
+		}
+	}
+	return nil
 }
 
 func compassLanePathCount(lanes []EvidenceLane) int {

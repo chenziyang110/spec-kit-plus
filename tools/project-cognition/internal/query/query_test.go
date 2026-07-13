@@ -22,7 +22,7 @@ func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
 		Kind:         "full",
 		SourceCommit: "abc123",
 		Evidence: []store.EvidenceImport{
-			{ID: "E-app", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"},
+			{ID: "E-app", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Span: "12:1-28:2", Extractor: "test", ContentHash: "hash-app"},
 		},
 		Nodes: []store.NodeImport{
 			{ID: "N-app", Type: "capability", Title: "App", Confidence: "high", EvidenceIDs: []string{"E-app"}},
@@ -59,8 +59,88 @@ func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
 	if _, exists := got["verifications"]; exists {
 		t.Fatalf("claim = %#v, default query must not dump verification history", got)
 	}
+	if got["retrieval_confidence"] != "medium" {
+		t.Fatalf("claim.retrieval_confidence = %#v, want medium for fresh supported claim", got["retrieval_confidence"])
+	}
+	if got["stale"] != false {
+		t.Fatalf("claim.stale = %#v, want false", got["stale"])
+	}
+	if got["live_verification_required"] != true {
+		t.Fatalf("claim.live_verification_required = %#v, want true", got["live_verification_required"])
+	}
+	evidence, ok := got["evidence"].([]map[string]any)
+	if !ok || len(evidence) != 1 {
+		t.Fatalf("claim.evidence = %T %#v, want one compact evidence ref", got["evidence"], got["evidence"])
+	}
+	for key, want := range map[string]any{
+		"id":          "E-app",
+		"role":        "supporting",
+		"source_kind": "source",
+		"source_path": "src/app.go",
+		"span":        "12:1-28:2",
+		"commit_sha":  "abc123",
+	} {
+		if evidence[0][key] != want {
+			t.Errorf("claim.evidence[0].%s = %#v, want %#v", key, evidence[0][key], want)
+		}
+	}
 	if payload.EpistemicContract.GraphOnlyClaimsAllowed {
 		t.Fatalf("epistemic contract = %#v, graph claims must not authorize final claims", payload.EpistemicContract)
+	}
+}
+
+func TestRunClassifiesClaimRetrievalConfidenceWithoutUpgradingGraphTruth(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-claim-confidence",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{
+			{ID: "E-support", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Span: "1:1-8:1", Extractor: "test", ContentHash: "hash-support"},
+			{ID: "E-contradict", SourceKind: "test", SourcePath: "tests/app_test.go", CommitSHA: "abc123", Span: "10:1-22:1", Extractor: "test", ContentHash: "hash-contradict"},
+		},
+		Nodes: []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-support"}}},
+		Claims: []store.ClaimImport{
+			{ID: "claim:verified", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Verified graph assertion", State: claim.StateVerified, Freshness: claim.FreshnessFresh, StateReason: "supporting_evidence_and_current_verification", SupportingEvidenceIDs: []string{"E-support"}},
+			{ID: "claim:supported", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Supported graph assertion", State: claim.StateSupported, Freshness: claim.FreshnessFresh, StateReason: "supporting_evidence", SupportingEvidenceIDs: []string{"E-support"}},
+			{ID: "claim:candidate", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Candidate graph assertion", State: claim.StateCandidate, Freshness: claim.FreshnessUnknown, StateReason: "evidence_required"},
+			{ID: "claim:contradicted", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Contradicted graph assertion", State: claim.StateContradicted, Freshness: claim.FreshnessFresh, StateReason: "contradicting_evidence", ContradictingEvidenceIDs: []string{"E-contradict"}},
+			{ID: "claim:stale", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Stale graph assertion", State: claim.StateStale, Freshness: claim.FreshnessStale, StateReason: "source_changed", SupportingEvidenceIDs: []string{"E-support"}},
+		},
+		PathIndex: []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-support"}},
+	})
+
+	payload, err := Run(paths, QueryInput{Query: "app", Plan: Plan{Paths: []string{"src/app.go"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, ok := payload.Subgraph["claims"].([]map[string]any)
+	if !ok {
+		t.Fatalf("subgraph.claims = %T %#v, want []map[string]any", payload.Subgraph["claims"], payload.Subgraph["claims"])
+	}
+	byID := map[string]map[string]any{}
+	for _, graphClaim := range claims {
+		byID[graphClaim["id"].(string)] = graphClaim
+	}
+	for id, want := range map[string]string{
+		"claim:verified":     "high",
+		"claim:supported":    "medium",
+		"claim:candidate":    "low",
+		"claim:contradicted": "withhold",
+		"claim:stale":        "withhold",
+	} {
+		if byID[id]["retrieval_confidence"] != want {
+			t.Errorf("%s retrieval_confidence = %#v, want %q", id, byID[id]["retrieval_confidence"], want)
+		}
+		if byID[id]["live_verification_required"] != true {
+			t.Errorf("%s live_verification_required = %#v, want true", id, byID[id]["live_verification_required"])
+		}
+	}
+	if byID["claim:stale"]["stale"] != true {
+		t.Errorf("stale claim marker = %#v, want true", byID["claim:stale"]["stale"])
+	}
+	if byID["claim:contradicted"]["stale"] != false {
+		t.Errorf("contradicted claim stale marker = %#v, want false", byID["claim:contradicted"]["stale"])
 	}
 }
 
