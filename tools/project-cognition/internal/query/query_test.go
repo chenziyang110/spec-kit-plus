@@ -10,9 +10,59 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
+
+func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-claims",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{
+			{ID: "E-app", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"},
+		},
+		Nodes: []store.NodeImport{
+			{ID: "N-app", Type: "capability", Title: "App", Confidence: "high", EvidenceIDs: []string{"E-app"}},
+		},
+		Claims: []store.ClaimImport{{
+			ID:                    "claim:app-owner",
+			NodeID:                "N-app",
+			GraphClaimType:        "runtime_owner",
+			Summary:               "App owns runtime behavior",
+			State:                 claim.StateSupported,
+			Freshness:             claim.FreshnessFresh,
+			StateReason:           "supporting_evidence",
+			SupportingEvidenceIDs: []string{"E-app"},
+		}},
+		PathIndex: []store.PathIndexImport{
+			{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "high", EvidenceID: "E-app"},
+		},
+	})
+
+	payload, err := Run(paths, QueryInput{Query: "app", Plan: Plan{Paths: []string{"src/app.go"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, ok := payload.Subgraph["claims"].([]map[string]any)
+	if !ok || len(claims) != 1 {
+		t.Fatalf("subgraph.claims = %#v, want one compact graph claim", payload.Subgraph["claims"])
+	}
+	got := claims[0]
+	for _, key := range []string{"id", "node_id", "graph_claim_type", "summary", "state", "freshness", "state_reason"} {
+		if _, exists := got[key]; !exists {
+			t.Errorf("claim = %#v, missing compact field %q", got, key)
+		}
+	}
+	if _, exists := got["verifications"]; exists {
+		t.Fatalf("claim = %#v, default query must not dump verification history", got)
+	}
+	if payload.EpistemicContract.GraphOnlyClaimsAllowed {
+		t.Fatalf("epistemic contract = %#v, graph claims must not authorize final claims", payload.EpistemicContract)
+	}
+}
 
 func TestParsePlanNormalizesLegacyAliases(t *testing.T) {
 	plan, err := ParsePlan(`{"path_hints":["./src/a.go"],"reason":"because"}`, "")

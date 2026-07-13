@@ -96,6 +96,43 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 }
 
+func TestRunCompilesAndPublishesOptionalGraphClaims(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "claims.json"), map[string]any{
+		"claims": []map[string]any{{
+			"id": "claim:app-owner", "node_id": "N-app", "graph_claim_type": "runtime_owner",
+			"summary": "App owns runtime behavior", "requested_state": "verified_in_graph_generation",
+			"supporting_evidence_ids": []string{"E-001"},
+			"verifications": []map[string]any{{
+				"id": "verification:app-owner", "result": "passed", "evidence_id": "E-001", "observed_at": "2026-07-13T10:00:00Z",
+			}},
+		}},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Status != "ok" || payload.ScanArtifactCounts["claims"] != 1 || payload.DBCounts["claims"] != 1 {
+		t.Fatalf("payload = %#v, want one compiled and published claim", payload)
+	}
+	if got := payload.IdentityReconciliation["claims"]; got.Status != "ok" {
+		t.Fatalf("claim reconciliation = %#v, want ok", got)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var state, freshness string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, freshness FROM claims WHERE id = 'claim:app-owner'`).Scan(&state, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != "verified_in_graph_generation" || freshness != "fresh" {
+		t.Fatalf("claim state/freshness = %q/%q, want verified_in_graph_generation/fresh", state, freshness)
+	}
+}
+
 func TestRunBlocksCompilerConflictBeforeCreatingGraphStore(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
