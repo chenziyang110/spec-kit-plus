@@ -10,7 +10,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestSchemaV2RequiredTablesAreCurrentRuntimeSurface(t *testing.T) {
+func TestSchemaV3RequiredTablesIncludeTypedClaimLifecycle(t *testing.T) {
 	want := []string{
 		"metadata",
 		"generations",
@@ -23,6 +23,10 @@ func TestSchemaV2RequiredTablesAreCurrentRuntimeSurface(t *testing.T) {
 		"edge_evidence",
 		"path_index",
 		"alias_index",
+		"claims",
+		"claim_evidence",
+		"claim_verifications",
+		"claim_transitions",
 		"updates",
 	}
 	if got := RequiredTables(); !reflect.DeepEqual(got, want) {
@@ -30,7 +34,7 @@ func TestSchemaV2RequiredTablesAreCurrentRuntimeSurface(t *testing.T) {
 	}
 }
 
-func TestOpenInitializesSchemaV2WithoutRemovedTables(t *testing.T) {
+func TestOpenInitializesSchemaV3WithTypedClaimLifecycle(t *testing.T) {
 	ctx := context.Background()
 	paths := testPaths(t)
 	st, err := Open(paths)
@@ -43,8 +47,8 @@ func TestOpenInitializesSchemaV2WithoutRemovedTables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta["schema_version"] != "2" {
-		t.Fatalf("schema_version = %q, want 2", meta["schema_version"])
+	if meta["schema_version"] != "3" {
+		t.Fatalf("schema_version = %q, want 3", meta["schema_version"])
 	}
 
 	for _, table := range RequiredTables() {
@@ -58,8 +62,6 @@ func TestOpenInitializesSchemaV2WithoutRemovedTables(t *testing.T) {
 	}
 
 	removed := []string{
-		"claims",
-		"claim_evidence",
 		"conflicts",
 		"conflict_claims",
 		"symbol_index",
@@ -77,12 +79,12 @@ func TestOpenInitializesSchemaV2WithoutRemovedTables(t *testing.T) {
 			t.Fatal(err)
 		}
 		if exists {
-			t.Fatalf("removed table %s should not exist in schema v2", table)
+			t.Fatalf("removed table %s should not exist in schema v3", table)
 		}
 	}
 }
 
-func TestOpenArchivesOutdatedDatabaseBeforeSchemaV2Init(t *testing.T) {
+func TestOpenArchivesOutdatedDatabaseBeforeSchemaV3Init(t *testing.T) {
 	ctx := context.Background()
 	paths := testPaths(t)
 	st, err := Open(paths)
@@ -118,15 +120,15 @@ func TestOpenArchivesOutdatedDatabaseBeforeSchemaV2Init(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta["schema_version"] != "2" {
-		t.Fatalf("schema_version = %q, want 2", meta["schema_version"])
+	if meta["schema_version"] != "3" {
+		t.Fatalf("schema_version = %q, want 3", meta["schema_version"])
 	}
 	exists, err := tableExists(ctx, st.DB(), "claims")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exists {
-		t.Fatal("removed table claims should not exist after outdated database replacement")
+	if !exists {
+		t.Fatal("typed claims table should exist after outdated database replacement")
 	}
 	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
 		t.Fatalf("legacy archive stat error = %v, want archived database", err)
