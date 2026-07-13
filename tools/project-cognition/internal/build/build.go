@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/compiler"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
@@ -37,6 +38,7 @@ type Payload struct {
 	IdentityReconciliation map[string]ReconciliationCategory `json:"identity_reconciliation"`
 	Rejections             []store.RowDecision               `json:"rejections"`
 	MergeRecords           []store.MergeRecord               `json:"merge_records"`
+	Compilation            compiler.Result                   `json:"compilation"`
 	RecoveryAction         string                            `json:"recovery_action,omitempty"`
 	StatusPath             string                            `json:"status_path"`
 	GraphStorePath         string                            `json:"graph_store_path"`
@@ -59,6 +61,15 @@ func Run(paths rt.Paths) (Payload, error) {
 	if len(scanResult.Errors) > 0 {
 		return payload, nil
 	}
+	compiled, compilation := compiler.Compile(compiler.AdaptLegacy(pkg))
+	payload.Compilation = compilation
+	if !compilation.PublicationAllowed {
+		for _, conflict := range compilation.Conflicts {
+			payload.Errors = append(payload.Errors, fmt.Sprintf("proposal compiler %s %s: %s", conflict.Category, conflict.Identity, conflict.Reason))
+		}
+		return payload, nil
+	}
+	pkg = compiled.Package
 
 	_, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {
@@ -94,6 +105,8 @@ func Run(paths rt.Paths) (Payload, error) {
 	defer st.Close()
 
 	input := importInputFromPackage(pkg)
+	input.Rejections = append(input.Rejections, compilerRejections(compilation.Rejections)...)
+	input.MergeRecords = compilerMergeRecords(compilation.MergeRecords)
 	generationID, err := st.ImportGeneration(context.Background(), input)
 	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("import generation: %v", err))
@@ -236,9 +249,28 @@ func basePayload(paths rt.Paths) Payload {
 		IdentityReconciliation: emptyReconciliation(),
 		Rejections:             []store.RowDecision{},
 		MergeRecords:           []store.MergeRecord{},
+		Compilation:            compiler.EmptyResult(),
 		StatusPath:             rt.RelativeRuntimePath(paths, paths.StatusPath),
 		GraphStorePath:         graphStorePath,
 	}
+}
+
+func compilerRejections(decisions []compiler.Decision) []store.RowDecision {
+	out := make([]store.RowDecision, 0, len(decisions))
+	for _, decision := range decisions {
+		out = append(out, store.RowDecision{Category: decision.Category, Identity: decision.Identity, Reason: decision.Reason})
+	}
+	return out
+}
+
+func compilerMergeRecords(records []compiler.MergeRecord) []store.MergeRecord {
+	out := make([]store.MergeRecord, 0, len(records))
+	for _, record := range records {
+		out = append(out, store.MergeRecord{
+			Category: record.Category, SourceIdentity: record.SourceIdentity, TargetIdentity: record.TargetIdentity, Reason: record.Reason,
+		})
+	}
+	return out
 }
 
 func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {

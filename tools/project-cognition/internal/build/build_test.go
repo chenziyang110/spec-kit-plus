@@ -778,7 +778,7 @@ func TestRunResolvesPathEdgeEndpointsToOwningNodes(t *testing.T) {
 	}
 }
 
-func TestRunImportFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
+func TestRunCompilerFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
 		"edges": []map[string]any{{
@@ -792,8 +792,11 @@ func TestRunImportFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
 	})
 
 	payload, err := Run(paths)
-	if err == nil {
-		t.Fatal("Run() error = nil, want import failure")
+	if err != nil {
+		t.Fatalf("Run() error = %v, want structured compiler block", err)
+	}
+	if payload.Compilation.PublicationAllowed {
+		t.Fatalf("Compilation = %#v, want blocked orphan edge", payload.Compilation)
 	}
 	if payload.IdentityReconciliation["evidence"].Status != "not_run" {
 		t.Fatalf("evidence reconciliation = %#v, want not_run", payload.IdentityReconciliation["evidence"])
