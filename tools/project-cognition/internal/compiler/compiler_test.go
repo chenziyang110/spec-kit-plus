@@ -92,6 +92,13 @@ func TestCompileBlocksConflictingIdentityAndMissingReferences(t *testing.T) {
 			},
 			wantReason: "reserved_runtime_path",
 		},
+		{
+			name: "nested traversal outside repository",
+			mutate: func(pkg *scanartifacts.Package) {
+				pkg.Nodes[0].Paths = append(pkg.Nodes[0].Paths, "src/../../outside.go")
+			},
+			wantReason: "path_outside_repository",
+		},
 	}
 
 	for _, tt := range tests {
