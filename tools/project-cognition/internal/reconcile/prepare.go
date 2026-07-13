@@ -3,6 +3,8 @@ package reconcile
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -115,6 +117,7 @@ func prepareAt(paths rt.Paths, request PrepareRequest, observedAt time.Time) (Pr
 	if err != nil {
 		return PreparePayload{}, fmt.Errorf("resolve project root for claim reconciliation prepare: %w", err)
 	}
+	var totalBytes int64
 	for _, requestedItem := range request.Items {
 		head := snapshot.Claims[requestedItem.ClaimID]
 		item := Item{
@@ -130,9 +133,13 @@ func prepareAt(paths rt.Paths, request PrepareRequest, observedAt time.Time) (Pr
 			if matcher.Ignored(relative) {
 				return PreparePayload{}, fmt.Errorf("claim %q evidence path %q is excluded by project cognition ignore rules", item.ClaimID, relative)
 			}
-			contentHash, err := hashRegularFile(fullPath)
+			contentHash, size, err := hashRegularFile(fullPath)
 			if err != nil {
 				return PreparePayload{}, fmt.Errorf("read claim %q evidence path %q: %w", item.ClaimID, relative, err)
+			}
+			totalBytes += size
+			if totalBytes > maxEvidenceTotalBytes {
+				return PreparePayload{}, fmt.Errorf("claim reconciliation evidence exceeds the %d MiB total read limit", maxEvidenceTotalBytes>>20)
 			}
 			item.Evidence = append(item.Evidence, Evidence{
 				SourceKind: deriveSourceKind(relative), SourcePath: relative, Span: requestedEvidence.Span,
@@ -217,8 +224,8 @@ func normalizeAndValidatePrepareRequest(request PrepareRequest) (PrepareRequest,
 	if request.Workflow == "" {
 		return PrepareRequest{}, fmt.Errorf("workflow is required")
 	}
-	if len(request.Items) == 0 {
-		return PrepareRequest{}, fmt.Errorf("claim reconciliation prepare requires at least one item")
+	if len(request.Items) == 0 || len(request.Items) > maxReconciliationItems {
+		return PrepareRequest{}, fmt.Errorf("claim reconciliation prepare requires between 1 and %d items", maxReconciliationItems)
 	}
 	seenClaims := map[string]bool{}
 	for itemIndex := range request.Items {
@@ -232,6 +239,9 @@ func normalizeAndValidatePrepareRequest(request PrepareRequest) (PrepareRequest,
 			return PrepareRequest{}, fmt.Errorf("duplicate claim_id %q", item.ClaimID)
 		}
 		seenClaims[item.ClaimID] = true
+		if len(item.Evidence) > maxEvidencePerClaim {
+			return PrepareRequest{}, fmt.Errorf("claim %q permits at most %d evidence refs", item.ClaimID, maxEvidencePerClaim)
+		}
 		if len(item.Evidence) == 0 && item.Verification == nil {
 			return PrepareRequest{}, fmt.Errorf("claim %q requires evidence or verification", item.ClaimID)
 		}
@@ -247,8 +257,8 @@ func normalizeAndValidatePrepareRequest(request PrepareRequest) (PrepareRequest,
 			evidence.SourcePath = normalizedPath
 			evidence.Span = strings.TrimSpace(evidence.Span)
 			evidence.Role = strings.TrimSpace(evidence.Role)
-			if evidence.Span == "" {
-				return PrepareRequest{}, fmt.Errorf("claim %q evidence %d requires a bounded span", item.ClaimID, evidenceIndex)
+			if !boundedSpanPattern.MatchString(evidence.Span) {
+				return PrepareRequest{}, fmt.Errorf("claim %q evidence %d requires a bounded line span", item.ClaimID, evidenceIndex)
 			}
 			switch evidence.Role {
 			case "supporting":
@@ -319,19 +329,31 @@ func deriveSourceKind(relative string) string {
 	}
 }
 
-func hashRegularFile(fullPath string) (string, error) {
+func hashRegularFile(fullPath string) (string, int64, error) {
 	info, err := os.Stat(fullPath)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("is not a regular file")
+		return "", 0, fmt.Errorf("is not a regular file")
 	}
-	data, err := os.ReadFile(fullPath)
+	if info.Size() > maxEvidenceFileBytes {
+		return "", 0, fmt.Errorf("size %d exceeds the %d MiB per-file limit", info.Size(), maxEvidenceFileBytes>>20)
+	}
+	file, err := os.Open(fullPath)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return "sha256:" + digestHex(data), nil
+	defer file.Close()
+	hasher := sha256.New()
+	written, err := io.Copy(hasher, io.LimitReader(file, maxEvidenceFileBytes+1))
+	if err != nil {
+		return "", 0, err
+	}
+	if written > maxEvidenceFileBytes {
+		return "", 0, fmt.Errorf("content exceeds the %d MiB per-file limit", maxEvidenceFileBytes>>20)
+	}
+	return "sha256:" + hex.EncodeToString(hasher.Sum(nil)), written, nil
 }
 
 func writePreparedPacket(paths rt.Paths, digest string, packetJSON []byte) (string, error) {

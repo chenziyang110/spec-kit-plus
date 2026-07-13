@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -30,7 +29,15 @@ const CurrentContractVersion = 2
 
 const preparedPacketTTL = 5 * time.Minute
 
+const (
+	maxReconciliationItems       = 25
+	maxEvidencePerClaim          = 25
+	maxEvidenceFileBytes   int64 = 8 << 20
+	maxEvidenceTotalBytes  int64 = 32 << 20
+)
+
 var sha256Pattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+var boundedSpanPattern = regexp.MustCompile(`^(?:L[1-9][0-9]*(?:-L?[1-9][0-9]*)?|[1-9][0-9]*:[1-9][0-9]*-[1-9][0-9]*:[1-9][0-9]*)$`)
 
 type Packet struct {
 	ContractVersion      int                `json:"claim_reconciliation_contract_version"`
@@ -240,8 +247,8 @@ func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 	default:
 		return Packet{}, fmt.Errorf("repository_snapshot.kind %q is invalid", packet.RepositorySnapshot.Kind)
 	}
-	if len(packet.Items) == 0 {
-		return Packet{}, fmt.Errorf("claim reconciliation requires at least one item")
+	if len(packet.Items) == 0 || len(packet.Items) > maxReconciliationItems {
+		return Packet{}, fmt.Errorf("claim reconciliation requires between 1 and %d items", maxReconciliationItems)
 	}
 	seenClaims := map[string]bool{}
 	for itemIndex := range packet.Items {
@@ -255,6 +262,9 @@ func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 			return Packet{}, fmt.Errorf("duplicate claim_id %q", item.ClaimID)
 		}
 		seenClaims[item.ClaimID] = true
+		if len(item.Evidence) > maxEvidencePerClaim {
+			return Packet{}, fmt.Errorf("claim %q permits at most %d evidence refs", item.ClaimID, maxEvidencePerClaim)
+		}
 		if len(item.Evidence) == 0 && item.Verification == nil {
 			return Packet{}, fmt.Errorf("claim %q requires evidence or verification", item.ClaimID)
 		}
@@ -271,7 +281,7 @@ func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 			evidence.Span = strings.TrimSpace(evidence.Span)
 			evidence.Role = strings.TrimSpace(evidence.Role)
 			evidence.ExpectedContentHash = strings.ToLower(strings.TrimSpace(evidence.ExpectedContentHash))
-			if !validSourceKind(evidence.SourceKind) || evidence.SourcePath == "" || evidence.Span == "" || !sha256Pattern.MatchString(evidence.ExpectedContentHash) {
+			if !validSourceKind(evidence.SourceKind) || evidence.SourcePath == "" || !boundedSpanPattern.MatchString(evidence.Span) || !sha256Pattern.MatchString(evidence.ExpectedContentHash) {
 				return Packet{}, fmt.Errorf("claim %q evidence %d requires valid source_kind, source_path, span, and sha256 content hash", item.ClaimID, evidenceIndex)
 			}
 			switch evidence.Role {
@@ -341,6 +351,7 @@ func prepareEvidence(paths rt.Paths, packet Packet) ([][]string, error) {
 		return nil, fmt.Errorf("resolve project root for claim reconciliation: %w", err)
 	}
 	out := make([][]string, len(packet.Items))
+	var totalBytes int64
 	for itemIndex, item := range packet.Items {
 		out[itemIndex] = make([]string, len(item.Evidence))
 		for evidenceIndex, evidence := range item.Evidence {
@@ -351,18 +362,14 @@ func prepareEvidence(paths rt.Paths, packet Packet) ([][]string, error) {
 			if matcher.Ignored(relative) {
 				return nil, fmt.Errorf("claim %q evidence path %q is excluded by project cognition ignore rules", item.ClaimID, relative)
 			}
-			info, err := os.Stat(fullPath)
+			actual, size, err := hashRegularFile(fullPath)
 			if err != nil {
 				return nil, fmt.Errorf("read claim %q evidence path %q: %w", item.ClaimID, relative, err)
 			}
-			if !info.Mode().IsRegular() {
-				return nil, fmt.Errorf("claim %q evidence path %q is not a regular file", item.ClaimID, relative)
+			totalBytes += size
+			if totalBytes > maxEvidenceTotalBytes {
+				return nil, fmt.Errorf("claim reconciliation evidence exceeds the %d MiB total read limit", maxEvidenceTotalBytes>>20)
 			}
-			data, err := os.ReadFile(fullPath)
-			if err != nil {
-				return nil, fmt.Errorf("read claim %q evidence path %q: %w", item.ClaimID, relative, err)
-			}
-			actual := "sha256:" + digestHex(data)
 			if actual != evidence.ExpectedContentHash {
 				return nil, fmt.Errorf("claim %q evidence hash mismatch for %q: expected %s, observed %s", item.ClaimID, relative, evidence.ExpectedContentHash, actual)
 			}
