@@ -1564,7 +1564,7 @@ func validatePacketLedger(packetID string, assigned map[string]bool, ledger map[
 			continue
 		}
 		for i, path := range normalizedStringSlice(ledger[state]) {
-			if !validConcreteRepositoryPath(path) {
+			if !ValidConcreteRepositoryPath(path) {
 				result.Errors = append(result.Errors, fmt.Sprintf("packet %s ledger.%s[%d] must be a concrete repository path, not a glob or directory pattern", packetID, state, i))
 			}
 			if !assigned[path] {
@@ -1742,7 +1742,7 @@ func validateConcretePathField(packetID string, field string, value any, result 
 		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be a concrete path string", packetID, field))
 		return ""
 	}
-	if !validConcreteRepositoryPath(path) {
+	if !ValidConcreteRepositoryPath(path) {
 		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be a concrete repository path, not a glob or directory pattern", packetID, field))
 	}
 	return path
@@ -1802,7 +1802,7 @@ func ledgerAccountsForFinalPath(ledger map[string]any, path string) bool {
 	return false
 }
 
-func validConcreteRepositoryPath(path string) bool {
+func ValidConcreteRepositoryPath(path string) bool {
 	if path == "" || path == "." || path == ".." {
 		return false
 	}

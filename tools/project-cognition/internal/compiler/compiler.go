@@ -18,11 +18,10 @@ const ContractVersion = 1
 const legacyProposalID = "legacy-scan-package"
 
 type CognitionProposal struct {
-	ProposalVersion    int
-	ProposalID         string
-	SourceGenerationID string
-	Scope              []string
-	Package            scanartifacts.Package
+	ProposalVersion int
+	ProposalID      string
+	Scope           []string
+	Package         scanartifacts.Package
 }
 
 type CompiledProposal struct {
@@ -72,7 +71,6 @@ func AdaptLegacy(pkg scanartifacts.Package) CognitionProposal {
 	return CognitionProposal{
 		ProposalVersion: ContractVersion,
 		ProposalID:      legacyProposalID,
-		Scope:           append([]string(nil), pkg.CoveragePaths...),
 		Package:         pkg,
 	}
 }
@@ -104,6 +102,7 @@ func Compile(proposal CognitionProposal) (CompiledProposal, Result) {
 	pkg.AcceptedGaps = cloneBoolMap(pkg.AcceptedGaps)
 
 	validatePaths(pkg, &result)
+	validateScope(canonicalProposal.Scope, pkg, &result)
 	validateReferences(pkg, &result)
 	rebuildIdentities(&pkg)
 	sortDecisions(&result)
@@ -126,9 +125,9 @@ func Compile(proposal CognitionProposal) (CompiledProposal, Result) {
 
 func canonicalizeProposal(proposal CognitionProposal) CognitionProposal {
 	proposal.ProposalID = strings.TrimSpace(proposal.ProposalID)
-	proposal.SourceGenerationID = strings.TrimSpace(proposal.SourceGenerationID)
-	proposal.Scope = uniqueSortedStrings(proposal.Scope)
+	proposal.Scope = uniqueSortedPaths(proposal.Scope)
 	pkg := clonePackage(proposal.Package)
+	pkg.Identities = emptyIdentitySet()
 	for i := range pkg.Evidence {
 		pkg.Evidence[i].ID = strings.TrimSpace(pkg.Evidence[i].ID)
 		pkg.Evidence[i].SourcePath = normalizePath(pkg.Evidence[i].SourcePath)
@@ -232,9 +231,38 @@ func validatePath(category, identity, candidate string, result *Result) {
 		reason = "absolute_path"
 	case cleaned == ".." || strings.HasPrefix(cleaned, "../"):
 		reason = "path_outside_repository"
+	case !scanartifacts.ValidConcreteRepositoryPath(normalized):
+		reason = "non_concrete_path"
 	}
 	if reason != "" {
 		result.Conflicts = append(result.Conflicts, Decision{Category: category, Identity: identity, Reason: reason})
+	}
+}
+
+func validateScope(scope []string, pkg scanartifacts.Package, result *Result) {
+	if len(scope) == 0 {
+		return
+	}
+	allowed := map[string]bool{}
+	for _, candidate := range scope {
+		validatePath("scope", candidate, candidate, result)
+		allowed[candidate] = true
+	}
+	check := func(category, identity, candidate string) {
+		if candidate != "" && !allowed[candidate] {
+			result.Conflicts = append(result.Conflicts, Decision{Category: category, Identity: identity, Reason: "outside_proposal_scope"})
+		}
+	}
+	for _, evidence := range pkg.Evidence {
+		check("evidence", evidence.ID, evidence.SourcePath)
+	}
+	for _, node := range pkg.Nodes {
+		for _, candidate := range append(append(append([]string{}, node.Paths...), node.CanonicalPaths...), node.CompatibilityPaths...) {
+			check("node", node.ID, candidate)
+		}
+	}
+	for _, candidate := range pkg.CoveragePaths {
+		check("coverage", candidate, candidate)
 	}
 }
 
@@ -425,6 +453,16 @@ func clonePackage(pkg scanartifacts.Package) scanartifacts.Package {
 		cloned.Observations[i] = row
 	}
 	return cloned
+}
+
+func emptyIdentitySet() scanartifacts.IdentitySet {
+	return scanartifacts.IdentitySet{
+		Evidence:      map[string]bool{},
+		Nodes:         map[string]bool{},
+		Edges:         map[string]bool{},
+		Observations:  map[string]bool{},
+		CoveragePaths: map[string]bool{},
+	}
 }
 
 func cloneAttrs(values map[string]any) map[string]any {
