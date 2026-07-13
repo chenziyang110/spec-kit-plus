@@ -13,6 +13,8 @@ in view.]
 
 Project cognition compass, query, and expansion responses carry an `epistemic_contract` with `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. This contract cannot authorize source changes and cannot prove current behavior; agents must carry it into downstream state, withhold unverified claims, and let contradictory live evidence override the route candidate.
 
+Graph claims are indexed assertions. Their lifecycle is `candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or `stale`; even `verified_in_graph_generation` is scoped to the active graph generation and is not current repository truth. Graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`; bounded live evidence, matching workflow verification, and explicit final-claim authorization remain separate requirements.
+
 ## System Boundaries
 
 [State what this repository deliberately owns, what it coordinates but does not own,

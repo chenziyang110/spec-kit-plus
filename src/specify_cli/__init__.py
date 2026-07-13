@@ -3190,7 +3190,7 @@ SKILL_DESCRIPTIONS = {
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need an optional requirements-quality checklist aid for validating requirements or planning completeness before implementation.",
     "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must inventory the repository, classify file value, and scan high-value evidence before graph reconstruction.",
-    "map-build": "Use when map-scan has produced a value-weighted evidence baseline and you need to reconstruct the schema v2 project cognition graph, path and alias indexes, and query-backed runtime outputs.",
+    "map-build": "Use when map-scan has produced a value-weighted evidence baseline and you need to reconstruct the schema v3 project cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs.",
     "map-update": "Use when a graph-native project cognition baseline exists and diff-based evidence refresh or user-supplied corrections must update the cognition runtime incrementally.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
@@ -3897,7 +3897,7 @@ def init(
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline for brownfield cognition")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v3 cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-update')}[/] - Refresh the cognition runtime incrementally after the baseline exists")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
     steps_lines.append(f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before formal specification")
@@ -3937,7 +3937,7 @@ def init(
     enhancement_lines.extend(
         [
             f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline before deeper brownfield specification, planning, task generation, or implementation resumes",
-            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline",
+            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v3 cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline",
             f"○ [cyan]{_display_cmd('map-update')}[/] [bright_black](after baseline)[/bright_black] - Refresh the project cognition runtime incrementally when changed areas or user supplements land",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
             f"○ [cyan]{_display_cmd('discussion')}[/] [bright_black](pre-spec discussion)[/bright_black] - Preserve senior product-engineering discussion state before explicit handoff to [cyan]{_display_cmd('specify')}[/]",

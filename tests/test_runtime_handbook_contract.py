@@ -26,7 +26,7 @@ def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
     readme = _read("README.md").lower()
     for content in (handbook, readme):
         assert "alias_index" in content
-        assert "schema v2" in content
+        assert "schema v3" in content
         assert "v1" in content
         assert "rebuild" in content
         assert "alias_index" in content

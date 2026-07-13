@@ -141,7 +141,7 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 - `sp-map-scan` must not publish final cognition truth.
 - `sp-map-scan` must not claim the baseline is graph-ready.
 - `sp-map-scan` must produce evidence, provisional nodes, provisional edges, observations, and coverage diagnostics only.
-- `sp-map-scan` may classify evidence and derive provisional structure, but `sp-map-build` owns schema v2 graph-store publication, confidence assignment, route validation, and alias catalog readiness.
+- `sp-map-scan` may classify evidence and derive provisional structure, but `sp-map-build` owns schema v3 graph-store publication, confidence assignment, typed graph-claim lifecycle derivation, route validation, and alias catalog readiness.
 
 ## Output Contract
 
@@ -152,6 +152,7 @@ The only canonical outputs for this command are:
 - `.specify/project-cognition/provisional/nodes.json`
 - `.specify/project-cognition/provisional/edges.json`
 - `.specify/project-cognition/provisional/observations.json`
+- optional `.specify/project-cognition/provisional/claims.json`
 - `.specify/project-cognition/coverage.json`
 - `.specify/project-cognition/workbench/map-scan.md`
 - `.specify/project-cognition/workbench/coverage-ledger.md`
@@ -187,14 +188,14 @@ uses:
 - `evidence_ids`: evidence row IDs that justify the node.
 - `attrs`: optional object for secondary metadata.
 
-Emit alias-ready node material for schema v2. `nodes[].title`, `nodes[].type`,
+Emit alias-ready node material for schema v3. `nodes[].title`, `nodes[].type`,
 `nodes[].paths`, and `nodes[].attrs.aliases`, `domain`, `owner`, `workflow`,
 `route`, `route_hints`, and `verification_hints` feed the `alias_index` during
 `sp-map-build`. This creates the alias catalog used to normalize user input
 before query planning. Do not write raw observation summaries as aliases.
 Observations may support bounded observation tags only when tied to graph
 evidence. If validation reports schema v1 or rebuild-required readiness, run
-sp-map-scan -> sp-map-build so build-from-scan can publish schema v2 alias
+sp-map-scan -> sp-map-build so build-from-scan can publish schema v3 alias
 catalog rows.
 When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 
@@ -214,6 +215,20 @@ runtime are `source`, `target`, `source_node_id`, `target_node_id`, `kind`, and
 Each row uses `id`, `observation_type`, `summary`, `evidence_ids`, and optional
 `attrs`. string observations are accepted only as compatibility input and are normalized as `observation_type: note`; new scan artifacts must write objects.
 
+`provisional/claims.json` is optional so legacy-compatible scan packages remain
+valid. When present, it must contain a top-level `claims` array. Each graph claim
+row uses `id`, `node_id`, `graph_claim_type`, `summary`, optional
+`requested_state`, `supporting_evidence_ids`, `contradicting_evidence_ids`,
+`verifications`, optional `stale_reason`, and optional `attrs`. Each verification
+uses `id`, `result`, optional `command`, `evidence_id`, `observed_at`, and
+optional `attrs`. The Agent proposes candidates and evidence; it does not assign
+the published lifecycle state. The deterministic compiler derives `candidate`,
+`supported`, `verified_in_graph_generation`, `contradicted`, or `stale`, ignores
+an unsupported self-promotion in `requested_state`, and blocks missing node or
+evidence references. Do not use bare `claim_type` or workflow final claim types
+such as `root_cause_claim`, `fixed_claim`, `completed_claim`, or `release_safe`
+as graph claim lifecycle fields.
+
 `coverage.json` must contain a top-level `rows` array with `path` values for
 coverage accounting. Compatibility input may use a top-level `coverage` array,
 but new scan artifacts must write `rows`; do not maintain separate `rows` and
@@ -224,7 +239,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Do not publish final cognition truth from this command.
 - Do not treat raw inventory notes or raw chat summaries as accepted scan results.
 - Do not silently downgrade unknown or unclassified project-relevant surfaces.
-- `.specify/**` workflow/runtime state is excluded from default source/runtime scan targets; do not put `.specify/**` paths into project graph evidence, nodes, observations, path_index, or alias_index.
+- `.specify/**` workflow/runtime state is excluded from default source/runtime scan targets; do not put `.specify/**` paths into project graph evidence, nodes, observations, graph claims, path_index, or alias_index.
 - Only read `.specify/**` for workflow operation, validation, migration, or when the requested scan is explicitly about generated workflow surfaces or spec-kit-plus itself; even then, classify it as workflow/reference support rather than source/runtime graph truth.
 - Respect project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. These files use gitignore-compatible syntax, including comments, directory patterns, globs, `**`, and `!` re-includes.
 - `.cognitionignore` excludes project cognition scan/build/update targets only; it does not replace `.gitignore` or prove that ignored code is irrelevant to other tooling.
@@ -364,7 +379,7 @@ If project-relevant evidence cannot be classified, the scan must remain blocked 
 - Use `choose_subagent_dispatch(command_name="map-scan", snapshot, workload_shape)` before broad work begins.
 - Dispatch each scan lane from a validated `MapScanPacket`.
 - Recommended scan lanes include source/symbol discovery, module boundaries, capability flows, state surfaces, build/test/runtime surfaces, and git evolution surfaces.
-- Every lane must return inspected paths, evidence harvested, confidence notes, and provisional structure updates.
+- Every lane must return inspected paths, evidence harvested, confidence notes, provisional structure updates, typed graph-claim candidates, supporting or contradicting evidence references, and unresolved unknowns. Workers may propose `requested_state`, but only the compiler derives the published lifecycle state.
 - Must wait for every dispatched scan lane and consume its structured handoff before the scan closes.
 
 ## Layer 1 Route Material

@@ -4,7 +4,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_root_agents_documents_current_managed_context_and_schema_v2_rules() -> None:
+def test_root_agents_documents_current_managed_context_and_schema_v3_rules() -> None:
     content = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     lowered = content.lower()
 
@@ -25,11 +25,13 @@ def test_root_agents_documents_current_managed_context_and_schema_v2_rules() -> 
     assert ".specify/memory/project-learnings.md` remains a compatibility summary" in content
     assert "## Workflow Activation Discipline" not in content
     assert "## Lane Recovery Rules" not in content
-    assert "### Project Cognition Schema v2 Maintenance" in content
-    assert "schema v2 runtime readiness is graph-and-alias first" in lowered
+    assert "### Project Cognition Schema v3 Maintenance" in content
+    assert "schema v3 runtime readiness is graph, alias, and typed graph-claim lifecycle first" in lowered
     assert "`alias_index` is the route vocabulary" in lowered
     assert "v1 and old broad-schema dbs are diagnostic/inspect-only" in lowered
     assert "do not reintroduce old broad-schema tables" in lowered
+    assert "verified_in_graph_generation" in content
+    assert "never authorize source changes or set workflow `claim_ready=true`" in content
     assert "claims" in content
     assert "conflicts" in content
     assert "slice_members" in content

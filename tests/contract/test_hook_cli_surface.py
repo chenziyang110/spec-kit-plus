@@ -251,7 +251,7 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
         )
         conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_format', '\"project-cognition-go\"', '2026-05-23T00:00:00Z')")
         conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '2', '2026-05-23T00:00:00Z')")
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('schema_version', '2', '2026-05-23T00:00:00Z')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('schema_version', '3', '2026-05-23T00:00:00Z')")
         conn.execute(
             "INSERT OR REPLACE INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) VALUES(?, 1, 'full', 'active', 'abc123', '2026-05-23T00:00:00Z', '2026-05-23T00:00:00Z', '', '{}')",
             (generation_id,),

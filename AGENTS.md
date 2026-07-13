@@ -573,12 +573,13 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 - `project-cognition scan-set` is the runtime-owned scan-set resolution contract for agent-facing file-list handoffs; do not replace it with prompt-only guidance that asks agents to freely decide which files to skip.
 - When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/project_cognition_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass, then publish and verify the release assets in the same workstream.
 
-### Project Cognition Schema v2 Maintenance
+### Project Cognition Schema v3 Maintenance
 
-- Schema v2 runtime readiness is graph-and-alias first. The active runtime tables are `metadata`, `generations`, `evidence`, `nodes`, `node_evidence`, `edges`, `edge_evidence`, `observations`, `observation_evidence`, `path_index`, `alias_index`, and `updates`.
-- Do not reintroduce old broad-schema tables such as `claims`, `claim_evidence`, `conflicts`, `conflict_claims`, `symbol_index`, `entrypoint_index`, `test_index`, `slice_members`, FTS tables, or `query_examples` as readiness requirements unless a deliberate design, runtime implementation, prompt update, and regression suite add them back together.
+- Schema v3 runtime readiness is graph, alias, and typed graph-claim lifecycle first. The active runtime tables are `metadata`, `generations`, `evidence`, `nodes`, `node_evidence`, `edges`, `edge_evidence`, `observations`, `observation_evidence`, `path_index`, `alias_index`, `claims`, `claim_evidence`, `claim_verifications`, `claim_transitions`, and `updates`.
+- Schema v3 deliberately reintroduces only typed graph-claim lifecycle tables. Do not reintroduce old broad-schema tables such as `conflicts`, `conflict_claims`, `symbol_index`, `entrypoint_index`, `test_index`, `slice_members`, FTS tables, or `query_examples` as readiness requirements unless a deliberate design, runtime implementation, prompt update, and regression suite add them back together.
+- Graph claims are indexed assertions, use `graph_claim_type`, and have compiler-derived `candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or `stale` states. They never authorize source changes or set workflow `claim_ready=true`.
 - `alias_index` is the route vocabulary. `project-cognition lexicon --mode catalog` lists alias-backed candidates; the agent must normalize the user's prompt into project vocabulary, record `semantic_intake`, carry `lexicon_generation_id`, and call `project-cognition query --query-plan`. Top lexical or vector similarity alone is not route truth; live repository evidence still proves technical claims.
-- v1 and old broad-schema DBs are diagnostic/inspect-only for normal workflows. `lexicon` and `query` require schema v2 readiness, while `build-from-scan` archives or replaces v1/old broad-schema DBs and rebuilds a clean schema v2 database.
+- v1 and old broad-schema DBs are diagnostic/inspect-only for normal workflows. `lexicon` and `query` require schema v3 readiness. `build-from-scan` archives or replaces v1/old broad-schema DBs, migrates structurally compatible schema v2 DBs additively, and publishes schema v3.
 - Alias derivation should stay bounded: titles, types, paths, and bounded attrs/tags are valid sources; raw observation summaries should not become unbounded aliases.
 
 ### Workflow Family Map

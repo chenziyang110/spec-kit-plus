@@ -33,7 +33,10 @@ EPISTEMIC_CONTRACT_GUIDANCE = (
     "`fact_source_of_truth=live_repository`, `live_verification_required=true`, "
     "`graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. "
     "The contract cannot authorize source changes and cannot prove current behavior; "
-    "contradictory live evidence overrides the route candidate."
+    "contradictory live evidence overrides the route candidate. Graph claims are indexed assertions; "
+    "even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth. "
+    "Graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`; bounded live evidence "
+    "and the separate workflow final-claim gate remain required."
 )
 
 

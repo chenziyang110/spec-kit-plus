@@ -546,6 +546,11 @@ class TestCodexAutoPromote:
         assert "workflow-local semantic-audit-output.json" in generated_contract_lower
         assert "Prompt fallback remains valid" in generated_contract
         assert "does not authorize source edits, final claims, or P3/P4 permission" in generated_contract
+        assert "Graph claim namespace" in generated_contract
+        assert "graph_claim_type" in generated_contract
+        assert "verified_in_graph_generation" in generated_contract
+        assert "cannot set workflow `claim_ready=true`" in generated_contract
+        assert "must not populate `claim_verification_refs`" in generated_contract
         assert "Fingerprint mismatches are route-changed" in generated_contract
         assert ".specify/templates/examples/semantic-audit-resume/scenarios.md" in generated_contract
         assert "keep claim_ready false" in generated_contract

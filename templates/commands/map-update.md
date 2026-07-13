@@ -52,6 +52,7 @@ Use `execution_surface: native-subagents`.
 - Query `project-cognition.db` for each changed path before deciding update scope.
 - For every changed path, look up current owner, consumers, lifecycle/state surfaces, shared mutable state, destructive-operation edges, generated-surface propagation, verification routes, conflicts, stale claims, and known unknowns.
 - Expand the update closure through owners, downstream consumers, state surfaces, workflow artifacts, generated surfaces, and verification routes that project cognition already knows.
+- Consume `affected_graph_claims` from structured update output. Changed paths must mark only graph claims linked through affected nodes or claim evidence as `stale`, preserve their prior state in the transition history, and leave unrelated claims unchanged.
 
 Every changed path must be accounted for as one of: updated, provisionally adopted, ignored with reason, partial with `minimal_live_reads`, blocked with recovery condition, or requiring full rebuild for a reserved rebuild reason.
 
@@ -86,6 +87,7 @@ schema failure, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - It must update the query-backed cognition runtime incrementally.
 - It must treat `.specify/project-cognition/status.json` plus `.specify/project-cognition/project-cognition.db` as the runtime truth source for post-update readiness.
 - It must not silently escalate to a full rebuild without recording why.
+- Generic workflow verification or `result_state=ready` may refresh path coverage but must not re-promote stale or contradicted graph claims. Re-promotion requires a new scan/compiler basis with current supporting evidence and matching graph verification.
 - When changed paths are missing from `path_index`, classify them before escalating: adoptable paths get provisional `path_index` and `alias_index` coverage, uncertain paths return `review` with `minimal_live_reads`, and existing-baseline ordinary gaps stay in `sp-map-update`.
 - Provisional adoption must write valid graph records: an adoption `evidence` row, a `path_index` row with `relation="provisional_path"` and graph confidence `weak` or `partial`, and alias rows for the adopted node title, path material, workflow/source terms, and behavior surfaces so future `project-cognition compass` and alias-catalog routing can rediscover the adopted path.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
@@ -161,7 +163,7 @@ The canonical outputs for this command are:
 - refresh affected evidence
 - apply updates as a `patch-in-active-generation` operation against the current
   query-backed baseline unless validation proves a rebuild is required
-- invalidate stale claims
+- invalidate affected graph claims with an auditable transition to `stale`; return their stable IDs in `affected_graph_claims`
 - detect and repair stale retrieval signals, including obsolete aliases,
   colloquial user phrases, concept routes, and ownership hints
 - update or create conflicts
@@ -172,6 +174,7 @@ The canonical outputs for this command are:
   or repository evidence show that a plausible alias belongs to the wrong
   domain
 - update affected runtime records with proven facts, low-confidence claims, conflicts, stale markers, known unknowns, and minimal live reads
+- must not re-promote a graph claim from workflow finalization alone
 - produce an incremental update record
 - verify the shared freshness contract after the update record is written
 - run the successful-refresh finalizer when that verification proves the runtime ready
