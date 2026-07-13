@@ -100,6 +100,22 @@ func TestWriteExpansionBundleRequiresCurrentClaimContract(t *testing.T) {
 	}
 }
 
+func TestWriteExpansionBundleRequiresCurrentCandidateUniverse(t *testing.T) {
+	paths := queryTestPaths(t)
+	for _, version := range []int{0, CandidateUniverseVersion - 1, CandidateUniverseVersion + 1} {
+		_, err := writeExpansionBundle(paths, ExpansionBundle{
+			ID:                            "exp-12345678",
+			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+			CandidateUniverseVersion:      version,
+			QueryFingerprint:              "12345678",
+			SectionPayloads:               map[string]any{"raw_candidates": []map[string]any{}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "candidate universe version") {
+			t.Fatalf("writeExpansionBundle(version=%d) error = %v, want current-candidate-only rejection", version, err)
+		}
+	}
+}
+
 func assertAdvisoryEpistemicContract(t *testing.T, contract EpistemicContract) {
 	t.Helper()
 	if contract.ContractVersion != 1 {

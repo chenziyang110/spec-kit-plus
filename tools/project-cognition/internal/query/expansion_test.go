@@ -1,7 +1,9 @@
 package query
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,8 +26,14 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if compass.ExpansionRef == nil {
 		t.Fatalf("ExpansionRef is nil")
 	}
-	if compass.ExpansionRef.ID != "exp-"+compass.QueryFingerprint {
-		t.Fatalf("ExpansionRef.ID = %q, want exp- + fingerprint %q", compass.ExpansionRef.ID, compass.QueryFingerprint)
+	wantExpansionID := immutableExpansionIDForTest(
+		compass.QueryFingerprint,
+		compass.ActiveGenerationID,
+		ClaimRetrievalContractVersion,
+		CandidateUniverseVersion,
+	)
+	if compass.ExpansionRef.ID != wantExpansionID {
+		t.Fatalf("ExpansionRef.ID = %q, want generation-and-contract-bound %q", compass.ExpansionRef.ID, wantExpansionID)
 	}
 	if compass.ExpansionRef.StaleBehavior != expansionRefStaleBehavior {
 		t.Fatalf("StaleBehavior = %q, want %q", compass.ExpansionRef.StaleBehavior, expansionRefStaleBehavior)
@@ -259,8 +267,11 @@ func TestExpansionStaleDetectsBundleIdentityMismatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if payload.Status != "stale_expansion" {
-			t.Fatalf("Status = %q, want stale_expansion: %#v", payload.Status, payload)
+		if payload.Status != "invalid_expansion" {
+			t.Fatalf("Status = %q, want invalid_expansion: %#v", payload.Status, payload)
+		}
+		if payload.Data != nil || payload.AvailableSections != nil {
+			t.Fatalf("invalid expansion exposed data or sections: %#v", payload)
 		}
 	})
 
@@ -273,8 +284,11 @@ func TestExpansionStaleDetectsBundleIdentityMismatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if payload.Status != "stale_expansion" {
-			t.Fatalf("Status = %q, want stale_expansion: %#v", payload.Status, payload)
+		if payload.Status != "invalid_expansion" {
+			t.Fatalf("Status = %q, want invalid_expansion: %#v", payload.Status, payload)
+		}
+		if payload.Data != nil || payload.AvailableSections != nil {
+			t.Fatalf("invalid expansion exposed data or sections: %#v", payload)
 		}
 	})
 
@@ -287,8 +301,28 @@ func TestExpansionStaleDetectsBundleIdentityMismatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if payload.Status != "stale_expansion" {
-			t.Fatalf("Status = %q, want stale_expansion for pre-claim-retrieval bundle: %#v", payload.Status, payload)
+		if payload.Status != "incompatible_expansion" {
+			t.Fatalf("Status = %q, want incompatible_expansion for old claim contract: %#v", payload.Status, payload)
+		}
+		if payload.Data != nil || payload.AvailableSections != nil {
+			t.Fatalf("incompatible expansion exposed data or sections: %#v", payload)
+		}
+	})
+
+	t.Run("candidate universe contract mismatch", func(t *testing.T) {
+		edited := bundle
+		edited.CandidateUniverseVersion = CandidateUniverseVersion - 1
+		writeExpansionBundleFileForTest(t, bundlePath, edited)
+
+		payload, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if payload.Status != "incompatible_expansion" {
+			t.Fatalf("Status = %q, want incompatible_expansion for old candidate contract: %#v", payload.Status, payload)
+		}
+		if payload.Data != nil || payload.AvailableSections != nil {
+			t.Fatalf("incompatible expansion exposed data or sections: %#v", payload)
 		}
 	})
 }
@@ -412,4 +446,10 @@ func writeExpansionBundleFileForTest(t *testing.T, path string, bundle Expansion
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func immutableExpansionIDForTest(queryFingerprint, activeGenerationID string, claimVersion, candidateVersion int) string {
+	material := fmt.Sprintf("%s\x00%s\x00%d\x00%d", queryFingerprint, activeGenerationID, claimVersion, candidateVersion)
+	sum := sha256.Sum256([]byte(material))
+	return fmt.Sprintf("exp-%x", sum[:12])
 }

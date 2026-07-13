@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,12 @@ import (
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
+
+func TestCurrentQueryContractVersions(t *testing.T) {
+	if ClaimRetrievalContractVersion != 2 || CandidateUniverseVersion != 2 {
+		t.Fatalf("query contract versions = claim:%d candidate:%d, want current-only 2/2", ClaimRetrievalContractVersion, CandidateUniverseVersion)
+	}
+}
 
 func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
 	paths := queryTestPaths(t)
@@ -48,6 +55,17 @@ func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
 	}
 	if payload.ClaimRetrievalContractVersion != 2 {
 		t.Fatalf("ClaimRetrievalContractVersion = %d, want 2", payload.ClaimRetrievalContractVersion)
+	}
+	var serialized map[string]any
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &serialized); err != nil {
+		t.Fatal(err)
+	}
+	if serialized["candidate_universe_version"] != float64(2) {
+		t.Fatalf("candidate_universe_version = %#v, want current version 2", serialized["candidate_universe_version"])
 	}
 	claims, ok := payload.Subgraph["claims"].([]map[string]any)
 	if !ok || len(claims) != 1 {
@@ -145,6 +163,40 @@ func TestParsePlanNormalizesLegacyAliases(t *testing.T) {
 	}
 	if plan.SelectionReason != "because" {
 		t.Fatalf("selection reason = %q", plan.SelectionReason)
+	}
+}
+
+func TestParsePlanRequiresCurrentCandidateUniverseVersion(t *testing.T) {
+	for name, document := range map[string]string{
+		"missing": `{"lexicon_generation_id":"GEN-current"}`,
+		"old":     `{"lexicon_generation_id":"GEN-current","candidate_universe_version":1}`,
+		"future":  `{"lexicon_generation_id":"GEN-current","candidate_universe_version":3}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := ParsePlanWithDiagnostics(document, "")
+			if err == nil || !strings.Contains(err.Error(), "candidate_universe_version") {
+				t.Fatalf("ParsePlanWithDiagnostics(%s) error = %v, want current-version-only rejection", name, err)
+			}
+		})
+	}
+
+	plan, diagnostics, err := ParsePlanWithDiagnostics(
+		`{"lexicon_generation_id":"GEN-current","candidate_universe_version":2}`,
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var serializedPlan map[string]any
+	if err := json.Unmarshal(data, &serializedPlan); err != nil {
+		t.Fatal(err)
+	}
+	if diagnostics.Warnings != nil || serializedPlan["candidate_universe_version"] != float64(2) {
+		t.Fatalf("plan = %#v diagnostics = %#v, want current candidate contract", plan, diagnostics)
 	}
 }
 
@@ -1138,10 +1190,13 @@ func TestLexiconPayloadIncludesPlanningContractAndCandidateFields(t *testing.T) 
 		t.Fatal(err)
 	}
 	acceptedFields := payload.QueryPlanningContract["accepted_fields"]
-	for _, want := range []string{"concept_decisions", "lexicon_generation_id"} {
+	for _, want := range []string{"concept_decisions", "lexicon_generation_id", "candidate_universe_version"} {
 		if !mapStringSliceContains(acceptedFields, want) {
 			t.Fatalf("accepted_fields = %#v, want %q", acceptedFields, want)
 		}
+	}
+	if payload.QueryPlanningContract["candidate_universe_version"] != CandidateUniverseVersion {
+		t.Fatalf("query planning candidate version = %#v, want %d", payload.QueryPlanningContract["candidate_universe_version"], CandidateUniverseVersion)
 	}
 	if len(payload.ConceptCandidates) == 0 {
 		t.Fatal("ConceptCandidates is empty")
