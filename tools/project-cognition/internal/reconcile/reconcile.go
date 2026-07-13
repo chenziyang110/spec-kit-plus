@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -174,6 +175,7 @@ func BlockedPayload(err error) ErrorPayload {
 }
 
 func normalizeAndValidatePacket(packet Packet) (Packet, error) {
+	packet = clonePacket(packet)
 	packet.ExpectedGenerationID = strings.TrimSpace(packet.ExpectedGenerationID)
 	packet.Workflow = strings.TrimSpace(packet.Workflow)
 	packet.ObservedAt = strings.TrimSpace(packet.ObservedAt)
@@ -209,7 +211,11 @@ func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 		for evidenceIndex := range item.Evidence {
 			evidence := &item.Evidence[evidenceIndex]
 			evidence.SourceKind = strings.TrimSpace(evidence.SourceKind)
-			evidence.SourcePath = filepath.ToSlash(strings.TrimSpace(evidence.SourcePath))
+			normalizedPath, err := normalizeRepositoryRelativePath(evidence.SourcePath)
+			if err != nil {
+				return Packet{}, fmt.Errorf("claim %q evidence %d source_path: %w", item.ClaimID, evidenceIndex, err)
+			}
+			evidence.SourcePath = normalizedPath
 			evidence.Span = strings.TrimSpace(evidence.Span)
 			evidence.Role = strings.TrimSpace(evidence.Role)
 			evidence.ExpectedContentHash = strings.ToLower(strings.TrimSpace(evidence.ExpectedContentHash))
@@ -286,13 +292,9 @@ func prepareEvidence(paths rt.Paths, packet Packet) ([][]string, error) {
 }
 
 func safeEvidencePath(root, candidate string) (string, string, error) {
-	candidate = filepath.ToSlash(strings.TrimSpace(candidate))
-	if candidate == "" || filepath.IsAbs(candidate) || filepath.VolumeName(candidate) != "" || strings.HasPrefix(candidate, "/") {
-		return "", "", fmt.Errorf("%q must be repository-relative", candidate)
-	}
-	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(candidate)))
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
-		return "", "", fmt.Errorf("%q escapes the repository", candidate)
+	clean, err := normalizeRepositoryRelativePath(candidate)
+	if err != nil {
+		return "", "", err
 	}
 	full := filepath.Join(root, filepath.FromSlash(clean))
 	resolved, err := filepath.EvalSymlinks(full)
@@ -308,6 +310,30 @@ func safeEvidencePath(root, candidate string) (string, string, error) {
 		return "", "", fmt.Errorf("%q resolves outside the repository", candidate)
 	}
 	return clean, resolved, nil
+}
+
+func normalizeRepositoryRelativePath(candidate string) (string, error) {
+	candidate = strings.ReplaceAll(strings.TrimSpace(candidate), `\`, "/")
+	if candidate == "" || path.IsAbs(candidate) || strings.HasPrefix(candidate, "/") || (len(candidate) >= 2 && candidate[1] == ':') {
+		return "", fmt.Errorf("%q must be repository-relative", candidate)
+	}
+	clean := path.Clean(candidate)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", fmt.Errorf("%q escapes the repository", candidate)
+	}
+	return clean, nil
+}
+
+func clonePacket(packet Packet) Packet {
+	packet.Items = append([]Item(nil), packet.Items...)
+	for index := range packet.Items {
+		packet.Items[index].Evidence = append([]Evidence(nil), packet.Items[index].Evidence...)
+		if packet.Items[index].Verification != nil {
+			verification := *packet.Items[index].Verification
+			packet.Items[index].Verification = &verification
+		}
+	}
+	return packet
 }
 
 func validClaimState(state claim.State) bool {
