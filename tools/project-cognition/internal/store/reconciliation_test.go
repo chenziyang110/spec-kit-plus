@@ -346,6 +346,77 @@ func TestValidateClaimReconciliationBatchRejectsInvalidContracts(t *testing.T) {
 	}
 }
 
+func TestReadClaimReconciliationSnapshotBindsActiveRevisionAndRejectsMissingClaims(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	input := validImportInput("GEN-snapshot")
+	input.Claims = []ClaimImport{{
+		ID: "claim:app", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "owner",
+		State: claim.StateSupported, Freshness: claim.FreshnessFresh, StateReason: "current",
+	}}
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, err := st.ReadClaimReconciliationSnapshot(ctx, []string{"claim:app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.GenerationID != "GEN-snapshot" || snapshot.Claims["claim:app"].State != claim.StateSupported || snapshot.Claims["claim:app"].Revision != 1 {
+		t.Fatalf("snapshot = %#v, want supported revision 1 in active generation", snapshot)
+	}
+	if _, err := st.MarkClaimsStale(ctx, []string{"claim:app"}, "changed dependency", "snapshot-test"); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = st.ReadClaimReconciliationSnapshot(ctx, []string{"claim:app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Claims["claim:app"].State != claim.StateStale || snapshot.Claims["claim:app"].Revision != 2 {
+		t.Fatalf("snapshot after invalidation = %#v, want stale revision 2", snapshot)
+	}
+	if _, err := st.ReadClaimReconciliationSnapshot(ctx, []string{"claim:missing"}); err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("missing claim error = %v", err)
+	}
+}
+
+func TestReplayClaimReconciliationReturnsCachedResultWithoutActivePreflight(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	input := validImportInput("GEN-replay-read")
+	input.Claims = []ClaimImport{{
+		ID: "claim:app", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "owner",
+		State: claim.StateStale, Freshness: claim.FreshnessStale, StateReason: "changed",
+	}}
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	batch := ClaimReconciliationBatch{
+		ID: "claim-reconciliation:read-replay", PacketHash: "sha256:read-replay", GenerationID: "GEN-replay-read",
+		Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z",
+		Items: []ClaimReconciliationItem{{
+			ClaimID: "claim:app", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "bounded evidence",
+			Evidence: []ClaimReconciliationEvidence{{ID: "E-read-replay", SourceKind: "source", SourcePath: "src/app.go", Span: "L1", ContentHash: "sha256:read", Role: "supporting"}},
+		}},
+	}
+	created, err := st.ApplyClaimReconciliation(ctx, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, found, err := st.ReplayClaimReconciliation(ctx, batch.ID, batch.GenerationID, batch.PacketHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || !replayed.Replayed || replayed.ID != created.ID {
+		t.Fatalf("replayed = %#v found=%v, want cached result", replayed, found)
+	}
+	if _, found, err := st.ReplayClaimReconciliation(ctx, "claim-reconciliation:missing", batch.GenerationID, batch.PacketHash); err != nil || found {
+		t.Fatalf("missing replay found=%v err=%v", found, err)
+	}
+}
+
 func cloneReconciliationBatch(batch ClaimReconciliationBatch) ClaimReconciliationBatch {
 	batch.Items = append([]ClaimReconciliationItem(nil), batch.Items...)
 	for index := range batch.Items {
