@@ -157,11 +157,13 @@ explicit numeric option.
   symptom route exists; do not jump straight to broad repository search.
 - Default project cognition intake is `project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json`.
   Consume the packet in this order:
-  1. Read top-level `minimal_live_reads` first and use those files as the bounded first live evidence route.
-  2. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
-  3. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
-  4. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail.
-  5. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`.
+  1. Read top-level `epistemic_contract` first. Require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`.
+  2. Read top-level `minimal_live_reads` and use those files as the bounded first live evidence route.
+  3. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
+  4. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
+  5. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail.
+  6. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`.
+  The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` into the selected workflow, withhold unverified claims, and let contradictory live evidence override the route candidate.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
   When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
   Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.

@@ -28,6 +28,15 @@ if TYPE_CHECKING:
     from .manifest import IntegrationManifest
 
 
+EPISTEMIC_CONTRACT_GUIDANCE = (
+    "Read and carry `epistemic_contract`; require `graph_role=route_candidate_only`, "
+    "`fact_source_of_truth=live_repository`, `live_verification_required=true`, "
+    "`graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. "
+    "The contract cannot authorize source changes and cannot prove current behavior; "
+    "contradictory live evidence overrides the route candidate."
+)
+
+
 # ---------------------------------------------------------------------------
 # IntegrationOption
 # ---------------------------------------------------------------------------
@@ -673,6 +682,7 @@ class IntegrationBase(ABC):
             "\n"
             f"## {agent_name} Project Cognition Advisory Gate\n\n"
             f"{query_gate}\n"
+            f"- {EPISTEMIC_CONTRACT_GUIDANCE}\n"
             "- Interpret returned readiness: `query_ready` reads top-level `minimal_live_reads` first and then lane-level `first_pass_paths`; `review` permits only returned `minimal_live_reads` plus `coverage_diagnostics`; `needs_rebuild` treats map output as advisory, continues with live repository evidence, and recommends `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside a `greenfield_empty` baseline, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`; `blocked` reports the runtime issue as advisory map state and continues with live repository evidence; `unsupported_runtime` continues with live evidence and records that compass intake was unavailable. If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements instead of treating absent graph paths as `needs_rebuild`. If the user's actual request is to fix cognition runtime state, report the blocked state and follow the same map-update-first routing policy.\n"
             "- Use `map-update` for ordinary existing-baseline gaps. If `baseline_kind=greenfield_empty`, do not recommend map-scan -> map-build solely because the graph has no paths; continue with workflow artifacts and live requirements. Use `map-scan -> map-build` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
             "- Treat the project cognition compass packet as advisory navigation for brownfield context; do not fall back to chat memory or ad hoc repository instincts when compass-backed runtime coverage should guide the route.\n"
@@ -713,14 +723,14 @@ class IntegrationBase(ABC):
                 "**Current-Task Navigation Repair**: Reuse the current task's required refs and live touched-area evidence. "
                 "Only when a required ref is stale, missing, or contradicted by live code, run at most one "
                 "`{{specify-subcmd:project-cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` "
-                f"{command_step}. Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, "
+                f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, "
                 "and `expansion_ref` only to repair current-task context; they do not replace live proof or authorize "
                 "broader implementation scope."
             )
         return (
             "**Crucial First Step**: You MUST use project cognition compass first: "
             f"run `{{{{specify-subcmd:project-cognition compass --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}` "
-            f"{command_step}. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, "
+            f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, "
             "`verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence "
             "and closeout signals, never as route candidates. Treat `expansion_ref` as a normal continuation path and run "
             "`project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence "
@@ -2944,19 +2954,20 @@ class SkillsIntegration(IntegrationBase):
             "4. the team-managed lane cannot be treated as complete from a status flip alone; the leader still needs the promised completion handoff or result evidence\n\n"
             "Before assigning team-managed work, preserve the same project cognition compass contract that `sp-implement` uses:\n\n"
             "1. run `project-cognition compass --intent implement --query=\"$ARGUMENTS\" --format json` and include the compass packet in the execution context bundle\n"
-            "2. read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks\n"
-            "3. preserve `coverage_diagnostics` as confidence and closeout signals, not route candidates\n"
-            "4. treat `expansion_ref` as a normal continuation path and run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail\n"
-            "5. do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`; carry them as advisory first-pass evidence routes in every teammate context packet\n"
-            "6. use the advanced `lexicon -> semantic_intake -> query` path only when explicit concept decisions are needed or coverage cannot be resolved from the default compass packet\n"
-            "7. in that precision escalation, normalize user input and write a `semantic_intake` object with `workflow_intent`, `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, and `open_semantic_questions`\n"
-            "8. treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog); if `agent_normalization` is omitted, treat it as `required=false`, not as proof that raw lexical ranking is authoritative\n"
-            "9. keep CJK or mixed CJK/ASCII input in agent-owned normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language; the agent still owns translation and `agent_normalization` is advisory guidance, not a route decision\n"
-            "10. keep `alias_interpretations` object-shaped, for example `{\"alias\": \"<user term>\", \"meaning\": \"<project term>\", \"confidence\": \"medium\"}`, never as a string array\n"
-            "11. build a `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and justified `paths`\n"
-            "12. derive project-language search terms from the alias catalog before source search; do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`\n"
-            "13. run `project-cognition query --intent implement --query-plan \"<query_plan_json>\" --format json` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n"
-            "14. if the query reports diagnostics, preserve `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the leader can repair the plan instead of losing the diagnostics in team chat\n\n"
+            f"2. {EPISTEMIC_CONTRACT_GUIDANCE} Carry `epistemic_contract` in every teammate context packet.\n"
+            "3. read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks\n"
+            "4. preserve `coverage_diagnostics` as confidence and closeout signals, not route candidates\n"
+            "5. treat `expansion_ref` as a normal continuation path and run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail\n"
+            "6. do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`; carry them as advisory first-pass evidence routes in every teammate context packet\n"
+            "7. use the advanced `lexicon -> semantic_intake -> query` path only when explicit concept decisions are needed or coverage cannot be resolved from the default compass packet\n"
+            "8. in that precision escalation, normalize user input and write a `semantic_intake` object with `workflow_intent`, `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, and `open_semantic_questions`\n"
+            "9. treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog); if `agent_normalization` is omitted, treat it as `required=false`, not as proof that raw lexical ranking is authoritative\n"
+            "10. keep CJK or mixed CJK/ASCII input in agent-owned normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language; the agent still owns translation and `agent_normalization` is advisory guidance, not a route decision\n"
+            "11. keep `alias_interpretations` object-shaped, for example `{\"alias\": \"<user term>\", \"meaning\": \"<project term>\", \"confidence\": \"medium\"}`, never as a string array\n"
+            "12. build a `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and justified `paths`\n"
+            "13. derive project-language search terms from the alias catalog before source search; do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`\n"
+            "14. run `project-cognition query --intent implement --query-plan \"<query_plan_json>\" --format json` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n"
+            "15. if the query reports diagnostics, preserve `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the leader can repair the plan instead of losing the diagnostics in team chat\n\n"
             "The only intended difference is the dispatch path:\n\n"
             f"1. `{canonical_command}` may route the current ready batch through subagents first\n"
             f"2. `{teams_command}` forces the concrete team-managed execution through {backend_label} for the same batch and join-point semantics\n"

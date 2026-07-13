@@ -13,6 +13,8 @@ The repository has three mapped runtime modules:
 - `templates-generated-surfaces`: workflow command templates, command partials, passive skills, project-map compatibility/export templates, scripts, and worker prompts that are copied or transformed into downstream projects.
 - `agent-teams-engine`: bundled optional Node/TypeScript plus Rust runtime assets for Codex team coordination.
 
+Project cognition compass, query, and expansion responses carry an `epistemic_contract` with `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. This contract cannot authorize source changes and cannot prove current behavior; agents must carry it into downstream state, withhold unverified claims, and let contradictory live evidence override the route candidate.
+
 ## System Boundaries
 
 This repository owns the `specify` CLI, bundled templates/scripts, supported-agent integration adapters, project-map compatibility/export templates, extension/preset managers, and optional Codex team runtime packaging. It coordinates with external agent CLIs, Git, uv/pip packaging, Node/npm, Cargo/Rust, optional MCP dependencies, tmux/psmux, and GitHub Actions. It does not own upstream agent CLI behavior, external MCP server implementations, terminal multiplexers, or the user's global `specify` installation.

@@ -11,6 +11,8 @@ in view.]
 
 [Cover the project type, primary technology stack, build/dependency tooling, and deployment shape. Name the major capability surfaces, runtime units, and architectural boundaries that downstream readers must understand first.]
 
+Project cognition compass, query, and expansion responses carry an `epistemic_contract` with `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. This contract cannot authorize source changes and cannot prove current behavior; agents must carry it into downstream state, withhold unverified claims, and let contradictory live evidence override the route candidate.
+
 ## System Boundaries
 
 [State what this repository deliberately owns, what it coordinates but does not own,
