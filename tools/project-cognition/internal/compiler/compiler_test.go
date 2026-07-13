@@ -5,8 +5,75 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
 )
+
+func TestCompileCanonicalizesAndDerivesTypedGraphClaims(t *testing.T) {
+	pkg := legacyPackageFixture()
+	pkg.Claims = []scanartifacts.ClaimRow{
+		{
+			ID:                    "claim:verified",
+			NodeID:                "N-app",
+			GraphClaimType:        "runtime_owner",
+			Summary:               "App owns runtime behavior",
+			RequestedState:        claim.StateCandidate,
+			SupportingEvidenceIDs: []string{"E-app"},
+			Verifications: []claim.Verification{{
+				ID: "verification:owner", Result: claim.VerificationPassed, EvidenceID: "E-app", ObservedAt: "2026-07-13T10:00:00Z",
+			}},
+		},
+		{
+			ID:             "claim:agent-certified",
+			NodeID:         "N-worker",
+			GraphClaimType: "entrypoint",
+			Summary:        "Agent requested verification without evidence",
+			RequestedState: claim.StateVerified,
+		},
+	}
+
+	compiled, result := Compile(AdaptLegacy(pkg))
+	if !result.PublicationAllowed {
+		t.Fatalf("publication_allowed = false; conflicts=%#v", result.Conflicts)
+	}
+	if result.Counts["claims"] != 2 || len(compiled.Package.Claims) != 2 {
+		t.Fatalf("claim counts = %#v/%d, want 2", result.Counts, len(compiled.Package.Claims))
+	}
+	if got := compiled.Package.Claims[0]; got.ID != "claim:agent-certified" || got.State != claim.StateCandidate || got.Freshness != claim.FreshnessUnknown {
+		t.Fatalf("first compiled claim = %#v, want canonical candidate that ignores requested verified", got)
+	}
+	if got := compiled.Package.Claims[1]; got.ID != "claim:verified" || got.State != claim.StateVerified || got.Freshness != claim.FreshnessFresh {
+		t.Fatalf("second compiled claim = %#v, want verified-in-graph-generation", got)
+	}
+
+	reversed := legacyPackageFixture()
+	reversed.Claims = []scanartifacts.ClaimRow{pkg.Claims[1], pkg.Claims[0]}
+	_, reversedResult := Compile(AdaptLegacy(reversed))
+	if result.ProposalFingerprint != reversedResult.ProposalFingerprint || result.CompiledFingerprint != reversedResult.CompiledFingerprint {
+		t.Fatalf("claim input ordering changed fingerprints: %#v != %#v", result, reversedResult)
+	}
+}
+
+func TestCompileBlocksGraphClaimWithMissingReferences(t *testing.T) {
+	pkg := legacyPackageFixture()
+	pkg.Claims = []scanartifacts.ClaimRow{{
+		ID:                    "claim:broken",
+		NodeID:                "N-missing",
+		GraphClaimType:        "runtime_owner",
+		Summary:               "Broken claim",
+		SupportingEvidenceIDs: []string{"E-missing"},
+	}}
+
+	_, result := Compile(AdaptLegacy(pkg))
+	if result.PublicationAllowed {
+		t.Fatalf("publication_allowed = true, want false; result=%#v", result)
+	}
+	for _, want := range []string{"missing_node:N-missing", "missing_evidence:E-missing"} {
+		if !hasDecisionReason(result.Conflicts, want) {
+			t.Errorf("conflicts = %#v, want %q", result.Conflicts, want)
+		}
+	}
+}
 
 func TestCompileLegacyProposalIsDeterministicAcrossInputOrdering(t *testing.T) {
 	first := legacyPackageFixture()

@@ -10,8 +10,85 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
+
+func TestImportGenerationPersistsTypedClaimsAndLifecycleEvidence(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+	input := validImportInput("GEN-claims")
+	input.Claims = []ClaimImport{{
+		ID:                    "claim:app-owner",
+		NodeID:                "N-app",
+		GraphClaimType:        "runtime_owner",
+		Summary:               "App owns runtime behavior",
+		State:                 claim.StateVerified,
+		Freshness:             claim.FreshnessFresh,
+		StateReason:           "supporting_evidence_and_current_verification",
+		SupportingEvidenceIDs: []string{"E-app"},
+		Verifications: []ClaimVerificationImport{{
+			ID: "verification:app-owner", Result: claim.VerificationPassed, EvidenceID: "E-app", ObservedAt: "2026-07-13T10:00:00Z",
+		}},
+	}}
+
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	var state, freshness, role, verificationResult string
+	if err := st.DB().QueryRowContext(ctx, `SELECT state, freshness FROM claims WHERE id = 'claim:app-owner'`).Scan(&state, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateVerified) || freshness != string(claim.FreshnessFresh) {
+		t.Fatalf("claim state/freshness = %q/%q, want %q/%q", state, freshness, claim.StateVerified, claim.FreshnessFresh)
+	}
+	if err := st.DB().QueryRowContext(ctx, `SELECT role FROM claim_evidence WHERE claim_id = 'claim:app-owner' AND evidence_id = 'E-app'`).Scan(&role); err != nil {
+		t.Fatal(err)
+	}
+	if role != "supporting" {
+		t.Fatalf("claim evidence role = %q, want supporting", role)
+	}
+	if err := st.DB().QueryRowContext(ctx, `SELECT result FROM claim_verifications WHERE claim_id = 'claim:app-owner'`).Scan(&verificationResult); err != nil {
+		t.Fatal(err)
+	}
+	if verificationResult != string(claim.VerificationPassed) {
+		t.Fatalf("verification result = %q, want passed", verificationResult)
+	}
+	snapshot, err := st.ActiveIdentitySnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSnapshotIdentity(t, snapshot.Claims, "claim:app-owner")
+}
+
+func TestImportGenerationRejectsClaimReferencesBeforeMutation(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+	input := validImportInput("GEN-broken-claim")
+	input.Claims = []ClaimImport{{
+		ID:                    "claim:broken",
+		NodeID:                "N-missing",
+		GraphClaimType:        "runtime_owner",
+		Summary:               "Broken claim",
+		State:                 claim.StateSupported,
+		Freshness:             claim.FreshnessFresh,
+		SupportingEvidenceIDs: []string{"E-missing"},
+	}}
+
+	_, err := st.ImportGeneration(ctx, input)
+	if err == nil || !strings.Contains(err.Error(), "claim claim:broken references missing node N-missing") {
+		t.Fatalf("ImportGeneration() error = %v, want missing claim node", err)
+	}
+	var generationCount int
+	if err := st.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM generations WHERE id = 'GEN-broken-claim'`).Scan(&generationCount); err != nil {
+		t.Fatal(err)
+	}
+	if generationCount != 0 {
+		t.Fatalf("generation count = %d, want zero after pre-transaction validation", generationCount)
+	}
+}
 
 func TestImportGenerationPublishesActiveIdentitySnapshot(t *testing.T) {
 	ctx := context.Background()
