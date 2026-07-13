@@ -62,6 +62,43 @@ func TestImportGenerationPersistsTypedClaimsAndLifecycleEvidence(t *testing.T) {
 	assertSnapshotIdentity(t, snapshot.Claims, "claim:app-owner")
 }
 
+func TestClaimLifecycleSummariesIncludeAllClaimsWithoutExpandingEvidence(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-claim-summary")); err != nil {
+		t.Fatal(err)
+	}
+	claims := []struct {
+		id        string
+		state     string
+		freshness string
+	}{
+		{id: "claim:a-candidate", state: "candidate", freshness: "fresh"},
+		{id: "claim:b-supported", state: "supported", freshness: "fresh"},
+		{id: "claim:c-verified", state: "verified_in_graph_generation", freshness: "fresh"},
+		{id: "claim:y-stale", state: "stale", freshness: "stale"},
+		{id: "claim:z-contradicted", state: "contradicted", freshness: "fresh"},
+	}
+	for _, graphClaim := range claims {
+		if _, err := st.DB().ExecContext(ctx, `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES(?, 'GEN-claim-summary', 'N-app', 'runtime_owner', ?, ?, '', ?, 'test', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`, graphClaim.id, graphClaim.id, graphClaim.state, graphClaim.freshness); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	summaries, err := st.ClaimLifecycleSummariesForNodeIDs(ctx, []string{"N-app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("summaries = %#v, want one node aggregate", summaries)
+	}
+	got := summaries[0]
+	if got.NodeID != "N-app" || got.ClaimCount != 5 || got.ContradictedCount != 1 || got.StaleCount != 1 || got.FreshVerifiedCount != 1 || got.FreshSupportedCount != 1 {
+		t.Fatalf("summary = %#v, want complete lifecycle counts", got)
+	}
+}
+
 func TestImportGenerationRejectsClaimReferencesBeforeMutation(t *testing.T) {
 	ctx := context.Background()
 	st := openImportTestStore(t)

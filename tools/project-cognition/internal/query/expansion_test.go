@@ -33,8 +33,8 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if compass.ExpansionRef.StaleBehavior == expansionRecommendedActionRerun {
 		t.Fatalf("StaleBehavior = %q, want behavior statement distinct from rerun action", compass.ExpansionRef.StaleBehavior)
 	}
-	if compass.ExpansionRef.ClaimRetrievalContractVersion != 1 {
-		t.Fatalf("ClaimRetrievalContractVersion = %d, want 1", compass.ExpansionRef.ClaimRetrievalContractVersion)
+	if compass.ExpansionRef.ClaimRetrievalContractVersion != 2 {
+		t.Fatalf("ClaimRetrievalContractVersion = %d, want 2", compass.ExpansionRef.ClaimRetrievalContractVersion)
 	}
 	for _, section := range []string{"related_paths", "raw_candidates", "coverage_gaps", "graph_neighbors", "claim_evidence"} {
 		if _, ok := compass.ExpansionRef.AvailableSections[section]; !ok {
@@ -65,8 +65,8 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if defaultExpanded.QueryFingerprint != compass.QueryFingerprint {
 		t.Fatalf("QueryFingerprint = %q, want %q", defaultExpanded.QueryFingerprint, compass.QueryFingerprint)
 	}
-	if defaultExpanded.ClaimRetrievalContractVersion != 1 {
-		t.Fatalf("expanded ClaimRetrievalContractVersion = %d, want 1", defaultExpanded.ClaimRetrievalContractVersion)
+	if defaultExpanded.ClaimRetrievalContractVersion != 2 {
+		t.Fatalf("expanded ClaimRetrievalContractVersion = %d, want 2", defaultExpanded.ClaimRetrievalContractVersion)
 	}
 
 	rawExpanded, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID, Section: " raw_candidates "})
