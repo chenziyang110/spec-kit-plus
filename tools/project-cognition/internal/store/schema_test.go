@@ -37,7 +37,7 @@ func TestSchemaV4RequiredTablesIncludeClaimReconciliation(t *testing.T) {
 	}
 }
 
-func TestOpenInitializesSchemaV4WithCurrentClaimEvidenceBasis(t *testing.T) {
+func TestOpenInitializesSchemaV5WithRevisionedClaimEvidenceBasis(t *testing.T) {
 	ctx := context.Background()
 	paths := testPaths(t)
 	st, err := Open(paths)
@@ -89,7 +89,7 @@ func TestOpenInitializesSchemaV4WithCurrentClaimEvidenceBasis(t *testing.T) {
 			t.Fatal(err)
 		}
 		if exists {
-			t.Fatalf("removed table %s should not exist in schema v4", table)
+			t.Fatalf("removed table %s should not exist in schema v5", table)
 		}
 	}
 
@@ -99,7 +99,7 @@ func TestOpenInitializesSchemaV4WithCurrentClaimEvidenceBasis(t *testing.T) {
 	}
 	for _, column := range []string{"reconciliation_id", "basis_state"} {
 		if !columns[column] {
-			t.Fatalf("claim_evidence is missing schema-v4 column %q", column)
+			t.Fatalf("claim_evidence is missing schema-v5 column %q", column)
 		}
 	}
 }
@@ -141,7 +141,7 @@ func TestOpenRejectsSchemaV2WithoutMigrationOrArchive(t *testing.T) {
 		_ = st.Close()
 		t.Fatal("Open() succeeded for schema v2, want current-schema-only rejection")
 	}
-	if !strings.Contains(err.Error(), "schema_version 2") || !strings.Contains(err.Error(), "requires 4") {
+	if !strings.Contains(err.Error(), "schema_version 2") || !strings.Contains(err.Error(), "requires 5") {
 		t.Fatalf("Open() error = %v, want explicit current schema requirement", err)
 	}
 
@@ -196,7 +196,7 @@ func TestOpenRejectsSchemaV3WithoutMigration(t *testing.T) {
 		_ = st.Close()
 		t.Fatal("Open succeeded for schema v3, want current-only rejection")
 	}
-	if !strings.Contains(err.Error(), "schema_version 3") || !strings.Contains(err.Error(), "requires 4") {
+	if !strings.Contains(err.Error(), "schema_version 3") || !strings.Contains(err.Error(), "requires 5") {
 		t.Fatalf("Open error = %v, want explicit schema v4 requirement", err)
 	}
 }

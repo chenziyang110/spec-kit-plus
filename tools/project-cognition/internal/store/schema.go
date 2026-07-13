@@ -1,6 +1,6 @@
 package store
 
-const SchemaVersion = 4
+const SchemaVersion = 5
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS metadata (
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS updates (
 );
 `
 
-const schemaV4ClaimSQL = `
+const schemaV5ClaimSQL = `
 CREATE TABLE IF NOT EXISTS claims (
 	id TEXT PRIMARY KEY,
 	generation_id TEXT NOT NULL REFERENCES generations(id) ON DELETE CASCADE,
@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS claims (
 	prior_state TEXT NOT NULL,
 	freshness TEXT NOT NULL,
 	state_reason TEXT NOT NULL,
+	revision INTEGER NOT NULL DEFAULT 1,
 	attrs_json TEXT NOT NULL DEFAULT '{}',
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -265,7 +266,7 @@ func RequiredTableColumns() map[string][]string {
 			"id", "generation_id", "alias", "normalized_alias", "target_type", "target_id", "language", "source", "confidence", "evidence_id",
 		},
 		"claims": {
-			"id", "generation_id", "node_id", "graph_claim_type", "summary", "state", "prior_state", "freshness", "state_reason", "attrs_json", "created_at", "updated_at",
+			"id", "generation_id", "node_id", "graph_claim_type", "summary", "state", "prior_state", "freshness", "state_reason", "revision", "attrs_json", "created_at", "updated_at",
 		},
 		"claim_evidence": {
 			"claim_id", "evidence_id", "role", "reconciliation_id", "basis_state",

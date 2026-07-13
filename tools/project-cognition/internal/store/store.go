@@ -374,7 +374,7 @@ func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schemaSQL); err != nil {
 		return fmt.Errorf("initialize schema: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, schemaV4ClaimSQL); err != nil {
+	if _, err := s.db.ExecContext(ctx, schemaV5ClaimSQL); err != nil {
 		return fmt.Errorf("initialize claim schema: %w", err)
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -808,7 +808,7 @@ func markClaimsStaleTx(ctx context.Context, tx *sql.Tx, generationID string, cla
 		if !claim.CanTransition(from, claim.StateStale) {
 			return nil, fmt.Errorf("claim %s cannot transition from %s to stale", claimID, from)
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE claims SET prior_state = state, state = ?, freshness = ?, state_reason = ?, updated_at = ? WHERE generation_id = ? AND id = ?`, claim.StateStale, claim.FreshnessStale, reason, now, generationID, claimID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE claims SET prior_state = state, state = ?, freshness = ?, state_reason = ?, revision = revision + 1, updated_at = ? WHERE generation_id = ? AND id = ?`, claim.StateStale, claim.FreshnessStale, reason, now, generationID, claimID); err != nil {
 			return nil, fmt.Errorf("mark claim %s stale: %w", claimID, err)
 		}
 		transitionID := "claim-transition:" + stableIDPart(transitionIDPrefix) + ":" + stableIDPart(claimID)

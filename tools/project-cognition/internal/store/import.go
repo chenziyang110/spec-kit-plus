@@ -554,7 +554,6 @@ func supersedeAndDeleteActiveGenerationData(ctx context.Context, tx *sql.Tx, new
 
 func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) error {
 	statements := []string{
-		`DELETE FROM claim_reconciliations WHERE generation_id = ?`,
 		`DELETE FROM claim_transitions WHERE generation_id = ?`,
 		`DELETE FROM claim_verifications WHERE generation_id = ?`,
 		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claims WHERE generation_id = ?)`,

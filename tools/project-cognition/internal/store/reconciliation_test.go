@@ -26,7 +26,7 @@ func TestApplyClaimReconciliationAtomicallyReplacesCurrentBasis(t *testing.T) {
 		ID: "claim-reconciliation:packet-1", PacketHash: "packet-1", GenerationID: "GEN-reconcile",
 		Workflow: "sp-implement", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
-			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "live_source_and_test_confirm_owner",
+			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "live_source_and_test_confirm_owner",
 			Evidence: []ClaimReconciliationEvidence{{
 				ID: "E-reconcile-1", SourceKind: "source", SourcePath: "src/app.go", Span: "L1-L20",
 				ContentHash: "sha256:current", Role: "supporting",
@@ -97,7 +97,7 @@ func TestApplyClaimReconciliationRecordsGenericFailureWithoutPromotion(t *testin
 		ID: "claim-reconciliation:failed", PacketHash: "failed", GenerationID: "GEN-failed", Workflow: "sp-debug",
 		ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
-			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "generic suite failed",
+			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "generic suite failed",
 			Verification: &ClaimReconciliationVerification{ID: "V-failed", Result: claim.VerificationFailed, Command: "go test ./..."},
 		}},
 	})
@@ -138,8 +138,8 @@ func TestApplyClaimReconciliationPreflightsWholeBatchBeforeWriting(t *testing.T)
 		ID: "claim-reconciliation:atomic", PacketHash: "atomic", GenerationID: "GEN-atomic", Workflow: "sp-plan",
 		ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{
-			{ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "valid first item", Evidence: evidence("E-atomic-1")},
-			{ClaimID: "claim:missing", ExpectedState: claim.StateStale, Reason: "invalid second item", Evidence: evidence("E-atomic-2")},
+			{ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "valid first item", Evidence: evidence("E-atomic-1")},
+			{ClaimID: "claim:missing", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "invalid second item", Evidence: evidence("E-atomic-2")},
 		},
 	})
 	if err == nil {
@@ -179,7 +179,7 @@ func TestApplyClaimReconciliationCanReplaceContradictedBasis(t *testing.T) {
 		ID: "claim-reconciliation:recover", PacketHash: "recover", GenerationID: "GEN-recover", Workflow: "sp-debug",
 		ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
-			ClaimID: "claim:app-owner", ExpectedState: claim.StateContradicted, Reason: "new bounded basis resolves counterexample",
+			ClaimID: "claim:app-owner", ExpectedState: claim.StateContradicted, ExpectedRevision: 1, Reason: "new bounded basis resolves counterexample",
 			Evidence:     []ClaimReconciliationEvidence{{ID: "E-recover", SourceKind: "test", SourcePath: "src/app.go", Span: "L1", ContentHash: "sha256:recover", Role: "supporting"}},
 			Verification: &ClaimReconciliationVerification{ID: "V-recover", Result: claim.VerificationPassed, Command: "go test ./..."},
 		}},
@@ -218,7 +218,7 @@ func TestApplyClaimReconciliationIsIdempotentAndRejectsStaleWriters(t *testing.T
 		ID: "claim-reconciliation:packet-replay", PacketHash: "packet-replay", GenerationID: "GEN-replay",
 		Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
-			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "bounded_live_read",
+			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "bounded_live_read",
 			Evidence:     []ClaimReconciliationEvidence{{ID: "E-replay", SourceKind: "source", SourcePath: "src/app.go", Span: "L1-L5", ContentHash: "sha256:replay", Role: "supporting"}},
 			Verification: &ClaimReconciliationVerification{ID: "V-replay", Result: claim.VerificationPassed, Command: "go test ./..."},
 		}},
@@ -240,7 +240,7 @@ func TestApplyClaimReconciliationIsIdempotentAndRejectsStaleWriters(t *testing.T
 	conflict.ObservedAt = "2026-07-13T08:59:59Z"
 	conflict.Items = append([]ClaimReconciliationItem(nil), batch.Items...)
 	conflict.Items[0].ExpectedState = claim.StateVerified
-	if _, err := st.ApplyClaimReconciliation(ctx, conflict); err == nil || !strings.Contains(err.Error(), "not newer than latest verification") {
+	if _, err := st.ApplyClaimReconciliation(ctx, conflict); err == nil || !strings.Contains(err.Error(), "revision") {
 		t.Fatal("older reconciliation succeeded, want stale-writer rejection")
 	}
 	replayConflict := batch
@@ -285,7 +285,7 @@ func TestApplyClaimReconciliationDerivesSupportedContradictedAndBlockedStates(t 
 			result, err := st.ApplyClaimReconciliation(ctx, ClaimReconciliationBatch{
 				ID: "claim-reconciliation:case", PacketHash: "case", GenerationID: "GEN-case", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 				Items: []ClaimReconciliationItem{{
-					ClaimID: "claim:app", ExpectedState: tt.from, Reason: "case evidence",
+					ClaimID: "claim:app", ExpectedState: tt.from, ExpectedRevision: 1, Reason: "case evidence",
 					Evidence:     []ClaimReconciliationEvidence{{ID: "E-case", SourceKind: "source", SourcePath: "src/app.go", Span: "L1", ContentHash: "sha256:case", Role: tt.evidenceRole}},
 					Verification: tt.verification,
 				}},
@@ -311,7 +311,7 @@ func TestValidateClaimReconciliationBatchRejectsInvalidContracts(t *testing.T) {
 	valid := ClaimReconciliationBatch{
 		ID: "claim-reconciliation:valid", PacketHash: "valid", GenerationID: "GEN", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
-			ClaimID: "claim:app", ExpectedState: claim.StateStale, Reason: "bounded evidence",
+			ClaimID: "claim:app", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "bounded evidence",
 			Evidence:     []ClaimReconciliationEvidence{{ID: "E-valid", SourceKind: "source", SourcePath: "src/app.go", Span: "L1", ContentHash: "sha256:valid", Role: "supporting"}},
 			Verification: &ClaimReconciliationVerification{ID: "V-valid", Result: claim.VerificationPassed, Command: "go test ./..."},
 		}},

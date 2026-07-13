@@ -46,6 +46,7 @@ type PreparePayload struct {
 	ResultState        string                  `json:"result_state"`
 	ContractVersion    int                     `json:"claim_reconciliation_prepare_contract_version"`
 	PrepareID          string                  `json:"prepare_id"`
+	ExpiresAt          string                  `json:"expires_at"`
 	PreparedPacketPath string                  `json:"prepared_packet_path"`
 	ApplyArgv          []string                `json:"apply_argv"`
 	EpistemicContract  query.EpistemicContract `json:"epistemic_contract"`
@@ -105,17 +106,19 @@ func prepareAt(paths rt.Paths, request PrepareRequest, observedAt time.Time) (Pr
 
 	packet := Packet{
 		ContractVersion: CurrentContractVersion, ExpectedGenerationID: snapshot.GenerationID,
-		Workflow: request.Workflow, ObservedAt: observedAt.UTC().Format(time.RFC3339Nano),
+		Workflow: request.Workflow, ObservedAt: observedAt.UTC().Format(time.RFC3339Nano), ExpiresAt: observedAt.UTC().Add(preparedPacketTTL).Format(time.RFC3339Nano),
 		Items: make([]Item, 0, len(request.Items)),
 	}
+	packet.RepositorySnapshot = readRepositorySnapshot(paths.Root)
 	matcher := ignore.Load(paths.Root)
 	root, err := filepath.Abs(paths.Root)
 	if err != nil {
 		return PreparePayload{}, fmt.Errorf("resolve project root for claim reconciliation prepare: %w", err)
 	}
 	for _, requestedItem := range request.Items {
+		head := snapshot.Claims[requestedItem.ClaimID]
 		item := Item{
-			ClaimID: requestedItem.ClaimID, ExpectedState: snapshot.States[requestedItem.ClaimID],
+			ClaimID: requestedItem.ClaimID, ExpectedState: head.State, ExpectedRevision: head.Revision,
 			Reason: requestedItem.Reason, Verification: requestedItem.Verification,
 			Evidence: make([]Evidence, 0, len(requestedItem.Evidence)),
 		}
@@ -136,7 +139,24 @@ func prepareAt(paths rt.Paths, request PrepareRequest, observedAt time.Time) (Pr
 				Role: requestedEvidence.Role, ExpectedContentHash: contentHash,
 			})
 		}
+		sort.Slice(item.Evidence, func(i, j int) bool {
+			left := item.Evidence[i]
+			right := item.Evidence[j]
+			return left.SourceKind+"\x00"+left.SourcePath+"\x00"+left.Span+"\x00"+left.Role+"\x00"+left.ExpectedContentHash < right.SourceKind+"\x00"+right.SourcePath+"\x00"+right.Span+"\x00"+right.Role+"\x00"+right.ExpectedContentHash
+		})
 		packet.Items = append(packet.Items, item)
+	}
+	if after := readRepositorySnapshot(paths.Root); after != packet.RepositorySnapshot {
+		return PreparePayload{}, fmt.Errorf("repository snapshot changed while preparing claim reconciliation")
+	}
+	prepareDigest, err := canonicalPrepareDigest(packet)
+	if err != nil {
+		return PreparePayload{}, err
+	}
+	packet.PrepareID = "claim-reconciliation-prepare:" + prepareDigest[:24]
+	packet.PacketHash, err = canonicalPacketHash(packet)
+	if err != nil {
+		return PreparePayload{}, err
 	}
 	packet, err = normalizeAndValidatePacket(packet)
 	if err != nil {
@@ -146,18 +166,35 @@ func prepareAt(paths rt.Paths, request PrepareRequest, observedAt time.Time) (Pr
 	if err != nil {
 		return PreparePayload{}, fmt.Errorf("encode prepared claim reconciliation packet: %w", err)
 	}
-	packetDigest := digestHex(packetJSON)
-	prepareID := "claim-reconciliation-prepare:" + packetDigest[:24]
+	packetDigest := strings.TrimPrefix(packet.PacketHash, "sha256:")
 	preparedPath, err := writePreparedPacket(paths, packetDigest[:24], packetJSON)
 	if err != nil {
 		return PreparePayload{}, err
 	}
 	return PreparePayload{
 		Status: "ok", ResultState: "prepared", ContractVersion: CurrentPrepareContractVersion,
-		PrepareID: prepareID, PreparedPacketPath: preparedPath,
+		PrepareID: packet.PrepareID, ExpiresAt: packet.ExpiresAt, PreparedPacketPath: preparedPath,
 		ApplyArgv:         []string{"project-cognition", "claim-reconcile", "apply", "--input", preparedPath, "--format", "json"},
 		EpistemicContract: query.NewEpistemicContract(),
 	}, nil
+}
+
+func canonicalPrepareDigest(packet Packet) (string, error) {
+	packet.PrepareID = ""
+	packet.PacketHash = ""
+	data, err := json.Marshal(packet)
+	if err != nil {
+		return "", fmt.Errorf("encode canonical claim reconciliation preparation: %w", err)
+	}
+	return digestHex(data), nil
+}
+
+func readRepositorySnapshot(root string) RepositorySnapshot {
+	commitSHA, err := rt.GitHead(root)
+	if err != nil || strings.TrimSpace(commitSHA) == "" {
+		return RepositorySnapshot{Kind: "content_only"}
+	}
+	return RepositorySnapshot{Kind: "git_head", CommitSHA: strings.TrimSpace(commitSHA)}
 }
 
 func PrepareBlockedPayload(err error) PrepareErrorPayload {

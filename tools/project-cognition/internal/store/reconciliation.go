@@ -23,11 +23,12 @@ type ClaimReconciliationBatch struct {
 }
 
 type ClaimReconciliationItem struct {
-	ClaimID       string
-	ExpectedState claim.State
-	Reason        string
-	Evidence      []ClaimReconciliationEvidence
-	Verification  *ClaimReconciliationVerification
+	ClaimID          string
+	ExpectedState    claim.State
+	ExpectedRevision int64
+	Reason           string
+	Evidence         []ClaimReconciliationEvidence
+	Verification     *ClaimReconciliationVerification
 }
 
 type ClaimReconciliationEvidence struct {
@@ -65,7 +66,12 @@ type ClaimReconciliationRecord struct {
 
 type ClaimReconciliationSnapshot struct {
 	GenerationID string
-	States       map[string]claim.State
+	Claims       map[string]ClaimReconciliationHead
+}
+
+type ClaimReconciliationHead struct {
+	State    claim.State
+	Revision int64
 }
 
 func (s *Store) ReadClaimReconciliationSnapshot(ctx context.Context, claimIDs []string) (ClaimReconciliationSnapshot, error) {
@@ -85,35 +91,37 @@ func (s *Store) ReadClaimReconciliationSnapshot(ctx context.Context, claimIDs []
 	if err != nil {
 		return ClaimReconciliationSnapshot{}, fmt.Errorf("read active generation for claim reconciliation snapshot: %w", err)
 	}
-	states := make(map[string]claim.State, len(claimIDs))
+	heads := make(map[string]ClaimReconciliationHead, len(claimIDs))
 	for _, claimID := range claimIDs {
 		claimID = strings.TrimSpace(claimID)
 		if claimID == "" {
 			return ClaimReconciliationSnapshot{}, fmt.Errorf("claim reconciliation snapshot contains an empty claim id")
 		}
-		if _, exists := states[claimID]; exists {
+		if _, exists := heads[claimID]; exists {
 			return ClaimReconciliationSnapshot{}, fmt.Errorf("claim reconciliation snapshot contains duplicate claim %q", claimID)
 		}
 		var stateValue string
-		err := tx.QueryRowContext(ctx, `SELECT state FROM claims WHERE generation_id = ? AND id = ?`, generationID, claimID).Scan(&stateValue)
+		var revision int64
+		err := tx.QueryRowContext(ctx, `SELECT state, revision FROM claims WHERE generation_id = ? AND id = ?`, generationID, claimID).Scan(&stateValue, &revision)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ClaimReconciliationSnapshot{}, fmt.Errorf("claim %q does not exist in active generation %q", claimID, generationID)
 		}
 		if err != nil {
 			return ClaimReconciliationSnapshot{}, fmt.Errorf("read claim %q for reconciliation snapshot: %w", claimID, err)
 		}
-		states[claimID] = claim.State(stateValue)
+		heads[claimID] = ClaimReconciliationHead{State: claim.State(stateValue), Revision: revision}
 	}
 	if err := tx.Commit(); err != nil {
 		return ClaimReconciliationSnapshot{}, fmt.Errorf("commit claim reconciliation snapshot: %w", err)
 	}
-	return ClaimReconciliationSnapshot{GenerationID: generationID, States: states}, nil
+	return ClaimReconciliationSnapshot{GenerationID: generationID, Claims: heads}, nil
 }
 
 type reconciliationPreflight struct {
 	item          ClaimReconciliationItem
 	from          claim.State
 	freshness     claim.Freshness
+	revision      int64
 	decision      claim.ReconciliationDecision
 	basisAccepted bool
 }
@@ -163,7 +171,8 @@ func (s *Store) ApplyClaimReconciliation(ctx context.Context, input ClaimReconci
 		}
 		seenClaims[item.ClaimID] = true
 		var stateValue, freshnessValue string
-		err := tx.QueryRowContext(ctx, `SELECT state, freshness FROM claims WHERE generation_id = ? AND id = ?`, activeGenerationID, item.ClaimID).Scan(&stateValue, &freshnessValue)
+		var revision int64
+		err := tx.QueryRowContext(ctx, `SELECT state, freshness, revision FROM claims WHERE generation_id = ? AND id = ?`, activeGenerationID, item.ClaimID).Scan(&stateValue, &freshnessValue, &revision)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ClaimReconciliationResult{}, fmt.Errorf("claim %q does not exist in active generation %q", item.ClaimID, activeGenerationID)
 		}
@@ -171,6 +180,9 @@ func (s *Store) ApplyClaimReconciliation(ctx context.Context, input ClaimReconci
 			return ClaimReconciliationResult{}, fmt.Errorf("read claim %q for reconciliation: %w", item.ClaimID, err)
 		}
 		from := claim.State(stateValue)
+		if item.ExpectedRevision != revision {
+			return ClaimReconciliationResult{}, fmt.Errorf("claim %q expected revision %d but current revision is %d", item.ClaimID, item.ExpectedRevision, revision)
+		}
 		if item.ExpectedState != from {
 			return ClaimReconciliationResult{}, fmt.Errorf("claim %q expected state %q but current state is %q", item.ClaimID, item.ExpectedState, from)
 		}
@@ -203,7 +215,7 @@ func (s *Store) ApplyClaimReconciliation(ctx context.Context, input ClaimReconci
 			return ClaimReconciliationResult{}, fmt.Errorf("claim %q cannot reconcile from %q to %q", item.ClaimID, from, decision.State)
 		}
 		preflight = append(preflight, reconciliationPreflight{
-			item: item, from: from, freshness: claim.Freshness(freshnessValue), decision: decision,
+			item: item, from: from, freshness: claim.Freshness(freshnessValue), revision: revision, decision: decision,
 			basisAccepted: reconciliationBasisAccepted(signals),
 		})
 	}
@@ -239,7 +251,7 @@ func (s *Store) ApplyClaimReconciliation(ctx context.Context, input ClaimReconci
 func validateReconciliationBatch(input ClaimReconciliationBatch) error {
 	for name, value := range map[string]string{
 		"id": input.ID, "packet hash": input.PacketHash, "generation id": input.GenerationID,
-		"workflow": input.Workflow, "observed_at": input.ObservedAt, "commit sha": input.CommitSHA,
+		"workflow": input.Workflow, "observed_at": input.ObservedAt,
 	} {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("claim reconciliation %s is required", name)
@@ -256,8 +268,8 @@ func validateReconciliationBatch(input ClaimReconciliationBatch) error {
 		return fmt.Errorf("claim reconciliation requires at least one item")
 	}
 	for _, item := range input.Items {
-		if strings.TrimSpace(item.ClaimID) == "" || strings.TrimSpace(string(item.ExpectedState)) == "" || strings.TrimSpace(item.Reason) == "" {
-			return fmt.Errorf("claim reconciliation item requires claim_id, expected_state, and reason")
+		if strings.TrimSpace(item.ClaimID) == "" || strings.TrimSpace(string(item.ExpectedState)) == "" || item.ExpectedRevision < 1 || strings.TrimSpace(item.Reason) == "" {
+			return fmt.Errorf("claim reconciliation item requires claim_id, expected_state, expected_revision, and reason")
 		}
 		if len(item.Evidence) == 0 && item.Verification == nil {
 			return fmt.Errorf("claim %q reconciliation requires evidence or verification", item.ClaimID)
@@ -298,20 +310,32 @@ func validateReconciliationBatch(input ClaimReconciliationBatch) error {
 }
 
 func replayedClaimReconciliation(ctx context.Context, tx *sql.Tx, input ClaimReconciliationBatch) (ClaimReconciliationResult, bool, error) {
+	return replayClaimReconciliation(ctx, tx, input.ID, input.GenerationID, input.PacketHash)
+}
+
+func (s *Store) ReplayClaimReconciliation(ctx context.Context, id, generationID, packetHash string) (ClaimReconciliationResult, bool, error) {
+	return replayClaimReconciliation(ctx, s.db, id, generationID, packetHash)
+}
+
+type reconciliationRowQuerier interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func replayClaimReconciliation(ctx context.Context, querier reconciliationRowQuerier, id, expectedGenerationID, expectedPacketHash string) (ClaimReconciliationResult, bool, error) {
 	var generationID, packetHash, attrsJSON string
-	err := tx.QueryRowContext(ctx, `SELECT generation_id, packet_hash, attrs_json FROM claim_reconciliations WHERE id = ?`, input.ID).Scan(&generationID, &packetHash, &attrsJSON)
+	err := querier.QueryRowContext(ctx, `SELECT generation_id, packet_hash, attrs_json FROM claim_reconciliations WHERE id = ?`, id).Scan(&generationID, &packetHash, &attrsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ClaimReconciliationResult{}, false, nil
 	}
 	if err != nil {
-		return ClaimReconciliationResult{}, false, fmt.Errorf("read claim reconciliation replay %q: %w", input.ID, err)
+		return ClaimReconciliationResult{}, false, fmt.Errorf("read claim reconciliation replay %q: %w", id, err)
 	}
-	if generationID != input.GenerationID || packetHash != input.PacketHash {
-		return ClaimReconciliationResult{}, false, fmt.Errorf("claim reconciliation id %q conflicts with an existing packet", input.ID)
+	if generationID != expectedGenerationID || packetHash != expectedPacketHash {
+		return ClaimReconciliationResult{}, false, fmt.Errorf("claim reconciliation id %q conflicts with an existing packet", id)
 	}
 	var result ClaimReconciliationResult
 	if err := json.Unmarshal([]byte(attrsJSON), &result); err != nil {
-		return ClaimReconciliationResult{}, false, fmt.Errorf("decode claim reconciliation replay %q: %w", input.ID, err)
+		return ClaimReconciliationResult{}, false, fmt.Errorf("decode claim reconciliation replay %q: %w", id, err)
 	}
 	result.Replayed = true
 	return result, true, nil
@@ -387,11 +411,15 @@ func applyClaimReconciliationItem(ctx context.Context, tx *sql.Tx, batch ClaimRe
 	}
 
 	transitionID := ""
-	if planned.basisAccepted {
-		if planned.decision.State != planned.from {
-			if _, err := tx.ExecContext(ctx, `UPDATE claims SET prior_state = state, state = ?, freshness = ?, state_reason = ?, updated_at = ? WHERE generation_id = ? AND id = ?`, planned.decision.State, planned.decision.Freshness, item.Reason, batch.ObservedAt, batch.GenerationID, item.ClaimID); err != nil {
-				return ClaimReconciliationRecord{}, fmt.Errorf("update reconciled claim %q: %w", item.ClaimID, err)
-			}
+	if planned.decision.State != planned.from {
+		result, err := tx.ExecContext(ctx, `UPDATE claims SET prior_state = state, state = ?, freshness = ?, state_reason = ?, revision = revision + 1, updated_at = ? WHERE generation_id = ? AND id = ? AND revision = ?`, planned.decision.State, planned.decision.Freshness, item.Reason, batch.ObservedAt, batch.GenerationID, item.ClaimID, planned.revision)
+		if err != nil {
+			return ClaimReconciliationRecord{}, fmt.Errorf("update reconciled claim %q: %w", item.ClaimID, err)
+		}
+		if err := requireSingleClaimRevisionUpdate(result, item.ClaimID); err != nil {
+			return ClaimReconciliationRecord{}, err
+		}
+		if planned.basisAccepted {
 			transitionID = "claim-transition:reconcile:" + stableIDPart(batch.ID) + ":" + stableIDPart(item.ClaimID)
 			attrs, err := attrsJSONOrEmpty(map[string]any{"reconciliation_id": batch.ID, "workflow": batch.Workflow})
 			if err != nil {
@@ -400,14 +428,29 @@ func applyClaimReconciliationItem(ctx context.Context, tx *sql.Tx, batch ClaimRe
 			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_transitions(id, claim_id, generation_id, from_state, to_state, reason, evidence_id, occurred_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`, transitionID, item.ClaimID, batch.GenerationID, planned.from, planned.decision.State, item.Reason, verificationEvidenceID, batch.ObservedAt, attrs); err != nil {
 				return ClaimReconciliationRecord{}, fmt.Errorf("insert claim %q reconciliation transition: %w", item.ClaimID, err)
 			}
-		} else {
-			if _, err := tx.ExecContext(ctx, `UPDATE claims SET freshness = ?, state_reason = ?, updated_at = ? WHERE generation_id = ? AND id = ?`, planned.decision.Freshness, item.Reason, batch.ObservedAt, batch.GenerationID, item.ClaimID); err != nil {
-				return ClaimReconciliationRecord{}, fmt.Errorf("refresh reconciled claim %q: %w", item.ClaimID, err)
-			}
+		}
+	} else {
+		result, err := tx.ExecContext(ctx, `UPDATE claims SET freshness = ?, state_reason = ?, revision = revision + 1, updated_at = ? WHERE generation_id = ? AND id = ? AND revision = ?`, planned.decision.Freshness, item.Reason, batch.ObservedAt, batch.GenerationID, item.ClaimID, planned.revision)
+		if err != nil {
+			return ClaimReconciliationRecord{}, fmt.Errorf("refresh reconciled claim %q: %w", item.ClaimID, err)
+		}
+		if err := requireSingleClaimRevisionUpdate(result, item.ClaimID); err != nil {
+			return ClaimReconciliationRecord{}, err
 		}
 	}
 	return ClaimReconciliationRecord{
 		ClaimID: item.ClaimID, FromState: planned.from, ToState: planned.decision.State, StateReason: item.Reason,
 		EvidenceIDs: evidenceIDs, VerificationID: verificationID, TransitionID: transitionID,
 	}, nil
+}
+
+func requireSingleClaimRevisionUpdate(result sql.Result, claimID string) error {
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read claim %q revision update result: %w", claimID, err)
+	}
+	if rows != 1 {
+		return fmt.Errorf("claim %q revision changed during reconciliation", claimID)
+	}
+	return nil
 }

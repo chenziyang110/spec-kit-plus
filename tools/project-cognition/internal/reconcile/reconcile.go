@@ -26,24 +26,36 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
-const CurrentContractVersion = 1
+const CurrentContractVersion = 2
+
+const preparedPacketTTL = 5 * time.Minute
 
 var sha256Pattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 type Packet struct {
-	ContractVersion      int    `json:"claim_reconciliation_contract_version"`
-	ExpectedGenerationID string `json:"expected_generation_id"`
-	Workflow             string `json:"workflow"`
-	ObservedAt           string `json:"observed_at"`
-	Items                []Item `json:"items"`
+	ContractVersion      int                `json:"claim_reconciliation_contract_version"`
+	PrepareID            string             `json:"prepare_id"`
+	PacketHash           string             `json:"packet_hash"`
+	ExpectedGenerationID string             `json:"expected_generation_id"`
+	Workflow             string             `json:"workflow"`
+	ObservedAt           string             `json:"observed_at"`
+	ExpiresAt            string             `json:"expires_at"`
+	RepositorySnapshot   RepositorySnapshot `json:"repository_snapshot"`
+	Items                []Item             `json:"items"`
+}
+
+type RepositorySnapshot struct {
+	Kind      string `json:"kind"`
+	CommitSHA string `json:"commit_sha,omitempty"`
 }
 
 type Item struct {
-	ClaimID       string        `json:"claim_id"`
-	ExpectedState claim.State   `json:"expected_state"`
-	Reason        string        `json:"reason"`
-	Evidence      []Evidence    `json:"evidence"`
-	Verification  *Verification `json:"verification,omitempty"`
+	ClaimID          string        `json:"claim_id"`
+	ExpectedState    claim.State   `json:"expected_state"`
+	ExpectedRevision int64         `json:"expected_revision"`
+	Reason           string        `json:"reason"`
+	Evidence         []Evidence    `json:"evidence"`
+	Verification     *Verification `json:"verification,omitempty"`
 }
 
 type Evidence struct {
@@ -98,33 +110,42 @@ func ParsePacket(data []byte) (Packet, error) {
 }
 
 func Run(paths rt.Paths, packet Packet) (Payload, error) {
+	return runAt(paths, packet, time.Now().UTC())
+}
+
+func runAt(paths rt.Paths, packet Packet, now time.Time) (Payload, error) {
 	packet, err := normalizeAndValidatePacket(packet)
 	if err != nil {
+		return Payload{}, err
+	}
+	packetDigest := strings.TrimPrefix(packet.PacketHash, "sha256:")
+	reconciliationID := "claim-reconciliation:" + packetDigest[:24]
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		return Payload{}, fmt.Errorf("open graph store for claim reconciliation: %w", err)
+	}
+	defer st.Close()
+	if replayed, found, err := st.ReplayClaimReconciliation(context.Background(), reconciliationID, packet.ExpectedGenerationID, packet.PacketHash); err != nil {
+		return Payload{}, err
+	} else if found {
+		return payloadFromStoreResult(replayed), nil
+	}
+	if err := validateApplyWindow(packet, now); err != nil {
 		return Payload{}, err
 	}
 	preparedEvidence, err := prepareEvidence(paths, packet)
 	if err != nil {
 		return Payload{}, err
 	}
-	packetJSON, err := json.Marshal(packet)
-	if err != nil {
-		return Payload{}, fmt.Errorf("encode canonical claim reconciliation packet: %w", err)
-	}
-	packetDigest := digestHex(packetJSON)
-	reconciliationID := "claim-reconciliation:" + packetDigest[:24]
-	commitSHA, err := rt.GitHead(paths.Root)
-	if err != nil || strings.TrimSpace(commitSHA) == "" {
-		commitSHA = "working-tree-unavailable"
-	}
 
 	batch := store.ClaimReconciliationBatch{
-		ID: reconciliationID, PacketHash: "sha256:" + packetDigest, GenerationID: packet.ExpectedGenerationID,
-		Workflow: packet.Workflow, ObservedAt: packet.ObservedAt, CommitSHA: commitSHA,
+		ID: reconciliationID, PacketHash: packet.PacketHash, GenerationID: packet.ExpectedGenerationID,
+		Workflow: packet.Workflow, ObservedAt: packet.ObservedAt, CommitSHA: packet.RepositorySnapshot.CommitSHA,
 		Items: make([]store.ClaimReconciliationItem, 0, len(packet.Items)),
 	}
 	for itemIndex, item := range packet.Items {
 		storeItem := store.ClaimReconciliationItem{
-			ClaimID: item.ClaimID, ExpectedState: item.ExpectedState, Reason: item.Reason,
+			ClaimID: item.ClaimID, ExpectedState: item.ExpectedState, ExpectedRevision: item.ExpectedRevision, Reason: item.Reason,
 			Evidence: make([]store.ClaimReconciliationEvidence, 0, len(item.Evidence)),
 		}
 		for evidenceIndex, evidence := range item.Evidence {
@@ -143,15 +164,14 @@ func Run(paths rt.Paths, packet Packet) (Payload, error) {
 		batch.Items = append(batch.Items, storeItem)
 	}
 
-	st, err := store.Open(paths)
-	if err != nil {
-		return Payload{}, fmt.Errorf("open graph store for claim reconciliation: %w", err)
-	}
-	defer st.Close()
 	result, err := st.ApplyClaimReconciliation(context.Background(), batch)
 	if err != nil {
 		return Payload{}, err
 	}
+	return payloadFromStoreResult(result), nil
+}
+
+func payloadFromStoreResult(result store.ClaimReconciliationResult) Payload {
 	action := "rerun_compass_once"
 	if result.ResultState != "ready" {
 		action = "collect_claim_specific_live_evidence"
@@ -160,7 +180,7 @@ func Run(paths rt.Paths, packet Packet) (Payload, error) {
 		Status: "ok", ResultState: result.ResultState, ContractVersion: CurrentContractVersion,
 		ReconciliationID: result.ID, ActiveGenerationID: result.ActiveGenerationID, Replayed: result.Replayed,
 		ReconciledClaims: result.Claims, RecommendedAction: action, EpistemicContract: query.NewEpistemicContract(),
-	}, nil
+	}
 }
 
 func BlockedPayload(err error) ErrorPayload {
@@ -176,21 +196,49 @@ func BlockedPayload(err error) ErrorPayload {
 
 func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 	packet = clonePacket(packet)
+	packet.PrepareID = strings.TrimSpace(packet.PrepareID)
+	packet.PacketHash = strings.ToLower(strings.TrimSpace(packet.PacketHash))
 	packet.ExpectedGenerationID = strings.TrimSpace(packet.ExpectedGenerationID)
 	packet.Workflow = strings.TrimSpace(packet.Workflow)
 	packet.ObservedAt = strings.TrimSpace(packet.ObservedAt)
+	packet.ExpiresAt = strings.TrimSpace(packet.ExpiresAt)
+	packet.RepositorySnapshot.Kind = strings.TrimSpace(packet.RepositorySnapshot.Kind)
+	packet.RepositorySnapshot.CommitSHA = strings.TrimSpace(packet.RepositorySnapshot.CommitSHA)
 	if packet.ContractVersion != CurrentContractVersion {
 		return Packet{}, fmt.Errorf("claim_reconciliation_contract_version %d is unsupported; expected %d", packet.ContractVersion, CurrentContractVersion)
 	}
-	if packet.ExpectedGenerationID == "" || packet.Workflow == "" || packet.ObservedAt == "" {
-		return Packet{}, fmt.Errorf("expected_generation_id, workflow, and observed_at are required")
+	if !strings.HasPrefix(packet.PrepareID, "claim-reconciliation-prepare:") || len(strings.TrimPrefix(packet.PrepareID, "claim-reconciliation-prepare:")) != 24 || !sha256Pattern.MatchString(packet.PacketHash) {
+		return Packet{}, fmt.Errorf("prepare_id and sha256 packet_hash are required")
+	}
+	if packet.ExpectedGenerationID == "" || packet.Workflow == "" || packet.ObservedAt == "" || packet.ExpiresAt == "" {
+		return Packet{}, fmt.Errorf("expected_generation_id, workflow, observed_at, and expires_at are required")
 	}
 	observedAt, err := time.Parse(time.RFC3339, packet.ObservedAt)
 	if err != nil {
 		return Packet{}, fmt.Errorf("observed_at must be RFC3339: %w", err)
 	}
-	if observedAt.After(time.Now().UTC().Add(5 * time.Minute)) {
-		return Packet{}, fmt.Errorf("observed_at must not be more than five minutes in the future")
+	expiresAt, err := time.Parse(time.RFC3339, packet.ExpiresAt)
+	if err != nil {
+		return Packet{}, fmt.Errorf("expires_at must be RFC3339: %w", err)
+	}
+	observedAt = observedAt.UTC()
+	expiresAt = expiresAt.UTC()
+	packet.ObservedAt = observedAt.Format(time.RFC3339Nano)
+	packet.ExpiresAt = expiresAt.Format(time.RFC3339Nano)
+	if expiresAt.Sub(observedAt) != preparedPacketTTL {
+		return Packet{}, fmt.Errorf("expires_at must be exactly five minutes after observed_at")
+	}
+	switch packet.RepositorySnapshot.Kind {
+	case "git_head":
+		if packet.RepositorySnapshot.CommitSHA == "" {
+			return Packet{}, fmt.Errorf("git_head repository snapshot requires commit_sha")
+		}
+	case "content_only":
+		if packet.RepositorySnapshot.CommitSHA != "" {
+			return Packet{}, fmt.Errorf("content_only repository snapshot must not include commit_sha")
+		}
+	default:
+		return Packet{}, fmt.Errorf("repository_snapshot.kind %q is invalid", packet.RepositorySnapshot.Kind)
 	}
 	if len(packet.Items) == 0 {
 		return Packet{}, fmt.Errorf("claim reconciliation requires at least one item")
@@ -200,8 +248,8 @@ func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 		item := &packet.Items[itemIndex]
 		item.ClaimID = strings.TrimSpace(item.ClaimID)
 		item.Reason = strings.TrimSpace(item.Reason)
-		if item.ClaimID == "" || item.Reason == "" || !validClaimState(item.ExpectedState) {
-			return Packet{}, fmt.Errorf("item %d requires claim_id, valid expected_state, and reason", itemIndex)
+		if item.ClaimID == "" || item.Reason == "" || !validClaimState(item.ExpectedState) || item.ExpectedRevision < 1 {
+			return Packet{}, fmt.Errorf("item %d requires claim_id, valid expected_state, positive expected_revision, and reason", itemIndex)
 		}
 		if seenClaims[item.ClaimID] {
 			return Packet{}, fmt.Errorf("duplicate claim_id %q", item.ClaimID)
@@ -250,11 +298,40 @@ func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 		sort.Slice(item.Evidence, func(i, j int) bool {
 			left := item.Evidence[i]
 			right := item.Evidence[j]
-			return left.SourcePath+"\x00"+left.Span+"\x00"+left.Role+"\x00"+left.ExpectedContentHash < right.SourcePath+"\x00"+right.Span+"\x00"+right.Role+"\x00"+right.ExpectedContentHash
+			return left.SourceKind+"\x00"+left.SourcePath+"\x00"+left.Span+"\x00"+left.Role+"\x00"+left.ExpectedContentHash < right.SourceKind+"\x00"+right.SourcePath+"\x00"+right.Span+"\x00"+right.Role+"\x00"+right.ExpectedContentHash
 		})
 	}
 	sort.Slice(packet.Items, func(i, j int) bool { return packet.Items[i].ClaimID < packet.Items[j].ClaimID })
+	expectedHash, err := canonicalPacketHash(packet)
+	if err != nil {
+		return Packet{}, err
+	}
+	if packet.PacketHash != expectedHash {
+		return Packet{}, fmt.Errorf("claim reconciliation packet hash mismatch: expected %s, observed %s", packet.PacketHash, expectedHash)
+	}
 	return packet, nil
+}
+
+func canonicalPacketHash(packet Packet) (string, error) {
+	packet.PacketHash = ""
+	data, err := json.Marshal(packet)
+	if err != nil {
+		return "", fmt.Errorf("encode canonical claim reconciliation packet: %w", err)
+	}
+	return "sha256:" + digestHex(data), nil
+}
+
+func validateApplyWindow(packet Packet, now time.Time) error {
+	observedAt, _ := time.Parse(time.RFC3339, packet.ObservedAt)
+	expiresAt, _ := time.Parse(time.RFC3339, packet.ExpiresAt)
+	now = now.UTC()
+	if observedAt.After(now.Add(5 * time.Minute)) {
+		return fmt.Errorf("claim reconciliation observed_at must not be more than five minutes in the future")
+	}
+	if now.After(expiresAt) {
+		return fmt.Errorf("claim reconciliation prepared packet expired at %s", packet.ExpiresAt)
+	}
+	return nil
 }
 
 func prepareEvidence(paths rt.Paths, packet Packet) ([][]string, error) {

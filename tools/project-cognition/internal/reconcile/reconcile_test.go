@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -16,25 +17,19 @@ import (
 )
 
 func TestParsePacketAcceptsOnlyCurrentDerivedStateContract(t *testing.T) {
-	raw := []byte(`{
-  "claim_reconciliation_contract_version": 1,
-  "expected_generation_id": "GEN-current",
-  "workflow": "sp-implement",
-  "observed_at": "2026-07-13T09:00:00Z",
-  "items": [{
-    "claim_id": "claim:app-owner",
-    "expected_state": "stale",
-    "reason": "bounded live read and claim-specific test",
-    "evidence": [{
-      "source_kind": "source",
-	      "source_path": "src/./app.go",
-      "span": "L1-L20",
-      "role": "supporting",
-      "expected_content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    }],
-    "verification": {"result": "passed", "command": "go test ./src/..."}
-  }]
-}`)
+	prepared := bindTestPacket(t, Packet{
+		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-implement", ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Items: []Item{{
+			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "bounded live read and claim-specific test",
+			Evidence:     []Evidence{{SourceKind: "source", SourcePath: "src/app.go", Span: "L1-L20", Role: "supporting", ExpectedContentHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+			Verification: &Verification{Result: claim.VerificationPassed, Command: "go test ./src/..."},
+		}},
+	})
+	raw, err := json.Marshal(prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = []byte(strings.Replace(string(raw), `"source_path":"src/app.go"`, `"source_path":"src/./app.go"`, 1))
 	packet, err := ParsePacket(raw)
 	if err != nil {
 		t.Fatal(err)
@@ -47,9 +42,9 @@ func TestParsePacketAcceptsOnlyCurrentDerivedStateContract(t *testing.T) {
 	}
 
 	for name, invalid := range map[string]string{
-		"legacy version":                     strings.Replace(string(raw), `"claim_reconciliation_contract_version": 1`, `"claim_reconciliation_contract_version": 0`, 1),
-		"requested target state":             strings.Replace(string(raw), `"expected_state": "stale",`, `"expected_state": "stale", "requested_state": "verified_in_graph_generation",`, 1),
-		"passed without supporting evidence": strings.Replace(string(raw), `"role": "supporting"`, `"role": "contradicting"`, 1),
+		"legacy version":                     strings.Replace(string(raw), `"claim_reconciliation_contract_version":2`, `"claim_reconciliation_contract_version":1`, 1),
+		"requested target state":             strings.Replace(string(raw), `"expected_state":"stale",`, `"expected_state":"stale","requested_state":"verified_in_graph_generation",`, 1),
+		"passed without supporting evidence": strings.Replace(string(raw), `"role":"supporting"`, `"role":"contradicting"`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := ParsePacket([]byte(invalid)); err == nil {
@@ -90,14 +85,14 @@ func TestRunReReadsBoundedEvidenceAndReturnsAdvisoryReconciliation(t *testing.T)
 		t.Fatal(err)
 	}
 
-	packet := Packet{
-		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-implement", ObservedAt: "2026-07-13T09:00:00Z",
+	packet := bindTestPacket(t, Packet{
+		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-implement", ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Items: []Item{{
-			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "bounded live evidence confirms owner",
+			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "bounded live evidence confirms owner",
 			Evidence:     []Evidence{{SourceKind: "source", SourcePath: "src/app.go", Span: "L1-L3", Role: "supporting", ExpectedContentHash: reconcileHash(content)}},
 			Verification: &Verification{Result: claim.VerificationPassed, Command: "go test ./src/..."},
 		}},
-	}
+	})
 	payload, err := Run(paths, packet)
 	if err != nil {
 		t.Fatal(err)
@@ -133,9 +128,9 @@ func TestRunRejectsHashMismatchAndUnsafeOrIgnoredPathsBeforeWriting(t *testing.T
 	}
 
 	base := Packet{
-		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z",
+		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Items: []Item{{
-			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "bounded read",
+			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "bounded read",
 			Evidence:     []Evidence{{SourceKind: "source", SourcePath: "src/app.go", Span: "L1", Role: "supporting", ExpectedContentHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
 			Verification: &Verification{Result: claim.VerificationPassed, Command: "go test ./..."},
 		}},
@@ -152,6 +147,7 @@ func TestRunRejectsHashMismatchAndUnsafeOrIgnoredPathsBeforeWriting(t *testing.T
 			packet.Items = append([]Item(nil), base.Items...)
 			packet.Items[0].Evidence = append([]Evidence(nil), base.Items[0].Evidence...)
 			mutate(&packet)
+			packet = bindTestPacket(t, packet)
 			if _, err := Run(paths, packet); err == nil {
 				t.Fatal("Run succeeded, want evidence preflight rejection")
 			}
@@ -204,13 +200,13 @@ func TestPacketValidationRejectsAmbiguousOrIncompleteInputs(t *testing.T) {
 		SourceKind: "source", SourcePath: "src/app.go", Span: "L1", Role: "supporting",
 		ExpectedContentHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
-	valid := Packet{
+	valid := bindTestPacket(t, Packet{
 		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z",
 		Items: []Item{{
-			ClaimID: "claim:app", ExpectedState: claim.StateStale, Reason: "bounded read", Evidence: []Evidence{validEvidence},
+			ClaimID: "claim:app", ExpectedState: claim.StateStale, ExpectedRevision: 1, Reason: "bounded read", Evidence: []Evidence{validEvidence},
 			Verification: &Verification{Result: claim.VerificationPassed, Command: "go test ./..."},
 		}},
-	}
+	})
 	tests := map[string]func(*Packet){
 		"missing generation":        func(packet *Packet) { packet.ExpectedGenerationID = "" },
 		"invalid observed time":     func(packet *Packet) { packet.ObservedAt = "yesterday" },
@@ -235,6 +231,22 @@ func TestPacketValidationRejectsAmbiguousOrIncompleteInputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func bindTestPacket(t *testing.T, packet Packet) Packet {
+	t.Helper()
+	observedAt, err := time.Parse(time.RFC3339, packet.ObservedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packet.PrepareID = "claim-reconciliation-prepare:000000000000000000000000"
+	packet.ExpiresAt = observedAt.UTC().Add(preparedPacketTTL).Format(time.RFC3339Nano)
+	packet.RepositorySnapshot = RepositorySnapshot{Kind: "content_only"}
+	packet.PacketHash, err = canonicalPacketHash(packet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return packet
 }
 
 func TestParsePacketRejectsTrailingJSONValues(t *testing.T) {
