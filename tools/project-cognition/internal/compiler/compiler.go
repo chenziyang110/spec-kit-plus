@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"path"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -222,13 +223,14 @@ func validatePath(category, identity, candidate string, result *Result) {
 		return
 	}
 	normalized := normalizePath(candidate)
+	cleaned := path.Clean(normalized)
 	reason := ""
 	switch {
-	case normalized == ".specify" || strings.HasPrefix(normalized, ".specify/"):
+	case cleaned == ".specify" || strings.HasPrefix(cleaned, ".specify/"):
 		reason = "reserved_runtime_path"
 	case filepath.IsAbs(candidate) || filepath.VolumeName(candidate) != "":
 		reason = "absolute_path"
-	case normalized == ".." || strings.HasPrefix(normalized, "../"):
+	case cleaned == ".." || strings.HasPrefix(cleaned, "../"):
 		reason = "path_outside_repository"
 	}
 	if reason != "" {
