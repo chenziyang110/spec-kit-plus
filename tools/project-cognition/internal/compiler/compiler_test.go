@@ -75,6 +75,68 @@ func TestCompileBlocksGraphClaimWithMissingReferences(t *testing.T) {
 	}
 }
 
+func TestCompileBlocksMalformedGraphClaimBeforePublication(t *testing.T) {
+	pkg := legacyPackageFixture()
+	pkg.Claims = []scanartifacts.ClaimRow{
+		{ID: "claim:missing-type", NodeID: "N-app", Summary: "Missing type"},
+		{ID: "claim:missing-summary", NodeID: "N-app", GraphClaimType: "runtime_owner"},
+		{
+			ID: "claim:evidence-role-conflict", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "Conflicting role",
+			SupportingEvidenceIDs: []string{"E-app"}, ContradictingEvidenceIDs: []string{"E-app"},
+		},
+		{
+			ID: "claim:invalid-verification", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "Invalid verification",
+			SupportingEvidenceIDs: []string{"E-app"},
+			Verifications:         []claim.Verification{{Result: "unknown", ObservedAt: ""}},
+		},
+	}
+
+	_, result := Compile(AdaptLegacy(pkg))
+	if result.PublicationAllowed {
+		t.Fatalf("publication_allowed = true, want false; result=%#v", result)
+	}
+	for _, want := range []string{
+		"missing_graph_claim_type",
+		"missing_summary",
+		"evidence_role_conflict:E-app",
+		"missing_verification_id",
+		"invalid_verification_result:unknown",
+		"verification_evidence_required",
+		"verification_observed_at_required",
+	} {
+		if !hasDecisionReason(result.Conflicts, want) {
+			t.Errorf("conflicts = %#v, want %q", result.Conflicts, want)
+		}
+	}
+}
+
+func TestCompileMergesEquivalentClaimVerificationIDsAndBlocksConflicts(t *testing.T) {
+	pkg := legacyPackageFixture()
+	verification := claim.Verification{
+		ID: "verification:owner", Result: claim.VerificationPassed, EvidenceID: "E-app", ObservedAt: "2026-07-13T10:00:00Z",
+	}
+	pkg.Claims = []scanartifacts.ClaimRow{{
+		ID: "claim:owner", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "App owns runtime behavior",
+		SupportingEvidenceIDs: []string{"E-app"}, Verifications: []claim.Verification{verification, verification},
+	}}
+
+	compiled, result := Compile(AdaptLegacy(pkg))
+	if !result.PublicationAllowed || len(compiled.Package.Claims[0].Verifications) != 1 {
+		t.Fatalf("compiled/result = %#v/%#v, want one merged verification", compiled, result)
+	}
+	if len(result.MergeRecords) != 1 || result.MergeRecords[0].Category != "claim_verification" {
+		t.Fatalf("merge records = %#v, want claim_verification merge", result.MergeRecords)
+	}
+
+	conflicting := verification
+	conflicting.Result = claim.VerificationFailed
+	pkg.Claims[0].Verifications = []claim.Verification{verification, conflicting}
+	_, result = Compile(AdaptLegacy(pkg))
+	if result.PublicationAllowed || !hasDecisionReason(result.Conflicts, "verification_identity_conflict:verification:owner") {
+		t.Fatalf("result = %#v, want conflicting verification ID block", result)
+	}
+}
+
 func TestCompileLegacyProposalIsDeterministicAcrossInputOrdering(t *testing.T) {
 	first := legacyPackageFixture()
 	second := legacyPackageFixture()
