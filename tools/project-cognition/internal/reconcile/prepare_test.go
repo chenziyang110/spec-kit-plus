@@ -109,6 +109,12 @@ func TestPrepareDerivesSnapshotHashesTimestampAndCanonicalPacket(t *testing.T) {
 	if packet.ContractVersion != CurrentContractVersion || packet.ExpectedGenerationID != "GEN-current" || packet.Workflow != "sp-implement" {
 		t.Fatalf("packet header = %#v, want runtime-derived current packet", packet)
 	}
+	if packet.PrepareID != prepared.PrepareID || packet.PacketHash == "" || packet.ExpiresAt != prepared.ExpiresAt {
+		t.Fatalf("packet integrity = %#v, prepared = %#v, want bound prepare id, hash, and expiry", packet, prepared)
+	}
+	if packet.RepositorySnapshot.Kind != "content_only" || packet.RepositorySnapshot.CommitSHA != "" {
+		t.Fatalf("repository snapshot = %#v, want explicit content-only fallback", packet.RepositorySnapshot)
+	}
 	if packet.ObservedAt != observedAt.Format(time.RFC3339Nano) {
 		t.Fatalf("observed_at = %q, want %q", packet.ObservedAt, observedAt.Format(time.RFC3339Nano))
 	}
@@ -117,6 +123,9 @@ func TestPrepareDerivesSnapshotHashesTimestampAndCanonicalPacket(t *testing.T) {
 	}
 	if packet.Items[0].ExpectedState != claim.StateContradicted || packet.Items[1].ExpectedState != claim.StateStale {
 		t.Fatalf("expected states = %q, %q, want active graph snapshot", packet.Items[0].ExpectedState, packet.Items[1].ExpectedState)
+	}
+	if packet.Items[0].ExpectedRevision != 1 || packet.Items[1].ExpectedRevision != 1 {
+		t.Fatalf("expected revisions = %d, %d, want initial active claim revisions", packet.Items[0].ExpectedRevision, packet.Items[1].ExpectedRevision)
 	}
 	ownerEvidence := packet.Items[1].Evidence
 	if len(ownerEvidence) != 2 || ownerEvidence[0].SourcePath != "src/app.go" || ownerEvidence[1].SourcePath != "src/app_test.go" {
@@ -129,12 +138,130 @@ func TestPrepareDerivesSnapshotHashesTimestampAndCanonicalPacket(t *testing.T) {
 		t.Fatalf("owner hashes = %#v, want runtime-computed file hashes", ownerEvidence)
 	}
 
-	payload, err := Run(paths, packet)
+	payload, err := runAt(paths, packet, observedAt.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("prepared packet was not directly applicable: %v", err)
 	}
 	if payload.Status != "ok" || payload.ResultState != "ready" || len(payload.ReconciledClaims) != 2 {
 		t.Fatalf("payload = %#v, want direct prepare-to-apply success", payload)
+	}
+}
+
+func TestPrepareIsCanonicalAcrossSemanticInputOrdering(t *testing.T) {
+	_, paths := seedPrepareRepository(t)
+	observedAt := time.Now().UTC()
+	first := PrepareRequest{
+		ContractVersion: CurrentPrepareContractVersion, Workflow: "sp-plan",
+		Items: []PrepareItem{
+			{ClaimID: "claim:z-owner", Reason: "owner", Evidence: []PrepareEvidence{{SourcePath: "src/app_test.go", Span: "L1", Role: "supporting"}, {SourcePath: "src/app.go", Span: "L1", Role: "supporting"}}},
+			{ClaimID: "claim:a-contract", Reason: "contract", Evidence: []PrepareEvidence{{SourcePath: "config/runtime.json", Span: "L1", Role: "contradicting"}}},
+		},
+	}
+	second := PrepareRequest{
+		ContractVersion: CurrentPrepareContractVersion, Workflow: "sp-plan",
+		Items: []PrepareItem{first.Items[1], {ClaimID: first.Items[0].ClaimID, Reason: first.Items[0].Reason, Evidence: []PrepareEvidence{first.Items[0].Evidence[1], first.Items[0].Evidence[0]}}},
+	}
+	left, err := prepareAt(paths, first, observedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := prepareAt(paths, second, observedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if left.PrepareID != right.PrepareID || left.PreparedPacketPath != right.PreparedPacketPath {
+		t.Fatalf("left = %#v right = %#v, want canonical preparation", left, right)
+	}
+}
+
+func TestApplyRejectsTamperingExpiryAndClaimRevisionDriftWithoutMutation(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(t *testing.T, paths rt.Paths, packet *Packet, observedAt time.Time) time.Time
+		want   string
+	}{
+		{
+			name: "packet tampering",
+			mutate: func(t *testing.T, _ rt.Paths, packet *Packet, observedAt time.Time) time.Time {
+				packet.Items[0].Reason = "tampered after prepare"
+				return observedAt.Add(time.Minute)
+			},
+			want: "packet hash",
+		},
+		{
+			name: "expired packet",
+			mutate: func(t *testing.T, _ rt.Paths, packet *Packet, _ time.Time) time.Time {
+				expiresAt, err := time.Parse(time.RFC3339, packet.ExpiresAt)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return expiresAt.Add(time.Second)
+			},
+			want: "expired",
+		},
+		{
+			name: "claim revision drift",
+			mutate: func(t *testing.T, paths rt.Paths, _ *Packet, observedAt time.Time) time.Time {
+				st, err := store.OpenExisting(paths)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := st.MarkClaimsStale(context.Background(), []string{"claim:m-supported"}, "changed dependency", "test-prepare-drift"); err != nil {
+					_ = st.Close()
+					t.Fatal(err)
+				}
+				if err := st.Close(); err != nil {
+					t.Fatal(err)
+				}
+				return observedAt.Add(time.Minute)
+			},
+			want: "revision",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, paths := seedPrepareRepository(t)
+			observedAt := time.Now().UTC()
+			prepared, err := prepareAt(paths, PrepareRequest{
+				ContractVersion: CurrentPrepareContractVersion, Workflow: "sp-implement",
+				Items: []PrepareItem{{ClaimID: "claim:m-supported", Reason: "bounded owner evidence", Evidence: []PrepareEvidence{{SourcePath: "src/m.go", Span: "L1", Role: "supporting"}}}},
+			}, observedAt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			packet := readPreparedPacket(t, paths, prepared.PreparedPacketPath)
+			applyAt := test.mutate(t, paths, &packet, observedAt)
+			if _, err := runAt(paths, packet, applyAt); err == nil || !strings.Contains(strings.ToLower(err.Error()), test.want) {
+				t.Fatalf("runAt error = %v, want %q rejection", err, test.want)
+			}
+			if count := reconciliationCount(t, paths); count != 0 {
+				t.Fatalf("claim_reconciliations = %d, want failed apply to remain atomic", count)
+			}
+		})
+	}
+}
+
+func TestExactReplayPrecedesExpiryGenerationAndEvidenceRevalidation(t *testing.T) {
+	root, paths := seedPrepareRepository(t)
+	observedAt := time.Now().UTC()
+	prepared, err := prepareAt(paths, PrepareRequest{
+		ContractVersion: CurrentPrepareContractVersion, Workflow: "sp-plan",
+		Items: []PrepareItem{{ClaimID: "claim:z-owner", Reason: "bounded owner evidence", Evidence: []PrepareEvidence{{SourcePath: "src/app.go", Span: "L1", Role: "supporting"}}}},
+	}, observedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packet := readPreparedPacket(t, paths, prepared.PreparedPacketPath)
+	first, err := runAt(paths, packet, observedAt.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeReconcileFile(t, root, "src/app.go", []byte("changed after successful reconciliation\n"))
+	replayed, err := runAt(paths, packet, observedAt.Add(24*time.Hour))
+	if err != nil {
+		t.Fatalf("exact replay revalidated expired or changed evidence: %v", err)
+	}
+	if !replayed.Replayed || replayed.ReconciliationID != first.ReconciliationID {
+		t.Fatalf("replay = %#v, first = %#v, want cached exact result", replayed, first)
 	}
 }
 
@@ -211,6 +338,7 @@ func seedPrepareRepository(t *testing.T) (string, rt.Paths) {
 	writeReconcileFile(t, root, "src/app.go", []byte("package app\n\nfunc Owner() string { return \"app\" }\n"))
 	writeReconcileFile(t, root, "src/app_test.go", []byte("package app\n\nfunc TestOwner() {}\n"))
 	writeReconcileFile(t, root, "config/runtime.json", []byte("{\"owner\":\"other\"}\n"))
+	writeReconcileFile(t, root, "src/m.go", []byte("package m\n"))
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
 		t.Fatal(err)
@@ -225,10 +353,12 @@ func seedPrepareRepository(t *testing.T) (string, rt.Paths) {
 		Nodes: []store.NodeImport{
 			{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-old"}},
 			{ID: "N-contract", Type: "contract", Title: "Contract", Confidence: "verified", EvidenceIDs: []string{"E-old"}},
+			{ID: "N-m", Type: "capability", Title: "M", Confidence: "verified", EvidenceIDs: []string{"E-old"}},
 		},
 		Claims: []store.ClaimImport{
 			{ID: "claim:z-owner", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "App owns runtime behavior", State: claim.StateStale, PriorState: claim.StateSupported, Freshness: claim.FreshnessStale, StateReason: "changed_path", SupportingEvidenceIDs: []string{"E-old"}},
 			{ID: "claim:a-contract", NodeID: "N-contract", GraphClaimType: "contract", Summary: "Contract route is current", State: claim.StateContradicted, PriorState: claim.StateSupported, Freshness: claim.FreshnessFresh, StateReason: "counterexample", SupportingEvidenceIDs: []string{"E-old"}},
+			{ID: "claim:m-supported", NodeID: "N-m", GraphClaimType: "runtime_owner", Summary: "M owns runtime behavior", State: claim.StateSupported, Freshness: claim.FreshnessFresh, StateReason: "current", SupportingEvidenceIDs: []string{"E-old"}},
 		},
 	}
 	if _, err := st.ImportGeneration(context.Background(), seed); err != nil {
@@ -238,4 +368,31 @@ func seedPrepareRepository(t *testing.T) (string, rt.Paths) {
 		t.Fatal(err)
 	}
 	return root, paths
+}
+
+func readPreparedPacket(t *testing.T, paths rt.Paths, relative string) Packet {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(paths.Root, filepath.FromSlash(relative)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	packet, err := ParsePacket(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return packet
+}
+
+func reconciliationCount(t *testing.T, paths rt.Paths) int {
+	t.Helper()
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var count int
+	if err := st.DB().QueryRow(`SELECT COUNT(*) FROM claim_reconciliations`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
 }

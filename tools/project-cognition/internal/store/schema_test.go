@@ -50,8 +50,15 @@ func TestOpenInitializesSchemaV4WithCurrentClaimEvidenceBasis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta["schema_version"] != "4" {
-		t.Fatalf("schema_version = %q, want 4", meta["schema_version"])
+	if meta["schema_version"] != "5" {
+		t.Fatalf("schema_version = %q, want 5", meta["schema_version"])
+	}
+	columns, err := tableColumns(ctx, st.DB(), "claims")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !columns["revision"] {
+		t.Fatal("claims.revision is missing from the current schema")
 	}
 
 	for _, table := range RequiredTables() {
@@ -86,7 +93,7 @@ func TestOpenInitializesSchemaV4WithCurrentClaimEvidenceBasis(t *testing.T) {
 		}
 	}
 
-	columns, err := tableColumns(ctx, st.DB(), "claim_evidence")
+	columns, err = tableColumns(ctx, st.DB(), "claim_evidence")
 	if err != nil {
 		t.Fatal(err)
 	}
