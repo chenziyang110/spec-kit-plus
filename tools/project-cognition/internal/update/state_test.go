@@ -33,6 +33,26 @@ func TestRunUpdateInvalidatesOnlyAffectedGraphClaimsAndReportsIDs(t *testing.T) 
 		_ = st.Close()
 		t.Fatal(err)
 	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES('E-other', 'GEN-db', 'source', 'src/other.go', 'abc123', '', 'test', 'hash-other', '2026-07-13T00:00:00Z', '{}')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES('N-other', 'GEN-db', 'capability', 'Other', 'high', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-other', 'GEN-db', 'src/other.go', 'N-other', 'owns', 'high', 'E-other', '2026-07-13T00:00:00Z')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES('claim:other-owner', 'GEN-db', 'N-other', 'runtime_owner', 'Other owns unrelated behavior', ?, '', ?, 'supporting_evidence', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`, claim.StateSupported, claim.FreshnessFresh); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES('claim:other-owner', 'E-other', 'supporting')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
 	if err := st.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -55,6 +75,12 @@ func TestRunUpdateInvalidatesOnlyAffectedGraphClaimsAndReportsIDs(t *testing.T) 
 	}
 	if state != string(claim.StateStale) || priorState != string(claim.StateSupported) || freshness != string(claim.FreshnessStale) {
 		t.Fatalf("claim lifecycle = %q/%q/%q, want stale/supported/stale", state, priorState, freshness)
+	}
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, freshness FROM claims WHERE id = 'claim:other-owner'`).Scan(&state, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateSupported) || freshness != string(claim.FreshnessFresh) {
+		t.Fatalf("unrelated claim lifecycle = %q/%q, want supported/fresh", state, freshness)
 	}
 }
 
