@@ -53,30 +53,23 @@ func TestQueryPublishesEpistemicContractForEveryBaselineKind(t *testing.T) {
 
 func assertAdvisoryEpistemicContract(t *testing.T, contract EpistemicContract) {
 	t.Helper()
-	if contract.Version != 1 {
-		t.Fatalf("Version = %d, want 1", contract.Version)
+	if contract.ContractVersion != 1 {
+		t.Fatalf("ContractVersion = %d, want 1", contract.ContractVersion)
 	}
-	if contract.GraphRole != "advisory_navigation" {
-		t.Fatalf("GraphRole = %q, want advisory_navigation", contract.GraphRole)
+	if contract.GraphRole != "route_candidate_only" {
+		t.Fatalf("GraphRole = %q, want route_candidate_only", contract.GraphRole)
 	}
-	if contract.FactAuthority != "live_repository_evidence" {
-		t.Fatalf("FactAuthority = %q, want live_repository_evidence", contract.FactAuthority)
+	if contract.FactSourceOfTruth != "live_repository" {
+		t.Fatalf("FactSourceOfTruth = %q, want live_repository", contract.FactSourceOfTruth)
 	}
-	if contract.ReturnedContentStatus != "route_candidates" {
-		t.Fatalf("ReturnedContentStatus = %q, want route_candidates", contract.ReturnedContentStatus)
+	if !contract.LiveVerificationRequired {
+		t.Fatal("LiveVerificationRequired = false, want true")
 	}
-	if !contract.LiveEvidenceRequired {
-		t.Fatal("LiveEvidenceRequired = false, want true")
+	if contract.GraphOnlyClaimsAllowed {
+		t.Fatal("GraphOnlyClaimsAllowed = true, want false")
 	}
-	wantProhibited := []string{
-		"current_behavior_claim",
-		"root_cause_claim",
-		"fixed_claim",
-		"completed_claim",
-		"release_safe",
-	}
-	if !equalStrings(contract.ProhibitedClaims, wantProhibited) {
-		t.Fatalf("ProhibitedClaims = %#v, want %#v", contract.ProhibitedClaims, wantProhibited)
+	if contract.UnverifiedClaimAction != "withhold" {
+		t.Fatalf("UnverifiedClaimAction = %q, want withhold", contract.UnverifiedClaimAction)
 	}
 }
 
