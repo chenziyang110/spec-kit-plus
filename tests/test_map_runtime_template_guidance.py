@@ -14,6 +14,14 @@ SHARED_COGNITION_GUIDANCE_SURFACES = (
     "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
     "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 )
+EPISTEMIC_CONTRACT_TERMS = (
+    "epistemic_contract",
+    "route_candidate_only",
+    "fact_source_of_truth=live_repository",
+    "live_verification_required=true",
+    "graph_only_claims_allowed=false",
+    "unverified_claim_action=withhold",
+)
 SEMANTIC_WORK_CONTRACT_PARTIAL = (
     "templates/command-partials/common/semantic-work-contract.md"
 )
@@ -336,6 +344,35 @@ def test_shared_project_cognition_partials_require_semantic_intake_contract() ->
         content = _read(path).lower()
         for term in required_terms:
             assert term in content, f"{path} missing shared semantic intake term: {term}"
+
+
+def test_project_cognition_consumers_enforce_machine_readable_epistemic_contract() -> None:
+    contract_surfaces = (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/command-partials/common/semantic-work-contract.md",
+        "templates/command-partials/ask/shell.md",
+    )
+    for path in contract_surfaces:
+        content = _compact(_read(path).lower())
+        for term in EPISTEMIC_CONTRACT_TERMS:
+            assert term in content, f"{path} missing epistemic contract term: {term}"
+        assert "cannot authorize source changes" in content
+        assert "cannot prove current behavior" in content
+
+    integration_source = _compact(_read("src/specify_cli/integrations/base.py").lower())
+    for term in EPISTEMIC_CONTRACT_TERMS:
+        assert term in integration_source
+    assert "carry `epistemic_contract`" in integration_source
+
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in EPISTEMIC_CONTRACT_TERMS:
+            assert term in content, f"{path} missing epistemic contract term: {term}"
 
 
 def test_shared_semantic_work_contract_partial_defines_permission_and_learning_gates() -> None:
