@@ -127,7 +127,7 @@ func canonicalizeProposal(proposal CognitionProposal) CognitionProposal {
 	proposal.ProposalID = strings.TrimSpace(proposal.ProposalID)
 	proposal.SourceGenerationID = strings.TrimSpace(proposal.SourceGenerationID)
 	proposal.Scope = uniqueSortedStrings(proposal.Scope)
-	pkg := proposal.Package
+	pkg := clonePackage(proposal.Package)
 	for i := range pkg.Evidence {
 		pkg.Evidence[i].ID = strings.TrimSpace(pkg.Evidence[i].ID)
 		pkg.Evidence[i].SourcePath = normalizePath(pkg.Evidence[i].SourcePath)
@@ -298,10 +298,42 @@ func rebuildIdentities(pkg *scanartifacts.Package) {
 }
 
 func sortDecisions(result *Result) {
+	result.MergeRecords = uniqueMergeRecords(result.MergeRecords)
+	result.Rejections = uniqueDecisions(result.Rejections)
+	result.Conflicts = uniqueDecisions(result.Conflicts)
+	result.Unknowns = uniqueDecisions(result.Unknowns)
 	sort.Slice(result.MergeRecords, func(i, j int) bool { return stableJSON(result.MergeRecords[i]) < stableJSON(result.MergeRecords[j]) })
 	sort.Slice(result.Rejections, func(i, j int) bool { return stableJSON(result.Rejections[i]) < stableJSON(result.Rejections[j]) })
 	sort.Slice(result.Conflicts, func(i, j int) bool { return stableJSON(result.Conflicts[i]) < stableJSON(result.Conflicts[j]) })
 	sort.Slice(result.Unknowns, func(i, j int) bool { return stableJSON(result.Unknowns[i]) < stableJSON(result.Unknowns[j]) })
+}
+
+func uniqueDecisions(values []Decision) []Decision {
+	seen := map[string]bool{}
+	out := make([]Decision, 0, len(values))
+	for _, value := range values {
+		key := stableJSON(value)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func uniqueMergeRecords(values []MergeRecord) []MergeRecord {
+	seen := map[string]bool{}
+	out := make([]MergeRecord, 0, len(values))
+	for _, value := range values {
+		key := stableJSON(value)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func sortRows[T any](rows []T, identity func(T) string) {
@@ -350,6 +382,75 @@ func cloneBoolMap(values map[string]bool) map[string]bool {
 		out[key] = value
 	}
 	return out
+}
+
+func clonePackage(pkg scanartifacts.Package) scanartifacts.Package {
+	cloned := scanartifacts.Package{
+		Evidence:      make([]scanartifacts.EvidenceRow, len(pkg.Evidence)),
+		Nodes:         make([]scanartifacts.NodeRow, len(pkg.Nodes)),
+		Edges:         make([]scanartifacts.EdgeRow, len(pkg.Edges)),
+		Observations:  make([]scanartifacts.ObservationRow, len(pkg.Observations)),
+		CoveragePaths: append([]string(nil), pkg.CoveragePaths...),
+		AcceptedGaps:  cloneBoolMap(pkg.AcceptedGaps),
+		Identities: scanartifacts.IdentitySet{
+			Evidence:      cloneBoolMap(pkg.Identities.Evidence),
+			Nodes:         cloneBoolMap(pkg.Identities.Nodes),
+			Edges:         cloneBoolMap(pkg.Identities.Edges),
+			Observations:  cloneBoolMap(pkg.Identities.Observations),
+			CoveragePaths: cloneBoolMap(pkg.Identities.CoveragePaths),
+		},
+	}
+	for i, row := range pkg.Evidence {
+		row.Attrs = cloneAttrs(row.Attrs)
+		cloned.Evidence[i] = row
+	}
+	for i, row := range pkg.Nodes {
+		row.Paths = append([]string(nil), row.Paths...)
+		row.CanonicalPaths = append([]string(nil), row.CanonicalPaths...)
+		row.CompatibilityPaths = append([]string(nil), row.CompatibilityPaths...)
+		row.EvidenceIDs = append([]string(nil), row.EvidenceIDs...)
+		row.Attrs = cloneAttrs(row.Attrs)
+		cloned.Nodes[i] = row
+	}
+	for i, row := range pkg.Edges {
+		row.EvidenceIDs = append([]string(nil), row.EvidenceIDs...)
+		row.Attrs = cloneAttrs(row.Attrs)
+		cloned.Edges[i] = row
+	}
+	for i, row := range pkg.Observations {
+		row.EvidenceIDs = append([]string(nil), row.EvidenceIDs...)
+		row.Attrs = cloneAttrs(row.Attrs)
+		cloned.Observations[i] = row
+	}
+	return cloned
+}
+
+func cloneAttrs(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		out[key] = cloneValue(value)
+	}
+	return out
+}
+
+func cloneValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneAttrs(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = cloneValue(item)
+		}
+		return out
+	case []string:
+		return append([]string(nil), typed...)
+	default:
+		return value
+	}
 }
 
 func packageCounts(pkg scanartifacts.Package) map[string]int {
