@@ -429,6 +429,60 @@ def test_claim_aware_retrieval_contract_propagates_to_agent_consumers() -> None:
         assert "cannot prove current repository truth" in content
 
 
+def test_claim_aware_ranking_and_reconciliation_contract_propagates_to_agents() -> None:
+    runtime_source = _compact(
+        (
+            _read("tools/project-cognition/internal/query/compass.go")
+            + _read("tools/project-cognition/internal/query/claim_signal.go")
+        ).lower()
+    )
+    for term in (
+        'json:"claim_ranking,omitempty"',
+        'json:"adjustment"',
+        '"match_score"',
+        '"contradicted_claim_signal"',
+        '"stale_claim_signal"',
+        '"reconcile_claims_with_minimal_live_reads"',
+    ):
+        assert term in runtime_source
+
+    for path in (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/commands/map-build.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_ranking",
+            "match_score",
+            "bounded rerank",
+            "contradicted_claim_signal",
+            "stale_claim_signal",
+            "reconcile_claims_with_minimal_live_reads",
+        ):
+            assert term in content, f"{path} missing claim ranking term: {term}"
+        assert "cannot create candidates" in content
+        assert "live verification" in content
+
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_ranking",
+            "match_score",
+            "bounded rerank",
+            "contradicted_claim_signal",
+            "stale_claim_signal",
+            "reconcile_claims_with_minimal_live_reads",
+        ):
+            assert term in content, f"{path} missing claim ranking term: {term}"
+        assert "cannot create candidates" in content
+        assert "cannot replace live verification" in content
+
+
 def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() -> None:
     scan = _compact(_read("templates/commands/map-scan.md").lower())
     for term in (
