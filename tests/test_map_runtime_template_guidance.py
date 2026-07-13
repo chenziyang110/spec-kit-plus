@@ -544,16 +544,25 @@ def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() ->
 def test_live_claim_reconciliation_contract_propagates_without_authorization_leakage() -> None:
     runtime = _compact(
         (
-            _read("tools/project-cognition/internal/reconcile/reconcile.go")
+            _read("tools/project-cognition/internal/reconcile/prepare.go")
+            + _read("tools/project-cognition/internal/reconcile/reconcile.go")
+            + _read("tools/project-cognition/internal/store/schema.go")
             + _read("tools/project-cognition/internal/query/epistemic_contract.go")
         ).lower()
     )
     for term in (
-        "currentcontractversion = 1",
+        "currentpreparecontractversion = 1",
+        "currentcontractversion = 2",
         "claim_reconciliation_contract_version",
+        "claim_reconciliation_prepare_contract_version",
         "expected_generation_id",
         "expected_state",
+        "expected_revision",
         "expected_content_hash",
+        "packet_hash",
+        "expires_at",
+        "apply_argv",
+        "schemaversion = 5",
         "route_candidate_only",
         "rerun_compass_once",
     ):
@@ -568,16 +577,23 @@ def test_live_claim_reconciliation_contract_propagates_without_authorization_lea
     for path in guidance_surfaces:
         content = _compact(_read(path).lower())
         for term in (
-            "project-cognition claim-reconcile",
-            "claim_reconciliation_contract_version",
-            "expected_generation_id",
-            "expected_state",
-            "expected_content_hash",
+            "project-cognition claim-reconcile prepare",
+            "project-cognition claim-reconcile apply",
+            "apply_argv",
+            "runtime owns",
             "claim-specific",
         ):
             assert term in content, f"{path} missing claim reconciliation term: {term}"
-        assert "runtime derives" in content or "runtime-derived" in content
         assert "rerun compass" in content
+        for forbidden in (
+            "write a current-only packet",
+            "create a current-only",
+            "rfc3339 `observed_at`",
+            "`expected_generation_id`",
+            "`expected_state`",
+            "`expected_content_hash`",
+        ):
+            assert forbidden not in content, f"{path} still asks the agent to author {forbidden}"
 
     for path in (
         "templates/command-partials/common/inline-project-cognition-update.md",
@@ -589,7 +605,9 @@ def test_live_claim_reconciliation_contract_propagates_without_authorization_lea
         assert "must not" in content and "re-promote" in content
 
     semantic = _compact(_read(SEMANTIC_WORK_CONTRACT_PARTIAL).lower())
-    assert "project-cognition claim-reconcile" in semantic
+    assert "project-cognition claim-reconcile prepare" in semantic
+    assert "project-cognition claim-reconcile apply" in semantic
+    assert "runtime owns" in semantic
     assert "does not populate" in semantic
     assert "claim_verification_refs" in semantic
     assert "workflow_authorization" in semantic
@@ -597,14 +615,16 @@ def test_live_claim_reconciliation_contract_propagates_without_authorization_lea
     for path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
         content = _compact(_read(path).lower())
         for term in (
-            "schema v4",
-            "project-cognition claim-reconcile",
-            "claim_reconciliation_contract_version=1",
+            "schema v5",
+            "project-cognition claim-reconcile prepare",
+            "project-cognition claim-reconcile apply",
+            "runtime owns",
+            "apply_argv",
             "current evidence basis",
-            "schema v3",
+            "schema v4",
         ):
             assert term in content, f"{path} missing current claim reconciliation documentation: {term}"
-        assert "does not migrate schema v3" in content
+        assert "does not migrate schema v4" in content
 
 
 def test_shared_semantic_work_contract_partial_defines_permission_and_learning_gates() -> None:
