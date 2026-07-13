@@ -17,7 +17,7 @@ import (
 
 const (
 	CandidateUniverseVersion      = 1
-	ClaimRetrievalContractVersion = 1
+	ClaimRetrievalContractVersion = 2
 )
 
 type conceptRef struct {

@@ -7,12 +7,19 @@ import (
 )
 
 const (
-	maxQueryClaimSignals       = 8
-	maxQueryClaimEvidenceRefs  = 2
-	maxExpansionClaimSignals   = 25
-	maxExpansionEvidenceRefs   = 6
-	maxCompassClaimRefsPerLane = 3
-	claimConfidenceScope       = "route_candidate"
+	maxQueryClaimSignals        = 8
+	maxQueryClaimEvidenceRefs   = 2
+	maxExpansionClaimSignals    = 25
+	maxExpansionEvidenceRefs    = 6
+	maxCompassClaimRefsPerLane  = 3
+	claimConfidenceScope        = "route_candidate"
+	claimRankingStateNone       = "none"
+	claimRankingStateCandidate  = "candidate"
+	claimRankingBoost           = 1
+	claimRankingStalePenalty    = -1
+	claimRankingConflictPenalty = -2
+	claimActionRefreshStale     = "refresh_claim_evidence_then_verify_live_repository"
+	claimActionReconcile        = "reconcile_contradicted_claim_with_live_repository"
 )
 
 // ClaimSignal is a bounded navigation signal. RouteConfidence is inherited
@@ -44,14 +51,23 @@ type ClaimEvidenceRef struct {
 }
 
 type ClaimRef struct {
-	ID              string `json:"id"`
-	GraphClaimType  string `json:"graph_claim_type"`
-	Summary         string `json:"summary"`
-	State           string `json:"state"`
-	Freshness       string `json:"freshness"`
-	RouteConfidence string `json:"route_confidence"`
-	ConfidenceScope string `json:"confidence_scope"`
-	Stale           bool   `json:"stale"`
+	ID                       string `json:"id"`
+	GraphClaimType           string `json:"graph_claim_type"`
+	Summary                  string `json:"summary"`
+	State                    string `json:"state"`
+	Freshness                string `json:"freshness"`
+	RouteConfidence          string `json:"route_confidence"`
+	ConfidenceScope          string `json:"confidence_scope"`
+	Stale                    bool   `json:"stale"`
+	LiveVerificationRequired bool   `json:"live_verification_required"`
+}
+
+type ClaimRankingSummary struct {
+	State                    string `json:"state"`
+	Adjustment               int    `json:"adjustment"`
+	ReconciliationRequired   bool   `json:"reconciliation_required"`
+	ReconciliationAction     string `json:"reconciliation_action,omitempty"`
+	LiveVerificationRequired bool   `json:"live_verification_required"`
 }
 
 func claimSignals(records []store.GraphClaimEvidence, claimLimit, evidenceLimit int) []ClaimSignal {
@@ -92,10 +108,46 @@ func claimRefsByNode(records []store.GraphClaimEvidence) map[string][]ClaimRef {
 		out[record.NodeID] = append(refs, ClaimRef{
 			ID: record.ID, GraphClaimType: record.GraphClaimType, Summary: record.Summary,
 			State: record.State, Freshness: record.Freshness, RouteConfidence: record.RouteConfidence,
-			ConfidenceScope: claimConfidenceScope, Stale: claimSignalIsStale(record),
+			ConfidenceScope: claimConfidenceScope, Stale: claimSignalIsStale(record), LiveVerificationRequired: true,
 		})
 	}
 	return out
+}
+
+func claimRankingByNode(summaries []store.GraphClaimLifecycleSummary) map[string]ClaimRankingSummary {
+	out := make(map[string]ClaimRankingSummary, len(summaries))
+	for _, summary := range summaries {
+		out[summary.NodeID] = claimRankingSummary(summary)
+	}
+	return out
+}
+
+func claimRankingSummary(summary store.GraphClaimLifecycleSummary) ClaimRankingSummary {
+	ranking := ClaimRankingSummary{State: claimRankingStateNone}
+	if summary.ClaimCount <= 0 {
+		return ranking
+	}
+	ranking.State = claimRankingStateCandidate
+	ranking.LiveVerificationRequired = true
+	switch {
+	case summary.ContradictedCount > 0:
+		ranking.State = "contradicted"
+		ranking.Adjustment = claimRankingConflictPenalty
+		ranking.ReconciliationRequired = true
+		ranking.ReconciliationAction = claimActionReconcile
+	case summary.StaleCount > 0:
+		ranking.State = "stale"
+		ranking.Adjustment = claimRankingStalePenalty
+		ranking.ReconciliationRequired = true
+		ranking.ReconciliationAction = claimActionRefreshStale
+	case summary.FreshVerifiedCount > 0:
+		ranking.State = "verified_in_graph_generation"
+		ranking.Adjustment = claimRankingBoost
+	case summary.FreshSupportedCount > 0:
+		ranking.State = "supported"
+		ranking.Adjustment = claimRankingBoost
+	}
+	return ranking
 }
 
 func compactGraphClaims(records []store.GraphClaimEvidence) []map[string]any {

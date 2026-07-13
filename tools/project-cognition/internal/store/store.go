@@ -73,6 +73,17 @@ type GraphClaimEvidenceRef struct {
 	CommitSHA  string
 }
 
+// GraphClaimLifecycleSummary is a compact, evidence-free aggregate used for
+// complete per-node ranking decisions without expanding claim detail payloads.
+type GraphClaimLifecycleSummary struct {
+	NodeID              string
+	ClaimCount          int
+	ContradictedCount   int
+	StaleCount          int
+	FreshVerifiedCount  int
+	FreshSupportedCount int
+}
+
 type UpdateRecord struct {
 	ID             string
 	Trigger        string
@@ -713,6 +724,51 @@ func (s *Store) ClaimsForNodeIDs(ctx context.Context, nodeIDs []string) ([]map[s
 		})
 	}
 	return out, nil
+}
+
+func (s *Store) ClaimLifecycleSummariesForNodeIDs(ctx context.Context, nodeIDs []string) ([]GraphClaimLifecycleSummary, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" || len(nodeIDs) == 0 {
+		return []GraphClaimLifecycleSummary{}, err
+	}
+	nodeIDs = uniqueSorted(nodeIDs)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(nodeIDs)), ",")
+	args := make([]any, 0, len(nodeIDs)+1)
+	args = append(args, generationID)
+	for _, nodeID := range nodeIDs {
+		args = append(args, nodeID)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT node_id,
+		COUNT(*),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'contradicted' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'stale' OR LOWER(freshness) = 'stale' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'verified_in_graph_generation' AND LOWER(freshness) = 'fresh' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'supported' AND LOWER(freshness) = 'fresh' THEN 1 ELSE 0 END), 0)
+		FROM claims WHERE generation_id = ? AND node_id IN (`+placeholders+`)
+		GROUP BY node_id ORDER BY node_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("read graph claim lifecycle summaries: %w", err)
+	}
+	defer rows.Close()
+	summaries := []GraphClaimLifecycleSummary{}
+	for rows.Next() {
+		var summary GraphClaimLifecycleSummary
+		if err := rows.Scan(
+			&summary.NodeID,
+			&summary.ClaimCount,
+			&summary.ContradictedCount,
+			&summary.StaleCount,
+			&summary.FreshVerifiedCount,
+			&summary.FreshSupportedCount,
+		); err != nil {
+			return nil, fmt.Errorf("scan graph claim lifecycle summary: %w", err)
+		}
+		summaries = append(summaries, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate graph claim lifecycle summaries: %w", err)
+	}
+	return summaries, nil
 }
 
 func (s *Store) ClaimEvidenceForNodeIDs(ctx context.Context, nodeIDs []string) ([]GraphClaimEvidence, error) {

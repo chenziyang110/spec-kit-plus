@@ -36,6 +36,7 @@ const (
 	broadFallbackPathThreshold              = 50
 	compassRecommendedActionUseReads        = "use_compass_minimal_live_reads"
 	compassRecommendedActionExpandBeforeFix = "run_compass_expansion_before_fix"
+	compassRecommendedActionReconcileClaims = "reconcile_claims_with_minimal_live_reads"
 )
 
 type CompassInput struct {
@@ -78,15 +79,16 @@ type CompassIntentFacet struct {
 }
 
 type EvidenceLane struct {
-	ID                string          `json:"id"`
-	Title             string          `json:"title"`
-	Coverage          string          `json:"coverage"`
-	Confidence        string          `json:"confidence"`
-	FirstPassPaths    []FirstPassPath `json:"first_pass_paths"`
-	VerificationHints []string        `json:"verification_hints"`
-	FollowupSurfaces  []string        `json:"followup_surfaces"`
-	BeforeFixClaim    []string        `json:"before_fix_claim"`
-	ClaimRefs         []ClaimRef      `json:"claim_refs,omitempty"`
+	ID                string               `json:"id"`
+	Title             string               `json:"title"`
+	Coverage          string               `json:"coverage"`
+	Confidence        string               `json:"confidence"`
+	FirstPassPaths    []FirstPassPath      `json:"first_pass_paths"`
+	VerificationHints []string             `json:"verification_hints"`
+	FollowupSurfaces  []string             `json:"followup_surfaces"`
+	BeforeFixClaim    []string             `json:"before_fix_claim"`
+	ClaimRefs         []ClaimRef           `json:"claim_refs,omitempty"`
+	ClaimRanking      *ClaimRankingSummary `json:"claim_ranking,omitempty"`
 	matchedTerms      []string
 	nodeType          string
 }
@@ -121,10 +123,12 @@ type ExpansionSectionMeta struct {
 }
 
 type compassCandidate struct {
-	ranked     rankedConceptCandidate
-	conceptID  string
-	suppressed bool
-	reason     string
+	ranked       rankedConceptCandidate
+	conceptID    string
+	matchScore   int
+	claimRanking ClaimRankingSummary
+	suppressed   bool
+	reason       string
 }
 
 func ParseSemanticIntakeFile(path string) (SemanticIntake, error) {
@@ -237,6 +241,11 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			payload.ActiveGenerationID = rows[0].GenerationID
 		}
 		candidates = compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input), compassPrecisionConceptFilter(input))
+		claimLifecycleSummaries, err := st.ClaimLifecycleSummariesForNodeIDs(context.Background(), nodeIDsFromCompassCandidates(candidates))
+		if err != nil {
+			return CompassPayload{}, err
+		}
+		candidates = applyClaimRanking(candidates, claimLifecycleSummaries)
 		claimRecords, err = st.ClaimEvidenceForNodeIDs(context.Background(), nodeIDsFromCompassCandidates(candidates))
 		if err != nil {
 			return CompassPayload{}, err
@@ -254,12 +263,13 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			}
 		}
 		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets, selectedPaths, claimRefsByNode(claimRecords))
+		payload.CoverageDiagnostics = append(payload.CoverageDiagnostics, claimReconciliationDiagnostics(payload.EvidenceLanes, facets)...)
 		payload.MinimalLiveReads = minimalReadsFromLanes(payload.EvidenceLanes)
 	}
 	payload.IntentFacets = coverageForFacets(facets, payload.EvidenceLanes, payload.CoverageDiagnostics, true)
 	payload.AgentNormalization = compassAgentNormalization(status, input, payload)
 	payload.CompassState = compassState(status, input, payload)
-	payload.RecommendedNextAction = compassRecommendedNextAction(status, payload.CompassState)
+	payload.RecommendedNextAction = compassRecommendedNextAction(status, payload.CompassState, payload.CoverageDiagnostics)
 	payload.Summary = compassSummary(payload)
 	if len(candidates) > 0 {
 		sectionPayloads := map[string]any{
@@ -426,12 +436,37 @@ func compassCandidates(rows []store.ConceptCandidateRow, terms []string, precisi
 			continue
 		}
 		candidates = append(candidates, compassCandidate{
-			ranked:     ranked,
-			conceptID:  conceptID,
-			suppressed: suppressed,
-			reason:     reason,
+			ranked:       ranked,
+			conceptID:    conceptID,
+			matchScore:   ranked.score,
+			claimRanking: ClaimRankingSummary{State: claimRankingStateNone},
+			suppressed:   suppressed,
+			reason:       reason,
 		})
 	}
+	sortCompassCandidates(candidates)
+	return candidates
+}
+
+func applyClaimRanking(candidates []compassCandidate, summaries []store.GraphClaimLifecycleSummary) []compassCandidate {
+	rankings := claimRankingByNode(summaries)
+	for index := range candidates {
+		candidate := &candidates[index]
+		candidate.ranked.score = candidate.matchScore
+		candidate.claimRanking = ClaimRankingSummary{State: claimRankingStateNone}
+		if candidate.matchScore <= 0 {
+			continue
+		}
+		if ranking, ok := rankings[candidate.ranked.row.NodeID]; ok {
+			candidate.claimRanking = ranking
+			candidate.ranked.score = maxInt(1, candidate.matchScore+ranking.Adjustment)
+		}
+	}
+	sortCompassCandidates(candidates)
+	return candidates
+}
+
+func sortCompassCandidates(candidates []compassCandidate) {
 	sort.SliceStable(candidates, func(i, j int) bool {
 		if candidates[i].suppressed != candidates[j].suppressed {
 			return !candidates[i].suppressed
@@ -444,7 +479,6 @@ func compassCandidates(rows []store.ConceptCandidateRow, terms []string, precisi
 		}
 		return candidates[i].ranked.row.NodeID < candidates[j].ranked.row.NodeID
 	})
-	return candidates
 }
 
 func isBroadFallbackCandidate(candidate rankedConceptCandidate) (bool, string) {
@@ -467,7 +501,7 @@ func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string,
 	lanes := make([]EvidenceLane, 0, maxCompassLanes)
 	readBudget := map[string]bool{}
 	for _, candidate := range candidates {
-		if candidate.suppressed || candidate.ranked.score <= 0 {
+		if candidate.suppressed || candidate.matchScore <= 0 {
 			continue
 		}
 		paths := firstPassPaths(candidate.ranked, readBudget, selectedPaths)
@@ -484,6 +518,7 @@ func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string,
 			FollowupSurfaces:  attrStrings(candidate.ranked.attrs, "followup_surfaces"),
 			BeforeFixClaim:    attrStrings(candidate.ranked.attrs, "before_fix_claim"),
 			ClaimRefs:         append([]ClaimRef{}, claimRefs[candidate.ranked.row.NodeID]...),
+			ClaimRanking:      compactClaimRanking(candidate.claimRanking),
 			matchedTerms:      candidate.ranked.matchedTerms,
 			nodeType:          candidate.ranked.row.NodeType,
 		})
@@ -492,6 +527,37 @@ func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string,
 		}
 	}
 	return lanes
+}
+
+func compactClaimRanking(ranking ClaimRankingSummary) *ClaimRankingSummary {
+	if ranking.State == "" || ranking.State == claimRankingStateNone {
+		return nil
+	}
+	copy := ranking
+	return &copy
+}
+
+func claimReconciliationDiagnostics(lanes []EvidenceLane, facets []string) []CoverageDiagnostic {
+	diagnostics := []CoverageDiagnostic{}
+	for _, lane := range lanes {
+		if lane.ClaimRanking == nil || !lane.ClaimRanking.ReconciliationRequired {
+			continue
+		}
+		kind := "stale_claim_signal"
+		message := "Selected route " + lane.Title + " has stale project cognition claims and requires live refresh."
+		if lane.ClaimRanking.State == "contradicted" {
+			kind = "contradicted_claim_signal"
+			message = "Selected route " + lane.Title + " has contradicted project cognition claims and requires live reconciliation."
+		}
+		diagnostics = append(diagnostics, CoverageDiagnostic{
+			Kind:              kind,
+			Severity:          "warning",
+			Message:           message,
+			AffectedFacets:    append([]string{}, facets...),
+			RecommendedAction: lane.ClaimRanking.ReconciliationAction,
+		})
+	}
+	return diagnostics
 }
 
 func minimalReadsFromLanes(lanes []EvidenceLane) []string {
@@ -515,12 +581,16 @@ func candidatesForExpansion(candidates []compassCandidate) []map[string]any {
 			"title":              candidate.ranked.row.Title,
 			"node_type":          candidate.ranked.row.NodeType,
 			"score":              candidate.ranked.score,
+			"match_score":        candidate.matchScore,
 			"confidence":         candidate.ranked.row.Confidence,
 			"matched_terms":      append([]string{}, candidate.ranked.matchedTerms...),
 			"paths":              append([]string{}, candidate.ranked.paths...),
 			"evidence_ids":       append([]string{}, candidate.ranked.row.EvidenceIDs...),
 			"suppressed":         candidate.suppressed,
 			"suppression_reason": candidate.reason,
+		}
+		if ranking := compactClaimRanking(candidate.claimRanking); ranking != nil {
+			item["claim_ranking"] = ranking
 		}
 		if owner := attrString(candidate.ranked.attrs, "owner"); owner != "" {
 			item["owner"] = owner
@@ -780,7 +850,7 @@ func compassState(status rt.Status, input CompassInput, payload CompassPayload) 
 		return compassStateNeedsExpansionBeforeFix
 	}
 	mode := normalizedCompassInputMode(input.InputMode)
-	if status.Readiness == rt.ReadyReadiness && (mode == compassInputModeQueryPlan || mode == compassInputModeSemanticIntake) && !hasUncovered {
+	if status.Readiness == rt.ReadyReadiness && (mode == compassInputModeQueryPlan || mode == compassInputModeSemanticIntake) && !hasUncovered && !compassHasClaimReconciliationDiagnostic(payload.CoverageDiagnostics) {
 		return compassStateUsable
 	}
 	if (status.Readiness == rt.ReadyReadiness || status.Readiness == rt.ReviewReadiness) && len(payload.EvidenceLanes) > 0 {
@@ -813,7 +883,10 @@ func compassHasUncoveredFacet(facets []CompassIntentFacet) bool {
 	return len(facets) == 0
 }
 
-func compassRecommendedNextAction(status rt.Status, state string) string {
+func compassRecommendedNextAction(status rt.Status, state string, diagnostics []CoverageDiagnostic) string {
+	if state == compassStateUsableWithReview && compassHasClaimReconciliationDiagnostic(diagnostics) {
+		return compassRecommendedActionReconcileClaims
+	}
 	switch state {
 	case compassStateUsable, compassStateUsableWithReview:
 		return compassRecommendedActionUseReads
@@ -824,6 +897,15 @@ func compassRecommendedNextAction(status rt.Status, state string) string {
 	default:
 		return status.RecommendedNextAction
 	}
+}
+
+func compassHasClaimReconciliationDiagnostic(diagnostics []CoverageDiagnostic) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Kind == "stale_claim_signal" || diagnostic.Kind == "contradicted_claim_signal" {
+			return true
+		}
+	}
+	return false
 }
 
 func compassAgentNormalization(status rt.Status, input CompassInput, payload CompassPayload) *AgentNormalizationDiagnostic {

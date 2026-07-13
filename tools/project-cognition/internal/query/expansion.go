@@ -17,7 +17,7 @@ import (
 const (
 	defaultExpansionSection             = "related_paths"
 	expansionRecommendedActionRerun     = "rerun_project_cognition_compass"
-	expansionRefStaleBehavior           = "expand must return stale_expansion if the active generation, candidate universe version, or query fingerprint no longer matches"
+	expansionRefStaleBehavior           = "expand must return stale_expansion if the claim retrieval contract version, active generation, candidate universe version, or query fingerprint no longer matches"
 	expansionStatusOK                   = "ok"
 	expansionStatusMissingExpansion     = "missing_expansion"
 	expansionStatusStaleExpansion       = "stale_expansion"
