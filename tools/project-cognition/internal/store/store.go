@@ -49,6 +49,30 @@ type ConceptAliasRow struct {
 	EvidenceID      string
 }
 
+// GraphClaimEvidence is the storage read model used by claim-aware navigation.
+// RouteConfidence belongs to the owning graph node and must not be interpreted
+// as confidence that the claim is current repository truth.
+type GraphClaimEvidence struct {
+	ID              string
+	NodeID          string
+	GraphClaimType  string
+	Summary         string
+	State           string
+	Freshness       string
+	StateReason     string
+	RouteConfidence string
+	Evidence        []GraphClaimEvidenceRef
+}
+
+type GraphClaimEvidenceRef struct {
+	ID         string
+	Role       string
+	SourceKind string
+	SourcePath string
+	Span       string
+	CommitSHA  string
+}
+
 type UpdateRecord struct {
 	ID             string
 	Trigger        string
@@ -677,9 +701,24 @@ func (s *Store) AffectedClosureForPaths(ctx context.Context, paths []string) (Af
 }
 
 func (s *Store) ClaimsForNodeIDs(ctx context.Context, nodeIDs []string) ([]map[string]any, error) {
+	records, err := s.ClaimEvidenceForNodeIDs(ctx, nodeIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		out = append(out, map[string]any{
+			"id": record.ID, "node_id": record.NodeID, "graph_claim_type": record.GraphClaimType, "summary": record.Summary,
+			"state": record.State, "freshness": record.Freshness, "state_reason": record.StateReason,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) ClaimEvidenceForNodeIDs(ctx context.Context, nodeIDs []string) ([]GraphClaimEvidence, error) {
 	generationID, err := s.ActiveGenerationID(ctx)
 	if err != nil || generationID == "" || len(nodeIDs) == 0 {
-		return []map[string]any{}, err
+		return []GraphClaimEvidence{}, err
 	}
 	nodeIDs = uniqueSorted(nodeIDs)
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(nodeIDs)), ",")
@@ -688,26 +727,62 @@ func (s *Store) ClaimsForNodeIDs(ctx context.Context, nodeIDs []string) ([]map[s
 	for _, nodeID := range nodeIDs {
 		args = append(args, nodeID)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, node_id, graph_claim_type, summary, state, freshness, state_reason FROM claims WHERE generation_id = ? AND node_id IN (`+placeholders+`) ORDER BY id LIMIT 25`, args...)
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id, c.node_id, c.graph_claim_type, c.summary, c.state, c.freshness, c.state_reason, n.confidence FROM claims c JOIN nodes n ON n.id = c.node_id AND n.generation_id = c.generation_id WHERE c.generation_id = ? AND c.node_id IN (`+placeholders+`) ORDER BY c.id LIMIT 25`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("read compact graph claims: %w", err)
+		return nil, fmt.Errorf("read graph claim evidence heads: %w", err)
 	}
-	defer rows.Close()
-	out := []map[string]any{}
+	records := []GraphClaimEvidence{}
 	for rows.Next() {
-		var id, nodeID, graphClaimType, summary, state, freshness, stateReason string
-		if err := rows.Scan(&id, &nodeID, &graphClaimType, &summary, &state, &freshness, &stateReason); err != nil {
-			return nil, fmt.Errorf("scan compact graph claim: %w", err)
+		var record GraphClaimEvidence
+		if err := rows.Scan(&record.ID, &record.NodeID, &record.GraphClaimType, &record.Summary, &record.State, &record.Freshness, &record.StateReason, &record.RouteConfidence); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan graph claim evidence head: %w", err)
 		}
-		out = append(out, map[string]any{
-			"id": id, "node_id": nodeID, "graph_claim_type": graphClaimType, "summary": summary,
-			"state": state, "freshness": freshness, "state_reason": stateReason,
-		})
+		record.Evidence = []GraphClaimEvidenceRef{}
+		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate compact graph claims: %w", err)
+		_ = rows.Close()
+		return nil, fmt.Errorf("iterate graph claim evidence heads: %w", err)
 	}
-	return out, nil
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close graph claim evidence heads: %w", err)
+	}
+	if len(records) == 0 {
+		return records, nil
+	}
+
+	claimIDs := make([]string, 0, len(records))
+	claimIndex := make(map[string]int, len(records))
+	for index, record := range records {
+		claimIDs = append(claimIDs, record.ID)
+		claimIndex[record.ID] = index
+	}
+	claimPlaceholders := strings.TrimSuffix(strings.Repeat("?,", len(claimIDs)), ",")
+	evidenceArgs := make([]any, 0, len(claimIDs)+1)
+	evidenceArgs = append(evidenceArgs, generationID)
+	for _, claimID := range claimIDs {
+		evidenceArgs = append(evidenceArgs, claimID)
+	}
+	evidenceRows, err := s.db.QueryContext(ctx, `SELECT ce.claim_id, e.id, ce.role, e.source_kind, e.source_path, e.span, e.commit_sha FROM claim_evidence ce JOIN evidence e ON e.id = ce.evidence_id WHERE e.generation_id = ? AND ce.claim_id IN (`+claimPlaceholders+`) ORDER BY ce.claim_id, CASE ce.role WHEN 'contradicting' THEN 0 ELSE 1 END, e.id`, evidenceArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("read graph claim evidence refs: %w", err)
+	}
+	defer evidenceRows.Close()
+	for evidenceRows.Next() {
+		var claimID string
+		var ref GraphClaimEvidenceRef
+		if err := evidenceRows.Scan(&claimID, &ref.ID, &ref.Role, &ref.SourceKind, &ref.SourcePath, &ref.Span, &ref.CommitSHA); err != nil {
+			return nil, fmt.Errorf("scan graph claim evidence ref: %w", err)
+		}
+		if index, ok := claimIndex[claimID]; ok {
+			records[index].Evidence = append(records[index].Evidence, ref)
+		}
+	}
+	if err := evidenceRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate graph claim evidence refs: %w", err)
+	}
+	return records, nil
 }
 
 func (s *Store) MarkClaimsStale(ctx context.Context, claimIDs []string, reason, transitionIDPrefix string) ([]ClaimTransition, error) {

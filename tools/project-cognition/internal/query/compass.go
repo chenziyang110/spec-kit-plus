@@ -85,6 +85,7 @@ type EvidenceLane struct {
 	VerificationHints []string        `json:"verification_hints"`
 	FollowupSurfaces  []string        `json:"followup_surfaces"`
 	BeforeFixClaim    []string        `json:"before_fix_claim"`
+	ClaimRefs         []ClaimRef      `json:"claim_refs,omitempty"`
 	matchedTerms      []string
 	nodeType          string
 }
@@ -222,6 +223,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		return CompassPayload{}, err
 	}
 	candidates := []compassCandidate{}
+	claimRecords := []store.GraphClaimEvidence{}
 	if st != nil {
 		defer st.Close()
 		rows, err := st.AllActiveConceptCandidateRows(context.Background())
@@ -232,6 +234,10 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			payload.ActiveGenerationID = rows[0].GenerationID
 		}
 		candidates = compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input), compassPrecisionConceptFilter(input))
+		claimRecords, err = st.ClaimEvidenceForNodeIDs(context.Background(), nodeIDsFromCompassCandidates(candidates))
+		if err != nil {
+			return CompassPayload{}, err
+		}
 		selectedPaths := compassSelectedPrecisionPaths(input)
 		for _, candidate := range candidates {
 			if candidate.suppressed {
@@ -244,7 +250,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 				})
 			}
 		}
-		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets, selectedPaths)
+		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets, selectedPaths, claimRefsByNode(claimRecords))
 		payload.MinimalLiveReads = minimalReadsFromLanes(payload.EvidenceLanes)
 	}
 	payload.IntentFacets = coverageForFacets(facets, payload.EvidenceLanes, payload.CoverageDiagnostics, true)
@@ -258,6 +264,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			"raw_candidates":  candidatesForExpansion(candidates),
 			"coverage_gaps":   payload.CoverageDiagnostics,
 			"graph_neighbors": []map[string]any{},
+			"claim_evidence":  claimSignals(claimRecords, maxExpansionClaimSignals, maxExpansionEvidenceRefs),
 		}
 		ref, err := writeExpansionBundle(paths, ExpansionBundle{
 			ID:                       "exp-" + payload.QueryFingerprint,
@@ -451,7 +458,7 @@ func isBroadFallbackCandidate(candidate rankedConceptCandidate) (bool, string) {
 	return false, ""
 }
 
-func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string, selectedPaths map[string]bool) []EvidenceLane {
+func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string, selectedPaths map[string]bool, claimRefs map[string][]ClaimRef) []EvidenceLane {
 	lanes := make([]EvidenceLane, 0, maxCompassLanes)
 	readBudget := map[string]bool{}
 	for _, candidate := range candidates {
@@ -471,6 +478,7 @@ func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string,
 			VerificationHints: candidate.ranked.verificationHints,
 			FollowupSurfaces:  attrStrings(candidate.ranked.attrs, "followup_surfaces"),
 			BeforeFixClaim:    attrStrings(candidate.ranked.attrs, "before_fix_claim"),
+			ClaimRefs:         append([]ClaimRef{}, claimRefs[candidate.ranked.row.NodeID]...),
 			matchedTerms:      candidate.ranked.matchedTerms,
 			nodeType:          candidate.ranked.row.NodeType,
 		})

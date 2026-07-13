@@ -15,7 +15,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
-const CandidateUniverseVersion = 1
+const CandidateUniverseVersion = 2
 
 type conceptRef struct {
 	GenerationID   string
@@ -102,6 +102,7 @@ type QueryPayload struct {
 	MissingCoverage       []string          `json:"missing_coverage"`
 	RoutePack             map[string]any    `json:"route_pack"`
 	Subgraph              map[string]any    `json:"subgraph"`
+	ClaimSignals          []ClaimSignal     `json:"claim_signals,omitempty"`
 	Warnings              []string          `json:"warnings,omitempty"`
 	RepairHints           []string          `json:"repair_hints,omitempty"`
 }
@@ -483,11 +484,15 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		recommendedNextAction = "use_minimal_live_reads_and_review_missing_coverage"
 	}
 	claims := []map[string]any{}
+	claimSignalPackets := []ClaimSignal{}
 	if st != nil {
-		claims, err = st.ClaimsForNodeIDs(context.Background(), nodeIDListFromNodes(nodes))
+		claimRecords, readErr := st.ClaimEvidenceForNodeIDs(context.Background(), nodeIDListFromNodes(nodes))
+		err = readErr
 		if err != nil {
 			return QueryPayload{}, err
 		}
+		claims = compactGraphClaims(claimRecords)
+		claimSignalPackets = claimSignals(claimRecords, maxQueryClaimSignals, maxQueryClaimEvidenceRefs)
 	}
 	routePack := map[string]any{
 		"items":              nodes,
@@ -533,6 +538,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		MissingCoverage:       missingCoverage,
 		RoutePack:             routePack,
 		Subgraph:              subgraph,
+		ClaimSignals:          claimSignalPackets,
 		Warnings:              input.PlanDiagnostics.Warnings,
 		RepairHints:           input.PlanDiagnostics.RepairHints,
 	}, nil
