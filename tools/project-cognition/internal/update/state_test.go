@@ -10,12 +10,53 @@ import (
 	"testing"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/boundary"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
+
+func TestRunUpdateInvalidatesOnlyAffectedGraphClaimsAndReportsIDs(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES('claim:app-owner', 'GEN-db', 'N-app', 'runtime_owner', 'App owns runtime behavior', ?, '', ?, 'supporting_evidence', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`, claim.StateSupported, claim.FreshnessFresh); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES('claim:app-owner', 'E-app', 'supporting')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{ChangedPaths: []string{"src/app.go"}, Reason: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.AffectedGraphClaims) != 1 || payload.AffectedGraphClaims[0] != "claim:app-owner" {
+		t.Fatalf("AffectedGraphClaims = %#v, want claim:app-owner", payload.AffectedGraphClaims)
+	}
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var state, priorState, freshness string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, prior_state, freshness FROM claims WHERE id = 'claim:app-owner'`).Scan(&state, &priorState, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateStale) || priorState != string(claim.StateSupported) || freshness != string(claim.FreshnessStale) {
+		t.Fatalf("claim lifecycle = %q/%q/%q, want stale/supported/stale", state, priorState, freshness)
+	}
+}
 
 func testPaths(t *testing.T) rt.Paths {
 	t.Helper()
