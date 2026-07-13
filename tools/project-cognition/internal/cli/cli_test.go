@@ -63,7 +63,7 @@ func TestClaimReconcilePrepareReturnsStructuredBlockedPayloadForLegacyContract(t
 	}
 }
 
-func TestClaimReconcileReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
+func TestClaimReconcileApplyReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestClaimReconcileReturnsStructuredBlockedPayloadForLegacyContract(t *testi
 	t.Cleanup(func() { _ = os.Chdir(old) })
 
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"claim-reconcile", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	code := Run([]string{"claim-reconcile", "apply", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
 	if code != 1 {
 		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit 1", code, stderr.String(), stdout.String())
 	}

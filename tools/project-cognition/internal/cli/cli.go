@@ -126,27 +126,63 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
-	fs := flag.NewFlagSet("claim-reconcile", flag.ContinueOnError)
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: project-cognition claim-reconcile prepare|apply [options]")
+		return 2
+	}
+	switch args[0] {
+	case "prepare":
+		return claimReconcilePrepareCommand(args[1:], stdout, stderr, paths)
+	case "apply":
+		return claimReconcileApplyCommand(args[1:], stdout, stderr, paths)
+	default:
+		fmt.Fprintf(stderr, "unknown claim-reconcile operation: %s\n", args[0])
+		return 2
+	}
+}
+
+func claimReconcilePrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("claim-reconcile prepare", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	inputFile := fs.String("input", "", "Claim reconciliation JSON input file; omit for stdin")
+	inputFile := fs.String("input", "", "Claim reconciliation semantic intent JSON file; omit for stdin")
 	format := fs.String("format", "json", "Output format: json")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *format != "json" {
-		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("claim-reconcile supports only --format json")))
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(fmt.Errorf("claim-reconcile prepare supports only --format json")))
 	}
-	var data []byte
-	var err error
-	if strings.TrimSpace(*inputFile) != "" {
-		data, err = os.ReadFile(*inputFile)
-	} else {
-		data, err = io.ReadAll(os.Stdin)
+	data, err := readInputFileOrStdin(*inputFile)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(fmt.Errorf("read claim reconciliation prepare input: %w", err)))
 	}
+	request, err := reconcile.ParsePrepareRequest(data)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(err))
+	}
+	payload, err := reconcile.Prepare(paths, request)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(err))
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func claimReconcileApplyCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("claim-reconcile apply", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Runtime-prepared claim reconciliation packet; omit for stdin")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("claim-reconcile apply supports only --format json")))
+	}
+	data, err := readInputFileOrStdin(*inputFile)
 	if err != nil {
 		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("read claim reconciliation input: %w", err)))
 	}
@@ -159,6 +195,13 @@ func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 		return writeErrorJSON(stdout, reconcile.BlockedPayload(err))
 	}
 	return writeCompactJSON(stdout, payload)
+}
+
+func readInputFileOrStdin(inputFile string) ([]byte, error) {
+	if strings.TrimSpace(inputFile) != "" {
+		return os.ReadFile(inputFile)
+	}
+	return io.ReadAll(os.Stdin)
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

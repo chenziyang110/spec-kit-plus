@@ -63,6 +63,53 @@ type ClaimReconciliationRecord struct {
 	TransitionID   string      `json:"transition_ref,omitempty"`
 }
 
+type ClaimReconciliationSnapshot struct {
+	GenerationID string
+	States       map[string]claim.State
+}
+
+func (s *Store) ReadClaimReconciliationSnapshot(ctx context.Context, claimIDs []string) (ClaimReconciliationSnapshot, error) {
+	if len(claimIDs) == 0 {
+		return ClaimReconciliationSnapshot{}, fmt.Errorf("claim reconciliation snapshot requires at least one claim")
+	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return ClaimReconciliationSnapshot{}, fmt.Errorf("begin claim reconciliation snapshot: %w", err)
+	}
+	defer tx.Rollback()
+	var generationID string
+	err = tx.QueryRowContext(ctx, `SELECT id FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`).Scan(&generationID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ClaimReconciliationSnapshot{}, fmt.Errorf("project-cognition.db has no active generation")
+	}
+	if err != nil {
+		return ClaimReconciliationSnapshot{}, fmt.Errorf("read active generation for claim reconciliation snapshot: %w", err)
+	}
+	states := make(map[string]claim.State, len(claimIDs))
+	for _, claimID := range claimIDs {
+		claimID = strings.TrimSpace(claimID)
+		if claimID == "" {
+			return ClaimReconciliationSnapshot{}, fmt.Errorf("claim reconciliation snapshot contains an empty claim id")
+		}
+		if _, exists := states[claimID]; exists {
+			return ClaimReconciliationSnapshot{}, fmt.Errorf("claim reconciliation snapshot contains duplicate claim %q", claimID)
+		}
+		var stateValue string
+		err := tx.QueryRowContext(ctx, `SELECT state FROM claims WHERE generation_id = ? AND id = ?`, generationID, claimID).Scan(&stateValue)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ClaimReconciliationSnapshot{}, fmt.Errorf("claim %q does not exist in active generation %q", claimID, generationID)
+		}
+		if err != nil {
+			return ClaimReconciliationSnapshot{}, fmt.Errorf("read claim %q for reconciliation snapshot: %w", claimID, err)
+		}
+		states[claimID] = claim.State(stateValue)
+	}
+	if err := tx.Commit(); err != nil {
+		return ClaimReconciliationSnapshot{}, fmt.Errorf("commit claim reconciliation snapshot: %w", err)
+	}
+	return ClaimReconciliationSnapshot{GenerationID: generationID, States: states}, nil
+}
+
 type reconciliationPreflight struct {
 	item          ClaimReconciliationItem
 	from          claim.State
