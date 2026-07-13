@@ -27,7 +27,7 @@ func TestParsePacketAcceptsOnlyCurrentDerivedStateContract(t *testing.T) {
     "reason": "bounded live read and claim-specific test",
     "evidence": [{
       "source_kind": "source",
-      "source_path": "src/app.go",
+	      "source_path": "src/./app.go",
       "span": "L1-L20",
       "role": "supporting",
       "expected_content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -41,6 +41,9 @@ func TestParsePacketAcceptsOnlyCurrentDerivedStateContract(t *testing.T) {
 	}
 	if packet.ContractVersion != CurrentContractVersion || packet.Items[0].ExpectedState != claim.StateStale {
 		t.Fatalf("packet = %#v, want current contract and expected stale state", packet)
+	}
+	if packet.Items[0].Evidence[0].SourcePath != "src/app.go" {
+		t.Fatalf("source path = %q, want canonical repository-relative path", packet.Items[0].Evidence[0].SourcePath)
 	}
 
 	for name, invalid := range map[string]string{
