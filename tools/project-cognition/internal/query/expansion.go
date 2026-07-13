@@ -43,6 +43,7 @@ type ExpandInput struct {
 }
 
 type ExpandPayload struct {
+	EpistemicContract        EpistemicContract               `json:"epistemic_contract"`
 	Status                   string                          `json:"status"`
 	Readiness                string                          `json:"readiness"`
 	CompassState             string                          `json:"compass_state"`
@@ -122,6 +123,7 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	payload, ok := bundle.SectionPayloads[section]
 	if !ok {
 		return ExpandPayload{
+			EpistemicContract:        NewEpistemicContract(),
 			Status:                   expansionStatusMissingSection,
 			Readiness:                status.Readiness,
 			CompassState:             expansionStatusMissingSection,
@@ -136,6 +138,7 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 		}, nil
 	}
 	return ExpandPayload{
+		EpistemicContract:        NewEpistemicContract(),
 		Status:                   expansionStatusOK,
 		Readiness:                status.Readiness,
 		CompassState:             compassStateUsableWithReview,
@@ -177,6 +180,7 @@ func expansionBundlePath(paths rt.Paths, id string) (string, error) {
 
 func staleExpansionPayload(bundle ExpansionBundle, available map[string]ExpansionSectionMeta) ExpandPayload {
 	return ExpandPayload{
+		EpistemicContract:        NewEpistemicContract(),
 		Status:                   expansionStatusStaleExpansion,
 		Readiness:                rt.ReviewReadiness,
 		CompassState:             expansionCompassStateStaleExpansion,
@@ -192,6 +196,7 @@ func staleExpansionPayload(bundle ExpansionBundle, available map[string]Expansio
 
 func missingExpansionPayload(status rt.Status, id, section string) ExpandPayload {
 	return ExpandPayload{
+		EpistemicContract:     NewEpistemicContract(),
 		Status:                expansionStatusMissingExpansion,
 		Readiness:             status.Readiness,
 		CompassState:          expansionStatusMissingExpansion,

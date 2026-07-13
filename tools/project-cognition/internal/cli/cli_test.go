@@ -2113,6 +2113,13 @@ func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *test
 	if payload["status"] != "error" {
 		t.Fatalf("payload = %#v, want status=error", payload)
 	}
+	contract, ok := payload["epistemic_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("epistemic_contract = %#v, want object", payload["epistemic_contract"])
+	}
+	if contract["graph_role"] != "route_candidate_only" || contract["fact_source_of_truth"] != "live_repository" {
+		t.Fatalf("epistemic_contract = %#v, want route candidate/live repository boundary", contract)
+	}
 	if errors, ok := payload["errors"].([]any); !ok || len(errors) == 0 {
 		t.Fatalf("errors = %#v, want non-empty errors array", payload["errors"])
 	}

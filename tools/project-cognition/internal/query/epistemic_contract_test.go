@@ -51,6 +51,37 @@ func TestQueryPublishesEpistemicContractForEveryBaselineKind(t *testing.T) {
 	})
 }
 
+func TestExpandPublishesEpistemicContractForCandidateDataAndMissingBundles(t *testing.T) {
+	paths := queryTestPaths(t)
+
+	missing, err := Expand(paths, ExpandInput{ID: "not-an-expansion", Section: "raw_candidates"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAdvisoryEpistemicContract(t, missing.EpistemicContract)
+	assertSerializedEpistemicContract(t, missing)
+
+	bundleID := "exp-12345678"
+	_, err = writeExpansionBundle(paths, ExpansionBundle{
+		ID:                       bundleID,
+		CandidateUniverseVersion: CandidateUniverseVersion,
+		QueryFingerprint:         "12345678",
+		SectionPayloads: map[string]any{
+			"raw_candidates": []map[string]any{{"id": "candidate-1"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ready, err := Expand(paths, ExpandInput{ID: bundleID, Section: "raw_candidates"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAdvisoryEpistemicContract(t, ready.EpistemicContract)
+	assertSerializedEpistemicContract(t, ready)
+}
+
 func assertAdvisoryEpistemicContract(t *testing.T, contract EpistemicContract) {
 	t.Helper()
 	if contract.ContractVersion != 1 {

@@ -14,7 +14,9 @@ type EpistemicContract struct {
 	UnverifiedClaimAction    string `json:"unverified_claim_action"`
 }
 
-func advisoryEpistemicContract() EpistemicContract {
+// NewEpistemicContract returns the machine-readable boundary shared by every
+// project cognition navigation payload.
+func NewEpistemicContract() EpistemicContract {
 	return EpistemicContract{
 		ContractVersion:          epistemicContractVersion,
 		GraphRole:                "route_candidate_only",

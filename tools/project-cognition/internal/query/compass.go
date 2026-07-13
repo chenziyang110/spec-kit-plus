@@ -188,7 +188,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	terms := termsFrom(strings.Join([]string{input.Intent, input.Query}, " "), 30)
 	facets, facetSource := compassFacets(input, terms)
 	payload := CompassPayload{
-		EpistemicContract:        advisoryEpistemicContract(),
+		EpistemicContract:        NewEpistemicContract(),
 		Readiness:                status.Readiness,
 		CompassState:             compassStateBlocked,
 		Mode:                     compassMode,
@@ -291,7 +291,7 @@ func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Ag
 	}
 	_, facetSource := compassFacets(input, termsFrom(strings.Join([]string{input.Intent, input.Query}, " "), 30))
 	return CompassPayload{
-		EpistemicContract:        advisoryEpistemicContract(),
+		EpistemicContract:        NewEpistemicContract(),
 		Readiness:                readiness,
 		CompassState:             compassStateBlocked,
 		Mode:                     compassMode,

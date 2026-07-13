@@ -757,12 +757,13 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 		if errors.As(err, &planErr) {
 			fmt.Fprintf(stderr, "project-cognition: query plan diagnostics require repair\n")
 			return writeErrorJSON(stdout, map[string]any{
-				"status":         "error",
-				"readiness":      rt.BlockedReadiness,
-				"errors":         planErr.Errors,
-				"warnings":       planErr.Warnings,
-				"repair_hints":   planErr.RepairHints,
-				"expected_shape": planErr.ExpectedShape,
+				"epistemic_contract": query.NewEpistemicContract(),
+				"status":             "error",
+				"readiness":          rt.BlockedReadiness,
+				"errors":             planErr.Errors,
+				"warnings":           planErr.Warnings,
+				"repair_hints":       planErr.RepairHints,
+				"expected_shape":     planErr.ExpectedShape,
 			})
 		}
 		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
@@ -989,12 +990,13 @@ func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 			if errors.As(err, &planErr) {
 				fmt.Fprintf(stderr, "project-cognition: query plan diagnostics require repair\n")
 				return writeErrorJSON(stdout, map[string]any{
-					"status":         "error",
-					"readiness":      rt.BlockedReadiness,
-					"errors":         planErr.Errors,
-					"warnings":       planErr.Warnings,
-					"repair_hints":   planErr.RepairHints,
-					"expected_shape": planErr.ExpectedShape,
+					"epistemic_contract": query.NewEpistemicContract(),
+					"status":             "error",
+					"readiness":          rt.BlockedReadiness,
+					"errors":             planErr.Errors,
+					"warnings":           planErr.Warnings,
+					"repair_hints":       planErr.RepairHints,
+					"expected_shape":     planErr.ExpectedShape,
 				})
 			}
 			fmt.Fprintf(stderr, "project-cognition: %v\n", err)

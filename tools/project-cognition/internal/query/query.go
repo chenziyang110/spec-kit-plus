@@ -374,7 +374,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		readCandidates = append(readCandidates, plan.PathHints...)
 		reads := normalizePaths(readCandidates)
 		return QueryPayload{
-			EpistemicContract: advisoryEpistemicContract(),
+			EpistemicContract: NewEpistemicContract(),
 			BaselineHealth: map[string]any{
 				"freshness":     status.Freshness,
 				"readiness":     status.Readiness,
@@ -494,7 +494,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		"conflicts": []map[string]any{},
 	}
 	return QueryPayload{
-		EpistemicContract: advisoryEpistemicContract(),
+		EpistemicContract: NewEpistemicContract(),
 		BaselineHealth: map[string]any{
 			"freshness":     status.Freshness,
 			"readiness":     status.Readiness,
@@ -769,7 +769,7 @@ func shouldReviewMissingCoverage(missingCoverage []string) bool {
 func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, activeGenerationID string) QueryPayload {
 	reads := []string{".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db"}
 	return QueryPayload{
-		EpistemicContract: advisoryEpistemicContract(),
+		EpistemicContract: NewEpistemicContract(),
 		BaselineHealth: map[string]any{
 			"freshness":             status.Freshness,
 			"readiness":             status.Readiness,
