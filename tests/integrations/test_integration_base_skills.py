@@ -355,6 +355,10 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
     assert "project-cognition update --payload-file" in content
+    assert "project-cognition claim-reconcile prepare" in content
+    assert "project-cognition claim-reconcile apply" in content
+    assert "apply_argv" in content
+    assert "expected_content_hash" not in content
     assert "verification_evidence" in content
     assert "generated_surface_notes" in content
     assert "result_state" in content
@@ -790,6 +794,10 @@ class SkillsIntegrationTests:
         assert "for blocked, stale, or incomplete references" in content
         assert "fall back to minimal live reads" in content
         assert "map-update" in content
+        assert "project-cognition claim-reconcile prepare" in content
+        assert "project-cognition claim-reconcile apply" in content
+        assert "apply_argv" in content
+        assert "expected_content_hash" not in content
         assert "localized stale coverage" in content
         assert "weak reference coverage" in content
         assert "external/manual changed-path map maintenance" in content
