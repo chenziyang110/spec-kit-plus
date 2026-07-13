@@ -188,3 +188,59 @@ func TestPayloadRemainsCompactAndMachineReadable(t *testing.T) {
 		t.Fatalf("payload leaks semantic-audit authorization namespace: %s", data)
 	}
 }
+
+func TestBlockedPayloadUsesCurrentMachineReadableContract(t *testing.T) {
+	payload := BlockedPayload(os.ErrPermission)
+	if payload.Status != "error" || payload.ResultState != "blocked" || payload.ContractVersion != CurrentContractVersion {
+		t.Fatalf("payload = %#v, want blocked current contract", payload)
+	}
+	if payload.ErrorCode != "invalid_claim_reconciliation" || len(payload.Errors) != 1 || !strings.Contains(payload.Errors[0], "permission") {
+		t.Fatalf("payload errors = %#v, want normalized permission error", payload)
+	}
+}
+
+func TestPacketValidationRejectsAmbiguousOrIncompleteInputs(t *testing.T) {
+	validEvidence := Evidence{
+		SourceKind: "source", SourcePath: "src/app.go", Span: "L1", Role: "supporting",
+		ExpectedContentHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+	valid := Packet{
+		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: "2026-07-13T10:00:00Z",
+		Items: []Item{{
+			ClaimID: "claim:app", ExpectedState: claim.StateStale, Reason: "bounded read", Evidence: []Evidence{validEvidence},
+			Verification: &Verification{Result: claim.VerificationPassed, Command: "go test ./..."},
+		}},
+	}
+	tests := map[string]func(*Packet){
+		"missing generation":        func(packet *Packet) { packet.ExpectedGenerationID = "" },
+		"invalid observed time":     func(packet *Packet) { packet.ObservedAt = "yesterday" },
+		"missing items":             func(packet *Packet) { packet.Items = nil },
+		"invalid expected state":    func(packet *Packet) { packet.Items[0].ExpectedState = "verified" },
+		"duplicate claim":           func(packet *Packet) { packet.Items = append(packet.Items, packet.Items[0]) },
+		"missing evidence":          func(packet *Packet) { packet.Items[0].Evidence = nil; packet.Items[0].Verification = nil },
+		"invalid source kind":       func(packet *Packet) { packet.Items[0].Evidence[0].SourceKind = "agent_memory" },
+		"invalid content hash":      func(packet *Packet) { packet.Items[0].Evidence[0].ExpectedContentHash = "hash" },
+		"invalid evidence role":     func(packet *Packet) { packet.Items[0].Evidence[0].Role = "authoritative" },
+		"missing command":           func(packet *Packet) { packet.Items[0].Verification.Command = "" },
+		"invalid verification":      func(packet *Packet) { packet.Items[0].Verification.Result = "unknown" },
+		"contradiction without ref": func(packet *Packet) { packet.Items[0].Verification.Result = claim.VerificationContradicted },
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			packet := clonePacket(valid)
+			mutate(&packet)
+			if _, err := normalizeAndValidatePacket(packet); err == nil {
+				t.Fatal("normalizeAndValidatePacket succeeded, want rejection")
+			}
+		})
+	}
+}
+
+func TestParsePacketRejectsTrailingJSONValues(t *testing.T) {
+	if _, err := ParsePacket([]byte(`{} {}`)); err == nil {
+		t.Fatal("ParsePacket accepted multiple JSON values")
+	}
+	if _, err := ParsePacket([]byte(`{"claim_reconciliation_contract_version":`)); err == nil {
+		t.Fatal("ParsePacket accepted malformed JSON")
+	}
+}

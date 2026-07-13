@@ -162,6 +162,38 @@ func TestOpenRejectsSchemaV2WithoutMigrationOrArchive(t *testing.T) {
 	}
 }
 
+func TestOpenRejectsSchemaV3WithoutMigration(t *testing.T) {
+	ctx := context.Background()
+	paths := testPaths(t)
+	st, err := Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE metadata SET value_json = '3' WHERE key = 'schema_version'`); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = Open(paths)
+	if err == nil {
+		_ = st.Close()
+		t.Fatal("Open succeeded for schema v3, want current-only rejection")
+	}
+	if !strings.Contains(err.Error(), "schema_version 3") || !strings.Contains(err.Error(), "requires 4") {
+		t.Fatalf("Open error = %v, want explicit schema v4 requirement", err)
+	}
+}
+
 func TestOpenRejectsLegacyMetadataValueColumn(t *testing.T) {
 	paths := testPaths(t)
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
