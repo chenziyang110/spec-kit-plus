@@ -15,7 +15,10 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
-const CandidateUniverseVersion = 2
+const (
+	CandidateUniverseVersion      = 1
+	ClaimRetrievalContractVersion = 1
+)
 
 type conceptRef struct {
 	GenerationID   string
@@ -81,30 +84,31 @@ type QueryInput struct {
 }
 
 type QueryPayload struct {
-	EpistemicContract     EpistemicContract `json:"epistemic_contract"`
-	BaselineHealth        map[string]any    `json:"baseline_health"`
-	QueryCoverage         map[string]any    `json:"query_coverage"`
-	WorkflowRequirement   string            `json:"workflow_requirement"`
-	PathAdoption          map[string]any    `json:"path_adoption"`
-	Readiness             string            `json:"readiness"`
-	RecommendedNextAction string            `json:"recommended_next_action"`
-	BaselineKind          string            `json:"baseline_kind,omitempty"`
-	Intent                string            `json:"intent"`
-	Query                 string            `json:"query"`
-	QueryPlan             Plan              `json:"query_plan"`
-	SelectedConcepts      []string          `json:"selected_concepts"`
-	RejectedConcepts      []string          `json:"rejected_concepts"`
-	SelectionReason       string            `json:"selection_reason"`
-	CapabilityCandidates  []map[string]any  `json:"capability_candidates"`
-	SymptomCandidates     []map[string]any  `json:"symptom_candidates"`
-	AffectedNodes         []map[string]any  `json:"affected_nodes"`
-	MinimalLiveReads      []string          `json:"minimal_live_reads"`
-	MissingCoverage       []string          `json:"missing_coverage"`
-	RoutePack             map[string]any    `json:"route_pack"`
-	Subgraph              map[string]any    `json:"subgraph"`
-	ClaimSignals          []ClaimSignal     `json:"claim_signals,omitempty"`
-	Warnings              []string          `json:"warnings,omitempty"`
-	RepairHints           []string          `json:"repair_hints,omitempty"`
+	EpistemicContract             EpistemicContract `json:"epistemic_contract"`
+	ClaimRetrievalContractVersion int               `json:"claim_retrieval_contract_version"`
+	BaselineHealth                map[string]any    `json:"baseline_health"`
+	QueryCoverage                 map[string]any    `json:"query_coverage"`
+	WorkflowRequirement           string            `json:"workflow_requirement"`
+	PathAdoption                  map[string]any    `json:"path_adoption"`
+	Readiness                     string            `json:"readiness"`
+	RecommendedNextAction         string            `json:"recommended_next_action"`
+	BaselineKind                  string            `json:"baseline_kind,omitempty"`
+	Intent                        string            `json:"intent"`
+	Query                         string            `json:"query"`
+	QueryPlan                     Plan              `json:"query_plan"`
+	SelectedConcepts              []string          `json:"selected_concepts"`
+	RejectedConcepts              []string          `json:"rejected_concepts"`
+	SelectionReason               string            `json:"selection_reason"`
+	CapabilityCandidates          []map[string]any  `json:"capability_candidates"`
+	SymptomCandidates             []map[string]any  `json:"symptom_candidates"`
+	AffectedNodes                 []map[string]any  `json:"affected_nodes"`
+	MinimalLiveReads              []string          `json:"minimal_live_reads"`
+	MissingCoverage               []string          `json:"missing_coverage"`
+	RoutePack                     map[string]any    `json:"route_pack"`
+	Subgraph                      map[string]any    `json:"subgraph"`
+	ClaimSignals                  []ClaimSignal     `json:"claim_signals,omitempty"`
+	Warnings                      []string          `json:"warnings,omitempty"`
+	RepairHints                   []string          `json:"repair_hints,omitempty"`
 }
 
 type PlanDiagnostics struct {
@@ -376,7 +380,8 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		readCandidates = append(readCandidates, plan.PathHints...)
 		reads := normalizePaths(readCandidates)
 		return QueryPayload{
-			EpistemicContract: NewEpistemicContract(),
+			EpistemicContract:             NewEpistemicContract(),
+			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
 			BaselineHealth: map[string]any{
 				"freshness":     status.Freshness,
 				"readiness":     status.Readiness,
@@ -508,7 +513,8 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		"conflicts": []map[string]any{},
 	}
 	return QueryPayload{
-		EpistemicContract: NewEpistemicContract(),
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
 		BaselineHealth: map[string]any{
 			"freshness":     status.Freshness,
 			"readiness":     status.Readiness,
@@ -794,7 +800,8 @@ func shouldReviewMissingCoverage(missingCoverage []string) bool {
 func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, activeGenerationID string) QueryPayload {
 	reads := []string{".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db"}
 	return QueryPayload{
-		EpistemicContract: NewEpistemicContract(),
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
 		BaselineHealth: map[string]any{
 			"freshness":             status.Freshness,
 			"readiness":             status.Readiness,

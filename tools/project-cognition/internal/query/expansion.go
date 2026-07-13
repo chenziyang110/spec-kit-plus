@@ -28,13 +28,14 @@ const (
 var expansionIDPattern = regexp.MustCompile(`^exp-[A-Za-z0-9._-]+$`)
 
 type ExpansionBundle struct {
-	ID                       string                          `json:"id"`
-	ActiveGenerationID       string                          `json:"active_generation_id,omitempty"`
-	CandidateUniverseVersion int                             `json:"candidate_universe_version"`
-	QueryFingerprint         string                          `json:"query_fingerprint"`
-	Sections                 map[string]ExpansionSectionMeta `json:"sections"`
-	SectionPayloads          map[string]any                  `json:"section_payloads"`
-	CreatedAt                string                          `json:"created_at"`
+	ID                            string                          `json:"id"`
+	ClaimRetrievalContractVersion int                             `json:"claim_retrieval_contract_version"`
+	ActiveGenerationID            string                          `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion      int                             `json:"candidate_universe_version"`
+	QueryFingerprint              string                          `json:"query_fingerprint"`
+	Sections                      map[string]ExpansionSectionMeta `json:"sections"`
+	SectionPayloads               map[string]any                  `json:"section_payloads"`
+	CreatedAt                     string                          `json:"created_at"`
 }
 
 type ExpandInput struct {
@@ -43,20 +44,21 @@ type ExpandInput struct {
 }
 
 type ExpandPayload struct {
-	EpistemicContract        EpistemicContract               `json:"epistemic_contract"`
-	Status                   string                          `json:"status"`
-	Readiness                string                          `json:"readiness"`
-	CompassState             string                          `json:"compass_state"`
-	ID                       string                          `json:"id,omitempty"`
-	Section                  string                          `json:"section,omitempty"`
-	Data                     any                             `json:"data,omitempty"`
-	ActiveGenerationID       string                          `json:"active_generation_id,omitempty"`
-	CandidateUniverseVersion int                             `json:"candidate_universe_version,omitempty"`
-	QueryFingerprint         string                          `json:"query_fingerprint,omitempty"`
-	AvailableSections        map[string]ExpansionSectionMeta `json:"available_sections,omitempty"`
-	RecommendedNextAction    string                          `json:"recommended_next_action"`
-	Errors                   []string                        `json:"errors,omitempty"`
-	Warnings                 []string                        `json:"warnings,omitempty"`
+	EpistemicContract             EpistemicContract               `json:"epistemic_contract"`
+	ClaimRetrievalContractVersion int                             `json:"claim_retrieval_contract_version"`
+	Status                        string                          `json:"status"`
+	Readiness                     string                          `json:"readiness"`
+	CompassState                  string                          `json:"compass_state"`
+	ID                            string                          `json:"id,omitempty"`
+	Section                       string                          `json:"section,omitempty"`
+	Data                          any                             `json:"data,omitempty"`
+	ActiveGenerationID            string                          `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion      int                             `json:"candidate_universe_version,omitempty"`
+	QueryFingerprint              string                          `json:"query_fingerprint,omitempty"`
+	AvailableSections             map[string]ExpansionSectionMeta `json:"available_sections,omitempty"`
+	RecommendedNextAction         string                          `json:"recommended_next_action"`
+	Errors                        []string                        `json:"errors,omitempty"`
+	Warnings                      []string                        `json:"warnings,omitempty"`
 }
 
 func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef, error) {
@@ -66,6 +68,9 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 	}
 	if bundle.CreatedAt == "" {
 		bundle.CreatedAt = deterministicExpansionCreatedAt(bundle.QueryFingerprint)
+	}
+	if bundle.ClaimRetrievalContractVersion == 0 {
+		bundle.ClaimRetrievalContractVersion = ClaimRetrievalContractVersion
 	}
 	if bundle.SectionPayloads == nil {
 		bundle.SectionPayloads = map[string]any{}
@@ -82,12 +87,13 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 		return ExpansionRef{}, fmt.Errorf("write expansion bundle: %w", err)
 	}
 	return ExpansionRef{
-		ID:                       bundle.ID,
-		ActiveGenerationID:       bundle.ActiveGenerationID,
-		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
-		QueryFingerprint:         bundle.QueryFingerprint,
-		AvailableSections:        bundle.Sections,
-		StaleBehavior:            expansionRefStaleBehavior,
+		ID:                            bundle.ID,
+		ClaimRetrievalContractVersion: bundle.ClaimRetrievalContractVersion,
+		ActiveGenerationID:            bundle.ActiveGenerationID,
+		CandidateUniverseVersion:      bundle.CandidateUniverseVersion,
+		QueryFingerprint:              bundle.QueryFingerprint,
+		AvailableSections:             bundle.Sections,
+		StaleBehavior:                 expansionRefStaleBehavior,
 	}, nil
 }
 
@@ -123,33 +129,35 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	payload, ok := bundle.SectionPayloads[section]
 	if !ok {
 		return ExpandPayload{
-			EpistemicContract:        NewEpistemicContract(),
-			Status:                   expansionStatusMissingSection,
-			Readiness:                status.Readiness,
-			CompassState:             expansionStatusMissingSection,
-			ID:                       bundle.ID,
-			Section:                  section,
-			ActiveGenerationID:       bundle.ActiveGenerationID,
-			CandidateUniverseVersion: bundle.CandidateUniverseVersion,
-			QueryFingerprint:         bundle.QueryFingerprint,
-			AvailableSections:        available,
-			RecommendedNextAction:    expansionRecommendedActionRerun,
-			Errors:                   []string{"missing_section:" + section},
+			EpistemicContract:             NewEpistemicContract(),
+			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+			Status:                        expansionStatusMissingSection,
+			Readiness:                     status.Readiness,
+			CompassState:                  expansionStatusMissingSection,
+			ID:                            bundle.ID,
+			Section:                       section,
+			ActiveGenerationID:            bundle.ActiveGenerationID,
+			CandidateUniverseVersion:      bundle.CandidateUniverseVersion,
+			QueryFingerprint:              bundle.QueryFingerprint,
+			AvailableSections:             available,
+			RecommendedNextAction:         expansionRecommendedActionRerun,
+			Errors:                        []string{"missing_section:" + section},
 		}, nil
 	}
 	return ExpandPayload{
-		EpistemicContract:        NewEpistemicContract(),
-		Status:                   expansionStatusOK,
-		Readiness:                status.Readiness,
-		CompassState:             compassStateUsableWithReview,
-		ID:                       bundle.ID,
-		Section:                  section,
-		Data:                     payload,
-		ActiveGenerationID:       bundle.ActiveGenerationID,
-		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
-		QueryFingerprint:         bundle.QueryFingerprint,
-		AvailableSections:        available,
-		RecommendedNextAction:    compassRecommendedActionUseReads,
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		Status:                        expansionStatusOK,
+		Readiness:                     status.Readiness,
+		CompassState:                  compassStateUsableWithReview,
+		ID:                            bundle.ID,
+		Section:                       section,
+		Data:                          payload,
+		ActiveGenerationID:            bundle.ActiveGenerationID,
+		CandidateUniverseVersion:      bundle.CandidateUniverseVersion,
+		QueryFingerprint:              bundle.QueryFingerprint,
+		AvailableSections:             available,
+		RecommendedNextAction:         compassRecommendedActionUseReads,
 	}, nil
 }
 
@@ -180,30 +188,32 @@ func expansionBundlePath(paths rt.Paths, id string) (string, error) {
 
 func staleExpansionPayload(bundle ExpansionBundle, available map[string]ExpansionSectionMeta) ExpandPayload {
 	return ExpandPayload{
-		EpistemicContract:        NewEpistemicContract(),
-		Status:                   expansionStatusStaleExpansion,
-		Readiness:                rt.ReviewReadiness,
-		CompassState:             expansionCompassStateStaleExpansion,
-		ID:                       bundle.ID,
-		ActiveGenerationID:       bundle.ActiveGenerationID,
-		CandidateUniverseVersion: bundle.CandidateUniverseVersion,
-		QueryFingerprint:         bundle.QueryFingerprint,
-		AvailableSections:        available,
-		RecommendedNextAction:    expansionRecommendedActionRerun,
-		Warnings:                 []string{"stale_expansion"},
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		Status:                        expansionStatusStaleExpansion,
+		Readiness:                     rt.ReviewReadiness,
+		CompassState:                  expansionCompassStateStaleExpansion,
+		ID:                            bundle.ID,
+		ActiveGenerationID:            bundle.ActiveGenerationID,
+		CandidateUniverseVersion:      bundle.CandidateUniverseVersion,
+		QueryFingerprint:              bundle.QueryFingerprint,
+		AvailableSections:             available,
+		RecommendedNextAction:         expansionRecommendedActionRerun,
+		Warnings:                      []string{"stale_expansion"},
 	}
 }
 
 func missingExpansionPayload(status rt.Status, id, section string) ExpandPayload {
 	return ExpandPayload{
-		EpistemicContract:     NewEpistemicContract(),
-		Status:                expansionStatusMissingExpansion,
-		Readiness:             status.Readiness,
-		CompassState:          expansionStatusMissingExpansion,
-		ID:                    id,
-		Section:               section,
-		RecommendedNextAction: expansionRecommendedActionRerun,
-		Errors:                []string{"missing_expansion"},
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		Status:                        expansionStatusMissingExpansion,
+		Readiness:                     status.Readiness,
+		CompassState:                  expansionStatusMissingExpansion,
+		ID:                            id,
+		Section:                       section,
+		RecommendedNextAction:         expansionRecommendedActionRerun,
+		Errors:                        []string{"missing_expansion"},
 	}
 }
 
@@ -216,6 +226,9 @@ func expansionBundleStale(status rt.Status, bundle ExpansionBundle, requestedID 
 		return true
 	}
 	if bundle.QueryFingerprint != strings.TrimPrefix(requestedID, "exp-") {
+		return true
+	}
+	if bundle.ClaimRetrievalContractVersion != ClaimRetrievalContractVersion {
 		return true
 	}
 	if bundle.ActiveGenerationID != status.ActiveGenerationID {

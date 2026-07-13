@@ -47,27 +47,28 @@ type CompassInput struct {
 }
 
 type CompassPayload struct {
-	EpistemicContract        EpistemicContract             `json:"epistemic_contract"`
-	Readiness                string                        `json:"readiness"`
-	CompassState             string                        `json:"compass_state"`
-	Mode                     string                        `json:"mode"`
-	FacetSource              string                        `json:"facet_source"`
-	ActiveGenerationID       string                        `json:"active_generation_id,omitempty"`
-	CandidateUniverseVersion int                           `json:"candidate_universe_version"`
-	QueryFingerprint         string                        `json:"query_fingerprint"`
-	Summary                  string                        `json:"summary"`
-	IntentFacets             []CompassIntentFacet          `json:"intent_facets"`
-	EvidenceLanes            []EvidenceLane                `json:"evidence_lanes"`
-	MinimalLiveReads         []string                      `json:"minimal_live_reads"`
-	CoverageDiagnostics      []CoverageDiagnostic          `json:"coverage_diagnostics"`
-	ExpansionRef             *ExpansionRef                 `json:"expansion_ref,omitempty"`
-	AgentNormalization       *AgentNormalizationDiagnostic `json:"agent_normalization,omitempty"`
-	Warnings                 []string                      `json:"warnings,omitempty"`
-	RepairHints              []string                      `json:"repair_hints,omitempty"`
-	Errors                   []string                      `json:"errors"`
-	RecommendedNextAction    string                        `json:"recommended_next_action"`
-	RecoveryAction           string                        `json:"recovery_action,omitempty"`
-	BaselineKind             string                        `json:"baseline_kind,omitempty"`
+	EpistemicContract             EpistemicContract             `json:"epistemic_contract"`
+	ClaimRetrievalContractVersion int                           `json:"claim_retrieval_contract_version"`
+	Readiness                     string                        `json:"readiness"`
+	CompassState                  string                        `json:"compass_state"`
+	Mode                          string                        `json:"mode"`
+	FacetSource                   string                        `json:"facet_source"`
+	ActiveGenerationID            string                        `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion      int                           `json:"candidate_universe_version"`
+	QueryFingerprint              string                        `json:"query_fingerprint"`
+	Summary                       string                        `json:"summary"`
+	IntentFacets                  []CompassIntentFacet          `json:"intent_facets"`
+	EvidenceLanes                 []EvidenceLane                `json:"evidence_lanes"`
+	MinimalLiveReads              []string                      `json:"minimal_live_reads"`
+	CoverageDiagnostics           []CoverageDiagnostic          `json:"coverage_diagnostics"`
+	ExpansionRef                  *ExpansionRef                 `json:"expansion_ref,omitempty"`
+	AgentNormalization            *AgentNormalizationDiagnostic `json:"agent_normalization,omitempty"`
+	Warnings                      []string                      `json:"warnings,omitempty"`
+	RepairHints                   []string                      `json:"repair_hints,omitempty"`
+	Errors                        []string                      `json:"errors"`
+	RecommendedNextAction         string                        `json:"recommended_next_action"`
+	RecoveryAction                string                        `json:"recovery_action,omitempty"`
+	BaselineKind                  string                        `json:"baseline_kind,omitempty"`
 }
 
 type CompassIntentFacet struct {
@@ -105,12 +106,13 @@ type CoverageDiagnostic struct {
 }
 
 type ExpansionRef struct {
-	ID                       string                          `json:"id,omitempty"`
-	ActiveGenerationID       string                          `json:"active_generation_id,omitempty"`
-	CandidateUniverseVersion int                             `json:"candidate_universe_version,omitempty"`
-	QueryFingerprint         string                          `json:"query_fingerprint,omitempty"`
-	AvailableSections        map[string]ExpansionSectionMeta `json:"available_sections,omitempty"`
-	StaleBehavior            string                          `json:"stale_behavior,omitempty"`
+	ID                            string                          `json:"id,omitempty"`
+	ClaimRetrievalContractVersion int                             `json:"claim_retrieval_contract_version,omitempty"`
+	ActiveGenerationID            string                          `json:"active_generation_id,omitempty"`
+	CandidateUniverseVersion      int                             `json:"candidate_universe_version,omitempty"`
+	QueryFingerprint              string                          `json:"query_fingerprint,omitempty"`
+	AvailableSections             map[string]ExpansionSectionMeta `json:"available_sections,omitempty"`
+	StaleBehavior                 string                          `json:"stale_behavior,omitempty"`
 }
 
 type ExpansionSectionMeta struct {
@@ -189,24 +191,25 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	terms := termsFrom(strings.Join([]string{input.Intent, input.Query}, " "), 30)
 	facets, facetSource := compassFacets(input, terms)
 	payload := CompassPayload{
-		EpistemicContract:        NewEpistemicContract(),
-		Readiness:                status.Readiness,
-		CompassState:             compassStateBlocked,
-		Mode:                     compassMode,
-		FacetSource:              facetSource,
-		ActiveGenerationID:       status.ActiveGenerationID,
-		CandidateUniverseVersion: CandidateUniverseVersion,
-		QueryFingerprint:         compassFingerprint(input),
-		Summary:                  "Compass packet is blocked until project cognition readiness is restored.",
-		IntentFacets:             []CompassIntentFacet{},
-		EvidenceLanes:            []EvidenceLane{},
-		MinimalLiveReads:         []string{},
-		CoverageDiagnostics:      []CoverageDiagnostic{},
-		Warnings:                 input.PlanDiagnostics.Warnings,
-		RepairHints:              input.PlanDiagnostics.RepairHints,
-		Errors:                   []string{},
-		RecommendedNextAction:    status.RecommendedNextAction,
-		BaselineKind:             status.BaselineKind,
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		Readiness:                     status.Readiness,
+		CompassState:                  compassStateBlocked,
+		Mode:                          compassMode,
+		FacetSource:                   facetSource,
+		ActiveGenerationID:            status.ActiveGenerationID,
+		CandidateUniverseVersion:      CandidateUniverseVersion,
+		QueryFingerprint:              compassFingerprint(input),
+		Summary:                       "Compass packet is blocked until project cognition readiness is restored.",
+		IntentFacets:                  []CompassIntentFacet{},
+		EvidenceLanes:                 []EvidenceLane{},
+		MinimalLiveReads:              []string{},
+		CoverageDiagnostics:           []CoverageDiagnostic{},
+		Warnings:                      input.PlanDiagnostics.Warnings,
+		RepairHints:                   input.PlanDiagnostics.RepairHints,
+		Errors:                        []string{},
+		RecommendedNextAction:         status.RecommendedNextAction,
+		BaselineKind:                  status.BaselineKind,
 	}
 
 	if compassReadinessBlocked(status.Readiness) {
@@ -267,13 +270,14 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			"claim_evidence":  claimSignals(claimRecords, maxExpansionClaimSignals, maxExpansionEvidenceRefs),
 		}
 		ref, err := writeExpansionBundle(paths, ExpansionBundle{
-			ID:                       "exp-" + payload.QueryFingerprint,
-			ActiveGenerationID:       payload.ActiveGenerationID,
-			CandidateUniverseVersion: payload.CandidateUniverseVersion,
-			QueryFingerprint:         payload.QueryFingerprint,
-			Sections:                 expansionSectionMeta(sectionPayloads),
-			SectionPayloads:          sectionPayloads,
-			CreatedAt:                deterministicExpansionCreatedAt(payload.QueryFingerprint),
+			ID:                            "exp-" + payload.QueryFingerprint,
+			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+			ActiveGenerationID:            payload.ActiveGenerationID,
+			CandidateUniverseVersion:      payload.CandidateUniverseVersion,
+			QueryFingerprint:              payload.QueryFingerprint,
+			Sections:                      expansionSectionMeta(sectionPayloads),
+			SectionPayloads:               sectionPayloads,
+			CreatedAt:                     deterministicExpansionCreatedAt(payload.QueryFingerprint),
 		})
 		if err != nil {
 			payload.Warnings = appendDiagnosticString(payload.Warnings, "expansion_bundle_write_failed:"+err.Error())
@@ -298,25 +302,26 @@ func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Ag
 	}
 	_, facetSource := compassFacets(input, termsFrom(strings.Join([]string{input.Intent, input.Query}, " "), 30))
 	return CompassPayload{
-		EpistemicContract:        NewEpistemicContract(),
-		Readiness:                readiness,
-		CompassState:             compassStateBlocked,
-		Mode:                     compassMode,
-		FacetSource:              facetSource,
-		ActiveGenerationID:       firstNonEmpty(agreement.StatusGenerationID, agreement.DBActiveGenerationID),
-		CandidateUniverseVersion: CandidateUniverseVersion,
-		QueryFingerprint:         compassFingerprint(input),
-		Summary:                  "Compass packet is blocked until project cognition baseline is rebuilt.",
-		IntentFacets:             []CompassIntentFacet{},
-		EvidenceLanes:            []EvidenceLane{},
-		MinimalLiveReads:         []string{},
-		CoverageDiagnostics:      []CoverageDiagnostic{},
-		Warnings:                 input.PlanDiagnostics.Warnings,
-		RepairHints:              input.PlanDiagnostics.RepairHints,
-		Errors:                   append([]string{}, agreement.Errors...),
-		RecommendedNextAction:    recommendedAction,
-		RecoveryAction:           recoveryAction,
-		BaselineKind:             firstNonEmpty(agreement.StatusBaselineKind, agreement.DBBaselineKind),
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		Readiness:                     readiness,
+		CompassState:                  compassStateBlocked,
+		Mode:                          compassMode,
+		FacetSource:                   facetSource,
+		ActiveGenerationID:            firstNonEmpty(agreement.StatusGenerationID, agreement.DBActiveGenerationID),
+		CandidateUniverseVersion:      CandidateUniverseVersion,
+		QueryFingerprint:              compassFingerprint(input),
+		Summary:                       "Compass packet is blocked until project cognition baseline is rebuilt.",
+		IntentFacets:                  []CompassIntentFacet{},
+		EvidenceLanes:                 []EvidenceLane{},
+		MinimalLiveReads:              []string{},
+		CoverageDiagnostics:           []CoverageDiagnostic{},
+		Warnings:                      input.PlanDiagnostics.Warnings,
+		RepairHints:                   input.PlanDiagnostics.RepairHints,
+		Errors:                        append([]string{}, agreement.Errors...),
+		RecommendedNextAction:         recommendedAction,
+		RecoveryAction:                recoveryAction,
+		BaselineKind:                  firstNonEmpty(agreement.StatusBaselineKind, agreement.DBBaselineKind),
 	}
 }
 
