@@ -174,7 +174,7 @@ func claimReconcilePrepareCommand(args []string, stdout io.Writer, stderr io.Wri
 func claimReconcileApplyCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("claim-reconcile apply", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	inputFile := fs.String("input", "", "Runtime-prepared claim reconciliation packet; omit for stdin")
+	inputFile := fs.String("input", "", "Runtime-prepared claim reconciliation packet path")
 	format := fs.String("format", "json", "Output format: json")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -182,7 +182,7 @@ func claimReconcileApplyCommand(args []string, stdout io.Writer, stderr io.Write
 	if *format != "json" {
 		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("claim-reconcile apply supports only --format json")))
 	}
-	data, err := readInputFileOrStdin(*inputFile)
+	data, err := readRuntimePreparedReconciliationPacket(paths, *inputFile)
 	if err != nil {
 		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("read claim reconciliation input: %w", err)))
 	}
@@ -195,6 +195,41 @@ func claimReconcileApplyCommand(args []string, stdout io.Writer, stderr io.Write
 		return writeErrorJSON(stdout, reconcile.BlockedPayload(err))
 	}
 	return writeCompactJSON(stdout, payload)
+}
+
+func readRuntimePreparedReconciliationPacket(paths rt.Paths, inputFile string) ([]byte, error) {
+	inputFile = strings.TrimSpace(inputFile)
+	if inputFile == "" {
+		return nil, fmt.Errorf("--input is required and must name a runtime-prepared claim reconciliation packet")
+	}
+	candidate := inputFile
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(paths.Root, filepath.FromSlash(candidate))
+	}
+	resolved, err := filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return nil, fmt.Errorf("resolve runtime-prepared claim reconciliation packet: %w", err)
+	}
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("resolve runtime-prepared claim reconciliation packet: %w", err)
+	}
+	preparedDir, err := filepath.Abs(filepath.Join(paths.RuntimeDir, "claim-reconciliations", "prepared"))
+	if err != nil {
+		return nil, fmt.Errorf("resolve runtime-prepared claim reconciliation directory: %w", err)
+	}
+	relative, err := filepath.Rel(preparedDir, resolved)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return nil, fmt.Errorf("--input must name a runtime-prepared packet under %s", rt.RelativeRuntimePath(paths, preparedDir))
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("read runtime-prepared claim reconciliation packet: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("runtime-prepared claim reconciliation packet is not a regular file")
+	}
+	return os.ReadFile(resolved)
 }
 
 func readInputFileOrStdin(inputFile string) ([]byte, error) {
