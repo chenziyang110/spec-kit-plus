@@ -4,6 +4,7 @@
 package claim
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
 )
@@ -157,9 +158,17 @@ func cloneAndSortVerifications(rows []Verification) []Verification {
 		if out[i].ObservedAt != out[j].ObservedAt {
 			return out[i].ObservedAt < out[j].ObservedAt
 		}
-		return out[i].ID < out[j].ID
+		if out[i].ID != out[j].ID {
+			return out[i].ID < out[j].ID
+		}
+		return verificationSortKey(out[i]) < verificationSortKey(out[j])
 	})
 	return out
+}
+
+func verificationSortKey(value Verification) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
 }
 
 func uniqueSorted(values []string) []string {

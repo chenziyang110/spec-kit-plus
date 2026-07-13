@@ -100,6 +100,7 @@ func Compile(proposal CognitionProposal) (CompiledProposal, Result) {
 	pkg.Edges = mergeEdges(pkg.Edges, &result)
 	pkg.Observations = mergeObservations(pkg.Observations, &result)
 	pkg.Claims = mergeClaims(pkg.Claims, &result)
+	compileClaimVerifications(&pkg, &result)
 	pkg.CoveragePaths = uniqueSortedStrings(pkg.CoveragePaths)
 	pkg.AcceptedGaps = cloneBoolMap(pkg.AcceptedGaps)
 
@@ -206,6 +207,71 @@ func mergeObservations(rows []scanartifacts.ObservationRow, result *Result) []sc
 
 func mergeClaims(rows []scanartifacts.ClaimRow, result *Result) []scanartifacts.ClaimRow {
 	return mergeRows(rows, "claim", func(row scanartifacts.ClaimRow) string { return row.ID }, result)
+}
+
+func compileClaimVerifications(pkg *scanartifacts.Package, result *Result) {
+	for index := range pkg.Claims {
+		graphClaim := &pkg.Claims[index]
+		if graphClaim.GraphClaimType == "" {
+			result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "missing_graph_claim_type"})
+		}
+		if graphClaim.Summary == "" {
+			result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "missing_summary"})
+		}
+		supporting := map[string]bool{}
+		for _, evidenceID := range graphClaim.SupportingEvidenceIDs {
+			supporting[evidenceID] = true
+		}
+		for _, evidenceID := range graphClaim.ContradictingEvidenceIDs {
+			if supporting[evidenceID] {
+				result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "evidence_role_conflict:" + evidenceID})
+			}
+		}
+
+		seen := map[string]claim.Verification{}
+		verifications := make([]claim.Verification, 0, len(graphClaim.Verifications))
+		for _, verification := range graphClaim.Verifications {
+			if verification.ID == "" {
+				result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "missing_verification_id"})
+			}
+			if !validVerificationResult(verification.Result) {
+				result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "invalid_verification_result:" + string(verification.Result)})
+			}
+			if verification.EvidenceID == "" {
+				result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "verification_evidence_required"})
+			}
+			if verification.ObservedAt == "" {
+				result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "verification_observed_at_required"})
+			}
+			if verification.ID == "" {
+				continue
+			}
+			previous, exists := seen[verification.ID]
+			if !exists {
+				seen[verification.ID] = verification
+				verifications = append(verifications, verification)
+				continue
+			}
+			if reflect.DeepEqual(previous, verification) {
+				result.MergeRecords = append(result.MergeRecords, MergeRecord{
+					Category: "claim_verification", SourceIdentity: verification.ID,
+					TargetIdentity: verification.ID, Reason: "duplicate_equivalent",
+				})
+				continue
+			}
+			result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "verification_identity_conflict:" + verification.ID})
+		}
+		graphClaim.Verifications = verifications
+	}
+}
+
+func validVerificationResult(result claim.VerificationResult) bool {
+	switch result {
+	case claim.VerificationPassed, claim.VerificationFailed, claim.VerificationBlocked, claim.VerificationInconclusive, claim.VerificationContradicted:
+		return true
+	default:
+		return false
+	}
 }
 
 func mergeRows[T any](rows []T, category string, identity func(T) string, result *Result) []T {
