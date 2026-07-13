@@ -913,8 +913,8 @@ func TestRunRejectsLegacyThinDatabaseWithoutReplacement(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Run() error = nil, want current-schema-only rejection; payload=%#v", payload)
 	}
-	if !strings.Contains(strings.Join(payload.Errors, "\n"), "schema_version 0") {
-		t.Fatalf("Errors = %#v, want explicit schema v0 rejection", payload.Errors)
+	if !strings.Contains(strings.Join(payload.Errors, "\n"), "metadata table has no value_json column") {
+		t.Fatalf("Errors = %#v, want explicit current metadata schema rejection", payload.Errors)
 	}
 	if payload.ActiveGenerationID != "" {
 		t.Fatalf("ActiveGenerationID = %q, want no import", payload.ActiveGenerationID)

@@ -112,10 +112,10 @@ func ReadStatus(paths Paths) (Status, error) {
 	if status.RuntimeSchema != RuntimeSchema {
 		return Status{}, ErrUnsupportedLegacy
 	}
-	status.StatusPath = slash(paths.StatusPath)
 	if status.GraphStorePath == "" {
-		status.GraphStorePath = ".specify/project-cognition/project-cognition.db"
+		return Status{}, ErrUnsupportedLegacy
 	}
+	status.StatusPath = slash(paths.StatusPath)
 	normalizeStatusSlices(&status)
 	return status, nil
 }

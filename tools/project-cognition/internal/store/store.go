@@ -426,7 +426,6 @@ func metadataValueColumn(ctx context.Context, db *sql.DB) (string, error) {
 	}
 	defer rows.Close()
 	hasValueJSON := false
-	hasValue := false
 	for rows.Next() {
 		var cid int
 		var name, typ string
@@ -439,18 +438,12 @@ func metadataValueColumn(ctx context.Context, db *sql.DB) (string, error) {
 		if name == "value_json" {
 			hasValueJSON = true
 		}
-		if name == "value" {
-			hasValue = true
-		}
 	}
 	if err := rows.Err(); err != nil {
 		return "", err
 	}
 	if hasValueJSON {
 		return "value_json", nil
-	}
-	if hasValue {
-		return "value", nil
 	}
 	return "", fmt.Errorf("metadata table has no value_json column")
 }
@@ -465,7 +458,7 @@ func databaseSchemaVersion(ctx context.Context, db *sql.DB) (int, error) {
 	}
 	valueColumn, err := metadataValueColumn(ctx, db)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	var value string
 	err = db.QueryRowContext(ctx, `SELECT `+valueColumn+` FROM metadata WHERE key = 'schema_version'`).Scan(&value)
