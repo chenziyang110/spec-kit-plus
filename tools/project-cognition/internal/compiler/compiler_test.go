@@ -152,6 +152,64 @@ func TestCompileDoesNotMutateAgentProposal(t *testing.T) {
 	}
 }
 
+func TestCompileCoversVersionIdentityPathAndUnknownPolicies(t *testing.T) {
+	pkg := legacyPackageFixture()
+	pkg.Nodes = append(pkg.Nodes, scanartifacts.NodeRow{Type: "capability", Title: "Missing ID"})
+	pkg.Nodes[0].EvidenceIDs = nil
+	pkg.Nodes[0].Paths = append(pkg.Nodes[0].Paths, "../outside.go")
+	pkg.Edges[0].SourceID = "N-missing"
+	pkg.Observations[0].EvidenceIDs = []string{"E-missing"}
+	proposal := AdaptLegacy(pkg)
+	proposal.ProposalVersion = ContractVersion + 1
+
+	_, result := Compile(proposal)
+
+	if result.PublicationAllowed {
+		t.Fatalf("publication_allowed = true, want false; result=%#v", result)
+	}
+	for _, reason := range []string{
+		"unsupported_proposal_version",
+		"missing_identity",
+		"path_outside_repository",
+		"missing_source_node:N-missing",
+		"missing_evidence:E-missing",
+	} {
+		if !hasDecisionReason(result.Conflicts, reason) {
+			t.Fatalf("conflicts = %#v, want %q", result.Conflicts, reason)
+		}
+	}
+	if !hasDecisionReason(result.Unknowns, "no_evidence_reference") {
+		t.Fatalf("unknowns = %#v, want no_evidence_reference", result.Unknowns)
+	}
+}
+
+func TestCompileDeepClonesAttributesAndMergesEveryRowCategory(t *testing.T) {
+	pkg := legacyPackageFixture()
+	pkg.Nodes[0].Attrs = map[string]any{
+		"nested": map[string]any{"owners": []any{"runtime", map[string]any{"name": "agent"}}},
+		"tags":   []string{"a", "b"},
+	}
+	pkg.Evidence = append(pkg.Evidence, pkg.Evidence[0])
+	pkg.Edges = append(pkg.Edges, pkg.Edges[0])
+	pkg.Observations = append(pkg.Observations, pkg.Observations[0])
+
+	compiled, result := Compile(AdaptLegacy(pkg))
+
+	if !result.PublicationAllowed {
+		t.Fatalf("publication_allowed = false; conflicts=%#v", result.Conflicts)
+	}
+	if len(result.MergeRecords) != 3 {
+		t.Fatalf("merge_records = %#v, want evidence, edge, and observation merges", result.MergeRecords)
+	}
+	compiledNested := compiled.Package.Nodes[0].Attrs["nested"].(map[string]any)
+	compiledNested["owners"].([]any)[0] = "changed"
+	compiled.Package.Nodes[0].Attrs["tags"].([]string)[0] = "changed"
+	originalNested := pkg.Nodes[0].Attrs["nested"].(map[string]any)
+	if originalNested["owners"].([]any)[0] != "runtime" || pkg.Nodes[0].Attrs["tags"].([]string)[0] != "a" {
+		t.Fatalf("compiled attrs share memory with proposal attrs: %#v", pkg.Nodes[0].Attrs)
+	}
+}
+
 func hasDecisionReason(decisions []Decision, reason string) bool {
 	for _, decision := range decisions {
 		if decision.Reason == reason {
