@@ -297,7 +297,7 @@ def test_map_build_exposes_deterministic_proposal_compilation_gate() -> None:
     for path in ["README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"]:
         content = _read(path)
         assert "deterministic cognition proposal compiler" in content
-        assert "before SQLite publication" in content
+        assert "before sqlite publication" in content.lower()
 
 
 def test_map_workflow_templates_require_project_concept_lexicon_signals() -> None:

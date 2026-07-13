@@ -54,7 +54,9 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
 - Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import.
-- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation; this rebuilds the graph store into schema v2 and owns DB import, metadata, status publication, and DB/status agreement.
+- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation, then rebuilds the graph store into schema v2 and owns DB import, metadata, status publication, and DB/status agreement.
+- Treat `compilation.publication_allowed=false` as a hard pre-publication block. Report the bounded compiler conflicts and stop without creating, archiving, replacing, or publishing a graph store.
+- A successful compile means the proposal is structurally safe and deterministic enough to publish as advisory graph material. Compiled nodes, edges, paths, and aliases remain route candidates rather than repository facts; live repository evidence still proves behavioral claims.
 - If `build-from-scan` returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action` and do not proceed to build validation.
 - Run `{{specify-subcmd:project-cognition validate-build --format json}}` after `build-from-scan`.
 

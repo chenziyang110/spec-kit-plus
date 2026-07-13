@@ -57,6 +57,8 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets.
 - **Testing and verification**: Python pytest layers, integration/template contract tests, Codex-team tests, and engine build checks protect generated behavior.
 
+- **Deterministic cognition proposal publication**: Before SQLite publication, `build-from-scan` adapts the accepted legacy-compatible scan package into a versioned proposal and runs the deterministic cognition proposal compiler. Compiler conflicts block before any graph-store mutation, and compiled graph material remains advisory route candidates rather than repository facts.
+
 ## How To Read This Project
 
 - Start here for orientation.
