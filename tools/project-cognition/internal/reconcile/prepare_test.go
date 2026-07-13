@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -327,6 +328,55 @@ func TestParsePrepareRequestRejectsMalformedTrailingAndIncompleteInput(t *testin
 			}
 		})
 	}
+}
+
+func TestPrepareEnforcesBoundedEvidenceShapeAndReadBudget(t *testing.T) {
+	t.Run("unbounded span", func(t *testing.T) {
+		request := PrepareRequest{
+			ContractVersion: CurrentPrepareContractVersion, Workflow: "sp-plan",
+			Items: []PrepareItem{{ClaimID: "claim:app", Reason: "evidence", Evidence: []PrepareEvidence{{SourcePath: "src/app.go", Span: "whole file", Role: "supporting"}}}},
+		}
+		if _, err := normalizeAndValidatePrepareRequest(request); err == nil || !strings.Contains(err.Error(), "bounded line span") {
+			t.Fatalf("validation error = %v, want bounded line span rejection", err)
+		}
+	})
+
+	t.Run("too many evidence refs", func(t *testing.T) {
+		evidence := make([]PrepareEvidence, 0, 26)
+		for index := 1; index <= 26; index++ {
+			evidence = append(evidence, PrepareEvidence{SourcePath: "src/app.go", Span: "L" + strconv.Itoa(index), Role: "supporting"})
+		}
+		request := PrepareRequest{
+			ContractVersion: CurrentPrepareContractVersion, Workflow: "sp-plan",
+			Items: []PrepareItem{{ClaimID: "claim:app", Reason: "evidence", Evidence: evidence}},
+		}
+		if _, err := normalizeAndValidatePrepareRequest(request); err == nil || !strings.Contains(err.Error(), "at most 25") {
+			t.Fatalf("validation error = %v, want evidence count limit", err)
+		}
+	})
+
+	t.Run("single file size limit", func(t *testing.T) {
+		root, paths := seedPrepareRepository(t)
+		oversized := filepath.Join(root, "src", "oversized.go")
+		file, err := os.Create(oversized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := file.Truncate((8 << 20) + 1); err != nil {
+			_ = file.Close()
+			t.Fatal(err)
+		}
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+		request := PrepareRequest{
+			ContractVersion: CurrentPrepareContractVersion, Workflow: "sp-plan",
+			Items: []PrepareItem{{ClaimID: "claim:m-supported", Reason: "evidence", Evidence: []PrepareEvidence{{SourcePath: "src/oversized.go", Span: "L1", Role: "supporting"}}}},
+		}
+		if _, err := prepareAt(paths, request, time.Now().UTC()); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+			t.Fatalf("prepareAt error = %v, want single-file size limit", err)
+		}
+	})
 }
 
 func seedPrepareRepository(t *testing.T) (string, rt.Paths) {
