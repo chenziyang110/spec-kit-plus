@@ -33,6 +33,9 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if compass.ExpansionRef.StaleBehavior == expansionRecommendedActionRerun {
 		t.Fatalf("StaleBehavior = %q, want behavior statement distinct from rerun action", compass.ExpansionRef.StaleBehavior)
 	}
+	if compass.ExpansionRef.ClaimRetrievalContractVersion != 1 {
+		t.Fatalf("ClaimRetrievalContractVersion = %d, want 1", compass.ExpansionRef.ClaimRetrievalContractVersion)
+	}
 	for _, section := range []string{"related_paths", "raw_candidates", "coverage_gaps", "graph_neighbors", "claim_evidence"} {
 		if _, ok := compass.ExpansionRef.AvailableSections[section]; !ok {
 			t.Fatalf("ExpansionRef.AvailableSections missing %q: %#v", section, compass.ExpansionRef.AvailableSections)
@@ -61,6 +64,9 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	}
 	if defaultExpanded.QueryFingerprint != compass.QueryFingerprint {
 		t.Fatalf("QueryFingerprint = %q, want %q", defaultExpanded.QueryFingerprint, compass.QueryFingerprint)
+	}
+	if defaultExpanded.ClaimRetrievalContractVersion != 1 {
+		t.Fatalf("expanded ClaimRetrievalContractVersion = %d, want 1", defaultExpanded.ClaimRetrievalContractVersion)
 	}
 
 	rawExpanded, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID, Section: " raw_candidates "})
@@ -269,6 +275,20 @@ func TestExpansionStaleDetectsBundleIdentityMismatch(t *testing.T) {
 		}
 		if payload.Status != "stale_expansion" {
 			t.Fatalf("Status = %q, want stale_expansion: %#v", payload.Status, payload)
+		}
+	})
+
+	t.Run("claim retrieval contract mismatch", func(t *testing.T) {
+		edited := bundle
+		edited.ClaimRetrievalContractVersion = 0
+		writeExpansionBundleFileForTest(t, bundlePath, edited)
+
+		payload, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if payload.Status != "stale_expansion" {
+			t.Fatalf("Status = %q, want stale_expansion for pre-claim-retrieval bundle: %#v", payload.Status, payload)
 		}
 	})
 }

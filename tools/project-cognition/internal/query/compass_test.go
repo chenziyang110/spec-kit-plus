@@ -58,6 +58,9 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 	if payload.QueryFingerprint == "" {
 		t.Fatalf("QueryFingerprint is empty")
 	}
+	if payload.ClaimRetrievalContractVersion != 1 {
+		t.Fatalf("ClaimRetrievalContractVersion = %d, want 1", payload.ClaimRetrievalContractVersion)
+	}
 	if !compassCoveredFacetHasFirstPassRisk(payload.IntentFacets) {
 		t.Fatalf("IntentFacets = %#v, want covered facet risk to guard first-pass scope", payload.IntentFacets)
 	}

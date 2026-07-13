@@ -46,6 +46,9 @@ func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if payload.ClaimRetrievalContractVersion != 1 {
+		t.Fatalf("ClaimRetrievalContractVersion = %d, want 1", payload.ClaimRetrievalContractVersion)
+	}
 	claims, ok := payload.Subgraph["claims"].([]map[string]any)
 	if !ok || len(claims) != 1 {
 		t.Fatalf("subgraph.claims = %#v, want one compact graph claim", payload.Subgraph["claims"])
