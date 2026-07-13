@@ -12,7 +12,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestSchemaV3RequiredTablesIncludeTypedClaimLifecycle(t *testing.T) {
+func TestSchemaV4RequiredTablesIncludeClaimReconciliation(t *testing.T) {
 	want := []string{
 		"metadata",
 		"generations",
@@ -29,6 +29,7 @@ func TestSchemaV3RequiredTablesIncludeTypedClaimLifecycle(t *testing.T) {
 		"claim_evidence",
 		"claim_verifications",
 		"claim_transitions",
+		"claim_reconciliations",
 		"updates",
 	}
 	if got := RequiredTables(); !reflect.DeepEqual(got, want) {
@@ -36,7 +37,7 @@ func TestSchemaV3RequiredTablesIncludeTypedClaimLifecycle(t *testing.T) {
 	}
 }
 
-func TestOpenInitializesSchemaV3WithTypedClaimLifecycle(t *testing.T) {
+func TestOpenInitializesSchemaV4WithCurrentClaimEvidenceBasis(t *testing.T) {
 	ctx := context.Background()
 	paths := testPaths(t)
 	st, err := Open(paths)
@@ -49,8 +50,8 @@ func TestOpenInitializesSchemaV3WithTypedClaimLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta["schema_version"] != "3" {
-		t.Fatalf("schema_version = %q, want 3", meta["schema_version"])
+	if meta["schema_version"] != "4" {
+		t.Fatalf("schema_version = %q, want 4", meta["schema_version"])
 	}
 
 	for _, table := range RequiredTables() {
@@ -81,7 +82,17 @@ func TestOpenInitializesSchemaV3WithTypedClaimLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		if exists {
-			t.Fatalf("removed table %s should not exist in schema v3", table)
+			t.Fatalf("removed table %s should not exist in schema v4", table)
+		}
+	}
+
+	columns, err := tableColumns(ctx, st.DB(), "claim_evidence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, column := range []string{"reconciliation_id", "basis_state"} {
+		if !columns[column] {
+			t.Fatalf("claim_evidence is missing schema-v4 column %q", column)
 		}
 	}
 }
@@ -123,7 +134,7 @@ func TestOpenRejectsSchemaV2WithoutMigrationOrArchive(t *testing.T) {
 		_ = st.Close()
 		t.Fatal("Open() succeeded for schema v2, want current-schema-only rejection")
 	}
-	if !strings.Contains(err.Error(), "schema_version 2") || !strings.Contains(err.Error(), "requires 3") {
+	if !strings.Contains(err.Error(), "schema_version 2") || !strings.Contains(err.Error(), "requires 4") {
 		t.Fatalf("Open() error = %v, want explicit current schema requirement", err)
 	}
 

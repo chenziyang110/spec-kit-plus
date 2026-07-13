@@ -131,6 +131,78 @@ func TestCanTransitionRejectsUnsupportedPromotionAndStaleRecovery(t *testing.T) 
 	}
 }
 
+func TestDeriveReconciliationUsesValidatedSignalsAndKeepsGenericFailuresNonAuthoritative(t *testing.T) {
+	tests := []struct {
+		name      string
+		from      State
+		freshness Freshness
+		signals   ReconciliationSignals
+		wantState State
+		wantFresh Freshness
+	}{
+		{
+			name: "passed claim-specific evidence restores stale claim",
+			from: StateStale, freshness: FreshnessStale,
+			signals:   ReconciliationSignals{SupportingEvidence: true, VerificationResult: VerificationPassed},
+			wantState: StateVerified, wantFresh: FreshnessFresh,
+		},
+		{
+			name: "new current basis can replace a contradicted basis",
+			from: StateContradicted, freshness: FreshnessFresh,
+			signals:   ReconciliationSignals{SupportingEvidence: true, VerificationResult: VerificationPassed},
+			wantState: StateVerified, wantFresh: FreshnessFresh,
+		},
+		{
+			name: "supporting evidence without verification is supported",
+			from: StateCandidate, freshness: FreshnessUnknown,
+			signals:   ReconciliationSignals{SupportingEvidence: true},
+			wantState: StateSupported, wantFresh: FreshnessFresh,
+		},
+		{
+			name: "contradicting evidence has precedence",
+			from: StateVerified, freshness: FreshnessFresh,
+			signals:   ReconciliationSignals{SupportingEvidence: true, ContradictingEvidence: true, VerificationResult: VerificationPassed},
+			wantState: StateContradicted, wantFresh: FreshnessFresh,
+		},
+		{
+			name: "generic failed command does not contradict a stale claim",
+			from: StateStale, freshness: FreshnessStale,
+			signals:   ReconciliationSignals{SupportingEvidence: true, VerificationResult: VerificationFailed},
+			wantState: StateStale, wantFresh: FreshnessStale,
+		},
+		{
+			name: "blocked verification cannot promote",
+			from: StateStale, freshness: FreshnessStale,
+			signals:   ReconciliationSignals{SupportingEvidence: true, VerificationResult: VerificationBlocked},
+			wantState: StateStale, wantFresh: FreshnessStale,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DeriveReconciliation(tt.from, tt.freshness, tt.signals)
+			if got.State != tt.wantState || got.Freshness != tt.wantFresh {
+				t.Fatalf("DeriveReconciliation() = %q/%q, want %q/%q", got.State, got.Freshness, tt.wantState, tt.wantFresh)
+			}
+		})
+	}
+}
+
+func TestCanReconcileTransitionDoesNotRelaxNormalLifecycle(t *testing.T) {
+	for _, transition := range [][2]State{
+		{StateStale, StateVerified},
+		{StateContradicted, StateVerified},
+		{StateVerified, StateSupported},
+	} {
+		if !CanReconcileTransition(transition[0], transition[1]) {
+			t.Errorf("CanReconcileTransition(%q, %q) = false, want true", transition[0], transition[1])
+		}
+		if CanTransition(transition[0], transition[1]) {
+			t.Errorf("CanTransition(%q, %q) = true, dedicated reconciliation must not relax normal lifecycle", transition[0], transition[1])
+		}
+	}
+}
+
 func cloneCandidate(candidate Candidate) Candidate {
 	candidate.SupportingEvidenceIDs = append([]string(nil), candidate.SupportingEvidenceIDs...)
 	candidate.ContradictingEvidenceIDs = append([]string(nil), candidate.ContradictingEvidenceIDs...)
