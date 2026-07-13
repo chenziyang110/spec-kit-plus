@@ -2,7 +2,7 @@
 description: Use when `sp-map-scan` has produced a value-weighted evidence baseline and you need to reconstruct the project cognition SQLite runtime.
 workflow_contract:
   when_to_use: A scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
-  primary_objective: Validate value-weighted scan evidence, reconstruct graph nodes, edges, observations, typed graph claims, path indexes, and alias indexes from high-value evidence into the schema v3 SQLite cognition database, derive claim lifecycle state, assign confidence, and publish queryable task-oriented cognition bundles.
+  primary_objective: Validate value-weighted scan evidence, reconstruct graph nodes, edges, observations, typed graph claims, path indexes, and alias indexes from high-value evidence into the schema v4 SQLite cognition database, derive claim lifecycle state, assign confidence, and publish queryable task-oriented cognition bundles.
   primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
   default_handoff: Return to the blocked brownfield workflow once the query-backed cognition baseline is ready.
 ---
@@ -54,7 +54,7 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
 - Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import.
-- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation, then rebuilds the graph store into schema v3 and owns DB import, metadata, status publication, and DB/status agreement.
+- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation, then rebuilds the graph store into schema v4 and owns DB import, metadata, status publication, and DB/status agreement.
 - Treat `compilation.publication_allowed=false` as a hard pre-publication block. Report the bounded compiler conflicts and stop without creating, archiving, replacing, or publishing a graph store.
 - A successful compile means the proposal is structurally safe and deterministic enough to publish as advisory graph material. Compiled nodes, edges, paths, aliases, and graph claims remain route candidates rather than repository facts; even `verified_in_graph_generation` requires bounded live repository evidence before behavioral or workflow final claims.
 - If `build-from-scan` returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action` and do not proceed to build validation.
@@ -84,7 +84,7 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 
 - `sp-map-build` is the command that publishes query-backed cognition truth.
 - `sp-map-build` must not fall back to handbook-first runtime output.
-- `sp-map-build` owns schema v3 SQLite runtime publication, confidence assignment, typed graph-claim lifecycle derivation, route validation, and alias catalog readiness.
+- `sp-map-build` owns schema v4 SQLite runtime publication, confidence assignment, typed graph-claim lifecycle derivation, route validation, reconciliation-basis support, and alias catalog readiness.
 - Existing narratives may inform continuity, but final runtime rows must be backed by scan evidence. Map points, code proves: the alias catalog is route vocabulary, not evidence by itself.
 
 ## Required Inputs
@@ -126,18 +126,18 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 - Critical and important graph-eligible paths must remain in the sparse path-index denominator unless they are true repository-universe exclusions or explicitly accepted nonblocking gaps.
 - `build-from-scan` must not set `freshness=fresh`, must not set `readiness=query_ready`, and must not set `graph_ready=true` until sparse path-index gates pass.
 
-## Schema V3 Runtime Contract
+## Schema V4 Runtime Contract
 
-Schema v3 is current-only. `project-cognition build-from-scan --format json`
-creates schema v3 only for a missing database or consumes a complete current
-schema v3 database. The current runtime does not migrate schema v2 and does not
-archive or replace old databases. Remove the incompatible project-cognition.db
+Schema v4 is current-only. `project-cognition build-from-scan --format json`
+creates schema v4 only for a missing database or consumes a complete current
+schema v4 database. The current runtime does not migrate schema v3 or older
+databases and does not archive or replace them. Remove the incompatible project-cognition.db
 explicitly, then run `sp-map-scan -> sp-map-build` with the current binary.
-Schema v3 keeps the
+Schema v4 keeps the
 implemented runtime tables: `metadata`, `generations`, `evidence`, `nodes`,
 `node_evidence`, `edges`, `edge_evidence`, `observations`,
 `observation_evidence`, `path_index`, `alias_index`, `claims`, `claim_evidence`,
-`claim_verifications`, `claim_transitions`, and `updates`.
+`claim_verifications`, `claim_transitions`, `claim_reconciliations`, and `updates`.
 
 Conflicts, symbols, entrypoints, tests, slices, query examples, FTS tables, and compatibility `query_examples` are not current readiness requirements.
 
@@ -145,7 +145,9 @@ Graph claims use `graph_claim_type` and a compiler-derived lifecycle state:
 `candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or
 `stale`. `claim_evidence` records supporting and contradicting evidence,
 `claim_verifications` records bounded verification inputs, and
-`claim_transitions` makes lifecycle changes auditable. An Agent-provided
+`claim_transitions` makes lifecycle changes auditable. Schema v4 also records
+`claim_reconciliations`; `claim_evidence.basis_state` distinguishes the current
+evidence basis used for routing from superseded or historical evidence. An Agent-provided
 `requested_state` is never authoritative. `verified_in_graph_generation` means
 only that the active graph generation contains supporting evidence and a current
 passed graph verification; it is not current repository truth and never grants
@@ -153,11 +155,11 @@ workflow authorization or final claim readiness.
 
 For brownfield baselines, `alias_index` is required: every active node must have
 at least one active-generation alias row, no alias may point at a missing node,
-and no alias may reference a missing non-empty evidence id. The schema v3 alias
+and no alias may reference a missing non-empty evidence id. The schema v4 alias
 catalog helps agents normalize user input before query planning; it does not prove behavior
 without live repository evidence.
 
-If validation reports schema v1, schema v2, an old broad schema, or
+If validation reports schema v1, schema v2, schema v3, an old broad schema, or
 rebuild-required readiness, leave the old database untouched and route the user
 to remove it explicitly before `sp-map-scan -> sp-map-build`.
 When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
@@ -228,7 +230,7 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - validate that `scan-targets.json` selects high-value graph evidence and keeps low-value inventory-only surfaces out of graph publication
 - deduplicate provisional nodes into graph nodes
 - convert candidate edges into validated graph edges
-- build schema v3 `alias_index` rows from alias-ready node titles, types, paths, and bounded attrs
+- build schema v4 `alias_index` rows from alias-ready node titles, types, paths, and bounded attrs
 - compile optional graph claim candidates, validate all node/evidence references, derive lifecycle state, and persist claim evidence, verification, and transition rows atomically with the generation
 - assign node, edge, observation, path, and alias confidence
 - publish queryable task-oriented bundles for downstream agent work
@@ -267,7 +269,7 @@ The resulting query-backed runtime must be able to answer which owners, consumer
 
 ## Required Graph Semantics
 
-Every accepted schema v3 graph build must make room for:
+Every accepted schema v4 graph build must make room for:
 
 - nodes
 - edges

@@ -33,7 +33,7 @@ def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
         assert "alias catalog" in content
 
 
-def test_project_cognition_schema_v3_is_current_only_across_runtime_guidance() -> None:
+def test_project_cognition_schema_v4_is_current_only_across_runtime_guidance() -> None:
     for rel_path in (
         "AGENTS.md",
         "README.md",
@@ -47,8 +47,7 @@ def test_project_cognition_schema_v3_is_current_only_across_runtime_guidance() -
 
         assert "schema v4 is current-only" in content, rel_path
         assert "does not migrate schema v3" in content, rel_path
-        assert "does not migrate schema v2" in content, rel_path
-        assert "does not archive or replace old databases" in content, rel_path
+        assert "does not archive or replace" in content, rel_path
         assert "remove the incompatible project-cognition.db" in content, rel_path
 
 

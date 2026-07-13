@@ -4,7 +4,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_root_agents_documents_current_managed_context_and_schema_v3_rules() -> None:
+def test_root_agents_documents_current_managed_context_and_schema_v4_rules() -> None:
     content = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     lowered = content.lower()
 
@@ -28,9 +28,9 @@ def test_root_agents_documents_current_managed_context_and_schema_v3_rules() -> 
     assert "### Project Cognition Schema v4 Maintenance" in content
     assert "schema v4 runtime readiness is graph, alias, and typed graph-claim reconciliation first" in lowered
     assert "`alias_index` is the route vocabulary" in lowered
-    assert "v1, v2, and old broad-schema dbs are diagnostic/inspect-only" in lowered
-    assert "does not migrate schema v2" in lowered
-    assert "does not archive or replace old databases" in lowered
+    assert "v1, v2, v3, and old broad-schema dbs are diagnostic/inspect-only" in lowered
+    assert "does not migrate schema v3" in lowered
+    assert "does not archive or replace" in lowered
     assert "do not reintroduce old broad-schema tables" in lowered
     assert "verified_in_graph_generation" in content
     assert "never authorize source changes or set workflow `claim_ready=true`" in content

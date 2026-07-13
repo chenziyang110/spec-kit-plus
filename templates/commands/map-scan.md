@@ -141,7 +141,7 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 - `sp-map-scan` must not publish final cognition truth.
 - `sp-map-scan` must not claim the baseline is graph-ready.
 - `sp-map-scan` must produce evidence, provisional nodes, provisional edges, observations, and coverage diagnostics only.
-- `sp-map-scan` may classify evidence and derive provisional structure, but `sp-map-build` owns schema v3 graph-store publication, confidence assignment, typed graph-claim lifecycle derivation, route validation, and alias catalog readiness.
+- `sp-map-scan` may classify evidence and derive provisional structure, but `sp-map-build` owns schema v4 graph-store publication, confidence assignment, typed graph-claim lifecycle derivation, route validation, claim-reconciliation basis support, and alias catalog readiness.
 
 ## Output Contract
 
@@ -188,14 +188,14 @@ uses:
 - `evidence_ids`: evidence row IDs that justify the node.
 - `attrs`: optional object for secondary metadata.
 
-Emit alias-ready node material for schema v3. `nodes[].title`, `nodes[].type`,
+Emit alias-ready node material for schema v4. `nodes[].title`, `nodes[].type`,
 `nodes[].paths`, and `nodes[].attrs.aliases`, `domain`, `owner`, `workflow`,
 `route`, `route_hints`, and `verification_hints` feed the `alias_index` during
 `sp-map-build`. This creates the alias catalog used to normalize user input
 before query planning. Do not write raw observation summaries as aliases.
 Observations may support bounded observation tags only when tied to graph
 evidence. If validation reports schema v1 or rebuild-required readiness, run
-sp-map-scan -> sp-map-build so build-from-scan can publish schema v3 alias
+sp-map-scan -> sp-map-build so build-from-scan can publish schema v4 alias
 catalog rows.
 When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 

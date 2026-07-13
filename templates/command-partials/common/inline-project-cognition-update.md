@@ -45,6 +45,14 @@ If `update_mode=payload_file`, write the completed `payload_draft` to the planne
 
 Completed payload drafts preserve the planner-owned `changed_paths` and `scope_paths` and add agent-owned evidence fields before recording.
 
+Structured `update` invalidates related claims and returns their stable IDs in `affected_graph_claims`. This is separate from update readiness: generic workflow verification and `result_state=ready` must not re-promote stale or contradicted graph claims. Only when this workflow already has decisive claim-specific bounded live evidence for an exact returned claim ID may it write a current-only packet and run:
+
+```text
+project-cognition claim-reconcile --input <packet.json> --format json
+```
+
+Use `claim_reconciliation_contract_version: 1`, the active `expected_generation_id`, workflow, RFC3339 `observed_at`, and one item per claim with `claim_id`, optimistic `expected_state`, reason, and evidence containing repository-relative `source_path`, bounded `span`, `supporting` or `contradicting` role, and full-file `expected_content_hash`. Add verification only when it is claim-specific. The runtime re-reads non-ignored files, validates the hashes and preconditions, and the runtime derives the target lifecycle state; never send `requested_state` or another target-state field. If no such evidence exists, leave the claim stale. If reconciliation returns ready, rerun Compass once so later routing consumes the current evidence basis; partial or blocked reconciliation remains withheld and follows `recommended_next_action`.
+
 For compatibility with worker handoffs and delta packets, the runtime also accepts `verification_evidence` as an alias for `verification` and `generated_surface_notes` as an alias for `generated_surfaces`. Verification evidence may be an array of objects (`command`, `result`, `artifact`) or an array of command-result strings, but clean closeout still requires passing verification evidence; failed verification cannot produce a clean `ready` closeout.
 
 Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone:
