@@ -127,6 +127,7 @@ type UpdatePayload struct {
 	ChangedPaths            []string         `json:"changed_paths"`
 	IgnoredPaths            []string         `json:"ignored_paths"`
 	AffectedNodes           []map[string]any `json:"affected_nodes"`
+	AffectedGraphClaims     []string         `json:"affected_graph_claims"`
 	MissingCoverage         []string         `json:"missing_coverage"`
 	AdoptedPaths            []string         `json:"adopted_paths"`
 	ReviewPaths             []string         `json:"review_paths"`
@@ -486,6 +487,7 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		ChangedPaths:            updatePaths.changed,
 		IgnoredPaths:            ignored,
 		AffectedNodes:           nodes,
+		AffectedGraphClaims:     append([]string{}, closure.ClaimIDs...),
 		MissingCoverage:         []string{},
 		AdoptedPaths:            updatePaths.adopted,
 		ReviewPaths:             reviewPaths,
