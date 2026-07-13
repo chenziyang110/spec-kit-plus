@@ -198,8 +198,12 @@ func validateReconciliationBatch(input ClaimReconciliationBatch) error {
 			return fmt.Errorf("claim reconciliation %s is required", name)
 		}
 	}
-	if _, err := time.Parse(time.RFC3339, input.ObservedAt); err != nil {
+	observedAt, err := time.Parse(time.RFC3339, input.ObservedAt)
+	if err != nil {
 		return fmt.Errorf("claim reconciliation observed_at must be RFC3339: %w", err)
+	}
+	if observedAt.After(time.Now().UTC().Add(5 * time.Minute)) {
+		return fmt.Errorf("claim reconciliation observed_at must not be more than five minutes in the future")
 	}
 	if len(input.Items) == 0 {
 		return fmt.Errorf("claim reconciliation requires at least one item")

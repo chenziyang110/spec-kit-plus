@@ -185,8 +185,12 @@ func normalizeAndValidatePacket(packet Packet) (Packet, error) {
 	if packet.ExpectedGenerationID == "" || packet.Workflow == "" || packet.ObservedAt == "" {
 		return Packet{}, fmt.Errorf("expected_generation_id, workflow, and observed_at are required")
 	}
-	if _, err := time.Parse(time.RFC3339, packet.ObservedAt); err != nil {
+	observedAt, err := time.Parse(time.RFC3339, packet.ObservedAt)
+	if err != nil {
 		return Packet{}, fmt.Errorf("observed_at must be RFC3339: %w", err)
+	}
+	if observedAt.After(time.Now().UTC().Add(5 * time.Minute)) {
+		return Packet{}, fmt.Errorf("observed_at must not be more than five minutes in the future")
 	}
 	if len(packet.Items) == 0 {
 		return Packet{}, fmt.Errorf("claim reconciliation requires at least one item")

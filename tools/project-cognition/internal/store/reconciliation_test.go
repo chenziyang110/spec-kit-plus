@@ -23,7 +23,7 @@ func TestApplyClaimReconciliationAtomicallyReplacesCurrentBasis(t *testing.T) {
 
 	result, err := st.ApplyClaimReconciliation(ctx, ClaimReconciliationBatch{
 		ID: "claim-reconciliation:packet-1", PacketHash: "packet-1", GenerationID: "GEN-reconcile",
-		Workflow: "sp-implement", ObservedAt: "2026-07-13T10:00:00Z", CommitSHA: "abc123",
+		Workflow: "sp-implement", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
 			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "live_source_and_test_confirm_owner",
 			Evidence: []ClaimReconciliationEvidence{{
@@ -94,7 +94,7 @@ func TestApplyClaimReconciliationRecordsGenericFailureWithoutPromotion(t *testin
 
 	result, err := st.ApplyClaimReconciliation(ctx, ClaimReconciliationBatch{
 		ID: "claim-reconciliation:failed", PacketHash: "failed", GenerationID: "GEN-failed", Workflow: "sp-debug",
-		ObservedAt: "2026-07-13T10:00:00Z", CommitSHA: "abc123",
+		ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
 			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "generic suite failed",
 			Verification: &ClaimReconciliationVerification{ID: "V-failed", Result: claim.VerificationFailed, Command: "go test ./..."},
@@ -135,7 +135,7 @@ func TestApplyClaimReconciliationPreflightsWholeBatchBeforeWriting(t *testing.T)
 	}
 	_, err := st.ApplyClaimReconciliation(ctx, ClaimReconciliationBatch{
 		ID: "claim-reconciliation:atomic", PacketHash: "atomic", GenerationID: "GEN-atomic", Workflow: "sp-plan",
-		ObservedAt: "2026-07-13T10:00:00Z", CommitSHA: "abc123",
+		ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{
 			{ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "valid first item", Evidence: evidence("E-atomic-1")},
 			{ClaimID: "claim:missing", ExpectedState: claim.StateStale, Reason: "invalid second item", Evidence: evidence("E-atomic-2")},
@@ -176,7 +176,7 @@ func TestApplyClaimReconciliationCanReplaceContradictedBasis(t *testing.T) {
 	}
 	result, err := st.ApplyClaimReconciliation(ctx, ClaimReconciliationBatch{
 		ID: "claim-reconciliation:recover", PacketHash: "recover", GenerationID: "GEN-recover", Workflow: "sp-debug",
-		ObservedAt: "2026-07-13T10:00:00Z", CommitSHA: "abc123",
+		ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
 			ClaimID: "claim:app-owner", ExpectedState: claim.StateContradicted, Reason: "new bounded basis resolves counterexample",
 			Evidence:     []ClaimReconciliationEvidence{{ID: "E-recover", SourceKind: "test", SourcePath: "src/app.go", Span: "L1", ContentHash: "sha256:recover", Role: "supporting"}},
@@ -215,7 +215,7 @@ func TestApplyClaimReconciliationIsIdempotentAndRejectsStaleWriters(t *testing.T
 	}
 	batch := ClaimReconciliationBatch{
 		ID: "claim-reconciliation:packet-replay", PacketHash: "packet-replay", GenerationID: "GEN-replay",
-		Workflow: "sp-plan", ObservedAt: "2026-07-13T10:00:00Z", CommitSHA: "abc123",
+		Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
 		Items: []ClaimReconciliationItem{{
 			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "bounded_live_read",
 			Evidence:     []ClaimReconciliationEvidence{{ID: "E-replay", SourceKind: "source", SourcePath: "src/app.go", Span: "L1-L5", ContentHash: "sha256:replay", Role: "supporting"}},
@@ -236,7 +236,7 @@ func TestApplyClaimReconciliationIsIdempotentAndRejectsStaleWriters(t *testing.T
 	conflict := batch
 	conflict.ID = "claim-reconciliation:packet-conflict"
 	conflict.PacketHash = "packet-conflict"
-	conflict.ObservedAt = "2026-07-13T09:59:59Z"
+	conflict.ObservedAt = "2026-07-13T08:59:59Z"
 	if _, err := st.ApplyClaimReconciliation(ctx, conflict); err == nil {
 		t.Fatal("older reconciliation succeeded, want stale-writer rejection")
 	}

@@ -20,7 +20,7 @@ func TestParsePacketAcceptsOnlyCurrentDerivedStateContract(t *testing.T) {
   "claim_reconciliation_contract_version": 1,
   "expected_generation_id": "GEN-current",
   "workflow": "sp-implement",
-  "observed_at": "2026-07-13T10:00:00Z",
+  "observed_at": "2026-07-13T09:00:00Z",
   "items": [{
     "claim_id": "claim:app-owner",
     "expected_state": "stale",
@@ -91,7 +91,7 @@ func TestRunReReadsBoundedEvidenceAndReturnsAdvisoryReconciliation(t *testing.T)
 	}
 
 	packet := Packet{
-		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-implement", ObservedAt: "2026-07-13T10:00:00Z",
+		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-implement", ObservedAt: "2026-07-13T09:00:00Z",
 		Items: []Item{{
 			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "bounded live evidence confirms owner",
 			Evidence:     []Evidence{{SourceKind: "source", SourcePath: "src/app.go", Span: "L1-L3", Role: "supporting", ExpectedContentHash: reconcileHash(content)}},
@@ -133,7 +133,7 @@ func TestRunRejectsHashMismatchAndUnsafeOrIgnoredPathsBeforeWriting(t *testing.T
 	}
 
 	base := Packet{
-		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: "2026-07-13T10:00:00Z",
+		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z",
 		Items: []Item{{
 			ClaimID: "claim:app-owner", ExpectedState: claim.StateStale, Reason: "bounded read",
 			Evidence:     []Evidence{{SourceKind: "source", SourcePath: "src/app.go", Span: "L1", Role: "supporting", ExpectedContentHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
@@ -205,7 +205,7 @@ func TestPacketValidationRejectsAmbiguousOrIncompleteInputs(t *testing.T) {
 		ExpectedContentHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
 	valid := Packet{
-		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: "2026-07-13T10:00:00Z",
+		ContractVersion: CurrentContractVersion, ExpectedGenerationID: "GEN-current", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z",
 		Items: []Item{{
 			ClaimID: "claim:app", ExpectedState: claim.StateStale, Reason: "bounded read", Evidence: []Evidence{validEvidence},
 			Verification: &Verification{Result: claim.VerificationPassed, Command: "go test ./..."},
