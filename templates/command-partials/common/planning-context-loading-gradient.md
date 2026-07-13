@@ -44,7 +44,7 @@ When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` f
 
 Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
 
-The advanced `lexicon -> semantic_intake -> query` path retrieves the schema v3 `alias_index`-backed alias catalog, helps agents normalize user input into project vocabulary, records `alias_interpretations`, selects task-relevant `selected_concepts`, records unsafe or irrelevant `rejected_concepts`, writes per-concept `concept_decisions`, carries `lexicon_generation_id`, and then runs `project-cognition query --query-plan`. If the runtime reports schema v1 or rebuild-required readiness, do not query through the old DB; continue with live repository evidence and recommend `sp-map-scan -> sp-map-build` when a usable brownfield baseline is needed. Structurally compatible schema v2 databases migrate additively to schema v3. When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
+The advanced `lexicon -> semantic_intake -> query` path retrieves the schema v3 `alias_index`-backed alias catalog, helps agents normalize user input into project vocabulary, records `alias_interpretations`, selects task-relevant `selected_concepts`, records unsafe or irrelevant `rejected_concepts`, writes per-concept `concept_decisions`, carries `lexicon_generation_id` and `candidate_universe_version`, and then runs `project-cognition query --query-plan`. The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed. Schema v3 is current-only. The current runtime does not migrate schema v2 and does not archive or replace old databases. Remove the incompatible project-cognition.db explicitly, then run `sp-map-scan -> sp-map-build` with the current binary. When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 
 If `project-cognition query` reports query-plan diagnostics, carry forward its `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` instead of reducing them to a raw parser exception.
 
@@ -57,6 +57,7 @@ Use this canonical query-plan skeleton when shaping `<query_plan_json>`. Keep `a
 ```json
 {
   "raw_query": "$ARGUMENTS",
+  "candidate_universe_version": 2,
   "semantic_intake": {
     "workflow_intent": "<active workflow intent>",
     "normalized_query": "<project-language interpretation>",

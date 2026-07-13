@@ -128,10 +128,12 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 
 ## Schema V3 Runtime Contract
 
-`project-cognition build-from-scan --format json` archives schema v1 or old broad
-schema databases, migrates a structurally compatible schema v2 database
-additively without discarding its graph data, and creates schema v3 for new
-baselines. Schema v3 keeps the
+Schema v3 is current-only. `project-cognition build-from-scan --format json`
+creates schema v3 only for a missing database or consumes a complete current
+schema v3 database. The current runtime does not migrate schema v2 and does not
+archive or replace old databases. Remove the incompatible project-cognition.db
+explicitly, then run `sp-map-scan -> sp-map-build` with the current binary.
+Schema v3 keeps the
 implemented runtime tables: `metadata`, `generations`, `evidence`, `nodes`,
 `node_evidence`, `edges`, `edge_evidence`, `observations`,
 `observation_evidence`, `path_index`, `alias_index`, `claims`, `claim_evidence`,
@@ -155,10 +157,9 @@ and no alias may reference a missing non-empty evidence id. The schema v3 alias
 catalog helps agents normalize user input before query planning; it does not prove behavior
 without live repository evidence.
 
-If validation reports schema v1, an old broad schema, or rebuild-required
-readiness, route the user to `sp-map-scan -> sp-map-build`; build-from-scan
-archives the v1 DB and creates a clean schema v3 database. Compatible schema v2
-databases migrate in place.
+If validation reports schema v1, schema v2, an old broad schema, or
+rebuild-required readiness, leave the old database untouched and route the user
+to remove it explicitly before `sp-map-scan -> sp-map-build`.
 When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 
 ## Path Index Source Contract

@@ -28,7 +28,9 @@ def test_root_agents_documents_current_managed_context_and_schema_v3_rules() -> 
     assert "### Project Cognition Schema v3 Maintenance" in content
     assert "schema v3 runtime readiness is graph, alias, and typed graph-claim lifecycle first" in lowered
     assert "`alias_index` is the route vocabulary" in lowered
-    assert "v1 and old broad-schema dbs are diagnostic/inspect-only" in lowered
+    assert "v1, v2, and old broad-schema dbs are diagnostic/inspect-only" in lowered
+    assert "does not migrate schema v2" in lowered
+    assert "does not archive or replace old databases" in lowered
     assert "do not reintroduce old broad-schema tables" in lowered
     assert "verified_in_graph_generation" in content
     assert "never authorize source changes or set workflow `claim_ready=true`" in content
