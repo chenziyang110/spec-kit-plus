@@ -99,6 +99,34 @@ func TestCompileBlocksConflictingIdentityAndMissingReferences(t *testing.T) {
 			},
 			wantReason: "path_outside_repository",
 		},
+		{
+			name: "internal traversal alias",
+			mutate: func(pkg *scanartifacts.Package) {
+				pkg.Nodes[0].Paths = append(pkg.Nodes[0].Paths, "src/../other.go")
+			},
+			wantReason: "non_concrete_path",
+		},
+		{
+			name: "glob path",
+			mutate: func(pkg *scanartifacts.Package) {
+				pkg.Nodes[0].Paths = append(pkg.Nodes[0].Paths, "src/*.go")
+			},
+			wantReason: "non_concrete_path",
+		},
+		{
+			name: "repository root",
+			mutate: func(pkg *scanartifacts.Package) {
+				pkg.Nodes[0].Paths = append(pkg.Nodes[0].Paths, ".")
+			},
+			wantReason: "non_concrete_path",
+		},
+		{
+			name: "empty path segment",
+			mutate: func(pkg *scanartifacts.Package) {
+				pkg.Nodes[0].Paths = append(pkg.Nodes[0].Paths, "src//app.go")
+			},
+			wantReason: "non_concrete_path",
+		},
 	}
 
 	for _, tt := range tests {
@@ -214,6 +242,39 @@ func TestCompileDeepClonesAttributesAndMergesEveryRowCategory(t *testing.T) {
 	originalNested := pkg.Nodes[0].Attrs["nested"].(map[string]any)
 	if originalNested["owners"].([]any)[0] != "runtime" || pkg.Nodes[0].Attrs["tags"].([]string)[0] != "a" {
 		t.Fatalf("compiled attrs share memory with proposal attrs: %#v", pkg.Nodes[0].Attrs)
+	}
+}
+
+func TestProposalFingerprintIgnoresDerivedIdentityCache(t *testing.T) {
+	withoutCache := legacyPackageFixture()
+	withCache := legacyPackageFixture()
+	withCache.Identities = scanartifacts.IdentitySet{
+		Evidence:      map[string]bool{"stale-evidence": true},
+		Nodes:         map[string]bool{"stale-node": true},
+		Edges:         map[string]bool{"stale-edge": true},
+		Observations:  map[string]bool{"stale-observation": true},
+		CoveragePaths: map[string]bool{"stale/path.go": true},
+	}
+
+	_, first := Compile(AdaptLegacy(withoutCache))
+	_, second := Compile(AdaptLegacy(withCache))
+
+	if first.ProposalFingerprint != second.ProposalFingerprint {
+		t.Fatalf("proposal fingerprints differ for identical source rows: %q != %q", first.ProposalFingerprint, second.ProposalFingerprint)
+	}
+}
+
+func TestCompileEnforcesDeclaredProposalScope(t *testing.T) {
+	proposal := AdaptLegacy(legacyPackageFixture())
+	proposal.Scope = []string{"src/app.go"}
+
+	_, result := Compile(proposal)
+
+	if result.PublicationAllowed {
+		t.Fatalf("publication_allowed = true, want out-of-scope block; result=%#v", result)
+	}
+	if !hasDecisionReason(result.Conflicts, "outside_proposal_scope") {
+		t.Fatalf("conflicts = %#v, want outside_proposal_scope", result.Conflicts)
 	}
 }
 

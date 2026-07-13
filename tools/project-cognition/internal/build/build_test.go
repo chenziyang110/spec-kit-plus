@@ -126,6 +126,51 @@ func TestRunBlocksCompilerConflictBeforeCreatingGraphStore(t *testing.T) {
 	}
 }
 
+func TestRunCompilerConflictPreservesExistingDatabaseAndStatus(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	existingStatus := rt.DefaultStatus(paths)
+	existingStatus.Status = "sentinel"
+	if err := rt.WriteStatus(paths, existingStatus); err != nil {
+		t.Fatal(err)
+	}
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{
+			{"id": "N-app", "type": "capability", "title": "App", "paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"}},
+			{"id": "N-app", "type": "capability", "title": "Conflict", "paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"}},
+		},
+	})
+	databaseBefore := []byte("existing-database-sentinel")
+	if err := os.WriteFile(paths.DatabasePath, databaseBefore, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statusBefore, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	databaseAfter, err := os.ReadFile(paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusAfter, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(databaseAfter) != string(databaseBefore) {
+		t.Fatalf("database changed on compiler block: got %q, want %q", databaseAfter, databaseBefore)
+	}
+	if string(statusAfter) != string(statusBefore) {
+		t.Fatal("status changed on compiler block")
+	}
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want not exist", err)
+	}
+}
+
 func TestRunBlocksReadyPublicationWhenSparsePathIndexFails(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	writeSparseBuildBoundary(t, paths, []sparseBuildPath{
