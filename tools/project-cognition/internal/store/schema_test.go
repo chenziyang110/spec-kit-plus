@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -85,7 +86,7 @@ func TestOpenInitializesSchemaV3WithTypedClaimLifecycle(t *testing.T) {
 	}
 }
 
-func TestOpenMigratesSchemaV2ToV3WithoutArchivingGraphData(t *testing.T) {
+func TestOpenRejectsSchemaV2WithoutMigrationOrArchive(t *testing.T) {
 	ctx := context.Background()
 	paths := testPaths(t)
 	st, err := Open(paths)
@@ -113,48 +114,39 @@ func TestOpenMigratesSchemaV2ToV3WithoutArchivingGraphData(t *testing.T) {
 		_ = db.Close()
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, `INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('migration_sentinel', 'preserved', '2026-07-13T00:00:00Z')`); err != nil {
-		_ = db.Close()
-		t.Fatal(err)
-	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
 
 	st, err = Open(paths)
+	if err == nil {
+		_ = st.Close()
+		t.Fatal("Open() succeeded for schema v2, want current-schema-only rejection")
+	}
+	if !strings.Contains(err.Error(), "schema_version 2") || !strings.Contains(err.Error(), "requires 3") {
+		t.Fatalf("Open() error = %v, want explicit current schema requirement", err)
+	}
+
+	db, err = sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
-	meta, err := st.Metadata(ctx)
+	defer db.Close()
+	var version string
+	if err := db.QueryRowContext(ctx, `SELECT value_json FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != "2" {
+		t.Fatalf("schema_version = %q, want untouched v2 database", version)
+	}
+	exists, err := tableExists(ctx, db, "claims")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta["schema_version"] != "3" {
-		t.Fatalf("schema_version = %q, want 3", meta["schema_version"])
-	}
-	exists, err := tableExists(ctx, st.DB(), "claims")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !exists {
-		t.Fatal("typed claims table should exist after v2 migration")
-	}
-	meta, err = st.Metadata(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if meta["migration_sentinel"] != "preserved" {
-		t.Fatalf("migration_sentinel = %q, want preserved", meta["migration_sentinel"])
-	}
-	var nodeCount int
-	if err := st.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE generation_id = 'GEN-v2'`).Scan(&nodeCount); err != nil {
-		t.Fatal(err)
-	}
-	if nodeCount == 0 {
-		t.Fatal("v2 graph data was not preserved")
+	if exists {
+		t.Fatal("claims table was recreated, want no implicit v2 migration")
 	}
 	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("legacy archive stat error = %v, want no archive during additive migration", err)
+		t.Fatalf("legacy archive stat error = %v, want no implicit archive", err)
 	}
 }

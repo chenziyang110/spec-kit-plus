@@ -1221,7 +1221,7 @@ func TestBuildFromScanCommandWritesAliasIndexRows(t *testing.T) {
 	}
 }
 
-func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV3(t *testing.T) {
+func TestBuildFromScanRejectsV1DatabaseWithoutReplacement(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
@@ -1257,15 +1257,16 @@ func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV3(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"build-from-scan", "--format", "json"}, &stdout, &stderr, "test")
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	if code == 0 {
+		t.Fatalf("code = %d, want nonzero current-schema-only rejection; stdout=%s", code, stdout.String())
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["legacy_runtime_replaced"] != true {
-		t.Fatalf("legacy_runtime_replaced = %#v, payload = %#v", payload["legacy_runtime_replaced"], payload)
+	errorsList, ok := payload["errors"].([]any)
+	if !ok || !jsonAnySliceContainsSubstring(errorsList, "schema_version 1") {
+		t.Fatalf("errors = %#v, want explicit schema v1 rejection", payload["errors"])
 	}
 
 	reopened, err := sql.Open("sqlite", paths.DatabasePath)
@@ -1273,18 +1274,18 @@ func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV3(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if hasTable(t, reopened, "legacy_marker") {
-		t.Fatal("legacy_marker table survived outdated database replacement")
+	if !hasTable(t, reopened, "legacy_marker") {
+		t.Fatal("legacy_marker table missing, want old database left untouched")
 	}
 	var version string
 	if err := reopened.QueryRowContext(context.Background(), `SELECT value_json FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != "3" {
-		t.Fatalf("schema_version = %q, want 3", version)
+	if version != "1" {
+		t.Fatalf("schema_version = %q, want untouched v1 database", version)
 	}
-	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
-		t.Fatalf("legacy archive missing: %v", err)
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want no implicit archive", err)
 	}
 }
 

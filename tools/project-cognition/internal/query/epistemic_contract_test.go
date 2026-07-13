@@ -2,6 +2,7 @@ package query
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -63,9 +64,10 @@ func TestExpandPublishesEpistemicContractForCandidateDataAndMissingBundles(t *te
 
 	bundleID := "exp-12345678"
 	_, err = writeExpansionBundle(paths, ExpansionBundle{
-		ID:                       bundleID,
-		CandidateUniverseVersion: CandidateUniverseVersion,
-		QueryFingerprint:         "12345678",
+		ID:                            bundleID,
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		CandidateUniverseVersion:      CandidateUniverseVersion,
+		QueryFingerprint:              "12345678",
 		SectionPayloads: map[string]any{
 			"raw_candidates": []map[string]any{{"id": "candidate-1"}},
 		},
@@ -80,6 +82,22 @@ func TestExpandPublishesEpistemicContractForCandidateDataAndMissingBundles(t *te
 	}
 	assertAdvisoryEpistemicContract(t, ready.EpistemicContract)
 	assertSerializedEpistemicContract(t, ready)
+}
+
+func TestWriteExpansionBundleRequiresCurrentClaimContract(t *testing.T) {
+	paths := queryTestPaths(t)
+	for _, version := range []int{0, ClaimRetrievalContractVersion - 1, ClaimRetrievalContractVersion + 1} {
+		_, err := writeExpansionBundle(paths, ExpansionBundle{
+			ID:                            "exp-12345678",
+			ClaimRetrievalContractVersion: version,
+			CandidateUniverseVersion:      CandidateUniverseVersion,
+			QueryFingerprint:              "12345678",
+			SectionPayloads:               map[string]any{"raw_candidates": []map[string]any{}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "claim retrieval contract version") {
+			t.Fatalf("writeExpansionBundle(version=%d) error = %v, want current-contract-only rejection", version, err)
+		}
+	}
 }
 
 func assertAdvisoryEpistemicContract(t *testing.T, contract EpistemicContract) {
