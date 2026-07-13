@@ -357,6 +357,22 @@ def test_project_cognition_consumers_enforce_machine_readable_epistemic_contract
         content = _compact(_read(path).lower())
         for term in EPISTEMIC_CONTRACT_TERMS:
             assert term in content, f"{path} missing epistemic contract term: {term}"
+        assert "cannot authorize source changes" in content
+        assert "cannot prove current behavior" in content
+
+    integration_source = _compact(_read("src/specify_cli/integrations/base.py").lower())
+    for term in EPISTEMIC_CONTRACT_TERMS:
+        assert term in integration_source
+    assert "carry `epistemic_contract`" in integration_source
+
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in EPISTEMIC_CONTRACT_TERMS:
+            assert term in content, f"{path} missing epistemic contract term: {term}"
 
 
 def test_claim_aware_retrieval_contract_propagates_to_agent_consumers() -> None:
@@ -411,22 +427,6 @@ def test_claim_aware_retrieval_contract_propagates_to_agent_consumers() -> None:
             assert term in content, f"{path} missing claim-aware retrieval term: {term}"
         assert "source_path" in content and "span" in content
         assert "cannot prove current repository truth" in content
-        assert "cannot authorize source changes" in content
-        assert "cannot prove current behavior" in content
-
-    integration_source = _compact(_read("src/specify_cli/integrations/base.py").lower())
-    for term in EPISTEMIC_CONTRACT_TERMS:
-        assert term in integration_source
-    assert "carry `epistemic_contract`" in integration_source
-
-    for path in (
-        "README.md",
-        "PROJECT-HANDBOOK.md",
-        "templates/project-handbook-template.md",
-    ):
-        content = _compact(_read(path).lower())
-        for term in EPISTEMIC_CONTRACT_TERMS:
-            assert term in content, f"{path} missing epistemic contract term: {term}"
 
 
 def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() -> None:

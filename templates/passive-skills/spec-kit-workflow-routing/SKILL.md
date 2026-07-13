@@ -160,9 +160,10 @@ explicit numeric option.
   1. Read top-level `epistemic_contract` first. Require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`.
   2. Read top-level `minimal_live_reads` and use those files as the bounded first live evidence route.
   3. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
-  4. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
-  5. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail.
-  6. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`.
+  4. Read lane-level `claim_refs` only as compact route candidates. `route_confidence` is scoped by `confidence_scope=route_candidate`; inspect `state`, `freshness`, and `stale`, and require live verification before using a claim as repository truth.
+  5. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
+  6. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section claim_evidence --format json` when an active claim needs bounded `source_path`/`span` evidence; advanced `project-cognition query` may also return top-level `claim_signals` with bounded evidence refs.
+  7. Do not infer final edit scope from `minimal_live_reads`, `first_pass_paths`, `claim_refs`, `claim_signals`, or `claim_evidence`.
   The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` into the selected workflow, withhold unverified claims, and let contradictory live evidence override the route candidate.
   Graph claims are indexed assertions. Even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth; graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`. Route with them, but require bounded live evidence and the separate workflow final-claim gate before any root-cause, fixed, completed, or release-safe claim.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
