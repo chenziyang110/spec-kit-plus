@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
@@ -237,8 +238,15 @@ func TestApplyClaimReconciliationIsIdempotentAndRejectsStaleWriters(t *testing.T
 	conflict.ID = "claim-reconciliation:packet-conflict"
 	conflict.PacketHash = "packet-conflict"
 	conflict.ObservedAt = "2026-07-13T08:59:59Z"
-	if _, err := st.ApplyClaimReconciliation(ctx, conflict); err == nil {
+	conflict.Items = append([]ClaimReconciliationItem(nil), batch.Items...)
+	conflict.Items[0].ExpectedState = claim.StateVerified
+	if _, err := st.ApplyClaimReconciliation(ctx, conflict); err == nil || !strings.Contains(err.Error(), "not newer than latest verification") {
 		t.Fatal("older reconciliation succeeded, want stale-writer rejection")
+	}
+	replayConflict := batch
+	replayConflict.PacketHash = "different-packet"
+	if _, err := st.ApplyClaimReconciliation(ctx, replayConflict); err == nil || !strings.Contains(err.Error(), "conflicts with an existing packet") {
+		t.Fatal("conflicting idempotency key succeeded, want packet identity rejection")
 	}
 	var count int
 	if err := st.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM claim_reconciliations`).Scan(&count); err != nil {
@@ -247,4 +255,105 @@ func TestApplyClaimReconciliationIsIdempotentAndRejectsStaleWriters(t *testing.T
 	if count != 1 {
 		t.Fatalf("claim_reconciliations count = %d, want atomic no-write on rejection", count)
 	}
+}
+
+func TestApplyClaimReconciliationDerivesSupportedContradictedAndBlockedStates(t *testing.T) {
+	tests := []struct {
+		name         string
+		from         claim.State
+		freshness    claim.Freshness
+		evidenceRole string
+		verification *ClaimReconciliationVerification
+		wantState    claim.State
+		wantResult   string
+		wantBasis    string
+	}{
+		{name: "support without verification", from: claim.StateStale, freshness: claim.FreshnessStale, evidenceRole: "supporting", wantState: claim.StateSupported, wantResult: "ready", wantBasis: "current"},
+		{name: "claim-specific contradiction", from: claim.StateSupported, freshness: claim.FreshnessFresh, evidenceRole: "contradicting", verification: &ClaimReconciliationVerification{ID: "V-case", Result: claim.VerificationContradicted, Command: "go test ./..."}, wantState: claim.StateContradicted, wantResult: "ready", wantBasis: "current"},
+		{name: "blocked verification", from: claim.StateStale, freshness: claim.FreshnessStale, evidenceRole: "supporting", verification: &ClaimReconciliationVerification{ID: "V-case", Result: claim.VerificationBlocked, Command: "go test ./..."}, wantState: claim.StateStale, wantResult: "partial", wantBasis: "historical"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := openImportTestStore(t)
+			defer st.Close()
+			ctx := context.Background()
+			input := validImportInput("GEN-case")
+			input.Claims = []ClaimImport{{ID: "claim:app", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "owner", State: tt.from, Freshness: tt.freshness, StateReason: "old"}}
+			if _, err := st.ImportGeneration(ctx, input); err != nil {
+				t.Fatal(err)
+			}
+			result, err := st.ApplyClaimReconciliation(ctx, ClaimReconciliationBatch{
+				ID: "claim-reconciliation:case", PacketHash: "case", GenerationID: "GEN-case", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
+				Items: []ClaimReconciliationItem{{
+					ClaimID: "claim:app", ExpectedState: tt.from, Reason: "case evidence",
+					Evidence:     []ClaimReconciliationEvidence{{ID: "E-case", SourceKind: "source", SourcePath: "src/app.go", Span: "L1", ContentHash: "sha256:case", Role: tt.evidenceRole}},
+					Verification: tt.verification,
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.ResultState != tt.wantResult || result.Claims[0].ToState != tt.wantState {
+				t.Fatalf("result = %#v, want %s/%s", result, tt.wantResult, tt.wantState)
+			}
+			var basis string
+			if err := st.DB().QueryRowContext(ctx, `SELECT basis_state FROM claim_evidence WHERE evidence_id = 'E-case'`).Scan(&basis); err != nil {
+				t.Fatal(err)
+			}
+			if basis != tt.wantBasis {
+				t.Fatalf("basis = %q, want %q", basis, tt.wantBasis)
+			}
+		})
+	}
+}
+
+func TestValidateClaimReconciliationBatchRejectsInvalidContracts(t *testing.T) {
+	valid := ClaimReconciliationBatch{
+		ID: "claim-reconciliation:valid", PacketHash: "valid", GenerationID: "GEN", Workflow: "sp-plan", ObservedAt: "2026-07-13T09:00:00Z", CommitSHA: "abc123",
+		Items: []ClaimReconciliationItem{{
+			ClaimID: "claim:app", ExpectedState: claim.StateStale, Reason: "bounded evidence",
+			Evidence:     []ClaimReconciliationEvidence{{ID: "E-valid", SourceKind: "source", SourcePath: "src/app.go", Span: "L1", ContentHash: "sha256:valid", Role: "supporting"}},
+			Verification: &ClaimReconciliationVerification{ID: "V-valid", Result: claim.VerificationPassed, Command: "go test ./..."},
+		}},
+	}
+	tests := map[string]func(*ClaimReconciliationBatch){
+		"missing id":           func(batch *ClaimReconciliationBatch) { batch.ID = "" },
+		"bad timestamp":        func(batch *ClaimReconciliationBatch) { batch.ObservedAt = "today" },
+		"future timestamp":     func(batch *ClaimReconciliationBatch) { batch.ObservedAt = "2099-01-01T00:00:00Z" },
+		"no items":             func(batch *ClaimReconciliationBatch) { batch.Items = nil },
+		"missing claim fields": func(batch *ClaimReconciliationBatch) { batch.Items[0].Reason = "" },
+		"no evidence or verification": func(batch *ClaimReconciliationBatch) {
+			batch.Items[0].Evidence = nil
+			batch.Items[0].Verification = nil
+		},
+		"incomplete evidence":           func(batch *ClaimReconciliationBatch) { batch.Items[0].Evidence[0].Span = "" },
+		"invalid role":                  func(batch *ClaimReconciliationBatch) { batch.Items[0].Evidence[0].Role = "truth" },
+		"missing verification identity": func(batch *ClaimReconciliationBatch) { batch.Items[0].Verification.ID = "" },
+		"invalid result":                func(batch *ClaimReconciliationBatch) { batch.Items[0].Verification.Result = "unknown" },
+		"passed without support":        func(batch *ClaimReconciliationBatch) { batch.Items[0].Evidence[0].Role = "contradicting" },
+		"contradicted without counter": func(batch *ClaimReconciliationBatch) {
+			batch.Items[0].Verification.Result = claim.VerificationContradicted
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			batch := cloneReconciliationBatch(valid)
+			mutate(&batch)
+			if err := validateReconciliationBatch(batch); err == nil {
+				t.Fatal("validateReconciliationBatch succeeded, want rejection")
+			}
+		})
+	}
+}
+
+func cloneReconciliationBatch(batch ClaimReconciliationBatch) ClaimReconciliationBatch {
+	batch.Items = append([]ClaimReconciliationItem(nil), batch.Items...)
+	for index := range batch.Items {
+		batch.Items[index].Evidence = append([]ClaimReconciliationEvidence(nil), batch.Items[index].Evidence...)
+		if batch.Items[index].Verification != nil {
+			verification := *batch.Items[index].Verification
+			batch.Items[index].Verification = &verification
+		}
+	}
+	return batch
 }
