@@ -59,37 +59,35 @@ func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
 	if _, exists := got["verifications"]; exists {
 		t.Fatalf("claim = %#v, default query must not dump verification history", got)
 	}
-	if got["retrieval_confidence"] != "medium" {
-		t.Fatalf("claim.retrieval_confidence = %#v, want medium for fresh supported claim", got["retrieval_confidence"])
+	if _, exists := got["evidence"]; exists {
+		t.Fatalf("claim = %#v, existing compact graph claim contract must stay compact", got)
 	}
-	if got["stale"] != false {
-		t.Fatalf("claim.stale = %#v, want false", got["stale"])
+	if len(payload.ClaimSignals) != 1 {
+		t.Fatalf("ClaimSignals = %#v, want one related claim signal", payload.ClaimSignals)
 	}
-	if got["live_verification_required"] != true {
-		t.Fatalf("claim.live_verification_required = %#v, want true", got["live_verification_required"])
+	signal := payload.ClaimSignals[0]
+	if signal.RouteConfidence != "high" || signal.ConfidenceScope != "route_candidate" {
+		t.Fatalf("claim signal confidence = %#v, want high route_candidate confidence", signal)
 	}
-	evidence, ok := got["evidence"].([]map[string]any)
-	if !ok || len(evidence) != 1 {
-		t.Fatalf("claim.evidence = %T %#v, want one compact evidence ref", got["evidence"], got["evidence"])
+	if signal.Stale {
+		t.Fatalf("claim signal stale = true, want false")
 	}
-	for key, want := range map[string]any{
-		"id":          "E-app",
-		"role":        "supporting",
-		"source_kind": "source",
-		"source_path": "src/app.go",
-		"span":        "12:1-28:2",
-		"commit_sha":  "abc123",
-	} {
-		if evidence[0][key] != want {
-			t.Errorf("claim.evidence[0].%s = %#v, want %#v", key, evidence[0][key], want)
-		}
+	if !signal.LiveVerificationRequired {
+		t.Fatalf("claim signal live verification = false, want true")
+	}
+	if signal.EvidenceCount != 1 || len(signal.EvidenceRefs) != 1 || signal.EvidenceTruncated {
+		t.Fatalf("claim signal evidence = %#v, want one untruncated evidence ref", signal)
+	}
+	ref := signal.EvidenceRefs[0]
+	if ref.ID != "E-app" || ref.Role != "supporting" || ref.SourceKind != "source" || ref.SourcePath != "src/app.go" || ref.Span != "12:1-28:2" || ref.CommitSHA != "abc123" {
+		t.Errorf("claim evidence ref = %#v, want source identity and exact span", ref)
 	}
 	if payload.EpistemicContract.GraphOnlyClaimsAllowed {
 		t.Fatalf("epistemic contract = %#v, graph claims must not authorize final claims", payload.EpistemicContract)
 	}
 }
 
-func TestRunClassifiesClaimRetrievalConfidenceWithoutUpgradingGraphTruth(t *testing.T) {
+func TestRunScopesClaimRouteConfidenceWithoutUpgradingGraphTruth(t *testing.T) {
 	paths := queryTestPaths(t)
 	seedReadyGraph(t, paths, store.ImportInput{
 		GenerationID: "GEN-claim-confidence",
@@ -114,33 +112,23 @@ func TestRunClassifiesClaimRetrievalConfidenceWithoutUpgradingGraphTruth(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	claims, ok := payload.Subgraph["claims"].([]map[string]any)
-	if !ok {
-		t.Fatalf("subgraph.claims = %T %#v, want []map[string]any", payload.Subgraph["claims"], payload.Subgraph["claims"])
+	byID := map[string]ClaimSignal{}
+	for _, signal := range payload.ClaimSignals {
+		byID[signal.ID] = signal
 	}
-	byID := map[string]map[string]any{}
-	for _, graphClaim := range claims {
-		byID[graphClaim["id"].(string)] = graphClaim
-	}
-	for id, want := range map[string]string{
-		"claim:verified":     "high",
-		"claim:supported":    "medium",
-		"claim:candidate":    "low",
-		"claim:contradicted": "withhold",
-		"claim:stale":        "withhold",
-	} {
-		if byID[id]["retrieval_confidence"] != want {
-			t.Errorf("%s retrieval_confidence = %#v, want %q", id, byID[id]["retrieval_confidence"], want)
+	for _, id := range []string{"claim:verified", "claim:supported", "claim:candidate", "claim:contradicted", "claim:stale"} {
+		if byID[id].RouteConfidence != "verified" || byID[id].ConfidenceScope != "route_candidate" {
+			t.Errorf("%s route confidence = %#v, want verified route_candidate scope", id, byID[id])
 		}
-		if byID[id]["live_verification_required"] != true {
-			t.Errorf("%s live_verification_required = %#v, want true", id, byID[id]["live_verification_required"])
+		if !byID[id].LiveVerificationRequired {
+			t.Errorf("%s live verification required = false, want true", id)
 		}
 	}
-	if byID["claim:stale"]["stale"] != true {
-		t.Errorf("stale claim marker = %#v, want true", byID["claim:stale"]["stale"])
+	if !byID["claim:stale"].Stale || byID["claim:stale"].Freshness != string(claim.FreshnessStale) {
+		t.Errorf("stale claim signal = %#v, want explicit stale state", byID["claim:stale"])
 	}
-	if byID["claim:contradicted"]["stale"] != false {
-		t.Errorf("contradicted claim stale marker = %#v, want false", byID["claim:contradicted"]["stale"])
+	if byID["claim:contradicted"].Stale || byID["claim:contradicted"].State != string(claim.StateContradicted) {
+		t.Errorf("contradicted claim signal = %#v, want contradicted without conflating staleness", byID["claim:contradicted"])
 	}
 }
 

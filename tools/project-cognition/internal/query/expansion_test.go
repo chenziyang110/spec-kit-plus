@@ -87,12 +87,16 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if !ok {
 		t.Fatalf("claim evidence item = %T %#v, want object", claimPackets[0], claimPackets[0])
 	}
-	if firstClaim["retrieval_confidence"] == nil || firstClaim["live_verification_required"] != true {
+	if firstClaim["route_confidence"] == nil || firstClaim["confidence_scope"] != "route_candidate" || firstClaim["live_verification_required"] != true {
 		t.Fatalf("claim evidence contract = %#v", firstClaim)
 	}
-	refs, ok := firstClaim["evidence"].([]any)
+	refs, ok := firstClaim["evidence_refs"].([]any)
 	if !ok || len(refs) == 0 {
-		t.Fatalf("claim evidence refs = %T %#v, want non-empty array", firstClaim["evidence"], firstClaim["evidence"])
+		t.Fatalf("claim evidence refs = %T %#v, want non-empty array", firstClaim["evidence_refs"], firstClaim["evidence_refs"])
+	}
+	firstRef, ok := refs[0].(map[string]any)
+	if !ok || firstRef["source_path"] == nil || firstRef["span"] == nil {
+		t.Fatalf("claim evidence ref = %T %#v, want source path and span", refs[0], refs[0])
 	}
 }
 

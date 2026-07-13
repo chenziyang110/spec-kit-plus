@@ -62,17 +62,17 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 		t.Fatalf("IntentFacets = %#v, want covered facet risk to guard first-pass scope", payload.IntentFacets)
 	}
 	providerLane := compassLaneByTitle(payload.EvidenceLanes, "Provider Runtime Override")
-	if providerLane == nil || len(providerLane.ClaimEvidence) != 1 {
-		t.Fatalf("provider lane claim evidence = %#v, want one compact claim packet", providerLane)
+	if providerLane == nil || len(providerLane.ClaimRefs) != 1 {
+		t.Fatalf("provider lane claim refs = %#v, want one compact claim ref", providerLane)
 	}
-	if providerLane.ClaimEvidence[0].ID != "claim:provider-runtime-owner" {
-		t.Fatalf("provider claim id = %q", providerLane.ClaimEvidence[0].ID)
+	if providerLane.ClaimRefs[0].ID != "claim:provider-runtime-owner" {
+		t.Fatalf("provider claim id = %q", providerLane.ClaimRefs[0].ID)
 	}
-	if providerLane.ClaimEvidence[0].RetrievalConfidence != "medium" || providerLane.ClaimEvidence[0].LiveVerificationRequired != true {
-		t.Fatalf("provider claim contract = %#v", providerLane.ClaimEvidence[0])
+	if providerLane.ClaimRefs[0].RouteConfidence != "verified" || providerLane.ClaimRefs[0].ConfidenceScope != "route_candidate" {
+		t.Fatalf("provider claim ref contract = %#v", providerLane.ClaimRefs[0])
 	}
-	if len(providerLane.ClaimEvidence[0].Evidence) != 1 || providerLane.ClaimEvidence[0].Evidence[0].Span != "18:1-44:2" {
-		t.Fatalf("provider claim evidence refs = %#v", providerLane.ClaimEvidence[0].Evidence)
+	if providerLane.ClaimRefs[0].Freshness != "fresh" || providerLane.ClaimRefs[0].Stale {
+		t.Fatalf("provider claim freshness = %#v", providerLane.ClaimRefs[0])
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
