@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
 )
 
@@ -98,6 +99,7 @@ func Compile(proposal CognitionProposal) (CompiledProposal, Result) {
 	pkg.Nodes = mergeNodes(pkg.Nodes, &result)
 	pkg.Edges = mergeEdges(pkg.Edges, &result)
 	pkg.Observations = mergeObservations(pkg.Observations, &result)
+	pkg.Claims = mergeClaims(pkg.Claims, &result)
 	pkg.CoveragePaths = uniqueSortedStrings(pkg.CoveragePaths)
 	pkg.AcceptedGaps = cloneBoolMap(pkg.AcceptedGaps)
 
@@ -150,11 +152,38 @@ func canonicalizeProposal(proposal CognitionProposal) CognitionProposal {
 		pkg.Observations[i].ID = strings.TrimSpace(pkg.Observations[i].ID)
 		pkg.Observations[i].EvidenceIDs = uniqueSortedStrings(pkg.Observations[i].EvidenceIDs)
 	}
+	for i := range pkg.Claims {
+		row := &pkg.Claims[i]
+		row.ID = strings.TrimSpace(row.ID)
+		row.NodeID = strings.TrimSpace(row.NodeID)
+		row.GraphClaimType = strings.TrimSpace(row.GraphClaimType)
+		row.Summary = strings.TrimSpace(row.Summary)
+		compiled := claim.Compile(claim.Candidate{
+			ID:                       row.ID,
+			NodeID:                   row.NodeID,
+			GraphClaimType:           row.GraphClaimType,
+			Summary:                  row.Summary,
+			RequestedState:           row.RequestedState,
+			SupportingEvidenceIDs:    row.SupportingEvidenceIDs,
+			ContradictingEvidenceIDs: row.ContradictingEvidenceIDs,
+			Verifications:            row.Verifications,
+			StaleReason:              row.StaleReason,
+			Attrs:                    row.Attrs,
+		})
+		row.SupportingEvidenceIDs = compiled.SupportingEvidenceIDs
+		row.ContradictingEvidenceIDs = compiled.ContradictingEvidenceIDs
+		row.Verifications = compiled.Verifications
+		row.State = compiled.State
+		row.Freshness = compiled.Freshness
+		row.StateReason = compiled.StateReason
+		row.Attrs = compiled.Attrs
+	}
 	pkg.CoveragePaths = uniqueSortedPaths(pkg.CoveragePaths)
 	sortRows(pkg.Evidence, func(row scanartifacts.EvidenceRow) string { return row.ID })
 	sortRows(pkg.Nodes, func(row scanartifacts.NodeRow) string { return row.ID })
 	sortRows(pkg.Edges, func(row scanartifacts.EdgeRow) string { return row.ID })
 	sortRows(pkg.Observations, func(row scanartifacts.ObservationRow) string { return row.ID })
+	sortRows(pkg.Claims, func(row scanartifacts.ClaimRow) string { return row.ID })
 	proposal.Package = pkg
 	return proposal
 }
@@ -173,6 +202,10 @@ func mergeEdges(rows []scanartifacts.EdgeRow, result *Result) []scanartifacts.Ed
 
 func mergeObservations(rows []scanartifacts.ObservationRow, result *Result) []scanartifacts.ObservationRow {
 	return mergeRows(rows, "observation", func(row scanartifacts.ObservationRow) string { return row.ID }, result)
+}
+
+func mergeClaims(rows []scanartifacts.ClaimRow, result *Result) []scanartifacts.ClaimRow {
+	return mergeRows(rows, "claim", func(row scanartifacts.ClaimRow) string { return row.ID }, result)
 }
 
 func mergeRows[T any](rows []T, category string, identity func(T) string, result *Result) []T {
@@ -292,6 +325,18 @@ func validateReferences(pkg scanartifacts.Package, result *Result) {
 	for _, observation := range pkg.Observations {
 		validateEvidenceReferences("observation", observation.ID, observation.EvidenceIDs, evidenceIDs, result)
 	}
+	for _, graphClaim := range pkg.Claims {
+		if !nodeIDs[graphClaim.NodeID] {
+			result.Conflicts = append(result.Conflicts, Decision{Category: "claim", Identity: graphClaim.ID, Reason: "missing_node:" + graphClaim.NodeID})
+		}
+		validateEvidenceReferences("claim", graphClaim.ID, graphClaim.SupportingEvidenceIDs, evidenceIDs, result)
+		validateEvidenceReferences("claim", graphClaim.ID, graphClaim.ContradictingEvidenceIDs, evidenceIDs, result)
+		for _, verification := range graphClaim.Verifications {
+			if verification.EvidenceID != "" {
+				validateEvidenceReferences("claim", graphClaim.ID, []string{verification.EvidenceID}, evidenceIDs, result)
+			}
+		}
+	}
 }
 
 func validateEvidenceReferences(category, identity string, references []string, evidenceIDs map[string]bool, result *Result) {
@@ -326,6 +371,7 @@ func rebuildIdentities(pkg *scanartifacts.Package) {
 		Nodes:         map[string]bool{},
 		Edges:         map[string]bool{},
 		Observations:  map[string]bool{},
+		Claims:        map[string]bool{},
 		CoveragePaths: map[string]bool{},
 	}
 	for _, row := range pkg.Evidence {
@@ -339,6 +385,9 @@ func rebuildIdentities(pkg *scanartifacts.Package) {
 	}
 	for _, row := range pkg.Observations {
 		identities.Observations[row.ID] = true
+	}
+	for _, row := range pkg.Claims {
+		identities.Claims[row.ID] = true
 	}
 	for _, candidate := range pkg.CoveragePaths {
 		identities.CoveragePaths[candidate] = true
@@ -439,6 +488,7 @@ func clonePackage(pkg scanartifacts.Package) scanartifacts.Package {
 		Nodes:         make([]scanartifacts.NodeRow, len(pkg.Nodes)),
 		Edges:         make([]scanartifacts.EdgeRow, len(pkg.Edges)),
 		Observations:  make([]scanartifacts.ObservationRow, len(pkg.Observations)),
+		Claims:        make([]scanartifacts.ClaimRow, len(pkg.Claims)),
 		CoveragePaths: append([]string(nil), pkg.CoveragePaths...),
 		AcceptedGaps:  cloneBoolMap(pkg.AcceptedGaps),
 		Identities: scanartifacts.IdentitySet{
@@ -446,6 +496,7 @@ func clonePackage(pkg scanartifacts.Package) scanartifacts.Package {
 			Nodes:         cloneBoolMap(pkg.Identities.Nodes),
 			Edges:         cloneBoolMap(pkg.Identities.Edges),
 			Observations:  cloneBoolMap(pkg.Identities.Observations),
+			Claims:        cloneBoolMap(pkg.Identities.Claims),
 			CoveragePaths: cloneBoolMap(pkg.Identities.CoveragePaths),
 		},
 	}
@@ -471,6 +522,16 @@ func clonePackage(pkg scanartifacts.Package) scanartifacts.Package {
 		row.Attrs = cloneAttrs(row.Attrs)
 		cloned.Observations[i] = row
 	}
+	for i, row := range pkg.Claims {
+		row.SupportingEvidenceIDs = append([]string(nil), row.SupportingEvidenceIDs...)
+		row.ContradictingEvidenceIDs = append([]string(nil), row.ContradictingEvidenceIDs...)
+		row.Verifications = append([]claim.Verification(nil), row.Verifications...)
+		for j := range row.Verifications {
+			row.Verifications[j].Attrs = cloneAttrs(row.Verifications[j].Attrs)
+		}
+		row.Attrs = cloneAttrs(row.Attrs)
+		cloned.Claims[i] = row
+	}
 	return cloned
 }
 
@@ -480,6 +541,7 @@ func emptyIdentitySet() scanartifacts.IdentitySet {
 		Nodes:         map[string]bool{},
 		Edges:         map[string]bool{},
 		Observations:  map[string]bool{},
+		Claims:        map[string]bool{},
 		CoveragePaths: map[string]bool{},
 	}
 }
@@ -518,12 +580,13 @@ func packageCounts(pkg scanartifacts.Package) map[string]int {
 		"nodes":          len(pkg.Nodes),
 		"edges":          len(pkg.Edges),
 		"observations":   len(pkg.Observations),
+		"claims":         len(pkg.Claims),
 		"coverage_paths": len(pkg.CoveragePaths),
 	}
 }
 
 func emptyCounts() map[string]int {
-	return map[string]int{"evidence": 0, "nodes": 0, "edges": 0, "observations": 0, "coverage_paths": 0}
+	return map[string]int{"evidence": 0, "nodes": 0, "edges": 0, "observations": 0, "claims": 0, "coverage_paths": 0}
 }
 
 func fingerprint(value any) string {

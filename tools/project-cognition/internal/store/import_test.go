@@ -27,9 +27,9 @@ func TestImportGenerationPersistsTypedClaimsAndLifecycleEvidence(t *testing.T) {
 		State:                 claim.StateVerified,
 		Freshness:             claim.FreshnessFresh,
 		StateReason:           "supporting_evidence_and_current_verification",
-		SupportingEvidenceIDs: []string{"E-app"},
+		SupportingEvidenceIDs: []string{"E-001"},
 		Verifications: []ClaimVerificationImport{{
-			ID: "verification:app-owner", Result: claim.VerificationPassed, EvidenceID: "E-app", ObservedAt: "2026-07-13T10:00:00Z",
+			ID: "verification:app-owner", Result: claim.VerificationPassed, EvidenceID: "E-001", ObservedAt: "2026-07-13T10:00:00Z",
 		}},
 	}}
 
@@ -43,7 +43,7 @@ func TestImportGenerationPersistsTypedClaimsAndLifecycleEvidence(t *testing.T) {
 	if state != string(claim.StateVerified) || freshness != string(claim.FreshnessFresh) {
 		t.Fatalf("claim state/freshness = %q/%q, want %q/%q", state, freshness, claim.StateVerified, claim.FreshnessFresh)
 	}
-	if err := st.DB().QueryRowContext(ctx, `SELECT role FROM claim_evidence WHERE claim_id = 'claim:app-owner' AND evidence_id = 'E-app'`).Scan(&role); err != nil {
+	if err := st.DB().QueryRowContext(ctx, `SELECT role FROM claim_evidence WHERE claim_id = 'claim:app-owner' AND evidence_id = 'E-001'`).Scan(&role); err != nil {
 		t.Fatal(err)
 	}
 	if role != "supporting" {

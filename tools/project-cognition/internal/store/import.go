@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
@@ -19,6 +20,7 @@ type ImportInput struct {
 	Nodes        []NodeImport
 	Edges        []EdgeImport
 	Observations []ObservationImport
+	Claims       []ClaimImport
 	PathIndex    []PathIndexImport
 	Aliases      []AliasImport
 	Rejections   []RowDecision
@@ -63,6 +65,30 @@ type ObservationImport struct {
 	Attrs           map[string]any
 }
 
+type ClaimImport struct {
+	ID                       string
+	NodeID                   string
+	GraphClaimType           string
+	Summary                  string
+	State                    claim.State
+	PriorState               claim.State
+	Freshness                claim.Freshness
+	StateReason              string
+	SupportingEvidenceIDs    []string
+	ContradictingEvidenceIDs []string
+	Verifications            []ClaimVerificationImport
+	Attrs                    map[string]any
+}
+
+type ClaimVerificationImport struct {
+	ID         string
+	Result     claim.VerificationResult
+	Command    string
+	EvidenceID string
+	ObservedAt string
+	Attrs      map[string]any
+}
+
 type PathIndexImport struct {
 	ID         string
 	Path       string
@@ -102,6 +128,7 @@ type IdentitySnapshot struct {
 	Nodes                       map[string]bool `json:"nodes"`
 	Edges                       map[string]bool `json:"edges"`
 	Observations                map[string]bool `json:"observations"`
+	Claims                      map[string]bool `json:"claims"`
 	CoveragePaths               map[string]bool `json:"coverage_paths"`
 	WorkflowUpdateEvidence      map[string]bool `json:"workflow_update_evidence"`
 	WorkflowUpdateNodes         map[string]bool `json:"workflow_update_nodes"`
@@ -174,6 +201,39 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 		}
 	}
 
+	for _, graphClaim := range input.Claims {
+		attrs, err := attrsJSONOrEmpty(graphClaim.Attrs)
+		if err != nil {
+			return "", fmt.Errorf("encode claim %s attrs: %w", graphClaim.ID, err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, graphClaim.ID, input.GenerationID, graphClaim.NodeID, graphClaim.GraphClaimType, graphClaim.Summary, graphClaim.State, graphClaim.PriorState, graphClaim.Freshness, graphClaim.StateReason, attrs, now, now); err != nil {
+			return "", fmt.Errorf("insert claim %s: %w", graphClaim.ID, err)
+		}
+		for _, evidenceID := range graphClaim.SupportingEvidenceIDs {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES(?, ?, 'supporting')`, graphClaim.ID, evidenceID); err != nil {
+				return "", fmt.Errorf("insert supporting claim evidence %s/%s: %w", graphClaim.ID, evidenceID, err)
+			}
+		}
+		for _, evidenceID := range graphClaim.ContradictingEvidenceIDs {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES(?, ?, 'contradicting')`, graphClaim.ID, evidenceID); err != nil {
+				return "", fmt.Errorf("insert contradicting claim evidence %s/%s: %w", graphClaim.ID, evidenceID, err)
+			}
+		}
+		for _, verification := range graphClaim.Verifications {
+			verificationAttrs, err := attrsJSONOrEmpty(verification.Attrs)
+			if err != nil {
+				return "", fmt.Errorf("encode claim verification %s attrs: %w", verification.ID, err)
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_verifications(id, claim_id, generation_id, result, command, evidence_id, observed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, verification.ID, graphClaim.ID, input.GenerationID, verification.Result, verification.Command, verification.EvidenceID, verification.ObservedAt, verificationAttrs); err != nil {
+				return "", fmt.Errorf("insert claim verification %s: %w", verification.ID, err)
+			}
+		}
+		transitionID := "claim-transition:initial:" + graphClaim.ID
+		if _, err := tx.ExecContext(ctx, `INSERT INTO claim_transitions(id, claim_id, generation_id, from_state, to_state, reason, evidence_id, occurred_at, attrs_json) VALUES(?, ?, ?, '', ?, ?, '', ?, '{}')`, transitionID, graphClaim.ID, input.GenerationID, graphClaim.State, graphClaim.StateReason, now); err != nil {
+			return "", fmt.Errorf("insert initial claim transition %s: %w", graphClaim.ID, err)
+		}
+	}
+
 	for _, edge := range input.Edges {
 		if err := validateEdgeNodes(ctx, tx, input.GenerationID, edge); err != nil {
 			return "", err
@@ -241,6 +301,7 @@ func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, e
 		Nodes:                       map[string]bool{},
 		Edges:                       map[string]bool{},
 		Observations:                map[string]bool{},
+		Claims:                      map[string]bool{},
 		CoveragePaths:               map[string]bool{},
 		WorkflowUpdateEvidence:      map[string]bool{},
 		WorkflowUpdateNodes:         map[string]bool{},
@@ -274,6 +335,11 @@ func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, e
 		snapshot.Observations[values[0]] = true
 	}); err != nil {
 		return snapshot, fmt.Errorf("read observation identities: %w", err)
+	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT id FROM claims WHERE generation_id = ?`, generationID, func(values []string) {
+		snapshot.Claims[values[0]] = true
+	}); err != nil {
+		return snapshot, fmt.Errorf("read claim identities: %w", err)
 	}
 	if err := scanSnapshotRows(ctx, s.db, `SELECT path FROM path_index WHERE generation_id = ?`, generationID, func(values []string) {
 		snapshot.CoveragePaths[values[0]] = true
@@ -388,6 +454,29 @@ func validateImportReferences(input ImportInput) error {
 			}
 		}
 	}
+	for _, graphClaim := range input.Claims {
+		if !nodeIDs[graphClaim.NodeID] {
+			return fmt.Errorf("claim %s references missing node %s", graphClaim.ID, graphClaim.NodeID)
+		}
+		if strings.TrimSpace(graphClaim.GraphClaimType) == "" {
+			return fmt.Errorf("claim %s graph_claim_type is required", graphClaim.ID)
+		}
+		for _, evidenceID := range append(append([]string{}, graphClaim.SupportingEvidenceIDs...), graphClaim.ContradictingEvidenceIDs...) {
+			if err := validateImportedEvidenceID("claim", graphClaim.ID, evidenceID, evidenceIDs); err != nil {
+				return err
+			}
+		}
+		for _, verification := range graphClaim.Verifications {
+			if strings.TrimSpace(verification.ID) == "" {
+				return fmt.Errorf("claim %s verification id is required", graphClaim.ID)
+			}
+			if verification.EvidenceID != "" {
+				if err := validateImportedEvidenceID("claim verification", verification.ID, verification.EvidenceID, evidenceIDs); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	for _, pathIndex := range input.PathIndex {
 		if !nodeIDs[pathIndex.NodeID] {
 			return fmt.Errorf("path_index %s references missing node %s", pathIndex.ID, pathIndex.NodeID)
@@ -465,6 +554,10 @@ func supersedeAndDeleteActiveGenerationData(ctx context.Context, tx *sql.Tx, new
 
 func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) error {
 	statements := []string{
+		`DELETE FROM claim_transitions WHERE generation_id = ?`,
+		`DELETE FROM claim_verifications WHERE generation_id = ?`,
+		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claims WHERE generation_id = ?)`,
+		`DELETE FROM claims WHERE generation_id = ?`,
 		`DELETE FROM observation_evidence WHERE observation_id IN (SELECT id FROM observations WHERE generation_id = ?)`,
 		`DELETE FROM node_evidence WHERE node_id IN (SELECT id FROM nodes WHERE generation_id = ?)`,
 		`DELETE FROM edge_evidence WHERE edge_id IN (SELECT id FROM edges WHERE generation_id = ?)`,

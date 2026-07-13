@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
@@ -34,6 +35,7 @@ type Package struct {
 	Nodes         []NodeRow
 	Edges         []EdgeRow
 	Observations  []ObservationRow
+	Claims        []ClaimRow
 	CoveragePaths []string
 	AcceptedGaps  map[string]bool
 	Identities    IdentitySet
@@ -111,6 +113,7 @@ type IdentitySet struct {
 	Nodes         map[string]bool `json:"nodes"`
 	Edges         map[string]bool `json:"edges"`
 	Observations  map[string]bool `json:"observations"`
+	Claims        map[string]bool `json:"claims"`
 	CoveragePaths map[string]bool `json:"coverage_paths"`
 }
 
@@ -155,6 +158,23 @@ type ObservationRow struct {
 	Summary         string
 	EvidenceIDs     []string
 	Attrs           map[string]any
+}
+
+type ClaimRow struct {
+	ID                       string
+	NodeID                   string
+	GraphClaimType           string
+	Summary                  string
+	RequestedState           claim.State
+	SupportingEvidenceIDs    []string
+	ContradictingEvidenceIDs []string
+	Verifications            []claim.Verification
+	StaleReason              string
+	State                    claim.State
+	PriorState               claim.State
+	Freshness                claim.Freshness
+	StateReason              string
+	Attrs                    map[string]any
 }
 
 func Validate(paths rt.Paths, opts ValidateOptions) Result {
@@ -355,6 +375,7 @@ func newIdentitySet() IdentitySet {
 		Nodes:         map[string]bool{},
 		Edges:         map[string]bool{},
 		Observations:  map[string]bool{},
+		Claims:        map[string]bool{},
 		CoveragePaths: map[string]bool{},
 	}
 }
