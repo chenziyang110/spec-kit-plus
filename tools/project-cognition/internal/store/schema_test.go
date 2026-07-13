@@ -197,7 +197,7 @@ func TestOpenRejectsSchemaV3WithoutMigration(t *testing.T) {
 		t.Fatal("Open succeeded for schema v3, want current-only rejection")
 	}
 	if !strings.Contains(err.Error(), "schema_version 3") || !strings.Contains(err.Error(), "requires 5") {
-		t.Fatalf("Open error = %v, want explicit schema v4 requirement", err)
+		t.Fatalf("Open error = %v, want explicit schema v5 requirement", err)
 	}
 }
 

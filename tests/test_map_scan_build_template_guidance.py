@@ -35,14 +35,14 @@ def test_map_scan_and_build_templates_require_mandatory_subagent_guidance() -> N
         assert "unknown` blocks" in content
 
 
-def test_map_guidance_documents_schema_v3_alias_and_claim_readiness() -> None:
+def test_map_guidance_documents_schema_v5_alias_and_claim_readiness() -> None:
     scan_content = _read("templates/commands/map-scan.md").lower()
     build_content = _read("templates/commands/map-build.md").lower()
     shared_context = _read("templates/command-partials/common/context-loading-gradient.md").lower()
     planning_context = _read("templates/command-partials/common/planning-context-loading-gradient.md").lower()
 
     for content in (scan_content, build_content, shared_context, planning_context):
-        assert "schema v4" in content
+        assert "schema v5" in content
         assert "alias_index" in content
         assert "alias catalog" in content
         assert "normalize user input" in content

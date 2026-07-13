@@ -4,7 +4,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_root_agents_documents_current_managed_context_and_schema_v4_rules() -> None:
+def test_root_agents_documents_current_managed_context_and_schema_v5_rules() -> None:
     content = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     lowered = content.lower()
 
@@ -25,11 +25,14 @@ def test_root_agents_documents_current_managed_context_and_schema_v4_rules() -> 
     assert ".specify/memory/project-learnings.md` remains a compatibility summary" in content
     assert "## Workflow Activation Discipline" not in content
     assert "## Lane Recovery Rules" not in content
-    assert "### Project Cognition Schema v4 Maintenance" in content
-    assert "schema v4 runtime readiness is graph, alias, and typed graph-claim reconciliation first" in lowered
+    assert "### Project Cognition Schema v5 Maintenance" in content
+    assert "schema v5 runtime readiness is graph, alias, and revision-bound typed graph-claim reconciliation first" in lowered
     assert "`alias_index` is the route vocabulary" in lowered
-    assert "v1, v2, v3, and old broad-schema dbs are diagnostic/inspect-only" in lowered
-    assert "does not migrate schema v3" in lowered
+    assert "v1 through v4 and old broad-schema dbs are diagnostic/inspect-only" in lowered
+    assert "does not migrate schema v4" in lowered
+    assert "agents supply semantic reconciliation intent only" in lowered
+    assert "runtime owns contract versions" in lowered
+    assert "`apply_argv`" in content
     assert "does not archive or replace" in lowered
     assert "do not reintroduce old broad-schema tables" in lowered
     assert "verified_in_graph_generation" in content

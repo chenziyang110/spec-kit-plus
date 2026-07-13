@@ -498,7 +498,7 @@ def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() ->
 
     build = _compact(_read("templates/commands/map-build.md").lower())
     for term in (
-        "schema v4 runtime contract",
+        "schema v5 runtime contract",
         "claims",
         "claim_evidence",
         "claim_verifications",

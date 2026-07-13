@@ -126,7 +126,7 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 - Critical and important graph-eligible paths must remain in the sparse path-index denominator unless they are true repository-universe exclusions or explicitly accepted nonblocking gaps.
 - `build-from-scan` must not set `freshness=fresh`, must not set `readiness=query_ready`, and must not set `graph_ready=true` until sparse path-index gates pass.
 
-## Schema V4 Runtime Contract
+## Schema V5 Runtime Contract
 
 Schema v5 is current-only. `project-cognition build-from-scan --format json`
 creates schema v5 only for a missing database or consumes a complete current
