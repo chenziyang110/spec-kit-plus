@@ -4011,6 +4011,12 @@ def init(
             steps_lines.append(
                 "   [cyan]sp-teams[/cyan] — optional durable Codex team runtime for work that must outlive one delegated wave"
             )
+        steps_lines.append("   ")
+        steps_lines.append(
+            "   Original Classic map companions for lower-cost model execution:"
+        )
+        for name in ("map-scan", "map-build", "map-update"):
+            steps_lines.append(f"   [cyan]{_display_cmd(name)}[/cyan]")
         console.print()
         console.print(_open_block("Start Here", steps_lines, accent="cyan"))
         return

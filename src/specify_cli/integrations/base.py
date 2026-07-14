@@ -102,6 +102,9 @@ class IntegrationBase(ABC):
     """Optional structured-question-tool metadata for the integration."""
 
     MAP_SUBAGENT_DISCOVERY_COMMANDS = frozenset({"map-scan", "map-build", "map-update"})
+    ADVANCED_CLASSIC_COMPANION_COMMANDS = frozenset(
+        {"map-scan", "map-build", "map-update"}
+    )
     RUNTIME_SUBAGENT_CONTRACT_COMMANDS = frozenset({"implement", "debug", "quick"})
     SUBAGENT_DISCOVERY_EXCLUDED_COMMANDS = frozenset({"fast"})
     SUBAGENT_DISCOVERY_TRIGGERS = (
@@ -2607,7 +2610,11 @@ class SkillsIntegration(IntegrationBase):
         passive_templates = self.list_passive_skill_templates()
         advanced_templates = self.list_advanced_skill_templates()
         if profile == "advanced":
-            templates = []
+            templates = [
+                template
+                for template in templates
+                if template.stem in self.ADVANCED_CLASSIC_COMPANION_COMMANDS
+            ]
             passive_templates = []
         if not templates and not passive_templates:
             if profile != "advanced" or not advanced_templates:
@@ -2647,8 +2654,6 @@ class SkillsIntegration(IntegrationBase):
                     arg_placeholder=arg_placeholder,
                 )
             )
-            created.extend(self.install_scripts(project_root, manifest))
-            return created
 
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")

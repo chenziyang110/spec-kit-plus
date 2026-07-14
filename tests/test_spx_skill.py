@@ -47,6 +47,11 @@ SPX_SKILLS = {
     "spx-taskstoissues",
     "spx-team",
 }
+CLASSIC_MAP_COMPANION_SKILLS = {
+    "sp-map-build",
+    "sp-map-scan",
+    "sp-map-update",
+}
 SKILLS_INTEGRATIONS = (
     "agy",
     "claude",
@@ -340,7 +345,7 @@ def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
         assert required in content
 
 
-def test_advanced_profile_installs_spx_without_classic_skills_or_augmentation(
+def test_advanced_profile_installs_spx_with_only_classic_map_companions(
     tmp_path,
 ) -> None:
     integration = get_integration("codex")
@@ -400,6 +405,17 @@ def test_advanced_profile_installs_spx_without_classic_skills_or_augmentation(
 
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists()
     assert not (skills_dir / "tdd-workflow" / "SKILL.md").exists()
+    installed_classic = {
+        path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")
+    }
+    assert installed_classic == CLASSIC_MAP_COMPANION_SKILLS
+    for skill_name in CLASSIC_MAP_COMPANION_SKILLS:
+        skill = skills_dir / skill_name / "SKILL.md"
+        command_name = skill_name.removeprefix("sp-")
+        assert _frontmatter(skill)["metadata"]["source"] == (
+            f"templates/commands/{command_name}.md"
+        )
+        assert "Mandatory Subagent Execution" in skill.read_text(encoding="utf-8")
 
 
 def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> None:
@@ -496,6 +512,9 @@ def test_advanced_surface_map_covers_classic_commands_and_declared_files() -> No
     assert surface_map["schema_version"] == 2
     assert surface_map["design"]["equivalence"] == (
         "command-equivalent, prompt-optimized"
+    )
+    assert set(surface_map["classic_companion_skills"]) == (
+        CLASSIC_MAP_COMPANION_SKILLS
     )
     assert surface_map["skills"].keys() == SPX_SKILLS
 
@@ -636,6 +655,10 @@ def test_all_skills_integrations_support_the_advanced_profile(
     skills_dir = integration.skills_dest(project)
     installed = {path.parent.name for path in skills_dir.glob("spx-*/SKILL.md")}
     assert installed == SPX_SKILLS, integration_key
+    installed_classic = {
+        path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")
+    }
+    assert installed_classic == CLASSIC_MAP_COMPANION_SKILLS, integration_key
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists(), integration_key
     assert not (skills_dir / "spec-kit-workflow-routing" / "SKILL.md").exists(), (
         integration_key
@@ -674,6 +697,15 @@ def test_classic_then_advanced_profiles_are_additive_in_the_manifest(tmp_path) -
         parsed_options={"workflow_profile": "classic"},
         script_type="sh",
     )
+    skills_dir = integration.skills_dest(project)
+    classic_map_bytes = {
+        skill_name: {
+            path.relative_to(skills_dir / skill_name).as_posix(): path.read_bytes()
+            for path in (skills_dir / skill_name).rglob("*")
+            if path.is_file()
+        }
+        for skill_name in CLASSIC_MAP_COMPANION_SKILLS
+    }
     classic_manifest.save()
 
     advanced_manifest = IntegrationManifest.load("codex", project)
@@ -685,9 +717,17 @@ def test_classic_then_advanced_profiles_are_additive_in_the_manifest(tmp_path) -
     )
     advanced_manifest.save()
 
-    skills_dir = integration.skills_dest(project)
     assert (skills_dir / "sp-plan" / "SKILL.md").exists()
     assert (skills_dir / "spx-plan" / "SKILL.md").exists()
+    advanced_map_bytes = {
+        skill_name: {
+            path.relative_to(skills_dir / skill_name).as_posix(): path.read_bytes()
+            for path in (skills_dir / skill_name).rglob("*")
+            if path.is_file()
+        }
+        for skill_name in CLASSIC_MAP_COMPANION_SKILLS
+    }
+    assert advanced_map_bytes == classic_map_bytes
 
     tracked = IntegrationManifest.load("codex", project).files
     assert ".codex/skills/sp-plan/SKILL.md" in tracked
@@ -742,6 +782,8 @@ def test_profile_metadata_is_isolated_between_skills_integrations(tmp_path) -> N
     assert classic.exit_code == 0, classic.output
     assert advanced.exit_code == 0, advanced.output
     for skill_name in SPX_SKILLS:
+        assert f"${skill_name}" in advanced.output
+    for skill_name in CLASSIC_MAP_COMPANION_SKILLS:
         assert f"${skill_name}" in advanced.output
     options = json.loads(
         (project / ".specify" / "init-options.json").read_text(encoding="utf-8")
@@ -849,7 +891,7 @@ def test_init_can_install_both_profiles_without_losing_either(
     assert integration_state["team"]["surface"] == "sp-teams"
 
 
-def test_advanced_only_codex_repair_restores_shared_team_runtime_without_classic_skill(
+def test_advanced_only_codex_repair_restores_runtime_without_unrelated_classic_skill(
     tmp_path,
 ) -> None:
     project = tmp_path / "project"
@@ -904,6 +946,8 @@ def test_advanced_only_codex_repair_restores_shared_team_runtime_without_classic
     assert missing_asset.exists()
     assert not (project / ".codex" / "skills" / "sp-plan").exists()
     assert not (project / ".codex" / "skills" / "sp-teams").exists()
+    for skill_name in CLASSIC_MAP_COMPANION_SKILLS:
+        assert (project / ".codex" / "skills" / skill_name / "SKILL.md").exists()
 
     integration_state = json.loads(
         (project / ".specify" / "integration.json").read_text(encoding="utf-8")

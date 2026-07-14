@@ -6,17 +6,23 @@
     "prompt_shape": "short leader skill plus triggered advanced references and compact views",
     "machine_contracts": "shared canonical schemas, validators, scripts, lifecycle state, and project-cognition runtime",
     "passive_skills": "classic passive prompt bundles are not installed; essential gates live in the owning SPX skill or advanced reference",
-    "classic_sources": "audit inputs only; never installed, included, or copied by advanced skills"
+    "classic_sources": "audit inputs for SPX prompts; only the three classic map companion skills are also installed through the unchanged classic renderer"
   },
   "optimization_policy": [
     "preserve every classic command entrypoint, write boundary, state owner, explicit side-effect gate, and resumable stop point",
     "remove repeated cognition tutorials, fixed role chains, mandatory delegation, long examples, and model-authored stable boilerplate",
     "delegate bounded bulk scanning to the lowest-cost capable worker while advanced leaders own scope, acceptance, conflicts, and escalation",
-    "use deterministic templates and runtimes for stable artifacts, validation, graph construction, and lifecycle transitions"
+    "use deterministic templates and runtimes for stable artifacts, validation, graph construction, and lifecycle transitions",
+    "install the unchanged classic sp-map-scan, sp-map-build, and sp-map-update skills beside SPX so low-cost models can run the established map workflow"
   ],
   "shared_references": [
     "_shared/project-cognition.md",
     "_shared/consequence-gate.md"
+  ],
+  "classic_companion_skills": [
+    "sp-map-scan",
+    "sp-map-build",
+    "sp-map-update"
   ],
   "skills": {
     "spx-analyze": {

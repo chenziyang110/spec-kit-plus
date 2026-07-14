@@ -238,6 +238,17 @@ $spx-research             $spx-specify              $spx-tasks
 $spx-taskstoissues        $spx-team
 ```
 
+Advanced installs also include the unchanged Classic map companions:
+
+```text
+$sp-map-scan              $sp-map-build             $sp-map-update
+```
+
+Use the concise `spx-map-*` skills when an advanced model owns the map
+workflow. Use the original `sp-map-*` skills when a lower-cost model should run
+the established, more explicit scan/build/update contract. These companions are
+generated from the same Classic command templates; they are not SPX rewrites.
+
 Invocation punctuation depends on the agent (`$spx-plan`, `/spx-plan`, or
 `/skill:spx-plan`). Each skill is a native catalog entry and loads only its own
 short prompt plus triggered advanced references. The advanced profile is
@@ -251,13 +262,15 @@ instead of being hidden inside that path. `spx-fast` is for trivial direct
 changes; `spx-quick` provides lightweight resumable state for bounded but
 non-trivial work.
 
-Advanced references are profile-local under `templates/advanced-skills/` and
-never copy or include classic `templates/command-references/`. A dedicated
-reference is added only when another execution tier needs a stable contract,
-such as the low-cost scan worker; deterministic artifact schemas remain in the
-runtime or renderer instead of being repeated as prompt prose. Compact advanced
-Markdown views live beside each skill, while canonical JSON schemas, validators,
-state machines, and project-cognition remain shared single sources of truth.
+SPX references are profile-local under `templates/advanced-skills/` and never
+copy or include classic `templates/command-references/`. The three separately
+installed Classic map companions retain their original command-reference
+sidecars. A dedicated SPX reference is added only when another execution tier
+needs a stable contract, such as the low-cost scan worker; deterministic
+artifact schemas remain in the runtime or renderer instead of being repeated as
+prompt prose. Compact advanced Markdown views live beside each skill, while
+canonical JSON schemas, validators, state machines, and project-cognition remain
+shared single sources of truth.
 `templates/advanced-skills/_shared/surface-map.json` records the deterministic
 one-to-one Classic-to-Advanced command mapping and guards against accidental
 omissions.
@@ -280,6 +293,10 @@ packet, and stops after scan validation. `spx-map-build` consumes only that
 frozen evidence and runs deterministic `build-from-scan` plus build validation;
 it is not a second model-driven repository scan. `spx-map-rebuild` is only the
 optional convenience orchestrator for those two skills.
+For a lower-cost model, invoke the additionally installed original
+`sp-map-scan -> sp-map-build` workflow and use `sp-map-update` for incremental
+maintenance; those skills remain byte-equivalent to a Classic-profile install
+in the same project.
 
 Advanced optimization removes repeated cognition tutorials, fixed role chains,
 mandatory delegation where leader-direct work is safer, long examples, and
