@@ -41,7 +41,7 @@ agent_scripts:
 4. Resolve the feature directory to a project-relative output path. If no contract exists, scaffold canonical `plan-contract.json` with `{{specify-subcmd:artifact scaffold --kind plan-contract --out "<project-relative-feature-dir>/plan-contract.json" --format json}}`; never pass an absolute `FEATURE_DIR`. On reruns, preserve the existing top-level or `plan/plan-contract.json` location. Fill phase-owned decisions and render `plan.md`. When research is triggered, read `templates/research-template.md`; generate `research.md`, `quickstart.md`, `data-model.md`, and `contracts/` only when their documented triggers are present.
 5. Use `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)` only for isolated planning lanes. When lanes are delegated, write one `planning/lane-manifest.json` plus one result per lane under `planning/handoffs/`; do not duplicate the same events into evidence-index and checkpoint logs.
 6. Add `Implementation Constitution`, `Reference Fidelity Inputs`, `Feature UI Brief Adoption`, `Design System Adoption` and token strategy, `Dispatch Compilation Hints`, `Review-Risk Notes`, and `Input Risks From Alignment` when their triggers are present. Preserve `ui-brief.md`, `Reference-Implementation`, and `visual_comparison_or_human_review` refs rather than re-parsing UI sources.
-   For a v2 UI contract, preserve the work/surface/platform dimensions, direction
+   For UI work, preserve the current contract's work/surface/platform dimensions, direction
    theses and approved visual, reference intents, real content/image plans, and
    evidence triad exactly; carry verified cognition-selected UI routes in the
    compact plan context capsule for worker packet compilation.

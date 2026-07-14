@@ -31,7 +31,7 @@ large packet per task.
 
 For every UI-bearing task, render its detailed block from `assets/ui-task.md`
 and copy `assets/ui-task-index-entry.json` into the canonical task-index entry,
-filling both `ui_contract` and `ui_fidelity_requirements`. Do not rely on a
+filling the complete `ui_contract` as the only UI packet contract. Do not rely on a
 global UI coverage table: the just-in-time packet compiler must receive design
 sources, task-specific visual constraints, states, and evidence without
 re-inferring them.

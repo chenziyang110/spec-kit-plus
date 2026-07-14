@@ -5,11 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .packet_schema import WorkerTaskPacket
+from .packet_schema import UI_CONTRACT_FIELDS, UIContract, WorkerTaskPacket
 
 
 MP_ID_RE = re.compile(r"^MP-\d{3}$")
-UI_FIDELITY_LEVELS = {"none", "approximate", "high"}
 UI_WORK_TYPES = {"existing-pattern", "feature-extension", "reference-implementation"}
 UI_SURFACE_TYPES = {
     "landing",
@@ -25,11 +24,18 @@ UI_REFERENCE_INTENTS = {
     "extract-tokens",
     "do-not-copy",
 }
-UI_EVIDENCE_TRIAD = {
+UI_REQUIRED_EVIDENCE = {
     "structure_snapshot",
     "visual_capture",
     "runtime_diagnostics",
     "visual_comparison_or_human_review",
+}
+OBSOLETE_UI_EVIDENCE_LABELS = {
+    "real_entrypoint_ui_evidence",
+    "reference_source_evidence",
+    "ui_fidelity_criteria",
+    "deviation_log",
+    "visual_comparison_evidence",
 }
 SURFACE_LIMIT_ANTI_GOAL_RE = re.compile(
     r"\b(do not|don't|must not)\b.*\b(add|introduce|modify|change|expand)\b.*\b(public\s+)?(command|commands|api|apis|route|routes|surface|surfaces|lifecycle)\b",
@@ -50,21 +56,30 @@ def _has_blank_entry(values: list[str]) -> bool:
     return any(not item.strip() for item in values)
 
 
-def _validate_ui_contract_v2(packet: WorkerTaskPacket) -> None:
+def _ui_contract_applies(packet: WorkerTaskPacket) -> bool:
     contract = packet.ui_contract
+    return any(
+        getattr(contract, field_name)
+        for field_name in UI_CONTRACT_FIELDS
+        if field_name != "fidelity_level"
+    ) or contract.fidelity_level != "none"
+
+
+def validate_ui_contract(contract: UIContract) -> None:
+    """Validate the one current UI contract shape and values."""
     if contract.ui_work_type not in UI_WORK_TYPES:
         raise PacketValidationError(
-            "DP1", "UI contract v2 requires a valid ui_work_type"
+            "DP1", "UI contract requires a valid ui_work_type"
         )
     if contract.surface_type not in UI_SURFACE_TYPES:
         raise PacketValidationError(
-            "DP1", "UI contract v2 requires a valid surface_type"
+            "DP1", "UI contract requires a valid surface_type"
         )
     if not contract.platforms or any(
         item not in UI_PLATFORMS for item in contract.platforms
     ):
         raise PacketValidationError(
-            "DP1", "UI contract v2 requires supported platforms"
+            "DP1", "UI contract requires supported platforms"
         )
     for field_name in (
         "subject",
@@ -78,32 +93,20 @@ def _validate_ui_contract_v2(packet: WorkerTaskPacket) -> None:
     ):
         if not str(getattr(contract, field_name)).strip():
             raise PacketValidationError(
-                "DP1", f"UI contract v2 requires nonblank {field_name}"
+                "DP1", f"UI contract requires nonblank {field_name}"
             )
     if not contract.design_sources or _has_blank_entry(contract.design_sources):
-        raise PacketValidationError("DP1", "UI contract v2 requires design_sources")
-    context_kinds = {
-        str(item.get("kind") or "").strip()
-        for item in packet.context_nav
-        if isinstance(item, dict)
-    }
-    missing_context = {"ui_entrypoint", "design_source"} - context_kinds
-    if missing_context:
-        raise PacketValidationError(
-            "DP2",
-            "UI contract v2 is missing compact context_nav kinds: "
-            + ", ".join(sorted(missing_context)),
-        )
+        raise PacketValidationError("DP1", "UI contract requires design_sources")
     if not contract.required_states or _has_blank_entry(contract.required_states):
-        raise PacketValidationError("DP1", "UI contract v2 requires required_states")
+        raise PacketValidationError("DP1", "UI contract requires required_states")
     if not contract.real_content_plan:
         raise PacketValidationError(
-            "DP1", "UI contract v2 requires a real_content_plan"
+            "DP1", "UI contract requires a real_content_plan"
         )
     for item in contract.real_content_plan:
         if not isinstance(item, dict) or not str(item.get("source_ref") or "").strip():
             raise PacketValidationError(
-                "DP1", "UI contract v2 real_content_plan entries require source_ref"
+                "DP1", "UI contract real_content_plan entries require source_ref"
             )
     for item in contract.reference_intents:
         if (
@@ -113,7 +116,7 @@ def _validate_ui_contract_v2(packet: WorkerTaskPacket) -> None:
         ):
             raise PacketValidationError(
                 "DP1",
-                "UI contract v2 reference_intents entries require ref and valid intent",
+                "UI contract reference_intents entries require ref and valid intent",
             )
     for item in contract.image_plan:
         if (
@@ -122,14 +125,31 @@ def _validate_ui_contract_v2(packet: WorkerTaskPacket) -> None:
             or not str(item.get("role") or "").strip()
         ):
             raise PacketValidationError(
-                "DP1", "UI contract v2 image_plan entries require ref and role"
+                "DP1", "UI contract image_plan entries require ref and role"
             )
     evidence = {item.strip() for item in contract.required_evidence}
-    missing = sorted(UI_EVIDENCE_TRIAD - evidence)
-    if missing:
+    if evidence != UI_REQUIRED_EVIDENCE:
         raise PacketValidationError(
             "DP1",
-            "UI contract v2 is missing required evidence: " + ", ".join(missing),
+            "UI contract required_evidence must be exactly: "
+            + ", ".join(sorted(UI_REQUIRED_EVIDENCE)),
+        )
+
+
+def validate_ui_context_nav(context_nav: list[dict[str, str]]) -> None:
+    """Validate packet-only compact navigation derived for UI execution."""
+
+    context_kinds = {
+        str(item.get("kind") or "").strip()
+        for item in context_nav
+        if isinstance(item, dict)
+    }
+    missing_context = {"ui_entrypoint", "design_source"} - context_kinds
+    if missing_context:
+        raise PacketValidationError(
+            "DP2",
+            "UI contract is missing compact context_nav kinds: "
+            + ", ".join(sorted(missing_context)),
         )
 
 
@@ -180,9 +200,18 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
                 "DP1",
                 "surface-limiting anti-goals require a does-not-remove guard",
             )
-    if packet.ui_fidelity_requirements.level not in UI_FIDELITY_LEVELS:
+    obsolete_evidence = sorted(
+        {
+            item.strip().lower().replace("-", "_").replace(" ", "_")
+            for item in packet.required_evidence
+        }
+        & OBSOLETE_UI_EVIDENCE_LABELS
+    )
+    if obsolete_evidence:
         raise PacketValidationError(
-            "DP1", "ui fidelity level must be none, approximate, or high"
+            "DP1",
+            "worker packet contains obsolete UI evidence labels: "
+            + ", ".join(obsolete_evidence),
         )
     if packet.ui_contract.fidelity_level not in {
         "none",
@@ -194,28 +223,9 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
             "DP1",
             "UI contract fidelity_level must be none, approximate, high, or inspiration",
         )
-    if packet.ui_fidelity_requirements.applicable:
-        if packet.ui_fidelity_requirements.level == "none":
-            raise PacketValidationError(
-                "DP1",
-                "applicable ui fidelity requirements must specify approximate or high level",
-            )
-        if not packet.ui_fidelity_requirements.design_inputs or _has_blank_entry(
-            packet.ui_fidelity_requirements.design_inputs
-        ):
-            raise PacketValidationError(
-                "DP1",
-                "applicable ui fidelity requirements must include nonblank design inputs",
-            )
-        if not packet.ui_fidelity_requirements.required_evidence or _has_blank_entry(
-            packet.ui_fidelity_requirements.required_evidence
-        ):
-            raise PacketValidationError(
-                "DP1",
-                "applicable ui fidelity requirements must include nonblank required evidence",
-            )
-    if packet.ui_contract.contract_version >= 2:
-        _validate_ui_contract_v2(packet)
+    if _ui_contract_applies(packet):
+        validate_ui_contract(packet.ui_contract)
+        validate_ui_context_nav(packet.context_nav)
     if _has_blank_entry(packet.controller_checks_required):
         raise PacketValidationError(
             "DP1", "controller checks required cannot contain blank entries"

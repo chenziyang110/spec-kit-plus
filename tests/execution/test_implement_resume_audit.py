@@ -236,6 +236,90 @@ def test_resume_audit_blocks_ui_lifecycle_without_visual_acceptance(
     assert any("ui_verification is required" in gap for gap in payload["open_gaps"])
 
 
+def test_resume_audit_rejects_obsolete_ui_task_contract(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {
+                        "id": "T001",
+                        "ui_fidelity_requirements": {"level": "high"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": ["src/ui/settings.tsx"],
+                "validation": [{"command": "npm test", "status": "passed"}],
+                "review": None,
+                "blockers": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any(
+        "obsolete UI fields" in gap and "ui_fidelity_requirements" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resume_audit_rejects_partial_current_ui_task_contract(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {"id": "T001", "ui_contract": {"subject": "settings"}}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": ["src/ui/settings.tsx"],
+                "validation": [{"command": "npm test", "status": "passed"}],
+                "review": None,
+                "blockers": [],
+                "ui_verification": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any(
+        "invalid current UI contract" in gap and "missing current fields" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 @pytest.mark.parametrize("task_index_version", [2, 3])
 def test_agent_native_task_index_requires_lifecycle_for_each_checked_task(
     tmp_path: Path,

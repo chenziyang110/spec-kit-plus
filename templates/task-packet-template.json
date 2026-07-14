@@ -17,7 +17,6 @@
   "capability_operation_refs": [],
   "fidelity_refs": [],
   "ui_contract": {
-    "contract_version": 2,
     "ui_work_type": "",
     "surface_type": "",
     "platforms": [],
@@ -40,12 +39,6 @@
     "may_adapt": [],
     "must_not": [],
     "required_states": [],
-    "required_evidence": []
-  },
-  "ui_fidelity_requirements": {
-    "applicable": false,
-    "level": "none",
-    "design_inputs": [],
     "required_evidence": []
   },
   "required_validation": [],

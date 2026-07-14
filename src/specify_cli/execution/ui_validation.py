@@ -7,37 +7,23 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .packet_schema import UI_CONTRACT_FIELDS, UIContract
+from .packet_validator import PacketValidationError, validate_ui_contract
+
 
 TASK_DETAIL_RE = re.compile(
     r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)"
 )
-UI_EVIDENCE_KIND_ALIASES = {
-    "structure_snapshot": {
-        "structure_snapshot",
-        "accessibility_snapshot",
-        "dom_snapshot",
-        "semantic_snapshot",
-        "structured_output",
-    },
-    "visual_capture": {
-        "visual_capture",
-        "desktop_screenshot",
-        "mobile_screenshot",
-        "screenshot",
-        "screenshot_desktop",
-        "screenshot_mobile",
-        "platform_capture",
-        "terminal_capture",
-    },
-    "runtime_diagnostics": {
-        "runtime_diagnostics",
-        "console_runtime",
-        "console_check",
-        "runtime_check",
-        "terminal_check",
-        "stderr_exit_check",
-    },
+UI_EVIDENCE_KINDS = {
+    "structure_snapshot",
+    "visual_capture",
+    "runtime_diagnostics",
 }
+OBSOLETE_TASK_UI_FIELDS = {
+    "ui_contract_version",
+    "ui_fidelity_requirements",
+}
+OBSOLETE_UI_CONTRACT_FIELDS = {"contract_version"}
 
 
 def validate_accepted_task_lifecycle(
@@ -73,29 +59,13 @@ def validate_accepted_task_lifecycle(
 
 def _task_contract_applies(task: dict[str, Any]) -> bool:
     ui_contract = task.get("ui_contract")
-    ui_requirements = task.get("ui_fidelity_requirements")
-    contract_applies = isinstance(ui_contract, dict) and (
-        any(
-            bool(ui_contract.get(field))
-            for field in (
-                "surface_type",
-                "platforms",
-                "approved_visual_ref",
-                "design_sources",
-                "reference_notes",
-                "visual_target",
-                "must_preserve",
-                "required_states",
-                "required_evidence",
-            )
-        )
-        or str(ui_contract.get("fidelity_level") or "none").strip().lower() != "none"
-    )
-    fidelity_applies = isinstance(ui_requirements, dict) and (
-        ui_requirements.get("applicable") is True
-        or str(ui_requirements.get("level") or "none").strip().lower() != "none"
-    )
-    return contract_applies or fidelity_applies
+    if not isinstance(ui_contract, dict):
+        return False
+    return any(
+        bool(value)
+        for field, value in ui_contract.items()
+        if field != "fidelity_level"
+    ) or str(ui_contract.get("fidelity_level") or "none").strip().lower() != "none"
 
 
 def task_index_ui_contracts(feature_dir: Path) -> dict[str, dict[str, Any]]:
@@ -122,6 +92,78 @@ def task_index_ui_contracts(feature_dir: Path) -> dict[str, dict[str, Any]]:
     return contracts
 
 
+def obsolete_task_ui_contract_fields(feature_dir: Path) -> dict[str, list[str]]:
+    """Return obsolete UI fields that must not survive current-contract closeout."""
+
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.is_file():
+        return {}
+    try:
+        payload = json.loads(task_index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    tasks = payload.get("tasks") if isinstance(payload, dict) else None
+    if not isinstance(tasks, list):
+        return {}
+
+    obsolete: dict[str, list[str]] = {}
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        task_id = str(task.get("id") or task.get("task_id") or "<unknown>").strip().upper()
+        fields = sorted(OBSOLETE_TASK_UI_FIELDS & task.keys())
+        ui_contract = task.get("ui_contract")
+        if isinstance(ui_contract, dict):
+            fields.extend(
+                f"ui_contract.{field}"
+                for field in sorted(OBSOLETE_UI_CONTRACT_FIELDS & ui_contract.keys())
+            )
+        if fields:
+            obsolete[task_id] = fields
+    return obsolete
+
+
+def invalid_task_ui_contracts(feature_dir: Path) -> dict[str, list[str]]:
+    """Return task-index UI contracts that do not satisfy the current shape."""
+
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.is_file():
+        return {}
+    try:
+        payload = json.loads(task_index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    tasks = payload.get("tasks") if isinstance(payload, dict) else None
+    if not isinstance(tasks, list):
+        return {}
+
+    invalid: dict[str, list[str]] = {}
+    for task in tasks:
+        if not isinstance(task, dict) or "ui_contract" not in task:
+            continue
+        task_id = str(task.get("id") or task.get("task_id") or "<unknown>").strip().upper()
+        raw_contract = task.get("ui_contract")
+        errors: list[str] = []
+        if not isinstance(raw_contract, dict) or not raw_contract:
+            errors.append("ui_contract must be a non-empty object")
+        else:
+            unknown = sorted(set(raw_contract) - UI_CONTRACT_FIELDS)
+            missing = sorted(UI_CONTRACT_FIELDS - set(raw_contract))
+            if unknown:
+                errors.append("unsupported fields: " + ", ".join(unknown))
+            if missing:
+                errors.append("missing current fields: " + ", ".join(missing))
+            if not unknown and not missing:
+                try:
+                    contract = UIContract(**raw_contract)
+                    validate_ui_contract(contract)
+                except (PacketValidationError, TypeError, ValueError) as exc:
+                    errors.append(str(exc))
+        if errors:
+            invalid[task_id] = errors
+    return invalid
+
+
 def markdown_ui_task_ids(feature_dir: Path) -> set[str]:
     """Return task IDs with a task-local Markdown UI contract."""
 
@@ -142,7 +184,11 @@ def markdown_ui_task_ids(feature_dir: Path) -> set[str]:
 def ui_task_ids(feature_dir: Path) -> set[str]:
     """Find UI tasks from both canonical JSON and leader-direct Markdown."""
 
-    return set(task_index_ui_contracts(feature_dir)) | markdown_ui_task_ids(feature_dir)
+    return (
+        set(task_index_ui_contracts(feature_dir))
+        | set(obsolete_task_ui_contract_fields(feature_dir))
+        | markdown_ui_task_ids(feature_dir)
+    )
 
 
 def resolve_feature_artifact_ref(feature_dir: Path, raw_ref: str) -> Path | None:
@@ -181,6 +227,10 @@ def validate_lifecycle_ui_verification(
     verification = lifecycle.get("ui_verification")
     if not isinstance(verification, dict):
         return [f"{relative} ui_verification is required for a UI-bearing task"]
+    if "evidence_refs" in verification:
+        errors.append(
+            f"{relative} ui_verification.evidence_refs is obsolete; use typed evidence entries"
+        )
     if verification.get("applicable") is not True:
         errors.append(f"{relative} ui_verification.applicable must be true")
 
@@ -190,54 +240,46 @@ def validate_lifecycle_ui_verification(
         task_entry.get("ui_contract") if isinstance(task_entry, dict) else None
     )
     ui_contract = ui_contract if isinstance(ui_contract, dict) else {}
-    contract_version = ui_contract.get("contract_version", 1)
-    enhanced_contract = isinstance(contract_version, int) and contract_version >= 2
-
-    if enhanced_contract:
-        evidence_scope = str(verification.get("evidence_scope") or "").strip().lower()
-        accepted_scopes = {"task", "integrated"}
-        if evidence_scope not in accepted_scopes:
-            errors.append(
-                f"{relative} ui_verification.evidence_scope must be task or integrated"
-            )
-        if require_integrated and evidence_scope != "integrated":
-            errors.append(
-                f"{relative} UI evidence must be recaptured with evidence_scope integrated"
-            )
-        if (
-            require_integrated
-            and not str(verification.get("integration_base_ref") or "").strip()
-        ):
-            errors.append(
-                f"{relative} integrated UI evidence requires integration_base_ref"
-            )
+    evidence_scope = str(verification.get("evidence_scope") or "").strip().lower()
+    accepted_scopes = {"task", "integrated"}
+    if evidence_scope not in accepted_scopes:
+        errors.append(
+            f"{relative} ui_verification.evidence_scope must be task or integrated"
+        )
+    if require_integrated and evidence_scope != "integrated":
+        errors.append(
+            f"{relative} UI evidence must be recaptured with evidence_scope integrated"
+        )
+    if (
+        require_integrated
+        and not str(verification.get("integration_base_ref") or "").strip()
+    ):
+        errors.append(
+            f"{relative} integrated UI evidence requires integration_base_ref"
+        )
 
     contract_check = str(verification.get("contract_check") or "").strip().lower()
     if contract_check not in {"pass", "passed", "approved"}:
         errors.append(f"{relative} ui_verification.contract_check must pass")
 
-    evidence_refs = verification.get("evidence_refs")
-    legacy_refs = (
-        [
-            item.strip()
-            for item in evidence_refs
-            if isinstance(item, str) and item.strip()
-        ]
-        if isinstance(evidence_refs, list)
-        else []
-    )
     typed_evidence = verification.get("evidence")
     typed_entries = (
         [item for item in typed_evidence if isinstance(item, dict)]
         if isinstance(typed_evidence, list)
         else []
     )
+    for item in typed_entries:
+        kind = str(item.get("kind") or "").strip().lower().replace("-", "_")
+        if kind not in UI_EVIDENCE_KINDS:
+            errors.append(
+                f"{relative} ui_verification.evidence uses unsupported kind {kind or '<blank>'}"
+            )
     typed_refs = [
         str(item.get("ref") or "").strip()
         for item in typed_entries
         if str(item.get("ref") or "").strip()
     ]
-    valid_refs = list(dict.fromkeys([*legacy_refs, *typed_refs]))
+    valid_refs = list(dict.fromkeys(typed_refs))
     if not valid_refs:
         errors.append(f"{relative} ui_verification evidence refs must be non-empty")
     else:
@@ -248,35 +290,34 @@ def validate_lifecycle_ui_verification(
                     f"{evidence_ref}"
                 )
 
-    if enhanced_contract:
-        required_evidence = {
-            str(item).strip()
-            for item in ui_contract.get("required_evidence", [])
-            if isinstance(item, str) and item.strip()
-        }
-        for required_kind, accepted_kinds in UI_EVIDENCE_KIND_ALIASES.items():
-            if required_kind not in required_evidence:
-                continue
-            matching = [
-                item
-                for item in typed_entries
-                if str(item.get("kind") or "").strip().lower().replace("-", "_")
-                in accepted_kinds
-                and str(item.get("ref") or "").strip()
-            ]
-            if not matching:
-                errors.append(
-                    f"{relative} ui_verification.evidence is missing required kind {required_kind}"
-                )
-        if "runtime_diagnostics" in required_evidence:
-            runtime_status = (
-                str(verification.get("runtime_evidence") or "")
-                .strip()
-                .lower()
-                .replace("_", "-")
+    required_evidence = {
+        str(item).strip()
+        for item in ui_contract.get("required_evidence", [])
+        if isinstance(item, str) and item.strip()
+    }
+    for required_kind in UI_EVIDENCE_KINDS:
+        if required_kind not in required_evidence:
+            continue
+        matching = [
+            item
+            for item in typed_entries
+            if str(item.get("kind") or "").strip().lower().replace("-", "_")
+            == required_kind
+            and str(item.get("ref") or "").strip()
+        ]
+        if not matching:
+            errors.append(
+                f"{relative} ui_verification.evidence is missing required kind {required_kind}"
             )
-            if runtime_status not in {"pass", "passed", "success", "approved"}:
-                errors.append(f"{relative} ui_verification.runtime_evidence must pass")
+    if "runtime_diagnostics" in required_evidence:
+        runtime_status = (
+            str(verification.get("runtime_evidence") or "")
+            .strip()
+            .lower()
+            .replace("_", "-")
+        )
+        if runtime_status not in {"pass", "passed", "success", "approved"}:
+            errors.append(f"{relative} ui_verification.runtime_evidence must pass")
 
     fidelity_status = (
         str(verification.get("fidelity_status") or "").strip().lower().replace("_", "-")

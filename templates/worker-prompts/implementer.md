@@ -29,7 +29,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - For any task that creates a reusable surface such as a UI component, route, provider, registry entry, factory branch, config field, API handler, or test file, return consumer evidence showing where that surface is imported, registered, rendered, executed, or included. A created but not wired file is not complete.
 - If the packet's `required_evidence` includes `real_entrypoint_evidence`, include a `consumer_evidence` item with `kind: real_entrypoint`, `entrypoint`, `producer`, `transformer`, `consumer`, `boundary_or_executor`, and `validation`. Synthetic component, reducer, helper, or hand-built state evidence may be included as support, but it does not satisfy the real-entrypoint requirement by itself.
 - If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
-- For UI contract v2, preserve work/surface/platform classification, direction
+- For the current UI contract, preserve work/surface/platform classification, direction
   theses, signature, and approved visual ref. Apply each reference only according
   to its intent, use the named real content/image sources, and do not invent
   placeholder content that hides layout failure.
@@ -39,10 +39,10 @@ Use this template when the leader dispatches a concrete implementation lane for 
   required representative viewport/state, inspect the rendered result against
   the original design inputs and `ui_contract`, fix concrete drift, then
   recapture. Passing code tests is not visual acceptance.
-- If the packet requires UI evidence, return `ui_evidence` with screenshots or captures, state coverage, console or terminal checks, accessibility or keyboard checks when relevant, and notes for any allowed deviation.
-- Return typed `ui_fidelity_evidence` for `structure_snapshot`,
-  `visual_capture`, and `runtime_diagnostics`; browser aliases are an
-  accessibility/DOM snapshot, viewport screenshot, and console/runtime output.
+- If the packet requires UI evidence, return typed `ui_evidence` entries with
+  `kind` and `ref`. Use exactly `structure_snapshot`, `visual_capture`, and
+  `runtime_diagnostics`; record platform-specific capture details as metadata,
+  not alternative kind names.
 - If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.
@@ -64,7 +64,7 @@ Treat these fields as binding execution inputs from the current worker packet an
 - RED state evidence when the lane changed behavior
 - GREEN state evidence for the same gate after the fix
 - Visual inputs inspected when the task used original PNGs, screenshots, mockups, design exports, or reference images
-- UI fidelity evidence when the packet's `ui_fidelity_requirements.applicable` is true.
+- Typed UI evidence when the packet carries an applicable `ui_contract`.
 - Evidence paths that the leader can attach to the current task lifecycle record.
 - Remaining concern, blocker, or missing context
 - When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult`-style payload with validation evidence and explicit blocker metadata.

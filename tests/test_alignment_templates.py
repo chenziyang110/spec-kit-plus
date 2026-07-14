@@ -7,7 +7,7 @@ from specify_cli.execution.implementation_review import (
     TaskReviewRecord,
     task_review_acceptance_errors,
 )
-from specify_cli.execution.packet_schema import UiFidelityLevel
+from specify_cli.execution.packet_schema import UIFidelityLevel
 
 import yaml
 import pytest
@@ -302,10 +302,10 @@ def test_feature_ui_brief_artifacts_are_carried_by_spec_package_templates() -> N
     assert "real_entrypoint_ui_evidence" not in required_evidence_line
     assert "visual_comparison_or_human_review" not in required_evidence_line
     assert "deviation_log" not in required_evidence_line
-    assert "ui_fidelity_criteria" in state
-    assert "real_entrypoint_ui_evidence" in state
-    assert "visual_comparison_or_human_review" in state
-    assert "deviation_log" in state
+    assert "visual-comparison-or-human-review" in state
+    assert "ui_fidelity_criteria" not in state
+    assert "real_entrypoint_ui_evidence" not in state
+    assert "deviation_log" not in state
 
 
 def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
@@ -340,13 +340,11 @@ def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
     assert "visual_comparison_or_human_review" in plan_command
     assert "UI Implementation Contract" in tasks_template
     assert "ui_contract" in tasks_template
-    assert "packet shorthand" in tasks_template_lower or "shorthand aliases" in tasks_template_lower
-    assert "reference source evidence" in tasks_template_lower
-    assert "fidelity criteria" in tasks_template_lower
-    assert "verification entry points" in tasks_template_lower
-    assert "difference inventory" in tasks_template_lower
-    assert "accepted deviations" in tasks_template_lower
-    assert "ui_fidelity_mode" in tasks_command
+    assert "shorthand aliases" not in tasks_template_lower
+    assert "structure_snapshot" in tasks_template_lower
+    assert "visual_capture" in tasks_template_lower
+    assert "runtime_diagnostics" in tasks_template_lower
+    assert "fidelity_level" in tasks_command
     assert "required_evidence" in tasks_command
     assert "reference-fidelity item" in tasks_command_lower
     assert "real-entrypoint proof" in tasks_command_lower
@@ -4532,7 +4530,7 @@ def test_tasks_template_delegates_packet_shape_to_canonical_json_template():
     assert "templates/task-packet-template.json" in content
     assert "task-index.json#/tasks/T###/ui_contract" in content
     assert "task-index-template.json#/ui_contract_schema_ref" in content
-    assert "contract_version | 2" in content
+    assert "contract_version" not in content
     for field in (
         "ui_work_type",
         "surface_type",
@@ -5396,7 +5394,7 @@ def test_tasks_template_ui_fidelity_levels_match_packet_schema() -> None:
         for level in match.group("levels").split("|")
         if level.strip()
     }
-    supported_levels = set(get_args(UiFidelityLevel))
+    supported_levels = set(get_args(UIFidelityLevel))
 
     assert supported_levels <= advertised_levels
     assert advertised_levels == supported_levels
@@ -5416,7 +5414,7 @@ def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
     assert "design_contract" in spec_contract
     assert "ui_applicable" in spec_contract["design_contract"]
     assert "ui_brief_ref" in spec_contract["design_contract"]
-    assert spec_contract["design_contract"]["ui_contract_version"] == 2
+    assert "ui_contract_version" not in spec_contract["design_contract"]
     assert "approved_visual_ref" in spec_contract["design_contract"]
     assert "reference_intents" in spec_contract["design_contract"]
     assert "real_content_plan" in spec_contract["design_contract"]
@@ -5426,18 +5424,19 @@ def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
     assert "must_preserve_refs" in spec_contract
     assert "ui_design_contract" in plan_contract
     assert "ui_brief_ref" in plan_contract["ui_design_contract"]
-    assert plan_contract["ui_design_contract"]["ui_contract_version"] == 2
+    assert "ui_contract_version" not in plan_contract["ui_design_contract"]
     assert "human_review_conditions" in plan_contract["ui_design_contract"]
     assert "must_preserve_refs" in plan_contract
     assert "fidelity_refs" in task_index
     assert task_index["ui_contract_schema_ref"].endswith("#/ui_contract")
     assert "ui_contract" in task_packet
-    assert task_packet["ui_contract"]["contract_version"] == 2
+    assert "contract_version" not in task_packet["ui_contract"]
     assert "surface_type" in task_packet["ui_contract"]
     assert "approved_visual_ref" in task_packet["ui_contract"]
-    assert "ui_fidelity_requirements" in task_packet
+    assert "ui_fidelity_requirements" not in task_packet
     assert "ui_verification" in task_lifecycle
     assert "evidence" in task_lifecycle["ui_verification"]
+    assert "evidence_refs" not in task_lifecycle["ui_verification"]
     assert task_lifecycle["ui_verification"]["evidence_scope"] == "task"
     assert task_lifecycle["ui_verification"]["applicable"] is False
     assert "required_obligation_refs" in implement_state

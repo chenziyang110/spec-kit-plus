@@ -15,15 +15,19 @@ from .packet_schema import (
     PacketInterfaces,
     PacketReference,
     PacketScope,
-    UiFidelityRequirements,
+    UI_CONTRACT_FIELDS,
     UIContract,
     WorkerTaskPacket,
 )
 from .packet_validator import PacketValidationError, validate_worker_task_packet
 
 
-SECTION_RE = re.compile(r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)")
-TASK_DETAIL_RE = re.compile(r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)")
+SECTION_RE = re.compile(
+    r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)"
+)
+TASK_DETAIL_RE = re.compile(
+    r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)"
+)
 FENCED_CODE_BLOCK_RE = re.compile(r"(?ms)^```.*?^```")
 BULLET_RE = re.compile(r"(?m)^\s*-\s+`?(?P<value>.+?)`?\s*$")
 TASK_RE = re.compile(r"(?m)^\s*-\s\[[ xX]\]\s(?P<task_id>T\d+)(?P<body>.+)$")
@@ -177,7 +181,9 @@ def _normalized_header_name(value: str) -> str:
 
 
 def _is_table_separator(parts: list[str]) -> bool:
-    return bool(parts) and all(re.fullmatch(r":?-{3,}:?", part.strip()) for part in parts)
+    return bool(parts) and all(
+        re.fullmatch(r":?-{3,}:?", part.strip()) for part in parts
+    )
 
 
 def _parse_pipe_fields(line: str, headers: list[str] | None = None) -> dict[str, str]:
@@ -222,7 +228,9 @@ def _split_list_field(value: str) -> list[str]:
     ]
 
 
-def _task_detail_table_field_values(task_detail: str, section_title: str, field_name: str) -> list[str]:
+def _task_detail_table_field_values(
+    task_detail: str, section_title: str, field_name: str
+) -> list[str]:
     section = _section_body(task_detail, section_title)
     values: list[str] = []
     expected_field = _normalized_header_name(field_name)
@@ -239,110 +247,12 @@ def _task_detail_table_field_values(task_detail: str, section_title: str, field_
     return _unique(values)
 
 
-def _ui_contract_for_task(task_detail: str) -> UIContract:
-    section = _section_body(task_detail, "UI Implementation Contract")
-    if not section:
-        return UIContract()
-    fidelity_level = next(
-        iter(
-            _task_detail_table_field_values(
-                task_detail, "UI Implementation Contract", "fidelity_level"
-            )
-        ),
-        "",
-    )
-    if not fidelity_level:
-        fidelity_level = next(
-            iter(
-                _task_detail_table_field_values(
-                    task_detail, "UI Implementation Contract", "ui_fidelity_mode"
-                )
-            ),
-            "none",
-        )
-
-    def scalar(field_name: str, default: str = "") -> str:
-        return next(
-            iter(
-                _task_detail_table_field_values(
-                    task_detail, "UI Implementation Contract", field_name
-                )
-            ),
-            default,
-        )
-
-    raw_contract_version = scalar("contract_version", "1")
-    contract_version = (
-        int(raw_contract_version) if raw_contract_version.isdigit() else 1
-    )
-    return UIContract(
-        contract_version=contract_version,
-        ui_work_type=scalar("ui_work_type"),
-        surface_type=scalar("surface_type"),
-        platforms=_task_detail_table_field_values(
-            task_detail, "UI Implementation Contract", "platforms"
-        ),
-        subject=scalar("subject"),
-        audience=scalar("audience"),
-        single_job=scalar("single_job"),
-        visual_thesis=scalar("visual_thesis"),
-        content_thesis=scalar("content_thesis"),
-        interaction_thesis=scalar("interaction_thesis"),
-        signature_element=scalar("signature_element"),
-        approved_visual_ref=scalar("approved_visual_ref"),
-        design_sources=_task_detail_table_field_values(
-            task_detail, "UI Implementation Contract", "design_sources"
-        ),
-        reference_notes=next(
-            iter(
-                _task_detail_table_field_values(
-                    task_detail, "UI Implementation Contract", "reference_notes"
-                )
-            ),
-            "",
-        ),
-        visual_target=next(
-            iter(
-                _task_detail_table_field_values(
-                    task_detail, "UI Implementation Contract", "visual_target"
-                )
-            ),
-            "",
-        ),
-        fidelity_level=fidelity_level,
-        must_preserve=_task_detail_table_field_values(
-            task_detail, "UI Implementation Contract", "must_preserve"
-        ),
-        may_adapt=_task_detail_table_field_values(
-            task_detail, "UI Implementation Contract", "may_adapt"
-        ),
-        must_not=_task_detail_table_field_values(
-            task_detail, "UI Implementation Contract", "must_not"
-        ),
-        required_states=_task_detail_table_field_values(
-            task_detail, "UI Implementation Contract", "required_states"
-        ),
-        required_evidence=_task_detail_table_field_values(
-            task_detail, "UI Implementation Contract", "required_evidence"
-        ),
-    )
-
-
 def _mapping_string(payload: dict[str, object], *keys: str) -> str:
     for key in keys:
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
     return ""
-
-
-def _mapping_int(payload: dict[str, object], key: str, default: int = 1) -> int:
-    value = payload.get(key)
-    if isinstance(value, int) and not isinstance(value, bool):
-        return value
-    if isinstance(value, str) and value.strip().isdigit():
-        return int(value.strip())
-    return default
 
 
 def _dict_list(value: object) -> list[dict[str, object]]:
@@ -364,70 +274,65 @@ def _unique_dicts(values: list[dict[str, object]]) -> list[dict[str, object]]:
 
 def _ui_contract_from_task_entry(
     task_entry: dict[str, object],
-    fallback: UIContract,
 ) -> UIContract:
+    if "ui_fidelity_requirements" in task_entry:
+        raise PacketValidationError(
+            "DP0", "task-index uses obsolete ui_fidelity_requirements"
+        )
     payload = task_entry.get("ui_contract")
     if not isinstance(payload, dict):
-        return fallback
-    structured_level = _mapping_string(payload, "fidelity_level", "ui_fidelity_mode")
-    fidelity_level = structured_level or fallback.fidelity_level
-    if fidelity_level == "none" and fallback.fidelity_level != "none":
-        fidelity_level = fallback.fidelity_level
+        if "ui_contract" in task_entry:
+            raise PacketValidationError(
+                "DP0", "task-index ui_contract must be an object"
+            )
+        return UIContract()
+    if not payload:
+        raise PacketValidationError("DP0", "task-index ui_contract must not be empty")
+    unknown_fields = set(payload) - UI_CONTRACT_FIELDS
+    if unknown_fields:
+        raise PacketValidationError(
+            "DP0",
+            "task-index ui_contract contains unsupported fields: "
+            + ", ".join(sorted(unknown_fields)),
+        )
+    missing_fields = UI_CONTRACT_FIELDS - set(payload)
+    if missing_fields:
+        raise PacketValidationError(
+            "DP0",
+            "task-index ui_contract is missing current fields: "
+            + ", ".join(sorted(missing_fields)),
+        )
     return UIContract(
-        contract_version=_mapping_int(
-            payload, "contract_version", fallback.contract_version
-        ),
-        ui_work_type=_mapping_string(payload, "ui_work_type") or fallback.ui_work_type,
-        surface_type=_mapping_string(payload, "surface_type") or fallback.surface_type,
-        platforms=_unique(_string_list(payload.get("platforms")) + fallback.platforms),
-        subject=_mapping_string(payload, "subject") or fallback.subject,
-        audience=_mapping_string(payload, "audience") or fallback.audience,
-        single_job=_mapping_string(payload, "single_job") or fallback.single_job,
-        visual_thesis=_mapping_string(payload, "visual_thesis")
-        or fallback.visual_thesis,
-        content_thesis=_mapping_string(payload, "content_thesis")
-        or fallback.content_thesis,
-        interaction_thesis=_mapping_string(payload, "interaction_thesis")
-        or fallback.interaction_thesis,
-        signature_element=_mapping_string(payload, "signature_element")
-        or fallback.signature_element,
-        approved_visual_ref=_mapping_string(payload, "approved_visual_ref")
-        or fallback.approved_visual_ref,
-        design_sources=_unique(
-            _string_list(payload.get("design_sources")) + fallback.design_sources
-        ),
-        reference_notes=_mapping_string(payload, "reference_notes")
-        or fallback.reference_notes,
-        visual_target=_mapping_string(payload, "visual_target")
-        or fallback.visual_target,
-        reference_intents=_unique_dicts(
-            _dict_list(payload.get("reference_intents"))
-            + list(fallback.reference_intents)
-        ),
-        real_content_plan=_unique_dicts(
-            _dict_list(payload.get("real_content_plan"))
-            + list(fallback.real_content_plan)
-        ),
-        image_plan=_unique_dicts(
-            _dict_list(payload.get("image_plan")) + list(fallback.image_plan)
-        ),
-        fidelity_level=fidelity_level,
-        must_preserve=_unique(
-            _string_list(payload.get("must_preserve")) + fallback.must_preserve
-        ),
-        may_adapt=_unique(_string_list(payload.get("may_adapt")) + fallback.may_adapt),
-        must_not=_unique(_string_list(payload.get("must_not")) + fallback.must_not),
-        required_states=_unique(
-            _string_list(payload.get("required_states")) + fallback.required_states
-        ),
-        required_evidence=_unique(
-            _string_list(payload.get("required_evidence")) + fallback.required_evidence
-        ),
+        ui_work_type=_mapping_string(payload, "ui_work_type"),
+        surface_type=_mapping_string(payload, "surface_type"),
+        platforms=_unique(_string_list(payload.get("platforms"))),
+        subject=_mapping_string(payload, "subject"),
+        audience=_mapping_string(payload, "audience"),
+        single_job=_mapping_string(payload, "single_job"),
+        visual_thesis=_mapping_string(payload, "visual_thesis"),
+        content_thesis=_mapping_string(payload, "content_thesis"),
+        interaction_thesis=_mapping_string(payload, "interaction_thesis"),
+        signature_element=_mapping_string(payload, "signature_element"),
+        approved_visual_ref=_mapping_string(payload, "approved_visual_ref"),
+        design_sources=_unique(_string_list(payload.get("design_sources"))),
+        reference_notes=_mapping_string(payload, "reference_notes"),
+        visual_target=_mapping_string(payload, "visual_target"),
+        reference_intents=_unique_dicts(_dict_list(payload.get("reference_intents"))),
+        real_content_plan=_unique_dicts(_dict_list(payload.get("real_content_plan"))),
+        image_plan=_unique_dicts(_dict_list(payload.get("image_plan"))),
+        fidelity_level=_mapping_string(payload, "fidelity_level") or "none",
+        must_preserve=_unique(_string_list(payload.get("must_preserve"))),
+        may_adapt=_unique(_string_list(payload.get("may_adapt"))),
+        must_not=_unique(_string_list(payload.get("must_not"))),
+        required_states=_unique(_string_list(payload.get("required_states"))),
+        required_evidence=_unique(_string_list(payload.get("required_evidence"))),
     )
 
 
 def _line_mentions_task(line: str, task_id: str) -> bool:
-    return any(part.strip() == task_id for part in re.split(r"[,;\s]+", line) if part.strip())
+    return any(
+        part.strip() == task_id for part in re.split(r"[,;\s]+", line) if part.strip()
+    )
 
 
 def _consequence_obligations_for_task(
@@ -456,7 +361,9 @@ def _consequence_obligations_for_task(
             continue
         seen.add(obligation_id)
         fields = _parse_pipe_fields(raw_line, headers)
-        affected_objects = _split_csv_field(fields.get("affected_objects", "")) or [task_id]
+        affected_objects = _split_csv_field(fields.get("affected_objects", "")) or [
+            task_id
+        ]
         stop_and_reopen_condition = fields.get(
             "stop_and_reopen_condition",
             f"No validation evidence supplied for {obligation_id}",
@@ -464,9 +371,13 @@ def _consequence_obligations_for_task(
         obligations.append(
             ConsequenceObligation(
                 obligation_id=obligation_id,
-                claim=fields.get("claim", f"{obligation_id} consequence obligation for {task_id}"),
+                claim=fields.get(
+                    "claim", f"{obligation_id} consequence obligation for {task_id}"
+                ),
                 affected_objects=affected_objects,
-                state_behavior_refs=_split_csv_field(fields.get("state_behavior_refs", "")),
+                state_behavior_refs=_split_csv_field(
+                    fields.get("state_behavior_refs", "")
+                ),
                 dependency_refs=_split_csv_field(fields.get("dependency_refs", "")),
                 recovery_validation_refs=_split_csv_field(fields.get("validation", "")),
                 owner=fields.get("owner", "sp-tasks"),
@@ -484,7 +395,9 @@ def _does_not_remove_for_task(tasks_text: str, task_id: str) -> list[str]:
     for line in guardrail_body.splitlines():
         if task_id not in line:
             continue
-        match = re.search(r"does-not-remove guard:\s*(?P<value>.+)", line, re.IGNORECASE)
+        match = re.search(
+            r"does-not-remove guard:\s*(?P<value>.+)", line, re.IGNORECASE
+        )
         if match:
             values.append(match.group("value").strip(" ."))
     return _unique(values)
@@ -521,96 +434,6 @@ def _section_or_subsection_values(text: str, *titles: str) -> list[str]:
     return _unique(values)
 
 
-def _ui_fidelity_requirements_from_task_detail(task_detail: str) -> UiFidelityRequirements:
-    level_values = _task_detail_table_field_values(
-        task_detail,
-        "Scope Boundaries",
-        "ui_fidelity_level",
-    )
-    raw_level = level_values[0].strip() if level_values else ""
-    level = raw_level.lower() if raw_level else "none"
-    design_inputs = _task_detail_table_field_values(
-        task_detail,
-        "Scope Boundaries",
-        "design_inputs",
-    )
-    required_evidence = _task_detail_table_field_values(
-        task_detail,
-        "Scope Boundaries",
-        "ui_required_evidence",
-    )
-    applicable = level != "none" or bool(design_inputs) or bool(required_evidence)
-    if applicable and level == "none":
-        level = "approximate"
-    return UiFidelityRequirements(
-        applicable=applicable,
-        level=level,
-        design_inputs=design_inputs,
-        required_evidence=required_evidence,
-    )
-
-
-def _ui_fidelity_requirements_from_task_entry(
-    task_entry: dict[str, object],
-    ui_contract: UIContract,
-    fallback: UiFidelityRequirements,
-) -> UiFidelityRequirements:
-    payload = task_entry.get("ui_fidelity_requirements")
-    contract_applies = bool(
-        ui_contract.contract_version >= 2
-        or ui_contract.design_sources
-        or ui_contract.platforms
-        or ui_contract.approved_visual_ref
-        or ui_contract.required_states
-        or ui_contract.required_evidence
-        or ui_contract.fidelity_level != "none"
-    )
-    base_applicable = fallback.applicable or contract_applies
-    base_level = fallback.level
-    if base_level == "none" and base_applicable:
-        base_level = (
-            ui_contract.fidelity_level
-            if ui_contract.fidelity_level in {"approximate", "high"}
-            else "approximate"
-        )
-    base_design_inputs = _unique(fallback.design_inputs + ui_contract.design_sources)
-    base_required_evidence = _unique(
-        fallback.required_evidence + ui_contract.required_evidence
-    )
-    if isinstance(payload, dict):
-        level = _mapping_string(payload, "level", "ui_fidelity_level") or base_level
-        if level == "none" and base_applicable:
-            level = base_level
-        design_inputs = _unique(
-            _string_list(payload.get("design_inputs")) + base_design_inputs
-        )
-        required_evidence = _unique(
-            _string_list(payload.get("required_evidence")) + base_required_evidence
-        )
-        applicable_value = payload.get("applicable")
-        applicable = (
-            applicable_value
-            if isinstance(applicable_value, bool)
-            else level != "none" or bool(design_inputs) or bool(required_evidence)
-        )
-        applicable = applicable or base_applicable
-        return UiFidelityRequirements(
-            applicable=applicable,
-            level=level,
-            design_inputs=design_inputs,
-            required_evidence=required_evidence,
-        )
-
-    if task_entry.get("ui_contract") is None:
-        return fallback
-    return UiFidelityRequirements(
-        applicable=base_applicable,
-        level=base_level,
-        design_inputs=base_design_inputs,
-        required_evidence=base_required_evidence,
-    )
-
-
 def _task_contract_bullet_values(task_detail: str, *titles: str) -> list[str]:
     return [
         value
@@ -619,7 +442,9 @@ def _task_contract_bullet_values(task_detail: str, *titles: str) -> list[str]:
     ]
 
 
-def _must_preserve_obligations_from_text(text: str, *, source: str) -> list[MustPreserveObligation]:
+def _must_preserve_obligations_from_text(
+    text: str, *, source: str
+) -> list[MustPreserveObligation]:
     obligations: list[MustPreserveObligation] = []
     seen: set[str] = set()
     for line in text.splitlines():
@@ -644,7 +469,9 @@ def _must_preserve_obligations_from_text(text: str, *, source: str) -> list[Must
     return obligations
 
 
-def _applicable_mp_ids_from_tasks(tasks_text: str, task_id: str, task_body: str) -> set[str]:
+def _applicable_mp_ids_from_tasks(
+    tasks_text: str, task_id: str, task_body: str
+) -> set[str]:
     applicable = set(MP_ID_ONLY_RE.findall(task_body))
     guardrail_body = _task_contract_mapping_body(tasks_text)
     for line in guardrail_body.splitlines():
@@ -658,13 +485,18 @@ def _global_must_preserve_ids(plan_text: str) -> set[str]:
     ids: set[str] = set()
     for line in plan_text.splitlines():
         lowered = line.lower()
-        if "applies to all" not in lowered and "all implementation tasks" not in lowered:
+        if (
+            "applies to all" not in lowered
+            and "all implementation tasks" not in lowered
+        ):
             continue
         ids.update(MP_ID_ONLY_RE.findall(line))
     return ids
 
 
-def _unique_obligations(values: list[MustPreserveObligation]) -> list[MustPreserveObligation]:
+def _unique_obligations(
+    values: list[MustPreserveObligation],
+) -> list[MustPreserveObligation]:
     seen: set[str] = set()
     unique: list[MustPreserveObligation] = []
     for value in values:
@@ -766,7 +598,7 @@ def _ui_context_nav(
     plan_contract: dict[str, object],
     ui_contract: UIContract,
 ) -> list[dict[str, str]]:
-    if ui_contract.contract_version < 2:
+    if ui_contract.fidelity_level == "none" and not ui_contract.design_sources:
         return []
     ui_plan = plan_contract.get("ui_design_contract")
     context_capsule = plan_contract.get("context_capsule")
@@ -842,15 +674,15 @@ def compile_worker_task_packet(
     )
     task_detail = _task_detail_body(tasks_text, task_id)
     objective = resolved_task_body
-    ui_contract = _ui_contract_from_task_entry(
-        task_entry,
-        _ui_contract_for_task(task_detail),
-    )
-    ui_fidelity_requirements = _ui_fidelity_requirements_from_task_entry(
-        task_entry,
-        ui_contract,
-        _ui_fidelity_requirements_from_task_detail(task_detail),
-    )
+    if (
+        "### UI Implementation Contract" in task_detail
+        and "ui_contract" not in task_entry
+    ):
+        raise PacketValidationError(
+            "DP0",
+            f"{task_id} has a UI projection but no canonical task-index ui_contract",
+        )
+    ui_contract = _ui_contract_from_task_entry(task_entry)
     review_inputs = _task_detail_table_field_values(
         task_detail,
         "Scope Boundaries",
@@ -878,7 +710,6 @@ def compile_worker_task_packet(
     existing_reference_paths = {reference.path for reference in required_references}
     ui_reference_candidates = [
         *ui_contract.design_sources,
-        *ui_fidelity_requirements.design_inputs,
         *review_inputs,
         ui_contract.approved_visual_ref,
         ui_contract.reference_notes,
@@ -1152,7 +983,6 @@ def compile_worker_task_packet(
                 task_detail, "Scope Boundaries", "review_risks"
             )
         ),
-        ui_fidelity_requirements=ui_fidelity_requirements,
         controller_checks_required=_task_detail_table_field_values(
             task_detail,
             "Scope Boundaries",

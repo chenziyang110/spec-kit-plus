@@ -866,6 +866,10 @@ Maintainer note:
   or "make it like this" language additionally route through Classic's writable
   `ui-reference-artifact` lane, which produces `ui-reference-notes.md` and
   optional `ui-target.html`.
+- Classic and Advanced use one current structured UI contract from spec through
+  lifecycle evidence. Older UI version fields, duplicate fidelity payloads,
+  untyped lifecycle evidence refs, and evidence-kind aliases are rejected;
+  regenerate stale UI artifacts before continuing.
 
 Result helper command shapes:
 

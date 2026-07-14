@@ -26,7 +26,7 @@ scripts:
 4. Execute the current task or ready batch, update tracker fields, resolve blockers through bounded repair, and route unknown root cause to `{{invoke:debug}}`.
 5. Run event-triggered review for repository drift, parallel joins, write-scope drift, validation failure, worker concerns, obligation conflicts, or sequential change-window limits. Maintain one task lifecycle record containing packet/ref, result, validation, review verdict, and recovery; report completion only when changed paths, validation evidence, review status, and mutation closeout are complete.
 6. For UI work, record task-lifecycle `ui_verification` with concrete evidence
-   refs after the real-entrypoint visual convergence loop. For v2, set
+   refs after the real-entrypoint visual convergence loop. Set
    `evidence_scope: task` and persist typed `structure_snapshot`,
    `visual_capture`, and `runtime_diagnostics` evidence plus passing runtime
    status. Use

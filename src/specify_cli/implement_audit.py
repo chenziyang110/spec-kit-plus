@@ -24,6 +24,8 @@ from specify_cli.execution.implementation_review import (
     task_review_is_accepted,
 )
 from specify_cli.execution.ui_validation import (
+    invalid_task_ui_contracts,
+    obsolete_task_ui_contract_fields,
     ui_task_ids,
     validate_lifecycle_ui_verification,
 )
@@ -323,9 +325,21 @@ def _packetized_review_gaps(
 ) -> list[str]:
     checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    obsolete_ui_fields = obsolete_task_ui_contract_fields(feature_dir)
     ui_tasks = ui_task_ids(feature_dir)
+    contract_gaps = [
+        "task-index.json task "
+        f"{task_id} uses obsolete UI fields ({', '.join(fields)}); "
+        "regenerate it with the current UI contract"
+        for task_id, fields in sorted(obsolete_ui_fields.items())
+    ]
+    contract_gaps.extend(
+        "task-index.json task "
+        f"{task_id} has an invalid current UI contract: {', '.join(errors)}"
+        for task_id, errors in sorted(invalid_task_ui_contracts(feature_dir).items())
+    )
     if lifecycle_dir.is_dir() or _uses_agent_native_task_lifecycle(feature_dir):
-        gaps: list[str] = []
+        gaps = list(contract_gaps)
         for task_id in sorted(checked_task_ids):
             relative = f"implementation-review/tasks/{task_id}.json"
             lifecycle_path = lifecycle_dir / f"{task_id}.json"
@@ -369,7 +383,7 @@ def _packetized_review_gaps(
         return gaps
 
     packet_task_ids, packet_gaps = _packetized_task_ids(feature_dir)
-    gaps: list[str] = []
+    gaps = list(contract_gaps)
     gaps.extend(packet_gaps)
     if not packet_task_ids:
         return gaps

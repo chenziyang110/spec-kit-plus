@@ -4,10 +4,7 @@ from pathlib import Path
 import pytest
 
 from specify_cli.execution.packet_compiler import (
-    _ui_contract_for_task,
     _ui_contract_from_task_entry,
-    _ui_fidelity_requirements_from_task_detail,
-    _ui_fidelity_requirements_from_task_entry,
     compile_worker_task_packet,
 )
 from specify_cli.execution.packet_validator import PacketValidationError
@@ -117,7 +114,6 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                         "verification": ["npm test -- settings-ui"],
                         "acceptance": ["Desktop and mobile states match the UI brief"],
                         "ui_contract": {
-                            "contract_version": 2,
                             "ui_work_type": "feature-extension",
                             "surface_type": "product-workspace",
                             "platforms": ["web"],
@@ -160,20 +156,6 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                 "visual_comparison_or_human_review",
                             ],
                         },
-                        "ui_fidelity_requirements": {
-                            "applicable": True,
-                            "level": "high",
-                            "design_inputs": [
-                                "DESIGN.md",
-                                "specs/001-ui-feature/ui-brief.md",
-                            ],
-                            "required_evidence": [
-                                "structure_snapshot",
-                                "visual_capture",
-                                "runtime_diagnostics",
-                                "visual_comparison_or_human_review",
-                            ],
-                        },
                     }
                 ],
             }
@@ -192,7 +174,6 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     )
 
     assert packet.ui_contract.fidelity_level == "high"
-    assert packet.ui_contract.contract_version == 2
     assert packet.ui_contract.surface_type == "product-workspace"
     assert packet.ui_contract.approved_visual_ref == "DESIGN.md#settings-direction"
     assert packet.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
@@ -202,9 +183,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     )
     assert packet.ui_contract.required_states == ["loading", "error", "success"]
     assert packet.ui_contract.must_not == ["collapse settings into cards"]
-    assert packet.ui_fidelity_requirements.applicable is True
-    assert packet.ui_fidelity_requirements.level == "high"
-    assert packet.ui_fidelity_requirements.required_evidence == [
+    assert packet.ui_contract.required_evidence == [
         "structure_snapshot",
         "visual_capture",
         "runtime_diagnostics",
@@ -232,18 +211,18 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                 output="settings UI tests passed",
             )
         ],
-        ui_fidelity_evidence=[
+        ui_evidence=[
             {
                 "kind": "structure_snapshot",
-                "snapshot": "artifacts/ui/settings-structure.json",
+                "ref": "artifacts/ui/settings-structure.json",
             },
             {
                 "kind": "visual_capture",
-                "screenshot": "artifacts/ui/settings.png",
+                "ref": "artifacts/ui/settings.png",
             },
             {
                 "kind": "runtime_diagnostics",
-                "console": "artifacts/ui/settings-runtime.txt",
+                "ref": "artifacts/ui/settings-runtime.txt",
             },
         ],
         ui_verification=UIVerification(
@@ -266,81 +245,14 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     assert validate_worker_task_result(documented_result, packet) is documented_result
 
 
-@pytest.mark.parametrize("structured_contract", [{}, {"fidelity_level": "none"}])
-def test_partial_structured_ui_contract_cannot_erase_markdown_contract(
-    structured_contract: dict[str, object],
-) -> None:
-    task_detail = """
-### Scope Boundaries
+def test_current_ui_contract_rejects_obsolete_version_and_duplicate_payload() -> None:
+    with pytest.raises(PacketValidationError, match="contract_version"):
+        _ui_contract_from_task_entry({"ui_contract": {"contract_version": 2}})
 
-| Field | Value |
-| --- | --- |
-| ui_fidelity_level | [approximate] |
-| design_inputs | [DESIGN.md, specs/001-ui/ui-brief.md] |
-| ui_required_evidence | [desktop_screenshot] |
-
-### UI Implementation Contract
-
-| Field | Value |
-| --- | --- |
-| design_sources | [DESIGN.md, specs/001-ui/ui-brief.md] |
-| reference_notes | specs/001-ui/ui-reference-notes.md |
-| visual_target | specs/001-ui/ui-target.html |
-| ui_fidelity_mode | approximate |
-| must_preserve | [compact hierarchy] |
-| may_adapt | [framework markup] |
-| must_not | [replace navigation] |
-| required_states | [loading, ready, error] |
-| required_evidence | [desktop_screenshot] |
-"""
-    fallback_contract = _ui_contract_for_task(task_detail)
-    merged_contract = _ui_contract_from_task_entry(
-        {"ui_contract": structured_contract},
-        fallback_contract,
-    )
-    merged_requirements = _ui_fidelity_requirements_from_task_entry(
-        {"ui_contract": structured_contract, "ui_fidelity_requirements": {}},
-        merged_contract,
-        _ui_fidelity_requirements_from_task_detail(task_detail),
-    )
-
-    assert merged_contract.design_sources == [
-        "DESIGN.md",
-        "specs/001-ui/ui-brief.md",
-    ]
-    assert merged_contract.fidelity_level == "approximate"
-    assert merged_contract.required_states == ["loading", "ready", "error"]
-    assert merged_requirements.applicable is True
-    assert merged_requirements.level == "approximate"
-    assert merged_requirements.required_evidence == ["desktop_screenshot"]
-
-
-@pytest.mark.parametrize("contract_level", ["none", "inspiration"])
-def test_general_ui_contract_derives_valid_visual_requirements(
-    contract_level: str,
-) -> None:
-    contract = _ui_contract_from_task_entry(
-        {
-            "ui_contract": {
-                "design_sources": ["DESIGN.md", "ui-brief.md"],
-                "fidelity_level": contract_level,
-                "required_states": ["ready"],
-                "required_evidence": ["desktop_screenshot"],
-            }
-        },
-        _ui_contract_for_task(""),
-    )
-    requirements = _ui_fidelity_requirements_from_task_entry(
-        {"ui_contract": {"fidelity_level": contract_level}},
-        contract,
-        _ui_fidelity_requirements_from_task_detail(""),
-    )
-
-    assert contract.fidelity_level == contract_level
-    assert requirements.applicable is True
-    assert requirements.level == "approximate"
-    assert requirements.design_inputs == ["DESIGN.md", "ui-brief.md"]
-    assert requirements.required_evidence == ["desktop_screenshot"]
+    with pytest.raises(PacketValidationError, match="ui_fidelity_requirements"):
+        _ui_contract_from_task_entry(
+            {"ui_contract": {"fidelity_level": "high"}, "ui_fidelity_requirements": {}}
+        )
 
 
 def test_compile_worker_task_packet_rejects_malformed_canonical_task_index(
@@ -694,9 +606,6 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
                 "| produces | [settings_panel_events, responsive_settings_markup] |",
                 "| review_inputs | [DESIGN.md, screenshots/settings-panel.png] |",
                 "| review_risks | [Keyboard shortcuts may regress] |",
-                "| ui_fidelity_level | [HIGH] |",
-                "| design_inputs | [DESIGN.md#settings-panel] |",
-                "| ui_required_evidence | [desktop_screenshot, mobile_screenshot] |",
                 "| controller_checks_required | [keyboard_navigation_check, state_persistence_check] |",
                 "| global_constraints | [Do not introduce a new state store] |",
                 "",
@@ -715,7 +624,6 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
     reference_paths = [ref.path for ref in packet.required_references]
     assert reference_paths == [
         "DESIGN.md",
-        "DESIGN.md#settings-panel",
         "screenshots/settings-panel.png",
     ]
     assert packet.forbidden_drift == ["Do not change generated settings routes"]
@@ -737,85 +645,14 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         "Screenshot drift can hide responsive regressions",
         "Keyboard shortcuts may regress",
     ]
-    assert packet.ui_fidelity_requirements.applicable is True
-    assert packet.ui_fidelity_requirements.level == "high"
-    assert packet.ui_fidelity_requirements.design_inputs == ["DESIGN.md#settings-panel"]
-    assert packet.ui_fidelity_requirements.required_evidence == [
-        "desktop_screenshot",
-        "mobile_screenshot",
-    ]
     assert packet.controller_checks_required == [
         "keyboard_navigation_check",
         "state_persistence_check",
     ]
-    assert "DESIGN.md#settings-panel" in packet.scope.read_scope
     assert "screenshots/settings-panel.png" in packet.scope.read_scope
 
 
-def test_compile_worker_task_packet_rejects_invalid_ui_fidelity_level(
-    tmp_path: Path,
-) -> None:
-    project_root = tmp_path / "project"
-    feature_dir = project_root / "specs" / "001-test-feature"
-    feature_dir.mkdir(parents=True)
-    (project_root / ".specify" / "memory").mkdir(parents=True)
-    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
-    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
-        '{"version": 1, "graph_ready": true}\n',
-        encoding="utf-8",
-    )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
-    (project_root / ".specify" / "memory" / "constitution.md").write_text(
-        "# Constitution\n\n- MUST add tests for public behavior\n",
-        encoding="utf-8",
-    )
-    (feature_dir / "plan.md").write_text(
-        "\n".join(
-            [
-                "## Required Implementation References",
-                "",
-                "- `DESIGN.md`",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (feature_dir / "tasks.md").write_text(
-        "\n".join(
-            [
-                "## Validation Gates",
-                "",
-                "- npm test -- tests/settings-panel.test.ts",
-                "",
-                "## T022: Build settings panel",
-                "",
-                "### Scope Boundaries",
-                "| Field | Value |",
-                "|-------|-------|",
-                "| write_scope | [src/ui/settings-panel.tsx] |",
-                "| ui_fidelity_level | [hihg] |",
-                "| design_inputs | [DESIGN.md#settings-panel] |",
-                "| ui_required_evidence | [desktop_screenshot] |",
-                "",
-                "- [ ] T022 [US2] Build settings panel",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        compile_worker_task_packet(
-            project_root=project_root,
-            feature_dir=feature_dir,
-            task_id="T022",
-        )
-
-    assert exc.value.code == "DP1"
-    assert "ui fidelity level" in exc.value.message
-
-
-def test_compile_worker_task_packet_extracts_ui_contract(tmp_path: Path) -> None:
+def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     feature_dir = project_root / "specs" / "001-ui-feature"
     feature_dir.mkdir(parents=True)
@@ -864,25 +701,12 @@ def test_compile_worker_task_packet_extracts_ui_contract(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    packet = compile_worker_task_packet(
-        project_root=project_root,
-        feature_dir=feature_dir,
-        task_id="T021",
-    )
-
-    assert packet.ui_contract.fidelity_level == "approximate"
-    assert packet.ui_contract.reference_notes == "specs/001-ui-feature/ui-reference-notes.md"
-    assert packet.ui_contract.visual_target == "specs/001-ui-feature/ui-target.html"
-    assert "three-column layout" in packet.ui_contract.must_preserve
-    assert "turn table into cards" in packet.ui_contract.must_not
-    assert "visual_comparison_or_human_review" in packet.required_evidence
-    reference_paths = [reference.path for reference in packet.required_references]
-    assert reference_paths.count("DESIGN.md") == 1
-    assert "specs/001-ui-feature/ui-brief.md" in reference_paths
-    assert "specs/001-ui-feature/ui-reference-notes.md" in reference_paths
-    assert "specs/001-ui-feature/ui-target.html" in reference_paths
-
-
+    with pytest.raises(PacketValidationError, match="no canonical task-index ui_contract"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T021",
+        )
 def test_compile_worker_task_packet_accepts_materialized_task_input(
     tmp_path: Path,
 ) -> None:

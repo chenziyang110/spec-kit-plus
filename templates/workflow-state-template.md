@@ -63,7 +63,6 @@
 - ui_reference_ownership: [user-owned | project-owned | third-party | unknown | mixed | none]
 - visual_verification_requirement: [none | agent-visual-comparison | visual-comparison-or-human-review | pending-human-review]
 - required_evidence: [none | reference source evidence, fidelity criteria, verification entry points, difference inventory, accepted deviations]
-- ui_required_evidence_aliases: [reference_source_evidence -> reference source evidence; ui_fidelity_criteria -> fidelity criteria; real_entrypoint_ui_evidence -> verification entry points / real_entrypoint_evidence when needed; visual_comparison_or_human_review -> verification entry points plus accepted deviations when human review is pending; deviation_log -> difference inventory / accepted deviations artifact]
 
 ## Reopen Contract
 

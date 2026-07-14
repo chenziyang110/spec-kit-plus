@@ -1,6 +1,5 @@
 {
   "ui_contract": {
-    "contract_version": 2,
     "ui_work_type": "{{ui_work_type}}",
     "surface_type": "{{surface_type}}",
     "platforms": ["{{platform}}"],
@@ -23,12 +22,6 @@
     "may_adapt": ["{{allowed_choices}}"],
     "must_not": ["{{forbidden_drift}}"],
     "required_states": ["{{affected_states}}"],
-    "required_evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
-  },
-  "ui_fidelity_requirements": {
-    "applicable": true,
-    "level": "{{approximate_or_high}}",
-    "design_inputs": ["DESIGN.md", "{{feature_dir}}/ui-brief.md"],
     "required_evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
   }
 }

@@ -371,14 +371,21 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
     )
     assert "### Scope Boundaries" in ui_task
     assert "### UI Implementation Contract" in ui_task
-    assert "ui_required_evidence" in ui_task
+    assert "required_evidence" in ui_task
+    assert "ui_required_evidence" not in ui_task
     ui_task_index = json.loads(
         (
             ADVANCED_SKILLS / "spx-tasks" / "assets" / "ui-task-index-entry.json"
         ).read_text(encoding="utf-8")
     )
-    assert set(ui_task_index) == {"ui_contract", "ui_fidelity_requirements"}
-    assert ui_task_index["ui_contract"]["contract_version"] == 2
+    assert set(ui_task_index) == {"ui_contract"}
+    assert "contract_version" not in ui_task_index["ui_contract"]
+    current_packet = json.loads(
+        (PROJECT_ROOT / "templates" / "task-packet-template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert set(ui_task_index["ui_contract"]) == set(current_packet["ui_contract"])
     for field in (
         "surface_type",
         "platforms",
@@ -401,7 +408,6 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
         "runtime_diagnostics",
         "visual_comparison_or_human_review",
     ]
-    assert ui_task_index["ui_fidelity_requirements"]["applicable"] is True
     assert "visual convergence loop" in (
         ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
     ).read_text(encoding="utf-8")
@@ -496,9 +502,7 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
 
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists()
     assert not (skills_dir / "tdd-workflow" / "SKILL.md").exists()
-    installed_classic = {
-        path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")
-    }
+    installed_classic = {path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")}
     assert installed_classic == CLASSIC_MAP_COMPANION_SKILLS
     for skill_name in CLASSIC_MAP_COMPANION_SKILLS:
         skill = skills_dir / skill_name / "SKILL.md"
@@ -746,9 +750,7 @@ def test_all_skills_integrations_support_the_advanced_profile(
     skills_dir = integration.skills_dest(project)
     installed = {path.parent.name for path in skills_dir.glob("spx-*/SKILL.md")}
     assert installed == SPX_SKILLS, integration_key
-    installed_classic = {
-        path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")
-    }
+    installed_classic = {path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")}
     assert installed_classic == CLASSIC_MAP_COMPANION_SKILLS, integration_key
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists(), integration_key
     assert not (skills_dir / "spec-kit-workflow-routing" / "SKILL.md").exists(), (

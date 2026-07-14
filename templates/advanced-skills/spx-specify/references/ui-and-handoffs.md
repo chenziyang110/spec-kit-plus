@@ -5,7 +5,7 @@ was supplied. Confirmed discussion state is governed by
 `discussion-handoff.md`.
 
 Create `ui-brief.md` from `assets/ui-brief.md`. In `spec-contract.json`, set
-`design_contract.ui_applicable: true`, `ui_contract_version: 2`, `ui_work_type`,
+`design_contract.ui_applicable: true`, `ui_work_type`,
 `surface_type`, `platforms`, `ui_brief_ref`, and the
 matching `design_system_status`; also carry the brief and original source paths
 in the relevant design/fidelity refs. Record:

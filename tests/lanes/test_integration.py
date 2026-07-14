@@ -6,6 +6,44 @@ from specify_cli.lanes.models import LaneRecord
 from specify_cli.lanes.state_store import write_lane_index, write_lane_record
 
 
+def _current_ui_task() -> dict[str, object]:
+    return {
+        "id": "T001",
+        "ui_contract": {
+            "ui_work_type": "feature-extension",
+            "surface_type": "product-workspace",
+            "platforms": ["web"],
+            "subject": "settings",
+            "audience": "account owners",
+            "single_job": "update account settings",
+            "visual_thesis": "clear grouped settings",
+            "content_thesis": "real settings labels and values",
+            "interaction_thesis": "edit then save with explicit feedback",
+            "signature_element": "persistent save state",
+            "approved_visual_ref": "DESIGN.md#settings",
+            "design_sources": ["DESIGN.md", "ui-brief.md"],
+            "reference_notes": "Preserve the approved hierarchy.",
+            "visual_target": "Match the approved settings direction.",
+            "reference_intents": [],
+            "real_content_plan": [
+                {"source_ref": "src/data/settings.ts", "usage": "field labels"}
+            ],
+            "image_plan": [],
+            "fidelity_level": "high",
+            "must_preserve": ["settings hierarchy"],
+            "may_adapt": ["spacing within tokens"],
+            "must_not": ["replace real labels with placeholders"],
+            "required_states": ["loading", "error", "saved"],
+            "required_evidence": [
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+                "visual_comparison_or_human_review",
+            ],
+        },
+    }
+
+
 def test_collect_integration_candidates_returns_completed_or_ready_lanes(tmp_path: Path):
     ready_lane = LaneRecord(
         lane_id="lane-001",
@@ -95,20 +133,7 @@ def test_assess_integration_readiness_requires_integrated_ui_evidence(tmp_path: 
         json.dumps(
             {
                 "version": 2,
-                "tasks": [
-                    {
-                        "id": "T001",
-                        "ui_contract": {
-                            "contract_version": 2,
-                            "required_evidence": [
-                                "structure_snapshot",
-                                "visual_capture",
-                                "runtime_diagnostics",
-                                "visual_comparison_or_human_review",
-                            ],
-                        },
-                    }
-                ],
+                "tasks": [_current_ui_task()],
             }
         ),
         encoding="utf-8",
@@ -125,9 +150,9 @@ def test_assess_integration_readiness_requires_integrated_ui_evidence(tmp_path: 
             "evidence_scope": "task",
             "integration_base_ref": None,
             "evidence": [
-                {"kind": "accessibility_snapshot", "ref": "evidence/a11y.json"},
-                {"kind": "screenshot", "ref": "evidence/screen.png"},
-                {"kind": "console_runtime", "ref": "evidence/console.txt"},
+                {"kind": "structure_snapshot", "ref": "evidence/a11y.json"},
+                {"kind": "visual_capture", "ref": "evidence/screen.png"},
+                {"kind": "runtime_diagnostics", "ref": "evidence/console.txt"},
             ],
             "contract_check": "passed",
             "runtime_evidence": "passed",
@@ -184,4 +209,94 @@ def test_assess_integration_readiness_requires_integrated_ui_evidence(tmp_path: 
         check["name"] == "integrated-ui-evidence"
         and "validation must be a non-empty list" in check["detail"]
         for check in missing_validation.checks
+    )
+
+
+def test_assess_integration_readiness_rejects_obsolete_ui_task_contract(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {
+                        "id": "T001",
+                        "ui_fidelity_requirements": {"level": "high"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: resolved\n---\n\nnext_action: integrate\n",
+        encoding="utf-8",
+    )
+    lane = LaneRecord(
+        lane_id="lane-ui",
+        feature_id="001-ui",
+        feature_dir="specs/001-ui",
+        branch_name="001-ui",
+        worktree_path=".specify/lanes/worktrees/lane-ui",
+        lifecycle_state="implementing",
+        recovery_state="completed",
+        verification_status="passed",
+        last_command="implement",
+    )
+
+    readiness = assess_integration_readiness(tmp_path, lane)
+
+    assert readiness.ready is False
+    assert any(
+        check["name"] == "current-ui-contract"
+        and "ui_fidelity_requirements" in check["detail"]
+        for check in readiness.checks
+    )
+
+
+def test_assess_integration_readiness_rejects_partial_current_ui_contract(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {
+                        "id": "T001",
+                        "ui_contract": {"subject": "settings"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: resolved\n---\n\nnext_action: integrate\n",
+        encoding="utf-8",
+    )
+    lane = LaneRecord(
+        lane_id="lane-ui",
+        feature_id="001-ui",
+        feature_dir="specs/001-ui",
+        branch_name="001-ui",
+        worktree_path=".specify/lanes/worktrees/lane-ui",
+        lifecycle_state="implementing",
+        recovery_state="completed",
+        verification_status="passed",
+        last_command="implement",
+    )
+
+    readiness = assess_integration_readiness(tmp_path, lane)
+
+    assert readiness.ready is False
+    assert any(
+        check["name"] == "valid-ui-contract"
+        and "missing current fields" in check["detail"]
+        for check in readiness.checks
     )

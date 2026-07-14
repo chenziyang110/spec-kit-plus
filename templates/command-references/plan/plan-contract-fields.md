@@ -15,7 +15,7 @@ Write `plan-contract.json` before rendering `plan.md`. Keep:
 - architecture/module decisions and interface consumes/produces map;
 - global constraints and allowed optimization scope;
 - task-relevant acceptance, `MP-*`, `CA-###`, UI/fidelity, and evidence refs;
-- for UI v2, work/surface/platform types, direction core, approved visual,
+- for UI work, the current work/surface/platform types, direction core, approved visual,
   reference intents, real content/image plans, and structure/visual/runtime
   evidence requirements;
 - implementation target and boundary refs;

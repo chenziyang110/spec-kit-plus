@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 
 from specify_cli.execution.ui_validation import (
+    invalid_task_ui_contracts,
+    obsolete_task_ui_contract_fields,
     ui_task_ids,
     validate_accepted_task_lifecycle,
     validate_lifecycle_ui_verification,
@@ -117,6 +119,38 @@ def assess_integration_readiness(
             "detail": reconciled.verification_status,
         }
     )
+
+    obsolete_ui_fields = (
+        obsolete_task_ui_contract_fields(feature_dir) if feature_dir.exists() else {}
+    )
+    if obsolete_ui_fields:
+        detail = "; ".join(
+            f"{task_id}: {', '.join(fields)}"
+            for task_id, fields in sorted(obsolete_ui_fields.items())
+        )
+        checks.append(
+            {
+                "name": "current-ui-contract",
+                "status": "fail",
+                "detail": f"obsolete UI fields must be regenerated: {detail}",
+            }
+        )
+
+    invalid_ui_contracts = (
+        invalid_task_ui_contracts(feature_dir) if feature_dir.exists() else {}
+    )
+    if invalid_ui_contracts:
+        detail = "; ".join(
+            f"{task_id}: {', '.join(errors)}"
+            for task_id, errors in sorted(invalid_ui_contracts.items())
+        )
+        checks.append(
+            {
+                "name": "valid-ui-contract",
+                "status": "fail",
+                "detail": detail,
+            }
+        )
 
     ui_ids = sorted(ui_task_ids(feature_dir)) if feature_dir.exists() else []
     if ui_ids:

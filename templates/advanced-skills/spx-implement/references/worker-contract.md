@@ -13,7 +13,7 @@ Provide the worker:
 
 For a UI-bearing task, the packet carries `ui_contract`, original visual
 references with use intent, approved visual ref, real content/image plans,
-required states, and the evidence triad. Return `ui_fidelity_evidence` kinds
+required states, and the evidence triad. Return `ui_evidence` entries with canonical kinds
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`, plus visual
 comparison or human-review status. Before dispatch, the leader ensures the worker can
 read the installed skill-local `references/ui-quality-gate.md` and names it in

@@ -18,11 +18,11 @@ graph is not the place to decide it—reopen the owning upstream workflow.
 UI tasks additionally consume the plan `ui_design_contract` and feature
 `ui-brief.md`. Each task owns a bounded surface/state outcome and carries
 task-specific `ui_contract`, fidelity level, design inputs, required states,
-real entry points, v2 direction fields, task-relevant reference/content/image
+real entry points, current direction fields, task-relevant reference/content/image
 records, structure/visual/runtime evidence, and comparison or human review. Use
 `assets/ui-task.md` for the project-facing detail and
-`assets/ui-task-index-entry.json` for the exact canonical JSON pair. General UI
-without an external fidelity target still uses `ui_fidelity_requirements.level:
-approximate` against the approved design/brief; `ui_contract.fidelity_level`
-may remain `none` or `inspiration`. Missing UI fields are a graph defect, not
+`assets/ui-task-index-entry.json` for the exact canonical JSON object. General UI
+without an external fidelity target still sets `ui_contract.fidelity_level` to
+`approximate` against the approved design/brief; use `inspiration` only when it
+is the approved reference relationship. Missing UI fields are a graph defect, not
 `not_applicable`.

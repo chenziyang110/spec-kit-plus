@@ -11,45 +11,12 @@ from .evidence import (
 from .packet_schema import WorkerTaskPacket
 from .packet_validator import PacketValidationError
 from .result_schema import WorkerTaskResult
-from .ui_validation import UI_EVIDENCE_KIND_ALIASES
-
-
 _PLACEHOLDER_OUTPUTS = {
     "",
     "NOT RUN",
     "NOT RUN - REPLACE WITH ACTUAL COMMAND OUTPUT AFTER EXECUTION",
 }
-_UI_FIDELITY_PAYLOAD_FIELDS = {
-    "artifact",
-    "screenshot",
-    "snapshot",
-    "console",
-    "output",
-    "diff",
-    "comparison",
-    "evidence",
-    "path",
-    "url",
-}
-_UI_FIDELITY_PLACEHOLDER_VALUES = PLACEHOLDER_VALUES | {"", "not_run"}
-_UI_FIDELITY_KIND_ALIASES = {
-    "desktop_screenshot_evidence": "desktop_screenshot",
-    "mobile_screenshot_evidence": "mobile_screenshot",
-    "screenshot_evidence": "screenshot",
-    "visual_comparison_evidence": "visual_comparison",
-}
-_UI_FIDELITY_ACCEPTED_KINDS = {
-    **UI_EVIDENCE_KIND_ALIASES,
-    "desktop_screenshot": {"desktop_screenshot", "screenshot_desktop"},
-    "mobile_screenshot": {"mobile_screenshot", "screenshot_mobile"},
-    "screenshot": {
-        "desktop_screenshot",
-        "mobile_screenshot",
-        "screenshot",
-        "screenshot_desktop",
-        "screenshot_mobile",
-    },
-}
+_UI_EVIDENCE_PLACEHOLDER_VALUES = PLACEHOLDER_VALUES | {"", "not_run"}
 _MISSING_UI_FIDELITY_STATUSES = {
     "",
     "none",
@@ -99,28 +66,10 @@ _HUMAN_UI_REVIEWERS = {
     "manual_review",
     "manual_reviewer",
 }
-_UI_REVIEW_ARTIFACT_LABELS = {
-    "approval_request",
-    "human_approval",
-    "human_review",
-    "manual_approval",
-    "manual_review",
-    "pending_human_review",
-    "pending_review",
-    "review_tracking",
-}
 _UI_EVIDENCE_REQUIRED_FIDELITY_LEVELS = {
     "approximate",
     "high",
 }
-_EVIDENCE_LABEL_ALIASES = {
-    "real_entrypoint_ui_evidence": "real_entrypoint_evidence",
-}
-_UI_VERIFICATION_REQUIREMENT_KINDS = {
-    "visual_comparison_or_human_review",
-}
-
-
 def _normalize_command(value: str) -> str:
     return value.strip()
 
@@ -130,43 +79,36 @@ def _validation_output_is_placeholder(output: str) -> bool:
     return normalized.upper() in _PLACEHOLDER_OUTPUTS
 
 
-def _has_meaningful_ui_fidelity_payload(item: dict[str, str]) -> bool:
-    for field in _UI_FIDELITY_PAYLOAD_FIELDS:
-        value = str(item.get(field, "")).strip()
-        if value and normalize_evidence_label(value) not in _UI_FIDELITY_PLACEHOLDER_VALUES:
-            return True
-    return False
+def _has_meaningful_ui_evidence_payload(item: dict[str, str]) -> bool:
+    value = str(item.get("ref", "")).strip()
+    return bool(
+        value
+        and normalize_evidence_label(value) not in _UI_EVIDENCE_PLACEHOLDER_VALUES
+    )
 
 
-def _normalize_ui_fidelity_kind(value: str) -> str:
-    normalized = normalize_evidence_label(value)
-    return _UI_FIDELITY_KIND_ALIASES.get(normalized, normalized)
+def _normalize_ui_evidence_kind(value: str) -> str:
+    return normalize_evidence_label(value)
 
 
-def _accepted_ui_fidelity_kinds(required_kind: str) -> set[str]:
-    normalized = _normalize_ui_fidelity_kind(required_kind)
-    return _UI_FIDELITY_ACCEPTED_KINDS.get(normalized, {normalized})
-
-
-def _has_ui_fidelity_evidence_kind(
+def _has_ui_evidence_kind(
     evidence: object,
     required_kind: str,
 ) -> bool:
-    accepted_kinds = _accepted_ui_fidelity_kinds(required_kind)
+    accepted_kind = _normalize_ui_evidence_kind(required_kind)
     if not isinstance(evidence, list):
         return False
     for item in evidence:
         if not isinstance(item, dict):
             continue
-        kind = _normalize_ui_fidelity_kind(str(item.get("kind", "")))
-        if kind in accepted_kinds and _has_meaningful_ui_fidelity_payload(item):
+        kind = _normalize_ui_evidence_kind(str(item.get("kind", "")))
+        if kind == accepted_kind and _has_meaningful_ui_evidence_payload(item):
             return True
     return False
 
 
 def _normalize_required_evidence_label(value: str) -> str:
-    normalized = normalize_evidence_label(value)
-    return _EVIDENCE_LABEL_ALIASES.get(normalized, normalized)
+    return normalize_evidence_label(value)
 
 
 def _requires_ui_evidence(packet: WorkerTaskPacket, required_evidence: set[str]) -> bool:
@@ -184,20 +126,7 @@ def _has_human_ui_approval(result: WorkerTaskResult) -> bool:
 
 
 def _has_ui_review_artifact(result: WorkerTaskResult) -> bool:
-    if has_any_evidence(result.manual_evidence):
-        return True
-    if not isinstance(result.ui_evidence, list):
-        return False
-    for item in result.ui_evidence:
-        if not isinstance(item, dict):
-            continue
-        labels = (
-            normalize_evidence_label(str(item.get("kind", ""))),
-            normalize_evidence_label(str(item.get("type", ""))),
-        )
-        if any(label in _UI_REVIEW_ARTIFACT_LABELS for label in labels):
-            return True
-    return False
+    return has_any_evidence(result.manual_evidence)
 
 
 def _has_manual_ui_approval_artifact(result: WorkerTaskResult) -> bool:
@@ -210,6 +139,18 @@ def validate_worker_task_result(
 ) -> WorkerTaskResult:
     """Return the result when it satisfies the packet's handoff contract."""
 
+    canonical_ui_kinds = {
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+    }
+    for item in result.ui_evidence:
+        kind = _normalize_ui_evidence_kind(str(item.get("kind", "")))
+        if kind not in canonical_ui_kinds:
+            raise PacketValidationError(
+                "DP3",
+                f"worker result uses unsupported UI evidence kind: {kind or '<blank>'}",
+            )
     if result.status == "pending":
         return result
 
@@ -301,6 +242,20 @@ def validate_worker_task_result(
             ]
             if item.strip()
         }
+        obsolete_ui_labels = {
+            "real_entrypoint_ui_evidence",
+            "reference_source_evidence",
+            "ui_fidelity_criteria",
+            "deviation_log",
+            "visual_comparison_evidence",
+        }
+        obsolete_present = sorted(required_evidence & obsolete_ui_labels)
+        if obsolete_present:
+            raise PacketValidationError(
+                "DP3",
+                "worker packet contains obsolete UI evidence labels: "
+                + ", ".join(obsolete_present),
+            )
         if (
             packet.consumer_surfaces
             or "consumer_evidence" in required_evidence
@@ -327,64 +282,28 @@ def validate_worker_task_result(
             raise PacketValidationError(
                 "DP3", "worker result is missing manual evidence"
             )
-        combined_ui_evidence = [
-            *result.ui_evidence,
-            *result.ui_fidelity_evidence,
-        ]
-        ui_fidelity_requirement_labels = {
-            _normalize_ui_fidelity_kind(item)
-            for item in packet.ui_fidelity_requirements.required_evidence
+        ui_requirement_labels = {
+            _normalize_ui_evidence_kind(item)
+            for item in packet.ui_contract.required_evidence
             if item.strip()
         }
-        typed_ui_fidelity_requirements = (
-            ui_fidelity_requirement_labels - _UI_VERIFICATION_REQUIREMENT_KINDS
-        )
-        if packet.ui_fidelity_requirements.applicable:
-            if typed_ui_fidelity_requirements and not combined_ui_evidence:
-                raise PacketValidationError(
-                    "DP3", "worker result is missing ui fidelity evidence"
-                )
-            for required_kind in sorted(typed_ui_fidelity_requirements):
-                if not _has_ui_fidelity_evidence_kind(
-                    combined_ui_evidence, required_kind
-                ):
-                    if required_kind == "visual_comparison":
-                        message = "worker result is missing visual comparison ui fidelity evidence"
-                    else:
-                        message = (
-                            "worker result is missing ui fidelity evidence "
-                            f"for required kind: {required_kind}"
-                        )
-                    raise PacketValidationError(
-                        "DP3",
-                        message,
-                    )
-        if packet.ui_contract.contract_version >= 2:
-            contract_evidence = {
-                _normalize_ui_fidelity_kind(item)
-                for item in packet.ui_contract.required_evidence
-                if item.strip()
-            }
-            for required_kind in (
-                "structure_snapshot",
-                "visual_capture",
-                "runtime_diagnostics",
+        for required_kind in (
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+        ):
+            if required_kind in ui_requirement_labels and not _has_ui_evidence_kind(
+                result.ui_evidence, required_kind
             ):
-                if (
-                    required_kind in contract_evidence
-                    and not _has_ui_fidelity_evidence_kind(
-                        combined_ui_evidence, required_kind
-                    )
-                ):
-                    raise PacketValidationError(
-                        "DP3",
-                        f"worker result is missing UI evidence for required kind: {required_kind}",
-                    )
+                raise PacketValidationError(
+                    "DP3",
+                    f"worker result is missing UI evidence for required kind: {required_kind}",
+                )
         requires_ui_evidence = _requires_ui_evidence(packet, required_evidence)
         requires_visual_review = (
             "visual_comparison_or_human_review" in required_evidence
             or "visual_comparison_or_human_review"
-            in ui_fidelity_requirement_labels
+            in ui_requirement_labels
         )
         if requires_visual_review or requires_ui_evidence:
             fidelity_status = normalize_evidence_label(
@@ -424,7 +343,7 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review has unknown visual comparison status",
                 )
-            if requires_ui_evidence and not has_any_evidence(combined_ui_evidence):
+            if requires_ui_evidence and not has_any_evidence(result.ui_evidence):
                 raise PacketValidationError(
                     "DP3", "worker result is missing ui evidence"
                 )

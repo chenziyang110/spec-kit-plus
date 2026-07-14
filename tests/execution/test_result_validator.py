@@ -8,7 +8,6 @@ from specify_cli.execution.packet_schema import (
     MustPreserveObligation,
     PacketReference,
     PacketScope,
-    UiFidelityRequirements,
     WorkerTaskPacket,
 )
 from specify_cli.execution.packet_validator import PacketValidationError
@@ -379,7 +378,7 @@ def test_validate_worker_task_result_rejects_synthetic_only_real_entrypoint_evid
     assert "real-entrypoint" in exc.value.message
 
 
-def test_validate_worker_task_result_enforces_real_entrypoint_ui_evidence_alias(
+def test_validate_worker_task_result_rejects_obsolete_real_entrypoint_ui_alias(
     sample_packet: WorkerTaskPacket,
 ) -> None:
     sample_packet.required_evidence = ["real_entrypoint_ui_evidence"]
@@ -410,7 +409,7 @@ def test_validate_worker_task_result_enforces_real_entrypoint_ui_evidence_alias(
         validate_worker_task_result(result, sample_packet)
 
     assert exc.value.code == "DP3"
-    assert "consumer evidence" in exc.value.message
+    assert "obsolete" in exc.value.message
 
 
 @pytest.mark.parametrize(
@@ -550,6 +549,12 @@ def test_validate_worker_task_result_accepts_ui_human_review_fidelity_status(
         ),
         ui_evidence=[
             {
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
+            }
+        ],
+        manual_evidence=[
+            {
                 "kind": "pending review",
                 "path": "artifacts/ui/pending-review.md",
             }
@@ -599,10 +604,9 @@ def test_validate_worker_task_result_enforces_ui_contract_required_evidence(
     )
 
 
-def test_validate_worker_task_result_requires_ui_v2_evidence_triad(
+def test_validate_worker_task_result_requires_current_ui_evidence_triad(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    sample_packet.ui_contract.contract_version = 2
     sample_packet.ui_contract.required_evidence = [
         "structure_snapshot",
         "visual_capture",
@@ -637,8 +641,8 @@ def test_validate_worker_task_result_requires_ui_v2_evidence_triad(
             fidelity_status="passed",
         ),
         ui_evidence=[
-            {"kind": "accessibility_snapshot", "snapshot": "artifacts/ui/a11y.json"},
-            {"kind": "screenshot", "screenshot": "artifacts/ui/settings.png"},
+            {"kind": "structure_snapshot", "ref": "artifacts/ui/a11y.json"},
+            {"kind": "visual_capture", "ref": "artifacts/ui/settings.png"},
         ],
     )
 
@@ -646,7 +650,7 @@ def test_validate_worker_task_result_requires_ui_v2_evidence_triad(
         validate_worker_task_result(result, sample_packet)
 
     result.ui_evidence.append(
-        {"kind": "console_runtime", "console": "artifacts/ui/console.txt"}
+        {"kind": "runtime_diagnostics", "ref": "artifacts/ui/console.txt"}
     )
     assert validate_worker_task_result(result, sample_packet) is result
 
@@ -657,8 +661,9 @@ def test_validate_worker_task_result_rejects_missing_ui_evidence_for_approximate
     sample_packet.required_evidence = []
     sample_packet.ui_contract.fidelity_level = "approximate"
     sample_packet.ui_contract.required_evidence = [
-        "desktop screenshot",
-        "mobile screenshot",
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
         "visual_comparison_or_human_review",
     ]
     result = WorkerTaskResult(
@@ -692,7 +697,7 @@ def test_validate_worker_task_result_rejects_missing_ui_evidence_for_approximate
         validate_worker_task_result(result, sample_packet)
 
     assert exc.value.code == "DP3"
-    assert "ui evidence" in exc.value.message
+    assert "ui evidence" in exc.value.message.lower()
 
 
 def test_validate_worker_task_result_accepts_ui_contract_required_evidence(
@@ -725,7 +730,7 @@ def test_validate_worker_task_result_accepts_ui_contract_required_evidence(
             visual_comparison="unavailable",
             fidelity_status="pending-human-review",
         ),
-        ui_evidence=[
+        manual_evidence=[
             {
                 "kind": "human review",
                 "path": "artifacts/ui/review-notes.md",
@@ -767,7 +772,7 @@ def test_validate_worker_task_result_accepts_needs_human_review_visual_compariso
             visual_comparison="needs-human-review",
             fidelity_status="pending-human-review",
         ),
-        ui_evidence=[
+        manual_evidence=[
             {
                 "kind": "review tracking",
                 "path": "artifacts/ui/review-tracking.md",
@@ -850,8 +855,8 @@ def test_validate_worker_task_result_rejects_pending_human_review_with_only_scre
         ),
         ui_evidence=[
             {
-                "kind": "desktop screenshot",
-                "path": "artifacts/ui/desktop.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
             }
         ],
     )
@@ -1058,8 +1063,8 @@ def test_validate_worker_task_result_rejects_skipped_ui_fidelity_status(
         ),
         ui_evidence=[
             {
-                "kind": "desktop screenshot",
-                "path": "artifacts/ui/desktop.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
             }
         ],
     )
@@ -1183,7 +1188,7 @@ def test_validate_worker_task_result_rejects_pending_human_review_visual_compari
             visual_comparison="pending-human-review",
             fidelity_status="pending-human-review",
         ),
-        ui_evidence=[
+        manual_evidence=[
             {
                 "kind": "review tracking",
                 "path": "artifacts/ui/review-tracking.md",
@@ -1203,7 +1208,7 @@ def test_validate_worker_task_result_rejects_failed_ui_fidelity_status_for_ui_co
 ) -> None:
     sample_packet.required_evidence = []
     sample_packet.ui_contract.fidelity_level = "approximate"
-    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    sample_packet.ui_contract.required_evidence = ["visual_capture"]
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -1231,8 +1236,8 @@ def test_validate_worker_task_result_rejects_failed_ui_fidelity_status_for_ui_co
         ),
         ui_evidence=[
             {
-                "kind": "desktop screenshot",
-                "path": "artifacts/ui/desktop.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
             }
         ],
     )
@@ -1249,7 +1254,7 @@ def test_validate_worker_task_result_rejects_failed_ui_visual_comparison_for_ui_
 ) -> None:
     sample_packet.required_evidence = []
     sample_packet.ui_contract.fidelity_level = "approximate"
-    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    sample_packet.ui_contract.required_evidence = ["visual_capture"]
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -1277,8 +1282,8 @@ def test_validate_worker_task_result_rejects_failed_ui_visual_comparison_for_ui_
         ),
         ui_evidence=[
             {
-                "kind": "desktop screenshot",
-                "path": "artifacts/ui/desktop.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
             }
         ],
     )
@@ -1295,7 +1300,7 @@ def test_validate_worker_task_result_rejects_agent_ui_pass_without_comparison_fo
 ) -> None:
     sample_packet.required_evidence = []
     sample_packet.ui_contract.fidelity_level = "approximate"
-    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    sample_packet.ui_contract.required_evidence = ["visual_capture"]
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -1324,8 +1329,8 @@ def test_validate_worker_task_result_rejects_agent_ui_pass_without_comparison_fo
         ),
         ui_evidence=[
             {
-                "kind": "desktop screenshot",
-                "path": "artifacts/ui/desktop.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
             }
         ],
     )
@@ -1342,7 +1347,7 @@ def test_validate_worker_task_result_rejects_human_ui_pass_with_only_screenshot_
 ) -> None:
     sample_packet.required_evidence = []
     sample_packet.ui_contract.fidelity_level = "approximate"
-    sample_packet.ui_contract.required_evidence = ["desktop screenshot"]
+    sample_packet.ui_contract.required_evidence = ["visual_capture"]
     result = WorkerTaskResult(
         task_id="T017",
         status="success",
@@ -1371,8 +1376,8 @@ def test_validate_worker_task_result_rejects_human_ui_pass_with_only_screenshot_
         ),
         ui_evidence=[
             {
-                "kind": "desktop screenshot",
-                "path": "artifacts/ui/desktop.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
             }
         ],
     )
@@ -1459,8 +1464,8 @@ def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
         ui_verification=ui_verification,
         ui_evidence=[
             {
-                "kind": "desktop screenshot",
-                "path": "artifacts/ui/desktop.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop.png",
             }
         ],
     )
@@ -1645,11 +1650,10 @@ def test_validate_worker_task_result_accepts_success_with_consequence_evidence(
     assert validated.consequence_evidence[0]["obligation_id"] == "CA-001"
 
 
-def _successful_result_with_ui_fidelity(
-    *,
-    ui_fidelity_evidence: list[dict[str, str]] | None = None,
-) -> WorkerTaskResult:
-    return WorkerTaskResult(
+def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    result = WorkerTaskResult(
         task_id="T017",
         status="success",
         changed_files=["src/services/auth_service.py"],
@@ -1660,7 +1664,9 @@ def _successful_result_with_ui_fidelity(
                 output="1 passed",
             )
         ],
-        ui_fidelity_evidence=ui_fidelity_evidence or [],
+        ui_evidence=[
+            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
+        ],
         summary="Implemented auth flow",
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
@@ -1673,127 +1679,62 @@ def _successful_result_with_ui_fidelity(
         ),
     )
 
-
-def _require_ui_fidelity(
-    sample_packet: WorkerTaskPacket,
-    required_evidence: list[str],
-) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=required_evidence,
-    )
-
-
-def test_validate_worker_task_result_rejects_success_without_applicable_ui_fidelity_evidence(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
-
-    with pytest.raises(PacketValidationError) as exc:
-        validate_worker_task_result(_successful_result_with_ui_fidelity(), sample_packet)
-
-    assert exc.value.code == "DP3"
-    assert "ui fidelity evidence" in exc.value.message
-
-
-def test_validate_worker_task_result_requires_visual_comparison_ui_fidelity_evidence(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
-    result = _successful_result_with_ui_fidelity(
-        ui_fidelity_evidence=[
-            {
-                "kind": "manual_review",
-                "artifact": "artifacts/auth-flow-notes.md",
-            }
-        ],
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
+    with pytest.raises(PacketValidationError, match="unsupported UI evidence kind"):
         validate_worker_task_result(result, sample_packet)
 
-    assert exc.value.code == "DP3"
-    assert "visual comparison" in exc.value.message
 
-
-@pytest.mark.parametrize("artifact", ["", "TODO", "placeholder", "unknown", "replace_me"])
-def test_validate_worker_task_result_rejects_visual_comparison_placeholder_payload(
+def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind_when_blocked(
     sample_packet: WorkerTaskPacket,
-    artifact: str,
 ) -> None:
-    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
-    evidence = {"kind": "visual_comparison"}
-    if artifact:
-        evidence["artifact"] = artifact
-    result = _successful_result_with_ui_fidelity(ui_fidelity_evidence=[evidence])
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="blocked",
+        blockers=["dependency unavailable"],
+        failed_assumptions=["dependency was expected to be available"],
+        suggested_recovery_actions=["restore the dependency"],
+        ui_evidence=[
+            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
+        ],
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
 
-    with pytest.raises(PacketValidationError) as exc:
+    with pytest.raises(PacketValidationError, match="unsupported UI evidence kind"):
         validate_worker_task_result(result, sample_packet)
 
-    assert exc.value.code == "DP3"
-    assert "visual comparison" in exc.value.message
 
-
-def test_validate_worker_task_result_accepts_required_ui_fidelity_evidence(
+def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind_when_pending(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    _require_ui_fidelity(sample_packet, ["visual_comparison_evidence"])
-    result = _successful_result_with_ui_fidelity(
-        ui_fidelity_evidence=[
-            {
-                "kind": "visual_comparison",
-                "artifact": "artifacts/auth-flow-diff.png",
-            }
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="pending",
+        ui_evidence=[
+            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
         ],
     )
 
-    validated = validate_worker_task_result(result, sample_packet)
-
-    assert validated.ui_fidelity_evidence[0]["kind"] == "visual_comparison"
-
-
-def test_validate_worker_task_result_rejects_required_screenshots_when_only_notes_exist(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    _require_ui_fidelity(sample_packet, ["desktop_screenshot", "mobile_screenshot"])
-    result = _successful_result_with_ui_fidelity(
-        ui_fidelity_evidence=[
-            {
-                "kind": "notes",
-                "artifact": "artifacts/auth-flow-notes.md",
-            }
-        ],
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
+    with pytest.raises(PacketValidationError, match="unsupported UI evidence kind"):
         validate_worker_task_result(result, sample_packet)
 
-    assert exc.value.code == "DP3"
-    assert "desktop_screenshot" in exc.value.message
 
-
-def test_validate_worker_task_result_accepts_required_screenshot_evidence(
+def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind_when_failed(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    _require_ui_fidelity(sample_packet, ["desktop_screenshot", "mobile_screenshot"])
-    result = _successful_result_with_ui_fidelity(
-        ui_fidelity_evidence=[
-            {
-                "kind": "desktop_screenshot",
-                "screenshot": "artifacts/auth-flow-desktop.png",
-            },
-            {
-                "kind": "mobile_screenshot",
-                "screenshot": "artifacts/auth-flow-mobile.png",
-            },
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="failed",
+        ui_evidence=[
+            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
         ],
     )
 
-    validated = validate_worker_task_result(result, sample_packet)
-
-    assert [item["kind"] for item in validated.ui_fidelity_evidence] == [
-        "desktop_screenshot",
-        "mobile_screenshot",
-    ]
+    with pytest.raises(PacketValidationError, match="unsupported UI evidence kind"):
+        validate_worker_task_result(result, sample_packet)

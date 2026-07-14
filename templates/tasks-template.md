@@ -89,7 +89,8 @@ description: "Task list template for feature implementation"
 |---------|----------|----------|---------------|-----------|----------|-------------------|----------|
 
 - Every UI-bearing task derived from `ui-brief.md` must materialize
-  `task-index.json#/tasks/<task-id>/ui_contract` with `contract_version: 2`.
+  the complete current contract at
+  `task-index.json#/tasks/<task-id>/ui_contract`.
 - Resolve the exact object shape from
   `.specify/templates/task-index-template.json#/ui_contract_schema_ref`, which
   points to `.specify/templates/task-packet-template.json#/ui_contract`. Copy
@@ -101,14 +102,8 @@ description: "Task list template for feature implementation"
 - Required evidence is the typed triad `structure_snapshot`,
   `visual_capture`, and `runtime_diagnostics`, plus
   `visual_comparison_or_human_review` as a verification status. Preserve
-  `ui_fidelity_mode`, difference inventory, accepted deviations, and
+  `fidelity_level`, difference inventory, accepted deviations, and
   `real_entrypoint_evidence` when applicable.
-- `reference_source_evidence`, `ui_fidelity_criteria`,
-  `real_entrypoint_ui_evidence`, and `deviation_log` remain accepted v1
-  packet shorthand aliases; do not use them in place of the v2 typed evidence
-  contract. Persisted compatibility language remains reference source evidence,
-  fidelity criteria, verification entry points, difference inventory, and
-  accepted deviations.
 - Do not pass raw "make it like this" wording to a worker without the compiled UI contract.
 - Do not stop at the coverage table. Under every UI-bearing `## T###` task,
   render this compact machine-readable projection of the canonical task-index
@@ -119,24 +114,25 @@ description: "Task list template for feature implementation"
 ### Scope Boundaries
 | Field | Value |
 | --- | --- |
-| ui_fidelity_level | [none | approximate | high] |
-| design_inputs | [DESIGN.md, FEATURE_DIR/ui-brief.md] |
-| ui_required_evidence | [structure_snapshot, visual_capture, runtime_diagnostics, visual_comparison_or_human_review] |
+| read_scope | [DESIGN.md, FEATURE_DIR/ui-brief.md] |
+| write_scope | [task-owned implementation paths] |
 
 ### UI Implementation Contract
 | Field | Value |
 | --- | --- |
-| contract_version | 2 |
 | ui_contract_ref | task-index.json#/tasks/T###/ui_contract |
 | schema_ref | .specify/templates/task-packet-template.json#/ui_contract |
 | direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
 | approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref] |
 | task_inputs | [design_sources; reference_intents; real_content_plan; image_plan] |
-| ui_fidelity_mode | [none | approximate | high | inspiration] |
+| fidelity_level | [none | approximate | high | inspiration] |
 | adaptation_rules | [must_preserve; may_adapt; must_not] |
 | required_states | [loading, empty, error, selected, disabled, permission-limited as applicable] |
-| required_evidence | [structure_snapshot; visual_capture; runtime_diagnostics; visual_comparison_or_human_review; real_entrypoint_evidence] |
+| required_evidence | [structure_snapshot; visual_capture; runtime_diagnostics; visual_comparison_or_human_review] |
 ```
+
+Carry `real_entrypoint_evidence` separately in the task's root consumer-evidence
+requirements when the implemented surface must be wired into a real entry point.
 
 ## Implementation Target Boundary
 
@@ -169,7 +165,7 @@ description: "Task list template for feature implementation"
 
 | Task ID | Review Risks | UI Fidelity Requirements | Controller Checks Required |
 | --- | --- | --- | --- |
-| T### | [manual check, quality tradeoff, reference fidelity risk] | [none | approximate | high] | [command, screenshot, or human review when needed] |
+| T### | [manual check, quality tradeoff, reference fidelity risk] | [none | approximate | high | inspiration] | [command, screenshot, or human review when needed] |
 
 ## Consequence Obligation Mapping
 

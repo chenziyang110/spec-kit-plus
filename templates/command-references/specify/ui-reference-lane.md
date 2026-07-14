@@ -18,8 +18,7 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
 - Dispatch the UI reference lane to write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
 - Validate that `ui-target.html`, when present, is static HTML/CSS only: single-file, low-dependency, no `<script>`, no inline event handlers such as `onclick`, no JS-driven behavior, no external CSS/JS, no CDN, no remote runtime dependencies, no production-source claim, and preserves information density over decorative polish.
 - For `approximate` and `high`, activate the `Reference-Implementation` profile contract, require `Fidelity Requirements`, and persist canonical `required_evidence` terms: `reference source evidence`, `fidelity criteria`, `verification entry points`, `difference inventory`, and `accepted deviations`; for `high`, require a deviation log as an artifact form for `difference inventory` / `accepted deviations`.
-- Keep UI-specific labels only as aliases/mapping notes, not persisted `required_evidence` values: `reference_source_evidence` alias -> `reference source evidence`; `ui_fidelity_criteria` alias -> `fidelity criteria`; `real_entrypoint_ui_evidence` alias -> `verification entry points` / existing `real_entrypoint_evidence` when real entrypoint proof is needed; `visual_comparison_or_human_review` alias -> `verification entry points` plus `accepted deviations` when human review is pending; `deviation_log` alias/artifact -> `difference inventory` / `accepted deviations`.
-- The v2 task contract additionally uses platform-neutral evidence kinds
+- The task contract uses canonical platform-neutral evidence kinds
   `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`; for web,
   capture accessibility/DOM structure, viewport screenshots, and console/runtime
   output from the real entry point.

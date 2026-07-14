@@ -11,7 +11,6 @@ from specify_cli.execution.packet_schema import (
     MustPreserveObligation,
     PacketReference,
     PacketScope,
-    UiFidelityRequirements,
     UIContract,
     WorkerTaskPacket,
 )
@@ -204,55 +203,25 @@ def test_validate_worker_task_packet_requires_does_not_remove_guard_for_surface_
     assert "does-not-remove" in exc.value.message
 
 
-def test_validate_worker_task_packet_rejects_incomplete_applicable_ui_fidelity_contract(
+def test_validate_worker_task_packet_rejects_incomplete_current_ui_contract(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="none",
-        design_inputs=[],
-        required_evidence=[],
-    )
+    sample_packet.ui_contract = UIContract(fidelity_level="high")
 
     with pytest.raises(PacketValidationError) as exc:
         validate_worker_task_packet(sample_packet)
 
     assert exc.value.code == "DP1"
-    assert "ui fidelity" in exc.value.message.lower()
+    assert "ui contract" in exc.value.message.lower()
 
 
-def test_validate_worker_task_packet_rejects_blank_ui_fidelity_design_inputs(
+def test_validate_worker_task_packet_rejects_obsolete_ui_evidence_labels(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["  "],
-        required_evidence=["visual_comparison_evidence"],
-    )
+    sample_packet.required_evidence = ["real_entrypoint_ui_evidence"]
 
-    with pytest.raises(PacketValidationError) as exc:
+    with pytest.raises(PacketValidationError, match="obsolete UI evidence labels"):
         validate_worker_task_packet(sample_packet)
-
-    assert exc.value.code == "DP1"
-    assert "design inputs" in exc.value.message.lower()
-
-
-def test_validate_worker_task_packet_rejects_blank_ui_fidelity_required_evidence(
-    sample_packet: WorkerTaskPacket,
-) -> None:
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="high",
-        design_inputs=["designs/auth-flow.png"],
-        required_evidence=["  "],
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        validate_worker_task_packet(sample_packet)
-
-    assert exc.value.code == "DP1"
-    assert "required evidence" in exc.value.message.lower()
 
 
 def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
@@ -267,7 +236,7 @@ def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
     assert "controller checks" in exc.value.message.lower()
 
 
-def test_validate_worker_task_packet_requires_complete_ui_v2_contract(
+def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     sample_packet: WorkerTaskPacket,
 ) -> None:
     sample_packet.context_nav = [
@@ -275,7 +244,6 @@ def test_validate_worker_task_packet_requires_complete_ui_v2_contract(
         {"kind": "design_source", "value": "DESIGN.md", "source": "task-index.json"},
     ]
     sample_packet.ui_contract = UIContract(
-        contract_version=2,
         ui_work_type="feature-extension",
         surface_type="product-workspace",
         platforms=["web"],
@@ -297,13 +265,6 @@ def test_validate_worker_task_packet_requires_complete_ui_v2_contract(
             "visual_comparison_or_human_review",
         ],
     )
-    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
-        applicable=True,
-        level="approximate",
-        design_inputs=["DESIGN.md", "ui-brief.md"],
-        required_evidence=list(sample_packet.ui_contract.required_evidence),
-    )
-
     assert validate_worker_task_packet(sample_packet) is sample_packet
 
     sample_packet.ui_contract.approved_visual_ref = ""

@@ -16,7 +16,6 @@
     "evidence": [],
     "contract_check": "not-run",
     "runtime_evidence": "not-run",
-    "evidence_refs": [],
     "visual_comparison": "not-applicable",
     "fidelity_status": "not-applicable",
     "reviewer": "agent",

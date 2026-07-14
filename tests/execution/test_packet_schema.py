@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from specify_cli.execution.packet_schema import (
     ConsequenceObligation,
     ContextBundleItem,
@@ -7,7 +11,6 @@ from specify_cli.execution.packet_schema import (
     PacketInterfaces,
     PacketReference,
     PacketScope,
-    UiFidelityRequirements,
     UIContract,
     WorkerTaskPacket,
     worker_task_packet_from_json,
@@ -21,7 +24,35 @@ from specify_cli.execution.result_schema import (
     worker_task_result_from_json,
     worker_task_result_payload,
 )
-import json
+
+
+def test_current_ui_packet_and_result_parsers_reject_obsolete_fields() -> None:
+    with pytest.raises(ValueError, match="ui_fidelity_requirements"):
+        worker_task_packet_from_json(json.dumps({"ui_fidelity_requirements": {}}))
+
+    with pytest.raises(ValueError, match="contract_version"):
+        worker_task_packet_from_json(
+            json.dumps({"ui_contract": {"contract_version": 2}})
+        )
+
+    with pytest.raises(ValueError, match="ui_fidelity_evidence"):
+        worker_task_result_from_json(json.dumps({"ui_fidelity_evidence": []}))
+
+    with pytest.raises(ValueError, match="uiVerification"):
+        worker_task_result_from_json(json.dumps({"uiVerification": {}}))
+
+    with pytest.raises(ValueError, match="unsupported kind"):
+        worker_task_result_from_json(
+            json.dumps(
+                {
+                    "task_id": "T001",
+                    "status": "blocked",
+                    "ui_evidence": [
+                        {"kind": "desktop_screenshot", "ref": "evidence/ui.png"}
+                    ],
+                }
+            )
+        )
 
 
 def test_worker_task_packet_captures_required_execution_contract() -> None:
@@ -116,7 +147,6 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
         done_criteria=["UI evidence returned"],
         handoff_requirements=["return ui_evidence and ui_verification"],
         ui_contract=UIContract(
-            contract_version=2,
             ui_work_type="feature-extension",
             surface_type="product-workspace",
             platforms=["web"],
@@ -149,7 +179,12 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
             may_adapt=["icons", "minor spacing"],
             must_not=["copy third-party source", "turn table into cards"],
             required_states=["loading", "empty", "error"],
-            required_evidence=["desktop screenshot", "mobile screenshot"],
+            required_evidence=[
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+                "visual_comparison_or_human_review",
+            ],
         ),
     )
 
@@ -166,15 +201,15 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
         == "src/exceptions/schema.py"
     )
     assert "compact table density" in round_tripped.ui_contract.must_preserve
-    assert "desktop screenshot" in round_tripped.ui_contract.required_evidence
+    assert "visual_capture" in round_tripped.ui_contract.required_evidence
 
     result = WorkerTaskResult(
         task_id="T021",
         status="success",
         ui_evidence=[
             {
-                "kind": "screenshot",
-                "path": "artifacts/ui/desktop-1440.png",
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop-1440.png",
                 "viewport": "1440",
             }
         ],
@@ -189,7 +224,7 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
     result_payload = worker_task_result_payload(result)
     parsed_result = worker_task_result_from_json(json.dumps(result_payload))
 
-    assert parsed_result.ui_evidence[0]["kind"] == "screenshot"
+    assert parsed_result.ui_evidence[0]["kind"] == "visual_capture"
     assert parsed_result.ui_verification.fidelity_status == "pending-human-review"
 
 
@@ -334,11 +369,15 @@ def test_worker_task_packet_round_trips_review_and_ui_contract_fields() -> None:
         ),
         review_inputs=["design-review.md"],
         review_risks=["layout regression"],
-        ui_fidelity_requirements=UiFidelityRequirements(
-            applicable=True,
-            level="high",
-            design_inputs=["designs/auth-flow.png"],
-            required_evidence=["visual_comparison_evidence"],
+        ui_contract=UIContract(
+            fidelity_level="high",
+            design_sources=["designs/auth-flow.png"],
+            required_evidence=[
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+                "visual_comparison_or_human_review",
+            ],
         ),
         controller_checks_required=["verify screenshot diff"],
     )
@@ -350,10 +389,14 @@ def test_worker_task_packet_round_trips_review_and_ui_contract_fields() -> None:
     assert restored.interfaces.produces == ["auth service"]
     assert restored.review_inputs == ["design-review.md"]
     assert restored.review_risks == ["layout regression"]
-    assert restored.ui_fidelity_requirements.applicable is True
-    assert restored.ui_fidelity_requirements.level == "high"
-    assert restored.ui_fidelity_requirements.design_inputs == ["designs/auth-flow.png"]
-    assert restored.ui_fidelity_requirements.required_evidence == ["visual_comparison_evidence"]
+    assert restored.ui_contract.fidelity_level == "high"
+    assert restored.ui_contract.design_sources == ["designs/auth-flow.png"]
+    assert restored.ui_contract.required_evidence == [
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+        "visual_comparison_or_human_review",
+    ]
     assert restored.controller_checks_required == ["verify screenshot diff"]
 
 

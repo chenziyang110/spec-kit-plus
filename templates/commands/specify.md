@@ -41,7 +41,7 @@ scripts:
 7. For UI-facing work—with or without supplied screenshots—read selected
    `DESIGN.md` and live UI evidence; compile `Experience Requirements`,
    design-system readiness (`design_system_status`, `design_risk_level`), and a
-   feature `ui-brief.md` plus `design_contract.ui_contract_version: 2` for
+   feature `ui-brief.md` plus the complete current `design_contract` for
    substantive UI changes. Separately record work type, surface type, platform,
    subject, audience, single job, visual/content/interaction theses, signature,
    approved visual ref, reference intents, real content/image plans, and the
