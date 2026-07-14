@@ -19,6 +19,43 @@ def _paragraphs_with(content: str, marker: str) -> list[str]:
     return [paragraph for paragraph in content.split("\n\n") if marker in paragraph]
 
 
+def test_agents_declares_classic_and_advanced_profile_contract() -> None:
+    agents = _read("AGENTS.md")
+    section = _section(
+        agents,
+        "## Workflow Profile Contract: Classic vs Advanced",
+        "# AGENTS.md",
+    )
+    normalized = " ".join(section.split())
+
+    assert agents.index("## Workflow Profile Contract: Classic vs Advanced") < (
+        agents.index("<!-- SPEC-KIT:BEGIN -->")
+    )
+    assert "One `specify init` invocation selects exactly one workflow profile" in normalized
+    assert "install the other profile additively" in normalized
+    assert "`templates/commands/**`" in section
+    assert "`templates/advanced-skills/**`" in section
+    assert "29 SPX skills" in normalized
+    assert "28 one-to-one Classic command counterparts" in normalized
+    assert "does **not** install the Classic passive-skill prompt bundle" in normalized
+    for skill_name in (
+        "sp-map-scan",
+        "sp-map-build",
+        "sp-map-update",
+        "spx-map-scan",
+        "spx-map-build",
+        "spx-map-update",
+        "spx-map-rebuild",
+    ):
+        assert f"`{skill_name}`" in section
+    assert "lower-cost models" in normalized
+    assert "whole more-explicit map workflow" in normalized
+    assert "unchanged Classic renderer" in normalized
+    assert "byte-equivalent" in normalized
+    assert "verification outputs, not source-of-truth edits" in normalized
+    assert "For shared runtime changes, run both sets" in normalized
+
+
 def test_docs_describe_design_workflow_and_design_md() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")

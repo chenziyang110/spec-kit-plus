@@ -55,6 +55,95 @@ For AI CLI workflows in this repository:
 - For normal maintenance of `spec-kit-plus`, follow the repository's actual source-of-truth surfaces: `AGENTS.md`, `PROJECT-HANDBOOK.md`, `templates/project-map/**`, `templates/project-handbook-template.md`, `tools/project-cognition/**`, `tools/spec-lint/**`, relevant source code under `src/specify_cli/**`, scripts, tests, and release/config files.
 - If a generated workflow says to read or write downstream project artifacts under `.specify/features/**`, legacy `.specify/specs/**`, `specs/**`, feature-local `workflow-state.md`, or similar generated-project state, do not treat that as this repository's required execution path unless the current task is explicitly to test or simulate downstream generated-project behavior.
 
+## Workflow Profile Contract: Classic vs Advanced
+
+`classic` and `advanced` are separate prompt products over shared Specify
+runtime contracts. Treat the selected profile as an explicit maintenance
+boundary; do not infer it from whichever generated directory happens to be
+present in a test project.
+
+### Installation and Naming
+
+- One `specify init` invocation selects exactly one workflow profile. A user may
+  rerun init for the same integration to install the other profile additively;
+  this is supported and must preserve both installed profile records.
+- **Classic** generates the agent-native `sp-*` command or skill surfaces from
+  `templates/commands/**`, `templates/command-partials/**`,
+  `templates/command-references/**`, `templates/passive-skills/**`, and
+  `templates/worker-prompts/**`. It is the explicit, broadly compatible prompt
+  path and retains the full Classic workflow guidance.
+- **Advanced** is supported by skills-based integrations and generates the
+  independent `spx-*` catalog from `templates/advanced-skills/**`. It is
+  command-equivalent and prompt-optimized for advanced models: every Classic
+  command has an independent SPX counterpart, while `spx-map-rebuild` is an
+  additional convenience orchestrator. The current topology is 29 SPX skills:
+  28 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  keeps command ownership, read/write boundaries, resumable stops, and
+  external-side-effect gates; it removes repeated tutorials, fixed role chains,
+  unnecessary mandatory delegation, long examples, and model-authored stable
+  boilerplate.
+- Advanced does **not** install the Classic passive-skill prompt bundle.
+  Essential safety and execution gates belong in the owning SPX skill, a
+  profile-local Advanced reference, or shared deterministic runtime.
+- **Intentional map exception:** every Advanced install also generates the
+  original Classic `sp-map-scan`, `sp-map-build`, and `sp-map-update` skills,
+  including their Classic command-reference sidecars, through the unchanged
+  Classic renderer. These coexist with `spx-map-scan`, `spx-map-build`,
+  `spx-map-update`, and `spx-map-rebuild` so lower-cost models can run the
+  explicit Classic map workflow. Do not treat these three `sp-*` directories as
+  accidental profile leakage, and do not copy their prompts into
+  `templates/advanced-skills/**`.
+- Use `spx-map-*` when an advanced leader owns boundaries, acceptance, and
+  escalation while delegating bounded scan packets to lower-cost workers. Use
+  the installed Classic `sp-map-*` companions when a lower-cost model should
+  run the whole more-explicit map workflow.
+
+### Source-of-Truth and Change Routing
+
+- A Classic prompt change starts in the Classic surfaces. An Advanced prompt
+  change starts in `templates/advanced-skills/**`, including the owning
+  `SKILL.md`, triggered `references/**`, deterministic `assets/**`,
+  `agents/openai.yaml`, and `_shared/surface-map.json` when topology or ownership
+  changes.
+- Never implement an Advanced optimization by shortening or weakening Classic.
+  Never implement a Classic compatibility fix by pasting the full Classic
+  prompt into SPX. Preserve two prompt profiles and one shared runtime wherever
+  possible.
+- Shared CLI commands, schemas, state machines, validators, launchers, artifact
+  formats, project-cognition behavior, and installation semantics are not
+  profile forks. Evaluate changes to those surfaces against both profiles and
+  all supported integrations.
+- Classic `map-scan`, `map-build`, or `map-update` changes automatically affect
+  the three Advanced-installed Classic companions because they use the same
+  renderer. Separately assess the corresponding `spx-map-*` skill for semantic
+  alignment; SPX wording may stay shorter, but scan/build/update ownership and
+  runtime contracts must not drift.
+- Generated downstream paths such as `.codex/skills/**`, `.claude/skills/**`,
+  or `.agents/skills/**` are verification outputs, not source-of-truth edits.
+  Fix generators/templates here, then regenerate the downstream fixture or
+  test project.
+
+### Required Regression Shape
+
+- For a skills-based integration, Classic-only init installs the expected
+  Classic `sp-*` surfaces and passive skills; no `spx-*` skills are installed.
+- For a skills-based integration, Advanced-only init installs the complete
+  `spx-*` catalog plus exactly the three Classic map companions; unrelated
+  Classic `sp-*` workflow skills and the Classic passive bundle are absent.
+- Dual install: running init twice with different profiles preserves both
+  catalogs, manifests, and profile metadata without overwriting user-modified
+  files.
+- The three Advanced-installed Classic map companions must remain byte-equivalent
+  to the same integration's Classic-profile generation in the same project.
+- For Advanced changes, run `tests/test_spx_skill.py`, the relevant
+  `tests/integrations/**` suites, packaging/manifest tests, and the
+  `skill-creator` validator for every SPX skill. For Classic changes, run the
+  affected command/partial/reference, integration-rendering, hook, and artifact
+  contract suites. For shared runtime changes, run both sets.
+- Keep `README.md`, `PROJECT-HANDBOOK.md`, init's `Start Here` output, and this
+  profile contract synchronized whenever profile membership, invocation names,
+  or routing guidance changes.
+
 # AGENTS.md
 
 ## About Spec Kit and Specify
