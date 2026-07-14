@@ -226,30 +226,28 @@ your agent:
 After an advanced-profile init, use independent, discoverable SPX skills:
 
 ```text
-$spx-ask <question>
-$spx-auto <optional-intent>
-$spx-design <design-system-goal>
-$spx-fast <trivial-change>
-$spx-quick <bounded-task>
-$spx-specify <feature>
-$spx-plan <feature-or-spec>
-$spx-implement <ready-plan>
-$spx-debug <failure>
-$spx-map-rebuild <reason>
-$spx-map-update <scope>
+$spx-analyze              $spx-ask                  $spx-auto
+$spx-checklist            $spx-clarify              $spx-constitution
+$spx-debug                $spx-deep-research        $spx-design
+$spx-discussion           $spx-explain              $spx-fast
+$spx-implement            $spx-implement-teams      $spx-integrate
+$spx-map-build            $spx-map-rebuild          $spx-map-scan
+$spx-map-update           $spx-plan                 $spx-prd
+$spx-prd-build            $spx-prd-scan             $spx-quick
+$spx-research             $spx-specify              $spx-tasks
+$spx-taskstoissues        $spx-team
 ```
 
 Invocation punctuation depends on the agent (`$spx-plan`, `/spx-plan`, or
 `/skill:spx-plan`). Each skill is a native catalog entry and loads only its own
 short prompt plus triggered advanced references. The advanced profile is
-capability-equivalent, not stage-equivalent: `spx-auto` preserves state-aware
-continuation, `spx-design` owns the root design-system contract,
-`spx-specify` absorbs clarification, recoverable discussion, PRD intake, and
-project-rules lanes; `spx-plan` absorbs conditional research, cross-artifact
-analysis, focused checklists, task breakdown, and explicit issue export;
-`spx-implement` selects direct, delegated, team, review, and integration
-behavior adaptively. This yields the shorter main path
-`spx-specify -> spx-plan -> spx-implement`. `spx-fast` is for trivial direct
+command-equivalent and prompt-optimized: every Classic command keeps an
+independent SPX entrypoint, state owner, write boundary, resumable stop point,
+and explicit side-effect gate. The normal feature path is
+`spx-specify -> spx-plan -> spx-tasks -> spx-implement`; clarification,
+discussion, research, analysis, checklists, issue export, team execution,
+integration, PRD reconstruction, and map phases remain separately invocable
+instead of being hidden inside that path. `spx-fast` is for trivial direct
 changes; `spx-quick` provides lightweight resumable state for bounded but
 non-trivial work.
 
@@ -261,7 +259,8 @@ runtime or renderer instead of being repeated as prompt prose. Compact advanced
 Markdown views live beside each skill, while canonical JSON schemas, validators,
 state machines, and project-cognition remain shared single sources of truth.
 `templates/advanced-skills/_shared/surface-map.json` records the deterministic
-classic-to-advanced capability mapping and guards against accidental omissions.
+one-to-one Classic-to-Advanced command mapping and guards against accidental
+omissions.
 The classic passive-skill prompt bundle is not copied into an advanced install;
 essential TDD, verification, security/consequence, delegation, and map gates are
 compiled into the relevant hot path or loaded as a triggered advanced reference.
@@ -274,22 +273,23 @@ maintenance or a genuinely rebuild-required baseline. SPX reuses existing
 `.specify` scripts, artifacts, and canonical `/sp.*` state identifiers rather
 than introducing another runtime format.
 
-`spx-map-rebuild` is cost-tiered. Project cognition resolves the canonical scan
-boundary, `scan-prepare` creates packets of at most 25 concrete paths by
-default, those packets prefer the
-lowest-cost capable worker model, and `scan-accept` lets the advanced leader
-validate and merge each result or escalate only the failed or ambiguous packet.
-Graph reconstruction is performed by deterministic
-`project-cognition build-from-scan`; it is not a second model-driven repository
-scan.
+Map reconstruction also preserves independent commands. `spx-map-scan` resolves
+the canonical boundary, creates strict packets of at most 25 concrete paths by
+default, routes bulk reads to the lowest-cost capable worker model, accepts each
+packet, and stops after scan validation. `spx-map-build` consumes only that
+frozen evidence and runs deterministic `build-from-scan` plus build validation;
+it is not a second model-driven repository scan. `spx-map-rebuild` is only the
+optional convenience orchestrator for those two skills.
 
-Classic prompt ceremony intentionally removed from the advanced hot path
-includes mandatory clarify/discussion stages for clear requests, separate
-analyze/checklist/tasks model passes after planning, fixed multi-role debug
-chains, mandatory delegation for leader-direct quick/map work, and model-authored
-copies of stable schemas or boilerplate views. The corresponding capability is
-preserved behind evidence, risk, scale, or explicit-request triggers. Classic
-assets and behavior remain unchanged when the `classic` profile is selected.
+Advanced optimization removes repeated cognition tutorials, fixed role chains,
+mandatory delegation where leader-direct work is safer, long examples, and
+model-authored copies of stable schemas or boilerplate. It does not remove
+independent commands, lifecycle boundaries, read-only gates, external-write
+authorization, scan/build isolation, or recoverable state. Codex and Claude use
+their respective durable-team backends for `spx-implement-teams`; unsupported
+integrations refuse that backend explicitly. `spx-team` remains the Codex-only
+runtime operations entrypoint. Classic assets and behavior remain unchanged
+when the `classic` profile is selected.
 
 - `design` / `sp-design` creates, synthesizes, refines, or audits the root `DESIGN.md` design-system contract before UI work proceeds. Use it for new product UI, redesigns, rebrands, core workflow experience, multi-platform interface decisions, and high-visibility customer-facing surfaces.
 

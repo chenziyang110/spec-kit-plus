@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -16,17 +17,35 @@ from specify_cli.integrations.manifest import IntegrationManifest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ADVANCED_SKILLS = PROJECT_ROOT / "templates" / "advanced-skills"
 SPX_SKILLS = {
+    "spx-analyze",
     "spx-ask",
     "spx-auto",
-    "spx-design",
-    "spx-fast",
-    "spx-quick",
-    "spx-specify",
-    "spx-plan",
-    "spx-implement",
+    "spx-checklist",
+    "spx-clarify",
+    "spx-constitution",
     "spx-debug",
+    "spx-deep-research",
+    "spx-design",
+    "spx-discussion",
+    "spx-explain",
+    "spx-fast",
+    "spx-implement",
+    "spx-implement-teams",
+    "spx-integrate",
+    "spx-map-build",
     "spx-map-rebuild",
+    "spx-map-scan",
     "spx-map-update",
+    "spx-plan",
+    "spx-prd",
+    "spx-prd-build",
+    "spx-prd-scan",
+    "spx-quick",
+    "spx-research",
+    "spx-specify",
+    "spx-tasks",
+    "spx-taskstoissues",
+    "spx-team",
 }
 SKILLS_INTEGRATIONS = (
     "agy",
@@ -60,9 +79,9 @@ def test_spx_quick_status_asset_is_readable_by_the_real_quick_helper(
     quick_id = "20260714-001"
     workspace = tmp_path / ".planning" / "quick" / f"{quick_id}-parser-contract"
     workspace.mkdir(parents=True)
-    content = (
-        ADVANCED_SKILLS / "spx-quick" / "assets" / "status.md"
-    ).read_text(encoding="utf-8")
+    content = (ADVANCED_SKILLS / "spx-quick" / "assets" / "status.md").read_text(
+        encoding="utf-8"
+    )
     for placeholder, value in {
         "{{id}}": quick_id,
         "{{slug}}": "parser-contract",
@@ -91,8 +110,7 @@ def _expected_installed_files(skill_name: str) -> set[str]:
         if path.is_file()
     }
     files.update(
-        f"references/{path.name}"
-        for path in (ADVANCED_SKILLS / "_shared").glob("*.md")
+        f"references/{path.name}" for path in (ADVANCED_SKILLS / "_shared").glob("*.md")
     )
     return files
 
@@ -119,6 +137,13 @@ def test_spx_sources_are_independent_discoverable_and_budgeted() -> None:
         body = skill.read_text(encoding="utf-8")
         bodies.append(body)
         assert "references/project-cognition.md" in body
+        for relative in re.findall(
+            r"`((?:references|assets)/[^`\s]+\.md)`",
+            body,
+        ):
+            local = skill_dir / relative
+            shared = ADVANCED_SKILLS / "_shared" / Path(relative).name
+            assert local.is_file() or shared.is_file(), (skill_name, relative)
 
         openai_yaml = yaml.safe_load(
             (skill_dir / "agents" / "openai.yaml").read_text(encoding="utf-8")
@@ -155,14 +180,13 @@ def test_spx_sources_are_independent_discoverable_and_budgeted() -> None:
 
 def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     skills = {
-        name: (ADVANCED_SKILLS / name / "SKILL.md")
-        .read_text(encoding="utf-8")
-        .lower()
+        name: (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower()
         for name in SPX_SKILLS
     }
 
     assert "read-only" in skills["spx-ask"]
     assert "live repository" in skills["spx-ask"]
+    assert "spx-explain" in skills["spx-ask"]
 
     assert "exactly one next spx workflow" in skills["spx-auto"]
     assert "create no separate auto state" in skills["spx-auto"]
@@ -173,21 +197,64 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "create-new-feature" in skills["spx-specify"]
     assert "spec-contract-template.json" in skills["spx-specify"]
     assert "do not implement" in skills["spx-specify"]
-    assert "clarif" in skills["spx-specify"]
+    assert "spx-clarify" in skills["spx-specify"]
+    assert "spx-prd-scan" in skills["spx-specify"]
+
+    assert "do not create a new feature" in skills["spx-clarify"]
+    assert "existing" in skills["spx-clarify"]
+    assert "do not plan or implement" in skills["spx-clarify"]
+
+    assert ".specify/memory/constitution.md" in skills["spx-constitution"]
+    assert "owns the constitution only" in skills["spx-constitution"]
+
+    assert "discussion resume" in skills["spx-discussion"]
+    assert "discussion mark-ready" in skills["spx-discussion"]
+    assert "do not create feature state" in skills["spx-discussion"]
+
+    assert "remain read-only" in skills["spx-explain"]
+    assert "what the artifact\nclaims" in skills["spx-explain"]
 
     assert "setup-plan" in skills["spx-plan"]
     assert "plan-contract-template.json" in skills["spx-plan"]
-    assert "assets/tasks.md" in skills["spx-plan"]
-    assert "tasks-template.md" not in skills["spx-plan"]
-    assert "checklist" in skills["spx-plan"]
-    assert "analy" in skills["spx-plan"]
-    assert "research" in skills["spx-plan"]
-    assert "do not edit production" in skills["spx-plan"]
+    assert "assets/plan.md" in skills["spx-plan"]
+    assert "do not create tasks" in skills["spx-plan"]
+    assert "spx-deep-research" in skills["spx-plan"]
+    assert "spx-tasks" in skills["spx-plan"]
+    assert "production source" in skills["spx-plan"]
+
+    assert "deep-research.md" in skills["spx-deep-research"]
+    assert "planning handoff" in skills["spx-deep-research"]
+    assert "do not implement production" in skills["spx-deep-research"]
+    assert "not a separate artifact lifecycle" in skills["spx-research"]
+
+    assert "task-index-template.json" in skills["spx-tasks"]
+    assert "dependency" in skills["spx-tasks"]
+    assert "do not implement" in skills["spx-tasks"]
+
+    assert "non-destructive gate" in skills["spx-analyze"]
+    assert "do not edit `spec.md`" in skills["spx-analyze"]
+
+    assert "requirements or planning decisions" in skills["spx-checklist"]
+    assert "checklist completion does not by itself prove" in skills["spx-checklist"]
+
+    assert "external write" in skills["spx-taskstoissues"]
+    assert "safe retry boundary" in skills["spx-taskstoissues"]
 
     assert "check-prerequisites" in skills["spx-implement"]
     assert "run the relevant verification" in skills["spx-implement"]
     assert "delegate only" in skills["spx-implement"]
-    assert "integrat" in skills["spx-implement"]
+    assert "spx-integrate" in skills["spx-implement"]
+
+    assert "integration.json" in skills["spx-implement-teams"]
+    assert "codex" in skills["spx-implement-teams"]
+    assert "claude" in skills["spx-implement-teams"]
+    assert "emulate durable state" in skills["spx-implement-teams"]
+
+    assert "only inspects and closes lane state" in skills["spx-integrate"]
+    assert "--close" in skills["spx-integrate"]
+
+    assert "codex-only runtime" in skills["spx-team"]
+    assert "cleanup" in skills["spx-team"]
 
     assert "reproduce" in skills["spx-debug"]
     assert "ranked hypotheses" in skills["spx-debug"]
@@ -202,22 +269,34 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "summary.md" in skills["spx-quick"]
     assert "spx-specify" in skills["spx-quick"]
 
-    assert "build-from-scan" in skills["spx-map-rebuild"]
-    assert "scan-prepare" in skills["spx-map-rebuild"]
-    assert "scan-accept" in skills["spx-map-rebuild"]
-    assert "--force" in skills["spx-map-rebuild"]
-    assert "validate-build" in skills["spx-map-rebuild"]
-    assert "lowest-cost capable" in skills["spx-map-rebuild"]
-    assert "references/scan-worker.md" in skills["spx-map-rebuild"]
-    assert "deterministic build stage" in skills["spx-map-rebuild"]
+    assert "spx-map-scan" in skills["spx-map-rebuild"]
+    assert "spx-map-build" in skills["spx-map-rebuild"]
+    assert "scan-prepare" not in skills["spx-map-rebuild"]
+    assert "build-from-scan" not in skills["spx-map-rebuild"]
+
+    assert "scan-prepare" in skills["spx-map-scan"]
+    assert "scan-accept" in skills["spx-map-scan"]
+    assert "validate-scan" in skills["spx-map-scan"]
+    assert "lowest-cost capable" in skills["spx-map-scan"]
+    assert "build-from-scan" in skills["spx-map-scan"]
+    assert "do not run" in skills["spx-map-scan"]
+
+    assert "validate-scan" in skills["spx-map-build"]
+    assert "build-from-scan" in skills["spx-map-build"]
+    assert "validate-build" in skills["spx-map-build"]
+    assert "scan-prepare" not in skills["spx-map-build"]
+    assert "hand-edit sqlite" in skills["spx-map-build"]
     assert "closeout-plan" in skills["spx-map-update"]
 
     scan_worker = (
-        ADVANCED_SKILLS / "spx-map-rebuild" / "references" / "scan-worker.md"
-    ).read_text(encoding="utf-8").lower()
-    assert _word_count(
-        ADVANCED_SKILLS / "spx-map-rebuild" / "references" / "scan-worker.md"
-    ) <= 300
+        (ADVANCED_SKILLS / "spx-map-scan" / "references" / "scan-worker.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+    assert (
+        _word_count(ADVANCED_SKILLS / "spx-map-scan" / "references" / "scan-worker.md")
+        <= 300
+    )
     for required in (
         "lowest-cost model",
         "assigned_paths",
@@ -225,15 +304,25 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
         "nodes[].paths",
         "acceptance: pass",
         "never silently omit",
-        "do not run `build-from-scan`",
+        "do not run `scan-accept`",
     ):
         assert required in scan_worker
+
+    assert "prd-scan" in skills["spx-prd"]
+    assert "prd-build" in skills["spx-prd"]
+    assert "read-only" in skills["spx-prd-scan"]
+    assert "lowest-cost capable" in skills["spx-prd-scan"]
+    assert "do not synthesize the final prd" in skills["spx-prd-scan"]
+    assert "only product-fact source" in skills["spx-prd-build"]
+    assert "do not crawl or reread the repository" in skills["spx-prd-build"]
 
 
 def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
     content = (
-        ADVANCED_SKILLS / "_shared" / "project-cognition.md"
-    ).read_text(encoding="utf-8").lower()
+        (ADVANCED_SKILLS / "_shared" / "project-cognition.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
 
     for required in (
         "project-cognition compass",
@@ -266,10 +355,7 @@ def test_advanced_profile_installs_spx_without_classic_skills_or_augmentation(
     )
 
     skills_dir = integration.skills_dest(project)
-    installed = {
-        path.parent.name
-        for path in skills_dir.glob("spx-*/SKILL.md")
-    }
+    installed = {path.parent.name for path in skills_dir.glob("spx-*/SKILL.md")}
     assert installed == SPX_SKILLS
 
     for skill_name in SPX_SKILLS:
@@ -289,11 +375,13 @@ def test_advanced_profile_installs_spx_without_classic_skills_or_augmentation(
         assert "Subagent Dispatch Contract" not in content
         assert "Project Cognition Gate" not in content
         assert "{{spec-kit-include:" not in content
-        assert "{{specify-subcmd:" not in content
 
         for path in skill_dir.rglob("*"):
             if path.is_file():
                 assert path.relative_to(project).as_posix() in manifest.files
+            if path.is_file() and path.suffix == ".md":
+                installed_content = path.read_text(encoding="utf-8")
+                assert "{{specify-subcmd:" not in installed_content
 
         installed_files = {
             path.relative_to(skill_dir).as_posix()
@@ -303,43 +391,140 @@ def test_advanced_profile_installs_spx_without_classic_skills_or_augmentation(
         assert installed_files == _expected_installed_files(skill_name)
 
     installed_scan_worker = (
-        skills_dir / "spx-map-rebuild" / "references" / "scan-worker.md"
+        skills_dir / "spx-map-scan" / "references" / "scan-worker.md"
     )
     assert installed_scan_worker.exists()
-    assert "lowest-cost model" in installed_scan_worker.read_text(
-        encoding="utf-8"
-    ).lower()
+    assert (
+        "lowest-cost model" in installed_scan_worker.read_text(encoding="utf-8").lower()
+    )
 
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists()
     assert not (skills_dir / "tdd-workflow" / "SKILL.md").exists()
 
 
+def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                },
+                "project_cognition_launcher": {
+                    "command": "C:/tools/project-cognition.exe",
+                    "argv": ["C:/tools/project-cognition.exe"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    execution = (
+        integration.skills_dest(project)
+        / "spx-implement"
+        / "references"
+        / "execution-contract.md"
+    ).read_text(encoding="utf-8")
+    teams = (
+        integration.skills_dest(project)
+        / "spx-implement-teams"
+        / "references"
+        / "codex-teams.md"
+    ).read_text(encoding="utf-8")
+    cognition = (
+        integration.skills_dest(project)
+        / "spx-ask"
+        / "references"
+        / "project-cognition.md"
+    ).read_text(encoding="utf-8")
+
+    assert "python -m specify_cli implement resume-audit" in execution
+    assert "python -m specify_cli sp-teams auto-dispatch" in teams
+    assert "C:\\tools\\project-cognition.exe" in cognition or (
+        "C:/tools/project-cognition.exe" in cognition
+    )
+    assert "{{specify-subcmd:" not in execution + teams + cognition
+
+
+def test_advanced_upgrade_prunes_only_unmodified_retired_spx_files(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+    skills = integration.skills_dest(project)
+    retired = skills / "spx-plan" / "references" / "retired.md"
+    customized = skills / "spx-plan" / "references" / "customized-retired.md"
+    retired.write_text("managed old reference\n", encoding="utf-8")
+    customized.write_text("managed old reference\n", encoding="utf-8")
+    manifest.record_existing(retired.relative_to(project))
+    manifest.record_existing(customized.relative_to(project))
+    customized.write_text("user-customized reference\n", encoding="utf-8")
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    assert not retired.exists()
+    assert customized.read_text(encoding="utf-8") == "user-customized reference\n"
+    assert customized.relative_to(project).as_posix() in manifest.files
+
+
 def test_advanced_surface_map_covers_classic_commands_and_declared_files() -> None:
     surface_map = json.loads(
-        (ADVANCED_SKILLS / "_shared" / "surface-map.json").read_text(
-            encoding="utf-8"
-        )
+        (ADVANCED_SKILLS / "_shared" / "surface-map.json").read_text(encoding="utf-8")
     )
-    assert surface_map["schema_version"] == 1
+    assert surface_map["schema_version"] == 2
     assert surface_map["design"]["equivalence"] == (
-        "capability-equivalent, not stage-equivalent"
+        "command-equivalent, prompt-optimized"
     )
     assert surface_map["skills"].keys() == SPX_SKILLS
 
     mapped_commands = []
     for skill_name, contract in surface_map["skills"].items():
         mapped_commands.extend(contract["absorbs"])
-        for relative in [*contract["references"], *contract["assets"]]:
+        declared = {*contract["references"], *contract["assets"]}
+        for relative in declared:
             assert (ADVANCED_SKILLS / relative).is_file(), (
                 skill_name,
                 relative,
             )
+        skill_dir = ADVANCED_SKILLS / skill_name
+        actual = {
+            path.relative_to(ADVANCED_SKILLS).as_posix()
+            for directory in ("references", "assets")
+            for path in (skill_dir / directory).glob("*")
+            if path.is_file()
+        }
+        assert declared == actual, skill_name
 
     classic_commands = {
         path.stem for path in (PROJECT_ROOT / "templates" / "commands").glob("*.md")
     }
     assert len(mapped_commands) == len(set(mapped_commands))
     assert set(mapped_commands) == classic_commands
+    for command in classic_commands:
+        assert surface_map["skills"][f"spx-{command}"]["absorbs"] == [command]
+    assert surface_map["skills"]["spx-map-rebuild"]["absorbs"] == []
 
     for relative in surface_map["shared_references"]:
         assert (ADVANCED_SKILLS / relative).is_file()
@@ -353,27 +538,60 @@ def test_advanced_views_do_not_fork_canonical_machine_contracts() -> None:
         "execution-state.json",
         "lifecycle.json",
     }
-    assert not {
-        path.name for path in ADVANCED_SKILLS.rglob("*.json")
-    }.intersection(forbidden_machine_copies)
+    assert not {path.name for path in ADVANCED_SKILLS.rglob("*.json")}.intersection(
+        forbidden_machine_copies
+    )
 
     for required in (
         "spx-specify/assets/spec.md",
         "spx-plan/assets/plan.md",
-        "spx-plan/assets/tasks.md",
+        "spx-tasks/assets/tasks.md",
+        "spx-checklist/assets/checklist.md",
         "spx-quick/assets/status.md",
         "spx-debug/assets/debug-session.md",
     ):
         assert (ADVANCED_SKILLS / required).is_file()
 
 
-def test_advanced_map_rebuild_uses_build_as_the_only_publish_step() -> None:
-    rebuild = (
-        ADVANCED_SKILLS / "spx-map-rebuild" / "SKILL.md"
+def test_advanced_map_phases_keep_independent_write_boundaries() -> None:
+    scan = (ADVANCED_SKILLS / "spx-map-scan" / "SKILL.md").read_text(encoding="utf-8")
+    build = (ADVANCED_SKILLS / "spx-map-build" / "SKILL.md").read_text(encoding="utf-8")
+    rebuild = (ADVANCED_SKILLS / "spx-map-rebuild" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    for required in ("scan-prepare", "scan-accept", "validate-scan"):
+        assert required in scan
+    assert "Do not run\n`build-from-scan`" in scan
+    assert "validate-build" not in scan
+
+    for required in ("validate-scan", "build-from-scan", "validate-build"):
+        assert required in build
+    for forbidden in ("scan-set", "scan-prepare", "scan-accept"):
+        assert forbidden not in build
+    assert "complete-refresh" in build
+    assert "Do not ask a model" in build
+
+    assert "$spx-map-scan" in rebuild
+    assert "$spx-map-build" in rebuild
+    for forbidden in ("scan-prepare", "scan-accept", "build-from-scan"):
+        assert forbidden not in rebuild
+
+
+def test_advanced_source_commands_use_launcher_placeholders() -> None:
+    bare_command = re.compile(r"`(?:specify|sp-teams)\s+[^`]+`")
+    for path in ADVANCED_SKILLS.rglob("*.md"):
+        if "assets" in path.parts:
+            continue
+        content = path.read_text(encoding="utf-8")
+        assert bare_command.search(content) is None, path
+
+    assert "{{specify-subcmd:implement resume-audit" in (
+        ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
     ).read_text(encoding="utf-8")
-    assert "build-from-scan" in rebuild
-    assert "publish-runtime-metadata" not in rebuild
-    assert "complete-refresh" not in rebuild
+    assert "{{specify-subcmd:sp-teams auto-dispatch" in (
+        ADVANCED_SKILLS / "spx-implement-teams" / "references" / "codex-teams.md"
+    ).read_text(encoding="utf-8")
 
 
 def test_classic_profile_keeps_existing_skills_and_does_not_install_spx(
@@ -416,10 +634,7 @@ def test_all_skills_integrations_support_the_advanced_profile(
     )
 
     skills_dir = integration.skills_dest(project)
-    installed = {
-        path.parent.name
-        for path in skills_dir.glob("spx-*/SKILL.md")
-    }
+    installed = {path.parent.name for path in skills_dir.glob("spx-*/SKILL.md")}
     assert installed == SPX_SKILLS, integration_key
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists(), integration_key
     assert not (skills_dir / "spec-kit-workflow-routing" / "SKILL.md").exists(), (
@@ -526,6 +741,8 @@ def test_profile_metadata_is_isolated_between_skills_integrations(tmp_path) -> N
 
     assert classic.exit_code == 0, classic.output
     assert advanced.exit_code == 0, advanced.output
+    for skill_name in SPX_SKILLS:
+        assert f"${skill_name}" in advanced.output
     options = json.loads(
         (project / ".specify" / "init-options.json").read_text(encoding="utf-8")
     )
@@ -663,17 +880,12 @@ def test_advanced_only_codex_repair_restores_shared_team_runtime_without_classic
             project
             / ".codex"
             / "skills"
-            / "spx-plan"
+            / "spx-implement"
             / "references"
-            / "design-and-tasks.md"
+            / "execution-contract.md"
         )
         missing_asset = (
-            project
-            / ".codex"
-            / "skills"
-            / "spx-quick"
-            / "assets"
-            / "status.md"
+            project / ".codex" / "skills" / "spx-quick" / "assets" / "status.md"
         )
         missing_reference.unlink()
         missing_asset.unlink()
@@ -688,6 +900,7 @@ def test_advanced_only_codex_repair_restores_shared_team_runtime_without_classic
     assert initialized.exit_code == 0, initialized.output
     assert repaired.exit_code == 0, repaired.output
     assert missing_reference.exists()
+    assert "{{specify-subcmd:" not in missing_reference.read_text(encoding="utf-8")
     assert missing_asset.exists()
     assert not (project / ".codex" / "skills" / "sp-plan").exists()
     assert not (project / ".codex" / "skills" / "sp-teams").exists()

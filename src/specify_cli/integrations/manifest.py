@@ -128,6 +128,38 @@ class IntegrationManifest:
                 modified.append(rel)
         return modified
 
+    def remove_file_if_unmodified(self, rel_path: str | Path) -> bool:
+        """Remove one tracked file when it still matches the manifest.
+
+        Missing files are forgotten. Modified files, symlinks, and non-files are
+        preserved and remain tracked so a later uninstall can report them.
+        """
+        rel = Path(rel_path)
+        abs_path = _validate_rel_path(rel, self.project_root)
+        normalized = abs_path.relative_to(self.project_root).as_posix()
+        expected_hash = self._files.get(normalized)
+        if expected_hash is None:
+            return False
+        if not abs_path.exists() and not abs_path.is_symlink():
+            self._files.pop(normalized, None)
+            return True
+        if (
+            abs_path.is_symlink()
+            or not abs_path.is_file()
+            or _sha256(abs_path) != expected_hash
+        ):
+            return False
+        abs_path.unlink()
+        self._files.pop(normalized, None)
+        parent = abs_path.parent
+        while parent != self.project_root:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+        return True
+
     # -- Uninstall --------------------------------------------------------
 
     def uninstall(

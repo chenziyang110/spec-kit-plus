@@ -14,5 +14,6 @@ every material confirmed decision. If live repository evidence contradicts the
 handoff, surface the conflict; do not silently favor either source.
 
 Mark the handoff consumed only after validation and successful compilation into
-the spec contract. Discussion is a recoverability mechanism inside
-`spx-specify`, not a mandatory stage for clear requests.
+the spec contract. `$spx-discussion` owns the producer lifecycle; this reference
+only governs safe consumption, and discussion is never mandatory for a clear
+request.

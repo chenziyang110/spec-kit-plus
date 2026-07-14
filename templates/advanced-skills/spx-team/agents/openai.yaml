@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Team"
+  short_description: "Codex team runtime entrypoint"
+  default_prompt: "Use $spx-team to inspect or operate the supported Codex teams runtime."
+
+policy:
+  allow_implicit_invocation: false

@@ -2423,10 +2423,14 @@ class SkillsIntegration(IntegrationBase):
                 continue
             for source in sorted(template_dir.rglob("*")):
                 if source.is_file() and source.name != "SKILL.md":
+                    relative = source.relative_to(template_dir)
                     restore_file(
                         source,
-                        skill_dir / source.relative_to(template_dir),
-                        render=False,
+                        skill_dir / relative,
+                        render=(
+                            relative.parts[0] == "references"
+                            and source.suffix.lower() == ".md"
+                        ),
                     )
             for source in shared_references:
                 restore_file(
@@ -2477,6 +2481,16 @@ class SkillsIntegration(IntegrationBase):
     ) -> list[Path]:
         """Install the advanced prompt profile without classic augmentation."""
         skills_dir = self.skills_dest(project_root).resolve()
+        project_root_resolved = project_root.resolve()
+        skills_prefix = (
+            skills_dir.relative_to(project_root_resolved).as_posix().rstrip("/")
+            + "/spx-"
+        )
+        previous_spx_files = {
+            relative
+            for relative in manifest.files
+            if relative.startswith(skills_prefix)
+        }
         advanced_dir = self.shared_advanced_skills_dir()
         shared_references = (
             sorted((advanced_dir / "_shared").glob("*.md"))
@@ -2514,14 +2528,39 @@ class SkillsIntegration(IntegrationBase):
                     manifest,
                 )
             )
-            created.extend(
-                self._copy_supporting_passive_files(
-                    template_dir=template_dir,
-                    destination_dir=skill_dir,
-                    project_root=project_root,
-                    manifest=manifest,
-                )
-            )
+            for support_file in sorted(template_dir.rglob("*")):
+                if not support_file.is_file() or support_file.name == "SKILL.md":
+                    continue
+                relative = support_file.relative_to(template_dir)
+                destination = skill_dir / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if (
+                    relative.parts[0] == "references"
+                    and support_file.suffix.lower() == ".md"
+                ):
+                    support_content = self.process_template(
+                        support_file.read_text(encoding="utf-8"),
+                        self.key,
+                        script_type,
+                        arg_placeholder,
+                        template_path=support_file,
+                        project_root=project_root,
+                    )
+                    support_content = self.render_advanced_invocations(
+                        support_content
+                    )
+                    created.append(
+                        self.write_file_and_record(
+                            support_content,
+                            destination,
+                            project_root,
+                            manifest,
+                        )
+                    )
+                    continue
+                shutil.copy2(support_file, destination)
+                self.record_file_in_manifest(destination, project_root, manifest)
+                created.append(destination)
             for shared_reference in shared_references:
                 reference_content = self.process_template(
                     shared_reference.read_text(encoding="utf-8"),
@@ -2542,6 +2581,12 @@ class SkillsIntegration(IntegrationBase):
                         manifest,
                     )
                 )
+        expected_spx_files = {
+            path.resolve().relative_to(project_root_resolved).as_posix()
+            for path in created
+        }
+        for relative in sorted(previous_spx_files - expected_spx_files):
+            manifest.remove_file_if_unmodified(relative)
         return created
 
     def setup(

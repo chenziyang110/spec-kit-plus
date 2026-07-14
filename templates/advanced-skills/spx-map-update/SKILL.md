@@ -22,11 +22,13 @@ passing each accepted path as an explicit `--changed-path` when the runtime
 requires it.
 Complete its structured payload with changed paths, behavior and generated
 surfaces, state contracts, user decisions, known unknowns, confidence, and
-fresh verification evidence. Execute the returned `update_argv`, never the
-display-only command string.
+fresh verification evidence. Execute `update_argv` using the launcher-token
+replacement rule in `references/project-cognition.md`, never the display-only
+command string.
 
 Follow the result-state branches in the update reference. Validate the affected
-query scope with the project-pinned `project-cognition compass` command and
-targeted expansion. If the runtime reports `needs_rebuild`, stop and route to
+scope with
+`{{specify-subcmd:project-cognition compass --intent implement --query "<changed scope>" --format json}}`
+and targeted expansion. If the runtime reports `needs_rebuild`, stop and route to
 `$spx-map-rebuild`. Report the updated scope, validation, gaps, and recovery
 state.

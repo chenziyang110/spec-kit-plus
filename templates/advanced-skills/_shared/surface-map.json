@@ -1,53 +1,173 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile": "advanced",
   "design": {
-    "equivalence": "capability-equivalent, not stage-equivalent",
-    "prompt_shape": "short leader skill plus triggered references and compact views",
-    "machine_contracts": "shared canonical schemas, validators, scripts, and project-cognition runtime",
-    "passive_skills": "classic passive prompt bundles are not installed; essential gates are compiled into SPX hot paths or triggered references",
-    "classic_sources": "audit inputs only; never installed or included by advanced skills"
+    "equivalence": "command-equivalent, prompt-optimized",
+    "prompt_shape": "short leader skill plus triggered advanced references and compact views",
+    "machine_contracts": "shared canonical schemas, validators, scripts, lifecycle state, and project-cognition runtime",
+    "passive_skills": "classic passive prompt bundles are not installed; essential gates live in the owning SPX skill or advanced reference",
+    "classic_sources": "audit inputs only; never installed, included, or copied by advanced skills"
   },
-  "removed_classic_ceremony": [
-    "mandatory clarify and discussion stages for already-clear requirements",
-    "separate analyze, checklist, and tasks model passes after planning",
-    "fixed observer-thinker-planner chains for every debugging task",
-    "mandatory subagents for leader-direct quick and map maintenance work",
-    "model-authored copies of stable machine schemas and long boilerplate views",
-    "model-driven map build after repository scan",
-    "unconditional consequence matrices, research reports, and status narration"
+  "optimization_policy": [
+    "preserve every classic command entrypoint, write boundary, state owner, explicit side-effect gate, and resumable stop point",
+    "remove repeated cognition tutorials, fixed role chains, mandatory delegation, long examples, and model-authored stable boilerplate",
+    "delegate bounded bulk scanning to the lowest-cost capable worker while advanced leaders own scope, acceptance, conflicts, and escalation",
+    "use deterministic templates and runtimes for stable artifacts, validation, graph construction, and lifecycle transitions"
   ],
   "shared_references": [
     "_shared/project-cognition.md",
     "_shared/consequence-gate.md"
   ],
   "skills": {
-    "spx-ask": {
-      "absorbs": ["ask", "explain"],
-      "references": [
-        "spx-ask/references/evidence-contract.md",
-        "spx-ask/references/artifact-explanation.md"
-      ],
+    "spx-analyze": {
+      "absorbs": ["analyze"],
+      "references": ["spx-analyze/references/analysis-gate.md"],
       "assets": [],
-      "optimization": "one bounded evidence pass; no report or workflow-state ceremony"
+      "optimization": "read-only obligation analysis with stable blockers and one repair route"
+    },
+    "spx-ask": {
+      "absorbs": ["ask"],
+      "references": ["spx-ask/references/evidence-contract.md"],
+      "assets": [],
+      "optimization": "one bounded live-evidence pass without workflow state"
     },
     "spx-auto": {
       "absorbs": ["auto"],
       "references": ["spx-auto/references/routing-contract.md"],
       "assets": [],
-      "optimization": "one evidence-based continuation decision without a separate orchestration state machine"
+      "optimization": "one evidence-based continuation decision without a parallel state machine"
+    },
+    "spx-checklist": {
+      "absorbs": ["checklist"],
+      "references": ["spx-checklist/references/checklist-contract.md"],
+      "assets": ["spx-checklist/assets/checklist.md"],
+      "optimization": "focused unit tests for written requirements, never implementation tests"
+    },
+    "spx-clarify": {
+      "absorbs": ["clarify"],
+      "references": ["spx-clarify/references/clarification-contract.md"],
+      "assets": [],
+      "optimization": "small decision batches repair an existing spec without replaying discovery"
+    },
+    "spx-constitution": {
+      "absorbs": ["constitution"],
+      "references": ["spx-constitution/references/constitution-contract.md"],
+      "assets": [],
+      "optimization": "constitution-only writes with targeted downstream impact reporting"
+    },
+    "spx-debug": {
+      "absorbs": ["debug"],
+      "references": [
+        "spx-debug/references/investigation-contract.md",
+        "spx-debug/references/investigator-worker.md"
+      ],
+      "assets": ["spx-debug/assets/debug-session.md"],
+      "optimization": "ranked evidence-separating hypotheses replace a fixed multi-role chain"
+    },
+    "spx-deep-research": {
+      "absorbs": ["deep-research"],
+      "references": ["spx-deep-research/references/research-contract.md"],
+      "assets": [],
+      "optimization": "decision-scoped primary evidence and disposable spikes with a durable planning handoff"
     },
     "spx-design": {
       "absorbs": ["design"],
       "references": ["spx-design/references/design-contract.md"],
       "assets": ["spx-design/assets/design-system.md"],
-      "optimization": "a compact root design contract replaces repeated feature-local visual boilerplate"
+      "optimization": "one compact root design-system contract"
+    },
+    "spx-discussion": {
+      "absorbs": ["discussion"],
+      "references": ["spx-discussion/references/discussion-contract.md"],
+      "assets": [],
+      "optimization": "semantic checkpoints and an exact confirmed handoff replace transcript ceremony"
+    },
+    "spx-explain": {
+      "absorbs": ["explain"],
+      "references": ["spx-explain/references/artifact-explanation.md"],
+      "assets": [],
+      "optimization": "read the smallest authoritative artifact chain and explain decisions, not sections"
     },
     "spx-fast": {
       "absorbs": ["fast"],
       "references": ["spx-fast/references/scope-gate.md"],
       "assets": [],
       "optimization": "leader-direct local edit with an explicit escalation gate"
+    },
+    "spx-implement": {
+      "absorbs": ["implement"],
+      "references": [
+        "spx-implement/references/execution-contract.md",
+        "spx-implement/references/worker-contract.md"
+      ],
+      "assets": ["spx-implement/assets/implementation-summary.md"],
+      "optimization": "adaptive direct or native-subagent execution with evidence-backed closeout"
+    },
+    "spx-implement-teams": {
+      "absorbs": ["implement-teams"],
+      "references": [
+        "spx-implement-teams/references/codex-teams.md",
+        "spx-implement-teams/references/claude-agent-teams.md"
+      ],
+      "assets": [],
+      "optimization": "one implementation contract with explicit Codex and Claude durable-team backends"
+    },
+    "spx-integrate": {
+      "absorbs": ["integrate"],
+      "references": ["spx-integrate/references/integration-contract.md"],
+      "assets": [],
+      "optimization": "readiness, overlap, sequencing, and combined verification before lane closeout"
+    },
+    "spx-map-build": {
+      "absorbs": ["map-build"],
+      "references": ["spx-map-build/references/build-gates.md"],
+      "assets": [],
+      "optimization": "validated scan input feeds deterministic graph construction and publication"
+    },
+    "spx-map-rebuild": {
+      "absorbs": [],
+      "references": ["spx-map-rebuild/references/rebuild-gates.md"],
+      "assets": [],
+      "optimization": "optional orchestration of the independent scan and build skills"
+    },
+    "spx-map-scan": {
+      "absorbs": ["map-scan"],
+      "references": [
+        "spx-map-scan/references/scan-gates.md",
+        "spx-map-scan/references/scan-worker.md"
+      ],
+      "assets": [],
+      "optimization": "strict runtime packets send complete bulk reads to the lowest-cost capable workers"
+    },
+    "spx-map-update": {
+      "absorbs": ["map-update"],
+      "references": ["spx-map-update/references/update-gates.md"],
+      "assets": [],
+      "optimization": "leader-direct exact-path incremental maintenance with result-state gates"
+    },
+    "spx-plan": {
+      "absorbs": ["plan"],
+      "references": ["spx-plan/references/planning-contract.md"],
+      "assets": ["spx-plan/assets/plan.md"],
+      "optimization": "repository-grounded design decisions without research, task, or issue side effects"
+    },
+    "spx-prd": {
+      "absorbs": ["prd"],
+      "references": [],
+      "assets": [],
+      "optimization": "thin compatibility route to the canonical reconstruction scan and build skills"
+    },
+    "spx-prd-build": {
+      "absorbs": ["prd-build"],
+      "references": ["spx-prd-build/references/prd-build-contract.md"],
+      "assets": [],
+      "optimization": "template-driven synthesis from a frozen validated scan package without rereading the repository"
+    },
+    "spx-prd-scan": {
+      "absorbs": ["prd-scan"],
+      "references": ["spx-prd-scan/references/prd-scan-contract.md"],
+      "assets": [],
+      "optimization": "low-cost evidence lanes with leader-owned L4 coverage and acceptance"
     },
     "spx-quick": {
       "absorbs": ["quick"],
@@ -59,86 +179,44 @@
         "spx-quick/assets/status.md",
         "spx-quick/assets/summary.md"
       ],
-      "optimization": "compact resumable state; delegation only when it adds value"
+      "optimization": "compact resumable state with delegation only when it adds value"
+    },
+    "spx-research": {
+      "absorbs": ["research"],
+      "references": [],
+      "assets": [],
+      "optimization": "thin compatibility route to spx-deep-research without duplicate state"
     },
     "spx-specify": {
-      "absorbs": [
-        "clarify",
-        "constitution",
-        "discussion",
-        "prd",
-        "prd-build",
-        "prd-scan",
-        "specify"
-      ],
+      "absorbs": ["specify"],
       "references": [
         "spx-specify/references/requirements-contract.md",
         "spx-specify/references/discussion-handoff.md",
-        "spx-specify/references/ui-and-handoffs.md",
-        "spx-specify/references/project-rules.md",
-        "spx-specify/references/prd-intake.md"
+        "spx-specify/references/ui-and-handoffs.md"
       ],
       "assets": [
         "spx-specify/assets/spec.md",
         "spx-specify/assets/ui-brief.md"
       ],
-      "optimization": "clarification, discussion, PRD intake, and rule changes are triggered lanes rather than mandatory stages"
+      "optimization": "planning-ready feature truth with only triggered discussion, PRD, and UI intake"
     },
-    "spx-plan": {
-      "absorbs": [
-        "analyze",
-        "checklist",
-        "deep-research",
-        "plan",
-        "research",
-        "tasks",
-        "taskstoissues"
-      ],
-      "references": [
-        "spx-plan/references/design-and-tasks.md",
-        "spx-plan/references/research-and-risk.md",
-        "spx-plan/references/issue-export.md"
-      ],
-      "assets": [
-        "spx-plan/assets/plan.md",
-        "spx-plan/assets/tasks.md",
-        "spx-plan/assets/checklist.md"
-      ],
-      "optimization": "design, conditional research, task graph, consistency, and focused quality gates compile in one planning workflow"
+    "spx-tasks": {
+      "absorbs": ["tasks"],
+      "references": ["spx-tasks/references/task-graph-contract.md"],
+      "assets": ["spx-tasks/assets/tasks.md"],
+      "optimization": "deterministic task-graph validation and just-in-time worker packet generation"
     },
-    "spx-implement": {
-      "absorbs": ["implement", "implement-teams", "integrate", "team"],
-      "references": [
-        "spx-implement/references/execution-contract.md",
-        "spx-implement/references/worker-contract.md",
-        "spx-implement/references/team-and-integration.md"
-      ],
-      "assets": ["spx-implement/assets/implementation-summary.md"],
-      "optimization": "one execution lifecycle selects direct, delegated, parallel, review, and integration behavior adaptively"
-    },
-    "spx-debug": {
-      "absorbs": ["debug"],
-      "references": [
-        "spx-debug/references/investigation-contract.md",
-        "spx-debug/references/investigator-worker.md"
-      ],
-      "assets": ["spx-debug/assets/debug-session.md"],
-      "optimization": "evidence-separating hypotheses replace a fixed multi-role chain"
-    },
-    "spx-map-rebuild": {
-      "absorbs": ["map-build", "map-scan"],
-      "references": [
-        "spx-map-rebuild/references/rebuild-gates.md",
-        "spx-map-rebuild/references/scan-worker.md"
-      ],
+    "spx-taskstoissues": {
+      "absorbs": ["taskstoissues"],
+      "references": ["spx-taskstoissues/references/issue-export-contract.md"],
       "assets": [],
-      "optimization": "low-cost bounded scan workers feed a deterministic project-cognition build"
+      "optimization": "explicit idempotent external export with a partial-retry boundary"
     },
-    "spx-map-update": {
-      "absorbs": ["map-update"],
-      "references": ["spx-map-update/references/update-gates.md"],
+    "spx-team": {
+      "absorbs": ["team"],
+      "references": ["spx-team/references/runtime-boundary.md"],
       "assets": [],
-      "optimization": "leader-direct exact-path incremental maintenance with result-state gates"
+      "optimization": "thin supported Codex runtime entrypoint separated from feature execution"
     }
   }
 }

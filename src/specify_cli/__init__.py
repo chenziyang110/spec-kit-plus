@@ -3974,20 +3974,40 @@ def init(
 
         steps_lines.append(f"{step_num}. Use the independent advanced workflow skills:")
         for name, purpose in (
+            ("analyze", "read-only cross-artifact consistency gate"),
             ("ask", "read-only project questions"),
             ("auto", "resume the safest next workflow"),
-            ("design", "create or audit the root design system"),
-            ("fast", "trivial direct changes"),
-            ("quick", "small resumable changes"),
-            ("specify", "requirements and acceptance"),
-            ("plan", "architecture, research, checks, and tasks"),
-            ("implement", "planned implementation"),
+            ("checklist", "requirements-quality checklist"),
+            ("clarify", "repair an existing specification"),
+            ("constitution", "project principles and governance"),
             ("debug", "evidence-driven diagnosis and repair"),
-            ("map-rebuild", "rebuild project cognition"),
+            ("deep-research", "pre-plan feasibility evidence"),
+            ("design", "create or audit the root design system"),
+            ("discussion", "resumable product and technical discussion"),
+            ("explain", "plain-language workflow artifact explanation"),
+            ("fast", "trivial direct changes"),
+            ("implement", "planned implementation"),
+            ("implement-teams", "supported durable-team implementation"),
+            ("integrate", "independent feature-lane closeout"),
+            ("map-build", "build cognition from a validated scan"),
+            ("map-rebuild", "orchestrate a full cognition rebuild"),
+            ("map-scan", "low-cost cognition evidence scan"),
             ("map-update", "incremental cognition maintenance"),
+            ("plan", "technical design from a ready specification"),
+            ("prd", "legacy PRD compatibility route"),
+            ("prd-build", "compile a PRD suite from scan evidence"),
+            ("prd-scan", "collect reconstruction-grade PRD evidence"),
+            ("quick", "small resumable changes"),
+            ("research", "deep-research compatibility route"),
+            ("specify", "requirements and acceptance"),
+            ("tasks", "dependency-aware execution task graph"),
+            ("taskstoissues", "explicit GitHub issue export"),
         ):
             steps_lines.append(f"   [cyan]{_spx_invocation(name)}[/cyan] — {purpose}")
         if codex_skill_mode:
+            steps_lines.append(
+                f"   [cyan]{_spx_invocation('team')}[/cyan] — inspect and manage the Codex team runtime"
+            )
             steps_lines.append(
                 "   [cyan]sp-teams[/cyan] — optional durable Codex team runtime for work that must outlive one delegated wave"
             )

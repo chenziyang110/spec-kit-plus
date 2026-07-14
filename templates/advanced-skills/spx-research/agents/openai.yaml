@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Research"
+  short_description: "Deep-research compatibility route"
+  default_prompt: "Use $spx-research to route this request into the canonical deep-research workflow."
+
+policy:
+  allow_implicit_invocation: false

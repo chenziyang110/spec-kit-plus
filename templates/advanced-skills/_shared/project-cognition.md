@@ -13,12 +13,13 @@ the task: `epistemic_contract`, `minimal_live_reads`, lane `first_pass_paths`,
 
 - Read `minimal_live_reads` before broad repository search and use
   `first_pass_paths` to choose the next live evidence.
-- Follow `expansion_ref` with the project-pinned `project-cognition expand`
-  command only when coverage or contradictory live evidence requires more map
-  detail.
+- Follow `expansion_ref` with
+  `{{specify-subcmd:project-cognition expand --ref <expansion-ref> --format json}}`
+  only when coverage or contradictory live evidence requires more map detail.
 - Escalate to lexicon, agent-authored semantic intake, and a precise
-  `project-cognition query` only for unresolved terminology, multilingual
-  intent, or material coverage gaps.
+  `{{specify-subcmd:project-cognition query --intent <intent> --query-plan <query-plan-json> --format json}}`
+  only for unresolved terminology, multilingual intent, or material coverage
+  gaps.
 - Treat graph claims as route candidates. The live repository, tests,
   configuration, runtime output, and authoritative docs establish facts.
 
@@ -35,9 +36,11 @@ After verifying changes to source, runtime, templates, configuration, tests, or
 generated behavior, run
 `{{specify-subcmd:project-cognition closeout-plan --workflow <canonical-sp-workflow> --intent <intent> --format json}}`.
 Fill the returned agent-owned evidence fields, then execute the structured
-`update_argv`; command strings marked display-only are not executable
-instructions. If the update cannot complete, leave freshness truthful and
-report the recovery action.
+`update_argv`. If its first token is the bare `project-cognition` name, replace
+only that first token with `{{specify-subcmd:project-cognition}}` and preserve
+every remaining argv token exactly; command strings marked display-only are not
+executable instructions. If the update cannot complete, leave freshness
+truthful and report the recovery action.
 
 Specification, plan, task, checklist, research, and other planning-only artifact
 changes do not make the code map dirty and do not require cognition closeout.

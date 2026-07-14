@@ -18,9 +18,11 @@ to `$spx-debug` and acceptance-heavy or multi-capability work to
 `$spx-specify`.
 
 Create new state from `assets/status.md` or resume
-`.planning/quick/<id>-<slug>/STATUS.md`. Use `specify quick list|status|resume`
-for deterministic discovery. Keep state compact and ask the user only for
-decisions the repository cannot supply.
+`.planning/quick/<id>-<slug>/STATUS.md`. Use the project launcher-backed
+`{{specify-subcmd:quick list}}`, `{{specify-subcmd:quick status <id>}}`, and
+`{{specify-subcmd:quick resume <id>}}` helpers for deterministic discovery.
+Keep state compact and ask the user only for decisions the repository cannot
+supply.
 
 Inspect the current diff and cognition-selected paths, then implement the full
 bounded scope. Delegate only independent lanes that improve throughput or
@@ -29,7 +31,8 @@ test or credible baseline when practical. Check changed behavior, consumers,
 and generated/mirrored copies, then run verification proportional to risk.
 
 Update `STATUS.md` at meaningful transitions and render `SUMMARY.md` from
-`assets/summary.md` on completion or blockage. Close with `specify quick close`
-only after terminal truth is recorded; archive is a separate explicit action.
+`assets/summary.md` on completion or blockage. Close with
+`{{specify-subcmd:quick close <id>}}` only after terminal truth is recorded;
+archive is a separate explicit action.
 After verified repository changes, close out cognition with canonical workflow
 `quick`. Report changed paths, evidence, and remaining risk.

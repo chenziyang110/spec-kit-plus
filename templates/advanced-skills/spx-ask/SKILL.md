@@ -7,8 +7,8 @@ description: Lean, evidence-backed project Q&A for advanced coding models. Use w
 
 Read `references/project-cognition.md`, using cognition intent `ask`.
 Read `references/evidence-contract.md` for architecture, status, or impact
-claims. Read `references/artifact-explanation.md` only for generated workflow
-artifacts or lane state.
+claims. Route a request to interpret generated workflow artifacts or lane state
+to `$spx-explain`.
 
 Answer the question from the smallest sufficient live repository evidence set.
 Lead with the conclusion, cite concrete paths, and distinguish verified facts,
