@@ -137,6 +137,8 @@ def test_design_template_declares_v1_schema_and_required_guidance() -> None:
     assert "design_system:" in content
     assert "schema: spec-kit-design-v1" in content
     assert design_system["schema"] == "spec-kit-design-v1"
+    assert design_system["status"] == "bootstrap"
+    assert design_system["approval"]["status"] == "unapproved"
     assert set((design_system.get("tokens") or {})) >= {"color", "spacing", "radius", "typography"}
     assert set((design_system.get("components") or {})) >= {"button", "input", "card"}
     assert "tokens:" in content
@@ -335,6 +337,20 @@ def test_plan_tasks_implement_carry_feature_ui_brief_contract() -> None:
     assert "pending-human-review" in implement
     assert "ui_contract" in worker_prompt
     assert "ui_evidence" in worker_prompt
+
+
+def test_classic_fast_and_quick_cannot_bypass_ui_quality_gate() -> None:
+    fast = _read("templates/commands/fast.md")
+    quick = _read("templates/commands/quick.md")
+    combined = f"{fast}\n{quick}"
+
+    assert "UI Fast Gate" in fast
+    assert "design_system.status: bootstrap" in fast
+    assert "representative screenshot or platform" in fast
+    assert "UI handling applies even without an image" in quick
+    assert "capture" in quick
+    assert "repair" in quick
+    assert "visual/interaction acceptance" in combined
 
 
 def _launcher_query(intent: str) -> str:
@@ -1227,10 +1243,10 @@ def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> 
     ) in plan
     assert (
         "primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph for "
-        "standard/heavy work plus rendered `tasks.md`; light leader-direct work may use only "
-        "`tasks.md`. `handoff-to-tasks.json` is a compact agent transition when compatibility "
-        "requires it. Worker packets are compiled just in time by `sp-implement`; task-generation "
-        "lane records exist only when lanes were actually delegated.'"
+        "standard/heavy or any UI-bearing work plus rendered `tasks.md`; light non-UI "
+        "leader-direct work may use only `tasks.md`. `handoff-to-tasks.json` is a compact agent "
+        "transition when compatibility requires it. Worker packets are compiled just in time by "
+        "`sp-implement`; task-generation lane records exist only when lanes were actually delegated.'"
     ) in tasks
 
 
@@ -5350,13 +5366,25 @@ def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
     spec_contract = json.loads(_read("templates/spec-contract-template.json"))
     plan_contract = json.loads(_read("templates/plan-contract-template.json"))
     task_index = json.loads(_read("templates/task-index-template.json"))
+    task_packet = json.loads(_read("templates/task-packet-template.json"))
+    task_lifecycle = json.loads(_read("templates/task-lifecycle-template.json"))
     implement_state = json.loads(_read("templates/implement-execution-state-template.json"))
 
     assert "design_contract" in spec_contract
+    assert "ui_applicable" in spec_contract["design_contract"]
+    assert "ui_brief_ref" in spec_contract["design_contract"]
+    assert "visual_acceptance" in spec_contract["design_contract"]
     assert "must_preserve_refs" in spec_contract
     assert "ui_design_contract" in plan_contract
+    assert "ui_brief_ref" in plan_contract["ui_design_contract"]
+    assert "human_review_conditions" in plan_contract["ui_design_contract"]
     assert "must_preserve_refs" in plan_contract
     assert "fidelity_refs" in task_index
+    assert task_index["ui_contract_schema_ref"].endswith("#/ui_contract")
+    assert "ui_contract" in task_packet
+    assert "ui_fidelity_requirements" in task_packet
+    assert "ui_verification" in task_lifecycle
+    assert task_lifecycle["ui_verification"]["applicable"] is False
     assert "required_obligation_refs" in implement_state
 
 

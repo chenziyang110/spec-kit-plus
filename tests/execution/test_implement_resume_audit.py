@@ -199,6 +199,43 @@ def test_resolved_state_accepts_single_task_lifecycle_without_legacy_review_fano
     assert not any("branch-review.md" in gap for gap in payload["open_gaps"])
 
 
+def test_resume_audit_blocks_ui_lifecycle_without_visual_acceptance(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n"
+        "- [X] T001 Implement settings UI in src/ui/settings.tsx\n\n"
+        "## T001: Settings UI\n\n"
+        "### UI Implementation Contract\n\n"
+        "| Field | Value |\n| --- | --- |\n"
+        "| design_sources | [DESIGN.md, ui-brief.md] |\n"
+        "| required_evidence | [desktop_screenshot] |\n",
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": ["src/ui/settings.tsx"],
+                "validation": [{"command": "npm test", "status": "passed"}],
+                "review": None,
+                "blockers": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any("ui_verification is required" in gap for gap in payload["open_gaps"])
+
+
 @pytest.mark.parametrize("task_index_version", [2, 3])
 def test_agent_native_task_index_requires_lifecycle_for_each_checked_task(
     tmp_path: Path,
@@ -1965,6 +2002,39 @@ def test_implementation_summary_records_completed_work_changes_and_verification(
     assert "Added the demo command and regression coverage" in report
     assert "src/specify_cli/demo.py" in report
     assert "pytest tests/test_demo.py -q" in report
+
+
+def test_implementation_summary_exposes_pending_ui_human_review(tmp_path: Path) -> None:
+    project = tmp_path
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    _write_basic_feature(feature_dir)
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "blocked",
+                "ui_verification": {
+                    "applicable": True,
+                    "visual_comparison": "needs-human-review",
+                    "fidelity_status": "pending-human-review",
+                    "human_review_ref": "evidence/ui-review.md",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_implementation_summary(project, feature_dir)
+
+    assert payload["status"] == "blocked"
+    assert payload["human_needed_checks"] == [
+        "T001: UI visual approval is pending; review target: evidence/ui-review.md"
+    ]
+    report = (feature_dir / "implementation-summary.md").read_text(encoding="utf-8")
+    assert "## Human Checks Needed" in report
+    assert "evidence/ui-review.md" in report
 
 
 def test_implementation_summary_includes_packetized_review_artifacts(tmp_path: Path) -> None:

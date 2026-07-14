@@ -1,11 +1,22 @@
 # UI Brief: {{feature_name}}
 
-- fidelity_mode:
-- source_refs:
-- existing_design_system:
-- layout_and_hierarchy:
-- interaction_and_states:
-- responsive_constraints:
-- accessibility_constraints:
-- required_visual_evidence:
+- ui_work_type: existing-pattern | feature-extension | reference-implementation
+- design_readiness: approved | narrow-existing-pattern-exception | blocked
+- design_sources: [DESIGN.md]
+- entry_points:
+- user_job_and_experience_intent:
+- visual_or_interaction_signature:
+- source_refs: []
+- fidelity_mode: none | approximate | high | inspiration
+- layout_and_information_hierarchy:
+- tokens_and_components:
+- must_preserve:
+- may_adapt:
+- must_not:
+- required_states:
+- responsive_and_accessibility_constraints:
+- visual_acceptance_matrix: [entry point | viewport | state | expected | evidence]
+- required_evidence:
+- difference_inventory:
+- accepted_deviations:
 - pending_human_review:

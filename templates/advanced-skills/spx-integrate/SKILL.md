@@ -8,7 +8,8 @@ description: Independent feature-lane integration and closeout for advanced codi
 Read `references/project-cognition.md`, using cognition intent `implement`, and
 `references/integration-contract.md`. Read `references/consequence-gate.md`
 when integration crosses a shared state, migration, compatibility, security, or
-generated-consumer boundary.
+generated-consumer boundary. Read `references/ui-quality-gate.md` when any lane
+is UI-bearing.
 
 Discover candidates with `{{specify-subcmd:integrate}}`. For each selected lane,
 inspect its recorded ownership, feature/workflow state, branch and worktree,
@@ -23,7 +24,11 @@ tests as lane closeout. Resolve conflicts against the authoritative spec/plan
 and live consumers; route unknown behavior to `$spx-debug` and unfinished
 feature work back to `$spx-implement`.
 
-Run the combined real-entrypoint checks after the integrated tree exists. Only
+Run the combined real-entrypoint checks after the integrated tree exists. For
+UI-bearing lanes, recapture the required viewport/state evidence from the
+integrated tree, inspect it against the task UI contracts, repair integration
+drift, and recapture; unresolved comparison remains `pending-human-review`.
+Only
 when readiness and verification pass may you close a lane with
 `{{specify-subcmd:integrate --feature-dir <feature-dir> --close}}`. Preserve a
 blocked lane and its recovery evidence instead of forcing terminal state.

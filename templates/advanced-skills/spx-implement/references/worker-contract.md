@@ -11,6 +11,13 @@ Provide the worker:
 - acceptance, RED/baseline expectation, and required real-entrypoint evidence;
 - exact structured result destination or return shape.
 
+For a UI-bearing task, the packet carries `ui_contract`, original visual
+references, required viewport/state evidence, and visual comparison or
+human-review conditions. Before dispatch, the leader ensures the worker can
+read the installed skill-local `references/ui-quality-gate.md` and names it in
+the dispatch context; the worker may not replace inspectable sources with a
+prose summary.
+
 Require a result containing status, changed paths, validation, consumer or UI
 evidence when triggered, blockers, failed assumptions, and recovery guidance.
 Validate packet/result with the installed hook helpers when available. Do not

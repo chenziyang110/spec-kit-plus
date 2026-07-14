@@ -6,6 +6,9 @@ join decisions, final verification, and cognition closeout.
 Give the worker the complete objective, allowed read/write paths, forbidden
 paths, authoritative inputs, acceptance checks, and expected handoff. Do not
 make the worker rediscover the task from broad planning files.
+For UI work, include original visual references, the compact UI contract,
+`references/ui-quality-gate.md`, and required real-entrypoint captures; do not
+delegate from prose-only screenshot interpretation.
 
 The worker returns:
 

@@ -43,9 +43,10 @@ def build_implementation_summary(
     git_comparison = _git_comparison(root)
     behavior_surfaces = _behavior_surfaces(changed_from_results)
     review_artifacts = _review_artifacts(resolved_feature_dir, tasks, root)
+    human_needed_checks = _ui_human_needed_checks(resolved_feature_dir)
 
     payload: dict[str, Any] = {
-        "status": "ok",
+        "status": "blocked" if human_needed_checks else "ok",
         "feature_dir": _display_path(resolved_feature_dir, root),
         "report_path": _display_path(report_path, root),
         "completed_work": completed_work,
@@ -64,8 +65,8 @@ def build_implementation_summary(
             "status_short": git_comparison["status_short"],
             "name_status": git_comparison["name_status"],
         },
-        "human_needed_checks": [],
-        "unresolved_gaps": [],
+        "human_needed_checks": human_needed_checks,
+        "unresolved_gaps": list(human_needed_checks),
     }
     if write_report:
         report_path.write_text(_render_markdown(payload), encoding="utf-8")
@@ -96,6 +97,34 @@ def _load_worker_results(feature_dir: Path) -> list[dict[str, Any]]:
             payload["path"] = result_path
             results.append(payload)
     return results
+
+
+def _ui_human_needed_checks(feature_dir: Path) -> list[str]:
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    if not lifecycle_dir.is_dir():
+        return []
+    checks: list[str] = []
+    for lifecycle_path in sorted(lifecycle_dir.glob("*.json")):
+        try:
+            payload = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        verification = payload.get("ui_verification")
+        if not isinstance(verification, dict) or verification.get("applicable") is not True:
+            continue
+        fidelity_status = str(verification.get("fidelity_status") or "").lower().replace("_", "-")
+        visual_status = str(verification.get("visual_comparison") or "").lower().replace("_", "-")
+        if fidelity_status != "pending-human-review" and visual_status not in {
+            "needs-human-review",
+            "pending-human-review",
+        }:
+            continue
+        task_id = str(payload.get("task_id") or lifecycle_path.stem).upper()
+        review_ref = str(verification.get("human_review_ref") or "not recorded")
+        checks.append(f"{task_id}: UI visual approval is pending; review target: {review_ref}")
+    return checks
 
 
 def _completed_work(
@@ -389,6 +418,13 @@ def _render_markdown(payload: dict[str, Any]) -> str:
         lines.append("```")
     else:
         lines.append("- No git working-tree changes were detected when this summary was generated.")
+
+    lines.extend(["", "## Human Checks Needed", ""])
+    human_checks = payload.get("human_needed_checks") or []
+    if human_checks:
+        lines.extend(f"- {check}" for check in human_checks)
+    else:
+        lines.append("- None recorded.")
 
     lines.extend(["", "## Remaining Gaps", ""])
     gaps = payload.get("unresolved_gaps") or []

@@ -53,6 +53,8 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 ## Intake
 
 1. Read `DESIGN.md` if it exists.
+   If it declares `design_system.status: bootstrap`, treat it as a starter to
+   replace, not an approved constraint or evidence that design work is done.
 2. Read `.specify/design/references.md`, `.specify/design/options.md`, and `.specify/design/review.md` if they exist.
 3. Read `README.md`, project handbook files, existing UI surfaces, existing design files, `.specify/memory/project-rules.md`, and relevant `.specify/memory/learnings/INDEX.md` entries when present.
 4. Identify declared or implied platforms: web, mobile, desktop, TUI, CLI.
@@ -68,6 +70,10 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 - Preserve existing project rules unless the user approves a design-system change that supersedes them.
 - Do not copy external brand names, protected visual identity, proprietary token names, or third-party file text into the final design system.
 - Normalize approved direction into `spec-kit-design-v1` YAML front matter plus readable Markdown guidance.
+- Set `design_system.status: approved` and record
+  `design_system.approval.status`, the selected direction, and concrete product
+  or repository `source_refs`. Remove unresolved placeholders and generic
+  starter choices that are not justified by those sources.
 
 ## Output Contract
 
@@ -78,6 +84,7 @@ The workflow output is a root `DESIGN.md` contract plus supporting `.specify/des
 `DESIGN.md` must contain:
 
 - YAML front matter with `design_system.schema: spec-kit-design-v1`
+- `design_system.status: approved` plus approval direction and source refs
 - `design_system.name`
 - `design_system.version`
 - `design_system.platforms`
@@ -90,7 +97,7 @@ The workflow output is a root `DESIGN.md` contract plus supporting `.specify/des
 
 Before closeout:
 
-1. Run `specify design lint` when the CLI helper is available.
+1. Run `specify design lint --level ready` when the CLI helper is available.
 2. Write `.specify/design/review.md` with:
    - selected mode
    - inputs read

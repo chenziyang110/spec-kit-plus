@@ -41,6 +41,20 @@ Use `sp-fast` only when ALL of:
 If any check fails → upgrade to `/sp-quick`.
 If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
 
+## UI Fast Gate
+
+- A user-visible UI change is fast-eligible only when it is a narrow adjustment
+  to an approved existing pattern, introduces no new visual/product decision,
+  affects a bounded state, and can be run and visually checked at the real
+  entry point.
+- `DESIGN.md` with `design_system.status: bootstrap`, a new surface, supplied
+  fidelity target, responsive multi-state work, or a shared component/token
+  change leaves fast: route a new direction to `/sp-design`, bounded tracked UI
+  to `/sp-quick`, and feature-level acceptance to `/sp-specify`.
+- Eligible UI fast work still requires a representative screenshot or platform
+  output plus visual inspection against the governing design/live pattern.
+  Code, unit, or style tests alone do not close visible UI behavior.
+
 ## Fast Path Consequence Routing
 
 The fast path may continue only when the Senior Consequence Analysis Gate does not trigger, or when it stands down with a recorded stand-down reason. If the gate triggers, upgrade out of `sp-fast` instead of adding planning artifacts to satisfy this gate on the fast path.

@@ -153,6 +153,8 @@
 ## Feature UI Brief Adoption
 
 - UI brief source:
+- UI work type and real entry points:
+- Experience intent and visual/interaction signature:
 - UI reference notes:
 - Visual target:
 - Fidelity mode:
@@ -161,6 +163,7 @@
 - Must preserve:
 - May adapt:
 - Must not:
+- Required states and viewport matrix:
 - Visual verification strategy:
 
 ## Technical Context

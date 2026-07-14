@@ -16,6 +16,18 @@ For each ready task:
   helper;
 - record changed paths, checks, obligation evidence, blockers, and recovery.
 
+For UI tasks, apply the packet `ui_contract` as binding scope. Run the visual convergence loop at the real entry point: render the required states and
+viewports, capture stable screenshots or platform output, inspect against
+`DESIGN.md`, `ui-brief.md`, prior surfaces, and original references, repair
+concrete drift, then recapture. Check overflow, console, keyboard/focus, and
+accessibility when applicable. Persist difference inventory and accepted
+deviations for approximate/high fidelity. tests passed is not visual acceptance;
+unavailable comparison is `pending-human-review` with an exact review target.
+Before accepting the task, persist its lifecycle `ui_verification` with
+`applicable: true`, passing contract check, concrete evidence refs, visual
+comparison, fidelity status, reviewer, and human-review ref when relevant.
+`pending-human-review` blocks accepted closeout until that review is resolved.
+
 Review on drift, parallel joins, write-scope changes, validation failure,
 worker concern, obligation conflict, real-entrypoint gaps, or an oversized
 unreviewed window. Repair only understood local failures; reopen planning or

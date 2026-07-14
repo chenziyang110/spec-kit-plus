@@ -3,12 +3,17 @@ design_system:
   schema: spec-kit-design-v1
   name: "{{product_name}}-design-system"
   version: 1
+  status: approved
+  approval:
+    status: approved
+    direction: "{{approved_direction}}"
+    source_refs: ["{{product_or_repository_source}}"]
   platforms: [web]
   tokens:
     color:
-      surface.canvas: {value: "#ffffff", usage: primary application background}
-      text.primary: {value: "#111827", usage: primary readable text}
-      accent.primary: {value: "#2563eb", usage: primary action and focus}
+      surface.canvas: {value: "{{surface_canvas}}", usage: "{{surface_canvas_usage}}"}
+      text.primary: {value: "{{text_primary}}", usage: primary readable text}
+      accent.primary: {value: "{{accent_primary}}", usage: "{{accent_primary_usage}}"}
     spacing:
       scale.2: {value: "8px", usage: compact gaps}
       scale.4: {value: "16px", usage: default section and control spacing}
@@ -16,7 +21,7 @@ design_system:
       control: {value: "6px", usage: interactive controls}
       panel: {value: "8px", usage: cards and panels}
     typography:
-      body.family: {value: "system-ui", usage: default interface text}
+      body.family: {value: "{{body_font_family}}", usage: "{{body_font_usage}}"}
       body.size: {value: "14px", usage: ordinary interface copy}
   components: {}
   accessibility:
@@ -31,6 +36,12 @@ design_system:
 
 State the product experience principles and anti-patterns that distinguish this
 interface. Keep them observable and reusable.
+
+## Visual And Interaction Signature
+
+Name the product-specific choice users should recognize and how it appears in
+hierarchy, density, typography, color, motion, or interaction. Avoid generic
+style adjectives without implementable consequences.
 
 ## Platforms
 
@@ -66,3 +77,5 @@ Record only explicit, owned gaps with a revisit condition.
 
 Update this contract when product-wide tokens, components, interaction rules,
 brand, density, accessibility, or platform expectations change.
+
+All `{{...}}` placeholders must be replaced before ready lint and handoff.

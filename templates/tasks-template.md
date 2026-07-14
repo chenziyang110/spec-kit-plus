@@ -6,7 +6,7 @@ description: "Task list template for feature implementation"
 # Tasks: [FEATURE NAME]
 
 **Input**: Canonical `plan-contract.json` plus only the project-facing or conditional artifacts named by its required refs.
-**Output authority**: `task-index.json` for standard/heavy work; this Markdown is the project-facing view. Light leader-direct work may use this file alone.
+**Output authority**: `task-index.json` for standard/heavy and all UI-bearing work; this Markdown is the project-facing view. Light non-UI leader-direct work may use this file alone.
 
 **Tests**: The examples below include test tasks. Tests are expected by default for affected behavior changes and bug fixes. Only omit them when the plan explicitly justifies the omission.
 
@@ -93,6 +93,31 @@ description: "Task list template for feature implementation"
 - If fidelity is `high`, include `deviation_log`.
 - In task packets only, `reference_source_evidence`, `ui_fidelity_criteria`, `real_entrypoint_ui_evidence`, `visual_comparison_or_human_review`, and `deviation_log` are UI packet shorthand aliases. Persisted `workflow-state.md` and `Reference-Implementation` `required_evidence` MUST remain canonical: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
 - Do not pass raw "make it like this" wording to a worker without the compiled UI contract.
+- Do not stop at the coverage table. Under every UI-bearing `## T###` task,
+  render these exact machine-readable subsections so just-in-time packet
+  compilation cannot silently downgrade UI work to `not_applicable`:
+
+```markdown
+### Scope Boundaries
+| Field | Value |
+| --- | --- |
+| ui_fidelity_level | [none | approximate | high] |
+| design_inputs | [DESIGN.md, FEATURE_DIR/ui-brief.md] |
+| ui_required_evidence | [desktop_screenshot, mobile_screenshot, visual_comparison_or_human_review] |
+
+### UI Implementation Contract
+| Field | Value |
+| --- | --- |
+| design_sources | [DESIGN.md, FEATURE_DIR/ui-brief.md] |
+| reference_notes | [FEATURE_DIR/ui-reference-notes.md | none] |
+| visual_target | [FEATURE_DIR/ui-target.html | none] |
+| ui_fidelity_mode | [none | approximate | high | inspiration] |
+| must_preserve | [task-specific visual, density, hierarchy, and interaction constraints] |
+| may_adapt | [allowed implementation choices] |
+| must_not | [forbidden visual or interaction drift] |
+| required_states | [loading, empty, error, selected, disabled, permission-limited as applicable] |
+| required_evidence | [real-entry screenshots/output, state checks, console/keyboard/accessibility checks] |
+```
 
 ## Implementation Target Boundary
 

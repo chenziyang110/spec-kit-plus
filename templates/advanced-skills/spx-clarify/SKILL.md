@@ -8,6 +8,8 @@ description: Existing-spec repair workflow for advanced coding models. Use when 
 Read `references/project-cognition.md`, using cognition intent `plan`,
 `references/clarification-contract.md`, and `references/consequence-gate.md`
 only on its triggers.
+Read `references/ui-quality-gate.md` when the planning blocker concerns UI
+experience, design readiness, states, responsive behavior, or fidelity.
 
 Resolve the existing feature with the installed prerequisite script in
 paths-only mode. Do not create a new feature. Read `spec-contract.json` first,

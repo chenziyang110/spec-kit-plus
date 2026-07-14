@@ -31,6 +31,10 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
 - If the packet names a PNG, screenshot, mockup, design export, or reference image, inspect the original visual input before implementing visual structure. If it is missing or inaccessible, return `NEEDS_CONTEXT` or `BLOCKED`; do not implement from a controller summary alone.
 - If the packet includes `ui_contract.visual_target`, treat `ui-target.html` as a disposable visual target, not production source.
+- For UI-bearing work, run the real entry point and iterate: capture every
+  required representative viewport/state, inspect the rendered result against
+  the original design inputs and `ui_contract`, fix concrete drift, then
+  recapture. Passing code tests is not visual acceptance.
 - If the packet requires UI evidence, return `ui_evidence` with screenshots or captures, state coverage, console or terminal checks, accessibility or keyboard checks when relevant, and notes for any allowed deviation.
 - If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.

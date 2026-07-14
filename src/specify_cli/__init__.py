@@ -538,13 +538,23 @@ def _display_path(path: Path) -> str:
 def design_lint(
     path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    level: str = typer.Option(
+        "structural",
+        "--level",
+        help="Validation level: structural or ready",
+    ),
 ) -> None:
     output_format = output_format.lower()
     if output_format not in {"text", "json"}:
         console.print(f"[red]Error:[/red] unsupported output format: {output_format}")
         raise typer.Exit(2)
 
-    diagnostics = lint_design_file(path)
+    level = level.lower()
+    if level not in {"structural", "ready"}:
+        console.print(f"[red]Error:[/red] unsupported design lint level: {level}")
+        raise typer.Exit(2)
+
+    diagnostics = lint_design_file(path, level=level)
     if output_format == "json":
         print_json(_diagnostics_payload(diagnostics))
         if diagnostics:
@@ -552,7 +562,7 @@ def design_lint(
         return
 
     if not diagnostics:
-        console.print(f"{_display_path(path)} is valid")
+        console.print(f"{_display_path(path)} is valid at {level} level")
         return
 
     for diagnostic in diagnostics:
@@ -565,6 +575,11 @@ def design_export(
     path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or tailwind"),
     out: Optional[Path] = typer.Option(None, "--out", help="Write rendered design system to a file"),
+    allow_unapproved: bool = typer.Option(
+        False,
+        "--allow-unapproved",
+        help="Compatibility escape hatch: export a structurally valid legacy design without ready approval",
+    ),
 ) -> None:
     output_format = output_format.lower()
     if output_format not in {"json", "tailwind"}:
@@ -572,7 +587,11 @@ def design_export(
         raise typer.Exit(2)
 
     try:
-        rendered = export_design_system(path, export_format=output_format)
+        rendered = export_design_system(
+            path,
+            export_format=output_format,
+            require_ready=not allow_unapproved,
+        )
     except DesignLintError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)

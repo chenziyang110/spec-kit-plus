@@ -308,9 +308,23 @@ integrations refuse that backend explicitly. `spx-team` remains the Codex-only
 runtime operations entrypoint. Classic assets and behavior remain unchanged
 when the `classic` profile is selected.
 
-- `design` / `sp-design` creates, synthesizes, refines, or audits the root `DESIGN.md` design-system contract before UI work proceeds. Use it for new product UI, redesigns, rebrands, core workflow experience, multi-platform interface decisions, and high-visibility customer-facing surfaces.
+- `design` / `sp-design` and Advanced `$spx-design` create, synthesize, refine,
+  or audit the root `DESIGN.md` design-system contract before UI work proceeds.
+  Init's generic `status: bootstrap` file is a structural seed, not approved
+  product direction. Use the design workflow for new product UI, redesigns,
+  rebrands, core workflow experience, multi-platform interface decisions, and
+  high-visibility customer-facing surfaces.
 
-Feature UI references are handled during `sp-specify`. When a feature request includes screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, or "make it like this" language, `sp-specify` asks for a fidelity mode and defaults to `approximate`. It uses the writable `ui-reference-artifact` lane to produce `ui-reference-notes.md` and `ui-brief.md`, plus optional `ui-target.html`. Approximate and high-fidelity references activate the existing `Reference-Implementation` profile and carry UI-specific evidence requirements through plan, tasks, and implementation. If agent visual comparison is unavailable, visual fidelity remains `pending-human-review` instead of being claimed as complete.
+Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
+no screenshot is supplied: it produces a feature `ui-brief.md` that carries
+experience intent, hierarchy, states, responsive/accessibility behavior, and
+visual acceptance through plan, task, and implementation contracts. When a
+request includes screenshots, mockups, design exports, URLs, existing pages, or
+"make it like this" language, Classic additionally uses the writable
+`ui-reference-artifact` lane and defaults fidelity to `approximate`.
+Implementation closes with a real-entrypoint capture, visual inspection,
+repair, and recapture loop. If comparison is unavailable, fidelity remains
+`pending-human-review` instead of being claimed as complete.
 
 Use `ask` for read-only evidence-backed project Q&A when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. In v1, `sp-ask` is independent from `sp-discussion`, creates no state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. There is no `specify ask` Typer helper in v1.
 
@@ -840,11 +854,18 @@ Maintainer note:
 
 ### Design System Helpers
 
-- `specify design lint` checks whether `DESIGN.md` is complete enough for agents to use.
-- `specify design export --format json` exports normalized design tokens and component token references.
-- `specify design export --format tailwind` exports supported token categories into Tailwind theme fields.
+- `specify design lint --level structural` checks schema and reference shape;
+  `specify design lint --level ready` additionally requires an approved,
+  project-specific direction with provenance and applicable components.
+- `specify design export --format json` exports normalized design tokens and component token references after ready validation.
+- `specify design export --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
+- Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records project-specific approval and provenance.
 - `specify design import SOURCE_REFERENCE` writes `.specify/design/references.md` as input for `sp-design`; it does not overwrite `DESIGN.md`.
-- Feature UI references are handled during `sp-specify`: screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, or "make it like this" language route through the writable `ui-reference-artifact` lane, which produces `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
+- Substantive UI changes always produce or preserve `ui-brief.md`; supplied
+  screenshots, mockups, code references, design exports, URLs, existing pages,
+  or "make it like this" language additionally route through Classic's writable
+  `ui-reference-artifact` lane, which produces `ui-reference-notes.md` and
+  optional `ui-target.html`.
 
 Result helper command shapes:
 

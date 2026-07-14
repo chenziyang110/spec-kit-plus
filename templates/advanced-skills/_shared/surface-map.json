@@ -17,7 +17,8 @@
   ],
   "shared_references": [
     "_shared/project-cognition.md",
-    "_shared/consequence-gate.md"
+    "_shared/consequence-gate.md",
+    "_shared/ui-quality-gate.md"
   ],
   "classic_companion_skills": [
     "sp-map-scan",
@@ -80,7 +81,7 @@
       "absorbs": ["design"],
       "references": ["spx-design/references/design-contract.md"],
       "assets": ["spx-design/assets/design-system.md"],
-      "optimization": "one compact root design-system contract"
+      "optimization": "one project-specific approved root design-system contract without generic starter anchoring"
     },
     "spx-discussion": {
       "absorbs": ["discussion"],
@@ -204,13 +205,17 @@
         "spx-specify/assets/spec.md",
         "spx-specify/assets/ui-brief.md"
       ],
-      "optimization": "planning-ready feature truth with only triggered discussion, PRD, and UI intake"
+      "optimization": "planning-ready feature truth with a compact UI contract for every substantive UI change"
     },
     "spx-tasks": {
       "absorbs": ["tasks"],
       "references": ["spx-tasks/references/task-graph-contract.md"],
-      "assets": ["spx-tasks/assets/tasks.md"],
-      "optimization": "deterministic task-graph validation and just-in-time worker packet generation"
+      "assets": [
+        "spx-tasks/assets/tasks.md",
+        "spx-tasks/assets/ui-task.md",
+        "spx-tasks/assets/ui-task-index-entry.json"
+      ],
+      "optimization": "deterministic task-graph validation, structured UI task contracts, and just-in-time worker packet generation"
     },
     "spx-taskstoissues": {
       "absorbs": ["taskstoissues"],

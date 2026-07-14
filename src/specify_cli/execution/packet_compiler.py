@@ -299,6 +299,55 @@ def _ui_contract_for_task(task_detail: str) -> UIContract:
     )
 
 
+def _mapping_string(payload: dict[str, object], *keys: str) -> str:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _ui_contract_from_task_entry(
+    task_entry: dict[str, object],
+    fallback: UIContract,
+) -> UIContract:
+    payload = task_entry.get("ui_contract")
+    if not isinstance(payload, dict):
+        return fallback
+    structured_level = _mapping_string(
+        payload, "fidelity_level", "ui_fidelity_mode"
+    )
+    fidelity_level = structured_level or fallback.fidelity_level
+    if fidelity_level == "none" and fallback.fidelity_level != "none":
+        fidelity_level = fallback.fidelity_level
+    return UIContract(
+        design_sources=_unique(
+            _string_list(payload.get("design_sources")) + fallback.design_sources
+        ),
+        reference_notes=_mapping_string(payload, "reference_notes")
+        or fallback.reference_notes,
+        visual_target=_mapping_string(payload, "visual_target")
+        or fallback.visual_target,
+        fidelity_level=fidelity_level,
+        must_preserve=_unique(
+            _string_list(payload.get("must_preserve")) + fallback.must_preserve
+        ),
+        may_adapt=_unique(
+            _string_list(payload.get("may_adapt")) + fallback.may_adapt
+        ),
+        must_not=_unique(
+            _string_list(payload.get("must_not")) + fallback.must_not
+        ),
+        required_states=_unique(
+            _string_list(payload.get("required_states")) + fallback.required_states
+        ),
+        required_evidence=_unique(
+            _string_list(payload.get("required_evidence"))
+            + fallback.required_evidence
+        ),
+    )
+
+
 def _line_mentions_task(line: str, task_id: str) -> bool:
     return any(part.strip() == task_id for part in re.split(r"[,;\s]+", line) if part.strip())
 
@@ -420,6 +469,67 @@ def _ui_fidelity_requirements_from_task_detail(task_detail: str) -> UiFidelityRe
         level=level,
         design_inputs=design_inputs,
         required_evidence=required_evidence,
+    )
+
+
+def _ui_fidelity_requirements_from_task_entry(
+    task_entry: dict[str, object],
+    ui_contract: UIContract,
+    fallback: UiFidelityRequirements,
+) -> UiFidelityRequirements:
+    payload = task_entry.get("ui_fidelity_requirements")
+    contract_applies = bool(
+        ui_contract.design_sources
+        or ui_contract.required_states
+        or ui_contract.required_evidence
+        or ui_contract.fidelity_level != "none"
+    )
+    base_applicable = fallback.applicable or contract_applies
+    base_level = fallback.level
+    if base_level == "none" and base_applicable:
+        base_level = (
+            ui_contract.fidelity_level
+            if ui_contract.fidelity_level in {"approximate", "high"}
+            else "approximate"
+        )
+    base_design_inputs = _unique(
+        fallback.design_inputs + ui_contract.design_sources
+    )
+    base_required_evidence = _unique(
+        fallback.required_evidence + ui_contract.required_evidence
+    )
+    if isinstance(payload, dict):
+        level = _mapping_string(payload, "level", "ui_fidelity_level") or base_level
+        if level == "none" and base_applicable:
+            level = base_level
+        design_inputs = _unique(
+            _string_list(payload.get("design_inputs")) + base_design_inputs
+        )
+        required_evidence = _unique(
+            _string_list(payload.get("required_evidence"))
+            + base_required_evidence
+        )
+        applicable_value = payload.get("applicable")
+        applicable = (
+            applicable_value
+            if isinstance(applicable_value, bool)
+            else level != "none" or bool(design_inputs) or bool(required_evidence)
+        )
+        applicable = applicable or base_applicable
+        return UiFidelityRequirements(
+            applicable=applicable,
+            level=level,
+            design_inputs=design_inputs,
+            required_evidence=required_evidence,
+        )
+
+    if task_entry.get("ui_contract") is None:
+        return fallback
+    return UiFidelityRequirements(
+        applicable=base_applicable,
+        level=base_level,
+        design_inputs=base_design_inputs,
+        required_evidence=base_required_evidence,
     )
 
 
@@ -600,8 +710,15 @@ def compile_worker_task_packet(
     )
     task_detail = _task_detail_body(tasks_text, task_id)
     objective = resolved_task_body
-    ui_contract = _ui_contract_for_task(task_detail)
-    ui_fidelity_requirements = _ui_fidelity_requirements_from_task_detail(task_detail)
+    ui_contract = _ui_contract_from_task_entry(
+        task_entry,
+        _ui_contract_for_task(task_detail),
+    )
+    ui_fidelity_requirements = _ui_fidelity_requirements_from_task_entry(
+        task_entry,
+        ui_contract,
+        _ui_fidelity_requirements_from_task_detail(task_detail),
+    )
     review_inputs = _task_detail_table_field_values(
         task_detail,
         "Scope Boundaries",

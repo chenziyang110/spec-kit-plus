@@ -16,6 +16,23 @@
   "consequence_obligation_refs": [],
   "capability_operation_refs": [],
   "fidelity_refs": [],
+  "ui_contract": {
+    "design_sources": [],
+    "reference_notes": "",
+    "visual_target": "",
+    "fidelity_level": "none",
+    "must_preserve": [],
+    "may_adapt": [],
+    "must_not": [],
+    "required_states": [],
+    "required_evidence": []
+  },
+  "ui_fidelity_requirements": {
+    "applicable": false,
+    "level": "none",
+    "design_inputs": [],
+    "required_evidence": []
+  },
   "required_validation": [],
   "required_consumer_evidence": [],
   "done_condition": [],

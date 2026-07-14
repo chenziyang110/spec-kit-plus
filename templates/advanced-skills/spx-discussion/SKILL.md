@@ -7,6 +7,8 @@ description: Resumable product and technical discussion for advanced coding mode
 
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/discussion-contract.md`.
+Read `references/ui-quality-gate.md` when product experience, interface
+direction, screen hierarchy, or interaction behavior is part of the decision.
 
 Discover or create the session with the project launcher-backed
 `{{specify-subcmd:discussion list --json}}` and

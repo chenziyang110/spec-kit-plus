@@ -23,6 +23,10 @@ from specify_cli.execution.implementation_review import (
     load_task_ledger,
     task_review_is_accepted,
 )
+from specify_cli.execution.ui_validation import (
+    ui_task_ids,
+    validate_lifecycle_ui_verification,
+)
 from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
 
 
@@ -319,6 +323,7 @@ def _packetized_review_gaps(
 ) -> list[str]:
     checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    ui_tasks = ui_task_ids(feature_dir)
     if lifecycle_dir.is_dir() or _uses_agent_native_task_lifecycle(feature_dir):
         gaps: list[str] = []
         for task_id in sorted(checked_task_ids):
@@ -353,6 +358,14 @@ def _packetized_review_gaps(
                 or not str(review.get("verdict") or "").strip()
             ):
                 gaps.append(f"{relative} review must contain trigger and verdict when present")
+            if task_id in ui_tasks:
+                gaps.extend(
+                    validate_lifecycle_ui_verification(
+                        feature_dir,
+                        payload,
+                        relative,
+                    )
+                )
         return gaps
 
     packet_task_ids, packet_gaps = _packetized_task_ids(feature_dir)

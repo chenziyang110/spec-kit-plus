@@ -16,6 +16,12 @@ committed design-system source governs the UI. Follow that source for tokens,
 components, layout density, interaction states, accessibility, motion, and
 evidence expectations.
 
+`design_system.status: bootstrap` is not a governing product direction. Do not
+let its generic starter palette or typography suppress a project-specific
+solution. For substantive new UI, route through `sp-design`/`spx-design`; for a
+narrow existing-pattern change, ground the implementation in the live product
+surface and record the bounded design assumption.
+
 Do not invent unrelated bold aesthetics when the project already has a design
 system or when the request is to implement an existing product surface. If no
 design system exists and the work is high-visibility, new product UI, a redesign

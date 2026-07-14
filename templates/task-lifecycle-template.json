@@ -9,6 +9,15 @@
   "changed_paths": [],
   "validation": [],
   "review": null,
+  "ui_verification": {
+    "applicable": false,
+    "contract_check": "not-run",
+    "evidence_refs": [],
+    "visual_comparison": "not-applicable",
+    "fidelity_status": "not-applicable",
+    "reviewer": "agent",
+    "human_review_ref": null
+  },
   "obligation_evidence": [],
   "blockers": [],
   "recovery": null

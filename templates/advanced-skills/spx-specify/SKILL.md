@@ -8,7 +8,8 @@ description: Lean feature-specification workflow for advanced coding models. Use
 Read `references/project-cognition.md`, using cognition intent `plan`.
 Read `references/requirements-contract.md`. Read
 `references/discussion-handoff.md` when consuming a ready discussion and
-`references/ui-and-handoffs.md` for UI references. Read
+`references/ui-and-handoffs.md` plus `references/ui-quality-gate.md` for any
+UI-bearing feature, with or without supplied references. Read
 `references/consequence-gate.md` only on its triggers.
 
 Inspect project rules, relevant live behavior, a supplied feature PRD, and any
@@ -21,7 +22,9 @@ For new feature state, run the installed
 the authoritative `spec-contract.json` from the canonical machine template
 `.specify/templates/spec-contract-template.json`. For a new project-facing
 view, use this Skill's compact `assets/spec.md`; preserve existing semantic work
-when revising an established spec. Use `assets/ui-brief.md` only when triggered.
+when revising an established spec. Render `assets/ui-brief.md` for substantive
+UI work; a narrow existing-pattern adjustment may instead record why a separate
+brief adds no decision value.
 Add other artifacts only when they contain independently useful decisions or
 evidence.
 

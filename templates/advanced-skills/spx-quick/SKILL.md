@@ -11,6 +11,7 @@ when delegating. Read `references/consequence-gate.md` when the change affects
 lifecycle, shared state, destructive behavior, compatibility, migration,
 security, concurrency, retry, recovery, or generated consumers. Resolve
 `assets/` paths relative to this Skill.
+Read `references/ui-quality-gate.md` for any user-visible UI change.
 
 Accept bounded work that is too coupled or uncertain for `$spx-fast` but does
 not need feature-level requirements and architecture. Route unresolved failures
@@ -29,6 +30,12 @@ bounded scope. Delegate only independent lanes that improve throughput or
 confidence; do not manufacture packets for leader-direct work. Use a failing
 test or credible baseline when practical. Check changed behavior, consumers,
 and generated/mirrored copies, then run verification proportional to risk.
+
+For bounded UI work, record design sources, affected states/viewports, visual
+acceptance, and evidence in `STATUS.md`. Preserve original visual references and
+run the UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new
+visual direction to `$spx-design` and multi-surface or acceptance-heavy UI to
+`$spx-specify`; do not shrink the UI outcome to remain quick.
 
 Update `STATUS.md` at meaningful transitions and render `SUMMARY.md` from
 `assets/summary.md` on completion or blockage. Close with

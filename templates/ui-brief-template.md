@@ -3,13 +3,16 @@
 ## Source Design System
 
 - Root design system: DESIGN.md
+- Design readiness: approved | narrow-existing-pattern-exception | blocked
+- UI work type: existing-pattern | feature-extension | reference-implementation
 - Relevant rules:
 - Token and component constraints:
 
 ## Reference Inputs
 
-- UI reference notes: ui-reference-notes.md
+- UI reference notes: ui-reference-notes.md | none
 - Visual target: ui-target.html when present
+- Original visual assets: stable paths when supplied
 - Ownership:
 
 ## Fidelity Contract
@@ -22,6 +25,9 @@
 
 ## Screen Structure
 
+- User job and experience intent:
+- Recognizable visual or interaction signature:
+- Real entry points:
 - Layout:
 - Regions:
 - Navigation:
@@ -96,11 +102,16 @@
 - Keyboard and focus check:
 - Browser console check for web UI:
 - Accessibility check when interactive:
+- Difference inventory against reference or prior surface:
+- Accepted deviations and approver:
+- Visual acceptance matrix: [entry point | viewport | state | expected result | evidence path]
 - Human review requirement:
 
 ## Worker Contract
 
 - Required references:
 - Required packet fields:
-- Done condition:
+- Visual convergence loop: run real entry point -> capture representative
+  viewport/state -> inspect against DESIGN.md/ui-brief/reference -> fix -> recapture
+- Done condition: behavior checks and visual/interaction acceptance both pass
 - Stop and reopen condition:

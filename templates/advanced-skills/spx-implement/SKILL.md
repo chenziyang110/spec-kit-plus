@@ -8,6 +8,7 @@ description: Lean implementation workflow for advanced coding models. Use for re
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Read `references/execution-contract.md`. Read `references/worker-contract.md`
 only when delegating. Read `references/consequence-gate.md` only on its triggers.
+Read `references/ui-quality-gate.md` when any ready task is UI-bearing.
 
 Resolve the task-bearing feature with the installed
 `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks
@@ -26,6 +27,13 @@ status and create `implementation-summary.md` from this Skill's asset when a
 feature workspace exists. Use `$spx-implement-teams` only when durable Codex
 team state is explicitly needed. Independent lane closeout belongs to
 `$spx-integrate`.
+
+For UI-bearing work, consume the compiled task `ui_contract`; do not reconstruct
+design intent from task prose. Run the real surface, capture and visually inspect
+the required viewport/state matrix, repair drift, and recapture. Record behavior
+checks separately from visual/interaction acceptance. Missing or bootstrap
+design sources route to `$spx-design`; unavailable comparison remains
+`pending-human-review`, never an implicit pass.
 
 After verified repository changes, close out cognition with canonical workflow
 `implement`. Report changed files, checks actually run, failures or skipped

@@ -6,7 +6,7 @@ Compile a ready plan contract into the smallest dependency-safe execution graph 
 
 ## Context
 
-- Primary authority: `plan-contract.json`; `tasks.md` is the project-facing view and `task-index.json` is canonical for standard/heavy work.
+- Primary authority: `plan-contract.json`; `tasks.md` is the project-facing view and `task-index.json` is canonical for standard/heavy and all UI-bearing work.
 - Read conditional plan/spec views only through a required ref or stale condition.
 - Task generation is artifact-only and does not authorize source/test edits.
 
@@ -29,7 +29,8 @@ Exact delegated packet shape lives in `templates/task-packet-template.json`. `sp
 
 ## Output Contract
 
-- Light: compact `tasks.md` unless a graph adds real resume value.
+- Light non-UI: compact `tasks.md` unless a graph adds real resume value.
+- Any UI-bearing work: minimal canonical `task-index.json` plus task-local UI contracts in rendered `tasks.md`.
 - Standard/heavy: canonical `task-index.json` plus rendered `tasks.md`.
 - Delegated decomposition only: one lane manifest plus lane results.
 - Consume every accepted task-generation lane result into a task, edge, batch, join point, guardrail, or explicit blocker/deferral; chat-only lane output is not handoff truth.

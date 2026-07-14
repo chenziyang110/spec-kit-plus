@@ -23,6 +23,7 @@ REQUIRED_SECTIONS = (
 REQUIRED_TOKEN_CATEGORIES = ("color", "spacing", "radius", "typography")
 REQUIRED_ACCESSIBILITY_KEYS = ("contrast_intent", "focus_visible", "keyboard_navigation")
 SUPPORTED_EXPORT_FORMATS = {"json", "tailwind"}
+SUPPORTED_LINT_LEVELS = {"structural", "ready"}
 
 
 @dataclass(frozen=True)
@@ -66,7 +67,10 @@ def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocu
     )
 
 
-def lint_design_file(path: Path) -> list[DesignDiagnostic]:
+def lint_design_file(path: Path, *, level: str = "structural") -> list[DesignDiagnostic]:
+    level = level.lower()
+    if level not in SUPPORTED_LINT_LEVELS:
+        raise DesignLintError(f"unsupported design lint level: {level}")
     if not path.exists():
         return [DesignDiagnostic("missing-file", f"{path} does not exist", str(path))]
     if not path.is_file():
@@ -88,15 +92,22 @@ def lint_design_file(path: Path) -> list[DesignDiagnostic]:
     _validate_design_system(document, diagnostics)
     _validate_markdown_sections(document, diagnostics)
     _validate_token_references(document, diagnostics)
+    if level == "ready":
+        _validate_design_readiness(document, diagnostics)
     return diagnostics
 
 
-def export_design_system(path: Path, *, export_format: str = "json") -> str:
+def export_design_system(
+    path: Path,
+    *,
+    export_format: str = "json",
+    require_ready: bool = True,
+) -> str:
     export_format = export_format.lower()
     if export_format not in SUPPORTED_EXPORT_FORMATS:
         raise DesignLintError(f"unsupported export format: {export_format}")
 
-    diagnostics = lint_design_file(path)
+    diagnostics = lint_design_file(path, level="ready" if require_ready else "structural")
     if diagnostics:
         messages = "; ".join(f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics)
         raise DesignLintError(messages)
@@ -107,6 +118,8 @@ def export_design_system(path: Path, *, export_format: str = "json") -> str:
             "schema": document.design_system["schema"],
             "name": document.design_system.get("name"),
             "version": document.design_system.get("version"),
+            "status": document.design_system.get("status"),
+            "approval": document.design_system.get("approval", {}),
             "platforms": document.design_system.get("platforms", []),
             "tokens": document.design_system.get("tokens", {}),
             "components": document.design_system.get("components", {}),
@@ -289,6 +302,94 @@ def _validate_token_references(document: DesignDocument, diagnostics: list[Desig
                     f"unknown token reference {{{category}.{token_name}}}",
                     ref_path,
                 )
+
+
+def _validate_design_readiness(document: DesignDocument, diagnostics: list[DesignDiagnostic]) -> None:
+    design_system = document.design_system
+    status = str(design_system.get("status") or "").strip().lower()
+    if status != "approved":
+        _add_diagnostic(
+            diagnostics,
+            "design-not-approved",
+            "design_system.status must equal approved for downstream UI work",
+            "design_system.status",
+        )
+
+    approval = design_system.get("approval")
+    if not isinstance(approval, dict):
+        _add_diagnostic(
+            diagnostics,
+            "missing-design-approval",
+            "design_system.approval must record the approved direction and source references",
+            "design_system.approval",
+        )
+    else:
+        if str(approval.get("status") or "").strip().lower() != "approved":
+            _add_diagnostic(
+                diagnostics,
+                "missing-design-approval",
+                "design_system.approval.status must equal approved",
+                "design_system.approval.status",
+            )
+        direction = str(approval.get("direction") or "").strip()
+        if not direction or "{{" in direction or "}}" in direction:
+            _add_diagnostic(
+                diagnostics,
+                "missing-approved-direction",
+                "design_system.approval.direction must name the selected project-specific direction",
+                "design_system.approval.direction",
+            )
+        source_refs = approval.get("source_refs")
+        if (
+            not isinstance(source_refs, list)
+            or not source_refs
+            or not all(isinstance(item, str) and item.strip() for item in source_refs)
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "missing-design-provenance",
+                "design_system.approval.source_refs must identify product or repository evidence",
+                "design_system.approval.source_refs",
+            )
+
+    name = str(design_system.get("name") or "").strip().lower()
+    if not name or name in {"project-design-system", "bootstrap-design-seed"} or "{{" in name:
+        _add_diagnostic(
+            diagnostics,
+            "generic-design-name",
+            "design_system.name must be project-specific before downstream UI work",
+            "design_system.name",
+        )
+
+    components = design_system.get("components")
+    if not isinstance(components, dict) or not components:
+        _add_diagnostic(
+            diagnostics,
+            "missing-ready-components",
+            "an approved design system must define at least one applicable component contract",
+            "design_system.components",
+        )
+
+    if _contains_template_placeholder(design_system):
+        _add_diagnostic(
+            diagnostics,
+            "unresolved-design-placeholder",
+            "approved design-system metadata and tokens must not contain unresolved template placeholders",
+            "design_system",
+        )
+
+
+def _contains_template_placeholder(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(re.search(r"\{\{[^{}]+\}\}", value))
+    if isinstance(value, dict):
+        return any(
+            _contains_template_placeholder(key) or _contains_template_placeholder(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_template_placeholder(item) for item in value)
+    return False
 
 
 def _to_tailwind_theme(design_system: dict[str, Any]) -> dict[str, Any]:

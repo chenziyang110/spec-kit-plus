@@ -38,7 +38,14 @@ scripts:
 4. Select discovery mode for a raw request or compile mode for a confirmed discussion contract. In compile mode, compute `semantic_delta`, ask only about a planning-critical delta, and do not repeat user review when `semantic_delta` is empty.
 5. Decompose semantic terms into explicit decisions and capability operations in `spec-contract.json`; present two or three approaches only when behavior, boundary, compatibility, or acceptance proof changes.
 6. Preserve the discussion contract by reference. Read discussion source files only when a named evidence reference is stale, missing, or contradictory; carry its existing decision digest instead of rebuilding it.
-7. For UI-facing work, read selected `DESIGN.md` and UI refs; compile `Experience Requirements`, design-system readiness (`design_system_status`, `design_risk_level`), and `ui-brief.md`/`Reference-Implementation` fidelity evidence. Treat a missing required system as a strong blocker and a non-blocking adoption gap as a soft risk. Handle raw UI reference input through `choose_ui_reference_lane_dispatch` and `ui-reference-artifact`.
+7. For UI-facing work—with or without supplied screenshots—read selected
+   `DESIGN.md` and live UI evidence; compile `Experience Requirements`,
+   design-system readiness (`design_system_status`, `design_risk_level`), and a
+   feature `ui-brief.md` for substantive UI changes. Treat a bootstrap or
+   missing required system as a strong blocker and a non-blocking adoption gap
+   as a soft risk. When raw UI references exist, additionally use
+   `choose_ui_reference_lane_dispatch`, `ui-reference-artifact`, and
+   `Reference-Implementation` fidelity evidence.
 8. Write `spec-contract.json`, render or update project-facing artifacts, and run deterministic completeness, traceability, and contradiction checks. Request user review only for non-empty semantic delta or a real unresolved decision, then recommend exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 
 ## Detailed References

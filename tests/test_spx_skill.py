@@ -322,6 +322,74 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "do not crawl or reread the repository" in skills["spx-prd-build"]
 
 
+def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
+    ui_gate = (ADVANCED_SKILLS / "_shared" / "ui-quality-gate.md").read_text(
+        encoding="utf-8"
+    )
+    assert _word_count(ADVANCED_SKILLS / "_shared" / "ui-quality-gate.md") <= 500
+    assert "does not\nrequire an external screenshot" in ui_gate
+    assert "status:\nbootstrap" in ui_gate
+    assert "real entry point" in ui_gate
+    assert "pending-human-review" in ui_gate
+
+    for skill_name in (
+        "spx-analyze",
+        "spx-auto",
+        "spx-debug",
+        "spx-design",
+        "spx-fast",
+        "spx-implement",
+        "spx-implement-teams",
+        "spx-integrate",
+        "spx-plan",
+        "spx-quick",
+        "spx-specify",
+        "spx-tasks",
+    ):
+        content = (ADVANCED_SKILLS / skill_name / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        assert "references/ui-quality-gate.md" in content, skill_name
+
+    assert "--level ready" in (
+        ADVANCED_SKILLS / "spx-design" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "substantive\nUI work" in (
+        ADVANCED_SKILLS / "spx-specify" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "ui_design_contract" in (
+        ADVANCED_SKILLS / "spx-plan" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "assets/ui-task.md" in (
+        ADVANCED_SKILLS / "spx-tasks" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "assets/ui-task-index-entry.json" in (
+        ADVANCED_SKILLS / "spx-tasks" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    ui_task = (ADVANCED_SKILLS / "spx-tasks" / "assets" / "ui-task.md").read_text(
+        encoding="utf-8"
+    )
+    assert "### Scope Boundaries" in ui_task
+    assert "### UI Implementation Contract" in ui_task
+    assert "ui_required_evidence" in ui_task
+    ui_task_index = json.loads(
+        (
+            ADVANCED_SKILLS
+            / "spx-tasks"
+            / "assets"
+            / "ui-task-index-entry.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert set(ui_task_index) == {"ui_contract", "ui_fidelity_requirements"}
+    assert ui_task_index["ui_fidelity_requirements"]["applicable"] is True
+    assert "visual convergence loop" in (
+        ADVANCED_SKILLS
+        / "spx-implement"
+        / "references"
+        / "execution-contract.md"
+    ).read_text(encoding="utf-8")
+
+
 def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
     content = (
         (ADVANCED_SKILLS / "_shared" / "project-cognition.md")
@@ -369,6 +437,7 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
         assert (skill_dir / "agents" / "openai.yaml").exists()
         assert (skill_dir / "references" / "project-cognition.md").exists()
         assert (skill_dir / "references" / "consequence-gate.md").exists()
+        assert (skill_dir / "references" / "ui-quality-gate.md").exists()
 
         frontmatter = _frontmatter(skill)
         assert frontmatter["name"] == skill_name

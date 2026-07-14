@@ -8,6 +8,7 @@ description: Durable-team implementation workflow for advanced coding models. Us
 Read `references/project-cognition.md`, using cognition intent `implement`. Read
 `references/codex-teams.md` for Codex or `references/claude-agent-teams.md` for
 Claude. Read `references/consequence-gate.md` only on its triggers.
+Read `references/ui-quality-gate.md` when any dispatched task is UI-bearing.
 
 Select the backend from the agent hosting this Skill and corroborate it with
 `.specify/integration.json`; stop on a mismatch. Codex uses the project

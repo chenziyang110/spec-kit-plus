@@ -2,6 +2,8 @@
 
 Choose the first applicable trustworthy route:
 
+- new/high-visibility UI direction, redesign, or UI work blocked by missing or
+  bootstrap `DESIGN.md`: `spx-design`;
 - active durable team batch: `spx-implement-teams`;
 - completed independent lane awaiting closeout: `spx-integrate`;
 - active implementation lane or ready tracked feature work: `spx-implement`;

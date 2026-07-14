@@ -18,14 +18,24 @@
   "must_preserve_refs": [],
   "consequence_obligation_refs": [],
   "design_contract": {
+    "ui_applicable": false,
+    "ui_work_type": null,
+    "ui_brief_ref": null,
     "experience_requirements": [],
     "design_source_refs": [],
     "design_system_requirements": [],
     "design_system_status": "not-applicable",
     "design_risk_level": "none",
     "fidelity_refs": [],
+    "fidelity_mode": "none",
+    "original_reference_refs": [],
+    "entry_points": [],
+    "must_preserve": [],
+    "may_adapt": [],
+    "must_not": [],
     "required_states": [],
-    "validation_refs": []
+    "validation_refs": [],
+    "visual_acceptance": []
   },
   "context_capsule": {
     "boundary_ref": null,

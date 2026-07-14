@@ -12,6 +12,10 @@ Check:
 - verification that must run only on the combined result;
 - rollback or recovery state if integration cannot complete.
 
+For UI-bearing lanes, isolated screenshots are inputs rather than combined
+proof. Re-run the UI quality gate on the integrated entrypoint and preserve the
+task viewport/state matrix, visual comparison, and human-review boundary.
+
 Closing a lane records accepted integration truth; it must follow successful
 combined validation. On partial integration, identify what landed, what remains
 isolated, and the safe recovery boundary. Never erase blocked evidence to make

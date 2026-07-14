@@ -2,10 +2,13 @@
 
 Use the root `DESIGN.md` as the shared visual and interaction constraint for
 feature work. Ground it in current product surfaces and confirmed references.
+An initialized `status: bootstrap` file is input to replace, not a locked
+direction.
 
 Include only applicable decisions:
 
-- product experience principles and anti-patterns;
+- product experience principles, one recognizable visual or interaction
+  signature, and anti-patterns;
 - color, type, spacing, elevation, motion, iconography, and density tokens;
 - component anatomy, variants, states, composition, and reuse rules;
 - navigation, feedback, empty/loading/error, and destructive interactions;

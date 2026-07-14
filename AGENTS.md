@@ -123,6 +123,42 @@ present in a test project.
   Fix generators/templates here, then regenerate the downstream fixture or
   test project.
 
+### UI Workflow Contract Across Profiles
+
+- The product goal is better implemented UI, not merely more UI documentation.
+  Both profiles must preserve this executable chain for substantive UI work:
+  `approved DESIGN.md + original references -> feature ui-brief.md -> plan
+  ui_design_contract -> per-task ui_contract -> real-entrypoint visual evidence`.
+- UI applicability is broader than reference-image intake. New or changed
+  screens, components, layouts, navigation/interaction flows, responsive
+  behavior, visual states, desktop/mobile surfaces, TUI layouts, and CLI
+  presentation can all trigger the UI contract.
+- The `DESIGN.md` copied by init is a structurally valid bootstrap seed. It is
+  not an approved product direction and must not anchor an advanced model to its
+  generic starter palette, typography, density, or component choices. New or
+  high-visibility UI requires a project-specific approved design contract;
+  narrow existing-pattern fixes may record a bounded exception.
+- Classic keeps the explicit UI lane, full command references, passive
+  `spec-kit-ui-design`/`frontend-design` guidance, worker prompts, and verbose
+  evidence mapping. Advanced must not install that passive bundle; its essential
+  equivalent lives in `_shared/ui-quality-gate.md`, owning SPX references,
+  compact deterministic assets, and shared runtime schemas/validators.
+- Do not treat a top-level UI coverage table as sufficient. Every UI-bearing
+  task must carry structured task-local design sources, fidelity, states,
+  must-preserve/may-adapt/must-not rules, and required visual evidence so the
+  worker packet cannot silently downgrade UI work to `not_applicable`.
+- UI implementation acceptance requires a real-entrypoint convergence loop:
+  run, capture representative viewport/state evidence, visually inspect against
+  design/brief/reference inputs, repair drift, and recapture. Passing automated
+  tests is separate from visual and interaction acceptance; unavailable visual
+  comparison remains explicit `pending-human-review`.
+- A UI workflow change must evaluate `templates/design-template.md`, design CLI
+  readiness, Classic command/partial/passive/worker surfaces, Advanced shared
+  and owning skill references/assets, spec/plan/task machine contracts,
+  `execution/packet_compiler.py`, lifecycle closeout, integration rendering,
+  and cross-profile tests. Keyword-presence tests alone do not prove UI contract
+  continuity; include at least one structured task-index-to-worker-packet test.
+
 ### Required Regression Shape
 
 - For a skills-based integration, Classic-only init installs the expected

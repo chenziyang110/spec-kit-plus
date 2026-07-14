@@ -44,8 +44,13 @@
 
 ## UI Reference Processing
 
-Use this section when the feature request includes screenshots, HTML/CSS mockups, UI framework code, design exports, reference URLs, existing UI pages, or language asking to match a specific UI.
+Use this section for every substantive UI-bearing feature. External references
+activate the reference lane; UI work without references still requires the UI
+brief and downstream visual acceptance contract.
 
+- ui_applicable: [true | false]
+- ui_work_type: [existing-pattern | feature-extension | reference-implementation | none]
+- real_entry_points: [routes, screens, commands, or output surfaces]
 - ui_reference_processing_status: [not-applicable | subagent-dispatched | completed | blocked | inline-fallback-approved]
 - ui_reference_lane_mode: [none | ui-reference-artifact]
 - ui_fidelity_mode: [none | approximate | high | inspiration]

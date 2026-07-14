@@ -1,8 +1,13 @@
 ---
 design_system:
   schema: spec-kit-design-v1
-  name: project-design-system
+  name: bootstrap-design-seed
   version: 1
+  status: bootstrap
+  approval:
+    status: unapproved
+    direction: null
+    source_refs: []
   platforms:
     - web
     - mobile
@@ -127,11 +132,16 @@ design_system:
 
 # Project Design System
 
-This file is the project design-system contract. Read it before creating or changing user-facing UI, including web, mobile, desktop, TUI, and CLI output.
+This file is a structurally valid bootstrap seed, not an approved product design.
+Before substantive new UI, run `sp-design`/`spx-design`, select a project-specific
+direction, replace generic starter choices, and set the approval metadata above.
+Downstream agents must not treat `status: bootstrap` as locked visual truth.
 
 ## Product Feel
 
-Use a clear, task-focused interface with restrained visual treatment. Prefer strong information hierarchy, consistent spacing, stable controls, and readable states over decorative styling.
+These starter values keep exports and examples well-formed; they do not define
+the product's identity. Replace this section with a product-specific experience
+intent and at least one recognizable visual or interaction signature.
 
 ## Platforms
 
@@ -167,4 +177,7 @@ Use a clear, task-focused interface with restrained visual treatment. Prefer str
 
 ## Design Change Policy
 
-Update this file through `sp-design` when a change affects product-wide style, brand, density, component rules, token values, or platform-specific interface expectations.
+Promote this seed to `status: approved` only through `sp-design`/`spx-design`
+after a direction is selected from product and repository evidence. Later
+changes to product-wide style, brand, density, component rules, token values,
+or platform expectations must update this file and its approval provenance.

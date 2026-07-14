@@ -1,0 +1,19 @@
+{
+  "ui_contract": {
+    "design_sources": ["DESIGN.md", "{{feature_dir}}/ui-brief.md"],
+    "reference_notes": "{{reference_notes_or_empty}}",
+    "visual_target": "{{visual_target_or_empty}}",
+    "fidelity_level": "{{none_or_approximate_or_high_or_inspiration}}",
+    "must_preserve": ["{{task_specific_constraints}}"],
+    "may_adapt": ["{{allowed_choices}}"],
+    "must_not": ["{{forbidden_drift}}"],
+    "required_states": ["{{affected_states}}"],
+    "required_evidence": ["{{viewport_state_captures}}", "{{interaction_checks}}"]
+  },
+  "ui_fidelity_requirements": {
+    "applicable": true,
+    "level": "{{approximate_or_high}}",
+    "design_inputs": ["DESIGN.md", "{{feature_dir}}/ui-brief.md"],
+    "required_evidence": ["{{viewport_state_captures}}", "{{interaction_checks}}"]
+  }
+}

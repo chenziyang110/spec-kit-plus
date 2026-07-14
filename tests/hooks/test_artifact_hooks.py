@@ -4,6 +4,11 @@ from pathlib import Path
 import pytest
 
 from specify_cli.hooks.engine import run_quality_hook
+from specify_cli.hooks.artifact_validation import (
+    _validate_plan_ui_contract,
+    _validate_task_lifecycle_records,
+    _validate_tasks_ui_contract,
+)
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -807,6 +812,233 @@ def test_agent_native_implement_artifacts_require_checked_task_lifecycle(
         "implementation-review/tasks/T001.json" in message
         for message in result.errors
     )
+
+
+def test_agent_native_ui_task_lifecycle_requires_visual_acceptance(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {
+                        "id": "T001",
+                        "ui_contract": {
+                            "design_sources": ["DESIGN.md", "ui-brief.md"],
+                            "required_states": ["loading", "error"],
+                            "required_evidence": ["desktop_screenshot"],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    lifecycle = {
+        "task_id": "T001",
+        "status": "accepted",
+        "changed_paths": ["src/ui/page.tsx"],
+        "validation": [{"command": "npm test", "status": "passed"}],
+        "review": None,
+        "blockers": [],
+    }
+    lifecycle_path = lifecycle_dir / "T001.json"
+    lifecycle_path.write_text(json.dumps(lifecycle), encoding="utf-8")
+
+    errors = _validate_task_lifecycle_records(feature_dir, ["T001"])
+
+    assert any("ui_verification is required" in error for error in errors)
+
+    lifecycle["ui_verification"] = {
+        "applicable": True,
+        "contract_check": "passed",
+        "evidence_refs": ["evidence/settings-desktop.png"],
+        "visual_comparison": "matched",
+        "fidelity_status": "passed",
+        "reviewer": "agent",
+        "human_review_ref": None,
+    }
+    lifecycle_path.write_text(json.dumps(lifecycle), encoding="utf-8")
+
+    errors = _validate_task_lifecycle_records(feature_dir, ["T001"])
+    assert any("evidence is missing" in error for error in errors)
+
+    evidence_path = feature_dir / "evidence" / "settings-desktop.png"
+    evidence_path.parent.mkdir()
+    evidence_path.write_bytes(b"visual evidence")
+
+    assert _validate_task_lifecycle_records(feature_dir, ["T001"]) == []
+
+
+def test_tasks_markdown_only_ui_task_still_requires_lifecycle_ui_verification(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n"
+        "- [X] T001 Implement the settings surface\n\n"
+        "## T001: Settings surface\n\n"
+        "### UI Implementation Contract\n\n"
+        "| Field | Value |\n| --- | --- |\n"
+        "| design_sources | [DESIGN.md, ui-brief.md] |\n"
+        "| required_evidence | [desktop_screenshot] |\n",
+        encoding="utf-8",
+    )
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": ["src/ui/page.tsx"],
+                "validation": [{"command": "npm test", "status": "passed"}],
+                "review": None,
+                "blockers": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_task_lifecycle_records(feature_dir, ["T001"])
+
+    assert any("ui_verification is required" in error for error in errors)
+
+
+def test_ui_contract_continuity_from_spec_plan_to_tasks(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "design_contract": {
+                    "ui_applicable": True,
+                    "ui_brief_ref": "ui-brief.md",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": {"ui_applicable": False}}),
+        encoding="utf-8",
+    )
+
+    errors = _validate_plan_ui_contract(feature_dir)
+    assert any("ui_applicable true" in error for error in errors)
+
+    ui_plan_contract = {
+        "ui_applicable": True,
+        "ui_brief_ref": "ui-brief.md",
+        "design_readiness": "approved",
+        "source_refs": ["DESIGN.md", "ui-brief.md"],
+        "design_system_adoption": ["settings controls"],
+        "token_strategy": ["reuse approved tokens"],
+        "component_strategy": ["reuse settings form"],
+        "entry_points": ["/settings"],
+        "required_states": ["loading", "ready", "error"],
+        "fidelity_refs": [],
+        "must_preserve": ["compact hierarchy"],
+        "may_adapt": ["framework markup"],
+        "must_not": ["hide errors"],
+        "validation_refs": ["browser settings route"],
+        "visual_acceptance": ["desktop and mobile states inspected"],
+        "human_review_conditions": ["comparison unavailable"],
+    }
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": ui_plan_contract}),
+        encoding="utf-8",
+    )
+    assert _validate_plan_ui_contract(feature_dir) == []
+
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n"
+        "- [ ] T001 Implement the settings surface\n\n"
+        "## T001: Settings surface\n\n"
+        "### UI Implementation Contract\n\n"
+        "| Field | Value |\n| --- | --- |\n"
+        "| design_sources | [DESIGN.md, ui-brief.md] |\n"
+        "| required_evidence | [desktop_screenshot] |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps({"version": 2, "tasks": [{"id": "T001"}]}),
+        encoding="utf-8",
+    )
+    errors = _validate_tasks_ui_contract(feature_dir)
+    assert any("missing structured ui_contract" in error for error in errors)
+
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {
+                        "id": "T001",
+                        "ui_contract": {
+                            "design_sources": ["DESIGN.md", "ui-brief.md"],
+                            "required_states": ["loading", "ready", "error"],
+                            "required_evidence": ["desktop_screenshot"],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert _validate_tasks_ui_contract(feature_dir) == []
+
+
+def test_agent_native_ui_task_lifecycle_blocks_pending_human_review(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {
+                        "id": "T001",
+                        "ui_fidelity_requirements": {
+                            "applicable": True,
+                            "level": "high",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": ["src/ui/page.tsx"],
+                "validation": [{"command": "npm test", "status": "passed"}],
+                "review": None,
+                "blockers": [],
+                "ui_verification": {
+                    "applicable": True,
+                    "contract_check": "passed",
+                    "evidence_refs": ["evidence/settings-desktop.png"],
+                    "visual_comparison": "needs-human-review",
+                    "fidelity_status": "pending-human-review",
+                    "reviewer": "agent",
+                    "human_review_ref": "evidence/review.md",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_task_lifecycle_records(feature_dir, ["T001"])
+
+    assert any("pending-human-review blocks" in error for error in errors)
 
 
 def test_specify_artifact_validation_requires_source_signal_disposition(tmp_path: Path):

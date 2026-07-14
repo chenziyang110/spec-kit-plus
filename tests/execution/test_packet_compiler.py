@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from specify_cli.execution.packet_compiler import compile_worker_task_packet
+from specify_cli.execution.packet_compiler import (
+    _ui_contract_for_task,
+    _ui_contract_from_task_entry,
+    _ui_fidelity_requirements_from_task_detail,
+    _ui_fidelity_requirements_from_task_entry,
+    compile_worker_task_packet,
+)
 from specify_cli.execution.packet_validator import PacketValidationError
 
 
@@ -60,6 +66,167 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
     assert packet.required_evidence == ["real_entrypoint_evidence"]
     assert [item.id for item in packet.must_preserve_obligations] == ["MP-001"]
     assert [item.obligation_id for item in packet.consequence_obligations] == ["CA-001"]
+
+
+def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-ui-feature"
+    feature_dir.mkdir(parents=True)
+    memory_dir = project_root / ".specify" / "memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "constitution.md").write_text(
+        "# Constitution\n\n- Preserve the approved UI contract.\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "tasks": [
+                    {
+                        "id": "T021",
+                        "objective": "Implement the responsive settings surface",
+                        "expected_write_scope": ["src/ui/settings.tsx"],
+                        "verification": ["npm test -- settings-ui"],
+                        "acceptance": ["Desktop and mobile states match the UI brief"],
+                        "ui_contract": {
+                            "design_sources": [
+                                "DESIGN.md",
+                                "specs/001-ui-feature/ui-brief.md",
+                            ],
+                            "reference_notes": "specs/001-ui-feature/ui-reference-notes.md",
+                            "visual_target": "specs/001-ui-feature/ui-target.html",
+                            "fidelity_level": "high",
+                            "must_preserve": ["compact two-column hierarchy"],
+                            "may_adapt": ["framework markup"],
+                            "must_not": ["collapse settings into cards"],
+                            "required_states": ["loading", "error", "success"],
+                            "required_evidence": [
+                                "desktop_screenshot",
+                                "mobile_screenshot",
+                            ],
+                        },
+                        "ui_fidelity_requirements": {
+                            "applicable": True,
+                            "level": "high",
+                            "design_inputs": [
+                                "DESIGN.md",
+                                "specs/001-ui-feature/ui-brief.md",
+                            ],
+                            "required_evidence": [
+                                "desktop_screenshot",
+                                "mobile_screenshot",
+                            ],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T021 Implement UI without duplicated markdown contract\n",
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T021",
+    )
+
+    assert packet.ui_contract.fidelity_level == "high"
+    assert packet.ui_contract.required_states == ["loading", "error", "success"]
+    assert packet.ui_contract.must_not == ["collapse settings into cards"]
+    assert packet.ui_fidelity_requirements.applicable is True
+    assert packet.ui_fidelity_requirements.level == "high"
+    assert packet.ui_fidelity_requirements.required_evidence == [
+        "desktop_screenshot",
+        "mobile_screenshot",
+    ]
+    reference_paths = [item.path for item in packet.required_references]
+    assert "DESIGN.md" in reference_paths
+    assert "specs/001-ui-feature/ui-brief.md" in reference_paths
+
+
+@pytest.mark.parametrize("structured_contract", [{}, {"fidelity_level": "none"}])
+def test_partial_structured_ui_contract_cannot_erase_markdown_contract(
+    structured_contract: dict[str, object],
+) -> None:
+    task_detail = """
+### Scope Boundaries
+
+| Field | Value |
+| --- | --- |
+| ui_fidelity_level | [approximate] |
+| design_inputs | [DESIGN.md, specs/001-ui/ui-brief.md] |
+| ui_required_evidence | [desktop_screenshot] |
+
+### UI Implementation Contract
+
+| Field | Value |
+| --- | --- |
+| design_sources | [DESIGN.md, specs/001-ui/ui-brief.md] |
+| reference_notes | specs/001-ui/ui-reference-notes.md |
+| visual_target | specs/001-ui/ui-target.html |
+| ui_fidelity_mode | approximate |
+| must_preserve | [compact hierarchy] |
+| may_adapt | [framework markup] |
+| must_not | [replace navigation] |
+| required_states | [loading, ready, error] |
+| required_evidence | [desktop_screenshot] |
+"""
+    fallback_contract = _ui_contract_for_task(task_detail)
+    merged_contract = _ui_contract_from_task_entry(
+        {"ui_contract": structured_contract},
+        fallback_contract,
+    )
+    merged_requirements = _ui_fidelity_requirements_from_task_entry(
+        {"ui_contract": structured_contract, "ui_fidelity_requirements": {}},
+        merged_contract,
+        _ui_fidelity_requirements_from_task_detail(task_detail),
+    )
+
+    assert merged_contract.design_sources == [
+        "DESIGN.md",
+        "specs/001-ui/ui-brief.md",
+    ]
+    assert merged_contract.fidelity_level == "approximate"
+    assert merged_contract.required_states == ["loading", "ready", "error"]
+    assert merged_requirements.applicable is True
+    assert merged_requirements.level == "approximate"
+    assert merged_requirements.required_evidence == ["desktop_screenshot"]
+
+
+@pytest.mark.parametrize("contract_level", ["none", "inspiration"])
+def test_general_ui_contract_derives_valid_visual_requirements(
+    contract_level: str,
+) -> None:
+    contract = _ui_contract_from_task_entry(
+        {
+            "ui_contract": {
+                "design_sources": ["DESIGN.md", "ui-brief.md"],
+                "fidelity_level": contract_level,
+                "required_states": ["ready"],
+                "required_evidence": ["desktop_screenshot"],
+            }
+        },
+        _ui_contract_for_task(""),
+    )
+    requirements = _ui_fidelity_requirements_from_task_entry(
+        {"ui_contract": {"fidelity_level": contract_level}},
+        contract,
+        _ui_fidelity_requirements_from_task_detail(""),
+    )
+
+    assert contract.fidelity_level == contract_level
+    assert requirements.applicable is True
+    assert requirements.level == "approximate"
+    assert requirements.design_inputs == ["DESIGN.md", "ui-brief.md"]
+    assert requirements.required_evidence == ["desktop_screenshot"]
 
 
 def test_compile_worker_task_packet_rejects_malformed_canonical_task_index(

@@ -7,6 +7,8 @@ description: Read-only cross-artifact consistency analysis for advanced coding m
 
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/analysis-gate.md`.
+Read `references/ui-quality-gate.md` when the specification or plan is
+UI-bearing.
 
 Resolve the active feature with the installed prerequisite script using
 `--require-tasks --include-tasks`. Read machine contracts first, then open
@@ -14,6 +16,9 @@ project-facing views only for a named finding or missing contract detail.
 Compare confirmed requirements, design decisions, task coverage, dependencies,
 write boundaries, consequence obligations, and real-entrypoint verification
 against the live repository paths selected by cognition.
+For UI work, verify continuity from approved `DESIGN.md` and `ui-brief.md`
+through the plan `ui_design_contract`, every UI task contract, and required
+real-entrypoint evidence. Missing continuity is an upstream-owned finding.
 
 This is a non-destructive gate. Do not edit `spec.md`, `context.md`, `plan.md`,
 `tasks.md`, production source, or tests. You may update the existing

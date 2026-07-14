@@ -46,7 +46,16 @@ Before completion:
 - run required focused and broader validation based on changed surfaces;
 - confirm real-entrypoint evidence and no unresolved blocker/open gap;
 - perform a broad diff review only when a review trigger fired or the changed surface is high risk; otherwise reuse accepted task validation and lifecycle evidence;
-- for UI work, compare the real entry point with `DESIGN.md`/fidelity refs using Playwright screenshots or representative output as applicable; distinguish tests passed from visual/interaction acceptance;
+- for UI work, run a visual convergence loop rather than a single terminal
+  glance: open the real entry point, capture the required viewport/state matrix,
+  inspect it against `DESIGN.md`, `ui-brief.md`, and original fidelity refs,
+  repair observable drift, and recapture. Use Playwright screenshots or
+  representative output as applicable; check overflow, browser
+  console, keyboard/focus, and accessibility when triggered; distinguish tests passed from visual/interaction acceptance;
+- before accepting a UI task, persist task-lifecycle `ui_verification` with
+  applicable=true, passing contract check, concrete evidence refs, visual
+  comparison, fidelity status, reviewer, and human-review ref when relevant;
+  `pending-human-review` blocks accepted closeout;
 - run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` when available;
 - update project cognition once from final changed paths and verification evidence when project truth changed.
 
