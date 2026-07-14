@@ -11,6 +11,7 @@ from .evidence import (
 from .packet_schema import WorkerTaskPacket
 from .packet_validator import PacketValidationError
 from .result_schema import WorkerTaskResult
+from .ui_validation import UI_EVIDENCE_KIND_ALIASES
 
 
 _PLACEHOLDER_OUTPUTS = {
@@ -21,6 +22,9 @@ _PLACEHOLDER_OUTPUTS = {
 _UI_FIDELITY_PAYLOAD_FIELDS = {
     "artifact",
     "screenshot",
+    "snapshot",
+    "console",
+    "output",
     "diff",
     "comparison",
     "evidence",
@@ -35,6 +39,7 @@ _UI_FIDELITY_KIND_ALIASES = {
     "visual_comparison_evidence": "visual_comparison",
 }
 _UI_FIDELITY_ACCEPTED_KINDS = {
+    **UI_EVIDENCE_KIND_ALIASES,
     "desktop_screenshot": {"desktop_screenshot", "screenshot_desktop"},
     "mobile_screenshot": {"mobile_screenshot", "screenshot_mobile"},
     "screenshot": {
@@ -110,6 +115,9 @@ _UI_EVIDENCE_REQUIRED_FIDELITY_LEVELS = {
 }
 _EVIDENCE_LABEL_ALIASES = {
     "real_entrypoint_ui_evidence": "real_entrypoint_evidence",
+}
+_UI_VERIFICATION_REQUIREMENT_KINDS = {
+    "visual_comparison_or_human_review",
 }
 
 
@@ -207,19 +215,25 @@ def validate_worker_task_result(
 
     if packet.dispatch_policy.must_acknowledge_rules:
         if not result.rule_acknowledgement.required_references_read:
-            raise PacketValidationError("DP3", "worker did not acknowledge required references")
+            raise PacketValidationError(
+                "DP3", "worker did not acknowledge required references"
+            )
         if not result.rule_acknowledgement.forbidden_drift_respected:
-            raise PacketValidationError("DP3", "worker did not acknowledge forbidden drift")
+            raise PacketValidationError(
+                "DP3", "worker did not acknowledge forbidden drift"
+            )
         required_context_paths = [
-            item.path
-            for item in packet.context_bundle
-            if item.must_read
+            item.path for item in packet.context_bundle if item.must_read
         ]
         if required_context_paths:
             if not result.rule_acknowledgement.context_bundle_read:
-                raise PacketValidationError("DP3", "worker did not acknowledge execution context bundle")
+                raise PacketValidationError(
+                    "DP3", "worker did not acknowledge execution context bundle"
+                )
             read_paths = set(result.rule_acknowledgement.paths_read)
-            missing_paths = [path for path in required_context_paths if path not in read_paths]
+            missing_paths = [
+                path for path in required_context_paths if path not in read_paths
+            ]
             if missing_paths:
                 missing_text = ", ".join(missing_paths)
                 raise PacketValidationError(
@@ -228,14 +242,22 @@ def validate_worker_task_result(
                 )
     if result.status == "blocked":
         if not result.blockers:
-            raise PacketValidationError("DP3", "blocked worker result is missing blocker evidence")
+            raise PacketValidationError(
+                "DP3", "blocked worker result is missing blocker evidence"
+            )
         if not result.failed_assumptions:
-            raise PacketValidationError("DP3", "blocked worker result is missing failed assumptions")
+            raise PacketValidationError(
+                "DP3", "blocked worker result is missing failed assumptions"
+            )
         if not result.suggested_recovery_actions:
-            raise PacketValidationError("DP3", "blocked worker result is missing recovery guidance")
+            raise PacketValidationError(
+                "DP3", "blocked worker result is missing recovery guidance"
+            )
         return result
     if packet.validation_gates and not result.validation_results:
-        raise PacketValidationError("DP3", "worker result is missing validation evidence")
+        raise PacketValidationError(
+            "DP3", "worker result is missing validation evidence"
+        )
     if result.status == "success":
         results_by_command = {
             _normalize_command(item.command): item
@@ -248,7 +270,9 @@ def validate_worker_task_result(
             if _normalize_command(command)
         ]
         missing_commands = [
-            command for command in expected_commands if command not in results_by_command
+            command
+            for command in expected_commands
+            if command not in results_by_command
         ]
         if missing_commands:
             missing_text = ", ".join(missing_commands)
@@ -283,27 +307,47 @@ def validate_worker_task_result(
             or "real_entrypoint_evidence" in required_evidence
         ):
             if not result.consumer_evidence:
-                raise PacketValidationError("DP3", "worker result is missing consumer evidence")
+                raise PacketValidationError(
+                    "DP3", "worker result is missing consumer evidence"
+                )
         if "real_entrypoint_evidence" in required_evidence:
             if not has_real_entrypoint_consumer_evidence(result.consumer_evidence):
                 raise PacketValidationError(
                     "DP3",
                     "worker result is missing real-entrypoint consumer evidence",
                 )
-        if "acceptance_evidence" in required_evidence and not result.acceptance_evidence:
-            raise PacketValidationError("DP3", "worker result is missing acceptance evidence")
+        if (
+            "acceptance_evidence" in required_evidence
+            and not result.acceptance_evidence
+        ):
+            raise PacketValidationError(
+                "DP3", "worker result is missing acceptance evidence"
+            )
         if "manual_evidence" in required_evidence and not result.manual_evidence:
-            raise PacketValidationError("DP3", "worker result is missing manual evidence")
+            raise PacketValidationError(
+                "DP3", "worker result is missing manual evidence"
+            )
+        combined_ui_evidence = [
+            *result.ui_evidence,
+            *result.ui_fidelity_evidence,
+        ]
+        ui_fidelity_requirement_labels = {
+            _normalize_ui_fidelity_kind(item)
+            for item in packet.ui_fidelity_requirements.required_evidence
+            if item.strip()
+        }
+        typed_ui_fidelity_requirements = (
+            ui_fidelity_requirement_labels - _UI_VERIFICATION_REQUIREMENT_KINDS
+        )
         if packet.ui_fidelity_requirements.applicable:
-            if not result.ui_fidelity_evidence:
-                raise PacketValidationError("DP3", "worker result is missing ui fidelity evidence")
-            ui_required_evidence = {
-                _normalize_ui_fidelity_kind(item)
-                for item in packet.ui_fidelity_requirements.required_evidence
-                if item.strip()
-            }
-            for required_kind in sorted(ui_required_evidence):
-                if not _has_ui_fidelity_evidence_kind(result.ui_fidelity_evidence, required_kind):
+            if typed_ui_fidelity_requirements and not combined_ui_evidence:
+                raise PacketValidationError(
+                    "DP3", "worker result is missing ui fidelity evidence"
+                )
+            for required_kind in sorted(typed_ui_fidelity_requirements):
+                if not _has_ui_fidelity_evidence_kind(
+                    combined_ui_evidence, required_kind
+                ):
                     if required_kind == "visual_comparison":
                         message = "worker result is missing visual comparison ui fidelity evidence"
                     else:
@@ -315,10 +359,37 @@ def validate_worker_task_result(
                         "DP3",
                         message,
                     )
+        if packet.ui_contract.contract_version >= 2:
+            contract_evidence = {
+                _normalize_ui_fidelity_kind(item)
+                for item in packet.ui_contract.required_evidence
+                if item.strip()
+            }
+            for required_kind in (
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+            ):
+                if (
+                    required_kind in contract_evidence
+                    and not _has_ui_fidelity_evidence_kind(
+                        combined_ui_evidence, required_kind
+                    )
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        f"worker result is missing UI evidence for required kind: {required_kind}",
+                    )
         requires_ui_evidence = _requires_ui_evidence(packet, required_evidence)
-        requires_visual_review = "visual_comparison_or_human_review" in required_evidence
+        requires_visual_review = (
+            "visual_comparison_or_human_review" in required_evidence
+            or "visual_comparison_or_human_review"
+            in ui_fidelity_requirement_labels
+        )
         if requires_visual_review or requires_ui_evidence:
-            fidelity_status = normalize_evidence_label(result.ui_verification.fidelity_status)
+            fidelity_status = normalize_evidence_label(
+                result.ui_verification.fidelity_status
+            )
             visual_comparison = normalize_evidence_label(
                 result.ui_verification.visual_comparison
             )
@@ -353,8 +424,10 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review has unknown visual comparison status",
                 )
-            if requires_ui_evidence and not has_any_evidence(result.ui_evidence):
-                raise PacketValidationError("DP3", "worker result is missing ui evidence")
+            if requires_ui_evidence and not has_any_evidence(combined_ui_evidence):
+                raise PacketValidationError(
+                    "DP3", "worker result is missing ui evidence"
+                )
             if (
                 fidelity_status in _PASSING_UI_FIDELITY_STATUSES
                 and visual_comparison in _UNAVAILABLE_VISUAL_COMPARISON_STATUSES
@@ -382,9 +455,14 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review pending human review requires review evidence",
                 )
-        if packet.must_preserve_obligations or "must_preserve_evidence" in required_evidence:
+        if (
+            packet.must_preserve_obligations
+            or "must_preserve_evidence" in required_evidence
+        ):
             if not result.must_preserve_evidence:
-                raise PacketValidationError("DP3", "worker result is missing must-preserve evidence")
+                raise PacketValidationError(
+                    "DP3", "worker result is missing must-preserve evidence"
+                )
             evidence_ids = {
                 str(item.get("mp_id", "")).strip()
                 for item in result.must_preserve_evidence

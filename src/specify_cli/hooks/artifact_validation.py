@@ -13,6 +13,7 @@ from specify_cli.execution.ui_validation import (
     resolve_feature_artifact_ref,
     task_index_ui_contracts,
     ui_task_ids,
+    validate_accepted_task_lifecycle,
     validate_lifecycle_ui_verification,
 )
 from specify_cli.implement_audit import _packetized_task_ids, _task_review_record_from_payload
@@ -662,24 +663,9 @@ def _validate_task_lifecycle_records(
         if not isinstance(payload, dict):
             errors.append(f"{relative} must contain a top-level object")
             continue
-        if str(payload.get("task_id") or "").upper() != task_id:
-            errors.append(f"{relative} has mismatched task_id")
-        if payload.get("status") != "accepted":
-            errors.append(f"{relative} status must be accepted")
-        if not isinstance(payload.get("changed_paths"), list):
-            errors.append(f"{relative} changed_paths must be a list")
-        validation = payload.get("validation")
-        if not isinstance(validation, list) or not validation:
-            errors.append(f"{relative} validation must be a non-empty list")
-        if not isinstance(payload.get("blockers"), list):
-            errors.append(f"{relative} blockers must be a list")
-        review = payload.get("review")
-        if review is not None and (
-            not isinstance(review, dict)
-            or not str(review.get("trigger") or "").strip()
-            or not str(review.get("verdict") or "").strip()
-        ):
-            errors.append(f"{relative} review must contain trigger and verdict when present")
+        errors.extend(
+            validate_accepted_task_lifecycle(payload, relative, task_id)
+        )
         if task_id in ui_tasks:
             errors.extend(
                 validate_lifecycle_ui_verification(feature_dir, payload, relative)
@@ -1833,6 +1819,139 @@ def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
     return errors
 
 
+UI_V2_SCALAR_FIELDS = (
+    "subject",
+    "audience",
+    "single_job",
+    "visual_thesis",
+    "content_thesis",
+    "interaction_thesis",
+    "signature_element",
+    "approved_visual_ref",
+)
+UI_V2_LIST_FIELDS = (
+    "platforms",
+    "reference_intents",
+    "real_content_plan",
+    "image_plan",
+    "required_evidence",
+)
+UI_V2_SURFACE_TYPES = {
+    "landing",
+    "product-workspace",
+    "hybrid",
+    "existing-pattern-maintenance",
+}
+UI_V2_PLATFORMS = {"web", "mobile", "desktop", "tui", "cli"}
+UI_V2_REFERENCE_INTENTS = {
+    "exact",
+    "preserve-structure",
+    "inspiration",
+    "extract-tokens",
+    "do-not-copy",
+}
+UI_V2_EVIDENCE = {
+    "structure_snapshot",
+    "visual_capture",
+    "runtime_diagnostics",
+    "visual_comparison_or_human_review",
+}
+
+
+def _ui_contract_version(contract: dict[str, Any], field: str) -> int:
+    value = contract.get(field, 1)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 1
+
+
+def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
+    """Normalize order-insensitive UI v2 collections for continuity checks."""
+
+    if field not in UI_V2_LIST_FIELDS or not isinstance(value, list):
+        return value
+
+    def canonical(item: Any) -> Any:
+        if isinstance(item, dict):
+            return tuple(
+                sorted((str(key), canonical(nested)) for key, nested in item.items())
+            )
+        if isinstance(item, list):
+            normalized = [canonical(nested) for nested in item]
+            return tuple(sorted(normalized, key=repr))
+        if isinstance(item, str):
+            return item.strip()
+        return item
+
+    normalized = [canonical(item) for item in value]
+    return tuple(sorted(normalized, key=repr))
+
+
+def _validate_ui_v2_shape(contract: dict[str, Any], label: str) -> list[str]:
+    errors: list[str] = []
+    if str(contract.get("ui_work_type") or "").strip() not in {
+        "existing-pattern",
+        "feature-extension",
+        "reference-implementation",
+    }:
+        errors.append(f"{label}.ui_work_type must be valid")
+    if str(contract.get("surface_type") or "").strip() not in UI_V2_SURFACE_TYPES:
+        errors.append(f"{label}.surface_type must be a supported UI surface type")
+    platforms = contract.get("platforms")
+    if (
+        not isinstance(platforms, list)
+        or not platforms
+        or any(str(item).strip() not in UI_V2_PLATFORMS for item in platforms)
+    ):
+        errors.append(f"{label}.platforms must contain supported UI platforms")
+    for field in UI_V2_SCALAR_FIELDS:
+        if not str(contract.get(field) or "").strip():
+            errors.append(f"{label}.{field} must be non-empty")
+    for field in UI_V2_LIST_FIELDS:
+        if not isinstance(contract.get(field), list):
+            errors.append(f"{label}.{field} must be a list")
+    reference_intents = contract.get("reference_intents")
+    if isinstance(reference_intents, list):
+        for item in reference_intents:
+            if (
+                not isinstance(item, dict)
+                or not str(item.get("ref") or "").strip()
+                or str(item.get("intent") or "").strip() not in UI_V2_REFERENCE_INTENTS
+            ):
+                errors.append(
+                    f"{label}.reference_intents entries require ref and valid intent"
+                )
+                break
+    real_content_plan = contract.get("real_content_plan")
+    if not isinstance(real_content_plan, list) or not real_content_plan:
+        errors.append(f"{label}.real_content_plan must be non-empty")
+    elif any(
+        not isinstance(item, dict) or not str(item.get("source_ref") or "").strip()
+        for item in real_content_plan
+    ):
+        errors.append(f"{label}.real_content_plan entries require source_ref")
+    image_plan = contract.get("image_plan")
+    if isinstance(image_plan, list) and any(
+        not isinstance(item, dict)
+        or not str(item.get("ref") or "").strip()
+        or not str(item.get("role") or "").strip()
+        for item in image_plan
+    ):
+        errors.append(f"{label}.image_plan entries require ref and role")
+    required_evidence = contract.get("required_evidence")
+    evidence = (
+        {
+            str(item).strip()
+            for item in required_evidence
+            if isinstance(item, str) and item.strip()
+        }
+        if isinstance(required_evidence, list)
+        else set()
+    )
+    missing = sorted(UI_V2_EVIDENCE - evidence)
+    if missing:
+        errors.append(f"{label}.required_evidence is missing: {', '.join(missing)}")
+    return errors
+
+
 def _spec_ui_design_contract(feature_dir: Path) -> dict[str, Any] | None:
     path = feature_dir / "spec-contract.json"
     if not path.is_file():
@@ -1862,8 +1981,12 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     spec_contract = _spec_ui_design_contract(feature_dir)
     plan_contract, label = _plan_ui_design_contract(feature_dir)
-    spec_applies = isinstance(spec_contract, dict) and spec_contract.get("ui_applicable") is True
-    plan_applies = isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is True
+    spec_applies = (
+        isinstance(spec_contract, dict) and spec_contract.get("ui_applicable") is True
+    )
+    plan_applies = (
+        isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is True
+    )
 
     if spec_applies and not plan_applies:
         errors.append(
@@ -1874,6 +1997,20 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
         return errors
 
     assert isinstance(plan_contract, dict)
+    spec_version = (
+        _ui_contract_version(spec_contract, "ui_contract_version")
+        if isinstance(spec_contract, dict)
+        else 1
+    )
+    plan_version = _ui_contract_version(plan_contract, "ui_contract_version")
+    if spec_version >= 2 and plan_version < 2:
+        errors.append(
+            f"{label} must preserve ui_contract_version 2 from the specification"
+        )
+    if plan_version >= 2:
+        errors.extend(
+            _validate_ui_v2_shape(plan_contract, f"{label} ui_design_contract")
+        )
     ui_brief_ref = str(plan_contract.get("ui_brief_ref") or "").strip()
     if not ui_brief_ref:
         errors.append(f"{label} UI work requires ui_design_contract.ui_brief_ref")
@@ -1930,19 +2067,40 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
                 errors.append(
                     f"{label} ui_design_contract.ui_brief_ref must preserve the specification UI brief"
                 )
+        if spec_version >= 2 and plan_version >= 2:
+            for field in (
+                "ui_work_type",
+                "surface_type",
+                *UI_V2_SCALAR_FIELDS,
+                *UI_V2_LIST_FIELDS,
+            ):
+                if _canonical_ui_continuity_value(
+                    field, plan_contract.get(field)
+                ) != _canonical_ui_continuity_value(
+                    field, spec_contract.get(field)
+                ):
+                    errors.append(
+                        f"{label} ui_design_contract.{field} must preserve the specification UI contract"
+                    )
     return errors
 
 
 def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     plan_contract, label = _plan_ui_design_contract(feature_dir)
-    plan_applies = isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is True
+    plan_applies = (
+        isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is True
+    )
     plan_declares_not_ui = (
-        isinstance(plan_contract, dict)
-        and plan_contract.get("ui_applicable") is False
+        isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is False
     )
     markdown_ids = markdown_ui_task_ids(feature_dir)
     indexed_ids = set(task_index_ui_contracts(feature_dir))
+    plan_version = (
+        _ui_contract_version(plan_contract, "ui_contract_version")
+        if isinstance(plan_contract, dict)
+        else 1
+    )
 
     if markdown_ids and plan_declares_not_ui:
         errors.append(
@@ -1964,6 +2122,41 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
         errors.append(
             f"tasks.md is missing task-local UI Implementation Contract for UI task {task_id}"
         )
+    if plan_applies and plan_version >= 2 and isinstance(plan_contract, dict):
+        for task_id, task_entry in task_index_ui_contracts(feature_dir).items():
+            task_contract = task_entry.get("ui_contract")
+            if not isinstance(task_contract, dict):
+                continue
+            if _ui_contract_version(task_contract, "contract_version") < 2:
+                errors.append(
+                    f"task-index.json UI task {task_id} must use contract_version 2"
+                )
+                continue
+            errors.extend(
+                _validate_ui_v2_shape(
+                    task_contract,
+                    f"task-index.json UI task {task_id} ui_contract",
+                )
+            )
+            for field in ("design_sources", "required_states"):
+                value = task_contract.get(field)
+                if not isinstance(value, list) or not any(
+                    isinstance(item, str) and item.strip() for item in value
+                ):
+                    errors.append(
+                        f"task-index.json UI task {task_id} ui_contract.{field} must be non-empty"
+                    )
+            for field in ("ui_work_type", "surface_type", *UI_V2_SCALAR_FIELDS):
+                if task_contract.get(field) != plan_contract.get(field):
+                    errors.append(
+                        f"task-index.json UI task {task_id} must preserve plan {field}"
+                    )
+            task_platforms = set(task_contract.get("platforms") or [])
+            plan_platforms = set(plan_contract.get("platforms") or [])
+            if not task_platforms or not task_platforms <= plan_platforms:
+                errors.append(
+                    f"task-index.json UI task {task_id} platforms must be a non-empty plan subset"
+                )
     return errors
 
 
@@ -2547,7 +2740,10 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
             else ""
         )
         review_state = _extract_markdown_section(workflow_state, "Review State")
-        if extract_field(review_state, "last_user_reviewed_artifact_state") != "approved":
+        if (
+            extract_field(review_state, "last_user_reviewed_artifact_state")
+            != "approved"
+        ):
             errors.append(
                 "spec-contract.json non-empty semantic_delta requires approved user review"
             )
@@ -2573,12 +2769,13 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
                 "spec-contract.json design_contract.ui_applicable must be a boolean"
             )
         ui_brief_ref = str(design_contract.get("ui_brief_ref") or "").strip()
-        ui_brief_signaled = bool(ui_brief_ref) or (feature_dir / "ui-brief.md").is_file()
+        ui_brief_signaled = (
+            bool(ui_brief_ref) or (feature_dir / "ui-brief.md").is_file()
+        )
         for field in ("design_source_refs", "fidelity_refs", "validation_refs"):
             value = design_contract.get(field)
             if isinstance(value, list) and any(
-                isinstance(item, str) and "ui-brief.md" in item
-                for item in value
+                isinstance(item, str) and "ui-brief.md" in item for item in value
             ):
                 ui_brief_signaled = True
         if ui_brief_signaled and ui_applicable is not True:
@@ -2586,6 +2783,13 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
                 "spec-contract.json carries ui-brief.md but design_contract.ui_applicable is not true"
             )
         if ui_applicable is True:
+            if _ui_contract_version(design_contract, "ui_contract_version") >= 2:
+                errors.extend(
+                    _validate_ui_v2_shape(
+                        design_contract,
+                        "spec-contract.json design_contract",
+                    )
+                )
             if not ui_brief_ref:
                 errors.append(
                     "spec-contract.json UI work requires design_contract.ui_brief_ref"
@@ -2614,15 +2818,15 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
                     errors.append(
                         f"spec-contract.json design_contract.{field} must be a list for UI work"
                     )
-            if not isinstance(design_contract.get("entry_points"), list) or not design_contract.get(
-                "entry_points"
-            ):
+            if not isinstance(
+                design_contract.get("entry_points"), list
+            ) or not design_contract.get("entry_points"):
                 errors.append(
                     "spec-contract.json UI work requires design_contract.entry_points"
                 )
-            if not isinstance(design_contract.get("visual_acceptance"), list) or not design_contract.get(
-                "visual_acceptance"
-            ):
+            if not isinstance(
+                design_contract.get("visual_acceptance"), list
+            ) or not design_contract.get("visual_acceptance"):
                 errors.append(
                     "spec-contract.json UI work requires design_contract.visual_acceptance"
                 )
@@ -2652,7 +2856,11 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
                 errors.append(
                     f"spec-contract.json context_capsule.{field} must be a list"
                 )
-    errors.extend(_validate_agent_transition(payload.get("transition"), "spec-contract.json transition"))
+    errors.extend(
+        _validate_agent_transition(
+            payload.get("transition"), "spec-contract.json transition"
+        )
+    )
     transition = payload.get("transition")
     if isinstance(transition, dict) and transition.get("status") == "ready":
         if transition.get("next_action") != "/sp.plan":
@@ -2665,10 +2873,14 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
         for name, relative_path in artifact_refs.items():
             if relative_path is None:
                 if name == "spec":
-                    errors.append("spec-contract.json artifact_refs.spec must not be null")
+                    errors.append(
+                        "spec-contract.json artifact_refs.spec must not be null"
+                    )
                 continue
             if not isinstance(relative_path, str) or not relative_path.strip():
-                errors.append(f"spec-contract.json artifact_refs.{name} must be a path or null")
+                errors.append(
+                    f"spec-contract.json artifact_refs.{name} must be a path or null"
+                )
                 continue
             candidate = Path(relative_path)
             try:

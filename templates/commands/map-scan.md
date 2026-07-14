@@ -357,6 +357,9 @@ The scan must cover:
 - capability and workflow surfaces
 - state and handoff surfaces
 - verification surfaces
+- when UI exists: real UI entry points/navigation, token/theme/typography
+  owners, reusable component owners, responsive/state patterns,
+  Storybook/visual/accessibility tests, and design/reference assets
 - risk and fragility surfaces
 - high-value `.git` evolution surfaces
 
@@ -373,6 +376,12 @@ During the first baseline scan and rare full rebuilds, scan packets must collect
 - confidence notes, conflicts, known unknowns, and minimal live reads needed when later `sp-map-update` cannot fully prove an edge from existing evidence
 
 If project-relevant evidence cannot be classified, the scan must remain blocked instead of silently downgrading the gap.
+
+For UI evidence, make roles retrievable through node `type`, `title`, aliases,
+domain, owner, route hints, and verification hints—not only opaque attrs. Use
+role language such as `ui_entrypoint`, `design_token_owner`, `ui_component`,
+`ui_pattern`, `visual_verification`, and `design_reference_asset` when live
+evidence supports it.
 
 ## Dispatch Guidance
 

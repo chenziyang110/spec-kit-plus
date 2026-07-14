@@ -13,4 +13,8 @@ Preserved Contract: leader-direct tasks stay compact; delegated packets carry ob
 - `leader-direct` tasks do not need a WorkerTaskPacket.
 - For delegated work, `sp-implement` compiles and validates the packet just in time from the current task, live repository state, and stable contract refs.
 - Carry `global_constraints`, interfaces, review risks, UI fidelity, controller checks, `MP-*`, and `CA-###` only when they affect that task.
+- UI-bearing tasks use `ui_contract.contract_version: 2`. Carry the direction
+  core without reinterpreting it, only the task-relevant reference/content/image
+  records, and all platform-neutral evidence kinds. The compiler adds verified
+  plan cognition routes as compact `context_nav` instead of raw graph output.
 - If live evidence invalidates a predicted path or dependency, repair the task graph or stop/reopen; do not hide drift by expanding worker scope silently.

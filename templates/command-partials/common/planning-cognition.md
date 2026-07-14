@@ -16,3 +16,7 @@ Run or emulate:
 - `fresh`, `stale`, `possibly_stale`, `needs_update`, and `partial_refresh` are planning advisories. Follow returned `minimal_live_reads` and prove the active claim from live evidence; do not stop solely because the index is stale.
 - Rebuild only for an unusable/missing baseline or explicit rebuild condition. Do not turn ordinary planning into map maintenance.
 - Artifact-only specification, planning, and task generation do not mark project cognition dirty. A cognition follow-up is required only after actual source/runtime truth changes.
+- For UI-bearing work, use the same intake to locate likely real entry points,
+  token/theme/component owners, reusable patterns, required states, responsive
+  behavior, visual/accessibility tests, and design assets. Verify selected paths
+  live, then carry only the compact routes needed by downstream task packets.

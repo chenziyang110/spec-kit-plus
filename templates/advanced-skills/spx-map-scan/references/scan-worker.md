@@ -12,6 +12,12 @@ authoritative.
   exclude, or block one; return a non-pass gap instead.
 - Extract packet-local evidence, provisional nodes, edges, observations,
   coverage, and optional claims. Separate observation, inference, and unknown.
+- When assigned paths are UI-bearing, classify live UI entry points/navigation,
+  token/theme/typography owners, reusable components/patterns, responsive and
+  state rules, visual/accessibility tests, and design assets. Put supported UI
+  role language in node type/title/aliases plus owner, route, and verification
+  hints so existing cognition retrieval can find it; do not hide it only in
+  opaque attrs.
 - Preserve concrete `nodes[].paths`; coverage rows cannot replace path-backed
   nodes. Cross-packet edges may name an external concrete path while at least
   one endpoint remains packet-local.

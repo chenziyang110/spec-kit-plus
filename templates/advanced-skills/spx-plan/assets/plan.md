@@ -8,11 +8,16 @@
 
 ## UI Design Adoption
 
+- Work type, surface type, and platforms:
+- Subject, audience, and single job:
+- Visual/content/interaction theses and signature:
+- Approved visual reference:
+- Reference intents and real content/image plans:
 - Design and UI brief sources:
 - Tokens/components and planned extensions:
 - Required states and responsive/accessibility rules:
 - Fidelity and must-preserve constraints:
-- Real entry points and viewport/state evidence:
+- Real entry points and structure/visual/runtime evidence:
 - Visual comparison, deviations, or human-review boundary:
 
 ## Compatibility, Migration, and Recovery

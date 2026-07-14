@@ -106,7 +106,9 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
         context_bundle=[],
         required_references=[
             PacketReference(path="DESIGN.md", reason="root design contract"),
-            PacketReference(path="specs/001-feature/ui-brief.md", reason="feature UI contract"),
+            PacketReference(
+                path="specs/001-feature/ui-brief.md", reason="feature UI contract"
+            ),
         ],
         hard_rules=["Follow ui_contract"],
         forbidden_drift=["Do not replace dense table with cards"],
@@ -114,9 +116,34 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
         done_criteria=["UI evidence returned"],
         handoff_requirements=["return ui_evidence and ui_verification"],
         ui_contract=UIContract(
+            contract_version=2,
+            ui_work_type="feature-extension",
+            surface_type="product-workspace",
+            platforms=["web"],
+            subject="exception management",
+            audience="operations staff",
+            single_job="resolve one exception safely",
+            visual_thesis="dense but calm operational hierarchy",
+            content_thesis="show real exception data and recovery context",
+            interaction_thesis="keep triage actions local and reversible",
+            signature_element="persistent exception context rail",
+            approved_visual_ref="DESIGN.md#exception-direction",
             design_sources=["DESIGN.md", "specs/001-feature/ui-brief.md"],
             reference_notes="specs/001-feature/ui-reference-notes.md",
             visual_target="specs/001-feature/ui-target.html",
+            reference_intents=[
+                {
+                    "ref": "specs/001-feature/ui-target.html",
+                    "intent": "preserve-structure",
+                }
+            ],
+            real_content_plan=[
+                {
+                    "source_ref": "src/exceptions/schema.py",
+                    "applies_to_states": ["ready"],
+                }
+            ],
+            image_plan=[],
             fidelity_level="approximate",
             must_preserve=["three-column layout", "compact table density"],
             may_adapt=["icons", "minor spacing"],
@@ -130,6 +157,14 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
     round_tripped = worker_task_packet_from_json(json.dumps(payload))
 
     assert round_tripped.ui_contract.fidelity_level == "approximate"
+    assert round_tripped.ui_contract.surface_type == "product-workspace"
+    assert (
+        round_tripped.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
+    )
+    assert (
+        round_tripped.ui_contract.real_content_plan[0]["source_ref"]
+        == "src/exceptions/schema.py"
+    )
     assert "compact table density" in round_tripped.ui_contract.must_preserve
     assert "desktop screenshot" in round_tripped.ui_contract.required_evidence
 
@@ -137,7 +172,11 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
         task_id="T021",
         status="success",
         ui_evidence=[
-            {"kind": "screenshot", "path": "artifacts/ui/desktop-1440.png", "viewport": "1440"}
+            {
+                "kind": "screenshot",
+                "path": "artifacts/ui/desktop-1440.png",
+                "viewport": "1440",
+            }
         ],
         ui_verification=UIVerification(
             contract_check="pass",

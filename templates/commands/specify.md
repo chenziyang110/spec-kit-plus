@@ -41,7 +41,11 @@ scripts:
 7. For UI-facing work—with or without supplied screenshots—read selected
    `DESIGN.md` and live UI evidence; compile `Experience Requirements`,
    design-system readiness (`design_system_status`, `design_risk_level`), and a
-   feature `ui-brief.md` for substantive UI changes. Treat a bootstrap or
+   feature `ui-brief.md` plus `design_contract.ui_contract_version: 2` for
+   substantive UI changes. Separately record work type, surface type, platform,
+   subject, audience, single job, visual/content/interaction theses, signature,
+   approved visual ref, reference intents, real content/image plans, and the
+   structure/visual/runtime evidence triad. Treat a bootstrap or
    missing required system as a strong blocker and a non-blocking adoption gap
    as a soft risk. When raw UI references exist, additionally use
    `choose_ui_reference_lane_dispatch`, `ui-reference-artifact`, and

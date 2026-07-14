@@ -57,22 +57,37 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
    replace, not an approved constraint or evidence that design work is done.
 2. Read `.specify/design/references.md`, `.specify/design/options.md`, and `.specify/design/review.md` if they exist.
 3. Read `README.md`, project handbook files, existing UI surfaces, existing design files, `.specify/memory/project-rules.md`, and relevant `.specify/memory/learnings/INDEX.md` entries when present.
-4. Identify declared or implied platforms: web, mobile, desktop, TUI, CLI.
-5. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, extract reusable design principles rather than copying their expression.
-6. When built-in presets help, read one of the shipped preset files such as `.specify/templates/design-library/workbench-precision.md` or `templates/design-library/workbench-precision.md` and treat it as inspiration, not as a forced brand.
+4. Use project cognition to locate likely UI entry points, token/theme owners,
+   reusable component owners, responsive/state patterns, visual or accessibility
+   tests, and design assets; verify every selected route in live files before it
+   becomes design evidence.
+5. Classify the experience separately by work type, surface type (`landing`,
+   `product-workspace`, `hybrid`, or `existing-pattern-maintenance`), and
+   platform (`web`, `mobile`, `desktop`, `tui`, or `cli`).
+6. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
+7. When built-in presets help, read one of the shipped preset files such as `.specify/templates/design-library/workbench-precision.md` or `templates/design-library/workbench-precision.md` and treat it as inspiration, not as a forced brand.
 
 ## Synthesis Rules
 
 - Write the project's own `DESIGN.md` as the final output.
 - Present two or three project-specific design directions when creating or synthesizing a design system.
-- Each direction must name product feel, platform fit, density, typography intent, color strategy, component state strategy, accessibility stance, and trade-offs.
-- Ask the user to approve a direction before writing or replacing `DESIGN.md`.
+- Before proposing them, name the product subject, audience, and single user job.
+- Each direction must state a visual thesis, content thesis, interaction thesis,
+  signature element, platform fit, state strategy, safe system choices, and any
+  deliberate creative risk with its gain and cost.
+- Give every direction an inspectable visual artifact such as a moodboard,
+  rendered static composition, or screenshot. Ask the user to approve the
+  visual direction before writing or replacing `DESIGN.md`; a prose label alone
+  is not approval.
+- Ask the user to approve a direction; approval refers to its inspectable visual
+  artifact and recorded tradeoffs, not only its name.
 - Preserve existing project rules unless the user approves a design-system change that supersedes them.
 - Do not copy external brand names, protected visual identity, proprietary token names, or third-party file text into the final design system.
 - Normalize approved direction into `spec-kit-design-v1` YAML front matter plus readable Markdown guidance.
 - Set `design_system.status: approved` and record
   `design_system.approval.status`, the selected direction, and concrete product
-  or repository `source_refs`. Remove unresolved placeholders and generic
+  or repository `source_refs`, plus `approval.visual_refs`. Record
+  `product_context` and `direction_contract`. Remove unresolved placeholders and generic
   starter choices that are not justified by those sources.
 
 ## Output Contract
@@ -85,6 +100,8 @@ The workflow output is a root `DESIGN.md` contract plus supporting `.specify/des
 
 - YAML front matter with `design_system.schema: spec-kit-design-v1`
 - `design_system.status: approved` plus approval direction and source refs
+- product subject, audience, single job, and approved visual reference
+- visual, content, and interaction theses plus one signature element
 - `design_system.name`
 - `design_system.version`
 - `design_system.platforms`
@@ -102,6 +119,7 @@ Before closeout:
    - selected mode
    - inputs read
    - approved direction
+   - approved visual reference
    - platforms covered
    - design-system risks
    - lint result

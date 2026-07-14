@@ -64,8 +64,9 @@ The following flags are available and composable:
 
 - UI handling applies even without an image. For every bounded user-visible UI
   change, record the approved `DESIGN.md`/live pattern, affected entry point,
-  states and viewports, must-preserve decisions, and real-entrypoint visual
-  evidence. Route a missing/bootstrap design or new visual direction to
+  work/surface/platform type, subject/audience/job, approved direction/signature,
+  states and viewports, must-preserve decisions, and real-entrypoint
+  structure/visual/runtime evidence. Route a missing/bootstrap design or new visual direction to
   `sp-design`, and acceptance-heavy multi-surface work to `sp-specify`.
 - Treat a user-provided PNG, screenshot, mockup, design export, reference image, or "make it like this" UI request as a first-class worker input when it shapes the quick task.
 - Before dispatch, record the image inputs in the quick-task context and include them in the `WorkerTaskPacket` or equivalent lane contract as `image_inputs` or UI reference inputs with stable project-relative paths when available.
@@ -74,6 +75,10 @@ The following flags are available and composable:
 - The lane contract must state the fidelity mode (`approximate` by default unless the user says `high` or `inspiration`), the original image input refs, visual constraints to preserve, allowed adaptations, required UI states, and screenshot or visual-review evidence.
 - Do not dispatch a UI implementation worker when the worker would receive only the leader's textual description of the image. If the original image cannot be handed off or materialized and the lane depends on seeing it, record `subagent-blocked` with that reason instead of guessing.
 - The accepted worker result must state which image inputs were inspected. If visual comparison is unavailable, record the fidelity status truthfully as pending human review or blocked instead of claiming visual match.
+- Assign every reference its use intent and carry real content/image sources.
+  Require `structure_snapshot`, `visual_capture`, `runtime_diagnostics`, and
+  visual comparison or human review; use the platform-specific aliases from the
+  shared UI contract.
 - Before quick closeout, run the real surface, capture the representative
   viewport/state, inspect it, repair observable drift, and recapture. Passing
   behavior tests is separate from visual/interaction acceptance.

@@ -24,9 +24,11 @@ rollout or rollback, and material risks only when relevant.
 For UI-bearing work, consume `DESIGN.md`, `ui-brief.md`, original fidelity
 sources, and the spec design contract. Set `ui_design_contract.ui_applicable:
 true`, preserve `ui_brief_ref`, and record `design_readiness`. Populate it with
-design-system/token/component adoption, required states, must-preserve rules,
-fidelity refs, real entry points, viewport/state evidence, and visual
-comparison or human-review conditions. Do not defer these decisions to tasks.
+the v2 direction contract, surface/platform classification, approved visual,
+reference intents, real content/image plans, design-system adoption, required
+states, must-preserve rules, real entry points, and the evidence triad. Carry
+verified cognition routes into the compact context capsule. Do not defer these
+decisions to tasks.
 
 If design-changing feasibility remains unproven, stop and route the named
 question to `$spx-deep-research`; do not hide research inside generic plan

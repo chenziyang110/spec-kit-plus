@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
+
+from specify_cli.execution.ui_validation import (
+    ui_task_ids,
+    validate_accepted_task_lifecycle,
+    validate_lifecycle_ui_verification,
+)
 
 from .models import LaneRecord
 from .reconcile import reconcile_lane
@@ -45,10 +52,14 @@ class IntegrationReadiness:
     checks: list[dict[str, str]]
 
 
-def assess_integration_readiness(project_root: Path, lane: LaneRecord) -> IntegrationReadiness:
+def assess_integration_readiness(
+    project_root: Path, lane: LaneRecord
+) -> IntegrationReadiness:
     """Evaluate whether one lane is ready for closeout."""
 
-    reconciled = reconcile_lane(project_root, lane, command_name=lane.last_command or "implement")
+    reconciled = reconcile_lane(
+        project_root, lane, command_name=lane.last_command or "implement"
+    )
     checks: list[dict[str, str]] = []
     feature_dir = project_root / reconciled.feature_dir
 
@@ -90,11 +101,15 @@ def assess_integration_readiness(project_root: Path, lane: LaneRecord) -> Integr
         {
             "name": "implementation-complete",
             "status": recovery_status,
-            "detail": reconciled.recovery_state if reconciled.last_command != "implement" else "resolved-tracker-required",
+            "detail": reconciled.recovery_state
+            if reconciled.last_command != "implement"
+            else "resolved-tracker-required",
         }
     )
 
-    verification_status = "pass" if reconciled.verification_status == "passed" else "fail"
+    verification_status = (
+        "pass" if reconciled.verification_status == "passed" else "fail"
+    )
     checks.append(
         {
             "name": "verification-passed",
@@ -102,6 +117,43 @@ def assess_integration_readiness(project_root: Path, lane: LaneRecord) -> Integr
             "detail": reconciled.verification_status,
         }
     )
+
+    ui_ids = sorted(ui_task_ids(feature_dir)) if feature_dir.exists() else []
+    if ui_ids:
+        ui_errors: list[str] = []
+        lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+        for task_id in ui_ids:
+            relative = f"implementation-review/tasks/{task_id}.json"
+            lifecycle_path = lifecycle_dir / f"{task_id}.json"
+            if not lifecycle_path.is_file():
+                ui_errors.append(f"{relative} is required for integrated UI closeout")
+                continue
+            try:
+                lifecycle = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                ui_errors.append(f"{relative} is unreadable: {exc}")
+                continue
+            if not isinstance(lifecycle, dict):
+                ui_errors.append(f"{relative} must contain an object")
+                continue
+            ui_errors.extend(
+                validate_accepted_task_lifecycle(lifecycle, relative, task_id)
+            )
+            ui_errors.extend(
+                validate_lifecycle_ui_verification(
+                    feature_dir,
+                    lifecycle,
+                    relative,
+                    require_integrated=True,
+                )
+            )
+        checks.append(
+            {
+                "name": "integrated-ui-evidence",
+                "status": "fail" if ui_errors else "pass",
+                "detail": "; ".join(ui_errors) if ui_errors else ", ".join(ui_ids),
+            }
+        )
 
     ready = all(check["status"] == "pass" for check in checks)
     return IntegrationReadiness(lane=reconciled, ready=ready, checks=checks)

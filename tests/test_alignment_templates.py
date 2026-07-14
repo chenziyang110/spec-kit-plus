@@ -139,14 +139,33 @@ def test_design_template_declares_v1_schema_and_required_guidance() -> None:
     assert design_system["schema"] == "spec-kit-design-v1"
     assert design_system["status"] == "bootstrap"
     assert design_system["approval"]["status"] == "unapproved"
-    assert set((design_system.get("tokens") or {})) >= {"color", "spacing", "radius", "typography"}
-    assert set((design_system.get("components") or {})) >= {"button", "input", "card"}
+    assert design_system["approval"]["visual_refs"] == []
+    assert set(design_system["product_context"]) == {
+        "subject",
+        "audience",
+        "single_job",
+    }
+    assert set(design_system["direction_contract"]) == {
+        "visual_thesis",
+        "content_thesis",
+        "interaction_thesis",
+        "signature_element",
+    }
+    assert set((design_system.get("tokens") or {})) >= {
+        "color",
+        "spacing",
+        "radius",
+        "typography",
+    }
+    assert all(not entries for entries in design_system["tokens"].values())
+    assert design_system.get("components") == {}
     assert "tokens:" in content
     assert "components:" in content
     assert "accessibility:" in content
     assert "## Anti-Patterns" in content
     assert "## UI QA Checklist" in content
-    assert "{color." in content
+    for generic_anchor in ("#2563eb", 'value: "8px"', 'value: "14px"', "system-ui"):
+        assert generic_anchor not in content
 
 
 def test_design_library_contains_owned_second_created_presets() -> None:
@@ -2366,7 +2385,6 @@ def _legacy_specify_alignment_first_contract():
     assert "Task Classification" not in content
 
 
-
 def test_docs_document_runtime_atlas_refresh_scope_and_workbench_boundaries() -> None:
     readme = _read_project_file("README.md")
     handbook = _read_project_file("PROJECT-HANDBOOK.md")
@@ -2559,6 +2577,7 @@ def _legacy_core_planning_templates_use_logical_atlas_references() -> None:
     assert "build-workflow-contract" not in implement
     assert "product-and-capability-map" not in implement
     assert "atlas.entry" not in implement
+
 
 def test_project_map_root_templates_document_scenario_profile_contracts() -> None:
     workflows = _read("templates/project-map/root/WORKFLOWS.md").lower()
@@ -4507,10 +4526,31 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
 def test_tasks_template_delegates_packet_shape_to_canonical_json_template():
     content = _read("templates/tasks-template.md")
     packet_template = _read("templates/task-packet-template.json")
+    task_index_template = _read("templates/task-index-template.json")
 
     assert "## Canonical Agent Shapes" in content
     assert "templates/task-packet-template.json" in content
+    assert "task-index.json#/tasks/T###/ui_contract" in content
+    assert "task-index-template.json#/ui_contract_schema_ref" in content
+    assert "contract_version | 2" in content
+    for field in (
+        "ui_work_type",
+        "surface_type",
+        "platforms",
+        "visual_thesis",
+        "content_thesis",
+        "interaction_thesis",
+        "approved_visual_ref",
+        "reference_intents",
+        "real_content_plan",
+        "image_plan",
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+    ):
+        assert field in content
     assert "do not reproduce those schemas as long markdown examples" in content.lower()
+    assert "ui_contract_schema_ref" in task_index_template
     assert "required_consumer_evidence" in packet_template
     assert "capability_operation_refs" in packet_template
 
@@ -5092,6 +5132,7 @@ def _legacy_brainstorming_handoff_template_supports_context_boundary_quality_gat
     assert template.get("candidate_id") is None
     assert template.get("source_split_plan") is None
 
+
 def test_specify_template_does_not_require_fixed_heavy_discovery_contract() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
@@ -5368,22 +5409,36 @@ def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
     task_index = json.loads(_read("templates/task-index-template.json"))
     task_packet = json.loads(_read("templates/task-packet-template.json"))
     task_lifecycle = json.loads(_read("templates/task-lifecycle-template.json"))
-    implement_state = json.loads(_read("templates/implement-execution-state-template.json"))
+    implement_state = json.loads(
+        _read("templates/implement-execution-state-template.json")
+    )
 
     assert "design_contract" in spec_contract
     assert "ui_applicable" in spec_contract["design_contract"]
     assert "ui_brief_ref" in spec_contract["design_contract"]
+    assert spec_contract["design_contract"]["ui_contract_version"] == 2
+    assert "approved_visual_ref" in spec_contract["design_contract"]
+    assert "reference_intents" in spec_contract["design_contract"]
+    assert "real_content_plan" in spec_contract["design_contract"]
+    assert "image_plan" in spec_contract["design_contract"]
+    assert "required_evidence" in spec_contract["design_contract"]
     assert "visual_acceptance" in spec_contract["design_contract"]
     assert "must_preserve_refs" in spec_contract
     assert "ui_design_contract" in plan_contract
     assert "ui_brief_ref" in plan_contract["ui_design_contract"]
+    assert plan_contract["ui_design_contract"]["ui_contract_version"] == 2
     assert "human_review_conditions" in plan_contract["ui_design_contract"]
     assert "must_preserve_refs" in plan_contract
     assert "fidelity_refs" in task_index
     assert task_index["ui_contract_schema_ref"].endswith("#/ui_contract")
     assert "ui_contract" in task_packet
+    assert task_packet["ui_contract"]["contract_version"] == 2
+    assert "surface_type" in task_packet["ui_contract"]
+    assert "approved_visual_ref" in task_packet["ui_contract"]
     assert "ui_fidelity_requirements" in task_packet
     assert "ui_verification" in task_lifecycle
+    assert "evidence" in task_lifecycle["ui_verification"]
+    assert task_lifecycle["ui_verification"]["evidence_scope"] == "task"
     assert task_lifecycle["ui_verification"]["applicable"] is False
     assert "required_obligation_refs" in implement_state
 
@@ -5562,7 +5617,9 @@ def test_implement_template_requires_structured_execution_contract_from_tasks() 
 
 def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     def _h2_headings(markdown: str) -> list[str]:
-        return [line.strip() for line in markdown.splitlines() if line.startswith("## ")]
+        return [
+            line.strip() for line in markdown.splitlines() if line.startswith("## ")
+        ]
 
     notes = _read("templates/ui-reference-notes-template.md")
     brief = _read("templates/ui-brief-template.md")
@@ -5589,10 +5646,13 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
 
     assert _h2_headings(brief) == [
         "## Source Design System",
+        "## Experience Core",
+        "## Approved Direction",
         "## Reference Inputs",
         "## Fidelity Contract",
         "## Screen Structure",
         "## Information Hierarchy",
+        "## Real Content And Imagery",
         "## Components And States",
         "## Interactions",
         "## Responsive Behavior",

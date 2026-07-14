@@ -5,16 +5,22 @@ was supplied. Confirmed discussion state is governed by
 `discussion-handoff.md`.
 
 Create `ui-brief.md` from `assets/ui-brief.md`. In `spec-contract.json`, set
-`design_contract.ui_applicable: true`, `ui_work_type`, `ui_brief_ref`, and the
+`design_contract.ui_applicable: true`, `ui_contract_version: 2`, `ui_work_type`,
+`surface_type`, `platforms`, `ui_brief_ref`, and the
 matching `design_system_status`; also carry the brief and original source paths
 in the relevant design/fidelity refs. Record:
 
-- real entry points, user job, experience intent, information hierarchy, and a
-  recognizable visual/interaction signature;
+- subject, audience, single job, visual/content/interaction theses, signature,
+  and the approved visual ref;
+- real entry points, surface/platform classification, experience intent, and
+  information hierarchy;
 - approved `DESIGN.md` rules, tokens/components, and any explicit extension;
 - layout, hierarchy, interaction, responsive, accessibility, and required state
   constraints; must-preserve, may-adapt, and must-not decisions;
 - a viewport/state acceptance matrix and later visual evidence.
+- real content and image plans; per-reference use intent; and required
+  `structure_snapshot`, `visual_capture`, `runtime_diagnostics`, and
+  `visual_comparison_or_human_review` evidence.
 
 When original UI references exist, preserve inspectable source paths or URLs and
 record fidelity as `approximate` by default, `high`, or `inspiration`.

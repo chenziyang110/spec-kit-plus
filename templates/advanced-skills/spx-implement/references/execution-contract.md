@@ -24,8 +24,9 @@ accessibility when applicable. Persist difference inventory and accepted
 deviations for approximate/high fidelity. tests passed is not visual acceptance;
 unavailable comparison is `pending-human-review` with an exact review target.
 Before accepting the task, persist its lifecycle `ui_verification` with
-`applicable: true`, passing contract check, concrete evidence refs, visual
-comparison, fidelity status, reviewer, and human-review ref when relevant.
+`applicable: true`, `evidence_scope: task`, typed structure/visual/runtime
+evidence refs, passing runtime evidence, visual comparison, fidelity status,
+reviewer, and human-review ref when relevant.
 `pending-human-review` blocks accepted closeout until that review is resolved.
 
 Review on drift, parallel joins, write-scope changes, validation failure,

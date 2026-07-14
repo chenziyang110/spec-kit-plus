@@ -32,7 +32,8 @@ test or credible baseline when practical. Check changed behavior, consumers,
 and generated/mirrored copies, then run verification proportional to risk.
 
 For bounded UI work, record design sources, affected states/viewports, visual
-acceptance, and evidence in `STATUS.md`. Preserve original visual references and
+acceptance, direction source/signature, reference intents, real content/image
+sources, and the structure/visual/runtime evidence triad in `STATUS.md`. Preserve original visual references and
 run the UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new
 visual direction to `$spx-design` and multi-surface or acceptance-heavy UI to
 `$spx-specify`; do not shrink the UI outcome to remain quick.

@@ -351,9 +351,9 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
         )
         assert "references/ui-quality-gate.md" in content, skill_name
 
-    assert "--level ready" in (
-        ADVANCED_SKILLS / "spx-design" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    assert "--level ready" in (ADVANCED_SKILLS / "spx-design" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
     assert "substantive\nUI work" in (
         ADVANCED_SKILLS / "spx-specify" / "SKILL.md"
     ).read_text(encoding="utf-8")
@@ -374,20 +374,42 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
     assert "ui_required_evidence" in ui_task
     ui_task_index = json.loads(
         (
-            ADVANCED_SKILLS
-            / "spx-tasks"
-            / "assets"
-            / "ui-task-index-entry.json"
+            ADVANCED_SKILLS / "spx-tasks" / "assets" / "ui-task-index-entry.json"
         ).read_text(encoding="utf-8")
     )
     assert set(ui_task_index) == {"ui_contract", "ui_fidelity_requirements"}
+    assert ui_task_index["ui_contract"]["contract_version"] == 2
+    for field in (
+        "surface_type",
+        "platforms",
+        "subject",
+        "audience",
+        "single_job",
+        "visual_thesis",
+        "content_thesis",
+        "interaction_thesis",
+        "signature_element",
+        "approved_visual_ref",
+        "reference_intents",
+        "real_content_plan",
+        "image_plan",
+    ):
+        assert field in ui_task_index["ui_contract"]
+    assert ui_task_index["ui_contract"]["required_evidence"] == [
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+        "visual_comparison_or_human_review",
+    ]
     assert ui_task_index["ui_fidelity_requirements"]["applicable"] is True
     assert "visual convergence loop" in (
-        ADVANCED_SKILLS
-        / "spx-implement"
-        / "references"
-        / "execution-contract.md"
+        ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
     ).read_text(encoding="utf-8")
+    design_asset = (
+        ADVANCED_SKILLS / "spx-design" / "assets" / "design-system.md"
+    ).read_text(encoding="utf-8")
+    for generic_anchor in ('value: "8px"', 'value: "16px"', 'value: "14px"'):
+        assert generic_anchor not in design_asset
 
 
 def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:

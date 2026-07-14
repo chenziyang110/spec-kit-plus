@@ -1,19 +1,34 @@
 {
   "ui_contract": {
+    "contract_version": 2,
+    "ui_work_type": "{{ui_work_type}}",
+    "surface_type": "{{surface_type}}",
+    "platforms": ["{{platform}}"],
+    "subject": "{{subject}}",
+    "audience": "{{audience}}",
+    "single_job": "{{single_job}}",
+    "visual_thesis": "{{visual_thesis}}",
+    "content_thesis": "{{content_thesis}}",
+    "interaction_thesis": "{{interaction_thesis}}",
+    "signature_element": "{{signature_element}}",
+    "approved_visual_ref": "{{approved_visual_ref}}",
     "design_sources": ["DESIGN.md", "{{feature_dir}}/ui-brief.md"],
     "reference_notes": "{{reference_notes_or_empty}}",
     "visual_target": "{{visual_target_or_empty}}",
+    "reference_intents": [{"ref": "{{reference_ref}}", "intent": "{{reference_intent}}"}],
+    "real_content_plan": [{"source_ref": "{{content_source_ref}}", "applies_to_states": ["{{content_state}}"]}],
+    "image_plan": [],
     "fidelity_level": "{{none_or_approximate_or_high_or_inspiration}}",
     "must_preserve": ["{{task_specific_constraints}}"],
     "may_adapt": ["{{allowed_choices}}"],
     "must_not": ["{{forbidden_drift}}"],
     "required_states": ["{{affected_states}}"],
-    "required_evidence": ["{{viewport_state_captures}}", "{{interaction_checks}}"]
+    "required_evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
   },
   "ui_fidelity_requirements": {
     "applicable": true,
     "level": "{{approximate_or_high}}",
     "design_inputs": ["DESIGN.md", "{{feature_dir}}/ui-brief.md"],
-    "required_evidence": ["{{viewport_state_captures}}", "{{interaction_checks}}"]
+    "required_evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
   }
 }

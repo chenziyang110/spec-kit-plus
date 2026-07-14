@@ -33,8 +33,8 @@ blocker: none
 
 - commands:
 - results:
-- ui_contract: [design sources, affected states/viewports, must-preserve, or none]
-- visual_evidence: [real-entry captures/comparison or pending-human-review]
+- ui_contract: [direction/signature, sources/intents, real content/images, affected states/viewports, or none]
+- visual_evidence: [structure snapshot, visual capture, runtime diagnostics, comparison or pending-human-review]
 - remaining_risk:
 
 ## Summary Pointer

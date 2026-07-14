@@ -51,8 +51,13 @@ If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
   fidelity target, responsive multi-state work, or a shared component/token
   change leaves fast: route a new direction to `/sp-design`, bounded tracked UI
   to `/sp-quick`, and feature-level acceptance to `/sp-specify`.
-- Eligible UI fast work still requires a representative screenshot or platform
-  output plus visual inspection against the governing design/live pattern.
+- Eligible UI fast work still requires a representative visual capture and
+  runtime diagnostics plus visual inspection against the governing design/live
+  pattern; add a structure snapshot whenever semantics, hierarchy, focus, or
+  interaction changes.
+- `representative screenshot or platform` output remains a compatibility name
+  for the required visual capture; it does not replace runtime or structure
+  evidence when those are triggered.
   Code, unit, or style tests alone do not close visible UI behavior.
 
 ## Fast Path Consequence Routing

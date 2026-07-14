@@ -14,13 +14,16 @@ Record only decisions that constrain implementation:
 When UI applies, preserve the feature `ui-brief.md` rather than reinterpreting
 it. Explicitly set `ui_applicable: true`, preserve `ui_brief_ref`, and record
 `design_readiness: approved` or a bounded `narrow-existing-pattern-exception`.
-Map its entry points, approved design tokens/components, required states,
+Map its work/surface/platform types, subject/audience/job, three theses,
+signature, approved visual ref, reference intents, real content/image plans,
+entry points, approved design tokens/components, required states,
 responsive/accessibility rules, fidelity constraints, and
 must-preserve/may-adapt/must-not decisions into
 `plan-contract.json#/ui_design_contract`. The verification plan names the
 representative viewport/state matrix, screenshot or platform capture routes,
-console/overflow/keyboard/accessibility checks, visual comparison, and accepted
-deviation or pending-human-review boundary.
+the structure/visual/runtime evidence triad, visual comparison, and accepted
+deviation or pending-human-review boundary. Carry verified cognition routes for
+entry points, owners, reusable patterns, and visual tests in the context capsule.
 
 Trace every requirement and must-preserve obligation to a design decision or an
 explicit unresolved blocker. Use precise paths when reasonably knowable, but do

@@ -229,15 +229,32 @@ def test_lint_design_file_reports_non_mapping_token_refs(tmp_path: Path) -> None
 
 def test_export_design_system_json_returns_normalized_tokens(tmp_path: Path) -> None:
     design_file = tmp_path / "DESIGN.md"
-    design_file.write_text(VALID_DESIGN, encoding="utf-8")
+    enriched_design = VALID_DESIGN.replace(
+        "  platforms:\n",
+        "  product_context:\n"
+        "    subject: account settings\n"
+        "    audience: account owners\n"
+        "    single_job: update preferences\n"
+        "  direction_contract:\n"
+        "    visual_thesis: compact hierarchy\n"
+        "    content_thesis: real preference values\n"
+        "    interaction_thesis: immediate local feedback\n"
+        "    signature_element: section progress rail\n"
+        "  platforms:\n",
+    )
+    design_file.write_text(enriched_design, encoding="utf-8")
 
     exported = export_design_system(design_file, export_format="json")
     payload = json.loads(exported)
 
     assert payload["schema"] == "spec-kit-design-v1"
     assert payload["tokens"]["color"]["surface.canvas"]["value"] == "#ffffff"
-    assert payload["components"]["button"]["token_refs"]["text"] == "{color.text.primary}"
+    assert (
+        payload["components"]["button"]["token_refs"]["text"] == "{color.text.primary}"
+    )
     assert payload["accessibility"]["focus_visible"] == "required"
+    assert payload["product_context"]["single_job"] == "update preferences"
+    assert payload["direction_contract"]["signature_element"] == "section progress rail"
 
 
 def test_export_design_system_tailwind_maps_supported_token_categories(tmp_path: Path) -> None:

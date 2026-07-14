@@ -11,7 +11,11 @@
   "review": null,
   "ui_verification": {
     "applicable": false,
+    "evidence_scope": "task",
+    "integration_base_ref": null,
+    "evidence": [],
     "contract_check": "not-run",
+    "runtime_evidence": "not-run",
     "evidence_refs": [],
     "visual_comparison": "not-applicable",
     "fidelity_status": "not-applicable",

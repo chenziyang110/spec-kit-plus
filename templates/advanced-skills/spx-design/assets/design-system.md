@@ -8,21 +8,31 @@ design_system:
     status: approved
     direction: "{{approved_direction}}"
     source_refs: ["{{product_or_repository_source}}"]
-  platforms: [web]
+    visual_refs: ["{{approved_visual_ref}}"]
+  product_context:
+    subject: "{{subject}}"
+    audience: "{{audience}}"
+    single_job: "{{single_job}}"
+  direction_contract:
+    visual_thesis: "{{visual_thesis}}"
+    content_thesis: "{{content_thesis}}"
+    interaction_thesis: "{{interaction_thesis}}"
+    signature_element: "{{signature_element}}"
+  platforms: ["{{approved_platforms}}"]
   tokens:
     color:
       surface.canvas: {value: "{{surface_canvas}}", usage: "{{surface_canvas_usage}}"}
       text.primary: {value: "{{text_primary}}", usage: primary readable text}
       accent.primary: {value: "{{accent_primary}}", usage: "{{accent_primary_usage}}"}
     spacing:
-      scale.2: {value: "8px", usage: compact gaps}
-      scale.4: {value: "16px", usage: default section and control spacing}
+      compact: {value: "{{compact_spacing}}", usage: "{{compact_spacing_usage}}"}
+      section: {value: "{{section_spacing}}", usage: "{{section_spacing_usage}}"}
     radius:
-      control: {value: "6px", usage: interactive controls}
-      panel: {value: "8px", usage: cards and panels}
+      control: {value: "{{control_radius}}", usage: "{{control_radius_usage}}"}
+      surface: {value: "{{surface_radius}}", usage: "{{surface_radius_usage}}"}
     typography:
       body.family: {value: "{{body_font_family}}", usage: "{{body_font_usage}}"}
-      body.size: {value: "14px", usage: ordinary interface copy}
+      body.size: {value: "{{body_font_size}}", usage: "{{body_size_usage}}"}
   components: {}
   accessibility:
     contrast_intent: WCAG AA for ordinary text
@@ -34,8 +44,14 @@ design_system:
 
 ## Product Feel
 
-State the product experience principles and anti-patterns that distinguish this
-interface. Keep them observable and reusable.
+State the subject, audience, single user job, and experience principles that
+distinguish this product. Keep them observable and reusable.
+
+## Design Direction
+
+Record the visual, content, and interaction theses; the signature element; and
+the inspectable approved visual reference. Separate safe system choices from
+deliberate creative risks and their costs.
 
 ## Visual And Interaction Signature
 
@@ -62,7 +78,8 @@ List visual or interaction choices this product must avoid.
 
 - Tokens and existing components are reused.
 - Responsive, keyboard, focus, contrast, loading, empty, and error states pass.
-- Evidence uses real entry points and representative viewports or output.
+- Evidence covers structure, visual capture, runtime diagnostics, and comparison
+  at real entry points.
 
 ## Reference Fidelity
 

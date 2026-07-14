@@ -11,6 +11,13 @@ from specify_cli.execution.packet_compiler import (
     compile_worker_task_packet,
 )
 from specify_cli.execution.packet_validator import PacketValidationError
+from specify_cli.execution.result_schema import (
+    RuleAcknowledgement,
+    UIVerification,
+    ValidationResult,
+    WorkerTaskResult,
+)
+from specify_cli.execution.result_validator import validate_worker_task_result
 
 
 def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
@@ -80,6 +87,23 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         "# Constitution\n\n- Preserve the approved UI contract.\n",
         encoding="utf-8",
     )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "ui_design_contract": {
+                    "ui_applicable": True,
+                    "entry_points": ["/settings"],
+                    "token_strategy": ["reuse settings tokens"],
+                    "component_strategy": ["reuse settings form controls"],
+                },
+                "context_capsule": {
+                    "minimal_live_reads": ["src/ui/theme.ts"],
+                    "validation_routes": ["tests/e2e/settings.spec.ts"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     (feature_dir / "task-index.json").write_text(
         json.dumps(
             {
@@ -93,20 +117,47 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                         "verification": ["npm test -- settings-ui"],
                         "acceptance": ["Desktop and mobile states match the UI brief"],
                         "ui_contract": {
+                            "contract_version": 2,
+                            "ui_work_type": "feature-extension",
+                            "surface_type": "product-workspace",
+                            "platforms": ["web"],
+                            "subject": "account settings",
+                            "audience": "signed-in account owners",
+                            "single_job": "review and update account preferences",
+                            "visual_thesis": "compact hierarchy keeps settings scannable",
+                            "content_thesis": "render real preference labels and saved values",
+                            "interaction_thesis": "changes provide immediate local feedback",
+                            "signature_element": "persistent section progress rail",
+                            "approved_visual_ref": "DESIGN.md#settings-direction",
                             "design_sources": [
                                 "DESIGN.md",
                                 "specs/001-ui-feature/ui-brief.md",
                             ],
                             "reference_notes": "specs/001-ui-feature/ui-reference-notes.md",
                             "visual_target": "specs/001-ui-feature/ui-target.html",
+                            "reference_intents": [
+                                {
+                                    "ref": "specs/001-ui-feature/ui-target.html",
+                                    "intent": "preserve-structure",
+                                }
+                            ],
+                            "real_content_plan": [
+                                {
+                                    "source_ref": "src/settings/schema.ts",
+                                    "applies_to_states": ["ready", "error"],
+                                }
+                            ],
+                            "image_plan": [],
                             "fidelity_level": "high",
                             "must_preserve": ["compact two-column hierarchy"],
                             "may_adapt": ["framework markup"],
                             "must_not": ["collapse settings into cards"],
                             "required_states": ["loading", "error", "success"],
                             "required_evidence": [
-                                "desktop_screenshot",
-                                "mobile_screenshot",
+                                "structure_snapshot",
+                                "visual_capture",
+                                "runtime_diagnostics",
+                                "visual_comparison_or_human_review",
                             ],
                         },
                         "ui_fidelity_requirements": {
@@ -117,8 +168,10 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                 "specs/001-ui-feature/ui-brief.md",
                             ],
                             "required_evidence": [
-                                "desktop_screenshot",
-                                "mobile_screenshot",
+                                "structure_snapshot",
+                                "visual_capture",
+                                "runtime_diagnostics",
+                                "visual_comparison_or_human_review",
                             ],
                         },
                     }
@@ -139,17 +192,78 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     )
 
     assert packet.ui_contract.fidelity_level == "high"
+    assert packet.ui_contract.contract_version == 2
+    assert packet.ui_contract.surface_type == "product-workspace"
+    assert packet.ui_contract.approved_visual_ref == "DESIGN.md#settings-direction"
+    assert packet.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
+    assert (
+        packet.ui_contract.real_content_plan[0]["source_ref"]
+        == "src/settings/schema.ts"
+    )
     assert packet.ui_contract.required_states == ["loading", "error", "success"]
     assert packet.ui_contract.must_not == ["collapse settings into cards"]
     assert packet.ui_fidelity_requirements.applicable is True
     assert packet.ui_fidelity_requirements.level == "high"
     assert packet.ui_fidelity_requirements.required_evidence == [
-        "desktop_screenshot",
-        "mobile_screenshot",
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+        "visual_comparison_or_human_review",
     ]
+    assert {item["kind"] for item in packet.context_nav} >= {
+        "ui_entrypoint",
+        "design_source",
+        "minimal_live_read",
+        "visual_test_route",
+    }
+    assert "src/ui/theme.ts" in {item.path for item in packet.context_bundle}
     reference_paths = [item.path for item in packet.required_references]
     assert "DESIGN.md" in reference_paths
     assert "specs/001-ui-feature/ui-brief.md" in reference_paths
+
+    documented_result = WorkerTaskResult(
+        task_id="T021",
+        status="success",
+        changed_files=["src/ui/settings.tsx"],
+        validation_results=[
+            ValidationResult(
+                command="npm test -- settings-ui",
+                status="passed",
+                output="settings UI tests passed",
+            )
+        ],
+        ui_fidelity_evidence=[
+            {
+                "kind": "structure_snapshot",
+                "snapshot": "artifacts/ui/settings-structure.json",
+            },
+            {
+                "kind": "visual_capture",
+                "screenshot": "artifacts/ui/settings.png",
+            },
+            {
+                "kind": "runtime_diagnostics",
+                "console": "artifacts/ui/settings-runtime.txt",
+            },
+        ],
+        ui_verification=UIVerification(
+            contract_check="pass",
+            runtime_evidence="pass",
+            visual_comparison="passed",
+            fidelity_status="passed",
+        ),
+        summary="Implemented and visually verified the settings surface.",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                item.path for item in packet.context_bundle if item.must_read
+            ],
+        ),
+    )
+
+    assert validate_worker_task_result(documented_result, packet) is documented_result
 
 
 @pytest.mark.parametrize("structured_contract", [{}, {"fidelity_level": "none"}])

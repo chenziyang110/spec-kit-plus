@@ -16,8 +16,10 @@ observed product language from new design decisions; do not invent a parallel
 system when an established one can be extended.
 
 When creating a new direction or replacing a bootstrap seed, present two or
-three project-specific directions with meaningful visual/interaction tradeoffs
-and obtain user approval before locking one. Refinement that preserves an
+three project-specific directions grounded in subject, audience, and one user
+job. Each states visual/content/interaction theses, a signature element, and
+creative-risk tradeoffs, and has an inspectable visual artifact. Obtain user
+approval of that artifact before locking one. Refinement that preserves an
 already approved direction needs no ceremonial re-selection.
 
 Create or revise root `DESIGN.md` from `assets/design-system.md`. Record only
@@ -27,7 +29,7 @@ fidelity, and required visual evidence. Make exceptions explicit and
 verifiable.
 
 Set `design_system.status: approved`, record the selected direction and
-product/repository source refs, replace every asset placeholder, and run
+product/repository source refs plus `approval.visual_refs`, replace every asset placeholder, and run
 `{{specify-subcmd:design lint --level ready}}`. Do not hand off a structurally valid but
 generic or unapproved seed.
 

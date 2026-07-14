@@ -147,11 +147,21 @@ present in a test project.
   task must carry structured task-local design sources, fidelity, states,
   must-preserve/may-adapt/must-not rules, and required visual evidence so the
   worker packet cannot silently downgrade UI work to `not_applicable`.
+- UI contract v2 separates work type, surface type, and platform. It preserves
+  subject, audience, single job, visual/content/interaction theses, a signature
+  element, an inspectable approved visual reference, per-reference use intent,
+  and task-relevant real-content/image plans through the Classic and Advanced
+  artifact chain. Do not collapse those dimensions into one enum or prose.
 - UI implementation acceptance requires a real-entrypoint convergence loop:
   run, capture representative viewport/state evidence, visually inspect against
   design/brief/reference inputs, repair drift, and recapture. Passing automated
   tests is separate from visual and interaction acceptance; unavailable visual
   comparison remains explicit `pending-human-review`.
+- New UI task lifecycles use typed `structure_snapshot`, `visual_capture`, and
+  `runtime_diagnostics` evidence plus visual comparison or human review. Web
+  maps those kinds to accessibility/DOM structure, viewport screenshots, and
+  console/runtime output. Integrated lanes must recapture them with
+  `evidence_scope: integrated`; isolated task evidence cannot close the lane.
 - A UI workflow change must evaluate `templates/design-template.md`, design CLI
   readiness, Classic command/partial/passive/worker surfaces, Advanced shared
   and owning skill references/assets, spec/plan/task machine contracts,

@@ -23,6 +23,12 @@ the task: `epistemic_contract`, `minimal_live_reads`, lane `first_pass_paths`,
 - Treat graph claims as route candidates. The live repository, tests,
   configuration, runtime output, and authoritative docs establish facts.
 
+For UI work, use the same intake to locate likely real entry points,
+token/theme/component owners, reusable patterns, required states, responsive
+rules, visual/accessibility tests, and reference assets. Carry only verified
+live routes into the plan context capsule; do not add a UI-specific cognition
+runtime or treat a graph owner label as proof.
+
 If readiness says `needs_rebuild`, use `$spx-map-rebuild`. Use
 `$spx-map-update` for explicit maintenance, external changes, or recovery of an
 interrupted incremental update. For `blocked` or partial results, report the

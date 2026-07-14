@@ -20,6 +20,14 @@ def render_context_bundle_summary(packet: WorkerTaskPacket) -> str:
 def render_packet_summary(packet: WorkerTaskPacket) -> str:
     """Render a compact summary suitable for prompts or runtime metadata."""
 
+    context_nav = (
+        "; ".join(
+            f"{item.get('kind', '')}: {item.get('value', '')}"
+            for item in packet.context_nav
+            if item.get("kind") and item.get("value")
+        )
+        or "(none)"
+    )
     return (
         f"task_id: {packet.task_id}\n"
         f"objective: {packet.objective}\n"
@@ -28,6 +36,7 @@ def render_packet_summary(packet: WorkerTaskPacket) -> str:
         f"intent_constraints: {', '.join(packet.intent.constraints)}\n"
         f"hard_rules: {', '.join(packet.hard_rules)}\n"
         f"context_bundle: {render_context_bundle_summary(packet)}\n"
+        f"context_nav: {context_nav}\n"
         f"required_references: {', '.join(ref.path for ref in packet.required_references)}\n"
         f"validation_gates: {', '.join(packet.validation_gates)}"
     )

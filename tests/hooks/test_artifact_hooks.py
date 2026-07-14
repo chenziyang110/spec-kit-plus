@@ -992,6 +992,127 @@ def test_ui_contract_continuity_from_spec_plan_to_tasks(tmp_path: Path) -> None:
     assert _validate_tasks_ui_contract(feature_dir) == []
 
 
+def test_ui_v2_direction_contract_continues_from_spec_to_task_index(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "002-ui-v2"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
+    direction = {
+        "ui_work_type": "feature-extension",
+        "surface_type": "product-workspace",
+        "platforms": ["web", "mobile"],
+        "subject": "account settings",
+        "audience": "account owners",
+        "single_job": "update preferences",
+        "visual_thesis": "compact hierarchy",
+        "content_thesis": "real preference labels and values",
+        "interaction_thesis": "immediate local feedback",
+        "signature_element": "persistent section progress",
+        "approved_visual_ref": "DESIGN.md#settings",
+        "reference_intents": [
+            {"ref": "DESIGN.md#settings", "intent": "preserve-structure"},
+            {"ref": "ui-brief.md#interaction", "intent": "exact"},
+        ],
+        "real_content_plan": [
+            {
+                "source_ref": "src/settings/schema.ts",
+                "applies_to_states": ["ready", "error"],
+            }
+        ],
+        "image_plan": [],
+        "required_evidence": [
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+    }
+    spec_design = {
+        "ui_contract_version": 2,
+        "ui_applicable": True,
+        "ui_brief_ref": "ui-brief.md",
+        **direction,
+    }
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps({"design_contract": spec_design}), encoding="utf-8"
+    )
+    plan_design = {
+        "ui_contract_version": 2,
+        "ui_applicable": True,
+        "ui_brief_ref": "ui-brief.md",
+        "design_readiness": "approved",
+        "source_refs": ["DESIGN.md", "ui-brief.md"],
+        "design_system_adoption": ["settings controls"],
+        "token_strategy": ["reuse approved tokens"],
+        "component_strategy": ["reuse settings form"],
+        "entry_points": ["/settings"],
+        "required_states": ["loading", "ready", "error"],
+        "fidelity_refs": [],
+        "must_preserve": ["compact hierarchy"],
+        "may_adapt": ["framework markup"],
+        "must_not": ["hide errors"],
+        "validation_refs": ["browser settings route"],
+        "visual_acceptance": ["desktop and mobile states inspected"],
+        "human_review_conditions": ["comparison unavailable"],
+        **direction,
+    }
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+    assert _validate_plan_ui_contract(feature_dir) == []
+
+    plan_design["platforms"] = list(reversed(plan_design["platforms"]))
+    plan_design["reference_intents"] = list(
+        reversed(plan_design["reference_intents"])
+    )
+    plan_design["real_content_plan"] = [
+        {
+            "source_ref": "src/settings/schema.ts",
+            "applies_to_states": ["error", "ready"],
+        }
+    ]
+    plan_design["required_evidence"] = list(
+        reversed(plan_design["required_evidence"])
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+    assert _validate_plan_ui_contract(feature_dir) == []
+
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T001 Implement settings UI\n\n"
+        "## T001: Settings UI\n\n### UI Implementation Contract\n\n"
+        "| Field | Value |\n| --- | --- |\n| contract_version | 2 |\n",
+        encoding="utf-8",
+    )
+    task_contract = {
+        "contract_version": 2,
+        **direction,
+        "design_sources": ["DESIGN.md", "ui-brief.md"],
+        "required_states": ["loading", "ready", "error"],
+    }
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+        ),
+        encoding="utf-8",
+    )
+    assert _validate_tasks_ui_contract(feature_dir) == []
+
+    task_contract["visual_thesis"] = "unapproved reinterpretation"
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+        ),
+        encoding="utf-8",
+    )
+    assert any(
+        "must preserve plan visual_thesis" in error
+        for error in _validate_tasks_ui_contract(feature_dir)
+    )
+
+
 def test_agent_native_ui_task_lifecycle_blocks_pending_human_review(tmp_path: Path) -> None:
     feature_dir = tmp_path / "specs" / "001-ui"
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
@@ -1039,6 +1160,72 @@ def test_agent_native_ui_task_lifecycle_blocks_pending_human_review(tmp_path: Pa
     errors = _validate_task_lifecycle_records(feature_dir, ["T001"])
 
     assert any("pending-human-review blocks" in error for error in errors)
+
+
+def test_agent_native_ui_v2_lifecycle_requires_typed_evidence_triad(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    evidence_dir = feature_dir / "evidence"
+    lifecycle_dir.mkdir(parents=True)
+    evidence_dir.mkdir()
+    for name in ("a11y.json", "screen.png", "console.txt"):
+        (evidence_dir / name).write_text("evidence\n", encoding="utf-8")
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "tasks": [
+                    {
+                        "id": "T001",
+                        "ui_contract": {
+                            "contract_version": 2,
+                            "required_evidence": [
+                                "structure_snapshot",
+                                "visual_capture",
+                                "runtime_diagnostics",
+                                "visual_comparison_or_human_review",
+                            ],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    lifecycle = {
+        "task_id": "T001",
+        "status": "accepted",
+        "changed_paths": ["src/ui/page.tsx"],
+        "validation": [{"command": "npm test", "status": "passed"}],
+        "review": None,
+        "blockers": [],
+        "ui_verification": {
+            "applicable": True,
+            "evidence_scope": "task",
+            "evidence": [
+                {"kind": "accessibility_snapshot", "ref": "evidence/a11y.json"},
+                {"kind": "screenshot_desktop", "ref": "evidence/screen.png"},
+            ],
+            "contract_check": "passed",
+            "runtime_evidence": "passed",
+            "visual_comparison": "passed",
+            "fidelity_status": "passed",
+            "reviewer": "agent",
+        },
+    }
+    lifecycle_path = lifecycle_dir / "T001.json"
+    lifecycle_path.write_text(json.dumps(lifecycle), encoding="utf-8")
+
+    errors = _validate_task_lifecycle_records(feature_dir, ["T001"])
+    assert any("runtime_diagnostics" in error for error in errors)
+
+    lifecycle["ui_verification"]["evidence"].append(
+        {"kind": "console_runtime", "ref": "evidence/console.txt"}
+    )
+    lifecycle_path.write_text(json.dumps(lifecycle), encoding="utf-8")
+    assert _validate_task_lifecycle_records(feature_dir, ["T001"]) == []
 
 
 def test_specify_artifact_validation_requires_source_signal_disposition(tmp_path: Path):

@@ -14,7 +14,10 @@ Check:
 
 For UI-bearing lanes, isolated screenshots are inputs rather than combined
 proof. Re-run the UI quality gate on the integrated entrypoint and preserve the
-task viewport/state matrix, visual comparison, and human-review boundary.
+task viewport/state matrix. Recapture typed structure/visual/runtime evidence,
+set lifecycle `evidence_scope: integrated` and `integration_base_ref`, then run
+visual comparison or preserve the human-review boundary. The runtime close gate
+rejects task-scope UI evidence for an integrated lane.
 
 Closing a lane records accepted integration truth; it must follow successful
 combined validation. On partial integration, identify what landed, what remains

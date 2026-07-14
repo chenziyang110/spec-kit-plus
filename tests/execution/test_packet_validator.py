@@ -12,6 +12,7 @@ from specify_cli.execution.packet_schema import (
     PacketReference,
     PacketScope,
     UiFidelityRequirements,
+    UIContract,
     WorkerTaskPacket,
 )
 from specify_cli.execution.packet_validator import (
@@ -264,6 +265,50 @@ def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
 
     assert exc.value.code == "DP1"
     assert "controller checks" in exc.value.message.lower()
+
+
+def test_validate_worker_task_packet_requires_complete_ui_v2_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.context_nav = [
+        {"kind": "ui_entrypoint", "value": "/settings", "source": "plan-contract.json"},
+        {"kind": "design_source", "value": "DESIGN.md", "source": "task-index.json"},
+    ]
+    sample_packet.ui_contract = UIContract(
+        contract_version=2,
+        ui_work_type="feature-extension",
+        surface_type="product-workspace",
+        platforms=["web"],
+        subject="settings",
+        audience="account owners",
+        single_job="update preferences",
+        visual_thesis="compact hierarchy",
+        content_thesis="real preference labels and values",
+        interaction_thesis="immediate local feedback",
+        signature_element="persistent section progress",
+        approved_visual_ref="DESIGN.md#settings",
+        design_sources=["DESIGN.md", "ui-brief.md"],
+        real_content_plan=[{"source_ref": "src/settings/schema.ts"}],
+        required_states=["ready", "error"],
+        required_evidence=[
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+    )
+    sample_packet.ui_fidelity_requirements = UiFidelityRequirements(
+        applicable=True,
+        level="approximate",
+        design_inputs=["DESIGN.md", "ui-brief.md"],
+        required_evidence=list(sample_packet.ui_contract.required_evidence),
+    )
+
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+
+    sample_packet.ui_contract.approved_visual_ref = ""
+    with pytest.raises(PacketValidationError, match="approved_visual_ref"):
+        validate_worker_task_packet(sample_packet)
 
 
 def test_compile_worker_task_packet_collects_must_preserve_obligations(

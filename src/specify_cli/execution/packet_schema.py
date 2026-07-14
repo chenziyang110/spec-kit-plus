@@ -93,9 +93,24 @@ UIFidelityLevel = Literal["none", "approximate", "high", "inspiration"]
 
 @dataclass(slots=True)
 class UIContract:
+    contract_version: int = 1
+    ui_work_type: str = ""
+    surface_type: str = ""
+    platforms: list[str] = field(default_factory=list)
+    subject: str = ""
+    audience: str = ""
+    single_job: str = ""
+    visual_thesis: str = ""
+    content_thesis: str = ""
+    interaction_thesis: str = ""
+    signature_element: str = ""
+    approved_visual_ref: str = ""
     design_sources: list[str] = field(default_factory=list)
     reference_notes: str = ""
     visual_target: str = ""
+    reference_intents: list[dict[str, str]] = field(default_factory=list)
+    real_content_plan: list[dict[str, object]] = field(default_factory=list)
+    image_plan: list[dict[str, str]] = field(default_factory=list)
     fidelity_level: UIFidelityLevel = "none"
     must_preserve: list[str] = field(default_factory=list)
     may_adapt: list[str] = field(default_factory=list)

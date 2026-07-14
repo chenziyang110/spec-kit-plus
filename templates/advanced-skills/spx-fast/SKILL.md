@@ -27,7 +27,9 @@ credible baseline first when behavior changes and an automated surface exists.
 Run the smallest meaningful verification after editing. If the edit propagates
 to generated, mirrored, registered, or downstream consumer surfaces, leave fast
 and route the complete change through `$spx-quick` or `$spx-specify`.
-For eligible UI, include a representative capture/output and visual inspection;
+For eligible UI, include a representative visual capture and runtime diagnostics,
+plus a structure snapshot when semantics, hierarchy, focus, or interaction
+changes, and perform visual inspection;
 code or style tests alone do not close the change.
 
 Create no spec, plan, tasks, quick workspace, delegation packet, or lifecycle

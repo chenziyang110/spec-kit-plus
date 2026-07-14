@@ -120,6 +120,8 @@ def export_design_system(
             "version": document.design_system.get("version"),
             "status": document.design_system.get("status"),
             "approval": document.design_system.get("approval", {}),
+            "product_context": document.design_system.get("product_context", {}),
+            "direction_contract": document.design_system.get("direction_contract", {}),
             "platforms": document.design_system.get("platforms", []),
             "tokens": document.design_system.get("tokens", {}),
             "components": document.design_system.get("components", {}),
