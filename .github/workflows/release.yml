@@ -43,12 +43,38 @@ jobs:
         id: check_release
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
-          if gh release view "$VERSION" >/dev/null 2>&1; then
+          expected_assets=(
+            spec-lint-linux-amd64
+            spec-lint-linux-arm64
+            spec-lint-darwin-amd64
+            spec-lint-darwin-arm64
+            spec-lint-windows-amd64.exe
+            project-cognition-linux-amd64
+            project-cognition-linux-arm64
+            project-cognition-darwin-amd64
+            project-cognition-darwin-arm64
+            project-cognition-windows-amd64.exe
+          )
+          if release_json="$(gh release view "$VERSION" --json isDraft,assets 2>/dev/null)" && \
+             [ "$(jq -r '.isDraft' <<<"$release_json")" = "false" ]; then
+            complete=true
+            for asset in "${expected_assets[@]}"; do
+              if ! jq -e --arg name "$asset" \
+                '.assets[] | select(.name == $name and .size > 0)' \
+                <<<"$release_json" >/dev/null; then
+                complete=false
+                break
+              fi
+            done
+          else
+            complete=false
+          fi
+          if [ "$complete" = "true" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Release $VERSION already exists, skipping..."
+            echo "Release $VERSION is published with every required asset; skipping."
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Release $VERSION does not exist, proceeding..."
+            echo "Release $VERSION is absent or incomplete; building and repairing it."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -106,7 +132,7 @@ jobs:
 
           ### project-cognition runtime
 
-          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes \`scan-set\` for compact agent-facing scan file-list resolution, the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
+          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes \`scan-set\` for compact file-list resolution, \`scan-prepare\` and idempotent \`scan-accept\` for advanced low-cost packet scanning, the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
 
           **Install the prebuilt release binary**
           \`\`\`bash
@@ -181,6 +207,10 @@ jobs:
         run: |
           chmod +x ./dist/release-tools/project-cognition-linux-amd64
           ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-set"
+          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-prepare"
+          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-accept"
+          ./dist/release-tools/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-force"
+          ./dist/release-tools/project-cognition-linux-amd64 scan-accept --help 2>&1 | grep -q -- "-packet-id"
           ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "semantic-intake"
           ./dist/release-tools/project-cognition-linux-amd64 semantic-intake --help 2>&1 | grep -q -- "-input"
           ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --help 2>&1 | grep -q -- "-input"
@@ -204,15 +234,35 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
           VERSION_NO_V=${VERSION#v}
-          if gh release create "$VERSION" \
-            --title "Spec Kit Plus - $VERSION_NO_V" \
-            --notes-file release_notes.md \
-            dist/release-tools/*; then
-            echo "Release $VERSION created."
-          elif gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "Release $VERSION already exists after a concurrent release run; treating as success."
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release edit "$VERSION" \
+              --title "Spec Kit Plus - $VERSION_NO_V" \
+              --notes-file release_notes.md
           else
+            gh release create "$VERSION" \
+              --draft \
+              --title "Spec Kit Plus - $VERSION_NO_V" \
+              --notes-file release_notes.md
+          fi
+
+          gh release upload "$VERSION" dist/release-tools/* --clobber
+
+          release_json="$(gh release view "$VERSION" --json assets)"
+          missing=0
+          for path in dist/release-tools/*; do
+            asset="$(basename "$path")"
+            if ! jq -e --arg name "$asset" \
+              '.assets[] | select(.name == $name and .size > 0)' \
+              <<<"$release_json" >/dev/null; then
+              echo "Missing or empty release asset: $asset" >&2
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
             exit 1
           fi
+
+          gh release edit "$VERSION" --draft=false
+          echo "Release $VERSION published with every required binary asset."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

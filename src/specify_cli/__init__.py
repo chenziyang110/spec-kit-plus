@@ -3267,6 +3267,7 @@ def init(
     branch_numbering: str = typer.Option(None, "--branch-numbering", help="Branch prefix strategy: 'date' (YYYY-MM-DD, default), 'sequential' (001, 002, …, 1000, …), or 'timestamp' (YYYYMMDD-HHMMSS)"),
     integration: str = typer.Option(None, "--integration", help="Use the new integration system (e.g. --integration copilot). Mutually exclusive with --ai."),
     integration_options: str = typer.Option(None, "--integration-options", help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")'),
+    workflow_profile: str = typer.Option(None, "--workflow-profile", help="Workflow prompt profile for skills integrations: classic or advanced"),
 ):
     """
     Initialize a new Specify project.
@@ -3305,6 +3306,7 @@ def init(
         specify init --here
         specify init --here --force  # Skip confirmation when current directory not empty
         specify init my-project --ai claude   # Claude installs skills by default
+        specify init my-project --ai codex --workflow-profile advanced
         specify init my-project --constitution-profile library
         specify init --here --ai gemini --ai-skills
         specify init my-project --ai generic --ai-commands-dir .myagent/commands/  # Unsupported agent
@@ -3456,6 +3458,39 @@ def init(
             console.print(f"[red]Error:[/red] Unknown agent '{selected_ai}'")
             raise typer.Exit(1)
 
+    from .integrations.base import SkillsIntegration as _WorkflowProfileSkills
+
+    workflow_profile_choices = {
+        "classic": "Classic - current full Spec Kit workflow skills",
+        "advanced": "Advanced - concise SPX skills for advanced models",
+    }
+    if workflow_profile is not None:
+        workflow_profile = workflow_profile.strip().lower()
+        if workflow_profile not in workflow_profile_choices:
+            console.print(
+                f"[red]Error:[/red] Invalid --workflow-profile value '{workflow_profile}'. "
+                f"Choose from: {', '.join(workflow_profile_choices)}"
+            )
+            raise typer.Exit(1)
+
+    if isinstance(resolved_integration, _WorkflowProfileSkills):
+        if workflow_profile is None:
+            if sys.stdin.isatty():
+                workflow_profile = select_with_arrows(
+                    workflow_profile_choices,
+                    "Choose workflow prompt profile:",
+                    "classic",
+                )
+            else:
+                workflow_profile = "classic"
+    else:
+        if workflow_profile == "advanced":
+            console.print(
+                "[red]Error:[/red] Advanced workflow profile requires a skills-based integration"
+            )
+            raise typer.Exit(1)
+        workflow_profile = "classic"
+
     # Validate --ai-commands-dir usage.
     # Skip validation when --integration-options is provided — the integration
     # will validate its own options in setup().
@@ -3471,6 +3506,7 @@ def init(
         f"{'Project':<15} [green]{project_path.name}[/green]",
         f"{'Working Path':<15} [dim]{current_dir}[/dim]",
         f"{'Constitution':<15} [cyan]{constitution_profile}[/cyan]",
+        f"{'Workflow':<15} [cyan]{workflow_profile}[/cyan]",
     ]
 
     if not here:
@@ -3518,6 +3554,7 @@ def init(
 
     console.print(f"[cyan]Selected AI assistant:[/cyan] {selected_ai}")
     console.print(f"[cyan]Selected script type:[/cyan] {selected_script}")
+    console.print(f"[cyan]Selected workflow profile:[/cyan] {workflow_profile}")
 
     tracker = StepTracker("Initialize Spec Kit Plus Project")
 
@@ -3527,6 +3564,8 @@ def init(
     tracker.complete("precheck", "ok")
     tracker.add("ai-select", "Select AI assistant")
     tracker.complete("ai-select", f"{selected_ai}")
+    tracker.add("workflow-profile", "Select workflow prompt profile")
+    tracker.complete("workflow-profile", workflow_profile)
     tracker.add("script-select", "Select script type")
     tracker.complete("script-select", selected_script)
 
@@ -3578,6 +3617,23 @@ def init(
             manifest = IntegrationManifest(
                 resolved_integration.key, project_path, version=get_speckit_version()
             )
+            existing_manifest = manifest.manifest_path.exists()
+            if existing_manifest:
+                manifest = IntegrationManifest.load(
+                    resolved_integration.key,
+                    project_path,
+                )
+                manifest.version = get_speckit_version()
+
+            installed_profiles: list[str] = []
+            if isinstance(resolved_integration, _WorkflowProfileSkills):
+                installed_profiles = _installed_workflow_profiles(
+                    project_path,
+                    integration_key=resolved_integration.key,
+                    default="classic" if existing_manifest else None,
+                )
+                if workflow_profile not in installed_profiles:
+                    installed_profiles.append(workflow_profile)
 
             # Forward all legacy CLI flags to the integration as parsed_options.
             # Integrations receive every option and decide what to use;
@@ -3587,6 +3643,7 @@ def init(
                 integration_parsed_options["commands_dir"] = ai_commands_dir
             if ai_skills:
                 integration_parsed_options["skills"] = True
+            integration_parsed_options["workflow_profile"] = workflow_profile
 
             resolved_integration.setup(
                 project_path, manifest,
@@ -3604,6 +3661,11 @@ def init(
                 project_path,
                 resolved_integration.key,
                 selected_script,
+                workflow_profiles=(
+                    installed_profiles
+                    if isinstance(resolved_integration, _WorkflowProfileSkills)
+                    else None
+                ),
             )
 
             tracker.complete("integration", resolved_integration.config.get("name", resolved_integration.key))
@@ -3648,6 +3710,7 @@ def init(
             # Persist the CLI options so later operations (e.g. preset add)
             # can adapt their behaviour without re-scanning the filesystem.
             # Must be saved BEFORE preset install so _get_skills_dir() works.
+            previous_init_opts = load_init_options(project_path)
             init_opts = {
                 "ai": selected_ai,
                 "integration": resolved_integration.key,
@@ -3658,11 +3721,30 @@ def init(
                 "speckit_version": get_speckit_version(),
                 "constitution_profile": constitution_profile,
             }
+            previous_profile_map = previous_init_opts.get(
+                "workflow_profiles_by_integration",
+                {},
+            )
+            if isinstance(previous_profile_map, dict) and previous_profile_map:
+                init_opts["workflow_profiles_by_integration"] = dict(
+                    previous_profile_map
+                )
             # Ensure ai_skills is set for SkillsIntegration so downstream
             # tools (extensions, presets) emit SKILL.md overrides correctly.
             from .integrations.base import SkillsIntegration as _SkillsPersist
             if isinstance(resolved_integration, _SkillsPersist):
                 init_opts["ai_skills"] = True
+                init_opts["workflow_profile"] = workflow_profile
+                init_opts["installed_workflow_profiles"] = installed_profiles
+                profiles_by_integration = init_opts.get(
+                    "workflow_profiles_by_integration", {}
+                )
+                if not isinstance(profiles_by_integration, dict):
+                    profiles_by_integration = {}
+                else:
+                    profiles_by_integration = dict(profiles_by_integration)
+                profiles_by_integration[resolved_integration.key] = installed_profiles
+                init_opts["workflow_profiles_by_integration"] = profiles_by_integration
             save_init_options(project_path, init_opts)
 
             # Install preset if specified
@@ -3880,6 +3962,38 @@ def init(
         if trae_skill_mode:
             return f"$sp-{name}"
         return f"/sp.{name}"
+
+    if workflow_profile == "advanced":
+        def _spx_invocation(name: str) -> str:
+            skill_name = f"spx-{name}"
+            if codex_skill_mode or agy_skill_mode or trae_skill_mode or zcode_skill_mode:
+                return f"${skill_name}"
+            if kimi_skill_mode:
+                return f"/skill:{skill_name}"
+            return f"/{skill_name}"
+
+        steps_lines.append(f"{step_num}. Use the independent advanced workflow skills:")
+        for name, purpose in (
+            ("ask", "read-only project questions"),
+            ("auto", "resume the safest next workflow"),
+            ("design", "create or audit the root design system"),
+            ("fast", "trivial direct changes"),
+            ("quick", "small resumable changes"),
+            ("specify", "requirements and acceptance"),
+            ("plan", "architecture, research, checks, and tasks"),
+            ("implement", "planned implementation"),
+            ("debug", "evidence-driven diagnosis and repair"),
+            ("map-rebuild", "rebuild project cognition"),
+            ("map-update", "incremental cognition maintenance"),
+        ):
+            steps_lines.append(f"   [cyan]{_spx_invocation(name)}[/cyan] — {purpose}")
+        if codex_skill_mode:
+            steps_lines.append(
+                "   [cyan]sp-teams[/cyan] — optional durable Codex team runtime for work that must outlive one delegated wave"
+            )
+        console.print()
+        console.print(_open_block("Start Here", steps_lines, accent="cyan"))
+        return
 
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
     steps_lines.append("   ")
@@ -6051,6 +6165,54 @@ app.add_typer(debug_app, name="sp-debug")
 
 
 INTEGRATION_JSON = ".specify/integration.json"
+WORKFLOW_PROFILE_CHOICES = frozenset({"classic", "advanced"})
+
+
+def _installed_workflow_profiles(
+    project_root: Path,
+    *,
+    integration_key: str | None = None,
+    default: str | None = "classic",
+) -> list[str]:
+    """Return valid profiles owned by one integration in install order."""
+    opts = load_init_options(project_root)
+    profiles: list[str] = []
+    profiles_by_integration = opts.get("workflow_profiles_by_integration")
+    raw_profiles: Any = None
+    if integration_key and isinstance(profiles_by_integration, dict):
+        raw_profiles = profiles_by_integration.get(integration_key)
+
+    legacy_owner = opts.get("integration") or opts.get("ai")
+    may_read_legacy = integration_key is None or legacy_owner in {None, integration_key}
+    if raw_profiles is None and may_read_legacy:
+        raw_profiles = opts.get("installed_workflow_profiles")
+    if isinstance(raw_profiles, list):
+        for profile in raw_profiles:
+            if profile in WORKFLOW_PROFILE_CHOICES and profile not in profiles:
+                profiles.append(profile)
+
+    if may_read_legacy:
+        current = opts.get("workflow_profile")
+        if current in WORKFLOW_PROFILE_CHOICES and current not in profiles:
+            profiles.append(current)
+    if not profiles and default in WORKFLOW_PROFILE_CHOICES:
+        profiles.append(default)
+    return profiles
+
+
+def _remove_workflow_profile_ownership(
+    opts: dict[str, Any],
+    integration_key: str,
+) -> None:
+    """Remove one integration's profile history without erasing other owners."""
+    profiles_by_integration = opts.get("workflow_profiles_by_integration")
+    if isinstance(profiles_by_integration, dict):
+        updated = dict(profiles_by_integration)
+        updated.pop(integration_key, None)
+        if updated:
+            opts["workflow_profiles_by_integration"] = updated
+        else:
+            opts.pop("workflow_profiles_by_integration", None)
 
 
 def _read_integration_json(project_root: Path) -> dict[str, Any]:
@@ -6081,6 +6243,7 @@ def _write_integration_json(
     project_root: Path,
     integration_key: str,
     script_type: str,
+    workflow_profiles: list[str] | None = None,
 ) -> None:
     """Write ``.specify/integration.json`` for *integration_key*."""
     script_ext = "sh" if script_type == "sh" else "ps1"
@@ -6093,6 +6256,13 @@ def _write_integration_json(
             "update-context": f".specify/integrations/{integration_key}/scripts/update-context.{script_ext}",
         },
     }
+    valid_profiles = [
+        profile
+        for profile in dict.fromkeys(workflow_profiles or [])
+        if profile in WORKFLOW_PROFILE_CHOICES
+    ]
+    if workflow_profiles is not None:
+        payload["workflow_profiles"] = valid_profiles
     if integration_key == "codex":
         payload["team"] = {
             "surface": "sp-teams",
@@ -6323,8 +6493,23 @@ def _update_init_options_for_integration(
         opts["script"] = script_type
     if isinstance(integration, SkillsIntegration):
         opts["ai_skills"] = True
+        profiles = _installed_workflow_profiles(
+            project_root,
+            integration_key=integration.key,
+        )
+        opts["workflow_profile"] = profiles[-1]
+        opts["installed_workflow_profiles"] = profiles
+        profiles_by_integration = opts.get("workflow_profiles_by_integration", {})
+        if not isinstance(profiles_by_integration, dict):
+            profiles_by_integration = {}
+        else:
+            profiles_by_integration = dict(profiles_by_integration)
+        profiles_by_integration[integration.key] = profiles
+        opts["workflow_profiles_by_integration"] = profiles_by_integration
     else:
         opts.pop("ai_skills", None)
+        opts.pop("workflow_profile", None)
+        opts.pop("installed_workflow_profiles", None)
     save_init_options(project_root, opts)
 
 
@@ -6368,13 +6553,28 @@ def _repair_active_integration_runtime_assets(
         manifest,
         script_type=script_type,
     )
+    from .integrations.base import SkillsIntegration
+
+    workflow_profiles = (
+        _installed_workflow_profiles(
+            project_root,
+            integration_key=integration.key,
+        )
+        if isinstance(integration, SkillsIntegration)
+        else None
+    )
     _install_codex_team_assets_if_needed(
         project_root,
         manifest,
         integration.key,
     )
     manifest.save()
-    _write_integration_json(project_root, integration.key, script_type)
+    _write_integration_json(
+        project_root,
+        integration.key,
+        script_type,
+        workflow_profiles=workflow_profiles,
+    )
     _update_init_options_for_integration(project_root, integration, script_type=script_type)
     return integration.key, len(manifest.files)
 
@@ -6417,6 +6617,9 @@ def integration_uninstall(
             opts.pop("integration", None)
             opts.pop("ai", None)
             opts.pop("ai_skills", None)
+            opts.pop("workflow_profile", None)
+            opts.pop("installed_workflow_profiles", None)
+            _remove_workflow_profile_ownership(opts, key)
             save_init_options(project_root, opts)
         raise typer.Exit(0)
 
@@ -6446,6 +6649,9 @@ def integration_uninstall(
         opts.pop("integration", None)
         opts.pop("ai", None)
         opts.pop("ai_skills", None)
+        opts.pop("workflow_profile", None)
+        opts.pop("installed_workflow_profiles", None)
+        _remove_workflow_profile_ownership(opts, key)
         save_init_options(project_root, opts)
 
     name = (integration.config or {}).get("name", key) if integration else key
@@ -6538,6 +6744,9 @@ def integration_switch(
         opts.pop("integration", None)
         opts.pop("ai", None)
         opts.pop("ai_skills", None)
+        opts.pop("workflow_profile", None)
+        opts.pop("installed_workflow_profiles", None)
+        _remove_workflow_profile_ownership(opts, installed_key)
         save_init_options(project_root, opts)
 
     # Ensure shared infrastructure is present (safe to run unconditionally;

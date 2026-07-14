@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Plan"
+  short_description: "Architecture and executable task planning"
+  default_prompt: "Use $spx-plan to design and task this planning-ready feature."
+
+policy:
+  allow_implicit_invocation: false

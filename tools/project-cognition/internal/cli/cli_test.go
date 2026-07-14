@@ -347,7 +347,7 @@ func TestRootHelpListsScanSet(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, mark-dirty") {
+	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty") {
 		t.Fatalf("help does not list scan-set after generate-ignore:\n%s", stdout.String())
 	}
 }

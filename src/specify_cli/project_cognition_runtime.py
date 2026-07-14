@@ -6,6 +6,7 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from urllib.request import urlretrieve
 
@@ -18,6 +19,8 @@ REQUIRED_COMMANDS = (
     "init-empty",
     "generate-ignore",
     "scan-set",
+    "scan-prepare",
+    "scan-accept",
     "changes",
     "closeout-plan",
     "semantic-intake --input",
@@ -76,10 +79,10 @@ def download_url(version: str = DEFAULT_VERSION) -> str:
     return f"https://github.com/{REPO}/releases/download/{version}/{filename}"
 
 
-def download(version: str = DEFAULT_VERSION) -> Path:
+def download(version: str = DEFAULT_VERSION, destination: Path | None = None) -> Path:
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
-    dest = cached_executable()
+    dest = destination or cached_executable()
     url = download_url(version)
     print(f"  Downloading project-cognition {version} from release asset {binary_filename()}...")
     urlretrieve(url, dest)
@@ -239,7 +242,31 @@ def _binary_supports_required_commands(binary: Path) -> bool:
         return False
 
     closeout_output = f"{closeout_result.stdout}\n{closeout_result.stderr}"
-    return "-workflow" in closeout_output and "-delta-session" in closeout_output
+    if "-workflow" not in closeout_output or "-delta-session" not in closeout_output:
+        return False
+
+    required_scan_flags = {
+        "scan-prepare": ("-force", "-scan-set"),
+        "scan-accept": ("-packet-id", "-result"),
+    }
+    for command, flags in required_scan_flags.items():
+        try:
+            result = subprocess.run(
+                [str(binary), command, "--help"],
+                capture_output=True,
+                check=False,
+                encoding="utf-8",
+                errors="replace",
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        output = f"{result.stdout}\n{result.stderr}"
+        if any(flag not in output for flag in flags):
+            return False
+
+    return True
 
 
 def _bundled_project_cognition_source() -> Path | None:
@@ -330,17 +357,30 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
         if _binary_supports_required_commands(dest):
             return dest
         print("  Cached project-cognition is missing required commands; refreshing runtime...")
-    if force and dest.exists():
-        dest.unlink()
+
+    cache = cache_dir()
+    cache.mkdir(parents=True, exist_ok=True)
+    candidate_fd, candidate_name = tempfile.mkstemp(
+        prefix=f".{dest.name}.", suffix=".candidate", dir=cache
+    )
+    os.close(candidate_fd)
+    candidate = Path(candidate_name)
     try:
-        binary = download(version)
-    except Exception as exc:
-        return _build_supported_binary_from_source(
-            dest,
-            version,
-            f"release asset download failed ({exc})",
-        )
-    return _ensure_supported_binary(binary, version)
+        try:
+            binary = download(version, candidate)
+        except Exception as exc:
+            binary = _build_supported_binary_from_source(
+                candidate,
+                version,
+                f"release asset download failed ({exc})",
+            )
+        binary = _ensure_supported_binary(binary, version)
+        os.replace(binary, dest)
+        if platform.system().lower() != "windows":
+            os.chmod(dest, 0o755)
+        return dest
+    finally:
+        candidate.unlink(missing_ok=True)
 
 
 def write_project_launcher_config(project_root: Path, binary: Path) -> Path | None:

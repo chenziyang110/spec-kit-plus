@@ -738,11 +738,23 @@ class ClaudeIntegration(SkillsIntegration):
         **opts: Any,
     ) -> list[Path]:
         """Install Claude skills, then inject user-invocable and augment with leader guidance."""
+        workflow_profile = self.workflow_profile(parsed_options)
         # Run base setup which handles the core sp-skill creation and default augmentation
         created = super().setup(project_root, manifest, parsed_options, **opts)
 
         # Post-process generated skill files for Claude-specific flags
         skills_dir = self.skills_dest(project_root).resolve()
+        if workflow_profile == "advanced":
+            for spx_skill in sorted(skills_dir.glob("spx-*/SKILL.md")):
+                if spx_skill not in created or not spx_skill.is_file():
+                    continue
+                content = spx_skill.read_text(encoding="utf-8")
+                updated = self._inject_frontmatter_flag(content, "user-invocable")
+                if updated != content:
+                    spx_skill.write_bytes(updated.encode("utf-8"))
+                    self.record_file_in_manifest(spx_skill, project_root, manifest)
+            return created
+
         script_type = opts.get("script_type", "sh")
         arg_placeholder = (
             self.registrar_config.get("args", "$ARGUMENTS")
@@ -861,8 +873,11 @@ class ClaudeIntegration(SkillsIntegration):
         manifest: IntegrationManifest,
         **opts: Any,
     ) -> list[Path]:
-        created: list[Path] = []
-        created.extend(self.install_scripts(project_root, manifest))
+        created = super().repair_runtime_assets(project_root, manifest, **opts)
+        skills_dir = self.skills_dest(project_root)
+        classic_installed = any(skills_dir.glob("sp-*/SKILL.md"))
+        if not classic_installed:
+            return created
         created.extend(
             self._install_hook_assets(
                 project_root=project_root,
@@ -879,13 +894,6 @@ class ClaudeIntegration(SkillsIntegration):
             self._install_or_merge_hook_settings(
                 project_root=project_root,
                 manifest=manifest,
-                script_type=opts.get("script_type", "sh"),
-            )
-        )
-        created.extend(
-            self.repair_missing_command_reference_sidecars(
-                project_root,
-                manifest,
                 script_type=opts.get("script_type", "sh"),
             )
         )

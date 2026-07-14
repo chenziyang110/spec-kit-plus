@@ -2051,6 +2051,8 @@ class SkillsIntegration(IntegrationBase):
     ``templates/passive-skills/<name>/SKILL.md``.
     """
 
+    WORKFLOW_PROFILES = frozenset({"classic", "advanced"})
+
     def skills_dest(self, project_root: Path) -> Path:
         """Return the absolute path to the skills output directory.
 
@@ -2094,6 +2096,56 @@ class SkillsIntegration(IntegrationBase):
             for path in passive_dir.iterdir()
             if path.is_dir() and (path / "SKILL.md").is_file()
         )
+
+    def shared_advanced_skills_dir(self) -> Path | None:
+        """Return the opt-in advanced-model skill template directory."""
+        import inspect
+
+        pkg_dir = Path(inspect.getfile(IntegrationBase)).resolve().parent.parent
+        for candidate in [
+            pkg_dir / "core_pack" / "advanced-skills",
+            pkg_dir.parent.parent / "templates" / "advanced-skills",
+        ]:
+            if candidate.is_dir():
+                return candidate
+        return None
+
+    def list_advanced_skill_templates(self) -> list[Path]:
+        """Return sorted explicit skills for the advanced prompt profile."""
+        advanced_dir = self.shared_advanced_skills_dir()
+        if not advanced_dir or not advanced_dir.is_dir():
+            return []
+        return sorted(
+            path
+            for path in advanced_dir.iterdir()
+            if path.is_dir()
+            and path.name.startswith("spx-")
+            and (path / "SKILL.md").is_file()
+        )
+
+    @classmethod
+    def workflow_profile(
+        cls,
+        parsed_options: dict[str, Any] | None,
+    ) -> str:
+        """Resolve and validate the prompt profile for one install pass."""
+        profile = str((parsed_options or {}).get("workflow_profile") or "classic")
+        if profile not in cls.WORKFLOW_PROFILES:
+            choices = ", ".join(sorted(cls.WORKFLOW_PROFILES))
+            raise ValueError(
+                f"Unknown workflow profile {profile!r}; choose from: {choices}"
+            )
+        return profile
+
+    def render_advanced_invocations(self, content: str) -> str:
+        """Project canonical ``$spx-*`` handoffs to this skill integration."""
+        if self.key in {"codex", "agy", "trae", "zcode"}:
+            return content
+        if self.key == "kimi":
+            replacement = r"/skill:spx-\1"
+        else:
+            replacement = r"/spx-\1"
+        return re.sub(r"\$spx-([a-z0-9][a-z0-9-]*)", replacement, content)
 
     @staticmethod
     def _can_augment_generated_file(skill_path: Path, project_root: Path) -> bool:
@@ -2304,7 +2356,85 @@ class SkillsIntegration(IntegrationBase):
                 script_type=opts.get("script_type", "sh"),
             )
         )
+        created.extend(
+            self.repair_missing_advanced_skill_files(
+                project_root,
+                manifest,
+                script_type=opts.get("script_type", "sh"),
+            )
+        )
         return created
+
+    def repair_missing_advanced_skill_files(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        *,
+        script_type: str,
+    ) -> list[Path]:
+        """Restore missing manifest-owned SPX support files without overwriting edits."""
+        advanced_dir = self.shared_advanced_skills_dir()
+        if not advanced_dir:
+            return []
+
+        skills_dir = self.skills_dest(project_root).resolve()
+        project_root_resolved = project_root.resolve()
+        arg_placeholder = (
+            self.registrar_config.get("args", "$ARGUMENTS")
+            if self.registrar_config
+            else "$ARGUMENTS"
+        )
+        restored: list[Path] = []
+
+        def restore_file(source: Path, destination: Path, *, render: bool) -> None:
+            relative = destination.resolve().relative_to(
+                project_root_resolved
+            ).as_posix()
+            if relative not in manifest.files or destination.exists():
+                return
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if render:
+                content = self.process_template(
+                    source.read_text(encoding="utf-8"),
+                    self.key,
+                    script_type,
+                    arg_placeholder,
+                    template_path=source,
+                    project_root=project_root,
+                )
+                content = self.render_advanced_invocations(content)
+                restored.append(
+                    self.write_file_and_record(
+                        content,
+                        destination,
+                        project_root,
+                        manifest,
+                    )
+                )
+                return
+            shutil.copy2(source, destination)
+            self.record_file_in_manifest(destination, project_root, manifest)
+            restored.append(destination)
+
+        shared_references = sorted((advanced_dir / "_shared").glob("*.md"))
+        for template_dir in self.list_advanced_skill_templates():
+            skill_dir = skills_dir / template_dir.name
+            if not (skill_dir / "SKILL.md").is_file():
+                continue
+            for source in sorted(template_dir.rglob("*")):
+                if source.is_file() and source.name != "SKILL.md":
+                    restore_file(
+                        source,
+                        skill_dir / source.relative_to(template_dir),
+                        render=False,
+                    )
+            for source in shared_references:
+                restore_file(
+                    source,
+                    skill_dir / "references" / source.name,
+                    render=True,
+                )
+        return restored
 
     def _copy_supporting_passive_files(
         self,
@@ -2337,6 +2467,83 @@ class SkillsIntegration(IntegrationBase):
             created.append(dst_file)
         return created
 
+    def _install_advanced_skills(
+        self,
+        *,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        script_type: str,
+        arg_placeholder: str,
+    ) -> list[Path]:
+        """Install the advanced prompt profile without classic augmentation."""
+        skills_dir = self.skills_dest(project_root).resolve()
+        advanced_dir = self.shared_advanced_skills_dir()
+        shared_references = (
+            sorted((advanced_dir / "_shared").glob("*.md"))
+            if advanced_dir
+            else []
+        )
+        created: list[Path] = []
+        for template_dir in self.list_advanced_skill_templates():
+            source_path = template_dir / "SKILL.md"
+            raw = source_path.read_text(encoding="utf-8")
+            skill_name = template_dir.name
+            frontmatter = self._parse_skill_frontmatter(raw)
+            description = frontmatter.get("description", "")
+            if not description:
+                description = f"Spec Kit advanced workflow: {skill_name}"
+
+            skill_content = self._render_skill_content(
+                raw=raw,
+                skill_name=skill_name,
+                description=description,
+                source=f"templates/advanced-skills/{skill_name}/SKILL.md",
+                project_root=project_root,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+                apply_invocation_conventions=False,
+                template_path=source_path,
+            )
+            skill_content = self.render_advanced_invocations(skill_content)
+            skill_dir = skills_dir / skill_name
+            created.append(
+                self.write_file_and_record(
+                    skill_content,
+                    skill_dir / "SKILL.md",
+                    project_root,
+                    manifest,
+                )
+            )
+            created.extend(
+                self._copy_supporting_passive_files(
+                    template_dir=template_dir,
+                    destination_dir=skill_dir,
+                    project_root=project_root,
+                    manifest=manifest,
+                )
+            )
+            for shared_reference in shared_references:
+                reference_content = self.process_template(
+                    shared_reference.read_text(encoding="utf-8"),
+                    self.key,
+                    script_type,
+                    arg_placeholder,
+                    template_path=shared_reference,
+                    project_root=project_root,
+                )
+                reference_content = self.render_advanced_invocations(
+                    reference_content
+                )
+                created.append(
+                    self.write_file_and_record(
+                        reference_content,
+                        skill_dir / "references" / shared_reference.name,
+                        project_root,
+                        manifest,
+                    )
+                )
+        return created
+
     def setup(
         self,
         project_root: Path,
@@ -2350,10 +2557,16 @@ class SkillsIntegration(IntegrationBase):
         template.  Each SKILL.md has normalised frontmatter containing
         ``name``, ``description``, ``compatibility``, and ``metadata``.
         """
+        profile = self.workflow_profile(parsed_options)
         templates = self.list_command_templates()
         passive_templates = self.list_passive_skill_templates()
+        advanced_templates = self.list_advanced_skill_templates()
+        if profile == "advanced":
+            templates = []
+            passive_templates = []
         if not templates and not passive_templates:
-            return []
+            if profile != "advanced" or not advanced_templates:
+                return []
 
         project_root_resolved = project_root.resolve()
         if manifest.project_root != project_root_resolved:
@@ -2379,6 +2592,18 @@ class SkillsIntegration(IntegrationBase):
         )
         runtime_snapshot = self.runtime_capability_snapshot()
         created: list[Path] = []
+
+        if profile == "advanced":
+            created.extend(
+                self._install_advanced_skills(
+                    project_root=project_root,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+            )
+            created.extend(self.install_scripts(project_root, manifest))
+            return created
 
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")

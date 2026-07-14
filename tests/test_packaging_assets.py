@@ -29,6 +29,7 @@ def test_wheel_force_include_bundles_passive_skills() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"templates/passive-skills" = "specify_cli/core_pack/passive-skills"' in pyproject
+    assert '"templates/advanced-skills" = "specify_cli/core_pack/advanced-skills"' in pyproject
 
 
 def test_design_assets_are_packaged() -> None:

@@ -26,6 +26,7 @@ import (
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanset"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanworkbench"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
@@ -69,6 +70,10 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return generateIgnoreCommand(args[1:], stdout, stderr, paths)
 	case "scan-set":
 		return scanSetCommand(args[1:], stdout, stderr, paths)
+	case "scan-prepare":
+		return scanPrepareCommand(args[1:], stdout, stderr, paths)
+	case "scan-accept":
+		return scanAcceptCommand(args[1:], stdout, stderr, paths)
 	case "mark-dirty":
 		return markDirtyCommand(args[1:], stdout, stderr, paths)
 	case "clear-dirty":
@@ -126,7 +131,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -414,6 +419,55 @@ func scanSetCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	if err != nil {
 		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
 		return 1
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-prepare", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	scanSetPath := fs.String("scan-set", scanset.DefaultOutputPath, "Repository-relative canonical scan-set file")
+	packetSize := fs.Int("packet-size", 0, "Maximum concrete paths per packet; default 25")
+	force := fs.Bool("force", false, "Replace an existing scan workbench and discard its results")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-prepare supports only --format json"))
+	}
+	payload, err := scanworkbench.Prepare(paths, scanworkbench.PrepareInput{
+		ScanSetPath: *scanSetPath,
+		PacketSize:  *packetSize,
+		Force:       *force,
+	})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanAcceptCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-accept", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	packetID := fs.String("packet-id", "", "Prepared scan packet identifier")
+	resultPath := fs.String("result", "", "Worker result JSON; defaults to the packet pending-results path")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-accept supports only --format json"))
+	}
+	if strings.TrimSpace(*packetID) == "" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-accept requires --packet-id"))
+	}
+	payload, err := scanworkbench.Accept(paths, scanworkbench.AcceptInput{
+		PacketID:   *packetID,
+		ResultPath: *resultPath,
+	})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
 	}
 	return writeCompactJSON(stdout, payload)
 }
@@ -1449,6 +1503,17 @@ func writeCompactJSON(w io.Writer, payload any) int {
 		return 1
 	}
 	return 0
+}
+
+func writeCompactErrorJSON(w io.Writer, err error) int {
+	if code := writeCompactJSON(w, map[string]any{
+		"status":   "blocked",
+		"errors":   []string{err.Error()},
+		"warnings": []string{},
+	}); code != 0 {
+		return code
+	}
+	return 1
 }
 
 func writeErrorJSON(w io.Writer, payload any) int {

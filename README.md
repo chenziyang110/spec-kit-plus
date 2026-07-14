@@ -86,6 +86,21 @@ Create a new project:
 specify init my-project --ai codex
 ```
 
+Skills-based integrations offer one workflow prompt profile per init run:
+
+```bash
+# Current full workflow skill set (default for non-interactive compatibility)
+specify init my-project --ai codex --workflow-profile classic
+
+# Concise, independent SPX skills for advanced models
+specify init my-project --ai codex --workflow-profile advanced
+```
+
+Interactive init asks which profile to install. One run installs exactly one
+profile. To keep both in the same project, run init again with `--here --force`
+and select the other profile; the second run adds it without removing the first.
+The advanced profile is available only for skills-based integrations.
+
 Use a non-default built-in constitution profile when the repo needs a different
 governance default:
 
@@ -197,7 +212,8 @@ specify init my-project --ai codex --ignore-agent-tools
 
 ## Workflow
 
-After `specify init`, use the generated workflow commands in your agent:
+After a classic-profile `specify init`, use the generated workflow commands in
+your agent:
 
 1. `constitution` to establish or revise project principles when the seeded default constitution needs project-specific changes
 2. `specify` to produce a planning-ready, analysis-first feature spec
@@ -206,6 +222,74 @@ After `specify init`, use the generated workflow commands in your agent:
 5. `implement` to execute the task plan
 6. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
 7. `integrate` to close out completed independent feature lanes before mainline merge
+
+After an advanced-profile init, use independent, discoverable SPX skills:
+
+```text
+$spx-ask <question>
+$spx-auto <optional-intent>
+$spx-design <design-system-goal>
+$spx-fast <trivial-change>
+$spx-quick <bounded-task>
+$spx-specify <feature>
+$spx-plan <feature-or-spec>
+$spx-implement <ready-plan>
+$spx-debug <failure>
+$spx-map-rebuild <reason>
+$spx-map-update <scope>
+```
+
+Invocation punctuation depends on the agent (`$spx-plan`, `/spx-plan`, or
+`/skill:spx-plan`). Each skill is a native catalog entry and loads only its own
+short prompt plus triggered advanced references. The advanced profile is
+capability-equivalent, not stage-equivalent: `spx-auto` preserves state-aware
+continuation, `spx-design` owns the root design-system contract,
+`spx-specify` absorbs clarification, recoverable discussion, PRD intake, and
+project-rules lanes; `spx-plan` absorbs conditional research, cross-artifact
+analysis, focused checklists, task breakdown, and explicit issue export;
+`spx-implement` selects direct, delegated, team, review, and integration
+behavior adaptively. This yields the shorter main path
+`spx-specify -> spx-plan -> spx-implement`. `spx-fast` is for trivial direct
+changes; `spx-quick` provides lightweight resumable state for bounded but
+non-trivial work.
+
+Advanced references are profile-local under `templates/advanced-skills/` and
+never copy or include classic `templates/command-references/`. A dedicated
+reference is added only when another execution tier needs a stable contract,
+such as the low-cost scan worker; deterministic artifact schemas remain in the
+runtime or renderer instead of being repeated as prompt prose. Compact advanced
+Markdown views live beside each skill, while canonical JSON schemas, validators,
+state machines, and project-cognition remain shared single sources of truth.
+`templates/advanced-skills/_shared/surface-map.json` records the deterministic
+classic-to-advanced capability mapping and guards against accidental omissions.
+The classic passive-skill prompt bundle is not copied into an advanced install;
+essential TDD, verification, security/consequence, delegation, and map gates are
+compiled into the relevant hot path or loaded as a triggered advanced reference.
+
+Project cognition is the advanced profile's default navigation data plane.
+SPX uses Compass to select minimal live reads and verification routes, then
+proves claims from the live repository. Writing workflows update cognition
+after verified source/runtime changes; the map skills are reserved for explicit
+maintenance or a genuinely rebuild-required baseline. SPX reuses existing
+`.specify` scripts, artifacts, and canonical `/sp.*` state identifiers rather
+than introducing another runtime format.
+
+`spx-map-rebuild` is cost-tiered. Project cognition resolves the canonical scan
+boundary, `scan-prepare` creates packets of at most 25 concrete paths by
+default, those packets prefer the
+lowest-cost capable worker model, and `scan-accept` lets the advanced leader
+validate and merge each result or escalate only the failed or ambiguous packet.
+Graph reconstruction is performed by deterministic
+`project-cognition build-from-scan`; it is not a second model-driven repository
+scan.
+
+Classic prompt ceremony intentionally removed from the advanced hot path
+includes mandatory clarify/discussion stages for clear requests, separate
+analyze/checklist/tasks model passes after planning, fixed multi-role debug
+chains, mandatory delegation for leader-direct quick/map work, and model-authored
+copies of stable schemas or boilerplate views. The corresponding capability is
+preserved behind evidence, risk, scale, or explicit-request triggers. Classic
+assets and behavior remain unchanged when the `classic` profile is selected.
 
 - `design` / `sp-design` creates, synthesizes, refines, or audits the root `DESIGN.md` design-system contract before UI work proceeds. Use it for new product UI, redesigns, rebrands, core workflow experience, multi-platform interface decisions, and high-visibility customer-facing surfaces.
 
@@ -630,6 +714,11 @@ Skills-based projects now install two layers into the same skills directory:
 
 `sp-*` remains the primary user-facing workflow surface. Passive skills keep their template names and exist to improve automatic routing, guardrails, and bundled capabilities inside Spec Kit Plus repositories, not to replace the explicit workflow commands.
 
+The advanced workflow profile installs only the independent `spx-*` skills from
+`templates/advanced-skills/`; it does not install the classic `sp-*` or passive
+skill layers during that init run. Running init again with the classic profile
+adds those layers alongside the SPX skills.
+
 ## Multi-CLI Orchestration
 
 Current orchestration status in this fork:
@@ -831,6 +920,7 @@ Navigation and technical truth are now cognition-first:
 - After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
 - Project cognition ignore rules live in root `.cognitionignore` or `.specify/project-cognition/.cognitionignore`. They use gitignore-compatible patterns and are honored by `map-scan`, `map-build`, and `map-update`; excluded paths must not enter project cognition graph evidence, runtime route indexes, or `minimal_live_reads`. `project-cognition generate-ignore --format json` writes a starter `.specify/project-cognition/.cognitionignore` with `.gitignore`-derived suggestions commented out and never overwrites an existing ignore file.
 - `project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json` is the runtime scan-set resolution contract for agent-facing scan handoffs. It produces compact stdout with only the temporary file-list path and count; the file list itself contains only `files`.
+- Advanced rebuilds run `project-cognition scan-prepare --scan-set .specify/project-cognition/tmp/scan-files.json --format json` to create the deterministic workbench and disjoint packet queue. Existing workbenches are protected by default; `--force` explicitly discards their accepted and pending results. Low-cost workers write only their declared `pending-results/<packet-id>.json`; the leader runs `project-cognition scan-accept --packet-id <packet-id> --format json` to validate path accounting, packet-local evidence, concrete `nodes[].paths`, and identity safety before merging. Accept is idempotent for the same packet/result so partial filesystem writes can be retried; conflicting content is rejected. Only after every packet is accepted may `validate-scan` and `build-from-scan` run.
 - For cross-project references, run `project-cognition discover --root <path> --format json`
   before broad inspection. Use another project's cognition only when
   `.specify/project-cognition/status.json` and
