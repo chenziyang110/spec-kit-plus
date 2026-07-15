@@ -569,7 +569,16 @@ class TestBuiltInSkillGeneration:
         checklist_body = _skill_body("sp-checklist")
         checklist_lower = checklist_body.lower()
         assert ".specify/memory/constitution.md" in checklist_lower
-        assert "learning start --command <classic-command-name> --format json" in checklist_lower
+        assert render_command(
+            (
+                "learning",
+                "start",
+                "--command",
+                "<classic-command-name>",
+                "--format",
+                "json",
+            )
+        ).lower() in checklist_lower
         assert "show_argv" in checklist_lower
         assert ".specify/memory/learnings/index.md" not in checklist_lower
         assert ".planning/learnings/candidates.md" not in checklist_lower
