@@ -464,6 +464,61 @@ def test_learning_ensure_creates_learning_index(tmp_path: Path) -> None:
     assert "<!-- SPECKIT_LEARNING_DATA_END -->" in index_content
 
 
+def test_learning_ensure_migrates_legacy_confirmed_store_without_data_loss(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify" / "memory").mkdir(parents=True)
+    _seed_learning_templates(project)
+    legacy_path = project / ".specify" / "memory" / "project-learnings.md"
+    legacy_path.write_text(
+        "\n".join(
+            [
+                "# Project Learnings",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": "LRN-legacy-confirmed",
+                            "summary": "Preserve confirmed Learning during upgrades",
+                            "learning_type": "project_constraint",
+                            "source_command": "sp-plan",
+                            "evidence": "Confirmed in the legacy v0.5.20 store",
+                            "recurrence_key": "sp-plan.legacy-confirmed",
+                            "default_scope": "project",
+                            "applies_to": ["sp-plan"],
+                            "signal_strength": "high",
+                            "status": "confirmed",
+                            "first_seen": "2026-06-01T00:00:00Z",
+                            "last_seen": "2026-06-02T00:00:00Z",
+                            "occurrence_count": 2,
+                        }
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    paths = build_learning_paths(project)
+    _, confirmed = read_learning_entries(paths.confirmed_learnings)
+    migrated = [
+        entry
+        for entry in confirmed
+        if entry.recurrence_key == "sp-plan.legacy-confirmed"
+    ]
+    assert len(migrated) == 1
+    assert migrated[0].occurrence_count == 2
+    assert migrated[0].evidence == "Confirmed in the legacy v0.5.20 store"
+
+
 def test_learning_status_reports_missing_runtime_files_without_mutation(
     tmp_path: Path,
 ) -> None:

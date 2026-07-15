@@ -1155,6 +1155,164 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
     )
 
 
+def _write_ui_continuity_fixture(
+    feature_dir: Path,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
+    direction: dict[str, object] = {
+        "ui_work_type": "feature-extension",
+        "surface_type": "product-workspace",
+        "platforms": ["web"],
+        "subject": "account settings",
+        "audience": "account owners",
+        "single_job": "update preferences",
+        "visual_thesis": "compact hierarchy",
+        "content_thesis": "real preference labels and values",
+        "interaction_thesis": "immediate local feedback",
+        "signature_element": "persistent section progress",
+        "approved_visual_ref": "DESIGN.md#settings",
+        "reference_intents": [
+            {"ref": "DESIGN.md#settings", "intent": "preserve-structure"}
+        ],
+        "real_content_plan": [
+            {
+                "source_ref": "src/settings/schema.ts",
+                "applies_to_states": ["ready", "error"],
+            }
+        ],
+        "image_plan": [],
+        "required_evidence": [
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+    }
+    constraints: dict[str, object] = {
+        "entry_points": ["/settings"],
+        "required_states": ["loading", "ready", "error"],
+        "must_preserve": ["compact hierarchy"],
+        "may_adapt": ["framework markup"],
+        "must_not": ["hide errors"],
+        "visual_acceptance": ["desktop settings states inspected"],
+        "fidelity_mode": "high",
+    }
+    spec_design: dict[str, object] = {
+        "ui_applicable": True,
+        "ui_brief_ref": "ui-brief.md",
+        "original_reference_refs": ["DESIGN.md#settings"],
+        **direction,
+        **constraints,
+    }
+    plan_design: dict[str, object] = {
+        "ui_applicable": True,
+        "ui_brief_ref": "ui-brief.md",
+        "design_readiness": "approved",
+        "source_refs": ["DESIGN.md", "ui-brief.md"],
+        "design_system_adoption": ["settings controls"],
+        "token_strategy": ["reuse approved tokens"],
+        "component_strategy": ["reuse settings form"],
+        "fidelity_refs": ["DESIGN.md#settings"],
+        "validation_refs": ["browser settings route"],
+        "human_review_conditions": ["comparison unavailable"],
+        **direction,
+        **constraints,
+    }
+    task_contract: dict[str, object] = {
+        **direction,
+        "design_sources": ["DESIGN.md", "ui-brief.md"],
+        "reference_notes": "",
+        "visual_target": "",
+        "fidelity_level": "high",
+        "must_preserve": constraints["must_preserve"],
+        "may_adapt": constraints["may_adapt"],
+        "must_not": constraints["must_not"],
+        "required_states": constraints["required_states"],
+    }
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps({"design_contract": spec_design}), encoding="utf-8"
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T001 Implement settings UI\n\n"
+        "## T001: Settings UI\n\n### UI Implementation Contract\n\n"
+        "| Field | Value |\n| --- | --- |\n"
+        "| ui_contract_ref | task-index.json#/tasks/T001/ui_contract |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+        ),
+        encoding="utf-8",
+    )
+    return spec_design, plan_design, task_contract
+
+
+@pytest.mark.parametrize(
+    ("field", "drifted_value"),
+    [
+        ("entry_points", ["/different"]),
+        ("required_states", ["ready"]),
+        ("must_preserve", ["replace the information hierarchy"]),
+        ("may_adapt", ["change the navigation model"]),
+        ("must_not", ["a different prohibition"]),
+        ("visual_acceptance", ["inspect an unrelated route"]),
+        ("fidelity_mode", "approximate"),
+    ],
+)
+def test_plan_ui_contract_rejects_specification_constraint_drift(
+    tmp_path: Path,
+    field: str,
+    drifted_value: object,
+) -> None:
+    feature_dir = tmp_path / "specs" / "003-ui-continuity"
+    _, plan_design, _ = _write_ui_continuity_fixture(feature_dir)
+    assert _validate_plan_ui_contract(feature_dir) == []
+    plan_design[field] = drifted_value
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+
+    errors = _validate_plan_ui_contract(feature_dir)
+
+    assert any(field in error and "preserve" in error.lower() for error in errors)
+
+
+@pytest.mark.parametrize(
+    ("field", "drifted_value"),
+    [
+        ("fidelity_level", "none"),
+        ("required_states", ["unknown-state"]),
+        ("must_preserve", []),
+        ("may_adapt", ["replace the approved hierarchy"]),
+        ("must_not", []),
+    ],
+)
+def test_task_ui_contract_rejects_plan_constraint_drift(
+    tmp_path: Path,
+    field: str,
+    drifted_value: object,
+) -> None:
+    feature_dir = tmp_path / "specs" / "004-ui-task-continuity"
+    _, _, task_contract = _write_ui_continuity_fixture(feature_dir)
+    assert _validate_tasks_ui_contract(feature_dir) == []
+    task_contract[field] = drifted_value
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_tasks_ui_contract(feature_dir)
+
+    assert any(field in error for error in errors)
+
+
 def test_agent_native_ui_task_lifecycle_blocks_pending_human_review(
     tmp_path: Path,
 ) -> None:
