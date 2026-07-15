@@ -251,12 +251,17 @@ generated from the same Classic command templates; they are not SPX rewrites.
 
 Invocation punctuation depends on the agent (`$spx-plan`, `/spx-plan`, or
 `/skill:spx-plan`). Each skill is a native catalog entry and loads only its own
-short prompt plus triggered advanced references. The advanced profile is
-command-equivalent and prompt-optimized: every Classic command keeps an
-independent SPX entrypoint, state owner, write boundary, resumable stop point,
-and explicit side-effect gate. The normal feature path is
+compact owning prompt plus triggered advanced references. SPX has no hard word
+or token ceiling: prompt optimization removes repetition, tutorials, and stable
+boilerplate only after preserving every Classic stage input, triggered output,
+state owner, resume transition, blocker/recovery rule, side-effect gate, and
+final-claim gate. The advanced profile is command-equivalent and
+prompt-optimized: every Classic command keeps an independent SPX entrypoint,
+state owner, write boundary, resumable stop point, and explicit side-effect
+gate. The normal feature path is
 `spx-specify -> spx-plan -> spx-tasks -> spx-implement`; clarification,
-discussion, research, analysis, checklists, issue export, team execution,
+discussion (including an optional confirmed handoff into `spx-specify`),
+research, analysis, checklists, issue export, team execution,
 integration, PRD reconstruction, and map phases remain separately invocable
 instead of being hidden inside that path. `spx-fast` is for trivial direct
 changes; `spx-quick` provides lightweight resumable state for bounded but
@@ -356,7 +361,7 @@ When `sp-specify` consumes a confirmed discussion contract, it preserves the dec
 
 Generated workflows preserve the user's complete user-confirmed scope. Scope reduction requires user confirmation: agents should not steer a requirement toward an MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or smaller validation build unless the user asked for that shape, the request already defines that boundary, or a named constraint makes reduced scope a decision the user confirms. Complexity alone is not a valid reason to shrink, defer, or block ordinary work; `sp-plan` and `sp-tasks` should use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 
-`implement` validates the task-graph revision before starting and runs review only on repository/task drift, parallel joins, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gaps, or review-window limits. It records the result in one task lifecycle record instead of separate briefs, review packages, and ledgers. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts still route back to the owning upstream workflow.
+`implement` validates the task-graph revision before starting and runs review only on repository/task drift, parallel joins, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gaps, or review-window limits. It records the result in one task lifecycle record instead of separate briefs, review packages, and ledgers. A mandatory protected-CI, remote-system, or human evidence gap stays as a structured blocked task; when a local commit is required only to obtain that evidence, `external-evidence-checkpoint` permits a non-final checkpoint without accepting the task, resolving the tracker, authorizing push/CI, or weakening final closeout. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts still route back to the owning upstream workflow.
 
 Command-surface minimization must not delete capability. If upstream discussion or specification text includes a new/create/scaffold/authoring operation, later workflows must preserve it through an explicit public command, TUI route, core API, private helper, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact. Static templates, manual copy steps, and template-only docs are supporting assets, not a substitute for the confirmed operation unless the user explicitly chose that narrower entry point.
 

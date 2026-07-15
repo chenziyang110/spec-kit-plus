@@ -17,17 +17,25 @@ implementation closeout evidence, current diff, dependency order, overlapping
 writes, drift from mainline, unresolved conflicts, and required combined
 verification.
 
-Integrate in dependency order using the repository's normal version-control
-mechanism. The `integrate` helper only inspects and closes lane state; it does
-not perform a Git merge. Do not treat a merge, copied files, or green isolated
-tests as lane closeout. Resolve conflicts against the authoritative spec/plan
-and live consumers; route unknown behavior to `$spx-debug` and unfinished
-feature work back to `$spx-implement`.
+This invocation establishes readiness, closeout, recovery, and dependency-order
+guidance; it does not authorize a Git merge. The `integrate` helper only inspects and closes lane state.
+Do not run merge, rebase, cherry-pick, or an
+equivalent history-changing operation, and do not edit conflict markers,
+production code, tests, or generated consumers to force readiness. If no
+integrated tree already exists, report the exact merge/PR handoff and stop.
+
+When an integrated tree already exists, validate it without claiming that this
+workflow created it. Treat copied files, green isolated tests, or a clean merge
+as inputs rather than lane closeout. Provide conflict-resolution guidance from
+the authoritative spec/plan and live consumers. Unknown behavior hands off to
+`$spx-debug` and unfinished feature work hands off to `$spx-implement`; every
+cross-flow route is a handoff and stop boundary, never an inline invocation.
 
 Run the combined real-entrypoint checks after the integrated tree exists. For
 UI-bearing lanes, recapture the required viewport/state evidence from the
-integrated tree, inspect it against the task UI contracts, repair integration
-drift, and recapture; unresolved comparison remains `pending-human-review`.
+integrated tree and inspect it against the task UI contracts. If integration
+drift needs source edits, hand off to `$spx-implement` and stop; unresolved
+comparison remains `pending-human-review`.
 Only
 when readiness and verification pass may you close a lane with
 `{{specify-subcmd:integrate --feature-dir <feature-dir> --close}}`. Preserve a

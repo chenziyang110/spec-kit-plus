@@ -1,7 +1,7 @@
 # Artifact explanation
 
 When branch context is ambiguous, resolve the lane with
-`{{specify-subcmd:lane resolve --command explain --ensure-worktree}}`.
+`{{specify-subcmd:lane resolve --command explain}}`.
 
 Choose evidence by question:
 

@@ -4903,9 +4903,16 @@ def test_project_cognition_freshness_scripts_are_launcher_backed_and_map_free():
     for content in (sh_freshness, ps_freshness):
         assert "project-cognition" in content
         assert "PROJECT_COGNITION_BIN" in content
-        assert ".specify/config.json" not in content
+        assert ".specify/config.json" in content
+        assert "project_cognition_launcher" in content
+        assert "integration repair" in content
         assert ".specify/project-map" not in content
         assert "project-map-freshness" not in content
+    assert "command -v node" in sh_freshness
+    assert "command -v jq" in sh_freshness
+    assert "awk '" in sh_freshness
+    assert "cygpath -u" in sh_freshness
+    assert "wslpath -u" in sh_freshness
 
 
 def test_update_agent_context_emitters_share_managed_block_v2_contract() -> None:

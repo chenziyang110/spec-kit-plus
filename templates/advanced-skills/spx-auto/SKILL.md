@@ -19,6 +19,14 @@ Select exactly one next SPX workflow, read that Skill, and continue immediately
 when its boundary is clear. Prefer resuming existing valid state over creating a
 new lane. Do not use auto to bypass a user-owned decision, external-write
 authorization, destructive action, or a blocked validation gate.
+Stop after that workflow returns; do not invoke a second workflow in the same
+invocation. Report any downstream route as a handoff only.
+
+Pass `auto_default_recommendation: true` only to that selected workflow. It may
+accept one explicit safe default that preserves current intent and scope. Never
+use it for scope reduction, destructive or irreversible action, security or
+credential decisions, external cost, or unresolved planning ambiguity.
+Keep this hint turn-local; never persist it as the canonical next route.
 
 Create no separate auto state, report, or orchestration layer. If evidence is
 ambiguous, state the competing routes and ask only for the decision the

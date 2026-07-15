@@ -6,6 +6,11 @@ terminal-looking tracker, run
 `{{specify-subcmd:implement resume-audit --feature-dir <feature-dir> --format json}}`
 before editing.
 
+On entry or resume, stop and hand off to `$spx-analyze` when persisted state
+requires an Analyze Gate, that gate is active/blocked or stale, or task-index
+`source_revision` and current plan/task consistency cannot be trusted. Do not
+run it inline. `gate_status: not-run` alone remains optional.
+
 For each ready task:
 
 - confirm authoritative inputs, dependencies, acceptance, likely write scope,
@@ -15,6 +20,31 @@ For each ready task:
 - verify the real entry point and material boundaries, not only an isolated
   helper;
 - record changed paths, checks, obligation evidence, blockers, and recovery.
+
+## External and human verification blockers
+
+When required evidence can only come from protected CI, a remote system, or a
+human action, keep the task checkbox unchecked and its lifecycle status
+`blocked`; local implementation completion is not task acceptance. Render each
+blocker from `.specify/templates/task-lifecycle-schema.json#/$defs/blocker` and
+fill every required field; do not reconstruct this stable schema from prose.
+
+Keep the feature `executing` or `validating` while another dependency-safe task
+can continue; mark the feature blocked only when no ready work remains. A
+`mandatory_for_completion` blocker must not be converted to `accepted`, checked
+off, or `resolved` before its evidence exists.
+
+Do not push, trigger remote CI, or perform another external write without the
+required authorization. A commit needed for mandatory protected-CI evidence is
+a non-final checkpoint only after
+First validate the checkpoint explicitly with
+`{{specify-subcmd:hook validate-commit --commit-message <message> --feature-dir <feature-dir> --commit-intent external-evidence-checkpoint}}`.
+On Claude or Gemini native hooks, carry the same authorization on the actual
+commit as `git -c specify.commitIntent=external-evidence-checkpoint commit -m
+"<message>"`; the hook binds it to the active feature and revalidates the
+task-local mandatory external blocker.
+passes. This checkpoint does not finalize the workflow or authorize push/CI;
+ordinary final commits retain the terminal-state gate.
 
 For UI tasks, apply the packet `ui_contract` as binding scope. Run the visual convergence loop at the real entry point: render the required states and
 viewports, capture stable screenshots or platform output, inspect against
@@ -34,7 +64,11 @@ worker concern, obligation conflict, real-entrypoint gaps, or an oversized
 unreviewed window. Repair only understood local failures; reopen planning or
 debugging when upstream truth or root cause is unknown.
 
+Every cross-workflow route is a handoff-and-stop boundary. Hand off unknown root
+causes to `$spx-debug`, missing/invalid design truth to `$spx-design`, durable
+team execution to `$spx-implement-teams`, and independent lane closeout to
+`$spx-integrate`; do not run any of them inline in this invocation.
+
 Before completion, run
 `{{specify-subcmd:implement closeout --feature-dir <feature-dir> --format json}}`
-when available. Durable team execution and independent-lane integration have
-their own explicit SPX skills; do not invent either protocol inside this path.
+when available.

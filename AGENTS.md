@@ -82,6 +82,13 @@ present in a test project.
   external-side-effect gates; it removes repeated tutorials, fixed role chains,
   unnecessary mandatory delegation, long examples, and model-authored stable
   boilerplate.
+- Advanced prompt optimization has no hard word or token ceiling. Optimize
+  expression, not workflow semantics: every Classic stage input, triggered
+  output, state owner, resume transition, blocker/recovery rule, side-effect
+  gate, and final-claim gate must remain in the owning SPX skill, a triggered
+  Advanced reference, or shared deterministic runtime. Leave implementation
+  strategy and judgment to the advanced model only after those contracts are
+  preserved.
 - Advanced does **not** install the Classic passive-skill prompt bundle.
   Essential safety and execution gates belong in the owning SPX skill, a
   profile-local Advanced reference, or shared deterministic runtime.

@@ -74,6 +74,7 @@ packages = ["src/specify_cli"]
 "templates/ui-target-template.html" = "specify_cli/core_pack/templates/ui-target-template.html"
 "templates/task-index-template.json" = "specify_cli/core_pack/templates/task-index-template.json"
 "templates/task-lifecycle-template.json" = "specify_cli/core_pack/templates/task-lifecycle-template.json"
+"templates/task-lifecycle-schema.json" = "specify_cli/core_pack/templates/task-lifecycle-schema.json"
 "templates/task-packet-template.json" = "specify_cli/core_pack/templates/task-packet-template.json"
 "templates/workflow-state-template.md" = "specify_cli/core_pack/templates/workflow-state-template.md"
 "templates/vscode-settings.json" = "specify_cli/core_pack/templates/vscode-settings.json"

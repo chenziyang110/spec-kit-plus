@@ -12,8 +12,26 @@ Read `references/ui-quality-gate.md` when the specification is UI-bearing.
 
 Resolve the active feature with the installed
 `.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent. Start
-from `spec-contract.json` when present and verify architecture claims against
-the cognition-selected live repository paths.
+by resolving the feature directory. Create or resume runtime-owned
+`workflow-state.md` from the installed template when absent. Record
+`active_command: sp-plan`, `phase_mode:
+design-only`, source revision, target boundary, blocker, and next route. Run
+`{{specify-subcmd:hook validate-state --command plan --feature-dir <feature-dir> --autofix --format json}}`
+and stop if it remains invalid.
+
+Require `spec-contract.json` with `status: planning-ready`, a ready transition
+to `sp-plan`, a current source revision, locked target boundary, zero hard
+unknowns, and zero open conflicts. Fail closed to the owning upstream workflow
+when any gate fails. Verify architecture claims against cognition-selected live
+repository paths.
+
+When `deep-research.md` exists, read and validate it before choosing the design.
+Consume every `PH-###` Planning Handoff item according to its mandatory,
+optional, or user-decision contract. Add a level-2 `## Deep Research
+Traceability Matrix` to `plan.md` with `Plan Decision`, `Handoff ID`, `Evidence
+/ Spike ID`, `Evidence Quality`, and `Plan Action` columns. Missing mandatory
+handoffs or untraceable evidence keep planning blocked; a validated
+`**Status**: Not needed` handoff carries no invented PH IDs.
 
 Render `plan-contract.json` and `plan.md` from
 the canonical machine template `.specify/templates/plan-contract-template.json`
@@ -34,11 +52,21 @@ If design-changing feasibility remains unproven, stop and route the named
 question to `$spx-deep-research`; do not hide research inside generic plan
 prose. Repair requirement contradictions through `$spx-clarify`.
 
+Create conditional outputs only when they carry independent design evidence:
+`research.md` for bounded implementation-shaping research, `data-model.md` for
+new data/state or persistence design, `contracts/` for external or protocol
+interfaces, and `quickstart.md` for a material end-to-end validation scenario.
+Otherwise record the skip reason in `plan-contract.json`. Refresh existing agent
+contexts with the installed `update-agent-context` script after the plan is
+valid.
+
 Validate the plan contract and compact plan view against confirmed requirements
 and live owners. Do not create tasks or task artifacts such as `tasks.md` or
 `task-index.json`; also do not create checklists, issues, production source,
 tests, migrations, or runtime configuration in this workflow. Preserve canonical
 `/sp.*` state identifiers. This invocation authorizes only this workflow stage.
+Run `{{specify-subcmd:hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
+and repair or block on a non-OK result.
 Stop after reporting the validated plan and recommend `$spx-tasks` when ready.
 Do not invoke `$spx-tasks` in this run; a handoff is not authorization to execute
 it.

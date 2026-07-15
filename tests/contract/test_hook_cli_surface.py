@@ -166,13 +166,18 @@ def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
     for relative, content in {
         "workflow-state.md": "# Workflow State\n",
         "prd-scan.md": "# PRD Scan\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
+        "coverage-ledger.json": (
+            '{"version":1,"rows":[{"surface":"src/app.py","status":"covered",'
+            '"evidence":["evidence/api.md"]}]}\n'
+        ),
         "capability-ledger.json": (
             "{\"capabilities\": [{\"id\": \"CAP-HEAVY\", \"tier\": \"critical\", "
             "\"status\": \"reconstruction-ready\"}]}\n"
         ),
         "artifact-contracts.json": "{\"artifacts\": [{\"id\": \"ART-HEAVY\", \"status\": \"landed\"}]}\n",
-        "reconstruction-checklist.json": "{\"checks\": [{\"id\": \"CHK-HEAVY\"}]}\n",
+        "reconstruction-checklist.json": (
+            '{"checks":[{"id":"CHK-HEAVY","status":"pass"}]}\n'
+        ),
         "entrypoint-ledger.json": "{\"entrypoints\": []}\n",
         "config-contracts.json": "{\"configs\": []}\n",
         "protocol-contracts.json": "{\"protocols\": []}\n",
@@ -184,7 +189,7 @@ def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
     (run_dir / "scan-packets").mkdir()
     (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
     (run_dir / "evidence").mkdir()
-    (run_dir / "evidence" / "api").mkdir()
+    (run_dir / "evidence" / "api.md").write_text("API evidence\n", encoding="utf-8")
     (run_dir / "worker-results").mkdir()
     (run_dir / "worker-results" / "lane-a.json").write_text(
         json.dumps(
@@ -204,19 +209,32 @@ def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
 def _write_legacy_prd_build_exports(run_dir: Path) -> None:
     master_dir = run_dir / "master"
     master_dir.mkdir(exist_ok=True)
-    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    (master_dir / "master-pack.md").write_text(
+        "# Master Pack\n\nAccepted capability evidence.\n", encoding="utf-8"
+    )
     exports_dir = run_dir / "exports"
     exports_dir.mkdir(exist_ok=True)
-    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
-    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
-    (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "README.md").write_text("# Export Navigation\n\nSee the PRD suite.\n", encoding="utf-8")
+    (exports_dir / "prd.md").write_text(
+        "# PRD\n\n## Capability Overview\n\nCore capability.\n\n"
+        "## Critical Capability Notes\n\nEvidence accepted.\n\n"
+        "## Unknowns and Evidence Confidence\n\nNo critical unknowns.\n",
+        encoding="utf-8",
+    )
+    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n\nReconstruction detail.\n", encoding="utf-8")
+    (exports_dir / "data-model.md").write_text("# Data Model\n\nEntity contract.\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n\nAPI contract.\n", encoding="utf-8")
+    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n\nRuntime behavior.\n", encoding="utf-8")
 
 
 def _write_heavy_prd_build_exports(run_dir: Path) -> None:
     _write_legacy_prd_build_exports(run_dir)
+    (run_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Current Command\n\n"
+        "- active_command: sp-prd-build\n- status: complete\n"
+        "- build_status: complete\n",
+        encoding="utf-8",
+    )
     for relative, heading in {
         "config-contracts.md": "# Config Contracts\n",
         "protocol-contracts.md": "# Protocol Contracts\n",
@@ -225,7 +243,9 @@ def _write_heavy_prd_build_exports(run_dir: Path) -> None:
         "verification-surface.md": "# Verification Surface\n",
         "reconstruction-risks.md": "# Reconstruction Risks\n",
     }.items():
-        (run_dir / "exports" / relative).write_text(heading, encoding="utf-8")
+        (run_dir / "exports" / relative).write_text(
+            heading + "\nAccepted contract detail.\n", encoding="utf-8"
+        )
 
 
 def _write_project_cognition_runtime(run_dir: Path) -> None:
@@ -3776,9 +3796,18 @@ def test_hook_validate_artifacts_blocks_shallow_prd_build(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build"
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (run_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Current Command\n\n"
+        "- active_command: sp-prd-build\n- status: complete\n"
+        "- build_status: complete\n",
+        encoding="utf-8",
+    )
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version":1,"rows":[{"surface":"src/app.py","status":"covered",'
+        '"evidence":["evidence/api.md"]}]}\n',
+        encoding="utf-8",
+    )
     (run_dir / "capability-ledger.json").write_text(
         "{\"capabilities\": [{\"id\": \"CAP-001\", \"tier\": \"critical\", \"status\": \"surface-only\"}]}\n",
         encoding="utf-8",
@@ -4374,6 +4403,91 @@ def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
     assert payload["resume_audit"]["trusted_terminal_state"] is False
 
 
+def test_implement_closeout_blocks_readable_nonterminal_state(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [ ] T001 Validate protected pipeline\n", encoding="utf-8"
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: validating\nfeature: 001-demo\nresume_decision: continue\n---\n\n"
+        "## Current Focus\nnext_action: collect protected pipeline evidence\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["implement", "closeout", "--feature-dir", str(feature_dir), "--format", "json"],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert payload["resume_audit"]["status"] == "pass"
+    assert payload["resume_audit"]["trusted_terminal_state"] is False
+
+
+def test_hook_validate_commit_accepts_external_evidence_checkpoint_option(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: validating\nfeature: 001-demo\nresume_decision: continue\n---\n\n"
+        "## Current Focus\nnext_action: run pipeline\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T001 Run protected CI\n", encoding="utf-8"
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "blocked",
+                "blockers": [
+                    {
+                        "classification": "external",
+                        "owner": "external-system",
+                        "evidence": "protected CI requires a commit",
+                        "exact_next_action": "run protected CI",
+                        "approval_question": None,
+                        "unblock_criteria": "protected CI succeeds",
+                        "implementation_can_continue": True,
+                        "completion_impact": "mandatory_for_completion",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-commit",
+            "--commit-message",
+            "chore(ci): checkpoint protected pipeline config",
+            "--feature-dir",
+            str(feature_dir),
+            "--commit-intent",
+            "external-evidence-checkpoint",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["data"]["workflow_finalized"] is False
+
+
 def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / ".specify" / "features" / "001-demo"
@@ -4667,9 +4781,18 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
     run_id = "260504-portal-audit"
     run_dir = project / ".specify" / "prd-runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (run_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Current Command\n\n"
+        "- active_command: sp-prd-build\n- status: complete\n"
+        "- build_status: complete\n",
+        encoding="utf-8",
+    )
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version":1,"rows":[{"surface":"src/app.py","status":"covered",'
+        '"evidence":["evidence/api.md"]}]}\n',
+        encoding="utf-8",
+    )
     (run_dir / "capability-ledger.json").write_text(
         "{\"capabilities\": [{\"id\": \"CAP-005\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
         encoding="utf-8",
@@ -4679,7 +4802,7 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
         encoding="utf-8",
     )
     (run_dir / "reconstruction-checklist.json").write_text(
-        "{\"checks\": [{\"id\": \"CHK-007\"}]}\n",
+        '{"checks":[{"id":"CHK-007","status":"pass"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "entrypoint-ledger.json").write_text("{\"entrypoints\": []}\n", encoding="utf-8")
@@ -4692,7 +4815,7 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
     (run_dir / "evidence").mkdir()
     (run_dir / "worker-results").mkdir()
     (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "evidence" / "api").mkdir()
+    (run_dir / "evidence" / "api.md").write_text("API evidence\n", encoding="utf-8")
     (run_dir / "worker-results" / "lane-a.json").write_text(
         json.dumps(
             {
@@ -4708,21 +4831,31 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
     )
     master_dir = run_dir / "master"
     master_dir.mkdir()
-    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    (master_dir / "master-pack.md").write_text("# Master Pack\n\nAccepted evidence.\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
-    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
-    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
-    (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
-    (exports_dir / "config-contracts.md").write_text("# Config Contracts\n", encoding="utf-8")
-    (exports_dir / "protocol-contracts.md").write_text("# Protocol Contracts\n", encoding="utf-8")
-    (exports_dir / "state-machines.md").write_text("# State Machines\n", encoding="utf-8")
-    (exports_dir / "error-semantics.md").write_text("# Error Semantics\n", encoding="utf-8")
-    (exports_dir / "verification-surface.md").write_text("# Verification Surface\n", encoding="utf-8")
-    (exports_dir / "reconstruction-risks.md").write_text("# Reconstruction Risks\n", encoding="utf-8")
+    (exports_dir / "README.md").write_text("# Export Navigation\n\nSee package.\n", encoding="utf-8")
+    (exports_dir / "prd.md").write_text(
+        "# PRD\n\n## Capability Overview\n\nCore capability.\n\n"
+        "## Critical Capability Notes\n\nEvidence accepted.\n\n"
+        "## Unknowns and Evidence Confidence\n\nNo critical unknowns.\n",
+        encoding="utf-8",
+    )
+    for relative, heading in {
+        "reconstruction-appendix.md": "Appendix",
+        "data-model.md": "Data Model",
+        "integration-contracts.md": "Integration Contracts",
+        "runtime-behaviors.md": "Runtime Behaviors",
+        "config-contracts.md": "Config Contracts",
+        "protocol-contracts.md": "Protocol Contracts",
+        "state-machines.md": "State Machines",
+        "error-semantics.md": "Error Semantics",
+        "verification-surface.md": "Verification Surface",
+        "reconstruction-risks.md": "Reconstruction Risks",
+    }.items():
+        (exports_dir / relative).write_text(
+            f"# {heading}\n\nAccepted contract detail.\n", encoding="utf-8"
+        )
 
     result = _run_module_in_project(project, ["prd-build", run_id, "--json"])
 

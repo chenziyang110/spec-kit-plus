@@ -11,6 +11,11 @@ parallel-safe only when neither consumes the other's uncommitted result and
 their writes, generated outputs, state mutations, and verification fixtures do
 not collide.
 
+Every task records required refs, forbidden drift, packet mode, objective
+acceptance, verification, stop/reopen criteria, and failure recovery. A join
+point records its members, validation target, command or concrete check, pass
+condition, and recovery on failure before dependent tasks become ready.
+
 Keep setup and foundational work before feature slices; verify at natural join
 points. If a task discovers unknown product behavior or architecture, the task
 graph is not the place to decide it—reopen the owning upstream workflow.

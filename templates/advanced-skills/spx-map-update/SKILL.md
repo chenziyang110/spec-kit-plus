@@ -26,9 +26,17 @@ fresh verification evidence. Execute `update_argv` using the launcher-token
 replacement rule in `references/project-cognition.md`, never the display-only
 command string.
 
-Follow the result-state branches in the update reference. Validate the affected
-scope with
+Follow the result-state branches in the update reference. Run
+`{{specify-subcmd:project-cognition validate-build --format json}}` after an
+applied update. A `ready` result plus passing validation must finish with
+`{{specify-subcmd:project-cognition complete-refresh --format json}}`; a
+`no_op` result may finish freshness metadata with
+`{{specify-subcmd:project-cognition record-refresh --reason map-update --format json}}`.
+Never finalize `partial_refresh`, `blocked`, or `needs_rebuild` as fresh.
+
+Validate the affected scope with
 `{{specify-subcmd:project-cognition compass --intent implement --query "<changed scope>" --format json}}`
 and targeted expansion. If the runtime reports `needs_rebuild`, stop and route to
-`$spx-map-rebuild`. Report the updated scope, validation, gaps, and recovery
-state.
+`$spx-map-rebuild`, but do not invoke `$spx-map-rebuild` in this run. Report the
+updated scope, validation, gaps, and recovery state. This invocation authorizes
+only this workflow stage; a recovery handoff does not authorize another one.

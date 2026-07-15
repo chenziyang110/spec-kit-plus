@@ -29,3 +29,10 @@ Trace every requirement and must-preserve obligation to a design decision or an
 explicit unresolved blocker. Use precise paths when reasonably knowable, but do
 not turn the plan into task-level edit instructions. A planning-ready result has
 no hidden feasibility question capable of changing the chosen architecture.
+
+When deep research exists, preserve its planning handoff rather than
+reconstructing feasibility. Consume each `PH-###` in a level-2 `## Deep Research
+Traceability Matrix` with the runtime-required columns: `Plan Decision`,
+`Handoff ID`, `Evidence / Spike ID`, `Evidence Quality`, and `Plan Action`.
+Mandatory items must be consumed; optional deferral and user-decision items stay
+explicit.

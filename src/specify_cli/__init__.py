@@ -1320,10 +1320,101 @@ def _normalize_prd_payload(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         relevant_surfaces = set(surfaces)
 
-    relevant_present = {name: bool(present) for name, present in surfaces.items() if name in relevant_surfaces}
-    normalized["complete"] = bool(relevant_present) and all(relevant_present.values())
-    normalized["missing"] = sorted(name for name, present in relevant_present.items() if not present)
+    relevant_present = {
+        name: bool(present)
+        for name, present in surfaces.items()
+        if name in relevant_surfaces
+    }
+    surface_complete = bool(relevant_present) and all(relevant_present.values())
+    normalized["surface_complete"] = surface_complete
+    semantic_status = str(normalized.get("status") or "").strip()
+    semantic_readiness = str(normalized.get("readiness") or "").strip()
+    if mode == "status-build" and semantic_status in {"ready", "blocked"}:
+        normalized["complete"] = (
+            surface_complete
+            and semantic_status == "ready"
+            and semantic_readiness == "complete"
+        )
+    else:
+        normalized["complete"] = surface_complete
+    normalized["missing"] = sorted(
+        name for name, present in relevant_present.items() if not present
+    )
     return normalized
+
+
+def _apply_prd_build_semantic_readiness(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Attach semantic readiness to the physical PRD build surface status."""
+
+    from .hooks.artifact_validation import (
+        validate_artifacts_hook,
+        validate_prd_build_readiness,
+    )
+
+    normalized = _normalize_prd_payload(payload)
+    run_dir = Path(str(normalized.get("workspace_path") or ""))
+    run_id = str(normalized.get("workspace") or run_dir.name)
+    rerun = f"specify prd-build {run_id} --json"
+    readiness_errors = validate_prd_build_readiness(run_dir)
+
+    enriched = dict(payload)
+    enriched["surface_complete"] = bool(normalized.get("surface_complete"))
+    if readiness_errors:
+        enriched.update(
+            {
+                "status": "blocked",
+                "readiness": "blocked",
+                "errors": readiness_errors,
+                "recovery": {
+                    "stage": "prd-scan",
+                    "action": "repair the reported frozen scan-package gaps",
+                    "rerun": rerun,
+                },
+            }
+        )
+        return enriched
+
+    if not normalized.get("surface_complete"):
+        enriched.update(
+            {
+                "status": "ready",
+                "readiness": "ready-to-build",
+                "errors": [],
+                "recovery": None,
+            }
+        )
+        return enriched
+
+    completion = validate_artifacts_hook(
+        project_root,
+        {"command_name": "prd-build", "feature_dir": str(run_dir)},
+    )
+    if completion.status == "blocked":
+        enriched.update(
+            {
+                "status": "blocked",
+                "readiness": "blocked",
+                "errors": list(completion.errors),
+                "recovery": {
+                    "stage": "prd-build",
+                    "action": "repair the reported export or traceability gaps",
+                    "rerun": rerun,
+                },
+            }
+        )
+        return enriched
+
+    enriched.update(
+        {
+            "status": "ready",
+            "readiness": "complete",
+            "errors": [],
+            "recovery": None,
+        }
+    )
+    return enriched
 
 
 def _render_prd_payload(payload: dict[str, Any], *, json_output: bool = False) -> None:
@@ -1347,9 +1438,19 @@ def _render_prd_payload(payload: dict[str, Any], *, json_output: bool = False) -
         ("Path", str(normalized.get("workspace_path", ""))),
         ("Complete", "yes" if normalized.get("complete") else "no"),
     ]
+    if normalized.get("status"):
+        rows.append(("Status", str(normalized["status"])))
+    if normalized.get("readiness"):
+        rows.append(("Readiness", str(normalized["readiness"])))
     missing = normalized.get("missing")
     if isinstance(missing, list) and missing:
         rows.append(("Missing", ", ".join(str(item) for item in missing)))
+    errors = normalized.get("errors")
+    if isinstance(errors, list) and errors:
+        rows.append(("Errors", "; ".join(str(item) for item in errors)))
+    recovery = normalized.get("recovery")
+    if isinstance(recovery, dict) and recovery.get("action"):
+        rows.append(("Recovery", str(recovery["action"])))
     console.print(_cli_panel(_labeled_grid(rows), title=title, border_style="cyan"))
 
 
@@ -1377,8 +1478,10 @@ def prd_build_command(
     json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
 ):
     """Inspect a validated heavy reconstruction PRD build workspace; compile exports from the scan package without a second repository scan and block when critical-evidence gaps remain."""
-    _require_spec_kit_plus_project(Path.cwd())
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
     payload = _run_prd_helper("status-build", run_slug=run_slug)
+    payload = _apply_prd_build_semantic_readiness(project_root, payload)
     _render_prd_payload(payload, json_output=json_output)
 
 
@@ -1780,7 +1883,10 @@ def implement_closeout(
         raise typer.Exit(1)
 
     resume_audit = audit_implement_resume(project_root, resolved_feature_dir)
-    if resume_audit["status"] in {"fail", "conflict"}:
+    if (
+        resume_audit["status"] in {"fail", "conflict"}
+        or not resume_audit.get("trusted_terminal_state", False)
+    ):
         payload = {
             "status": "blocked",
             "feature_dir": str(resolved_feature_dir),
@@ -2794,7 +2900,9 @@ def _install_shared_infra(
         design_template_src = templates_src / "design-template.md"
         design_file_dst = project_path / "DESIGN.md"
         if design_template_src.exists():
-            if design_file_dst.exists() and not overwrite_existing:
+            # DESIGN.md is project-owned once created. Runtime repair may refresh
+            # generated scripts/templates, but must never replace approved design truth.
+            if design_file_dst.exists():
                 skipped_files.append(str(design_file_dst.relative_to(project_path)))
             else:
                 shutil.copy2(design_template_src, design_file_dst)
@@ -5567,9 +5675,14 @@ def hook_validate_phase_boundary_command(
 def hook_validate_commit_command(
     commit_message: str = typer.Option(..., "--commit-message", help="Commit message to validate"),
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Optional feature directory for tracker validation"),
+    commit_intent: str = typer.Option(
+        "finalize",
+        "--commit-intent",
+        help="Commit intent: finalize or external-evidence-checkpoint",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
-    """Validate commit message and workflow terminal state before commit finalization."""
+    """Validate commit message and workflow state for final or evidence commits."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _validate_hook_output_format(output_format)
@@ -5579,6 +5692,7 @@ def hook_validate_commit_command(
         {
             "commit_message": commit_message,
             "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "commit_intent": commit_intent,
         },
     )
 
@@ -6570,9 +6684,31 @@ def _repair_active_integration_runtime_assets(
     """
     from .integrations import get_integration
     from .integrations.manifest import IntegrationManifest
+    from .launcher import (
+        load_project_cognition_launcher,
+        project_cognition_launcher_is_compatible,
+    )
+    from .project_cognition_runtime import (
+        ensure_binary as ensure_project_cognition_binary,
+        write_project_launcher_config as write_project_cognition_launcher,
+    )
 
     current = _read_integration_json(project_root)
     installed_key = current.get("integration")
+
+    cognition_launcher = load_project_cognition_launcher(project_root)
+    cognition_available = project_cognition_launcher_is_compatible(
+        project_root,
+        cognition_launcher,
+    )
+    if not cognition_available:
+        cognition_binary = ensure_project_cognition_binary()
+        written = write_project_cognition_launcher(project_root, cognition_binary)
+        if written is None:
+            raise RuntimeError(
+                "project-cognition runtime was recovered, but `.specify/config.json` "
+                "could not be updated with the project-pinned launcher"
+            )
 
     _install_shared_infra(project_root, script_type, overwrite_existing=True)
     if os.name != "nt":

@@ -143,6 +143,48 @@ def test_claude_hook_infers_active_context_from_specify_features_root(tmp_path):
     assert inferred["feature_dir"] == str(feature_dir)
 
 
+def test_claude_commit_hook_binds_checkpoint_intent_to_active_blocked_feature(
+    tmp_path, monkeypatch
+):
+    module = _load_claude_hook_dispatch_module()
+    feature_dir = tmp_path / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: blocked\n---\n\n## Current Focus\nnext_action: run CI\n",
+        encoding="utf-8",
+    )
+    calls = []
+    monkeypatch.setattr(module, "_workflow_policy_shared", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        module,
+        "_run_shared_hook",
+        lambda _root, args: calls.append(args) or {"status": "ok"},
+    )
+
+    module._handle_pre_tool_bash(
+        tmp_path,
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "git -c specify.commitIntent=external-evidence-checkpoint "
+                'commit -m "chore(ci): collect protected evidence"'
+            },
+        },
+    )
+
+    assert calls == [
+        [
+            "validate-commit",
+            "--commit-message",
+            "chore(ci): collect protected evidence",
+            "--feature-dir",
+            str(feature_dir),
+            "--commit-intent",
+            "external-evidence-checkpoint",
+        ]
+    ]
+
+
 def test_claude_hook_infers_map_update_active_context(tmp_path):
     module = _load_claude_hook_dispatch_module()
     project_root = tmp_path / "claude-hook-map-update"

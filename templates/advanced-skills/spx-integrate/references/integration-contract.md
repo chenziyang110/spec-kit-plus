@@ -4,6 +4,11 @@ A lane is ready only when its implementation lifecycle is truthfully terminal,
 required evidence exists, and its branch/worktree can be related to the current
 integration base. Re-evaluate after every preceding lane changes that base.
 
+This contract authorizes inspection, readiness decisions, closeout, recovery,
+and merge/PR guidance only. It does not authorize VCS integration or source
+edits. Validate an already integrated tree when one exists; otherwise preserve
+the lane and return the exact external handoff needed to create that tree.
+
 Check:
 
 - declared and actual write overlap, including generated files and migrations;

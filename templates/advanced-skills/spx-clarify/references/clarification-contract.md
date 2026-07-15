@@ -13,3 +13,9 @@ and only the views it actually affects. Recheck acceptance, exclusions,
 must-preserve behavior, and consequence obligations. A clarification is done
 when planning has one coherent contract, not merely when every question has a
 text response.
+
+Keep the Classic clarification evidence surfaces even when delegation is not
+needed: `clarification/handoffs/`, `clarification/evidence-index.json`, and
+`clarification/checkpoints.ndjson`. Preserve prior records. Every accepted lane
+must name the `spec.md`, `alignment.md`, `context.md`, or `references.md`
+section that consumed it, or carry an explicit deferral/blocker disposition.

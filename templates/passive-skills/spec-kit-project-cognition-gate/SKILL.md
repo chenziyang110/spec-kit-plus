@@ -151,6 +151,19 @@ judgment in an established Spec Kit Plus repository:
 - Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
 - Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command. Default feature workspace names use `YYYY-MM-DD-<slug>`; numeric prefixes are legacy and require the script's explicit numeric option.
 
+## Missing Runtime Launcher Recovery
+
+- If an installed cognition command begins with the all-caps
+  `PROJECT_COGNITION_LAUNCHER_UNAVAILABLE` marker, treat the complete marked
+  command as non-executable. The suffix only preserves the intended cognition
+  subcommand so managed guidance can be rebound after repair.
+- Do not probe `specify cognition` or `specify project-cognition`. Run
+  `{{specify-subcmd:check}}` for project-pinned diagnostics, then run
+  `{{specify-subcmd:integration repair}}` as the deterministic recovery entry.
+  Re-open the active installed skill after repair; if the marker remains,
+  report cognition unavailable and continue from live repository evidence only
+  where the workflow's safety boundary permits degraded advisory navigation.
+
 ## Freshness State Guidance
 
 - If the project cognition runtime is missing for a brownfield project, continue with live repository

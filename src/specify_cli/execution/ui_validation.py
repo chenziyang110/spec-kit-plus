@@ -43,8 +43,11 @@ def validate_accepted_task_lifecycle(
     validation = lifecycle.get("validation")
     if not isinstance(validation, list) or not validation:
         errors.append(f"{relative} validation must be a non-empty list")
-    if not isinstance(lifecycle.get("blockers"), list):
+    blockers = lifecycle.get("blockers")
+    if not isinstance(blockers, list):
         errors.append(f"{relative} blockers must be a list")
+    elif blockers:
+        errors.append(f"{relative} accepted lifecycle must not retain unresolved blockers")
     review = lifecycle.get("review")
     if review is not None and (
         not isinstance(review, dict)

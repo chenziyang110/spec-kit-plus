@@ -8,13 +8,24 @@ description: Dependency-aware task-generation workflow for advanced coding model
 Read `references/project-cognition.md`, using cognition intent `plan`,
 `references/task-graph-contract.md`, and `references/consequence-gate.md` only
 when the plan carries triggered obligations. Resolve the active feature with the
-installed prerequisite script.
+installed `.specify/scripts/bash/check-prerequisites.sh --json` or PowerShell
+equivalent; create or resume task-generation state and keep implementation
+blocked.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.
 
 Read `plan-contract.json` first and verify named owners, paths, and verification
 entry points against cognition-selected live evidence. If planning truth is
 missing or stale, stop and route to `$spx-plan`, `$spx-clarify`, or
 `$spx-deep-research`; do not hide design work inside a task.
+
+Create or resume runtime-owned `workflow-state.md` before decomposition, using
+the installed workflow-state template only when absent. Record `active_command:
+sp-tasks`, `phase_mode: task-generation-only`, source revision, target boundary,
+blocker, and next route. Run
+`{{specify-subcmd:hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
+and stop if it remains invalid. Require the plan's ready transition to
+`sp-tasks`, locked target boundary, current revision, and zero unresolved
+planning blockers.
 
 Create `tasks.md` from `assets/tasks.md`. For standard, heavy, delegated,
 multi-batch, obligation-rich, or any UI-bearing work, also render the canonical
@@ -35,6 +46,10 @@ filling the complete `ui_contract` as the only UI packet contract. Do not rely o
 global UI coverage table: the just-in-time packet compiler must receive design
 sources, task-specific visual constraints, states, and evidence without
 re-inferring them.
+
+Before handoff, run
+`{{specify-subcmd:hook validate-artifacts --command tasks --feature-dir <feature-dir> --format json}}`
+and repair the task graph or reopen its owning upstream phase on failure.
 
 Do not implement or edit production source/tests. This invocation authorizes
 only this workflow stage. Stop after reporting the executable graph and

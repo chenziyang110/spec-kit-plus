@@ -25,6 +25,13 @@ view, use this Skill's compact `assets/spec.md`; preserve existing semantic work
 when revising an established spec. Render `assets/ui-brief.md` for substantive
 UI work; a narrow existing-pattern adjustment may instead record why a separate
 brief adds no decision value.
+
+Create or resume runtime-owned `workflow-state.md` before substantive artifact
+work, using the installed workflow-state template only when absent. Record
+`active_command: sp-specify`, `phase_mode: planning-only`, the source revision,
+target boundary, blocker, and next route; keep specification truth in the
+contract. Run `{{specify-subcmd:hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
+and stop if the repaired state remains invalid.
 Create only specification-stage outputs here: `spec-contract.json`, `spec.md`,
 a triggered `ui-brief.md`, and specification evidence or runtime-owned state.
 Do not create `plan-contract.json`, `plan.md`, `research.md`, `data-model.md`,
@@ -40,6 +47,10 @@ Make requirements and acceptance observable. Resolve contradictions and
 planning-blocking unknowns; ask only the smallest decision batch needed. Run the installed artifact validator when
 available and preserve canonical `/sp.*` transition values required by the
 runtime.
+Before reporting planning-ready, run
+`{{specify-subcmd:hook validate-artifacts --command specify --feature-dir <feature-dir> --format json}}`;
+fail closed on any blocked result and repair the owning artifact or upstream
+handoff.
 
 Do not implement or edit production code, tests, migrations, or runtime
 configuration. This invocation authorizes only this workflow stage. Stop after

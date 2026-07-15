@@ -68,6 +68,25 @@ TASK_REVIEW_FINDING_DISPOSITIONS = frozenset(
     {"open", "fixed", "accepted_residual_risk", "follow_up"}
 )
 TASK_REVIEW_FINDING_SOURCES = frozenset({"findings", "plan_mandated_defects"})
+TASK_BLOCKER_CLASSIFICATIONS = frozenset(
+    {
+        "technical",
+        "external",
+        "human-action",
+        "verification_policy",
+        "project_cognition_readiness",
+        "baseline_timeout",
+    }
+)
+TASK_BLOCKER_OWNERS = frozenset({"agent", "user", "maintainer", "external-system"})
+TASK_BLOCKER_COMPLETION_IMPACTS = frozenset(
+    {
+        "mandatory_for_completion",
+        "optional_cleanup",
+        "external_baseline_maintenance",
+        "follow_up_risk",
+    }
+)
 
 
 def _read_text(path: Path) -> str:
@@ -268,6 +287,95 @@ def _tracker_has_open_gaps(feature_dir: Path) -> bool:
         if line.strip() and line.strip().lower() not in {"- none", "none", "[]"}
     ]
     return any(line.startswith("-") or line.startswith("type:") for line in meaningful)
+
+
+def _has_nonempty_blocker_evidence(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return bool(value) and all(isinstance(item, str) and item.strip() for item in value)
+    return False
+
+
+def _task_lifecycle_blocker_gaps(feature_dir: Path) -> list[str]:
+    """Validate and surface open task-local blockers, including active tasks."""
+
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    if not lifecycle_dir.is_dir():
+        return []
+
+    gaps: list[str] = []
+    required_fields = (
+        "classification",
+        "owner",
+        "evidence",
+        "exact_next_action",
+        "approval_question",
+        "unblock_criteria",
+        "implementation_can_continue",
+        "completion_impact",
+    )
+    for lifecycle_path in sorted(lifecycle_dir.glob("*.json")):
+        relative = lifecycle_path.relative_to(feature_dir).as_posix()
+        try:
+            payload = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            gaps.append(f"{relative} is malformed: {exc}")
+            continue
+        if not isinstance(payload, dict):
+            gaps.append(f"{relative} must contain a top-level object")
+            continue
+        task_id = str(payload.get("task_id") or lifecycle_path.stem).upper()
+        blockers = payload.get("blockers")
+        if blockers is None:
+            if str(payload.get("status") or "").lower() == "blocked":
+                gaps.append(f"{relative} blocked task {task_id} must record blockers")
+            continue
+        if not isinstance(blockers, list):
+            gaps.append(f"{relative} blockers must be a list")
+            continue
+        if str(payload.get("status") or "").lower() == "blocked" and not blockers:
+            gaps.append(f"{relative} blocked task {task_id} must record blockers")
+            continue
+        for index, blocker in enumerate(blockers, start=1):
+            label = f"{relative} blocker {index}"
+            if not isinstance(blocker, dict):
+                gaps.append(f"{label} must be an object")
+                continue
+            missing = [field for field in required_fields if field not in blocker]
+            if missing:
+                gaps.append(f"{label} is missing required fields: {', '.join(missing)}")
+                continue
+
+            classification = str(blocker.get("classification") or "").strip()
+            owner = str(blocker.get("owner") or "").strip()
+            completion_impact = str(blocker.get("completion_impact") or "").strip()
+            if classification not in TASK_BLOCKER_CLASSIFICATIONS:
+                gaps.append(f"{label} has invalid classification: {classification or 'empty'}")
+            if owner not in TASK_BLOCKER_OWNERS:
+                gaps.append(f"{label} has invalid owner: {owner or 'empty'}")
+            if completion_impact not in TASK_BLOCKER_COMPLETION_IMPACTS:
+                gaps.append(
+                    f"{label} has invalid completion_impact: {completion_impact or 'empty'}"
+                )
+            if not _has_nonempty_blocker_evidence(blocker.get("evidence")):
+                gaps.append(f"{label} evidence must be a non-empty string or string list")
+            for field in ("exact_next_action", "unblock_criteria"):
+                if not isinstance(blocker.get(field), str) or not str(blocker[field]).strip():
+                    gaps.append(f"{label} {field} must be a non-empty string")
+            if not isinstance(blocker.get("implementation_can_continue"), bool):
+                gaps.append(f"{label} implementation_can_continue must be a boolean")
+            approval_question = blocker.get("approval_question")
+            if approval_question is not None and not isinstance(approval_question, str):
+                gaps.append(f"{label} approval_question must be a string or null")
+            if owner in {"user", "maintainer"} and not str(approval_question or "").strip():
+                gaps.append(f"{label} approval_question is required for owner {owner}")
+
+            gaps.append(
+                f"{task_id}: unresolved {classification or 'unknown'} blocker owned by "
+                f"{owner or 'unknown'} ({completion_impact or 'unknown'})"
+            )
+    return gaps
 
 
 def _packetized_task_ids(feature_dir: Path) -> tuple[list[str], list[str]]:
@@ -853,6 +961,7 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
 
     if _tracker_has_open_gaps(resolved_feature_dir):
         evidence_gaps.append("implement-tracker.md has unresolved open_gaps")
+    evidence_gaps.extend(_task_lifecycle_blocker_gaps(resolved_feature_dir))
     evidence_gaps.extend(
         _packetized_review_gaps(
             resolved_feature_dir,

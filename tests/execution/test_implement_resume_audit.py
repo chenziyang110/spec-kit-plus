@@ -320,6 +320,107 @@ def test_resume_audit_rejects_partial_current_ui_task_contract(
     )
 
 
+def test_active_resume_audit_surfaces_mandatory_external_task_blocker(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-external-ci"
+    _write_basic_feature(feature_dir, tracker_status="validating")
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T001 Validate protected pipeline\n", encoding="utf-8"
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "blocked",
+                "changed_paths": [".gitlab-ci.yml"],
+                "validation": [{"command": "tsc --noEmit", "status": "passed"}],
+                "blockers": [
+                    {
+                        "classification": "external",
+                        "owner": "external-system",
+                        "evidence": "Protected pipeline has not run",
+                        "exact_next_action": "Run the protected pipeline from the checkpoint",
+                        "approval_question": None,
+                        "unblock_criteria": "Protected pipeline succeeds",
+                        "implementation_can_continue": True,
+                        "completion_impact": "mandatory_for_completion",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any(
+        "T001" in gap and "mandatory_for_completion" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_resume_audit_rejects_unstructured_task_blocker(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-external-ci"
+    _write_basic_feature(feature_dir)
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": [".gitlab-ci.yml"],
+                "validation": [{"command": "tsc --noEmit", "status": "passed"}],
+                "blockers": ["pipeline has not run"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any("blocker 1 must be an object" in gap for gap in payload["open_gaps"])
+
+
+def test_active_resume_audit_rejects_blocked_task_without_blocker_details(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-external-ci"
+    _write_basic_feature(feature_dir, tracker_status="blocked")
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps({"task_id": "T001", "status": "blocked", "blockers": []}),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any("blocked task T001 must record blockers" in gap for gap in payload["open_gaps"])
+
+
+def test_active_resume_audit_rejects_malformed_task_lifecycle(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-external-ci"
+    _write_basic_feature(feature_dir, tracker_status="blocked")
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text("{not-json", encoding="utf-8")
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any(
+        "implementation-review/tasks/T001.json is malformed" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
 @pytest.mark.parametrize("task_index_version", [2, 3])
 def test_agent_native_task_index_requires_lifecycle_for_each_checked_task(
     tmp_path: Path,

@@ -1,8 +1,9 @@
 # Quick task contract
 
 Keep one resumable truth surface in `STATUS.md` and one terminal account in
-`SUMMARY.md`. Create new files from `assets/status.md` and `assets/summary.md`;
-resolve those paths relative to this Skill.
+`SUMMARY.md`. Create `STATUS.md` through the deterministic `quick-status`
+artifact scaffold and create `SUMMARY.md` from `assets/summary.md`; resolve the
+asset path relative to this Skill.
 
 `STATUS.md` must keep only information needed to resume safely:
 
@@ -11,6 +12,11 @@ resolve those paths relative to this Skill.
 - expected or changed paths;
 - current focus, next action, blocker, and material decisions;
 - verification commands/results and remaining risk.
+
+`understanding_confirmed: false` blocks broad investigation, delegation,
+implementation, and validation until the user confirms the checkpoint. A
+confirmed discussion handoff digest may satisfy the checkpoint only when quick
+introduces no semantic delta.
 
 Update it at scope changes, before/after delegated joins, on blockers, and at
 terminal verification—not after every command. Repository evidence may resolve

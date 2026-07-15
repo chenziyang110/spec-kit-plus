@@ -16,6 +16,10 @@ This skill operates the Codex-only runtime; it does not replace
 `{{specify-subcmd:sp-teams live-probe}}` only when install or runtime health
 needs an active proof.
 
+Inspection and diagnosis authorize only `status` and `doctor`. Never run
+`live-probe` implicitly: it may create transient runtime state and requires
+explicit operator authorization.
+
 Perform the explicit runtime action requested by the operator—status, watch,
 await, resume, sync-back, shutdown, or cleanup—after checking its help and
 current state. Prefer recovery-preserving actions. Do not dispatch feature work
@@ -25,4 +29,5 @@ it unavailable.
 
 Report the runtime state and supported next action. Route ready feature
 execution to `$spx-implement-teams` and ordinary bounded parallelism to
-`$spx-implement`.
+`$spx-implement` as explicit handoffs. This invocation authorizes only this
+workflow stage; do not invoke another workflow in this run.

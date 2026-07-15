@@ -15,6 +15,15 @@ tokens/components, accessibility rules, and supplied references. Distinguish
 observed product language from new design decisions; do not invent a parallel
 system when an established one can be extended.
 
+Create or resume `.specify/design/design-state.md` before synthesis and reread
+it after interruption or compaction. Persist `active_command: sp-design`,
+`phase_mode: design-only`, current stage, selected mode/direction, approval
+state, lint result, next action, and next command. The `allowed_writes` are only
+`DESIGN.md`, `.specify/design/design-state.md`,
+`.specify/design/references.md`, `.specify/design/options.md`,
+`.specify/design/review.md`, and stable design rules in
+`.specify/memory/project-rules.md` when they truly become project defaults.
+
 When creating a new direction or replacing a bootstrap seed, present two or
 three project-specific directions grounded in subject, audience, and one user
 job. Each states visual/content/interaction theses, a signature element, and
@@ -33,8 +42,16 @@ product/repository source refs plus `approval.visual_refs`, replace every asset 
 `{{specify-subcmd:design lint --level ready}}`. Do not hand off a structurally valid but
 generic or unapproved seed.
 
+Write `.specify/design/review.md` with the mode, inputs, approved direction and
+visual reference, covered platforms, risks, lint result, and one recommended
+next workflow. Ask the user to review the written `DESIGN.md` before recording
+the final design handoff; approval of an earlier direction artifact does not
+silently approve a drifted final contract.
+
 This workflow owns the design-system contract, not production implementation.
 Do not edit application source, tests, or generated component code. Preserve
 useful existing decisions and validate that referenced tokens/components exist
 or are clearly marked planned. Continue feature-specific requirements through
-`$spx-specify` and implementation design/tasks through `$spx-plan`.
+`$spx-specify` and implementation design/tasks through `$spx-plan` as explicit
+handoffs. This invocation authorizes only this workflow stage; do not invoke
+another workflow in this run.

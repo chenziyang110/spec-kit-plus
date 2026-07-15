@@ -1,5 +1,12 @@
 # Auto routing contract
 
+`workflow-state.md` is the primary feature phase lock. Use the lane registry
+only to discover candidates, then reconcile it with real state, artifacts, and
+any materialized worktree. A recorded upstream gate outranks an implementation
+tracker or later artifact. Stop on an `uncertain` lane, conflicting states, or
+anything other than exactly one unique safe candidate; report the evidence and
+smallest repair instead of guessing.
+
 Choose the first applicable trustworthy route:
 
 - new/high-visibility UI direction, redesign, or UI work blocked by missing or

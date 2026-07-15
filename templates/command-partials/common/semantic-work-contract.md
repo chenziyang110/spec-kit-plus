@@ -3,6 +3,18 @@
 
 [AGENT] Treat every project-cognition-backed request as natural-language intake first, regardless of whether the eventual work looks like planning, research, debugging, implementation, review, or map maintenance.
 
+### Missing cognition launcher
+
+If an installed cognition command begins with the all-caps
+`PROJECT_COGNITION_LAUNCHER_UNAVAILABLE` marker, treat the complete marked
+command as non-executable; its suffix only preserves the intended subcommand
+for managed rebinding. Do not probe `specify cognition` or
+`specify project-cognition`. Run `{{specify-subcmd:check}}`, then
+`{{specify-subcmd:integration repair}}`, and re-open the installed command or
+reference. If the marker remains, report cognition unavailable and use live
+repository evidence only where this workflow permits degraded advisory
+navigation.
+
 - **Single unified entrypoint**: the agent is the semantic mediator between the user's words and the project's stored vocabulary. Do not choose debug, implement, plan, or research from the user's raw words. First normalize the request into project terms, surfaces, constraints, exclusions, and evidence needs.
 - **WorkContract v1**: before route or write-scope decisions, carry a contract with `raw_request`, `normalized_goal`, `semantic_intake`, `selected_concept_ids`, `rejected_concept_ids`, `evidence_plan`, `permission_decision`, and `learning_contract`.
 - **Epistemic contract v1**: read and carry the navigation packet's `epistemic_contract`. Require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. It cannot authorize source changes and cannot prove current behavior; it cannot grant P3/P4 or make `claim_ready` true. Contradictory live evidence overrides the route candidate.

@@ -16,6 +16,13 @@ paths-only mode. Do not create a new feature. Read `spec-contract.json` first,
 then only the views, discussion handoff, UI evidence, project rules, or live
 paths needed for the named gaps.
 
+Create or resume runtime-owned `workflow-state.md` before substantive work,
+using the installed workflow-state template only when it is absent. Record
+`active_command: sp-clarify`, `phase_mode: planning-only`, the source revision,
+target boundary, current blocker, and next route without copying spec truth.
+Run `{{specify-subcmd:hook validate-state --command clarify --feature-dir <feature-dir> --autofix --format json}}`
+and fail closed if the repaired state still does not validate.
+
 Identify decisions whose alternatives materially change behavior, acceptance,
 interfaces, lifecycle, security, compatibility, or scope. Resolve repository
 facts from evidence. Ask the user only for product decisions the repository
@@ -23,11 +30,21 @@ cannot own, in a small prioritized batch. Preserve confirmed scope and record
 safe assumptions explicitly.
 
 Apply accepted answers to the authoritative spec contract and its referenced
-views; update existing workflow state and clarification evidence only when they
-are already part of the feature package. Validate the result and ensure every
-planning blocker is resolved, explicitly retained, or routed to
-`$spx-deep-research`.
+views. The complete clarification working set is `spec.md`, `alignment.md`,
+`context.md`, `references.md`, `workflow-state.md`,
+`clarification/handoffs/`, `clarification/evidence-index.json`, and
+`clarification/checkpoints.ndjson`; initialize missing clarification evidence
+surfaces, preserve existing records, and consume every accepted handoff into a
+named artifact section, explicit deferral, or blocker. Ensure every planning
+blocker is resolved, explicitly retained, or routed to `$spx-deep-research`.
 
-Do not plan or implement. Continue to `$spx-plan` only when the strengthened
-package is planning-ready; otherwise report the exact unresolved decision and
-why it blocks.
+Run
+`{{specify-subcmd:hook validate-artifacts --command clarify --feature-dir <feature-dir> --format json}}`
+before reporting planning readiness. Repair owned artifacts or fail closed on a
+non-OK result.
+
+This invocation authorizes only this workflow stage. Do not plan or implement.
+Do not invoke `$spx-deep-research`. Do not invoke `$spx-plan`. Report the
+applicable workflow as the next handoff when the package needs research or
+becomes planning-ready; otherwise report the exact unresolved decision and why
+it blocks.

@@ -1652,7 +1652,69 @@ class IntegrationBase(ABC):
         **opts: Any,
     ) -> list[Path]:
         """Refresh runtime-managed integration assets without rewriting workflow content."""
-        return self.install_scripts(project_root, manifest)
+        created = self.install_scripts(project_root, manifest)
+        created.extend(
+            self.rebind_unavailable_project_cognition_commands(
+                project_root,
+                manifest,
+            )
+        )
+        return created
+
+    def rebind_unavailable_project_cognition_commands(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> list[Path]:
+        """Rebind unmodified generated guidance after cognition runtime recovery."""
+
+        from specify_cli.launcher import (
+            PROJECT_COGNITION_UNAVAILABLE_MARKER,
+            rebind_unavailable_project_cognition_commands,
+        )
+
+        project_root_resolved = project_root.resolve()
+        modified = set(manifest.check_modified())
+        rebound: list[Path] = []
+        for relative in sorted(manifest.files):
+            if relative in modified:
+                continue
+            path = (project_root_resolved / relative).resolve()
+            try:
+                path.relative_to(project_root_resolved)
+            except ValueError:
+                continue
+            if not path.is_file() or path.suffix.lower() not in {".md", ".toml"}:
+                continue
+            content = path.read_text(encoding="utf-8")
+            if PROJECT_COGNITION_UNAVAILABLE_MARKER not in content:
+                continue
+            command_renderer = None
+            if path.suffix.lower() == ".toml":
+                render_toml_string = getattr(self, "_render_toml_string", None)
+                if not callable(render_toml_string):
+                    continue
+
+                def command_renderer(command: str) -> str:
+                    rendered = render_toml_string(command)
+                    return rendered[1:-1]
+
+            repaired = rebind_unavailable_project_cognition_commands(
+                project_root,
+                content,
+                command_renderer=command_renderer,
+            )
+            if repaired == content:
+                continue
+            rebound.append(
+                self.write_file_and_record(
+                    repaired,
+                    path,
+                    project_root,
+                    manifest,
+                )
+            )
+        return rebound
 
     def post_init_bootstrap(
         self,
@@ -2375,7 +2437,7 @@ class SkillsIntegration(IntegrationBase):
         *,
         script_type: str,
     ) -> list[Path]:
-        """Restore missing manifest-owned SPX support files without overwriting edits."""
+        """Restore/rebind manifest-owned SPX support files without overwriting edits."""
         advanced_dir = self.shared_advanced_skills_dir()
         if not advanced_dir:
             return []
@@ -2436,11 +2498,8 @@ class SkillsIntegration(IntegrationBase):
                         ),
                     )
             for source in shared_references:
-                restore_file(
-                    source,
-                    skill_dir / "references" / source.name,
-                    render=True,
-                )
+                destination = skill_dir / "references" / source.name
+                restore_file(source, destination, render=True)
         return restored
 
     def _copy_supporting_passive_files(

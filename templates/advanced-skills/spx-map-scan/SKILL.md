@@ -31,6 +31,16 @@ Confirm scan/rebuild need with
 6. Run `{{specify-subcmd:project-cognition validate-scan --format json}}` and
    repair every blocking coverage/evidence gap.
 
+If no capable worker is available or a prepared packet cannot be dispatched
+safely, preserve the prepared queue and persist `subagent_blocked` in the
+canonical workbench state and gap/coverage surfaces with packet, blocked scope,
+owner, and `recovery_condition`. Keep the workbench resumable and stop with that
+recovery action. Do not replace the missing worker with leader bulk reads or
+discard accepted/pending packet state.
+
 Stop when validation reports the scan package ready. Do not run
 `build-from-scan`, publish a database, or claim the cognition baseline is
-queryable. Hand off to `$spx-map-build`.
+queryable. This invocation authorizes only this workflow stage. Hand off to
+`$spx-map-build`, but do not invoke `$spx-map-build`; the explicit
+`$spx-map-rebuild` orchestrator owns that continuation when it was the
+user-authorized entrypoint.

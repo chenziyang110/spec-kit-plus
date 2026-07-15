@@ -22,12 +22,30 @@ function Get-ProjectCognitionBin {
         return $env:PROJECT_COGNITION_BIN
     }
 
+    $configPath = Join-Path $RepoRoot ".specify/config.json"
+    if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+        try {
+            $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+            $configured = $config.project_cognition_launcher.argv[0]
+            if (-not [string]::IsNullOrWhiteSpace($configured)) {
+                if (-not [System.IO.Path]::IsPathRooted($configured)) {
+                    $configured = Join-Path $RepoRoot $configured
+                }
+                if (Test-Path -LiteralPath $configured -PathType Leaf) {
+                    return (Resolve-Path -LiteralPath $configured).Path
+                }
+            }
+        } catch {
+            # Invalid launcher config falls through to PATH and deterministic repair guidance.
+        }
+    }
+
     $projectCognition = Get-Command project-cognition -ErrorAction SilentlyContinue
     if ($projectCognition) {
         return $projectCognition.Source
     }
 
-    Write-Error "Cannot run project-cognition: set PROJECT_COGNITION_BIN or install project-cognition on PATH."
+    Write-Error "Cannot run project-cognition: no usable project_cognition_launcher is pinned in .specify/config.json. Run the project-pinned Specify launcher with 'check', then 'integration repair'. Do not probe 'specify cognition' or 'specify project-cognition'."
     exit 127
 }
 

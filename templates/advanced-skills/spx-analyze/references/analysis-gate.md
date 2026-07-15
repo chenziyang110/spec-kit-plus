@@ -19,3 +19,9 @@ finding resolved only from fresh artifact and repository evidence. The visible
 report may stay short, but every blocker must appear in the durable gate state.
 Do not confuse missing prose with missing behavior coverage, or artifact claims
 with proof that the implementation already satisfies them.
+
+Persist a complete blocker bundle in `workflow-state.md`: `gate_status: cleared
+| blocked`, incremented `gate_cycle`, `highest_invalid_stage`, `blocker_bundle`,
+finding attribution, evidence fingerprint, and exactly one next route. Preserve
+IDs across revalidation and clear the gate only after fresh evidence resolves
+every blocking row.

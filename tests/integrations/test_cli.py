@@ -79,6 +79,16 @@ class TestInitIntegrationFlag:
         assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
         assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
+        lifecycle_template = json.loads(
+            (project / ".specify" / "templates" / "task-lifecycle-template.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert (
+            lifecycle_template["blocker_schema_ref"]
+            == ".specify/templates/task-lifecycle-schema.json#/$defs/blocker"
+        )
+        assert (project / ".specify" / "templates" / "task-lifecycle-schema.json").is_file()
         assert (project / ".specify" / "project-cognition").is_dir()
         status = json.loads(
             (project / ".specify" / "project-cognition" / "status.json").read_text(

@@ -12,7 +12,7 @@ or modify product source.
 
 Require `{{specify-subcmd:project-cognition validate-scan --format json}}` to
 report a build-ready scan. If it is incomplete, stop and route the exact gaps to
-`$spx-map-scan`.
+`$spx-map-scan`; do not invoke `$spx-map-scan` in this run.
 
 Run `{{specify-subcmd:project-cognition build-from-scan --format json}}`, then
 `{{specify-subcmd:project-cognition validate-build --format json}}`. These are
@@ -29,3 +29,4 @@ failures.
 Report the scan identity consumed, database/build readiness, representative
 query result, validation, and any remaining coverage limitation. Return to the
 workflow that requested the baseline only after the runtime is query-ready.
+This invocation authorizes only this workflow stage; stop after that report.

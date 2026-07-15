@@ -26,7 +26,11 @@ from specify_cli.project_cognition_tool import (
     run_project_cognition,
 )
 
-from .checkpoint_serializers import extract_field, normalize_command_name
+from .checkpoint_serializers import (
+    extract_field,
+    normalize_command_name,
+    serialize_workflow_state,
+)
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
 
@@ -286,6 +290,14 @@ PRD_BUILD_REQUIRED_HEAVY_EXPORTS = (
     "exports/reconstruction-risks.md",
 )
 
+PRD_BUILD_OUTPUT_ARTIFACTS = (
+    "master/master-pack.md",
+    "exports/README.md",
+    "exports/prd.md",
+    *PRD_BUILD_REQUIRED_EXPORTS,
+    *PRD_BUILD_REQUIRED_HEAVY_EXPORTS,
+)
+
 PRD_HEAVY_SCAN_JSON_ARTIFACTS = {
     "entrypoint-ledger.json": "entrypoints",
     "config-contracts.json": "configs",
@@ -405,6 +417,16 @@ PRD_EXPORT_REQUIRED_SECTIONS = (
     "## Critical Capability Notes",
     "## Unknowns and Evidence Confidence",
 )
+
+
+def _has_nonempty_prd_evidence(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return bool(value) and all(
+            isinstance(item, str) and item.strip() for item in value
+        )
+    return False
 
 REFERENCE_IMPLEMENTATION_PROFILE = "reference-implementation"
 
@@ -2807,9 +2829,13 @@ def _validate_prd_worker_results(feature_dir: Path) -> list[str]:
     if not worker_results_dir.is_dir():
         return errors
 
-    for result_path in sorted(
+    result_paths = sorted(
         path for path in worker_results_dir.iterdir() if path.suffix == ".json"
-    ):
+    )
+    if not result_paths:
+        return ["worker-results must contain at least one JSON result file"]
+
+    for result_path in result_paths:
         relative_label = result_path.relative_to(feature_dir).as_posix()
         payload, read_errors = _read_json_artifact(result_path, relative_label)
         if read_errors:
@@ -2823,6 +2849,16 @@ def _validate_prd_worker_results(feature_dir: Path) -> list[str]:
             errors.append(
                 f"{relative_label} is missing required worker result key: {key}"
             )
+        paths_read = payload.get("paths_read")
+        if not isinstance(paths_read, list) or not paths_read or not all(
+            isinstance(item, str) and item.strip() for item in paths_read
+        ):
+            errors.append(f"{relative_label} paths_read must be a non-empty string array")
+        for key in ("unknowns", "recommended_ledger_updates"):
+            if key in payload and not isinstance(payload.get(key), list):
+                errors.append(f"{relative_label} {key} must be an array")
+        if "confidence" in payload and not str(payload.get("confidence") or "").strip():
+            errors.append(f"{relative_label} confidence must be non-empty")
 
     return errors
 
@@ -3085,22 +3121,8 @@ def _validate_map_build_capability_diagrams(feature_dir: Path) -> list[str]:
     return errors
 
 
-def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
+def _validate_prd_build_input_contracts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
-    missing_exports = [
-        relative_path
-        for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS
-        if not (feature_dir / relative_path).exists()
-    ]
-    errors.extend(
-        f"missing required artifact: {relative_path}"
-        for relative_path in missing_exports
-    )
-    for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS:
-        target = feature_dir / relative_path
-        if target.exists() and not target.is_file():
-            errors.append(f"required artifact must be a file: {relative_path}")
-
     coverage_payload, coverage_errors = _read_json_artifact(
         feature_dir / "coverage-ledger.json", "coverage-ledger.json"
     )
@@ -3108,8 +3130,38 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
         return coverage_errors
     if not isinstance(coverage_payload, dict):
         return ["coverage-ledger.json must contain a top-level JSON object"]
-    if not isinstance(coverage_payload.get("rows"), list):
+    coverage_rows = coverage_payload.get("rows")
+    if not isinstance(coverage_rows, list):
         return ["coverage-ledger.json must define a top-level rows array"]
+    if not coverage_rows:
+        errors.append(
+            "coverage-ledger.json must include at least one substantive coverage row"
+        )
+    for index, row in enumerate(coverage_rows, start=1):
+        label = f"coverage-ledger.json row {index}"
+        if not isinstance(row, dict):
+            errors.append(f"{label} must be an object")
+            continue
+        subject = next(
+            (
+                str(row.get(key) or "").strip()
+                for key in ("id", "surface", "path", "capability_id", "capability_ref")
+                if str(row.get(key) or "").strip()
+            ),
+            "",
+        )
+        status = str(row.get("status") or row.get("coverage_state") or "").strip()
+        evidence = row.get("evidence")
+        reason = str(row.get("reason") or row.get("notes") or "").strip()
+        if not subject:
+            errors.append(f"{label} must identify a surface, path, or capability")
+        if not status:
+            errors.append(f"{label} must record status or coverage_state")
+        if status.lower() in {"n/a", "na", "not-applicable", "not_applicable"}:
+            if not reason and not _has_nonempty_prd_evidence(evidence):
+                errors.append(f"{label} not-applicable status requires evidence or a reason")
+        elif not _has_nonempty_prd_evidence(evidence):
+            errors.append(f"{label} must record non-empty evidence")
 
     capability_payload, capability_errors = _read_json_artifact(
         feature_dir / "capability-ledger.json", "capability-ledger.json"
@@ -3163,6 +3215,16 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
         errors.append(
             "artifact-contracts.json must include at least one artifact before prd-build can pass"
         )
+    else:
+        for index, artifact in enumerate(artifacts, start=1):
+            if not isinstance(artifact, dict):
+                errors.append(f"artifact-contracts.json artifact {index} must be an object")
+                continue
+            for field in ("id", "status"):
+                if not str(artifact.get(field) or "").strip():
+                    errors.append(
+                        f"artifact-contracts.json artifact {index} must define non-empty {field}"
+                    )
 
     checklist_payload, checklist_errors = _read_json_artifact(
         feature_dir / "reconstruction-checklist.json", "reconstruction-checklist.json"
@@ -3184,11 +3246,26 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
         errors.append(
             "reconstruction-checklist.json must include at least one check before prd-build can pass"
         )
+    else:
+        for index, check in enumerate(checks, start=1):
+            if not isinstance(check, dict):
+                errors.append(
+                    f"reconstruction-checklist.json check {index} must be an object"
+                )
+                continue
+            for field in ("id", "status"):
+                if not str(check.get(field) or "").strip():
+                    errors.append(
+                        f"reconstruction-checklist.json check {index} must define non-empty {field}"
+                    )
 
     scan_packets_dir = feature_dir / "scan-packets"
     if not scan_packets_dir.is_dir():
         errors.append("scan-packets must be a directory")
-    elif not any(scan_packets_dir.iterdir()):
+    elif not any(
+        path.is_file() and path.stat().st_size > 0
+        for path in scan_packets_dir.rglob("*")
+    ):
         errors.append(
             "scan-packets must contain at least one packet file before prd-build can pass"
         )
@@ -3206,11 +3283,71 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
     evidence_dir = feature_dir / "evidence"
     if not evidence_dir.is_dir():
         errors.append("evidence must be a directory")
-    elif not any(evidence_dir.iterdir()):
+    elif not any(
+        path.is_file() and path.stat().st_size > 0 for path in evidence_dir.rglob("*")
+    ):
         errors.append(
             "evidence must contain at least one file or subdirectory entry before prd-build can pass"
         )
 
+    return errors
+
+
+def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    missing_exports = [
+        relative_path
+        for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS
+        if not (feature_dir / relative_path).exists()
+    ]
+    errors.extend(
+        f"missing required artifact: {relative_path}"
+        for relative_path in missing_exports
+    )
+    for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS:
+        target = feature_dir / relative_path
+        if target.exists() and not target.is_file():
+            errors.append(f"required artifact must be a file: {relative_path}")
+    for relative_path in PRD_BUILD_OUTPUT_ARTIFACTS:
+        target = feature_dir / relative_path
+        if not target.is_file():
+            continue
+        content = target.read_text(encoding="utf-8", errors="replace")
+        substantive_lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip()
+            and not line.lstrip().startswith("#")
+            and not line.lstrip().startswith("<!--")
+        ]
+        if not substantive_lines:
+            errors.append(
+                f"required build output must contain substantive content beyond headings: {relative_path}"
+            )
+
+    prd_path = feature_dir / "exports" / "prd.md"
+    if prd_path.is_file():
+        errors.extend(
+            _validate_markdown_contains(
+                prd_path,
+                PRD_EXPORT_REQUIRED_SECTIONS,
+                "exports/prd.md",
+            )
+        )
+
+    workflow_state_path = feature_dir / "workflow-state.md"
+    if workflow_state_path.is_file():
+        checkpoint = serialize_workflow_state(workflow_state_path)
+        workflow_content = workflow_state_path.read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if str(checkpoint.get("active_command") or "").strip().lower() != "sp-prd-build":
+            errors.append("workflow-state.md active_command must be sp-prd-build at completion")
+        if str(checkpoint.get("status") or "").strip().lower() != "complete":
+            errors.append("workflow-state.md status must be complete at prd-build completion")
+        if extract_field(workflow_content, "build_status").strip().lower() != "complete":
+            errors.append("workflow-state.md build_status must be complete at prd-build completion")
+    errors.extend(_validate_prd_build_input_contracts(feature_dir))
     return errors
 
 
@@ -3865,3 +4002,15 @@ def validate_artifacts_hook(
         severity="info",
         data={"feature_dir": str(feature_dir)},
     )
+
+
+def validate_prd_build_readiness(run_dir: Path) -> list[str]:
+    """Return semantic scan-package blockers before PRD export synthesis."""
+
+    scan_errors = _validate_prd_scan_artifacts(
+        run_dir,
+        require_heavy_scan_json=True,
+    )
+    if scan_errors:
+        return scan_errors
+    return _validate_prd_build_input_contracts(run_dir)

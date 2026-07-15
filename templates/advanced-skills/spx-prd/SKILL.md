@@ -14,5 +14,10 @@ Preserve the complete request and begin with `$spx-prd-scan`. Continue to
 the phases: scan reads the repository and writes accepted evidence; build reads
 only that frozen evidence package and produces the PRD suite.
 
+If scan blocks, stop and report its durable recovery state without invoking
+build. If build blocks, stop and report its errors and recovery. In either case,
+never report the compatibility route complete merely because files exist or a
+child stage was entered.
+
 Tell the user this name is a compatibility route. Report the canonical run ID
 and outputs rather than a fictional `spx-prd` workspace.

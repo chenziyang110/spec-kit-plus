@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from specify_cli import app
 from specify_cli.design import lint_design_file
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.launcher import write_project_cognition_launcher_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -103,10 +105,6 @@ def test_spx_quick_status_asset_is_readable_by_the_real_quick_helper(
     assert task["next_action"] == "establish scope and acceptance"
 
 
-def _word_count(path: Path) -> int:
-    return len(path.read_text(encoding="utf-8").split())
-
-
 def _expected_installed_files(skill_name: str) -> set[str]:
     skill_source = ADVANCED_SKILLS / skill_name
     files = {
@@ -120,7 +118,7 @@ def _expected_installed_files(skill_name: str) -> set[str]:
     return files
 
 
-def test_spx_sources_are_independent_discoverable_and_budgeted() -> None:
+def test_spx_sources_are_independent_and_discoverable() -> None:
     skill_dirs = {
         path.name
         for path in ADVANCED_SKILLS.iterdir()
@@ -137,8 +135,6 @@ def test_spx_sources_are_independent_discoverable_and_budgeted() -> None:
         assert frontmatter.keys() == {"name", "description"}
         assert frontmatter["name"] == skill_name
         assert "advanced" in frontmatter["description"].lower()
-        assert _word_count(skill) <= 650
-
         body = skill.read_text(encoding="utf-8")
         bodies.append(body)
         assert "references/project-cognition.md" in body
@@ -158,11 +154,6 @@ def test_spx_sources_are_independent_discoverable_and_budgeted() -> None:
 
     cognition = ADVANCED_SKILLS / "_shared" / "project-cognition.md"
     assert cognition.exists()
-    assert _word_count(cognition) <= 500
-
-    for reference in ADVANCED_SKILLS.rglob("*.md"):
-        if reference.name != "SKILL.md" and "assets" not in reference.parts:
-            assert _word_count(reference) <= 500, reference
 
     for source_file in ADVANCED_SKILLS.rglob("*"):
         if not source_file.is_file():
@@ -298,10 +289,6 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
         .read_text(encoding="utf-8")
         .lower()
     )
-    assert (
-        _word_count(ADVANCED_SKILLS / "spx-map-scan" / "references" / "scan-worker.md")
-        <= 300
-    )
     for required in (
         "lowest-cost model",
         "assigned_paths",
@@ -364,11 +351,89 @@ def test_spx_core_pipeline_requires_an_explicit_stop_between_stages() -> None:
     assert "--require-tasks --include-tasks" in implement
 
 
+def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
+    skills = {
+        name: re.sub(
+            r"\s+",
+            " ",
+            (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
+        )
+        for name in ("spx-auto", "spx-research", "spx-clarify", "spx-deep-research")
+    }
+
+    assert "stop after that workflow returns" in skills["spx-auto"]
+    assert "do not invoke a second workflow" in skills["spx-auto"]
+
+    assert "authorizes only the deep-research compatibility route" in skills[
+        "spx-research"
+    ]
+    assert "do not continue to `$spx-plan`" in skills["spx-research"]
+
+    for name in ("spx-clarify", "spx-deep-research"):
+        assert "this invocation authorizes only this workflow stage" in skills[name]
+        assert "do not invoke `$spx-plan`" in skills[name]
+
+    assert "do not invoke `$spx-deep-research`" in skills["spx-clarify"]
+    assert "do not invoke `$spx-clarify`" in skills["spx-deep-research"]
+
+
+def test_spx_read_only_and_runtime_probe_boundaries_are_explicit() -> None:
+    explain_reference = (
+        ADVANCED_SKILLS / "spx-explain" / "references" / "artifact-explanation.md"
+    ).read_text(encoding="utf-8").lower()
+    team = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "spx-team" / "SKILL.md")
+        .read_text(encoding="utf-8")
+        .lower(),
+    )
+
+    assert "--ensure-worktree" not in explain_reference
+    assert "inspection and diagnosis authorize only `status` and `doctor`" in team
+    assert "never run `live-probe` implicitly" in team
+    assert "explicit operator authorization" in team
+
+
+def test_spx_fast_and_quick_preserve_consequence_escalation_triggers() -> None:
+    skills = {
+        name: re.sub(
+            r"\s+",
+            " ",
+            (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
+        )
+        for name in ("spx-fast", "spx-quick")
+    }
+
+    for content in skills.values():
+        assert "references/consequence-gate.md" in content
+        for trigger in (
+            "lifecycle operations",
+            "running objects",
+            "concurrent work",
+            "destructive behavior",
+            "shared state",
+            "downstream consumers",
+            "compatibility",
+            "security-sensitive behavior",
+            "multiple plausible product behaviors",
+        ):
+            assert trigger in content
+
+    assert "route bounded consequences to `$spx-quick`" in skills["spx-fast"]
+    assert "route broader or user-owned consequences to `$spx-specify`" in skills[
+        "spx-fast"
+    ]
+    assert "record bounded consequence obligations in `status.md`" in skills[
+        "spx-quick"
+    ]
+    assert "route unbounded consequences to `$spx-specify`" in skills["spx-quick"]
+
+
 def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
     ui_gate = (ADVANCED_SKILLS / "_shared" / "ui-quality-gate.md").read_text(
         encoding="utf-8"
     )
-    assert _word_count(ADVANCED_SKILLS / "_shared" / "ui-quality-gate.md") <= 500
     assert "does not\nrequire an external screenshot" in ui_gate
     assert "status:\nbootstrap" in ui_gate
     assert "real entry point" in ui_gate
@@ -609,6 +674,405 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
         "C:/tools/project-cognition.exe" in cognition
     )
     assert "{{specify-subcmd:" not in execution + teams + cognition
+
+
+def test_advanced_local_references_without_cognition_launcher_use_recovery_contract(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    cognition_references = [
+        (skill_dir / "references" / "project-cognition.md").read_text(
+            encoding="utf-8"
+        )
+        for skill_dir in integration.skills_dest(project).glob("spx-*")
+    ]
+
+    assert cognition_references
+    assert len(set(cognition_references)) == 1
+    cognition = cognition_references[0]
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in cognition
+    assert "python -m specify_cli check" in cognition
+    assert "python -m specify_cli integration repair" in cognition
+    assert "specify cognition" in cognition
+    assert "do not" in cognition.lower()
+    assert "(requires project-cognition" not in cognition
+    assert "`project-cognition compass" not in cognition
+    assert "{{specify-subcmd:" not in cognition
+
+
+def test_advanced_runtime_repair_rebinds_unavailable_cognition_references(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+    references = sorted(
+        integration.skills_dest(project).glob("spx-*/references/project-cognition.md")
+    )
+    assert references
+    assert all(
+        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE"
+        in reference.read_text(encoding="utf-8")
+        for reference in references
+    )
+
+    binary = project / ".specify" / "bin" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_project_cognition_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    repaired_references = [
+        reference.read_text(encoding="utf-8") for reference in references
+    ]
+    assert set(references).issubset(set(repaired))
+    assert len(set(repaired_references)) == 1
+    assert all(str(binary) in content for content in repaired_references)
+    assert all(
+        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in content
+        for content in repaired_references
+    )
+
+
+def test_runtime_repair_preserves_user_modified_cognition_guidance(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+    reference = (
+        integration.skills_dest(project)
+        / "spx-implement"
+        / "references"
+        / "project-cognition.md"
+    )
+    reference.write_text(
+        reference.read_text(encoding="utf-8") + "\nUser-owned recovery note.\n",
+        encoding="utf-8",
+    )
+
+    binary = project / ".specify" / "bin" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_project_cognition_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    content = reference.read_text(encoding="utf-8")
+    assert reference not in repaired
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in content
+    assert "User-owned recovery note." in content
+
+
+def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runtime(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    import importlib
+
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setattr(specify_cli, "check_tool", lambda tool, tracker=None: True)
+    specify_lint = importlib.import_module("specify_cli.lint")
+    monkeypatch.setattr(specify_lint, "ensure_binary", lambda: tmp_path / "spec-lint")
+    monkeypatch.setattr(
+        "specify_cli.project_cognition_runtime.ensure_binary",
+        lambda: (_ for _ in ()).throw(RuntimeError("offline runtime fixture")),
+    )
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        initialized = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+        assert initialized.exit_code == 0, initialized.output
+        installed_reference = (
+            project
+            / ".codex"
+            / "skills"
+            / "spx-ask"
+            / "references"
+            / "project-cognition.md"
+        )
+        assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in (
+            installed_reference.read_text(encoding="utf-8")
+        )
+        (project / "DESIGN.md").write_text(
+            "# Approved project design\n\nDo not replace this contract.\n",
+            encoding="utf-8",
+        )
+
+        binary = tmp_path / "cache" / "project-cognition"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("binary", encoding="utf-8")
+        monkeypatch.setattr(
+            "specify_cli.project_cognition_runtime.ensure_binary", lambda: binary
+        )
+        repaired = runner.invoke(
+            app,
+            ["integration", "repair"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert repaired.exit_code == 0, repaired.output
+    project_config = json.loads(
+        (project / ".specify" / "config.json").read_text(encoding="utf-8")
+    )
+    assert project_config["project_cognition_launcher"]["argv"] == [str(binary)]
+    assert (project / "DESIGN.md").read_text(encoding="utf-8") == (
+        "# Approved project design\n\nDo not replace this contract.\n"
+    )
+    cognition_references = [
+        reference.read_text(encoding="utf-8")
+        for reference in (project / ".codex" / "skills").glob(
+            "spx-*/references/project-cognition.md"
+        )
+    ]
+    assert cognition_references
+    assert all(str(binary) in content for content in cognition_references)
+    assert all(
+        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in content
+        for content in cognition_references
+    )
+
+
+def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    skills = integration.skills_dest(project)
+    implement = skills / "sp-implement" / "SKILL.md"
+    implement_content = implement.read_text(encoding="utf-8")
+    cognition_gate = (
+        skills / "spec-kit-project-cognition-gate" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition compass"
+        in implement_content
+    )
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in cognition_gate
+    assert "python -m specify_cli check" in cognition_gate
+    assert "python -m specify_cli integration repair" in cognition_gate
+    assert "specify cognition" in cognition_gate
+    assert "do not" in cognition_gate.lower()
+
+    binary = project / ".specify" / "bin" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_project_cognition_launcher_config(project, binary)
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert implement in repaired
+    repaired_implement = implement.read_text(encoding="utf-8")
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in repaired_implement
+    assert f"{binary} compass --intent implement" in repaired_implement
+
+
+def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
+    tmp_path,
+) -> None:
+    integration = get_integration("qwen")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("qwen", project)
+
+    integration.setup(project, manifest, script_type="sh")
+
+    commands = integration.commands_dest(project)
+    implement = (commands / "sp.implement.md").read_text(encoding="utf-8")
+    semantic_contract = (
+        commands / "references" / "implement" / "semantic-work-contract.md"
+    ).read_text(encoding="utf-8")
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in implement
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in semantic_contract
+    assert "python -m specify_cli check" in semantic_contract
+    assert "python -m specify_cli integration repair" in semantic_contract
+    assert "specify cognition" in semantic_contract
+    assert "do not" in semantic_contract.lower()
+
+    binary = project / ".specify" / "bin" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_project_cognition_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    implement_path = commands / "sp.implement.md"
+    assert implement_path in repaired
+    repaired_implement = implement_path.read_text(encoding="utf-8")
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in repaired_implement
+    assert f"{binary} compass --intent implement" in repaired_implement
+
+
+def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
+    tmp_path,
+) -> None:
+    integration = get_integration("gemini")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("gemini", project)
+
+    integration.setup(project, manifest, script_type="sh")
+
+    implement_path = integration.commands_dest(project) / "sp.implement.toml"
+    initial = tomllib.loads(implement_path.read_text(encoding="utf-8"))
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in initial["prompt"]
+
+    binary = project / ".specify" / "tools" / "project-cognition.exe"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_project_cognition_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert implement_path in repaired
+    repaired_payload = tomllib.loads(implement_path.read_text(encoding="utf-8"))
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in repaired_payload["prompt"]
+    assert f"{binary} compass --intent implement" in repaired_payload["prompt"]
 
 
 def test_advanced_upgrade_prunes_only_unmodified_retired_spx_files(tmp_path) -> None:

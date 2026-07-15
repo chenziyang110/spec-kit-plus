@@ -22,7 +22,12 @@ question about the quality of written requirements or planning decisions, with
 a traceability hint where useful. Avoid generic items that would pass every
 feature.
 
+Treat an existing checklist as append-only: retain its items and allocate new
+IDs after the current maximum. Deduplicate equivalent questions before writing
+and preserve traceability to the requirement, section, or explicit gap.
+
 Do not edit the specification, plan, tasks, production source, or tests in this
 workflow. Report the created checklist and the upstream workflow that should
 repair any discovered gap. Checklist completion does not by itself prove the
-software works.
+software works. This invocation authorizes only this workflow stage; do not
+invoke another workflow in this run.

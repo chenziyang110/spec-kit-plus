@@ -7,8 +7,17 @@ behavior.
 
 Run `{{specify-subcmd:project-cognition compass --intent <intent> --query="<request>" --format json}}`,
 using the intent named by the active skill. This placeholder resolves to the
-project-pinned cognition binary during installation. Consume only what helps
-the task: `epistemic_contract`, `minimal_live_reads`, lane `first_pass_paths`,
+project-pinned cognition binary during installation. If it instead resolves to
+an all-caps unavailable-launcher marker, treat that token as a non-executable
+status marker: do not run it and do not probe "specify cognition" or
+"specify project-cognition". Run `{{specify-subcmd:check}}` for the pinned
+project diagnosis, then use `{{specify-subcmd:integration repair}}` as the
+deterministic runtime recovery entry. Re-open this installed reference after
+repair; if the marker remains, report cognition unavailable and navigate from
+live repository evidence within the active skill's safety boundary.
+
+When cognition is available, consume only what helps the task:
+`epistemic_contract`, `minimal_live_reads`, lane `first_pass_paths`,
 `coverage_diagnostics`, and `expansion_ref`.
 
 - Read `minimal_live_reads` before broad repository search and use
@@ -29,12 +38,60 @@ rules, visual/accessibility tests, and reference assets. Carry only verified
 live routes into the plan context capsule; do not add a UI-specific cognition
 runtime or treat a graph owner label as proof.
 
-If readiness says `needs_rebuild`, use `$spx-map-rebuild`. Use
-`$spx-map-update` for explicit maintenance, external changes, or recovery of an
-interrupted incremental update. For `blocked` or partial results, report the
-specific recovery signal and continue from live evidence only when the active
-skill's safety boundary permits it. Never use `complete-refresh` to disguise an
-incomplete, blocked, or rebuild-required state.
+If readiness says `needs_rebuild`, recommend the matching maintenance skill,
+`$spx-map-rebuild`. Recommend `$spx-map-update` for explicit maintenance,
+external changes, or recovery of an interrupted incremental update. Do not
+invoke `$spx-map-rebuild` or `$spx-map-update` from the active workflow; a
+recovery handoff is not authorization to execute another workflow. For
+`blocked` or partial results, report the specific recovery signal and continue
+from live evidence only when the active skill's safety boundary permits it.
+Never use `complete-refresh` to disguise an incomplete, blocked, or
+rebuild-required state.
+
+## State and delegation ownership
+
+When the owning workflow has runtime-managed state, create or resume it before
+substantive work, keep only resume-critical truth there, and validate its final
+transition before handoff. Chat history and a terminal-looking artifact never
+override durable state.
+
+Delegation remains optional. When it is useful, the leader owns canonical
+artifacts, global workflow state, acceptance, and final claims. Give workers
+bounded inputs, paths, write scopes, acceptance, and return shape; worker
+results are evidence, not authority to mutate global state. Persist the
+runtime-required lane manifest and one result per delegated lane only when a
+durable lane is actually created, do not duplicate runtime events into parallel
+logs, and validate every join against fresh integrated evidence.
+
+## Semantic permission, resume, and final claims
+
+Compass, semantic intake, and graph evidence select bounded routes; they do not
+authorize source edits or a final claim. The owning workflow still decides its
+write boundary from live evidence and its own stage contract.
+
+When semantic routing affects permission, source-write scope, resume, or a
+root-cause, fixed, completed, or release-safe claim, persist
+`semantic-audit-input.json` and `semantic-audit-output.json` beside the active
+workflow state. Use the deterministic runtime rather than reconstructing its
+stable schema:
+
+`{{specify-subcmd:project-cognition semantic-audit --input <semantic-audit-input.json> --format json}}`
+
+On resume, validate the persisted route, active claim, authorization refs, and
+verification refs with:
+
+`{{specify-subcmd:project-cognition semantic-audit-resume --input <resume-validation.json> --format json}}`
+
+If either audit file is missing, stale, or inconsistent, do not reuse
+`claim_ready`; rebuild the audit and keep the final claim blocked. A final claim
+requires explicit `workflow_authorization` for that claim plus claim-specific
+passed verification whose evidence refs match the authorization. Failed,
+blocked, skipped, or inconclusive evidence cannot be promoted. Semantic audit
+does not authorize source edits, external writes, or a higher permission level;
+resume validation grants none of them either. The active SPX workflow remains the owner of those
+decisions. If the audit runtime is unavailable, preserve the same evidence and
+authorization boundary in workflow state and stay at the lower safe permission;
+never infer readiness from chat memory or graph confidence.
 
 ## Closeout after repository changes
 

@@ -38,7 +38,7 @@ WORKFLOW_COMMAND_MAP = {
     "sp-checklist": "checklist",
 }
 ACTIVE_STATE_STATUSES = {"active", "started", "starting", "in_progress", "executing", "execution"}
-TERMINAL_STATE_STATUSES = {"resolved", "complete", "completed", "done", "cancelled", "closed", "blocked", "failed"}
+TERMINAL_STATE_STATUSES = {"resolved", "complete", "completed", "done", "cancelled", "closed", "failed"}
 TERMINAL_STATE_PREFIXES = ("complete_with_", "completed_with_")
 OPTIONAL_NEXT_ACTION_PREFIXES = (
     "optional follow-up",
@@ -715,7 +715,9 @@ def _extract_read_path(tool_input: dict[str, Any]) -> str:
 
 
 def _extract_commit_message(command: str) -> str:
-    if not re.search(r"(^|\s)git(\.exe)?\s+commit(\s|$)", command):
+    if not re.search(
+        r"(^|\s)git(\.exe)?(?:\s+-c\s+\S+)*\s+commit(\s|$)", command
+    ):
         return ""
     patterns = (
         r'-m\s+"([^"]+)"',
@@ -965,7 +967,17 @@ def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str
         commit_message = _extract_commit_message(command)
         if not commit_message:
             return {}
-        shared = _run_shared_hook(project_root, ["validate-commit", "--commit-message", commit_message])
+        args = ["validate-commit", "--commit-message", commit_message]
+        if context and context.get("command_name") == "implement" and context.get("feature_dir"):
+            args.extend(["--feature-dir", context["feature_dir"]])
+        intent_match = re.search(
+            r"(?:^|\s)-c\s+specify\.commitIntent=(?P<intent>[^\s]+)",
+            command,
+            re.IGNORECASE,
+        )
+        if intent_match:
+            args.extend(["--commit-intent", intent_match.group("intent")])
+        shared = _run_shared_hook(project_root, args)
         return _shared_block_to_gemini(shared) or {}
 
     if tool_name in {"write_file", "write", "edit_file", "edit", "multi_edit", "multiedit"}:

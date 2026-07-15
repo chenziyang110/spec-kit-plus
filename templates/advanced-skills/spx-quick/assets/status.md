@@ -3,6 +3,7 @@ id: "{{id}}"
 slug: "{{slug}}"
 status: gathering
 strategy: advanced
+understanding_confirmed: false
 ---
 
 # {{title}}
@@ -15,6 +16,14 @@ current_focus: {{intent}}
 
 next_action: establish scope and acceptance
 blocker: none
+
+## Understanding Checkpoint
+
+- reported_intent: {{intent}}
+- intended_outcome:
+- scope_boundaries:
+- validation_obligations:
+- confirmation_digest:
 
 ## Scope and Acceptance
 

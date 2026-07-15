@@ -22,6 +22,7 @@
     "human_review_ref": null
   },
   "obligation_evidence": [],
+  "blocker_schema_ref": ".specify/templates/task-lifecycle-schema.json#/$defs/blocker",
   "blockers": [],
   "recovery": null
 }
