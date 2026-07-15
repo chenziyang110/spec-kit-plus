@@ -5,7 +5,7 @@ description = "Specify CLI for Spec Kit Plus. A tool to bootstrap projects for S
 requires-python = ">=3.11"
 dependencies = [
     "typer",
-    "click>=8.3.3",
+    "click>=8.4.2",
     "rich",
     "platformdirs",
     "readchar>=4.2.2",
