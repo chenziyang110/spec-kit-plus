@@ -5,6 +5,7 @@ description: Read-only cross-artifact consistency analysis for advanced coding m
 
 # SPX Analyze
 
+Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/analysis-gate.md`.
 Read `references/ui-quality-gate.md` when the specification or plan is

@@ -19,6 +19,7 @@ from specify_cli.launcher import write_project_cognition_launcher_config
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ADVANCED_SKILLS = PROJECT_ROOT / "templates" / "advanced-skills"
 SPX_SKILLS = {
+    "spx-accept",
     "spx-analyze",
     "spx-ask",
     "spx-auto",
@@ -138,6 +139,7 @@ def test_spx_sources_are_independent_and_discoverable() -> None:
         body = skill.read_text(encoding="utf-8")
         bodies.append(body)
         assert "references/project-cognition.md" in body
+        assert "references/project-learning.md" in body
         for relative in re.findall(
             r"`((?:references|assets)/[^`\s]+\.md)`",
             body,
@@ -154,6 +156,11 @@ def test_spx_sources_are_independent_and_discoverable() -> None:
 
     cognition = ADVANCED_SKILLS / "_shared" / "project-cognition.md"
     assert cognition.exists()
+    learning = ADVANCED_SKILLS / "_shared" / "project-learning.md"
+    assert learning.exists()
+    blocker_resolution = ADVANCED_SKILLS / "_shared" / "blocker-resolution.md"
+    assert blocker_resolution.exists()
+    assert "references/blocker-resolution.md" in cognition.read_text(encoding="utf-8")
 
     for source_file in ADVANCED_SKILLS.rglob("*"):
         if not source_file.is_file():
@@ -174,6 +181,31 @@ def test_spx_sources_are_independent_and_discoverable() -> None:
         assert forbidden.lower() not in combined
 
 
+def test_spx_blocked_exit_requires_detailed_human_recovery_only_at_human_boundaries() -> None:
+    contract = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "_shared" / "blocker-resolution.md")
+        .read_text(encoding="utf-8")
+        .lower(),
+    )
+    for required in (
+        "exact cause",
+        "sanitized evidence",
+        "recovery attempted",
+        "unblock criteria",
+        "exact resume point",
+        "human_action_required: true",
+        "expected visible result",
+        "safe failure branch",
+        "protected ci",
+        "visual review",
+        "product decision",
+        "never ask for secrets",
+    ):
+        assert required in contract
+
+
 def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     skills = {
         name: (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower()
@@ -183,6 +215,12 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "read-only" in skills["spx-ask"]
     assert "live repository" in skills["spx-ask"]
     assert "spx-explain" in skills["spx-ask"]
+
+    assert "contextless human" in skills["spx-accept"]
+    assert "one current scenario step" in skills["spx-accept"]
+    assert "human product acceptance, not code review" in skills["spx-accept"]
+    assert "spx-implement" in skills["spx-accept"]
+    assert "accept closeout" in skills["spx-accept"]
 
     assert "exactly one next spx workflow" in skills["spx-auto"]
     assert "create no separate auto state" in skills["spx-auto"]
@@ -349,6 +387,7 @@ def test_spx_core_pipeline_requires_an_explicit_stop_between_stages() -> None:
         .lower(),
     )
     assert "--require-tasks --include-tasks" in implement
+    assert "`$spx-accept`" in implement
 
 
 def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
@@ -440,6 +479,7 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
     assert "pending-human-review" in ui_gate
 
     for skill_name in (
+        "spx-accept",
         "spx-analyze",
         "spx-auto",
         "spx-debug",
@@ -548,6 +588,27 @@ def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
         assert required in content
 
 
+def test_spx_shared_project_learning_contract_is_cli_progressive_and_read_only() -> None:
+    content = (
+        (ADVANCED_SKILLS / "_shared" / "project-learning.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+
+    for required in (
+        "learning start",
+        "learning list",
+        "show_argv",
+        "read-only",
+        "capture-auto",
+        "consume-only",
+        "trigger signals",
+        "never silently promote",
+    ):
+        assert required in content
+    assert ".specify/memory/learnings/index.md" not in content
+
+
 def test_advanced_profile_installs_spx_with_only_classic_map_companions(
     tmp_path,
 ) -> None:
@@ -571,6 +632,7 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
         skill = skill_dir / "SKILL.md"
         assert (skill_dir / "agents" / "openai.yaml").exists()
         assert (skill_dir / "references" / "project-cognition.md").exists()
+        assert (skill_dir / "references" / "project-learning.md").exists()
         assert (skill_dir / "references" / "consequence-gate.md").exists()
         assert (skill_dir / "references" / "ui-quality-gate.md").exists()
 

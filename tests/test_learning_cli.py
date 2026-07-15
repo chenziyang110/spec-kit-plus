@@ -1,16 +1,28 @@
 import json
 import hashlib
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
 from specify_cli import app
 from tests.conftest import strip_ansi
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
-from specify_cli.debug.schema import DebugGraphState, DebugStatus, RootCause, ValidationCheck
-from specify_cli.learnings import normalize_command_name
+from specify_cli.debug.schema import (
+    DebugGraphState,
+    DebugStatus,
+    RootCause,
+    ValidationCheck,
+)
+from specify_cli.learnings import (
+    build_learning_paths,
+    capture_learning,
+    normalize_command_name,
+    read_learning_entries,
+)
 
 
 runner = CliRunner()
@@ -21,6 +33,64 @@ def test_learning_normalizes_research_alias_to_deep_research() -> None:
     assert normalize_command_name("sp-research") == "sp-deep-research"
     assert normalize_command_name("sp.research") == "sp-deep-research"
     assert normalize_command_name("/sp.plan") == "sp-plan"
+    assert normalize_command_name("spx-implement") == "sp-implement"
+    assert normalize_command_name("spx.research") == "sp-deep-research"
+
+
+@pytest.mark.parametrize("command_name", ["", "/", "sp-", "spx-", "plan now"])
+def test_learning_rejects_blank_or_malformed_command_names(command_name: str) -> None:
+    with pytest.raises(ValueError):
+        normalize_command_name(command_name)
+
+
+@pytest.mark.parametrize(
+    ("summary", "evidence", "message"),
+    [("", "evidence", "summary"), ("summary", "   ", "evidence")],
+)
+def test_learning_capture_rejects_blank_required_fields(
+    tmp_path: Path,
+    summary: str,
+    evidence: str,
+    message: str,
+) -> None:
+    _seed_learning_templates(tmp_path)
+
+    with pytest.raises(ValueError, match=message):
+        capture_learning(
+            tmp_path,
+            command_name="plan",
+            learning_type="pitfall",
+            summary=summary,
+            evidence=evidence,
+        )
+
+
+def test_concurrent_learning_capture_merges_without_lost_occurrences(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    recurrence_key = "sp-plan.concurrent-capture"
+
+    def capture(index: int) -> int:
+        payload = capture_learning(
+            tmp_path,
+            command_name="plan",
+            learning_type="pitfall",
+            summary="Serialize Learning mutations through the CLI",
+            evidence=f"Concurrent evidence packet {index}",
+            recurrence_key=recurrence_key,
+        )
+        return int(payload["entry"]["occurrence_count"])
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        occurrence_counts = sorted(pool.map(capture, range(4)))
+
+    paths = build_learning_paths(tmp_path)
+    _, candidates = read_learning_entries(paths.candidates)
+    matching = [entry for entry in candidates if entry.recurrence_key == recurrence_key]
+    assert occurrence_counts == [1, 2, 3, 4]
+    assert len(matching) == 1
+    assert matching[0].occurrence_count == 4
 
 
 def _seed_learning_templates(project_path: Path) -> None:
@@ -29,11 +99,13 @@ def _seed_learning_templates(project_path: Path) -> None:
     target_root.mkdir(parents=True, exist_ok=True)
     for name in (
         "project-rules-template.md",
-        "project-learnings-template.md",
+        "project-confirmed-learnings-template.md",
         "project-learnings-index-template.md",
         "project-learning-detail-template.md",
     ):
-        (target_root / name).write_text((templates_root / name).read_text(encoding="utf-8"), encoding="utf-8")
+        (target_root / name).write_text(
+            (templates_root / name).read_text(encoding="utf-8"), encoding="utf-8"
+        )
 
 
 def _invoke_in_project(project: Path, args: list[str]):
@@ -43,6 +115,20 @@ def _invoke_in_project(project: Path, args: list[str]):
         return runner.invoke(app, args, catch_exceptions=False)
     finally:
         os.chdir(old_cwd)
+
+
+def _start_in_project(project: Path, command_name: str):
+    return _invoke_in_project(
+        project,
+        [
+            "learning",
+            "start",
+            "--command",
+            command_name,
+            "--format",
+            "json",
+        ],
+    )
 
 
 def _write_learning_index_payload(project: Path, payloads: list[object]) -> None:
@@ -63,7 +149,7 @@ def _write_learning_index_payload(project: Path, payloads: list[object]) -> None
     )
 
 
-def _legacy_and_malformed_index_payloads(command_name: str) -> list[object]:
+def _current_and_malformed_index_payloads(command_name: str) -> list[object]:
     normalized_command = normalize_command_name(command_name)
     return [
         {
@@ -83,8 +169,8 @@ def _legacy_and_malformed_index_payloads(command_name: str) -> list[object]:
         },
         {
             "id": "learn-2026-06-03-missing-type",
-            "problem": "Legacy index row omitted its learning type",
-            "lesson": "Default missing learning_type to workflow_gap so start preflight can continue.",
+            "problem": "Invalid index row omitted its learning type",
+            "lesson": "Reject rows that do not satisfy the current schema.",
             "source_command": normalized_command,
             "recurrence_key": f"{normalized_command}.missing-learning-type",
             "applies_to": [normalized_command],
@@ -96,9 +182,9 @@ def _legacy_and_malformed_index_payloads(command_name: str) -> list[object]:
             "signal_strength": "medium",
         },
         {
-            "id": "LRN-legacy-summary-only",
-            "summary": "Legacy summary should become the index problem",
-            "evidence": "Legacy evidence should become the index lesson.",
+            "id": "LRN-obsolete-summary-only",
+            "summary": "Obsolete summary-only row",
+            "evidence": "Obsolete evidence-only row.",
             "learning_type": "recovery_path",
             "recurrence_key": f"{normalized_command}.summary-only",
             "applies_to": [normalized_command],
@@ -189,7 +275,9 @@ def _write_implement_tracker(
             flattened.extend(item)
         else:
             flattened.append(item)
-    (feature_dir / "implement-tracker.md").write_text("\n".join(flattened) + "\n", encoding="utf-8")
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(flattened) + "\n", encoding="utf-8"
+    )
 
 
 def _write_tasks_and_worker_result(feature_dir: Path) -> None:
@@ -236,11 +324,13 @@ def _write_workflow_state(
     false_starts: list[str] | None = None,
     hidden_dependencies: list[str] | None = None,
     reusable_constraints: list[str] | None = None,
+    trigger_signals: list[str] | None = None,
 ) -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
     false_starts = false_starts or []
     hidden_dependencies = hidden_dependencies or []
     reusable_constraints = reusable_constraints or []
+    trigger_signals = trigger_signals or []
     lines = [
         "# Workflow State: Demo",
         "",
@@ -262,7 +352,14 @@ def _write_workflow_state(
         "",
         f"- `{next_command}`",
     ]
-    if route_reason or blocked_reason or false_starts or hidden_dependencies or reusable_constraints:
+    if (
+        route_reason
+        or blocked_reason
+        or false_starts
+        or hidden_dependencies
+        or reusable_constraints
+        or trigger_signals
+    ):
         lines.extend(
             [
                 "",
@@ -270,6 +367,13 @@ def _write_workflow_state(
                 "",
                 f"- route_reason: {route_reason}",
                 f"- blocked_reason: {blocked_reason}",
+                "",
+                "### Learning Triggers",
+            ]
+        )
+        lines.extend([f"- {item}" for item in trigger_signals] or ["-"])
+        lines.extend(
+            [
                 "",
                 "### False Starts",
             ]
@@ -302,9 +406,13 @@ def _write_resolved_debug_session(project: Path, slug: str) -> Path:
         decisive_signal="fresh cache run passed immediately",
     )
     state.resolution.validation_results = [
-        ValidationCheck(command="pytest tests/test_cache.py -q", status="passed", output="1 passed")
+        ValidationCheck(
+            command="pytest tests/test_cache.py -q", status="passed", output="1 passed"
+        )
     ]
-    state.resolution.loop_restoration_proof = ["Fresh cache validation passed end-to-end"]
+    state.resolution.loop_restoration_proof = [
+        "Fresh cache validation passed end-to-end"
+    ]
     handler.save(state)
     return debug_dir / f"{slug}.md"
 
@@ -319,11 +427,11 @@ def test_learning_ensure_creates_stable_and_runtime_files(tmp_path: Path) -> Non
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["exists"]["project_rules"] is True
-    assert payload["exists"]["project_learnings"] is True
+    assert payload["exists"]["confirmed_learnings"] is True
     assert payload["exists"]["candidates"] is True
     assert payload["exists"]["review"] is True
     assert (project / ".specify" / "memory" / "project-rules.md").exists()
-    assert (project / ".specify" / "memory" / "project-learnings.md").exists()
+    assert (project / ".specify" / "memory" / "learnings" / "confirmed.md").exists()
     assert (project / ".planning" / "learnings" / "candidates.md").exists()
     assert (project / ".planning" / "learnings" / "review.md").exists()
 
@@ -338,9 +446,15 @@ def test_learning_ensure_creates_learning_index(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["exists"]["learning_index"] is True
-    assert payload["paths"]["learning_index"].replace("\\", "/").endswith(".specify/memory/learnings/INDEX.md")
-    assert payload["paths"]["learning_detail_template"].replace("\\", "/").endswith(
-        ".specify/templates/project-learning-detail-template.md"
+    assert (
+        payload["paths"]["learning_index"]
+        .replace("\\", "/")
+        .endswith(".specify/memory/learnings/INDEX.md")
+    )
+    assert (
+        payload["paths"]["learning_detail_template"]
+        .replace("\\", "/")
+        .endswith(".specify/templates/project-learning-detail-template.md")
     )
     index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
     assert index_path.exists()
@@ -350,7 +464,9 @@ def test_learning_ensure_creates_learning_index(tmp_path: Path) -> None:
     assert "<!-- SPECKIT_LEARNING_DATA_END -->" in index_content
 
 
-def test_learning_status_reports_missing_runtime_files_without_mutation(tmp_path: Path) -> None:
+def test_learning_status_reports_missing_runtime_files_without_mutation(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -360,13 +476,15 @@ def test_learning_status_reports_missing_runtime_files_without_mutation(tmp_path
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["exists"]["project_rules"] is False
-    assert payload["exists"]["project_learnings"] is False
+    assert payload["exists"]["confirmed_learnings"] is False
     assert payload["exists"]["learning_index"] is False
     assert payload["exists"]["candidates"] is False
     assert payload["exists"]["review"] is False
 
 
-def test_learning_capture_merges_by_recurrence_key_and_increments_count(tmp_path: Path) -> None:
+def test_learning_capture_merges_by_recurrence_key_and_increments_count(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -407,8 +525,12 @@ def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
     _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
 
     summary = "Run generated helper commands from the project launcher"
-    evidence_fragment = "Launcher command wiring drifted from generated helper expectations."
-    false_start = "patched only the generated helper without updating the shared launcher surface"
+    evidence_fragment = (
+        "Launcher command wiring drifted from generated helper expectations."
+    )
+    false_start = (
+        "patched only the generated helper without updating the shared launcher surface"
+    )
     result = _invoke_in_project(
         project,
         [
@@ -437,7 +559,10 @@ def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     index_entry = payload["index_entry"]
     assert index_entry["recurrence_key"] == "cli.project-launcher-helper-drift"
-    assert index_entry["problem"] == "Run generated helper commands from the project launcher"
+    assert (
+        index_entry["problem"]
+        == "Run generated helper commands from the project launcher"
+    )
     assert "sp-implement" in index_entry["applies_to"]
     assert index_entry["detail"].startswith("./learn-")
 
@@ -453,7 +578,9 @@ def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
     assert false_start in detail_content
 
 
-def test_learning_capture_uses_unique_detail_refs_for_long_common_recurrence_prefixes(tmp_path: Path) -> None:
+def test_learning_capture_uses_unique_detail_refs_for_long_common_recurrence_prefixes(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -513,15 +640,21 @@ def test_learning_capture_uses_unique_detail_refs_for_long_common_recurrence_pre
     assert first_detail != second_detail
 
     learning_dir = project / ".specify" / "memory" / "learnings"
-    first_detail_content = (learning_dir / first_detail.removeprefix("./")).read_text(encoding="utf-8")
-    second_detail_content = (learning_dir / second_detail.removeprefix("./")).read_text(encoding="utf-8")
+    first_detail_content = (learning_dir / first_detail.removeprefix("./")).read_text(
+        encoding="utf-8"
+    )
+    second_detail_content = (learning_dir / second_detail.removeprefix("./")).read_text(
+        encoding="utf-8"
+    )
     assert first_summary in first_detail_content
     assert first_evidence in first_detail_content
     assert second_summary in second_detail_content
     assert second_evidence in second_detail_content
 
 
-def test_learning_capture_repairs_existing_duplicate_valid_detail_ref(tmp_path: Path) -> None:
+def test_learning_capture_repairs_existing_duplicate_valid_detail_ref(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -613,7 +746,9 @@ def test_learning_capture_repairs_existing_duplicate_valid_detail_ref(tmp_path: 
     assert repaired_detail_ref != shared_detail_ref
     assert repaired_detail_ref.startswith("./learn-")
 
-    repaired_detail_content = (learning_dir / repaired_detail_ref.removeprefix("./")).read_text(encoding="utf-8")
+    repaired_detail_content = (
+        learning_dir / repaired_detail_ref.removeprefix("./")
+    ).read_text(encoding="utf-8")
     shared_detail_content = shared_detail_path.read_text(encoding="utf-8")
     assert summary in repaired_detail_content
     assert evidence in repaired_detail_content
@@ -622,7 +757,9 @@ def test_learning_capture_repairs_existing_duplicate_valid_detail_ref(tmp_path: 
     assert evidence not in shared_detail_content
 
 
-def test_learning_capture_repairs_duplicate_ref_when_canonical_is_already_taken(tmp_path: Path) -> None:
+def test_learning_capture_repairs_duplicate_ref_when_canonical_is_already_taken(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -631,7 +768,9 @@ def test_learning_capture_repairs_duplicate_ref_when_canonical_is_already_taken(
     recurrence_key = "cli.duplicate-detail.canonical-first"
     stale_first_seen = "2026-05-11T00:00:00Z"
     recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
-    canonical_id = f"learn-2026-05-11-cli-duplicate-detail-canonical-first-{recurrence_hash}"
+    canonical_id = (
+        f"learn-2026-05-11-cli-duplicate-detail-canonical-first-{recurrence_hash}"
+    )
     shared_detail_ref = f"./{canonical_id}.md"
     other_summary = "Other canonical detail owner"
     other_evidence = "Other canonical detail content must remain untouched."
@@ -718,7 +857,9 @@ def test_learning_capture_repairs_duplicate_ref_when_canonical_is_already_taken(
     assert repaired_detail_ref != shared_detail_ref
     assert repaired_detail_ref.startswith("./learn-")
 
-    repaired_detail_content = (learning_dir / repaired_detail_ref.removeprefix("./")).read_text(encoding="utf-8")
+    repaired_detail_content = (
+        learning_dir / repaired_detail_ref.removeprefix("./")
+    ).read_text(encoding="utf-8")
     shared_detail_content = shared_detail_path.read_text(encoding="utf-8")
     assert summary in repaired_detail_content
     assert evidence in repaired_detail_content
@@ -727,7 +868,9 @@ def test_learning_capture_repairs_duplicate_ref_when_canonical_is_already_taken(
     assert evidence not in shared_detail_content
 
 
-def test_learning_capture_repairs_case_variant_detail_ref_collision(tmp_path: Path) -> None:
+def test_learning_capture_repairs_case_variant_detail_ref_collision(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -736,7 +879,9 @@ def test_learning_capture_repairs_case_variant_detail_ref_collision(tmp_path: Pa
     recurrence_key = "cli.duplicate-detail.case-variant"
     stale_first_seen = "2026-05-11T00:00:00Z"
     recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
-    canonical_id = f"learn-2026-05-11-cli-duplicate-detail-case-variant-{recurrence_hash}"
+    canonical_id = (
+        f"learn-2026-05-11-cli-duplicate-detail-case-variant-{recurrence_hash}"
+    )
     canonical_detail_ref = f"./{canonical_id}.md"
     case_variant_ref = f"./{canonical_id.upper()}.MD"
     other_summary = "Other case-variant detail owner"
@@ -810,7 +955,9 @@ def test_learning_capture_repairs_case_variant_detail_ref_collision(tmp_path: Pa
     assert repaired_detail_ref != canonical_detail_ref
     assert repaired_detail_ref.startswith("./learn-")
 
-    repaired_detail_content = (learning_dir / repaired_detail_ref.removeprefix("./")).read_text(encoding="utf-8")
+    repaired_detail_content = (
+        learning_dir / repaired_detail_ref.removeprefix("./")
+    ).read_text(encoding="utf-8")
     canonical_detail_content = canonical_detail_path.read_text(encoding="utf-8")
     assert summary in repaired_detail_content
     assert evidence in repaired_detail_content
@@ -819,7 +966,9 @@ def test_learning_capture_repairs_case_variant_detail_ref_collision(tmp_path: Pa
     assert evidence not in canonical_detail_content
 
 
-def test_learning_capture_sanitizes_malformed_legacy_first_seen_for_detail_ref(tmp_path: Path) -> None:
+def test_learning_capture_sanitizes_malformed_legacy_first_seen_for_detail_ref(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -935,7 +1084,9 @@ def test_learning_capture_sanitizes_malformed_legacy_first_seen_for_detail_ref(t
     assert evidence in detail_content
 
 
-def test_learning_capture_repairs_unsafe_ref_before_canonical_duplicate_check(tmp_path: Path) -> None:
+def test_learning_capture_repairs_unsafe_ref_before_canonical_duplicate_check(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -944,7 +1095,9 @@ def test_learning_capture_repairs_unsafe_ref_before_canonical_duplicate_check(tm
     recurrence_key = "cli.duplicate-detail.unsafe-current"
     stale_first_seen = "2026-05-11T00:00:00Z"
     recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
-    canonical_id = f"learn-2026-05-11-cli-duplicate-detail-unsafe-current-{recurrence_hash}"
+    canonical_id = (
+        f"learn-2026-05-11-cli-duplicate-detail-unsafe-current-{recurrence_hash}"
+    )
     canonical_detail_ref = f"./{canonical_id}.md"
     unsafe_detail_ref = "../../outside.md"
     other_summary = "Other unsafe-canonical owner"
@@ -1033,7 +1186,9 @@ def test_learning_capture_repairs_unsafe_ref_before_canonical_duplicate_check(tm
     assert repaired_detail_ref != canonical_detail_ref
     assert repaired_detail_ref.startswith("./learn-")
 
-    repaired_detail_content = (learning_dir / repaired_detail_ref.removeprefix("./")).read_text(encoding="utf-8")
+    repaired_detail_content = (
+        learning_dir / repaired_detail_ref.removeprefix("./")
+    ).read_text(encoding="utf-8")
     canonical_detail_content = canonical_detail_path.read_text(encoding="utf-8")
     assert summary in repaired_detail_content
     assert evidence in repaired_detail_content
@@ -1042,7 +1197,9 @@ def test_learning_capture_repairs_unsafe_ref_before_canonical_duplicate_check(tm
     assert evidence not in canonical_detail_content
 
 
-def test_learning_capture_confirm_keeps_index_occurrence_count_aligned(tmp_path: Path) -> None:
+def test_learning_capture_confirm_keeps_index_occurrence_count_aligned(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1071,7 +1228,10 @@ def test_learning_capture_confirm_keeps_index_occurrence_count_aligned(tmp_path:
     assert confirmed.exit_code == 0, confirmed.stdout
     payload = json.loads(confirmed.stdout)
     assert payload["entry"]["occurrence_count"] == 1
-    assert payload["index_entry"]["occurrence_count"] == payload["entry"]["occurrence_count"]
+    assert (
+        payload["index_entry"]["occurrence_count"]
+        == payload["entry"]["occurrence_count"]
+    )
 
 
 def test_learning_promote_refreshes_index_detail_status(tmp_path: Path) -> None:
@@ -1122,7 +1282,9 @@ def test_learning_promote_refreshes_index_detail_status(tmp_path: Path) -> None:
     assert '"status": "candidate"' not in detail_content
 
 
-def test_learning_start_auto_promote_refreshes_index_detail_status(tmp_path: Path) -> None:
+def test_learning_start_is_read_only_and_does_not_promote_detail_status(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1149,12 +1311,18 @@ def test_learning_start_auto_promote_refreshes_index_detail_status(tmp_path: Pat
     assert captured.exit_code == 0, captured.stdout
     detail_path = Path(json.loads(captured.stdout)["detail_path"])
 
-    started = _invoke_in_project(project, ["learning", "start", "--command", "plan", "--format", "json"])
+    started = _start_in_project(project, "plan")
 
     assert started.exit_code == 0, started.stdout
+    payload = json.loads(started.stdout)
     detail_content = detail_path.read_text(encoding="utf-8")
-    assert '"status": "confirmed"' in detail_content
-    assert '"status": "candidate"' not in detail_content
+    assert payload["read_only"] is True
+    assert (
+        payload["promotion_ready"][0]["ref"] == "cli.detail-doc.auto-promotion-refresh"
+    )
+    assert payload["items"][0]["status"] == "candidate"
+    assert '"status": "candidate"' in detail_content
+    assert '"status": "confirmed"' not in detail_content
 
 
 def test_learning_capture_sanitizes_existing_index_detail_path(tmp_path: Path) -> None:
@@ -1226,7 +1394,9 @@ def test_learning_capture_sanitizes_existing_index_detail_path(tmp_path: Path) -
     assert not (project / ".specify" / "outside.md").exists()
 
 
-def test_learning_capture_sanitizes_existing_index_detail_path_and_id(tmp_path: Path) -> None:
+def test_learning_capture_sanitizes_existing_index_detail_path_and_id(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1296,7 +1466,9 @@ def test_learning_capture_sanitizes_existing_index_detail_path_and_id(tmp_path: 
     assert not (project / ".specify" / "memory" / "outside-via-id.md").exists()
 
 
-def test_learning_capture_sanitizes_existing_index_detail_ref_to_index_file(tmp_path: Path) -> None:
+def test_learning_capture_sanitizes_existing_index_detail_ref_to_index_file(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1417,16 +1589,18 @@ def test_learning_start_filters_relevant_candidates_by_command(tmp_path: Path) -
         ],
     )
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "debug", "--format", "json"])
+    result = _start_in_project(project, "debug")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    summaries = [entry["summary"] for entry in payload["relevant_candidates"]]
+    summaries = [entry["summary"] for entry in payload["items"]]
     assert "Re-run focused repro before widening scope" in summaries
     assert "Need explicit validation tasks" not in summaries
 
 
-def test_learning_start_reads_legacy_index_entries_without_problem_field(tmp_path: Path) -> None:
+def test_learning_start_rejects_obsolete_index_shape_without_translation(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1442,12 +1616,12 @@ def test_learning_start_reads_legacy_index_entries_without_problem_field(tmp_pat
                 json.dumps(
                     [
                         {
-                            "id": "LRN-legacy-quick-learning",
-                            "summary": "Legacy quick learning summary",
+                            "id": "LRN-obsolete-quick-learning",
+                            "summary": "Obsolete quick learning summary",
                             "learning_type": "workflow_gap",
                             "source_command": "sp-quick",
-                            "evidence": "Legacy evidence should become the index lesson.",
-                            "recurrence_key": "quick.legacy-index-shape",
+                            "evidence": "Obsolete evidence must not become the current lesson.",
+                            "recurrence_key": "quick.obsolete-index-shape",
                             "default_scope": "quick-task",
                             "applies_to": ["sp-quick"],
                             "signal_strength": "medium",
@@ -1466,44 +1640,39 @@ def test_learning_start_reads_legacy_index_entries_without_problem_field(tmp_pat
         encoding="utf-8",
     )
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "quick", "--format", "json"])
+    result = _start_in_project(project, "quick")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["relevant_index_entries"][0]["problem"] == "Legacy quick learning summary"
-    assert payload["relevant_index_entries"][0]["lesson"] == "Legacy evidence should become the index lesson."
-    assert payload["relevant_index_entries"][0]["detail"].startswith("./learn-")
+    assert payload["items"] == []
+    assert payload["warnings"]
 
 
-def test_learning_start_reports_diagnostics_for_legacy_and_malformed_index_entries(tmp_path: Path) -> None:
+def test_learning_start_keeps_valid_current_rows_and_rejects_malformed_rows(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
     _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
-    _write_learning_index_payload(project, _legacy_and_malformed_index_payloads("debug"))
+    _write_learning_index_payload(
+        project, _current_and_malformed_index_payloads("debug")
+    )
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "debug", "--format", "json"])
+    result = _start_in_project(project, "debug")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    recurrence_keys = {entry["recurrence_key"] for entry in payload["relevant_index_entries"]}
+    recurrence_keys = {entry["ref"] for entry in payload["items"]}
     assert "sp-debug.valid-index-entry" in recurrence_keys
-    assert "sp-debug.missing-learning-type" in recurrence_keys
-    assert "sp-debug.summary-only" in recurrence_keys
+    assert "sp-debug.missing-learning-type" not in recurrence_keys
+    assert "sp-debug.summary-only" not in recurrence_keys
     assert "sp-debug.malformed-entry" not in recurrence_keys
-    by_key = {entry["recurrence_key"]: entry for entry in payload["relevant_index_entries"]}
-    assert by_key["sp-debug.missing-learning-type"]["learning_type"] == "workflow_gap"
-    assert by_key["sp-debug.summary-only"]["problem"] == "Legacy summary should become the index problem"
-    assert by_key["sp-debug.summary-only"]["lesson"] == "Legacy evidence should become the index lesson."
     assert payload["warnings"]
-    diagnostics = payload["learning_index_diagnostics"]
-    assert diagnostics["normalized_legacy_entries"] >= 2
-    assert diagnostics["skipped_malformed_entries"] == 1
-    assert any(detail["action"] == "skipped" for detail in diagnostics["details"])
 
 
 @pytest.mark.parametrize("command_name", ["constitution", "map-scan", "map-build"])
-def test_learning_start_reports_index_diagnostics_for_non_cognition_workflows(
+def test_learning_start_rejects_non_current_rows_for_all_workflows(
     tmp_path: Path,
     command_name: str,
 ) -> None:
@@ -1511,22 +1680,23 @@ def test_learning_start_reports_index_diagnostics_for_non_cognition_workflows(
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
     _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
-    _write_learning_index_payload(project, _legacy_and_malformed_index_payloads(command_name))
+    _write_learning_index_payload(
+        project, _current_and_malformed_index_payloads(command_name)
+    )
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", command_name, "--format", "json"])
+    result = _start_in_project(project, command_name)
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     normalized_command = normalize_command_name(command_name)
-    recurrence_keys = {entry["recurrence_key"] for entry in payload["relevant_index_entries"]}
+    recurrence_keys = {entry["ref"] for entry in payload["items"]}
     assert f"{normalized_command}.valid-index-entry" in recurrence_keys
-    assert f"{normalized_command}.summary-only" in recurrence_keys
+    assert f"{normalized_command}.summary-only" not in recurrence_keys
     assert f"{normalized_command}.malformed-entry" not in recurrence_keys
     assert payload["warnings"]
-    assert payload["learning_index_diagnostics"]["skipped_malformed_entries"] == 1
 
 
-def test_learning_start_returns_relevant_index_entries_and_detail_refs(tmp_path: Path) -> None:
+def test_learning_start_returns_relevant_cards_with_show_argv(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1550,22 +1720,20 @@ def test_learning_start_returns_relevant_index_entries_and_detail_refs(tmp_path:
         ],
     )
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "debug", "--format", "json"])
+    result = _start_in_project(project, "debug")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert [entry["recurrence_key"] for entry in payload["relevant_index_entries"]] == [
+    assert [entry["ref"] for entry in payload["items"]] == [
         "debug.focused-repro-before-scope-widening"
     ]
-    assert payload["recommended_detail_docs"]
-    learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
-    recommended_detail = Path(payload["recommended_detail_docs"][0]).resolve()
-    assert recommended_detail.is_relative_to(learning_dir)
-    assert recommended_detail.suffix == ".md"
-    assert payload["summary_counts"]["relevant_index_entries"] == 1
+    assert payload["items"][0]["show_argv"][1:3] == ["learning", "show"]
+    assert "evidence" not in payload["items"][0]
 
 
-def test_learning_start_auto_promotes_repeated_medium_signal_candidates(tmp_path: Path) -> None:
+def test_learning_start_surfaces_repeated_medium_candidate_without_promoting(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1592,23 +1760,15 @@ def test_learning_start_auto_promotes_repeated_medium_signal_candidates(tmp_path
     _invoke_in_project(project, args)
     _invoke_in_project(project, args)
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "plan", "--format", "json"])
+    result = _start_in_project(project, "plan")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    auto_promoted = [entry["summary"] for entry in payload["auto_promoted"]]
-    relevant_learnings = [entry["summary"] for entry in payload["relevant_learnings"]]
-    relevant_candidates = [entry["summary"] for entry in payload["relevant_candidates"]]
-    relevant_index_entries = [entry["problem"] for entry in payload["relevant_index_entries"]]
-    assert "Always preserve verification tasks in planning" in auto_promoted
-    assert "Always preserve verification tasks in planning" in relevant_learnings
-    assert "Always preserve verification tasks in planning" not in relevant_candidates
-    assert "Always preserve verification tasks in planning" in relevant_index_entries
-    assert payload["recommended_detail_docs"]
-    learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
-    recommended_detail = Path(payload["recommended_detail_docs"][0]).resolve()
-    assert recommended_detail.is_relative_to(learning_dir)
-    assert recommended_detail.suffix == ".md"
+    promotion_ready = [entry["summary"] for entry in payload["promotion_ready"]]
+    relevant_cards = [entry["summary"] for entry in payload["items"]]
+    assert "Always preserve verification tasks in planning" in promotion_ready
+    assert "Always preserve verification tasks in planning" in relevant_cards
+    assert payload["items"][0]["source_layer"] == "candidate"
 
 
 def test_learning_capture_confirm_and_promote_rule_flow(tmp_path: Path) -> None:
@@ -1652,18 +1812,21 @@ def test_learning_capture_confirm_and_promote_rule_flow(tmp_path: Path) -> None:
             "json",
         ],
     )
-    start = _invoke_in_project(project, ["learning", "start", "--command", "implement", "--format", "json"])
+    start = _start_in_project(project, "implement")
 
     assert captured.exit_code == 0, captured.stdout
     assert promoted.exit_code == 0, promoted.stdout
     promoted_payload = json.loads(promoted.stdout)
     start_payload = json.loads(start.stdout)
     assert promoted_payload["status"] == "promoted-rule"
-    rule_summaries = [entry["summary"] for entry in start_payload["relevant_rules"]]
+    rule_summaries = [entry["summary"] for entry in start_payload["items"]]
     assert "Always name touched shared surfaces explicitly" in rule_summaries
+    assert start_payload["items"][0]["source_layer"] == "project-rule"
 
 
-def test_learning_start_exposes_confirmed_project_constraint_warning_for_all_workflows(tmp_path: Path) -> None:
+def test_learning_start_exposes_confirmed_project_constraint_for_all_workflows(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1691,38 +1854,57 @@ def test_learning_start_exposes_confirmed_project_constraint_warning_for_all_wor
     )
 
     workflow_commands = (
-        "constitution",
-        "specify",
-        "clarify",
-        "deep-research",
-        "plan",
-        "checklist",
-        "tasks",
+        "accept",
         "analyze",
-        "implement",
+        "ask",
+        "auto",
+        "checklist",
+        "clarify",
+        "constitution",
         "debug",
+        "deep-research",
+        "design",
+        "discussion",
+        "explain",
         "fast",
-        "quick",
-        "map-scan",
+        "implement",
+        "implement-teams",
+        "integrate",
         "map-build",
+        "map-rebuild",
+        "map-scan",
+        "map-update",
+        "plan",
+        "prd",
+        "prd-build",
+        "prd-scan",
+        "quick",
+        "specify",
+        "tasks",
+        "taskstoissues",
+        "team",
     )
 
     for command_name in workflow_commands:
-        result = _invoke_in_project(project, ["learning", "start", "--command", command_name, "--format", "json"])
+        result = _start_in_project(project, command_name)
         assert result.exit_code == 0, result.stdout
         payload = json.loads(result.stdout)
-        relevant_learnings = [entry["summary"] for entry in payload["relevant_learnings"]]
-        preflight_warnings = payload["preflight_warnings"]
-
-        assert "Use the validated build surface before retrying native compilation" in relevant_learnings
+        relevant_learnings = [entry["summary"] for entry in payload["items"]]
+        assert (
+            "Use the validated build surface before retrying native compilation"
+            in relevant_learnings
+        )
         assert any(
-            item["summary"] == "Use the validated build surface before retrying native compilation"
-            and item["source_layer"] == "project_learnings"
-            for item in preflight_warnings
+            item["summary"]
+            == "Use the validated build surface before retrying native compilation"
+            and item["source_layer"] == "confirmed-learning"
+            for item in payload["items"]
         )
 
 
-def test_learning_start_surfaces_single_high_signal_candidate_as_preflight_warning(tmp_path: Path) -> None:
+def test_learning_start_surfaces_single_high_signal_candidate_for_confirmation(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1750,24 +1932,28 @@ def test_learning_start_surfaces_single_high_signal_candidate_as_preflight_warni
         ],
     )
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "implement", "--format", "json"])
+    result = _start_in_project(project, "implement")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    confirmation = [entry["summary"] for entry in payload["confirmation_candidates"]]
-    preflight_warnings = payload["preflight_warnings"]
+    confirmation = [entry["summary"] for entry in payload["needs_confirmation"]]
 
-    assert "Validate the shell and solution platform before retrying MSBuild" in confirmation
+    assert (
+        "Validate the shell and solution platform before retrying MSBuild"
+        in confirmation
+    )
     assert any(
-        item["summary"] == "Validate the shell and solution platform before retrying MSBuild"
+        item["summary"]
+        == "Validate the shell and solution platform before retrying MSBuild"
         and item["source_layer"] == "candidate"
-        and item["requires_confirmation"] is True
-        and "sp-implement" in item["why_now"]
-        for item in preflight_warnings
+        and "sp-implement" in item["why_relevant"]
+        for item in payload["items"]
     )
 
 
-def test_learning_start_auto_promotes_repeated_high_signal_candidates(tmp_path: Path) -> None:
+def test_learning_start_surfaces_repeated_high_signal_candidate_without_promoting(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1794,19 +1980,20 @@ def test_learning_start_auto_promotes_repeated_high_signal_candidates(tmp_path: 
     _invoke_in_project(project, args)
     _invoke_in_project(project, args)
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "implement", "--format", "json"])
+    result = _start_in_project(project, "implement")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    auto_promoted = [entry["summary"] for entry in payload["auto_promoted"]]
-    relevant_learnings = [entry["summary"] for entry in payload["relevant_learnings"]]
-    relevant_candidates = [entry["summary"] for entry in payload["relevant_candidates"]]
-    assert "Always name touched shared surfaces explicitly" in auto_promoted
-    assert "Always name touched shared surfaces explicitly" in relevant_learnings
-    assert "Always name touched shared surfaces explicitly" not in relevant_candidates
+    promotion_ready = [entry["summary"] for entry in payload["promotion_ready"]]
+    relevant_candidates = [entry["summary"] for entry in payload["items"]]
+    assert "Always name touched shared surfaces explicitly" in promotion_ready
+    assert "Always name touched shared surfaces explicitly" in relevant_candidates
+    assert payload["items"][0]["source_layer"] == "candidate"
 
 
-def test_learning_start_auto_promote_preserves_structured_learning_fields(tmp_path: Path) -> None:
+def test_learning_start_promotion_ready_preserves_structured_learning_fields(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1847,27 +2034,37 @@ def test_learning_start_auto_promote_preserves_structured_learning_fields(tmp_pa
     _invoke_in_project(project, args)
     _invoke_in_project(project, args)
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "debug", "--format", "json"])
+    result = _start_in_project(project, "debug")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    promoted_entry = next(
-        entry for entry in payload["auto_promoted"]
-        if entry["recurrence_key"] == "build.shell.must.be.validated"
+    promotion_ready = next(
+        entry
+        for entry in payload["promotion_ready"]
+        if entry["ref"] == "build.shell.must.be.validated"
     )
-    relevant_learning = next(
-        entry for entry in payload["relevant_learnings"]
-        if entry["recurrence_key"] == "build.shell.must.be.validated"
-    )
+    assert set(promotion_ready) == {"ref", "summary", "occurrences"}
 
-    assert promoted_entry["pain_score"] == 7
-    assert promoted_entry["false_starts"] == ["retrying msbuild from the wrong shell"]
-    assert promoted_entry["rejected_paths"] == ["source-code regression"]
-    assert promoted_entry["decisive_signal"] == "the same build passed immediately after switching shells"
-    assert promoted_entry["root_cause_family"] == "native-build-shell-mismatch"
-    assert promoted_entry["injection_targets"] == ["sp-debug"]
-    assert promoted_entry["promotion_hint"] == "promote whenever native build setup is involved"
-    assert relevant_learning["pain_score"] == 7
+    shown = _invoke_in_project(
+        project,
+        ["learning", "show", "--ref", promotion_ready["ref"], "--format", "json"],
+    )
+    detail = json.loads(shown.stdout)
+    assert detail["lifecycle"]["pain_score"] == 7
+    assert detail["evidence"]["false_starts"] == [
+        "retrying msbuild from the wrong shell"
+    ]
+    assert detail["evidence"]["rejected_paths"] == ["source-code regression"]
+    assert (
+        detail["evidence"]["decisive_signal"]
+        == "the same build passed immediately after switching shells"
+    )
+    assert detail["evidence"]["root_cause_family"] == "native-build-shell-mismatch"
+    assert detail["lifecycle"]["injection_targets"] == ["sp-debug"]
+    assert (
+        detail["lifecycle"]["promotion_hint"]
+        == "promote whenever native build setup is involved"
+    )
 
 
 def test_learning_aggregate_json_reports_grouped_patterns(tmp_path: Path) -> None:
@@ -1903,7 +2100,9 @@ def test_learning_aggregate_json_reports_grouped_patterns(tmp_path: Path) -> Non
     assert payload["patterns"][0]["recurrence_key"] == "shared.boundary.pattern"
 
 
-def test_learning_aggregate_write_report_creates_markdown_output(tmp_path: Path) -> None:
+def test_learning_aggregate_write_report_creates_markdown_output(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1921,7 +2120,9 @@ def test_learning_aggregate_write_report_creates_markdown_output(tmp_path: Path)
     assert "Learning Aggregate Report" in report_path.read_text(encoding="utf-8")
 
 
-def test_learning_start_exposes_top_warnings_and_summary_counts(tmp_path: Path) -> None:
+def test_learning_start_exposes_compact_promotion_and_confirmation_cards(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -1948,15 +2149,266 @@ def test_learning_start_exposes_top_warnings_and_summary_counts(tmp_path: Path) 
     _invoke_in_project(project, args)
     _invoke_in_project(project, args)
 
-    result = _invoke_in_project(project, ["learning", "start", "--command", "implement", "--format", "json"])
+    result = _start_in_project(project, "implement")
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["summary_counts"]["relevant_candidates"] == 0
-    assert payload["summary_counts"]["relevant_learnings"] == 1
-    assert payload["summary_counts"]["preflight_warnings"] == 1
-    assert payload["top_warnings"][0]["recurrence_key"] == "shared.boundary.pattern"
-    assert payload["top_warnings"][0]["summary"] == "Need to preserve shared boundary pattern"
+    assert payload["items"][0]["ref"] == "shared.boundary.pattern"
+    assert payload["promotion_ready"] == [
+        {
+            "ref": "shared.boundary.pattern",
+            "summary": "Need to preserve shared boundary pattern",
+            "occurrences": 2,
+        }
+    ]
+    assert payload["needs_confirmation"][0]["ref"] == "shared.boundary.pattern"
+
+
+def test_learning_start_defaults_to_compact_read_only_intake(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+    _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "debug",
+            "--type",
+            "tooling_trap",
+            "--summary",
+            "Use the project-pinned launcher",
+            "--evidence",
+            "The global executable resolved to another checkout.",
+            "--recurrence-key",
+            "tooling.project-pinned-launcher",
+            "--format",
+            "json",
+        ],
+    )
+
+    result = _start_in_project(project, "spx-debug")
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert "detail_level" not in payload
+    assert payload["read_only"] is True
+    assert payload["command"] == "sp-debug"
+    assert payload["policy"] == "consume-capture"
+    assert payload["items"][0]["ref"] == "tooling.project-pinned-launcher"
+    assert "evidence" not in payload["items"][0]
+    assert payload["items"][0]["show_argv"][1:3] == ["learning", "show"]
+    schema = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "templates"
+            / "project-learning-record-schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert list(Draft202012Validator(schema).iter_errors(payload)) == []
+
+
+def test_learning_list_and_show_use_progressive_agent_contract(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+    captured = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "verification_gap",
+            "--summary",
+            "Verify the real entrypoint after generated-surface changes",
+            "--problem",
+            "Unit tests can pass while the generated integration remains stale.",
+            "--action",
+            "Regenerate the integration and verify its real entrypoint.",
+            "--trigger",
+            "generated surface changed",
+            "--success",
+            "installed output matches the source template",
+            "--avoid",
+            "claiming completion from source-only tests",
+            "--exception",
+            "no generated or mirrored consumer exists",
+            "--evidence",
+            "A prior source-only fix left installed commands stale.",
+            "--recurrence-key",
+            "verification.generated-entrypoint",
+            "--format",
+            "json",
+        ],
+    )
+    assert captured.exit_code == 0, captured.stdout
+    second = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            "Keep a second low-signal summary for pagination",
+            "--evidence",
+            "This record verifies deterministic continuation arguments.",
+            "--recurrence-key",
+            "verification.pagination-second",
+            "--signal",
+            "low",
+            "--format",
+            "json",
+        ],
+    )
+    assert second.exit_code == 0, second.stdout
+
+    listed = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "list",
+            "--command",
+            "spx-implement",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        ],
+    )
+    assert listed.exit_code == 0, listed.stdout
+    list_payload = json.loads(listed.stdout)
+    assert "detail_level" not in list_payload
+    assert list_payload["pagination"]["returned"] == 1
+    assert list_payload["pagination"]["next_argv"][1:3] == ["learning", "list"]
+    assert "--cursor" in list_payload["pagination"]["next_argv"]
+    assert (
+        list_payload["items"][0]["action"]
+        == "Regenerate the integration and verify its real entrypoint."
+    )
+    assert "evidence" not in list_payload["items"][0]
+
+    all_listed = _invoke_in_project(
+        project,
+        ["learning", "list", "--command", "spx-implement", "--all", "--format", "json"],
+    )
+    assert all_listed.exit_code == 0, all_listed.stdout
+    all_payload = json.loads(all_listed.stdout)
+    assert (
+        all_payload["pagination"]["returned"] == all_payload["pagination"]["total"] == 2
+    )
+    assert all_payload["pagination"]["next_argv"] is None
+
+    shown = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "show",
+            "--ref",
+            "verification.generated-entrypoint",
+            "--format",
+            "json",
+        ],
+    )
+    assert shown.exit_code == 0, shown.stdout
+    detail = json.loads(shown.stdout)
+    assert "detail_level" not in detail
+    assert detail["guidance"] == {
+        "problem": "Unit tests can pass while the generated integration remains stale.",
+        "action": "Regenerate the integration and verify its real entrypoint.",
+        "avoid": ["claiming completion from source-only tests"],
+        "success_criteria": ["installed output matches the source template"],
+        "exceptions": ["no generated or mirrored consumer exists"],
+    }
+    assert "generated surface changed" in detail["applicability"]["trigger_signals"]
+    assert (
+        detail["evidence"]["observation"]
+        == "A prior source-only fix left installed commands stale."
+    )
+
+    schema = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "templates"
+            / "project-learning-record-schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    Draft202012Validator.check_schema(schema)
+    assert list(Draft202012Validator(schema).iter_errors(list_payload)) == []
+    assert list(Draft202012Validator(schema).iter_errors(all_payload)) == []
+    assert list(Draft202012Validator(schema).iter_errors(detail)) == []
+
+
+def test_learning_start_does_not_create_missing_learning_files(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+
+    result = _start_in_project(project, "plan")
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["items"] == []
+    assert payload["warnings"]
+    assert not (project / ".specify" / "memory" / "learnings" / "INDEX.md").exists()
+    assert not (project / ".planning" / "learnings").exists()
+
+
+def test_learning_consumer_commands_do_not_mutate_existing_storage(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+    _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "plan",
+            "--type",
+            "workflow_gap",
+            "--summary",
+            "Keep consumption read-only",
+            "--evidence",
+            "Read commands must not update timestamps, recurrence, or lifecycle state.",
+            "--recurrence-key",
+            "learning.reads-are-pure",
+            "--format",
+            "json",
+        ],
+    )
+
+    def snapshot() -> dict[str, bytes]:
+        return {
+            path.relative_to(project).as_posix(): path.read_bytes()
+            for root in (
+                project / ".specify" / "memory",
+                project / ".planning" / "learnings",
+            )
+            for path in root.rglob("*")
+            if path.is_file()
+        }
+
+    before = snapshot()
+    commands = [
+        ["learning", "start", "--command", "spx-plan", "--format", "json"],
+        ["learning", "list", "--command", "spx-plan", "--all", "--format", "json"],
+        ["learning", "show", "--ref", "learning.reads-are-pure", "--format", "json"],
+    ]
+    for args in commands:
+        result = _invoke_in_project(project, args)
+        assert result.exit_code == 0, result.stdout
+
+    assert snapshot() == before
 
 
 def test_learning_help_surfaces_low_level_helper_commands() -> None:
@@ -1966,13 +2418,45 @@ def test_learning_help_surfaces_low_level_helper_commands() -> None:
     assert "ensure" in result.stdout
     assert "status" in result.stdout
     assert "start" in result.stdout
+    assert "list" in result.stdout
+    assert "show" in result.stdout
     assert "capture" in result.stdout
     assert "capture-auto" in result.stdout
     assert "promote" in result.stdout
 
 
+def test_learning_start_exposes_only_the_current_compact_contract(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+
+    help_result = runner.invoke(
+        app, ["learning", "start", "--help"], catch_exceptions=False
+    )
+    obsolete_result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "start",
+            "--command",
+            "plan",
+            "--detail-level",
+            "full",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert help_result.exit_code == 0, help_result.stdout
+    assert "--detail-level" not in strip_ansi(help_result.stdout)
+    assert obsolete_result.exit_code != 0
+
+
 def test_learning_capture_auto_help_mentions_broader_state_surfaces() -> None:
-    result = runner.invoke(app, ["learning", "capture-auto", "--help"], catch_exceptions=False)
+    result = runner.invoke(
+        app, ["learning", "capture-auto", "--help"], catch_exceptions=False
+    )
 
     assert result.exit_code == 0, result.stdout
     output = strip_ansi(result.stdout)
@@ -1989,7 +2473,9 @@ def test_learning_capture_auto_help_mentions_broader_state_surfaces() -> None:
     assert "Debug session markdown file" in output
 
 
-def test_project_constraint_default_applies_to_includes_test_and_map_codebase(tmp_path: Path) -> None:
+def test_project_constraint_default_applies_to_includes_test_and_map_codebase(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2022,7 +2508,9 @@ def test_project_constraint_default_applies_to_includes_test_and_map_codebase(tm
     assert "sp-map-build" in applies_to
 
 
-def test_learning_capture_accepts_structured_path_learning_fields(tmp_path: Path) -> None:
+def test_learning_capture_accepts_structured_path_learning_fields(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2072,7 +2560,9 @@ def test_learning_capture_accepts_structured_path_learning_fields(tmp_path: Path
     assert entry["injection_targets"] == ["sp-debug"]
 
 
-def test_learning_capture_auto_implement_writes_candidates_from_tracker_state(tmp_path: Path) -> None:
+def test_learning_capture_auto_implement_writes_candidates_from_tracker_state(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2103,8 +2593,14 @@ def test_learning_capture_auto_implement_writes_candidates_from_tracker_state(tm
     payload = json.loads(result.stdout)
     summaries = [item["entry"]["summary"] for item in payload["captured"]]
     assert payload["status"] == "captured"
-    assert "Rerun planned validation after implementation recovery before resolving the feature" in summaries
-    assert "Failed implementation tasks should keep execution in recovery until validation turns green" in summaries
+    assert (
+        "Rerun planned validation after implementation recovery before resolving the feature"
+        in summaries
+    )
+    assert (
+        "Failed implementation tasks should keep execution in recovery until validation turns green"
+        in summaries
+    )
 
 
 def test_learning_capture_auto_implement_writes_index_details(tmp_path: Path) -> None:
@@ -2122,7 +2618,16 @@ def test_learning_capture_auto_implement_writes_index_details(tmp_path: Path) ->
 
     result = _invoke_in_project(
         project,
-        ["learning", "capture-auto", "--command", "implement", "--feature-dir", str(feature_dir), "--format", "json"],
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.stdout
@@ -2135,7 +2640,9 @@ def test_learning_capture_auto_implement_writes_index_details(tmp_path: Path) ->
     assert "Observed auto-capture evidence" in detail_path.read_text(encoding="utf-8")
 
 
-def test_learning_capture_auto_implement_extracts_gap_and_constraint_patterns(tmp_path: Path) -> None:
+def test_learning_capture_auto_implement_extracts_gap_and_constraint_patterns(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2185,7 +2692,9 @@ def test_learning_capture_auto_implement_extracts_gap_and_constraint_patterns(tm
     assert "implement.external-or-human-blockers-are-project-constraints" in keys
 
 
-def test_learning_capture_auto_debug_writes_candidates_from_resolved_session(tmp_path: Path) -> None:
+def test_learning_capture_auto_debug_writes_candidates_from_resolved_session(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2259,7 +2768,9 @@ def test_learning_capture_auto_skips_duplicate_snapshot(tmp_path: Path) -> None:
     assert second_payload["status"] == "duplicate-snapshot"
 
 
-def test_learning_capture_auto_ignores_timestamp_only_tracker_changes(tmp_path: Path) -> None:
+def test_learning_capture_auto_ignores_timestamp_only_tracker_changes(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2322,7 +2833,9 @@ def test_learning_capture_auto_ignores_timestamp_only_tracker_changes(tmp_path: 
     assert second_payload["status"] == "duplicate-snapshot"
 
 
-def test_learning_capture_auto_quick_extracts_fallback_constraint(tmp_path: Path) -> None:
+def test_learning_capture_auto_quick_extracts_fallback_constraint(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2380,10 +2893,14 @@ def test_learning_capture_auto_quick_extracts_fallback_constraint(tmp_path: Path
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
-    assert "quick.leader-inline-fallback-preserves-runtime-unavailability-reason" in keys
+    assert (
+        "quick.leader-inline-fallback-preserves-runtime-unavailability-reason" in keys
+    )
 
 
-def test_learning_capture_auto_workflow_state_records_blocked_reason(tmp_path: Path) -> None:
+def test_learning_capture_auto_workflow_state_records_blocked_reason(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2397,17 +2914,35 @@ def test_learning_capture_auto_workflow_state_records_blocked_reason(tmp_path: P
 
     result = _invoke_in_project(
         project,
-        ["learning", "capture-auto", "--command", "plan", "--feature-dir", str(feature_dir), "--format", "json"],
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "plan",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["status"] == "captured"
-    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
+    entries = [item["entry"] for item in payload["captured"]]
+    keys = [entry["recurrence_key"] for entry in entries]
     assert "sp-plan.workflow-state-preserves-blocked-reason" in keys
+    blocked = next(
+        entry
+        for entry in entries
+        if entry["recurrence_key"] == "sp-plan.workflow-state-preserves-blocked-reason"
+    )
+    assert blocked["recommended_action"].startswith("Preserve the blocker")
 
 
-def test_learning_capture_auto_plan_extracts_route_reason_false_starts_and_constraints(tmp_path: Path) -> None:
+def test_learning_capture_auto_plan_extracts_route_reason_false_starts_and_constraints(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2439,11 +2974,70 @@ def test_learning_capture_auto_plan_extracts_route_reason_false_starts_and_const
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
+    entries = [item["entry"] for item in payload["captured"]]
+    keys = [entry["recurrence_key"] for entry in entries]
     assert payload["status"] == "captured"
     assert "sp-plan.workflow-state-preserves-reentry-reason" in keys
     assert "sp-plan.workflow-state-preserves-false-starts" in keys
     assert "sp-plan.workflow-state-promotes-discovered-constraints" in keys
+    by_key = {entry["recurrence_key"]: entry for entry in entries}
+    assert by_key["sp-plan.workflow-state-preserves-reentry-reason"][
+        "recommended_action"
+    ].startswith("Preserve the next command")
+    assert by_key["sp-plan.workflow-state-preserves-false-starts"][
+        "recommended_action"
+    ].startswith("Check recorded false starts")
+    assert by_key["sp-plan.workflow-state-promotes-discovered-constraints"][
+        "recommended_action"
+    ].startswith("Apply the recorded dependency")
+
+
+def test_learning_capture_auto_materializes_explicit_semantic_triggers(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / "specs" / "semantic-trigger"
+    long_correction = (
+        "sp-plan must not create tasks.md before sp-tasks, and it must preserve the "
+        "complete user rationale even when that rationale exceeds a compact summary "
+        "length because the detail is durable evidence rather than display-only output"
+    )
+    _write_workflow_state(
+        feature_dir,
+        trigger_signals=[
+            f"user_correction: {long_correction}",
+            "cognition_gap: generated integration was absent from the path index",
+        ],
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "plan",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    entries = [item["entry"] for item in payload["captured"]]
+    by_type = {entry["learning_type"]: entry for entry in entries}
+    assert by_type["user_preference"]["recommended_action"].startswith(
+        "Apply the corrected assumption"
+    )
+    assert long_correction in by_type["user_preference"]["summary"]
+    assert long_correction in by_type["user_preference"]["evidence"]
+    assert by_type["map_coverage_gap"]["trigger_signals"] == [
+        "cognition_gap: generated integration was absent from the path index"
+    ]
 
 
 def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) -> None:
@@ -2480,7 +3074,9 @@ def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) ->
     assert payload["auto_capture"]["status"] == "captured"
 
 
-def test_implement_closeout_returns_blocked_json_when_session_state_is_missing(tmp_path: Path) -> None:
+def test_implement_closeout_returns_blocked_json_when_session_state_is_missing(
+    tmp_path: Path,
+) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -2499,11 +3095,15 @@ def test_implement_closeout_returns_blocked_json_when_session_state_is_missing(t
         ],
     )
 
-    assert result.exit_code == 1, result.stdout
+    assert result.exit_code == 10, result.stdout
     payload = json.loads(result.stdout)
     assert payload["status"] == "blocked"
     assert payload["hook_result"]["status"] == "blocked"
-    assert any("workflow-state.md" in message or "implement-tracker.md" in message for message in payload["hook_result"]["errors"])
+    assert payload["blockers"]
+    assert any(
+        "workflow-state.md" in message or "implement-tracker.md" in message
+        for message in payload["hook_result"]["errors"]
+    )
 
 
 def test_implement_help_surfaces_closeout_command() -> None:

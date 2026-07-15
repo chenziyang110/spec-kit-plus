@@ -5,6 +5,7 @@ description: Lean, evidence-backed project Q&A for advanced coding models. Use w
 
 # SPX Ask
 
+Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/project-cognition.md`, using cognition intent `ask`.
 Read `references/evidence-contract.md` for architecture, status, or impact
 claims. Route a request to interpret generated workflow artifacts or lane state

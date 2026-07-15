@@ -15,6 +15,8 @@ Read [Reference index](references/INDEX.md) before applying shared semantic cont
 
 - [semantic work contract](references/semantic-work-contract.md)
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Objective
 
 Refresh the existing query-backed project cognition baseline incrementally from diff-driven evidence or explicit user corrections.

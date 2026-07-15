@@ -124,17 +124,11 @@ If a substantive scan/build lane cannot dispatch or complete, write:
 activation. `low_risk_open_gap` may pass only with owner, reason,
 `evidence_expectation`, and `revisit_condition`.
 
-## Passive Project Learning Layer
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
-- [AGENT] Run `{{specify-subcmd:learning start --command map-scan --format json}}` when available so passive learning files exist and repeated cognition-runtime scan blind spots can be promoted at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader scan context.
 - Passive learning files are workflow guidance, not scan evidence.
 - `.specify/**` must never enter the project cognition graph.
 - `.specify/memory/**` must not appear in repository-universe, coverage-ledger, evidence rows, provisional nodes, provisional edges, observations, path_index, or alias_index.
-- Open only learning detail docs linked from map-scan-relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When scan friction exposes route changes, artifact rewrites, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `map-state.md` captures that durable context.
-- [AGENT] When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 
 ## Hard Boundary
 

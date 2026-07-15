@@ -5,6 +5,7 @@ description: Low-cost project-cognition scan workflow for advanced coding models
 
 # SPX Map Scan
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md` for its evidence boundary, then
 `references/scan-gates.md` and `references/scan-worker.md`. Do not run Compass
 intake while the baseline is missing or invalid. This skill writes only

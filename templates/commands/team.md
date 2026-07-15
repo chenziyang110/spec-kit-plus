@@ -11,6 +11,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/team/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 Official product surface:
 
 ```text

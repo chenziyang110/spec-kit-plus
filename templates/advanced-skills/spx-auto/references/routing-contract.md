@@ -12,6 +12,8 @@ Choose the first applicable trustworthy route:
 - new/high-visibility UI direction, redesign, or UI work blocked by missing or
   bootstrap `DESIGN.md`: `spx-design`;
 - active durable team batch: `spx-implement-teams`;
+- trusted completed implementation whose fresh `human-acceptance.json` is not
+  `accepted`: `spx-accept`;
 - completed independent lane awaiting closeout: `spx-integrate`;
 - active implementation lane or ready tracked feature work: `spx-implement`;
 - active bounded quick workspace: `spx-quick`;

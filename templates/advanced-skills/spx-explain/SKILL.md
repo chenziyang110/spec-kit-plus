@@ -5,6 +5,7 @@ description: Read-only workflow-artifact explanation for advanced coding models.
 
 # SPX Explain
 
+Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/project-cognition.md`, using cognition intent `ask`, and
 `references/artifact-explanation.md`.
 

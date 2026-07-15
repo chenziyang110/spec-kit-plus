@@ -3,6 +3,10 @@
 Use a worker for a bounded evidence lane, not for ownership of the diagnosis.
 Provide one hypothesis or evidence question, concrete allowed paths/commands,
 forbidden writes, and the observation that would support or weaken it.
+For UI evidence, also provide the confirmed UI target baseline, original
+references and intents, real entry point, viewport/window, and state. The worker
+must not propose a redesign or use the baseline as authority for a speculative
+fix.
 
 The worker returns facts only:
 

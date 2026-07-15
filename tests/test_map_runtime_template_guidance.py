@@ -1102,14 +1102,22 @@ def test_shared_readiness_review_guidance_uses_minimal_live_reads() -> None:
 
 
 def test_learning_start_hardening_scope_matches_command_templates() -> None:
-    commands_with_learning_start: set[str] = set()
-    for path in (PROJECT_ROOT / "templates" / "commands").glob("*.md"):
-        content = _read_command(path.name)
-        for match in re.finditer(r"learning start --command ([a-z-]+) --format json", content):
-            commands_with_learning_start.add(match.group(1))
-
-    assert {"debug", "constitution", "map-scan", "map-build"} <= commands_with_learning_start
-    assert {"plan", "implement"}.isdisjoint(commands_with_learning_start)
+    for command in ("debug", "constitution", "map-scan", "map-build", "plan", "implement"):
+        content = _read_command(f"{command}.md")
+        assert "learning start --command" in content, command
+        assert (
+            "select summaries by applicability and triggers" in content.lower()
+            or "learning start --command <classic-command-name> -> list -> show" in content
+        ), command
+        assert (
+            "only to filter or page" in content.lower()
+            or "run selected `show_argv` only" in content
+        ), command
+        assert "learning show" in content or "show_argv" in content, command
+        assert (
+            "do not parse learning storage" in content.lower()
+            or "never parse learning storage" in content.lower()
+        ), command
     assert "context capsule" in _read_command("plan.md").lower()
     assert "current task's required refs" in _read_command("implement.md").lower()
 

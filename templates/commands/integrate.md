@@ -12,6 +12,8 @@ workflow_contract:
 Use `sp-integrate` to discover completed lanes, run integration prechecks,
 surface drift or overlap risk, and close the lane cleanly.
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Context
 
 - Primary inputs: completed lane state, verification evidence, lane closeout metadata, and the smallest relevant project cognition query bundle or handbook guidance for merge-sensitive shared surfaces.

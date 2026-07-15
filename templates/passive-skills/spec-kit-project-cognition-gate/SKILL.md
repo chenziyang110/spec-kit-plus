@@ -112,8 +112,7 @@ judgment in an established Spec Kit Plus repository:
   `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, missing coverage, evidence traces, verification routes,
   ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior and `templates/project-map/**` is historical compatibility/export only.
-- Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
-  when they exist.
+- Consume project rules and reusable Learning through `specify learning start -> list -> show`; do not parse Learning storage as part of cognition intake.
 
 ## Cross-Project Reference Directories
 

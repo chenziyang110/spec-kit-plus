@@ -56,7 +56,7 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
    If it declares `design_system.status: bootstrap`, treat it as a starter to
    replace, not an approved constraint or evidence that design work is done.
 2. Read `.specify/design/references.md`, `.specify/design/options.md`, and `.specify/design/review.md` if they exist.
-3. Read `README.md`, project handbook files, existing UI surfaces, existing design files, `.specify/memory/project-rules.md`, and relevant `.specify/memory/learnings/INDEX.md` entries when present.
+3. Read `README.md`, project handbook files, existing UI surfaces, and existing design files. Use the command's shared Learning intake for project rules and reusable lessons.
 4. Use project cognition to locate likely UI entry points, token/theme owners,
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it

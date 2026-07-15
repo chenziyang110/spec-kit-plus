@@ -33,14 +33,7 @@ Use `execution_surface: native-subagents`.
 
 Reconstruct or refresh the query-backed project cognition runtime from a completed value-weighted evidence baseline.
 
-## Passive Project Learning Layer
-
-- [AGENT] Run `{{specify-subcmd:learning start --command map-build --format json}}` when available so passive learning files exist and repeated graph-build blind spots can be promoted at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader graph-build context.
-- Open only learning detail docs linked from map-build-relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When graph reconstruction friction exposes route changes, artifact rewrites, validation gaps, false starts, hidden dependencies, or reusable constraints, make sure `map-state.md` captures that durable context.
-- [AGENT] When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Process
 

@@ -80,15 +80,7 @@ Use `execution_surface: native-subagents`.
 - Verify the final `deep-research.md` and `workflow-state.md` outputs before handoff instead of relying on chat narration.
 - Update durable state before compaction-risk transitions, prototype-evidence synthesis handoffs, or any stop where resume will depend on more than the visible conversation.
 
-## Passive Project Learning Layer
-
-- [AGENT] Run `{{specify-subcmd:learning start --command deep-research --format json}}` when available so the research pass sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
-- Open only learning detail docs linked from research-relevant index entries, especially feasibility, hidden dependency, prototype failure, or repeated research-gap lessons.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When feasibility friction exposes route changes, false starts, hidden dependencies, command failures, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Workflow Phase Lock
 
@@ -238,8 +230,7 @@ Use `execution_surface: native-subagents`.
    - `FEATURE_DIR/deep-research.md` if present
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
-   - `.specify/memory/learnings/INDEX.md` if present
-   - relevant linked learning detail docs from the learning index
+   - compact `learning start --command deep-research` results and only selected `learning show` records
    - **Project cognition gate:** query the active project's runtime before broad
      repository reads.
 

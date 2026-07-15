@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -90,6 +92,29 @@ def test_render_markdown_includes_title_and_prompt_row():
     assert "| prompt | 1 | 2 | 3 | 4 |" in markdown
 
 
+def test_prompt_globs_cover_classic_references_and_advanced_skills():
+    module = load_module()
+
+    assert "templates/command-references/**/*.md" in module.PROMPT_GLOBS
+    assert "templates/advanced-skills/**/*.md" in module.PROMPT_GLOBS
+    assert "templates/passive-skills/**/*.md" in module.PROMPT_GLOBS
+
+
+def test_summarize_can_omit_file_details_and_keep_largest_entries():
+    module = load_module()
+    metrics = [
+        module.FileMetric("small.md", "prompt", 1, 1, 10),
+        module.FileMetric("large.md", "prompt", 2, 2, 100),
+        module.FileMetric("medium.md", "prompt", 3, 3, 50),
+    ]
+
+    summary_only = module.summarize(metrics, include_files=False)
+    top_one = module.summarize(metrics, top=1)
+
+    assert "files" not in summary_only
+    assert [item["path"] for item in top_one["files"]] == ["large.md"]
+
+
 def test_main_invalid_root_exits_nonzero_with_clear_message(monkeypatch, tmp_path):
     module = load_module()
     missing_root = tmp_path / "missing-root"
@@ -111,3 +136,54 @@ def test_main_invalid_root_exits_nonzero_with_clear_message(monkeypatch, tmp_pat
 
     assert exc_info.value.code
     assert "root is not a directory" in str(exc_info.value)
+
+
+def test_main_summary_only_emits_compact_json(monkeypatch, tmp_path, capsys):
+    module = load_module()
+    prompt = tmp_path / "templates" / "commands" / "sample.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text("# Sample\n", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "measure_workflow_costs.py",
+            "--root",
+            str(tmp_path),
+            "--format",
+            "json",
+            "--summary-only",
+        ],
+    )
+
+    assert module.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["totals"]["prompt"]["files"] == 1
+    assert "files" not in payload
+
+
+def test_first_party_workflow_prompts_have_no_hard_content_length_caps():
+    root = Path(__file__).resolve().parents[1]
+    prompt_roots = (
+        root / "templates" / "commands",
+        root / "templates" / "command-partials",
+        root / "templates" / "command-references",
+        root / "templates" / "advanced-skills",
+        root / "templates" / "worker-prompts",
+    )
+    forbidden = re.compile(
+        r"(?:under|at most|maximum|max|limit(?:ed)?|cap(?:ped)?)"
+        r".{0,60}\b\d[\d_]*\s+(?:rows?|words?|tokens?|characters?|lines?)\b"
+        r"|\b\d[\d_]*[- ](?:row|word|token|character|line)\s+"
+        r"(?:limit|budget|maximum|cap)\b",
+        re.IGNORECASE,
+    )
+
+    violations = []
+    for prompt_root in prompt_roots:
+        for path in prompt_root.rglob("*"):
+            if path.is_file() and path.suffix in {".md", ".json", ".yaml"}:
+                if forbidden.search(path.read_text(encoding="utf-8")):
+                    violations.append(path.relative_to(root).as_posix())
+
+    assert violations == []

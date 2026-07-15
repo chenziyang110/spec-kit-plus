@@ -76,14 +76,9 @@ def test_quick_uses_scaffold_checkpoint_handoff_and_full_propagation_sweep() -> 
     assert "wait for user confirmation" in content
     assert "handoff-to-specify.json" in content
     assert "consumer_eligibility.sp-quick.status" in content
-    assert all(
-        path in content
-        for path in (
-            ".specify/memory/constitution.md",
-            ".specify/memory/project-rules.md",
-            ".specify/memory/learnings/index.md",
-        )
-    )
+    assert ".specify/memory/constitution.md" in content
+    assert "project-learning cli intake" in content
+    assert "task-relevant learning only through" in content
     assert "must run and record red before production edits" in content
     assert "full affected-surface or callsite coverage" in content
     assert "quick close" in content and "terminal truth" in content
@@ -101,7 +96,8 @@ def test_taskstoissues_binds_external_writes_to_the_exact_github_remote() -> Non
 def test_constitution_preserves_memory_versioning_sync_impact_and_reentry() -> None:
     content = _surface("constitution")
 
-    assert ".specify/memory/learnings/index.md" in content
+    assert "consume-only learning cli intake" in content
+    assert "references/project-learning.md" in content
     assert all(name in content for name in ("spec.md", "plan.md", "tasks.md", "workflow-state.md"))
     assert "major" in content and "minor" in content and "patch" in content
     assert "yyyy-mm-dd" in content

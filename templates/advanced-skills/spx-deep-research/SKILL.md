@@ -5,6 +5,7 @@ description: Focused pre-plan feasibility research for advanced coding models. U
 
 # SPX Deep Research
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `research`,
 `references/research-contract.md`, and `references/consequence-gate.md` only on
 its triggers.

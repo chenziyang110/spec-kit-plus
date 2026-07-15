@@ -17,6 +17,8 @@ This summary is routing metadata only. The full workflow contract is the frontma
 - Primary truth source: the scan package under `.specify/prd-runs/<run-id>/`, not a fresh repository crawl.
 - Primary terminal state: completed master pack and exports, or explicit refusal back to `sp-prd-scan`.
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Objective
 
 [AGENT] Compile the reconstruction package into a delivery-grade PRD suite and prove reverse coverage validation.

@@ -2,12 +2,12 @@
 
 ## Current Command
 
-- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-debug | sp-analyze | sp-deep-research | sp-clarify | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
+- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-clarify | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
 - status: [active | completed | blocked]
 
 ## Phase Mode
 
-- phase_mode: [planning-only | design-only | task-generation-only | execution-only | analysis-only | research-only]
+- phase_mode: [planning-only | design-only | task-generation-only | execution-only | acceptance-only | analysis-only | research-only]
 - summary: [Short current-state summary for resume and hook context]
 
 ## Stage State
@@ -83,6 +83,27 @@
   - context.md: [summary or hash when available]
   - plan.md: [summary or hash when available]
   - tasks.md: [summary or hash when available]
+
+## Learning Signals
+
+- route_reason: none
+- blocked_reason: none
+
+## Learning Triggers
+
+<!-- Add one bullet per reusable signal. Use `kind: compact evidence`, where kind is user_correction, repeated_attempt, route_change, blocker_recovery, false_lead, decisive_signal, hidden_dependency, validation_gap, tooling_trap, state_loss, cognition_gap, reusable_constraint, or near_miss. Leave this section empty when no signal exists. -->
+
+## False Starts
+
+<!-- Add rejected routes, hypotheses, or implementation paths. Leave empty when none exist. -->
+
+## Hidden Dependencies
+
+<!-- Add dependencies discovered during this workflow. Leave empty when none exist. -->
+
+## Reusable Constraints
+
+<!-- Add stable constraints that later workflows must honor. Leave empty when none exist. -->
 
 ## Embedded Implement Review
 

@@ -5,6 +5,7 @@ description: Lean design-system workflow for advanced coding models. Use for a n
 
 # SPX Design
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/design-contract.md`. Read `references/ui-quality-gate.md`. Read
 `references/consequence-gate.md` when

@@ -53,19 +53,28 @@ fi
 # Ensure the feature directory exists
 mkdir -p "$FEATURE_DIR"
 
-# Copy plan template if it exists
-TEMPLATE=$(resolve_template "plan-template" "$REPO_ROOT") || true
-if [[ -n "$TEMPLATE" ]] && [[ -f "$TEMPLATE" ]]; then
-    cp "$TEMPLATE" "$IMPL_PLAN"
+# Create a plan only when one does not already exist. Re-running setup must not
+# destroy work completed after the initial scaffold.
+PLAN_STATUS="noop"
+if [[ -e "$IMPL_PLAN" ]]; then
     if ! $JSON_MODE; then
-        echo "Copied plan template to $IMPL_PLAN"
+        echo "Plan already exists; left unchanged at $IMPL_PLAN"
     fi
 else
-    if ! $JSON_MODE; then
-        echo "Warning: Plan template not found"
+    PLAN_STATUS="created"
+    TEMPLATE=$(resolve_template "plan-template" "$REPO_ROOT") || true
+    if [[ -n "$TEMPLATE" ]] && [[ -f "$TEMPLATE" ]]; then
+        cp "$TEMPLATE" "$IMPL_PLAN"
+        if ! $JSON_MODE; then
+            echo "Copied plan template to $IMPL_PLAN"
+        fi
+    else
+        if ! $JSON_MODE; then
+            echo "Warning: Plan template not found"
+        fi
+        # Create a basic plan file if template doesn't exist
+        touch "$IMPL_PLAN"
     fi
-    # Create a basic plan file if template doesn't exist
-    touch "$IMPL_PLAN"
 fi
 
 # Output results
@@ -79,10 +88,11 @@ if $JSON_MODE; then
             --arg specs_dir "$FEATURE_DIR" \
             --arg branch "$CURRENT_BRANCH" \
             --arg has_git "$HAS_GIT" \
-            '{FEATURE_DIR:$feature_dir,FEATURE_SPEC:$feature_spec,CONTEXT:$context,IMPL_PLAN:$impl_plan,SPECS_DIR:$specs_dir,BRANCH:$branch,HAS_GIT:$has_git}'
+            --arg status "$PLAN_STATUS" \
+            '{FEATURE_DIR:$feature_dir,FEATURE_SPEC:$feature_spec,CONTEXT:$context,IMPL_PLAN:$impl_plan,SPECS_DIR:$specs_dir,BRANCH:$branch,HAS_GIT:$has_git,STATUS:$status}'
     else
-        printf '{"FEATURE_DIR":"%s","FEATURE_SPEC":"%s","CONTEXT":"%s","IMPL_PLAN":"%s","SPECS_DIR":"%s","BRANCH":"%s","HAS_GIT":"%s"}\n' \
-            "$(json_escape "$FEATURE_DIR")" "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$CONTEXT")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$CURRENT_BRANCH")" "$(json_escape "$HAS_GIT")"
+        printf '{"FEATURE_DIR":"%s","FEATURE_SPEC":"%s","CONTEXT":"%s","IMPL_PLAN":"%s","SPECS_DIR":"%s","BRANCH":"%s","HAS_GIT":"%s","STATUS":"%s"}\n' \
+            "$(json_escape "$FEATURE_DIR")" "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$CONTEXT")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$CURRENT_BRANCH")" "$(json_escape "$HAS_GIT")" "$PLAN_STATUS"
     fi
 else
     echo "FEATURE_DIR: $FEATURE_DIR"

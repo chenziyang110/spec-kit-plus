@@ -5,6 +5,7 @@ description: Lean project-cognition maintenance workflow for advanced coding mod
 
 # SPX Map Update
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`. Use this skill for explicit maintenance,
 not as a substitute for the automatic closeout performed by writing workflows.
 Read `references/update-gates.md`.

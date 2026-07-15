@@ -20,8 +20,18 @@ def _load_gemini_hook_dispatch_module():
     import importlib.util
 
     repo_root = Path(__file__).resolve().parents[2]
-    hook_path = repo_root / "src" / "specify_cli" / "integrations" / "gemini" / "hooks" / "gemini-hook-dispatch.py"
-    spec = importlib.util.spec_from_file_location("gemini_hook_dispatch_for_tests", hook_path)
+    hook_path = (
+        repo_root
+        / "src"
+        / "specify_cli"
+        / "integrations"
+        / "gemini"
+        / "hooks"
+        / "gemini-hook-dispatch.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "gemini_hook_dispatch_for_tests", hook_path
+    )
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -178,7 +188,10 @@ def test_gemini_hook_treats_custom_complete_statuses_as_terminal(tmp_path):
 
 def test_gemini_hook_suppresses_optional_compaction_resume_cue(tmp_path, monkeypatch):
     module = _load_gemini_hook_dispatch_module()
-    context = {"command_name": "plan", "feature_dir": str(tmp_path / "specs" / "001-demo")}
+    context = {
+        "command_name": "plan",
+        "feature_dir": str(tmp_path / "specs" / "001-demo"),
+    }
     monkeypatch.setattr(module, "_infer_active_context", lambda _project_root: context)
 
     def fake_run_shared_hook(_project_root, args):
@@ -197,12 +210,19 @@ def test_gemini_hook_suppresses_optional_compaction_resume_cue(tmp_path, monkeyp
 
     monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
 
-    assert module._compaction_resume_context(tmp_path, build=False, trigger="prompt") == ""
+    assert (
+        module._compaction_resume_context(tmp_path, build=False, trigger="prompt") == ""
+    )
 
 
-def test_gemini_hook_suppresses_optional_recovery_summary_next_action(tmp_path, monkeypatch):
+def test_gemini_hook_suppresses_optional_recovery_summary_next_action(
+    tmp_path, monkeypatch
+):
     module = _load_gemini_hook_dispatch_module()
-    context = {"command_name": "plan", "feature_dir": str(tmp_path / "specs" / "001-demo")}
+    context = {
+        "command_name": "plan",
+        "feature_dir": str(tmp_path / "specs" / "001-demo"),
+    }
     monkeypatch.setattr(module, "_infer_active_context", lambda _project_root: context)
 
     def fake_run_shared_hook(_project_root, args):
@@ -221,7 +241,9 @@ def test_gemini_hook_suppresses_optional_recovery_summary_next_action(tmp_path, 
 
     monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
 
-    assert module._compaction_resume_context(tmp_path, build=False, trigger="prompt") == ""
+    assert (
+        module._compaction_resume_context(tmp_path, build=False, trigger="prompt") == ""
+    )
 
 
 def test_gemini_integration_metadata():
@@ -244,8 +266,12 @@ def test_gemini_toml_install_contract_tracks_commands_scripts_and_context(tmp_pa
     command_files = sorted(commands_dir.glob("*.toml"))
     assert command_files
 
-    parsed_commands = [tomllib.loads(path.read_text(encoding="utf-8")) for path in command_files]
-    assert any(parsed.get("description") and parsed.get("prompt") for parsed in parsed_commands)
+    parsed_commands = [
+        tomllib.loads(path.read_text(encoding="utf-8")) for path in command_files
+    ]
+    assert any(
+        parsed.get("description") and parsed.get("prompt") for parsed in parsed_commands
+    )
 
     plan_command = commands_dir / "sp.plan.toml"
     assert plan_command.exists()
@@ -269,7 +295,11 @@ def test_gemini_generated_map_workflows_include_native_agent_discovery(tmp_path)
     integration.setup(tmp_path, manifest, script_type="sh")
 
     for name in ("map-scan", "map-build", "map-update"):
-        content = (integration.commands_dest(tmp_path) / f"sp.{name}.toml").read_text(encoding="utf-8").lower()
+        content = (
+            (integration.commands_dest(tmp_path) / f"sp.{name}.toml")
+            .read_text(encoding="utf-8")
+            .lower()
+        )
         assert "map subagent capability discovery" in content
         assert "native subagent capability discovery" in content
         assert "@generalist" in content
@@ -281,7 +311,9 @@ def test_gemini_generated_subagent_workflows_include_capability_discovery(tmp_pa
     manifest = IntegrationManifest("gemini", tmp_path)
     integration.setup(tmp_path, manifest, script_type="sh")
 
-    _assert_subagent_using_surfaces_have_discovery(integration.commands_dest(tmp_path).glob("sp.*.toml"))
+    _assert_subagent_using_surfaces_have_discovery(
+        integration.commands_dest(tmp_path).glob("sp.*.toml")
+    )
 
 
 def test_gemini_init_outputs_parseable_runtime_toml_commands(tmp_path):
@@ -290,7 +322,16 @@ def test_gemini_init_outputs_parseable_runtime_toml_commands(tmp_path):
 
     result = runner.invoke(
         app,
-        ["init", str(target), "--ai", "gemini", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        [
+            "init",
+            str(target),
+            "--ai",
+            "gemini",
+            "--no-git",
+            "--ignore-agent-tools",
+            "--script",
+            "sh",
+        ],
     )
 
     assert result.exit_code == 0, f"init --ai gemini failed: {result.output}"
@@ -313,7 +354,6 @@ def test_gemini_init_outputs_parseable_runtime_toml_commands(tmp_path):
 
 
 class TestGeminiIntegration:
-
     @staticmethod
     def _expected_launcher_command(route: str, *, script_type: str = "sh") -> str:
         return render_hook_launcher_command(
@@ -349,15 +389,27 @@ class TestGeminiIntegration:
             for hook in entry.get("hooks", [])
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
-        assert any(command == self._expected_launcher_command("session-start", script_type="sh") for command in commands)
-        assert any(command == self._expected_launcher_command("before-agent", script_type="sh") for command in commands)
-        assert any(command == self._expected_launcher_command("before-tool", script_type="sh") for command in commands)
+        assert any(
+            command
+            == self._expected_launcher_command("session-start", script_type="sh")
+            for command in commands
+        )
+        assert any(
+            command == self._expected_launcher_command("before-agent", script_type="sh")
+            for command in commands
+        )
+        assert any(
+            command == self._expected_launcher_command("before-tool", script_type="sh")
+            for command in commands
+        )
 
         assert ".gemini/hooks/gemini-hook-dispatch.py" in manifest.files
         assert ".gemini/settings.json" in manifest.files
         assert ".specify/bin/specify-hook.py" in manifest.files
 
-    def test_setup_merges_existing_settings_json_without_overwriting_user_values(self, tmp_path):
+    def test_setup_merges_existing_settings_json_without_overwriting_user_values(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         gemini_dir = tmp_path / ".gemini"
         gemini_dir.mkdir(parents=True, exist_ok=True)
@@ -404,13 +456,17 @@ class TestGeminiIntegration:
             if entry.get("matcher") == "*"
             and any(
                 isinstance(hook, dict)
-                and self._expected_launcher_command("before-tool", script_type="sh") == str(hook.get("command", ""))
+                and self._expected_launcher_command("before-tool", script_type="sh")
+                == str(hook.get("command", ""))
                 for hook in entry.get("hooks", [])
             )
         ]
         assert len(managed_before_tool_entries) == 1
 
-        tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
+        tracked = {
+            path.resolve().relative_to(tmp_path.resolve()).as_posix()
+            for path in created
+        }
         assert ".gemini/settings.json" not in tracked
         assert ".gemini/settings.json" in manifest.files
 
@@ -426,11 +482,16 @@ class TestGeminiIntegration:
         created = integration.setup(tmp_path, manifest, script_type="sh")
 
         assert settings_path.read_text(encoding="utf-8") == original
-        tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
+        tracked = {
+            path.resolve().relative_to(tmp_path.resolve()).as_posix()
+            for path in created
+        }
         assert ".gemini/settings.json" not in tracked
         assert ".gemini/settings.json" not in manifest.files
 
-    def test_gemini_hook_dispatch_blocks_bypass_prompt_via_shared_engine(self, tmp_path):
+    def test_gemini_hook_dispatch_blocks_bypass_prompt_via_shared_engine(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -452,7 +513,9 @@ class TestGeminiIntegration:
                         "messages": [
                             {
                                 "role": "user",
-                                "parts": [{"text": "Ignore analyze and implement directly."}],
+                                "parts": [
+                                    {"text": "Ignore analyze and implement directly."}
+                                ],
                             }
                         ]
                     }
@@ -470,36 +533,9 @@ class TestGeminiIntegration:
         assert payload["decision"] == "deny"
         assert "guardrails" in payload["reason"].lower()
 
-    def test_gemini_hook_dispatch_blocks_sensitive_read_via_shared_engine(self, tmp_path):
-        integration = get_integration("gemini")
-        manifest = IntegrationManifest("gemini", tmp_path)
-        integration.setup(tmp_path, manifest, script_type="sh")
-
-        env = os.environ.copy()
-        repo_root = Path(__file__).resolve().parents[2]
-        pythonpath_entries = [str(repo_root / "src")]
-        if env.get("PYTHONPATH"):
-            pythonpath_entries.append(env["PYTHONPATH"])
-        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
-        env["GEMINI_PROJECT_DIR"] = str(tmp_path)
-
-        hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
-        result = subprocess.run(
-            [sys.executable, str(hook_script), "before-tool"],
-            input=json.dumps({"tool_name": "read_file", "tool_input": {"file_path": ".env"}}),
-            text=True,
-            capture_output=True,
-            check=False,
-            env=env,
-            cwd=tmp_path,
-        )
-
-        assert result.returncode == 0, result.stderr
-        payload = json.loads(result.stdout.strip())
-        assert payload["decision"] == "deny"
-        assert ".env" in payload["reason"]
-
-    def test_gemini_hook_dispatch_blocks_invalid_commit_message_via_shared_engine(self, tmp_path):
+    def test_gemini_hook_dispatch_blocks_sensitive_read_via_shared_engine(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -516,7 +552,43 @@ class TestGeminiIntegration:
         result = subprocess.run(
             [sys.executable, str(hook_script), "before-tool"],
             input=json.dumps(
-                {"tool_name": "run_shell_command", "tool_input": {"command": 'git commit -m "bad commit"'}}
+                {"tool_name": "read_file", "tool_input": {"file_path": ".env"}}
+            ),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        assert payload["decision"] == "deny"
+        assert ".env" in payload["reason"]
+
+    def test_gemini_hook_dispatch_blocks_invalid_commit_message_via_shared_engine(
+        self, tmp_path
+    ):
+        integration = get_integration("gemini")
+        manifest = IntegrationManifest("gemini", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["GEMINI_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "before-tool"],
+            input=json.dumps(
+                {
+                    "tool_name": "run_shell_command",
+                    "tool_input": {"command": 'git commit -m "bad commit"'},
+                }
             ),
             text=True,
             capture_output=True,
@@ -568,7 +640,12 @@ class TestGeminiIntegration:
         hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
         result = subprocess.run(
             [sys.executable, str(hook_script), "before-tool"],
-            input=json.dumps({"tool_name": "write_file", "tool_input": {"file_path": str(tmp_path / "README.md")}}),
+            input=json.dumps(
+                {
+                    "tool_name": "write_file",
+                    "tool_input": {"file_path": str(tmp_path / "README.md")},
+                }
+            ),
             text=True,
             capture_output=True,
             check=False,
@@ -581,7 +658,9 @@ class TestGeminiIntegration:
         assert payload["decision"] == "deny"
         assert "workflow-state repair" in payload["reason"]
 
-    def test_gemini_hook_dispatch_allows_repairable_implement_tracker_write(self, tmp_path):
+    def test_gemini_hook_dispatch_allows_repairable_implement_tracker_write(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -617,7 +696,12 @@ class TestGeminiIntegration:
         hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
         result = subprocess.run(
             [sys.executable, str(hook_script), "before-tool"],
-            input=json.dumps({"tool_name": "write_file", "tool_input": {"file_path": str(tracker_path)}}),
+            input=json.dumps(
+                {
+                    "tool_name": "write_file",
+                    "tool_input": {"file_path": str(tracker_path)},
+                }
+            ),
             text=True,
             capture_output=True,
             check=False,
@@ -628,7 +712,9 @@ class TestGeminiIntegration:
         assert result.returncode == 0, result.stderr
         assert json.loads(result.stdout.strip()) == {}
 
-    def test_gemini_hook_dispatch_allows_repairable_implement_tracker_read(self, tmp_path):
+    def test_gemini_hook_dispatch_allows_repairable_implement_tracker_read(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -664,7 +750,12 @@ class TestGeminiIntegration:
         hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
         result = subprocess.run(
             [sys.executable, str(hook_script), "before-tool"],
-            input=json.dumps({"tool_name": "read_file", "tool_input": {"file_path": str(tracker_path)}}),
+            input=json.dumps(
+                {
+                    "tool_name": "read_file",
+                    "tool_input": {"file_path": str(tracker_path)},
+                }
+            ),
             text=True,
             capture_output=True,
             check=False,
@@ -704,7 +795,12 @@ class TestGeminiIntegration:
                 {
                     "specify_launcher": {
                         "command": "configured fake specify",
-                        "argv": [sys.executable, str(fake_specify), str(seen_args), str(seen_stdin)],
+                        "argv": [
+                            sys.executable,
+                            str(fake_specify),
+                            str(seen_args),
+                            str(seen_stdin),
+                        ],
                     }
                 }
             ),
@@ -736,6 +832,59 @@ class TestGeminiIntegration:
         ]
         assert seen_stdin.read_text(encoding="utf-8") == "continue"
 
+    def test_gemini_shared_hook_preserves_human_blocker_tutorial(self):
+        module = _load_gemini_hook_dispatch_module()
+        result = module._shared_block_to_gemini(
+            {
+                "status": "blocked",
+                "errors": ["protected job is waiting"],
+                "warnings": [],
+                "actions": [],
+                "blockers": [
+                    {
+                        "workflow": "spx-implement",
+                        "stage": "protected-ci",
+                        "category": "external-system",
+                        "owner": "maintainer",
+                        "summary": "Protected CI approval is required",
+                        "details": "The verify job is protected.",
+                        "evidence": ["pipeline 42 is waiting"],
+                        "attempted_recovery": [],
+                        "affected_scope": ["implementation closeout"],
+                        "exact_next_action": "Approve verify",
+                        "unblock_criteria": "verify passes",
+                        "human_action_required": True,
+                        "human_action_guide": {
+                            "goal": "Run verify",
+                            "why_human": "Maintainer authority is required",
+                            "prerequisites": ["Maintainer access"],
+                            "safety_notes": ["Do not share tokens"],
+                            "steps": [
+                                {
+                                    "order": 1,
+                                    "title": "Approve",
+                                    "action": "Click verify",
+                                    "expected_result": "verify passes",
+                                    "if_failed": "return the job log",
+                                }
+                            ],
+                            "evidence_to_return": ["pipeline URL"],
+                            "resume_instruction": "Resume spx-implement",
+                        },
+                        "resume": {
+                            "instruction": "Resume implementation",
+                            "command": "spx-implement",
+                        },
+                    }
+                ],
+            }
+        )
+
+        assert "Workflow/stage: spx-implement / protected-ci" in result["reason"]
+        assert "Steps: 1. Approve: Click verify" in result["reason"]
+        assert "Return: pipeline URL" in result["reason"]
+        assert "Human resume: Resume spx-implement" in result["reason"]
+
     def test_gemini_shared_hook_timeout_fails_open(self, tmp_path, monkeypatch):
         module = _load_gemini_hook_dispatch_module()
         monkeypatch.setattr(
@@ -760,13 +909,18 @@ class TestGeminiIntegration:
         assert result.status == "timeout"
         assert result.payload is None
         assert result.timeout_seconds > 0
-        assert module._run_shared_hook(
-            tmp_path,
-            ["validate-prompt", "--prompt-stdin"],
-            stdin_text="secret prompt",
-        ) is None
+        assert (
+            module._run_shared_hook(
+                tmp_path,
+                ["validate-prompt", "--prompt-stdin"],
+                stdin_text="secret prompt",
+            )
+            is None
+        )
 
-    def test_gemini_shared_hook_client_maps_blocked_payload(self, tmp_path, monkeypatch):
+    def test_gemini_shared_hook_client_maps_blocked_payload(
+        self, tmp_path, monkeypatch
+    ):
         module = _load_gemini_hook_dispatch_module()
         monkeypatch.setattr(
             module,
@@ -802,12 +956,43 @@ class TestGeminiIntegration:
         assert result.payload["status"] == "blocked"
         assert result.attempted_plan
 
-    def test_gemini_shared_hook_client_redacts_invalid_output(self, tmp_path, monkeypatch):
+    def test_gemini_shared_hook_client_rejects_exit_10_with_ok_payload(
+        self, tmp_path, monkeypatch
+    ):
         module = _load_gemini_hook_dispatch_module()
         monkeypatch.setattr(
             module,
             "_shared_hook_commands",
-            lambda _project_root, _args: [[sys.executable, "-c", "print('secret prompt')"]],
+            lambda _project_root, _args: [[sys.executable, "-c", "print('ok')"]],
+        )
+        monkeypatch.setattr(
+            module.subprocess,
+            "run",
+            lambda command, **_kwargs: subprocess.CompletedProcess(
+                command,
+                10,
+                stdout=json.dumps(
+                    {"status": "ok", "errors": [], "warnings": [], "actions": []}
+                ),
+                stderr="",
+            ),
+        )
+
+        result = module._invoke_shared_hook(tmp_path, ["validate-prompt"])
+
+        assert result.status == "invalid-output"
+        assert "exit 10" in result.reason
+
+    def test_gemini_shared_hook_client_redacts_invalid_output(
+        self, tmp_path, monkeypatch
+    ):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [
+                [sys.executable, "-c", "print('secret prompt')"]
+            ],
         )
 
         def fake_run(command, **kwargs):
@@ -830,18 +1015,23 @@ class TestGeminiIntegration:
         assert result.status == "invalid-output"
         assert "secret prompt" not in result.stdout_preview
         assert "[REDACTED_PROMPT]" in result.stdout_preview
-        assert module._run_shared_hook(
-            tmp_path,
-            ["validate-prompt", "--prompt-stdin"],
-            stdin_text="secret prompt",
-        ) is None
+        assert (
+            module._run_shared_hook(
+                tmp_path,
+                ["validate-prompt", "--prompt-stdin"],
+                stdin_text="secret prompt",
+            )
+            is None
+        )
 
     def test_gemini_shared_hook_client_maps_unavailable(self, tmp_path, monkeypatch):
         module = _load_gemini_hook_dispatch_module()
         monkeypatch.setattr(
             module,
             "_shared_hook_commands",
-            lambda _project_root, _args: [[sys.executable, "-m", "missing_specify_hook"]],
+            lambda _project_root, _args: [
+                [sys.executable, "-m", "missing_specify_hook"]
+            ],
         )
 
         def fake_run(command, **kwargs):
@@ -849,14 +1039,21 @@ class TestGeminiIntegration:
 
         monkeypatch.setattr(module.subprocess, "run", fake_run)
 
-        result = module._invoke_shared_hook(tmp_path, ["validate-prompt", "--prompt-stdin"])
+        result = module._invoke_shared_hook(
+            tmp_path, ["validate-prompt", "--prompt-stdin"]
+        )
 
         assert result.status == "unavailable"
         assert result.payload is None
         assert result.attempted_plans
-        assert module._run_shared_hook(tmp_path, ["validate-prompt", "--prompt-stdin"]) is None
+        assert (
+            module._run_shared_hook(tmp_path, ["validate-prompt", "--prompt-stdin"])
+            is None
+        )
 
-    def test_gemini_hook_dispatch_blocks_when_project_launcher_is_invalid(self, tmp_path):
+    def test_gemini_hook_dispatch_blocks_when_project_launcher_is_invalid(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -864,7 +1061,10 @@ class TestGeminiIntegration:
         fake_bin = tmp_path / "bin"
         fake_bin.mkdir(parents=True, exist_ok=True)
         fake_specify = fake_bin / ("specify.bat" if os.name == "nt" else "specify")
-        fake_specify.write_text("@echo off\nexit /b 0\n" if os.name == "nt" else "#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_specify.write_text(
+            "@echo off\nexit /b 0\n" if os.name == "nt" else "#!/bin/sh\nexit 0\n",
+            encoding="utf-8",
+        )
         if os.name != "nt":
             fake_specify.chmod(0o755)
 
@@ -953,7 +1153,9 @@ class TestGeminiIntegration:
         assert payload["hookSpecificOutput"]["hookEventName"] == "BeforeAgent"
         assert "--autofix" in payload["hookSpecificOutput"]["additionalContext"]
 
-    def test_gemini_hook_dispatch_adds_statusline_context_on_session_start(self, tmp_path):
+    def test_gemini_hook_dispatch_adds_statusline_context_on_session_start(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -1007,7 +1209,9 @@ class TestGeminiIntegration:
         payload = json.loads(result.stdout.strip())
         assert "plan:design-only" in payload["systemMessage"]
 
-    def test_gemini_hook_dispatch_reads_compaction_resume_context_on_session_start(self, tmp_path):
+    def test_gemini_hook_dispatch_reads_compaction_resume_context_on_session_start(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -1033,7 +1237,9 @@ class TestGeminiIntegration:
             ),
             encoding="utf-8",
         )
-        compaction_dir = tmp_path / ".specify" / "runtime" / "compaction" / "plan-001-demo"
+        compaction_dir = (
+            tmp_path / ".specify" / "runtime" / "compaction" / "plan-001-demo"
+        )
         compaction_dir.mkdir(parents=True, exist_ok=True)
         (compaction_dir / "latest.json").write_text(
             json.dumps(
@@ -1069,7 +1275,9 @@ class TestGeminiIntegration:
         assert "plan:design-only" in payload["systemMessage"]
         assert "Resume cue: finish design review." in payload["systemMessage"]
 
-    def test_gemini_hook_dispatch_blocks_active_workflow_policy_violation(self, tmp_path):
+    def test_gemini_hook_dispatch_blocks_active_workflow_policy_violation(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -1183,7 +1391,14 @@ class TestGeminiIntegration:
         env["GEMINI_PROJECT_DIR"] = str(tmp_path)
 
         hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
-        compaction_path = tmp_path / ".specify" / "runtime" / "compaction" / "specify-001-demo" / "latest.json"
+        compaction_path = (
+            tmp_path
+            / ".specify"
+            / "runtime"
+            / "compaction"
+            / "specify-001-demo"
+            / "latest.json"
+        )
         result = subprocess.run(
             [sys.executable, str(hook_script), "before-agent"],
             input=json.dumps({"prompt": "start editing code now"}),
@@ -1200,7 +1415,9 @@ class TestGeminiIntegration:
         assert "/sp.plan" in payload["systemMessage"]
         assert not compaction_path.exists()
 
-    def test_gemini_hook_dispatch_surfaces_learning_signal_on_before_agent(self, tmp_path):
+    def test_gemini_hook_dispatch_surfaces_learning_signal_on_before_agent(
+        self, tmp_path
+    ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
@@ -1223,7 +1440,11 @@ class TestGeminiIntegration:
                     "",
                     "## Execution State",
                     "",
-                    "- retry_attempts: 3",
+                    "- retry_attempts: 0",
+                    "",
+                    "## Learning Triggers",
+                    "",
+                    "- state_loss: resume lost the exact validation boundary",
                     "",
                     "## False Starts",
                     "",
@@ -1268,8 +1489,11 @@ class TestGeminiIntegration:
         payload = json.loads(result.stdout.strip())
         additional_context = payload["hookSpecificOutput"]["additionalContext"]
         assert "learning pain score" in additional_context
-        assert "record a learning review decision for `sp-implement`" in additional_context
-        assert ".specify/memory/learnings/INDEX.md" in additional_context
+        assert (
+            "record a learning review decision for `sp-implement`" in additional_context
+        )
+        assert "specify learning capture-auto" in additional_context
+        assert "do not edit Learning storage directly" in additional_context
         assert "init --here --force ..." not in additional_context
 
     def test_install_uninstall_roundtrip(self, tmp_path):
@@ -1281,7 +1505,10 @@ class TestGeminiIntegration:
 
         removed, skipped = integration.uninstall(tmp_path, manifest)
 
-        removed_rel = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in removed}
+        removed_rel = {
+            path.resolve().relative_to(tmp_path.resolve()).as_posix()
+            for path in removed
+        }
         assert ".gemini/hooks/README.md" in removed_rel
         assert ".gemini/hooks/gemini-hook-dispatch.py" in removed_rel
         assert ".gemini/settings.json" in removed_rel
@@ -1294,7 +1521,16 @@ def test_gemini_runtime_commands_hard_gate_project_cognition_reads(tmp_path):
 
     result = runner.invoke(
         app,
-        ["init", str(target), "--ai", "gemini", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        [
+            "init",
+            str(target),
+            "--ai",
+            "gemini",
+            "--no-git",
+            "--ignore-agent-tools",
+            "--script",
+            "sh",
+        ],
     )
 
     assert result.exit_code == 0, f"init --ai gemini failed: {result.output}"
@@ -1309,7 +1545,10 @@ def test_gemini_runtime_commands_hard_gate_project_cognition_reads(tmp_path):
         assert "map-build" in content
         if "sp.implement" in rel:
             assert "current-task navigation repair" in content
-            assert "only when a required ref is stale, missing, or contradicted by live code" in content
+            assert (
+                "only when a required ref is stale, missing, or contradicted by live code"
+                in content
+            )
             assert "project-cognition query --query-plan" not in content
         elif "sp.debug" in rel:
             assert "crucial first step" in content
@@ -1327,7 +1566,16 @@ def test_gemini_question_driven_commands_prefer_ask_user_with_fallback(tmp_path)
 
     result = runner.invoke(
         app,
-        ["init", str(target), "--ai", "gemini", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        [
+            "init",
+            str(target),
+            "--ai",
+            "gemini",
+            "--no-git",
+            "--ignore-agent-tools",
+            "--script",
+            "sh",
+        ],
     )
 
     assert result.exit_code == 0, f"init --ai gemini failed: {result.output}"

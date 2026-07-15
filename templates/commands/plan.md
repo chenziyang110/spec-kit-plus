@@ -35,17 +35,20 @@ agent_scripts:
 
 ## Main Flow
 
-1. Run `{SCRIPT}` to resolve the feature directory, create or resume `workflow-state.md`, and keep `phase_mode: design-only`; do not edit source/runtime/test files.
-2. Read canonical `spec-contract.json` first. Reuse its context capsule, evidence refs, and `semantic_delta`; open `spec.md`, alignment/context views, memory, or live project files only when a required reference or stale-evidence condition demands it.
-3. Preserve complete-first scope: do not split confirmed scope into MVP, future-work slices, `v1/v2`, `P0/P1`, or a smaller delivery unless the user confirmed the deferral contract.
-4. Resolve the feature directory to a project-relative output path. If no contract exists, scaffold canonical `plan-contract.json` with `{{specify-subcmd:artifact scaffold --kind plan-contract --out "<project-relative-feature-dir>/plan-contract.json" --format json}}`; never pass an absolute `FEATURE_DIR`. On reruns, preserve the existing top-level or `plan/plan-contract.json` location. Fill phase-owned decisions and render `plan.md`. When research is triggered, read `templates/research-template.md`; generate `research.md`, `quickstart.md`, `data-model.md`, and `contracts/` only when their documented triggers are present.
-5. Use `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)` only for isolated planning lanes. When lanes are delegated, write one `planning/lane-manifest.json` plus one result per lane under `planning/handoffs/`; do not duplicate the same events into evidence-index and checkpoint logs.
-6. Add `Implementation Constitution`, `Reference Fidelity Inputs`, `Feature UI Brief Adoption`, `Design System Adoption` and token strategy, `Dispatch Compilation Hints`, `Review-Risk Notes`, and `Input Risks From Alignment` when their triggers are present. Preserve `ui-brief.md`, `Reference-Implementation`, and `visual_comparison_or_human_review` refs rather than re-parsing UI sources.
+1. Resolve `FEATURE_DIR` without creating `plan.md`, using the explicit feature argument or `{{specify-subcmd:lane resolve --command plan --ensure-worktree}}`. Enter `plan` with the deterministic workflow transition and stop on exit `10`; do not edit source/runtime/test files.
+2. Only after the transition succeeds, run `{SCRIPT}` to create the plan skeleton or report `STATUS=noop` without overwriting existing work.
+3. Read canonical `spec-contract.json` first. Reuse its context capsule, evidence refs, and `semantic_delta`; open `spec.md`, alignment/context views, memory, or live project files only when a required reference or stale-evidence condition demands it.
+4. Preserve complete-first scope: do not split confirmed scope into MVP, future-work slices, `v1/v2`, `P0/P1`, or a smaller delivery unless the user confirmed the deferral contract.
+5. Resolve the feature directory to a project-relative output path. If no contract exists, scaffold canonical `plan-contract.json` with `{{specify-subcmd:artifact scaffold --kind plan-contract --out "<project-relative-feature-dir>/plan-contract.json" --format json}}`; never pass an absolute `FEATURE_DIR`. On reruns, preserve the existing top-level or `plan/plan-contract.json` location. Fill phase-owned decisions and render `plan.md`. When research is triggered, read `templates/research-template.md`; generate `research.md`, `quickstart.md`, `data-model.md`, and `contracts/` only when their documented triggers are present.
+6. Use `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)` only for isolated planning lanes. When lanes are delegated, write one `planning/lane-manifest.json` plus one result per lane under `planning/handoffs/`; do not duplicate the same events into evidence-index and checkpoint logs.
+7. Add `Implementation Constitution`, `Reference Fidelity Inputs`, `Feature UI Brief Adoption`, `Design System Adoption` and token strategy, `Dispatch Compilation Hints`, `Review-Risk Notes`, and `Input Risks From Alignment` when their triggers are present. Preserve `ui-brief.md`, `Reference-Implementation`, and `visual_comparison_or_human_review` refs rather than re-parsing UI sources.
    For UI work, preserve the current contract's work/surface/platform dimensions, direction
    theses and approved visual, reference intents, real content/image plans, and
    evidence triad exactly; carry verified cognition-selected UI routes in the
    compact plan context capsule for worker packet compilation.
-7. Re-check constitution, complexity, risk, locked planning decisions, and deep-research `PH-###` traceability, then run `{AGENT_SCRIPT}` to refresh the generated Agent context before recommending `{{invoke:tasks}}`.
+8. Re-check constitution, complexity, risk, locked planning decisions, and deep-research `PH-###` traceability, then run `{{specify-subcmd:hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}` and fail closed on an incomplete planning package. Run `{AGENT_SCRIPT}` to refresh the generated Agent context before recommending `{{invoke:tasks}}`.
+
+Do not create `tasks.md` or `task-index.json`; the separately invoked task workflow owns them. Do not edit production source, tests, migrations, or runtime configuration during planning.
 
 ## Detailed References
 

@@ -20,9 +20,10 @@ def test_root_agents_documents_current_managed_context_and_schema_v5_rules() -> 
     assert "do not invent" in lowered
     assert "specify create-feature" in lowered
     assert "## Always-On Context" in content
-    assert "project cognition and project memory are always available" in lowered
-    assert ".specify/memory/learnings/INDEX.md" in content
-    assert ".specify/memory/project-learnings.md` remains a compatibility summary" in content
+    assert "project cognition and project learning are always available" in lowered
+    assert "specify learning start -> list -> show" in content
+    assert "not by parsing storage files" in lowered
+    assert "never auto-promote during workflow start" in lowered
     assert "## Workflow Activation Discipline" not in content
     assert "## Lane Recovery Rules" not in content
     assert "### Project Cognition Schema v5 Maintenance" in content

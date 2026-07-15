@@ -3,6 +3,9 @@
 Use project cognition as the default navigation layer, not as proof of current
 behavior.
 
+If the active workflow cannot safely continue after permitted self-recovery,
+read `references/blocker-resolution.md` before returning a blocked result.
+
 ## Intake
 
 Run `{{specify-subcmd:project-cognition compass --intent <intent> --query="<request>" --format json}}`,

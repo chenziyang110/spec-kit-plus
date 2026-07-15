@@ -20,7 +20,13 @@ ALLOWED_WORKFLOW_TRANSITIONS = {
     ("tasks", "implement"),
     ("tasks", "analyze"),
     ("analyze", "implement"),
+    ("implement", "accept"),
     ("implement", "debug"),
+    ("accept", "implement"),
+    ("accept", "debug"),
+    ("accept", "clarify"),
+    ("accept", "specify"),
+    ("accept", "integrate"),
     ("quick", "debug"),
     ("fast", "quick"),
 }
@@ -33,6 +39,9 @@ ALLOWED_PHASE_TRANSITIONS = {
     ("task-generation-only", "execution-only"),
     ("task-generation-only", "analysis-only"),
     ("analysis-only", "execution-only"),
+    ("execution-only", "acceptance-only"),
+    ("acceptance-only", "execution-only"),
+    ("acceptance-only", "planning-only"),
 }
 
 

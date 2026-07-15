@@ -555,7 +555,7 @@ class IntegrationBase(ABC):
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
             "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json` intake only when a planning facet is absent or outdated; preserve `project-cognition query --intent plan --query-plan` as a precision escalation for an explicit unresolved concept.\n"
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
-            "- Read `.specify/templates/workflow-state-template.md` and create or resume sparse `WORKFLOW_STATE_FILE` after `FEATURE_DIR` is known with `phase_mode: planning-only`. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
+            "- After `FEATURE_DIR` is known, use `specify workflow show --feature-dir <feature-dir> --format json`; when state is missing, run `specify workflow enter --command specify --feature-dir <feature-dir> --format json`. The deterministic runtime owns `workflow-state.md`; do not reconstruct it in the prompt. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- Write canonical `spec-contract.json` first. Render `spec.md`; write `alignment.md`, `context.md`, `references.md`, or diagnostics only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
             "- Clarify only planning-critical ambiguity. Recommend `/sp.clarify` or `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
@@ -1074,7 +1074,7 @@ class IntegrationBase(ABC):
             "- Read `.specify/memory/constitution.md` first if it exists.\n"
             "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
             "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-            "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Item | Current understanding |` and concrete rows for `Issue`, `Target outcome`, `Boundaries`, `Known facts / assumptions`, `Affected surfaces`, `Implementation plan`, `Next action`, `Validation evidence`, and `Stop condition`; prose bullets or partial field lists are not sufficient.\n"
+            "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`; technical execution stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
             "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded in `STATUS.md`.\n"
             "- Before choosing the next lane, read `STATUS.md` and any quick-task summary artifacts so resume truth comes from durable state instead of chat narration.\n"
             "- After understanding is confirmed, define the smallest safe delegated lane or ready batch, and choose the dispatch shape for that batch.\n"
@@ -1121,7 +1121,7 @@ class IntegrationBase(ABC):
             f"When running `sp-quick` in {agent_name}, do not start execution routing until `STATUS.md` exists and `understanding_confirmed: true` is recorded.\n"
             "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `subagent-blocked`.\n"
             "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Item | Current understanding |` and rows for problem, planned outcome, boundaries, known facts and assumptions, affected surfaces, concrete implementation plan, next action, validation evidence, and stop condition.\n"
+            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
             f"- Subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Integration-native join point: {descriptor.native_join_hint}\n"
             f"- Fallback path: {managed_team_hint}\n"
@@ -1261,6 +1261,28 @@ class IntegrationBase(ABC):
             content,
             template_path.parent if template_path is not None else None,
         )
+
+        if template_path is not None and template_path.parent.name == "commands":
+            blocker_contract_path = (
+                template_path.parent.parent
+                / "command-partials"
+                / "common"
+                / "blocker-resolution.md"
+            )
+            if (
+                blocker_contract_path.is_file()
+                and "## Blocked Exit Contract" not in content
+            ):
+                blocker_contract = blocker_contract_path.read_text(encoding="utf-8").strip()
+                frontmatter_text, body = IntegrationBase._split_frontmatter(content)
+                if frontmatter_text:
+                    rendered_body = body.lstrip("\r\n")
+                    content = (
+                        f"---\n{frontmatter_text}---\n\n"
+                        f"{blocker_contract}\n\n{rendered_body}"
+                    )
+                else:
+                    content = f"{blocker_contract}\n\n{content.lstrip()}"
 
         frontmatter_text, body = IntegrationBase._split_frontmatter(content)
         if not frontmatter_text or "## Workflow Contract Summary" in body:
@@ -3155,7 +3177,7 @@ class SkillsIntegration(IntegrationBase):
                 "- Read `.specify/memory/constitution.md` first if it exists.\n"
                 "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
                 "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Item | Current understanding |` and concrete rows for `Issue`, `Target outcome`, `Boundaries`, `Known facts / assumptions`, `Affected surfaces`, `Implementation plan`, `Next action`, `Validation evidence`, and `Stop condition`; prose bullets or partial field lists are not sufficient.\n"
+                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`; technical execution stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
                 "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded in `STATUS.md`.\n"
                 "- After understanding is confirmed, define the smallest safe delegated lane or ready batch, and choose the dispatch shape for that batch.\n"
                 "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
@@ -3194,7 +3216,7 @@ class SkillsIntegration(IntegrationBase):
             "\n"
             f"## {agent_name} Quick-Task Subagent Execution\n\n"
             f"When running `sp-quick` in {agent_name}, start execution routing only after `STATUS.md` exists and `understanding_confirmed: true` is recorded.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Item | Current understanding |` and rows for problem, planned outcome, boundaries, known facts and assumptions, affected surfaces, concrete implementation plan, next action, validation evidence, and stop condition.\n"
+            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
             "- Dispatch `one-subagent` or `parallel-subagents` only after the Understanding Checkpoint is confirmed.\n"
             "- Use `subagent-blocked` only after native subagents and the managed-team path are unavailable or unsafe, and record the blocker reason in `STATUS.md`.\n"
             f"- Use `spawn_agent` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, or validation command runs.\n"

@@ -5,6 +5,9 @@ description: Resumable product and technical discussion for advanced coding mode
 
 # SPX Discussion
 
+Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/workflow-runtime.md`; its feature-state rules apply only after
+this discussion is bound to a resolved `FEATURE_DIR`.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/discussion-contract.md`. Read `references/consequence-gate.md` on
 its triggers.

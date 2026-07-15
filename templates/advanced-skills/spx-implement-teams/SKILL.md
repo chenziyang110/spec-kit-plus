@@ -5,6 +5,7 @@ description: Durable-team implementation workflow for advanced coding models. Us
 
 # SPX Implement Teams
 
+Read `references/project-learning.md` and apply its consume-only policy; implementation closeout owns capture.
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Treat the ordinary execution contract at
 `../spx-implement/references/execution-contract.md` as binding; this workflow

@@ -5,14 +5,14 @@ description: Project-governance workflow for advanced coding models. Use when pr
 
 # SPX Constitution
 
+Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/constitution-contract.md`. Read `references/consequence-gate.md`
 when a proposed principle changes security, compatibility, lifecycle, public
 contracts, or recovery obligations.
 
-Inspect `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`,
-`.specify/memory/learnings/INDEX.md`, relevant linked learning details, the
-project handbook, and cognition-selected live evidence needed to understand
+Inspect `.specify/memory/constitution.md`, the consume-only Learning CLI intake,
+the project handbook, and cognition-selected live evidence needed to understand
 current practice. Read active feature `spec.md`, `plan.md`, `tasks.md`, and
 `workflow-state.md` without editing them so the highest affected downstream
 stage and exact re-entry route can be determined. Resolve conflicts between the

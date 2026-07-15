@@ -17,7 +17,7 @@ assuming one universal slash-style syntax.
 
 Do not auto-enter an `sp-*` workflow unless the user invokes it. For ordinary
 natural-language tasks, answer or work in the current mode while using always-on
-project cognition and project memory when they matter. You may recommend a
+project cognition and Project Learning when they matter. You may recommend a
 workflow when it would materially improve the outcome.
 
 If the user already invoked an `sp-*` workflow, treat the routing check as
@@ -66,17 +66,19 @@ explicit numeric option.
 
 ## Recommendation Rules
 
-- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. There is no visible separate review route between `sp-tasks` and `sp-implement`; implementation review is embedded in `sp-implement`.
+- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. There is no visible separate review route between `sp-tasks` and `sp-implement`; implementation review is embedded in `sp-implement`. `sp-accept` is a separate human product-acceptance stage after technical closeout, not a code-review route.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
 - `sp-quick` performs one Understanding Checkpoint before substantive execution for a raw quick request. A user-confirmed discussion contract with no quick-stage `semantic_delta` reuses its confirmed digest instead of asking again. When a checkpoint is needed:
   render the fixed Quick Checkpoint Markdown table with
-  `| Item | Current understanding |` and rows for issue, target outcome,
-  boundaries, known facts/assumptions, affected surfaces, implementation plan,
-  next action, validation evidence, and stop condition before code edits, broad
-  repo analysis, delegation, or validation commands continue. Freeform prose or
-  bullet-only confirmations do not satisfy this gate.
+  `| Decision to confirm | Current understanding |` and user-owned rows for
+  request/outcome, visible result, scope, recommended approach,
+  assumptions/risks, completion evidence, and reconfirmation trigger. Keep
+  technical execution agent-owned. For applicable UI work, append the
+  independent UI Confirmation proposal and ask once for both decisions before
+  code edits, broad repo analysis, delegation, or validation commands continue.
+  Freeform prose or bullet-only confirmations do not satisfy this gate.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
 - In `sp-auto` routed mode, safe bounded questions and confirmations with one
@@ -126,6 +128,7 @@ explicit numeric option.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`. `sp-implement` selects leader-direct or delegated execution per task, compiles delegated packets just in time, runs event-triggered review, and records result/validation/review/recovery once in the task lifecycle record. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
 - Route planned implementation to `sp-implement`; review is embedded and event-triggered by drift, parallel joins, validation failure, obligation conflicts, or the review-window threshold. Repair only task-layer defects locally and route upstream truth defects to their owner. Do not route to a separate public review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
+- Use `sp-accept` after successful implementation closeout. It assumes the human remembers nothing, restores product context, guides one real-entrypoint step at a time, persists explicit human observations, and never edits source. A failed observation routes to implement/debug or upstream requirements; technical checks and silence never count as human PASS.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use

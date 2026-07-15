@@ -60,3 +60,5 @@ Before completion:
 - update project cognition once from final changed paths and verification evidence when project truth changed.
 
 Write `implementation-summary.md` for project/human value and expose its reference as `implementation_summary` in closeout state. Derive the summary from the accepted lifecycle evidence plus actual `git diff --stat` and `git diff --name-status`; answer, in human terms, what changed, how to verify it, and what differs from the previous version. Keep agent-only lifecycle and transition fields out of the visible reply unless diagnostics are requested.
+
+Successful closeout also prepares `human-acceptance.json` from the summary fingerprint. Report technical implementation as complete but human product acceptance as pending, recommend `{{invoke:accept}}`, and stop. Do not run the acceptance conversation inside `sp-implement`; a later human may have no chat context, so the separate acceptance workflow owns context restoration, one-step guidance, durable observations, and the final human verdict.

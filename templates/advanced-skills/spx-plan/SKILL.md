@@ -5,17 +5,19 @@ description: Lean technical-planning workflow for advanced coding models. Use wh
 
 # SPX Plan
 
+Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/project-cognition.md`, using cognition intent `plan`.
 Read `references/planning-contract.md` and `references/consequence-gate.md` only
 on its triggers.
 Read `references/ui-quality-gate.md` when the specification is UI-bearing.
 
-Resolve the active feature with the installed
-`.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent. Start
-by resolving the feature directory. Create or resume runtime-owned
-`workflow-state.md` from the installed template when absent. Record
-`active_command: sp-plan`, `phase_mode:
-design-only`, source revision, target boundary, blocker, and next route. Run
+Resolve `FEATURE_DIR` without creating `plan.md`, using an explicit feature
+argument, lane state, or the installed prerequisite helper's paths-only mode.
+Transition from the validated `specify` stage into `plan` through the workflow
+runtime. Only after the transition succeeds, run the installed
+`.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent to create
+or preserve the plan skeleton. Run
 `{{specify-subcmd:hook validate-state --command plan --feature-dir <feature-dir> --autofix --format json}}`
 and stop if it remains invalid.
 

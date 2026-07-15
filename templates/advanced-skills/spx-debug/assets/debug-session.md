@@ -16,11 +16,39 @@ parent_session:
 
 ## Understanding Checkpoint
 
-- reported_symptom:
-- intended_outcome:
-- scope_boundaries:
-- first_evidence_step:
+- reported_problem:
+- expected_behavior:
+- occurrence_conditions:
+- investigation_boundary:
+- fix_authority: diagnose only | diagnose and fix
+- assumptions_to_correct:
+- reconfirmation_trigger:
 - confirmation_digest:
+
+## UI Confirmation
+
+ui_confirmation:
+  applicable: false
+  confirmation_purpose: Debug target baseline
+  user_and_primary_job:
+  design_basis_and_source_material:
+  target_experience:
+  structure_and_visible_change:
+  interaction_states_and_adaptation:
+  design_boundaries:
+    must_preserve:
+    may_adapt:
+    must_not:
+  acceptance_evidence:
+  confirmation_digest:
+
+## Agent Investigation Plan
+
+agent_investigation_plan:
+  candidate_focus:
+  first_evidence_step:
+  fix_gate:
+  progress_signal:
 
 ## Symptom
 

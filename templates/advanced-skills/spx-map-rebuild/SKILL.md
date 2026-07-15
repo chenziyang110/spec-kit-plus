@@ -5,6 +5,7 @@ description: Project-cognition rebuild orchestrator for advanced coding models. 
 
 # SPX Map Rebuild
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md` for its evidence boundary and
 `references/rebuild-gates.md`. Do not run Compass intake against a missing or
 invalid baseline. This is a convenience orchestrator, not a replacement for

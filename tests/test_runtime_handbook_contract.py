@@ -82,9 +82,9 @@ def test_runtime_docs_describe_debug_understanding_checkpoint() -> None:
         assert "before substantive investigation" in content
         assert "expected behavior" in content
         assert "investigation boundary" in content
-        assert "ordered investigation plan" in content
-        assert "fix gate" in content
-        assert "progress signal" in content
+        assert "fix authority" in content
+        assert "hypotheses and evidence sequencing" in content
+        assert "reconfirmation trigger" in content
 
 
 def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:

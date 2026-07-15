@@ -229,7 +229,7 @@ natural; the handoff is JSON-only and approval/consumption bind to
 
 The discussion output is one canonical Agent-only JSON contract shared by eligible consumers.
 
-Across the full pipeline, the canonical Agent authorities are `handoff-to-specify.json`, `spec-contract.json`, `plan-contract.json`, `task-index.json`, and per-task lifecycle records. Conditional artifacts are generated only when their trigger is present; delegated packets are compiled just in time.
+Across the full pipeline, the canonical Agent authorities are `handoff-to-specify.json`, `spec-contract.json`, `plan-contract.json`, `task-index.json`, per-task lifecycle records, and post-closeout `human-acceptance.json`. Conditional artifacts are generated only when their trigger is present; delegated packets are compiled just in time. `sp-accept` / `spx-accept` assumes the human returns without chat context, restores the product story, and guides one observable acceptance step at a time before recording the explicit human verdict.
 
 When `sp-specify` consumes the contract, it writes `spec-contract.json` and preserves the decision digest by reference. `sp-quick` reuses the confirmed digest when its own semantic delta is empty.
 

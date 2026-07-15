@@ -5,6 +5,7 @@ description: Codex teams runtime entrypoint for advanced coding models. Use when
 
 # SPX Team
 
+Read `references/project-learning.md` and apply its consume-only policy; the owning workflow captures.
 Read `references/project-cognition.md` for its evidence boundary and
 `references/runtime-boundary.md`. Do not run cognition intake for pure runtime
 status or lifecycle operations; use it only when the question includes

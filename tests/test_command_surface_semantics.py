@@ -679,12 +679,13 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
     powershell = read_template("scripts/powershell/update-agent-context.ps1").lower()
 
     for content in (bash, powershell):
-        assert "project cognition and project memory are always available" in content
+        assert "project cognition and project learning are always available" in content
         assert "even without an active `sp-*` workflow" in content
         assert "when existing-system truth matters" in content
         assert "before broad source inspection" in content
-        assert ".specify/memory/learnings/index.md" in content
-        assert ".specify/memory/project-rules.md" in content
+        assert "specify learning start --command <workflow> --format json" in content
+        assert "show_argv" in content
+        assert ".specify/memory/learnings/index.md" not in content
         assert "do not auto-enter an `sp-*` workflow" in content
         assert "recommend `sp-discussion`" in content
         assert "`sp-specify` for formal alignment" in content
@@ -697,7 +698,7 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "suggest `checkpoint, continue`" in content
         assert "prompt does not write files by itself" in content
         assert "project cognition freshness truthful" in content
-        assert "store reusable lessons in project memory" in content
+        assert "store reusable lessons through project learning" in content
         assert "1% chance" not in content
         assert "## workflow activation discipline" not in content
         assert "## workflow routing" not in content
@@ -724,9 +725,10 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
     handbook = read_template("PROJECT-HANDBOOK.md").lower()
     handbook_template = read_template("templates/project-handbook-template.md").lower()
 
-    assert ".specify/memory/learnings/index.md" in readme
-    assert "one detail markdown document per lesson" in readme
-    assert "learning reflex" in readme
+    assert "learning start" in readme
+    assert "learning list" in readme
+    assert "learning show" in readme
+    assert "reading never auto-promotes" in readme
 
     closed_rebuild_policy = " ".join((
         "first/missing/unusable baseline, schema failure, schema v1 or old "

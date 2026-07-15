@@ -5,6 +5,7 @@ description: Independent feature-lane integration and closeout for advanced codi
 
 # SPX Integrate
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `implement`, and
 `references/integration-contract.md`. Read `references/consequence-gate.md`
 when integration crosses a shared state, migration, compatibility, security, or

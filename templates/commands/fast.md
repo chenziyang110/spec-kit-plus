@@ -89,7 +89,7 @@ Upgrade to `/sp-specify` immediately if:
 
 Fast path does not load the full passive learning layer.
 
-**This command tier: trivial.** Skip all learning hooks. Do not read constitution, project-rules, or project-learnings. Do not run learning start, signal, review, or capture. Learning Reflex is acknowledged but not executed on the fast path; leave `.specify/memory/learnings/INDEX.md` and any linked detail document untouched unless the task is upgraded out of the fast path.
+**This command tier: trivial.** Do not run Learning intake, hooks, capture, or promotion and do not parse Learning storage. If reusable friction appears, upgrade out of fast before consuming or producing Learning.
 
 ## Process
 

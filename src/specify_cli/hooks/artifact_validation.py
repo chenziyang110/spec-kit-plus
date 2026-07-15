@@ -61,6 +61,11 @@ FILE_REQUIRED_ARTIFACTS = {
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
+    "accept": (
+        "implementation-summary.md",
+        "human-acceptance.json",
+        "workflow-state.md",
+    ),
     "map-scan": (
         "status.json",
         "coverage.json",
@@ -116,6 +121,7 @@ DIRECTORY_REQUIRED_ARTIFACTS = {
     "clarify": ("clarification/handoffs",),
     "plan": (),
     "tasks": (),
+    "accept": (),
     "map-scan": ("evidence",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
@@ -162,6 +168,11 @@ REQUIRED_ARTIFACTS = {
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
+    "accept": (
+        "implementation-summary.md",
+        "human-acceptance.json",
+        "workflow-state.md",
+    ),
     "map-scan": (
         "status.json",
         "coverage.json",
@@ -3958,6 +3969,15 @@ def validate_artifacts_hook(
         validation_errors.extend(
             _validate_packetized_implement_review_artifacts(feature_dir)
         )
+    if command_name == "accept":
+        from specify_cli.human_acceptance import validate_human_acceptance
+
+        acceptance = validate_human_acceptance(
+            project_root,
+            feature_dir,
+            require_accepted=bool(payload.get("require_accepted", False)),
+        )
+        validation_errors.extend(str(error) for error in acceptance["errors"])
     if command_name == "map-scan":
         validation_errors.extend(_validate_map_scan_artifacts(feature_dir))
     if command_name == "map-build":

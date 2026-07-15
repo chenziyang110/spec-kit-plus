@@ -45,12 +45,18 @@ def test_cli_dependency_metadata_pins_pydantic_graph_base_node_api() -> None:
     dependencies = pyproject["project"]["dependencies"]
 
     assert "pydantic-graph<2" in dependencies
+    assert not any(dependency.startswith("pydantic-ai") for dependency in dependencies)
 
 
 def test_wheel_force_include_bundles_command_partials_and_prd_templates() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"templates/command-partials" = "specify_cli/core_pack/command-partials"' in pyproject
+    assert '"templates/workflow-blocker-schema.json" = "specify_cli/core_pack/templates/workflow-blocker-schema.json"' in pyproject
+    assert '"templates/workflow-blocker-template.md" = "specify_cli/core_pack/templates/workflow-blocker-template.md"' in pyproject
+    assert '"templates/human-acceptance-state-schema.json" = "specify_cli/core_pack/templates/human-acceptance-state-schema.json"' in pyproject
+    assert '"templates/human-acceptance-state-template.json" = "specify_cli/core_pack/templates/human-acceptance-state-template.json"' in pyproject
+    assert '"templates/project-learning-record-schema.json" = "specify_cli/core_pack/templates/project-learning-record-schema.json"' in pyproject
     assert '"templates/command-references" = "specify_cli/core_pack/command-references"' in pyproject
     assert '"templates/prd" = "specify_cli/core_pack/templates/prd"' in pyproject
     assert '"templates/testing" = "specify_cli/core_pack/templates/testing"' not in pyproject

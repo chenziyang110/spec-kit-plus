@@ -173,6 +173,7 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     resume_checklist = section_body(text, "Resume Checklist")
     exit_criteria = section_body(text, "Exit Criteria")
     learning_signals = section_body(text, "Learning Signals")
+    learning_triggers = section_body(text, "Learning Triggers")
     false_starts = section_body(text, "False Starts")
     hidden_dependencies = section_body(text, "Hidden Dependencies")
     reusable_constraints = section_body(text, "Reusable Constraints")
@@ -281,6 +282,7 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "exit_criteria": extract_bullets(exit_criteria),
         "route_reason": extract_field(learning_signals, "route_reason"),
         "blocked_reason": extract_field(learning_signals, "blocked_reason"),
+        "trigger_signals": extract_bullets(learning_triggers),
         "false_starts": extract_bullets(false_starts),
         "hidden_dependencies": extract_bullets(hidden_dependencies),
         "reusable_constraints": extract_bullets(reusable_constraints),

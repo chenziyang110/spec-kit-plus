@@ -182,7 +182,8 @@ When semantic delta is non-empty or a user-owned decision remains unresolved, a 
 
 ## Tooling
 
-- `spec-lint -dir <FEATURE_DIR> -tier <tier>` runs the artifact contract gate plus all machine-checkable tiered quality items
-- Exit code 0 = all mechanical checks pass; exit code 1 = failures present
+- `specify lint --dir <FEATURE_DIR> --tier <light|standard|deep>` runs the packaged `spec-lint` artifact gate
+- Agents use `--format json`; compact output omits passing check names unless `--show-passes` is requested
+- Exit code 0 = checks pass, 1 = checks fail or execution fails, 2 = invalid tier/format usage
 - Items without the machine-check tag require human judgment only when their trigger applies
 - The tool has zero runtime dependencies (single Go binary)

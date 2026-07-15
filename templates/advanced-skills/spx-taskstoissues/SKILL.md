@@ -5,6 +5,7 @@ description: Explicit task-to-GitHub-issue export for advanced coding models. Us
 
 # SPX Tasks to Issues
 
+Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/issue-export-contract.md`. Resolve the active feature with the
 installed prerequisite script using `--require-tasks --include-tasks`.

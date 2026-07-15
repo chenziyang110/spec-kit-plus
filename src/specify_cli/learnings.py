@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 import yaml
 
+from specify_cli.atomic_io import atomic_write_text, interprocess_lock
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.hooks.checkpoint_serializers import (
     parse_frontmatter,
@@ -36,29 +37,65 @@ LEARNING_STATUSES = {
     "candidate",
     "confirmed",
     "promoted-rule",
-    "promoted-constitution",
 }
 SIGNAL_STRENGTHS = {"low", "medium", "high"}
 PROMOTION_TARGETS = {"learning", "rule"}
-MAP_WORKFLOW_COMMANDS = ("sp-map-scan", "sp-map-build")
+MAP_WORKFLOW_COMMANDS = (
+    "sp-map-scan",
+    "sp-map-build",
+    "sp-map-update",
+    "sp-map-rebuild",
+)
 KNOWN_COMMANDS = (
-    "sp-constitution",
-    "sp-specify",
-    "sp-clarify",
-    "sp-deep-research",
-    "sp-plan",
-    "sp-checklist",
-    "sp-tasks",
+    "sp-accept",
     "sp-analyze",
-    "sp-implement",
+    "sp-ask",
+    "sp-auto",
+    "sp-checklist",
+    "sp-clarify",
+    "sp-constitution",
     "sp-debug",
+    "sp-deep-research",
+    "sp-design",
+    "sp-discussion",
+    "sp-explain",
     "sp-fast",
-    "sp-quick",
+    "sp-implement",
+    "sp-implement-teams",
+    "sp-integrate",
     *MAP_WORKFLOW_COMMANDS,
+    "sp-plan",
+    "sp-prd",
+    "sp-prd-build",
+    "sp-prd-scan",
+    "sp-quick",
+    "sp-specify",
+    "sp-tasks",
+    "sp-taskstoissues",
+    "sp-team",
 )
 COMMAND_ALIASES = {
     "sp-research": "sp-deep-research",
 }
+
+# Consumption is always read-only. Capture policy tells workflow prompts whether
+# closeout may write a candidate directly, must defer capture to an owning
+# workflow, or should skip learning entirely for a deliberately trivial path.
+LEARNING_WORKFLOW_POLICIES = {command: "consume-capture" for command in KNOWN_COMMANDS}
+LEARNING_WORKFLOW_POLICIES.update(
+    {
+        "sp-accept": "consume-only",
+        "sp-analyze": "consume-only",
+        "sp-ask": "consume-only",
+        "sp-auto": "consume-only",
+        "sp-constitution": "consume-only",
+        "sp-explain": "consume-only",
+        "sp-fast": "skip",
+        "sp-implement-teams": "consume-only",
+        "sp-taskstoissues": "consume-only",
+        "sp-team": "consume-only",
+    }
+)
 
 MACHINE_BEGIN = "<!-- SPECKIT_LEARNING_DATA_BEGIN -->"
 MACHINE_END = "<!-- SPECKIT_LEARNING_DATA_END -->"
@@ -67,27 +104,23 @@ RULES_TEMPLATE_TEXT = (
     "# Project Rules\n\n"
     "Shared defaults that later `sp-xxx` workflows should follow across specification,\n"
     "planning, implementation, debugging, and quick-task execution.\n\n"
-    "Promote only stable project rules here. Keep one-off observations in passive\n"
-    "candidate learning files until recurrence or explicit confirmation proves they\n"
-    "belong in this shared rule layer.\n\n"
+    "Promote only stable project rules through `specify learning promote --target rule`.\n"
+    "Keep one-off observations as CLI-managed candidates until recurrence or explicit\n"
+    "confirmation proves they belong in this shared rule layer.\n\n"
     "---\n"
 )
-LEARNINGS_TEMPLATE_TEXT = (
-    "# Project Learnings\n\n"
-    "Confirmed project learnings that are reusable across later `sp-xxx` workflows\n"
-    "but are not yet strong enough to become project rules or constitution-level\n"
-    "principles.\n\n"
-    "Promote items here after recurrence, explicit confirmation, or clear\n"
-    "cross-stage usefulness. Keep noisy or unproven observations in passive candidate\n"
-    "learning files until they mature.\n\n"
+CONFIRMED_LEARNINGS_TEMPLATE_TEXT = (
+    "# Confirmed Project Learning\n\n"
+    "Runtime-maintained confirmed Learning behind `specify learning start`, `list`,\n"
+    "and `show`. Agents should use those CLI surfaces instead of parsing this file.\n\n"
     "---\n"
 )
 LEARNING_INDEX_TEMPLATE_TEXT = (
     "# Project Learning Index\n\n"
-    "Thin first-read index of reusable engineering lessons for later `sp-xxx` workflows.\n\n"
-    "Read this file after `.specify/memory/project-rules.md` and before command-local\n"
-    "context. Open only the linked detail documents whose `applies_to` or\n"
-    "`trigger_signals` match the current work.\n\n"
+    "Runtime-maintained compact index behind `specify learning start` and\n"
+    "`specify learning list`. Agents should use those CLI surfaces and expand one\n"
+    "selected record with `specify learning show`; do not parse this file directly\n"
+    "during normal workflow execution.\n\n"
     "---\n\n"
     f"{MACHINE_BEGIN}\n[]\n{MACHINE_END}\n\n"
     "## Managed Entries\n\n"
@@ -109,7 +142,7 @@ REVIEW_TEMPLATE_TEXT = (
 class LearningPaths:
     constitution: Path
     project_rules: Path
-    project_learnings: Path
+    confirmed_learnings: Path
     learning_index: Path
     learning_detail_template: Path
     candidates: Path
@@ -119,7 +152,7 @@ class LearningPaths:
         return {
             "constitution": str(self.constitution),
             "project_rules": str(self.project_rules),
-            "project_learnings": str(self.project_learnings),
+            "confirmed_learnings": str(self.confirmed_learnings),
             "learning_index": str(self.learning_index),
             "learning_detail_template": str(self.learning_detail_template),
             "candidates": str(self.candidates),
@@ -149,6 +182,12 @@ class LearningEntry:
     root_cause_family: str = ""
     injection_targets: list[str] = field(default_factory=list)
     promotion_hint: str = ""
+    problem: str = ""
+    recommended_action: str = ""
+    avoid: list[str] = field(default_factory=list)
+    trigger_signals: list[str] = field(default_factory=list)
+    success_criteria: list[str] = field(default_factory=list)
+    exceptions: list[str] = field(default_factory=list)
 
     def to_payload(self) -> dict[str, Any]:
         return asdict(self)
@@ -179,6 +218,12 @@ class LearningEntry:
             root_cause_family=str(payload.get("root_cause_family") or ""),
             injection_targets=_coerce_str_list(payload.get("injection_targets")),
             promotion_hint=str(payload.get("promotion_hint") or ""),
+            problem=str(payload.get("problem") or ""),
+            recommended_action=str(payload.get("recommended_action") or ""),
+            avoid=_coerce_str_list(payload.get("avoid")),
+            trigger_signals=_coerce_str_list(payload.get("trigger_signals")),
+            success_criteria=_coerce_str_list(payload.get("success_criteria")),
+            exceptions=_coerce_str_list(payload.get("exceptions")),
         )
 
 
@@ -203,22 +248,61 @@ class LearningIndexEntry:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "LearningIndexEntry":
+        required = {
+            "id",
+            "problem",
+            "lesson",
+            "learning_type",
+            "source_command",
+            "recurrence_key",
+            "applies_to",
+            "trigger_signals",
+            "detail",
+            "first_seen",
+            "last_seen",
+            "occurrence_count",
+            "signal_strength",
+        }
+        missing = sorted(required - payload.keys())
+        if missing:
+            raise ValueError(
+                f"learning index entry is missing required fields: {', '.join(missing)}"
+            )
+        if not isinstance(payload["applies_to"], list):
+            raise ValueError("learning index applies_to must be a list")
+        if not isinstance(payload["trigger_signals"], list):
+            raise ValueError("learning index trigger_signals must be a list")
         learning_type = normalize_learning_type(str(payload["learning_type"]))
         source_command = normalize_command_name(str(payload["source_command"]))
         recurrence_key = str(payload["recurrence_key"]).strip().lower()
-        signal_strength = normalize_signal_strength(str(payload.get("signal_strength", "medium")))
-        problem = str(payload.get("problem") or payload.get("summary") or payload.get("id") or recurrence_key).strip()
-        lesson_source = str(payload.get("lesson") or payload.get("evidence") or problem).strip()
-        lesson = lesson_source.splitlines()[0] if lesson_source else problem
-        first_seen = str(payload.get("first_seen") or payload.get("last_seen") or "")
-        last_seen = str(payload.get("last_seen") or first_seen)
-        index_id = str(payload.get("id") or "").strip()
+        if not recurrence_key:
+            raise ValueError("learning index recurrence_key is required")
+        signal_strength = normalize_signal_strength(str(payload["signal_strength"]))
+        problem = str(payload["problem"]).strip()
+        lesson = str(payload["lesson"]).strip()
+        first_seen = str(payload["first_seen"]).strip()
+        last_seen = str(payload["last_seen"]).strip()
+        index_id = str(payload["id"]).strip()
         if not index_id.startswith("learn-"):
-            index_id = _learning_index_id(recurrence_key, first_seen)
-        detail = str(payload.get("detail") or _detail_ref_for_index_id(index_id)).strip()
-        trigger_signals = _coerce_str_list(payload.get("trigger_signals"))
-        if not trigger_signals:
-            trigger_signals = sorted(dict.fromkeys([learning_type, signal_strength]))
+            raise ValueError("learning index id must start with 'learn-'")
+        if not problem or not lesson or not first_seen or not last_seen:
+            raise ValueError(
+                "learning index problem, lesson, first_seen, and last_seen are required"
+            )
+        detail = str(payload["detail"]).strip()
+        if not _is_valid_detail_ref(detail):
+            raise ValueError(
+                "learning index detail must be a safe relative Markdown path"
+            )
+        applies_to = _coerce_str_list(payload["applies_to"])
+        trigger_signals = _coerce_str_list(payload["trigger_signals"])
+        if not applies_to or not trigger_signals:
+            raise ValueError(
+                "learning index applies_to and trigger_signals must not be empty"
+            )
+        occurrence_count = _coerce_int(payload["occurrence_count"])
+        if occurrence_count < 1:
+            raise ValueError("learning index occurrence_count must be at least 1")
         return cls(
             id=index_id,
             problem=problem,
@@ -226,12 +310,12 @@ class LearningIndexEntry:
             learning_type=learning_type,
             source_command=source_command,
             recurrence_key=recurrence_key,
-            applies_to=[normalize_command_name(item) for item in _coerce_str_list(payload.get("applies_to"))],
+            applies_to=[normalize_command_name(item) for item in applies_to],
             trigger_signals=trigger_signals,
             detail=detail,
             first_seen=first_seen,
             last_seen=last_seen,
-            occurrence_count=max(1, _coerce_int(payload.get("occurrence_count", 1))),
+            occurrence_count=occurrence_count,
             signal_strength=signal_strength,
         )
 
@@ -244,6 +328,144 @@ class AutoCaptureSuggestion:
     recurrence_key: str
     signal_strength: str = "medium"
     applies_to: tuple[str, ...] | None = None
+    problem: str = ""
+    recommended_action: str = ""
+    trigger_signals: tuple[str, ...] = ()
+    success_criteria: tuple[str, ...] = ()
+    avoid: tuple[str, ...] = ()
+    exceptions: tuple[str, ...] = ()
+
+
+SEMANTIC_TRIGGER_GUIDANCE: dict[str, tuple[str, str, str, str]] = {
+    "user_correction": (
+        "user_preference",
+        "Apply the corrected assumption, preference, or boundary before repeating the affected work.",
+        "The next affected workflow reflects the correction without requiring the user to repeat it.",
+        "Continuing from the superseded assumption.",
+    ),
+    "repeated_attempt": (
+        "pitfall",
+        "Reuse the proven recovery path and skip attempts already disproved by evidence.",
+        "The next run reaches the verified path without replaying the same failed attempts.",
+        "Repeating a failed attempt without new contradictory evidence.",
+    ),
+    "route_change": (
+        "routing_mistake",
+        "Resume from the recorded next command and route reason instead of inferring the route from chat history.",
+        "The resumed workflow can explain and follow the selected route from durable state.",
+        "Routing from chat memory alone.",
+    ),
+    "blocker_recovery": (
+        "recovery_path",
+        "Reuse the recorded recovery action and verify its unblock condition before resuming.",
+        "The blocker is cleared by recorded evidence and the workflow resumes at the stated next action.",
+        "Retrying unrelated technical actions while the unblock condition remains false.",
+    ),
+    "false_lead": (
+        "false_lead_pattern",
+        "Check the rejected path and its decisive evidence before reopening that hypothesis.",
+        "The rejected path is skipped unless new evidence directly contradicts the prior decision.",
+        "Repeating a disproved route or diagnosis without new evidence.",
+    ),
+    "decisive_signal": (
+        "pitfall",
+        "Look for the recorded decisive signal before widening investigation or implementation scope.",
+        "The future decision cites the decisive signal and reaches the correct route earlier.",
+        "Treating low-value surrounding symptoms as stronger than the decisive signal.",
+    ),
+    "hidden_dependency": (
+        "project_constraint",
+        "Resolve or honor the hidden dependency before changing the affected surface.",
+        "Downstream work names the dependency and verifies its required precondition.",
+        "Starting dependent work before the hidden precondition is satisfied.",
+    ),
+    "validation_gap": (
+        "verification_gap",
+        "Add or run the missing real acceptance check before making the affected completion claim.",
+        "The completion claim is backed by the recorded verification surface and green evidence.",
+        "Using source-only or indirect checks as proof of real behavior.",
+    ),
+    "tooling_trap": (
+        "tooling_trap",
+        "Verify the environment and tool boundary before diagnosing the same symptom as a product defect.",
+        "The environment/tool cause is ruled in or out before production code changes.",
+        "Changing product code before checking the recorded tooling condition.",
+    ),
+    "state_loss": (
+        "state_surface_gap",
+        "Persist the missing decision, evidence, and next action before handoff or compaction.",
+        "A resumed run continues safely without reconstructing the lost state from chat.",
+        "Stopping with required recovery context only in conversation history.",
+    ),
+    "cognition_gap": (
+        "map_coverage_gap",
+        "Use live evidence for the missing surface and refresh cognition coverage through the owning map workflow.",
+        "The truth-owning surface is queryable and the active workflow no longer depends on a stale omission.",
+        "Treating missing cognition coverage as evidence that the surface does not exist.",
+    ),
+    "reusable_constraint": (
+        "project_constraint",
+        "Apply the recorded constraint before planning or modifying the affected surface.",
+        "Later work names and honors the constraint in its plan, task, or verification route.",
+        "Rediscovering the constraint after implementation begins.",
+    ),
+    "near_miss": (
+        "near_miss",
+        "Preserve the guard or check that prevented the risky action and run it before similar work.",
+        "The same risk is detected before any destructive or hard-to-reverse action.",
+        "Relying on luck or operator memory to avoid the same risk.",
+    ),
+}
+
+
+def _semantic_trigger_suggestions(
+    *,
+    command_name: str,
+    feature_dir: Path,
+    trigger_signals: Iterable[str],
+) -> list[AutoCaptureSuggestion]:
+    suggestions: list[AutoCaptureSuggestion] = []
+    for raw_signal in trigger_signals:
+        signal = str(raw_signal).strip()
+        if not signal:
+            continue
+        raw_kind, separator, raw_detail = signal.partition(":")
+        kind = raw_kind.strip().lower().replace("-", "_").replace(" ", "_")
+        detail = " ".join((raw_detail.strip() if separator else signal).split())
+        learning_type, action, success, avoid = SEMANTIC_TRIGGER_GUIDANCE.get(
+            kind,
+            (
+                "pitfall",
+                "Apply the recorded signal before repeating the affected work.",
+                "The next affected workflow uses the signal and records confirming evidence.",
+                "Ignoring an explicit reusable-learning signal.",
+            ),
+        )
+        signal_label = kind.replace("_", " ")
+        summary = f"{signal_label}: {detail}"
+        recurrence_suffix = _slugify(detail)[:72]
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type=learning_type,
+                summary=summary,
+                recurrence_key=f"{command_name}.trigger.{kind}.{recurrence_suffix}",
+                evidence=_format_evidence(
+                    "Observed explicit Learning trigger from workflow-state.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("command", command_name),
+                        ("trigger_kind", kind),
+                        ("trigger_detail", detail),
+                    ],
+                ),
+                problem=f"The recorded {signal_label} signal could be lost after handoff or compaction: {detail}",
+                recommended_action=action,
+                trigger_signals=(signal,),
+                success_criteria=(success,),
+                avoid=(avoid,),
+            )
+        )
+    return suggestions
 
 
 def build_learning_paths(project_root: Path) -> LearningPaths:
@@ -253,16 +475,21 @@ def build_learning_paths(project_root: Path) -> LearningPaths:
     return LearningPaths(
         constitution=memory_dir / "constitution.md",
         project_rules=memory_dir / "project-rules.md",
-        project_learnings=memory_dir / "project-learnings.md",
+        confirmed_learnings=learning_memory_dir / "confirmed.md",
         learning_index=learning_memory_dir / "INDEX.md",
-        learning_detail_template=project_root / ".specify" / "templates" / "project-learning-detail-template.md",
+        learning_detail_template=project_root
+        / ".specify"
+        / "templates"
+        / "project-learning-detail-template.md",
         candidates=learning_dir / "candidates.md",
         review=learning_dir / "review.md",
     )
 
 
 def now_iso() -> str:
-    return datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
 
 
 def normalize_command_name(command_name: str) -> str:
@@ -271,12 +498,20 @@ def normalize_command_name(command_name: str) -> str:
         raise ValueError("command name is required")
     while raw.startswith("/"):
         raw = raw[1:]
+    if not raw:
+        raise ValueError("command name is required")
+    if raw.startswith("spx-"):
+        raw = f"sp-{raw[4:]}"
+    elif raw.startswith("spx."):
+        raw = f"sp-{raw[4:]}"
     if raw.startswith("sp-"):
         normalized = raw
     elif raw.startswith("sp."):
         normalized = f"sp-{raw[3:]}"
     else:
         normalized = f"sp-{raw}"
+    if not re.fullmatch(r"sp-[a-z0-9][a-z0-9-]*", normalized):
+        raise ValueError(f"invalid command name '{command_name}'")
     return COMMAND_ALIASES.get(normalized, normalized)
 
 
@@ -289,7 +524,12 @@ def default_scope_for_type(learning_type: str) -> str:
     normalized = learning_type.strip().lower()
     if normalized in {"user_preference", "project_constraint"}:
         return "global"
-    if normalized in {"workflow_gap", "routing_mistake", "state_surface_gap", "decision_debt"}:
+    if normalized in {
+        "workflow_gap",
+        "routing_mistake",
+        "state_surface_gap",
+        "decision_debt",
+    }:
         return "planning-heavy"
     if normalized in {"recovery_path", "verification_gap", "false_lead_pattern"}:
         return "execution-heavy"
@@ -306,9 +546,17 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type == "workflow_gap":
         return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-quick"]
     if normalized_type == "routing_mistake":
-        return ["sp-fast", "sp-quick", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
+        return [
+            "sp-fast",
+            "sp-quick",
+            "sp-specify",
+            "sp-plan",
+            "sp-tasks",
+            "sp-implement",
+            "sp-debug",
+        ]
     if normalized_type == "verification_gap":
-        return ["sp-implement", "sp-debug", "sp-quick", "sp-fast"]
+        return ["sp-implement", "sp-accept", "sp-debug", "sp-quick", "sp-fast"]
     if normalized_type == "state_surface_gap":
         return [
             "sp-specify",
@@ -316,12 +564,21 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
             "sp-plan",
             "sp-tasks",
             "sp-implement",
+            "sp-accept",
             "sp-debug",
             "sp-quick",
             *MAP_WORKFLOW_COMMANDS,
         ]
     if normalized_type == "map_coverage_gap":
-        return [*MAP_WORKFLOW_COMMANDS, "sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
+        return [
+            *MAP_WORKFLOW_COMMANDS,
+            "sp-specify",
+            "sp-deep-research",
+            "sp-plan",
+            "sp-tasks",
+            "sp-implement",
+            "sp-debug",
+        ]
     if normalized_type == "tooling_trap":
         return ["sp-implement", "sp-debug", "sp-quick", *MAP_WORKFLOW_COMMANDS]
     if normalized_type == "false_lead_pattern":
@@ -329,7 +586,13 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type == "near_miss":
         return sorted({normalized_source, "sp-implement", "sp-debug", "sp-quick"})
     if normalized_type == "decision_debt":
-        return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", *MAP_WORKFLOW_COMMANDS]
+        return [
+            "sp-specify",
+            "sp-deep-research",
+            "sp-plan",
+            "sp-tasks",
+            *MAP_WORKFLOW_COMMANDS,
+        ]
     if normalized_type == "recovery_path":
         return ["sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "pitfall":
@@ -384,7 +647,19 @@ def build_learning_entry(
     root_cause_family: str | None = None,
     injection_targets: Iterable[str] | None = None,
     promotion_hint: str | None = None,
+    problem: str | None = None,
+    recommended_action: str | None = None,
+    avoid: Iterable[str] | None = None,
+    trigger_signals: Iterable[str] | None = None,
+    success_criteria: Iterable[str] | None = None,
+    exceptions: Iterable[str] | None = None,
 ) -> LearningEntry:
+    normalized_summary = str(summary or "").strip()
+    normalized_evidence = str(evidence or "").strip()
+    if not normalized_summary:
+        raise ValueError("learning summary is required")
+    if not normalized_evidence:
+        raise ValueError("learning evidence is required")
     normalized_command = normalize_command_name(command_name)
     normalized_type = normalize_learning_type(learning_type)
     normalized_signal = normalize_signal_strength(signal_strength)
@@ -394,15 +669,26 @@ def build_learning_entry(
         if applies_to
         else default_applies_to_for_type(normalized_type, normalized_command)
     )
+    normalized_recurrence_key = (
+        str(
+            recurrence_key or derive_recurrence_key(normalized_type, normalized_summary)
+        )
+        .strip()
+        .lower()
+    )
+    if not normalized_recurrence_key:
+        raise ValueError("learning recurrence_key is required")
     timestamp = now_iso()
     return LearningEntry(
         id=build_learning_id(),
-        summary=summary.strip(),
+        summary=normalized_summary,
         learning_type=normalized_type,
         source_command=normalized_command,
-        evidence=evidence.strip(),
-        recurrence_key=(recurrence_key or derive_recurrence_key(normalized_type, summary)).strip().lower(),
-        default_scope=(default_scope or default_scope_for_type(normalized_type)).strip().lower(),
+        evidence=normalized_evidence,
+        recurrence_key=normalized_recurrence_key,
+        default_scope=(default_scope or default_scope_for_type(normalized_type))
+        .strip()
+        .lower(),
         applies_to=sorted(dict.fromkeys(normalized_applies)),
         signal_strength=normalized_signal,
         status=normalized_status,
@@ -410,12 +696,54 @@ def build_learning_entry(
         last_seen=timestamp,
         occurrence_count=1,
         pain_score=max(0, _coerce_int(pain_score)),
-        false_starts=sorted(dict.fromkeys(str(item).strip() for item in (false_starts or []) if str(item).strip())),
-        rejected_paths=sorted(dict.fromkeys(str(item).strip() for item in (rejected_paths or []) if str(item).strip())),
+        false_starts=sorted(
+            dict.fromkeys(
+                str(item).strip() for item in (false_starts or []) if str(item).strip()
+            )
+        ),
+        rejected_paths=sorted(
+            dict.fromkeys(
+                str(item).strip()
+                for item in (rejected_paths or [])
+                if str(item).strip()
+            )
+        ),
         decisive_signal=str(decisive_signal or "").strip(),
         root_cause_family=str(root_cause_family or "").strip(),
-        injection_targets=sorted(dict.fromkeys(str(item).strip() for item in (injection_targets or []) if str(item).strip())),
+        injection_targets=sorted(
+            dict.fromkeys(
+                str(item).strip()
+                for item in (injection_targets or [])
+                if str(item).strip()
+            )
+        ),
         promotion_hint=str(promotion_hint or "").strip(),
+        problem=str(problem or normalized_summary).strip(),
+        recommended_action=str(recommended_action or normalized_summary).strip(),
+        avoid=sorted(
+            dict.fromkeys(
+                str(item).strip() for item in (avoid or []) if str(item).strip()
+            )
+        ),
+        trigger_signals=sorted(
+            dict.fromkeys(
+                str(item).strip()
+                for item in (trigger_signals or [])
+                if str(item).strip()
+            )
+        ),
+        success_criteria=sorted(
+            dict.fromkeys(
+                str(item).strip()
+                for item in (success_criteria or [])
+                if str(item).strip()
+            )
+        ),
+        exceptions=sorted(
+            dict.fromkeys(
+                str(item).strip() for item in (exceptions or []) if str(item).strip()
+            )
+        ),
     )
 
 
@@ -532,7 +860,9 @@ def _load_sectioned_markdown(path: Path) -> tuple[dict[str, Any], dict[str, Any]
         if match:
             if current_section is not None:
                 section_text = "\n".join(current_lines).strip()
-                sections[current_section] = yaml.safe_load(section_text) if section_text else None
+                sections[current_section] = (
+                    yaml.safe_load(section_text) if section_text else None
+                )
             current_section = match.group("title").strip()
             current_lines = []
             continue
@@ -540,7 +870,9 @@ def _load_sectioned_markdown(path: Path) -> tuple[dict[str, Any], dict[str, Any]
             current_lines.append(raw_line)
     if current_section is not None:
         section_text = "\n".join(current_lines).strip()
-        sections[current_section] = yaml.safe_load(section_text) if section_text else None
+        sections[current_section] = (
+            yaml.safe_load(section_text) if section_text else None
+        )
     return frontmatter, sections
 
 
@@ -561,8 +893,7 @@ def _load_auto_capture_registry(project_root: Path) -> dict[str, Any]:
 
 def _write_auto_capture_registry(project_root: Path, payload: dict[str, Any]) -> None:
     path = _auto_capture_registry_path(project_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
 def _snapshot_fingerprint(
@@ -581,11 +912,19 @@ def _snapshot_fingerprint(
                 "recurrence_key": item.recurrence_key,
                 "signal_strength": item.signal_strength,
                 "applies_to": list(item.applies_to or ()),
+                "problem": item.problem,
+                "recommended_action": item.recommended_action,
+                "trigger_signals": list(item.trigger_signals),
+                "success_criteria": list(item.success_criteria),
+                "avoid": list(item.avoid),
+                "exceptions": list(item.exceptions),
             }
             for item in suggestions
         ],
     }
-    payload = json.dumps(normalized_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    payload = json.dumps(normalized_payload, ensure_ascii=False, sort_keys=True).encode(
+        "utf-8"
+    )
     return hashlib.sha256(payload).hexdigest()
 
 
@@ -631,7 +970,9 @@ def _render_entry_summary(entry: LearningEntry) -> str:
     if entry.root_cause_family:
         structured_lines.append(f"- Root Cause Family: `{entry.root_cause_family}`")
     if entry.injection_targets:
-        structured_lines.append(f"- Injection Targets: {', '.join(entry.injection_targets)}")
+        structured_lines.append(
+            f"- Injection Targets: {', '.join(entry.injection_targets)}"
+        )
     if entry.promotion_hint:
         structured_lines.append(f"- Promotion Hint: {entry.promotion_hint}")
     if not structured_lines:
@@ -654,7 +995,9 @@ def _render_learning_file(preamble: str, entries: list[LearningEntry]) -> str:
     if not entries:
         sections.append("_No entries recorded yet._")
     else:
-        sections.append("\n\n---\n\n".join(_render_entry_summary(entry) for entry in entries))
+        sections.append(
+            "\n\n---\n\n".join(_render_entry_summary(entry) for entry in entries)
+        )
     sections.append("")
     return "\n".join(sections)
 
@@ -677,6 +1020,7 @@ def _detail_ref_for_index_id(index_id: str) -> str:
 
 def _trigger_signals_from_entry(entry: LearningEntry) -> list[str]:
     signals = [entry.learning_type, entry.signal_strength]
+    signals.extend(entry.trigger_signals)
     signals.extend(entry.false_starts)
     signals.extend(entry.rejected_paths)
     if entry.decisive_signal:
@@ -690,8 +1034,15 @@ def _index_entry_from_learning(entry: LearningEntry) -> LearningIndexEntry:
     index_id = _learning_index_id(entry.recurrence_key, entry.first_seen)
     return LearningIndexEntry(
         id=index_id,
-        problem=entry.summary,
-        lesson=entry.evidence.splitlines()[0] if entry.evidence.strip() else entry.summary,
+        problem=entry.problem or entry.summary,
+        lesson=(
+            entry.recommended_action
+            or (
+                entry.evidence.splitlines()[0]
+                if entry.evidence.strip()
+                else entry.summary
+            )
+        ),
         learning_type=entry.learning_type,
         source_command=entry.source_command,
         recurrence_key=entry.recurrence_key,
@@ -726,62 +1077,11 @@ def _render_index_entry_summary(entry: LearningIndexEntry) -> str:
 
 def _empty_learning_index_diagnostics() -> dict[str, Any]:
     return {
-        "normalized_legacy_entries": 0,
         "skipped_malformed_entries": 0,
         "file_level_errors": 0,
         "details": [],
         "warnings": [],
     }
-
-
-def _normalize_learning_index_payload(payload: Any, index: int) -> tuple[dict[str, Any], list[str]]:
-    if not isinstance(payload, dict):
-        raise ValueError("learning index entry is not an object")
-
-    normalized = dict(payload)
-    warnings: list[str] = []
-
-    raw_applies_to = normalized.get("applies_to")
-    if raw_applies_to is not None and not isinstance(raw_applies_to, list):
-        normalized["applies_to"] = []
-        warnings.append("invalid_applies_to_coerced_empty")
-
-    applies_to = _coerce_str_list(normalized.get("applies_to"))
-    if not str(normalized.get("source_command") or "").strip():
-        if applies_to:
-            normalized["source_command"] = applies_to[0]
-            warnings.append("derived_source_command_from_applies_to")
-        else:
-            raise ValueError("missing source_command and no applies_to fallback")
-
-    if not str(normalized.get("learning_type") or "").strip():
-        normalized["learning_type"] = "workflow_gap"
-        warnings.append("defaulted_learning_type")
-
-    if not str(normalized.get("problem") or "").strip():
-        problem = str(
-            normalized.get("summary")
-            or normalized.get("lesson")
-            or normalized.get("id")
-            or normalized.get("recurrence_key")
-            or ""
-        ).strip()
-        if not problem:
-            raise ValueError("missing problem and no fallback")
-        normalized["problem"] = problem
-        warnings.append("derived_problem_from_legacy_fields")
-
-    if not str(normalized.get("lesson") or "").strip():
-        lesson = str(normalized.get("evidence") or normalized.get("problem") or "").strip()
-        if not lesson:
-            raise ValueError("missing lesson and no fallback")
-        normalized["lesson"] = lesson.splitlines()[0]
-        warnings.append("derived_lesson_from_legacy_fields")
-
-    if not str(normalized.get("recurrence_key") or "").strip():
-        raise ValueError("missing recurrence_key")
-
-    return normalized, warnings
 
 
 def _read_index_entries_with_diagnostics(
@@ -804,7 +1104,7 @@ def _read_index_entries_with_diagnostics(
         diagnostics["details"].append(
             {
                 "index": None,
-                "action": "fallback_direct_memory_reads",
+                "action": "fallback_internal_store_catalog",
                 "reason": str(exc),
             }
         )
@@ -814,9 +1114,10 @@ def _read_index_entries_with_diagnostics(
     for index, payload in enumerate(payloads):
         entry_id = payload.get("id") if isinstance(payload, dict) else None
         try:
-            normalized, item_warnings = _normalize_learning_index_payload(payload, index)
-            entry = LearningIndexEntry.from_payload(normalized)
-        except Exception as exc:  # noqa: BLE001 - diagnostics must report and continue per legacy index contract.
+            if not isinstance(payload, dict):
+                raise ValueError("learning index entry is not an object")
+            entry = LearningIndexEntry.from_payload(payload)
+        except Exception as exc:  # noqa: BLE001 - diagnostics must report and continue after malformed current entries.
             diagnostics["skipped_malformed_entries"] += 1
             warning = f"learning_index_entry_{index}_skipped:{type(exc).__name__}"
             diagnostics["warnings"].append(warning)
@@ -831,29 +1132,20 @@ def _read_index_entries_with_diagnostics(
             continue
 
         entries.append(entry)
-        if item_warnings:
-            diagnostics["normalized_legacy_entries"] += 1
-            diagnostics["warnings"].append(
-                f"learning_index_entry_{index}_normalized:{','.join(item_warnings)}"
-            )
-            diagnostics["details"].append(
-                {
-                    "index": index,
-                    "id": entry.id,
-                    "action": "normalized",
-                    "warnings": item_warnings,
-                }
-            )
 
     return preamble, entries, diagnostics
 
 
 def _read_index_entries(path: Path) -> tuple[str, list[LearningIndexEntry]]:
-    preamble, entries, _diagnostics = _read_index_entries_with_diagnostics(path, tolerate_file_errors=False)
+    preamble, entries, _diagnostics = _read_index_entries_with_diagnostics(
+        path, tolerate_file_errors=False
+    )
     return preamble, entries
 
 
-def _render_learning_index_file(preamble: str, entries: list[LearningIndexEntry]) -> str:
+def _render_learning_index_file(
+    preamble: str, entries: list[LearningIndexEntry]
+) -> str:
     payload = [entry.to_payload() for entry in entries]
     sections = [
         preamble.rstrip(),
@@ -868,14 +1160,17 @@ def _render_learning_index_file(preamble: str, entries: list[LearningIndexEntry]
     if not entries:
         sections.append("_No learning index entries recorded yet._")
     else:
-        sections.append("\n\n---\n\n".join(_render_index_entry_summary(entry) for entry in entries))
+        sections.append(
+            "\n\n---\n\n".join(_render_index_entry_summary(entry) for entry in entries)
+        )
     sections.append("")
     return "\n".join(sections)
 
 
-def _write_index_entries(path: Path, preamble: str, entries: list[LearningIndexEntry]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_render_learning_index_file(preamble, entries), encoding="utf-8")
+def _write_index_entries(
+    path: Path, preamble: str, entries: list[LearningIndexEntry]
+) -> None:
+    atomic_write_text(path, _render_learning_index_file(preamble, entries))
 
 
 def _read_entries(path: Path) -> tuple[str, list[LearningEntry]]:
@@ -894,18 +1189,18 @@ def read_learning_index_entries(path: Path) -> tuple[str, list[LearningIndexEntr
 
 
 def _write_entries(path: Path, preamble: str, entries: list[LearningEntry]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_render_learning_file(preamble, entries), encoding="utf-8")
+    atomic_write_text(path, _render_learning_file(preamble, entries))
 
 
-def _seed_from_template(destination: Path, template_path: Path, fallback_text: str) -> bool:
+def _seed_from_template(
+    destination: Path, template_path: Path, fallback_text: str
+) -> bool:
     if destination.exists():
         return False
-    destination.parent.mkdir(parents=True, exist_ok=True)
     if template_path.is_file():
-        destination.write_text(template_path.read_text(encoding="utf-8"), encoding="utf-8")
+        atomic_write_text(destination, template_path.read_text(encoding="utf-8"))
     else:
-        destination.write_text(fallback_text, encoding="utf-8")
+        atomic_write_text(destination, fallback_text)
     return True
 
 
@@ -924,11 +1219,11 @@ def ensure_learning_memory_from_templates(
     ):
         created.append("project-rules.md")
     if _seed_from_template(
-        paths.project_learnings,
-        templates_root / "project-learnings-template.md",
-        LEARNINGS_TEMPLATE_TEXT,
+        paths.confirmed_learnings,
+        templates_root / "project-confirmed-learnings-template.md",
+        CONFIRMED_LEARNINGS_TEMPLATE_TEXT,
     ):
-        created.append("project-learnings.md")
+        created.append("learnings/confirmed.md")
     if _seed_from_template(
         paths.learning_index,
         templates_root / "project-learnings-index-template.md",
@@ -959,17 +1254,55 @@ def ensure_learning_files(
     include_runtime: bool = True,
     tracker: Any | None = None,
 ) -> LearningPaths:
+    with interprocess_lock(_learning_lock_path(project_root)):
+        return _ensure_learning_files_unlocked(
+            project_root,
+            include_runtime=include_runtime,
+            tracker=tracker,
+        )
+
+
+def _ensure_learning_files_unlocked(
+    project_root: Path,
+    *,
+    include_runtime: bool = True,
+    tracker: Any | None = None,
+) -> LearningPaths:
     paths = ensure_learning_memory_from_templates(project_root, tracker=tracker)
     if include_runtime:
         ensure_learning_runtime_files(project_root)
     return paths
 
 
-def _merge_entry(existing: LearningEntry, new_entry: LearningEntry, *, status: str | None = None) -> LearningEntry:
-    merged_applies = sorted(dict.fromkeys([*existing.applies_to, *new_entry.applies_to]))
-    merged_false_starts = sorted(dict.fromkeys([*existing.false_starts, *new_entry.false_starts]))
-    merged_rejected_paths = sorted(dict.fromkeys([*existing.rejected_paths, *new_entry.rejected_paths]))
-    merged_injection_targets = sorted(dict.fromkeys([*existing.injection_targets, *new_entry.injection_targets]))
+def _learning_lock_path(project_root: Path) -> Path:
+    return build_learning_paths(project_root).review.parent / ".learning.lock"
+
+
+def _merge_entry(
+    existing: LearningEntry, new_entry: LearningEntry, *, status: str | None = None
+) -> LearningEntry:
+    merged_applies = sorted(
+        dict.fromkeys([*existing.applies_to, *new_entry.applies_to])
+    )
+    merged_false_starts = sorted(
+        dict.fromkeys([*existing.false_starts, *new_entry.false_starts])
+    )
+    merged_rejected_paths = sorted(
+        dict.fromkeys([*existing.rejected_paths, *new_entry.rejected_paths])
+    )
+    merged_injection_targets = sorted(
+        dict.fromkeys([*existing.injection_targets, *new_entry.injection_targets])
+    )
+    merged_avoid = sorted(dict.fromkeys([*existing.avoid, *new_entry.avoid]))
+    merged_trigger_signals = sorted(
+        dict.fromkeys([*existing.trigger_signals, *new_entry.trigger_signals])
+    )
+    merged_success_criteria = sorted(
+        dict.fromkeys([*existing.success_criteria, *new_entry.success_criteria])
+    )
+    merged_exceptions = sorted(
+        dict.fromkeys([*existing.exceptions, *new_entry.exceptions])
+    )
     merged_status = status or existing.status
     merged_signal = (
         "high"
@@ -999,10 +1332,18 @@ def _merge_entry(existing: LearningEntry, new_entry: LearningEntry, *, status: s
         root_cause_family=new_entry.root_cause_family or existing.root_cause_family,
         injection_targets=merged_injection_targets,
         promotion_hint=new_entry.promotion_hint or existing.promotion_hint,
+        problem=new_entry.problem or existing.problem,
+        recommended_action=new_entry.recommended_action or existing.recommended_action,
+        avoid=merged_avoid,
+        trigger_signals=merged_trigger_signals,
+        success_criteria=merged_success_criteria,
+        exceptions=merged_exceptions,
     )
 
 
-def _upsert_entry(entries: list[LearningEntry], new_entry: LearningEntry, *, status: str | None = None) -> tuple[list[LearningEntry], LearningEntry]:
+def _upsert_entry(
+    entries: list[LearningEntry], new_entry: LearningEntry, *, status: str | None = None
+) -> tuple[list[LearningEntry], LearningEntry]:
     updated = list(entries)
     for index, existing in enumerate(updated):
         if existing.recurrence_key == new_entry.recurrence_key:
@@ -1015,7 +1356,9 @@ def _upsert_entry(entries: list[LearningEntry], new_entry: LearningEntry, *, sta
     return updated, new_entry
 
 
-def _merge_index_entry(existing: LearningIndexEntry, new_entry: LearningIndexEntry) -> LearningIndexEntry:
+def _merge_index_entry(
+    existing: LearningIndexEntry, new_entry: LearningIndexEntry
+) -> LearningIndexEntry:
     return LearningIndexEntry(
         id=existing.id,
         problem=new_entry.problem or existing.problem,
@@ -1024,12 +1367,18 @@ def _merge_index_entry(existing: LearningIndexEntry, new_entry: LearningIndexEnt
         source_command=new_entry.source_command or existing.source_command,
         recurrence_key=existing.recurrence_key,
         applies_to=sorted(dict.fromkeys([*existing.applies_to, *new_entry.applies_to])),
-        trigger_signals=sorted(dict.fromkeys([*existing.trigger_signals, *new_entry.trigger_signals])),
+        trigger_signals=sorted(
+            dict.fromkeys([*existing.trigger_signals, *new_entry.trigger_signals])
+        ),
         detail=existing.detail,
         first_seen=existing.first_seen,
         last_seen=new_entry.last_seen,
         occurrence_count=new_entry.occurrence_count,
-        signal_strength="high" if "high" in {existing.signal_strength, new_entry.signal_strength} else "medium" if "medium" in {existing.signal_strength, new_entry.signal_strength} else "low",
+        signal_strength="high"
+        if "high" in {existing.signal_strength, new_entry.signal_strength}
+        else "medium"
+        if "medium" in {existing.signal_strength, new_entry.signal_strength}
+        else "low",
     )
 
 
@@ -1046,11 +1395,34 @@ def _upsert_index_entry(
     return updated, new_entry
 
 
-def _render_learning_detail(entry: LearningEntry, index_entry: LearningIndexEntry) -> str:
+def _render_learning_detail(
+    entry: LearningEntry, index_entry: LearningIndexEntry
+) -> str:
     payload = [entry.to_payload()]
-    false_starts = "\n".join(f"- {item}" for item in entry.false_starts) or "_No false starts recorded._"
-    rejected_paths = "\n".join(f"- {item}" for item in entry.rejected_paths) or "_No rejected paths recorded._"
-    triggers = "\n".join(f"- {item}" for item in index_entry.trigger_signals) or "_No trigger signals recorded._"
+    false_starts = (
+        "\n".join(f"- {item}" for item in entry.false_starts)
+        or "_No false starts recorded._"
+    )
+    rejected_paths = (
+        "\n".join(f"- {item}" for item in entry.rejected_paths)
+        or "_No rejected paths recorded._"
+    )
+    avoid = (
+        "\n".join(f"- {item}" for item in entry.avoid)
+        or "_No explicit avoid list recorded._"
+    )
+    success = (
+        "\n".join(f"- {item}" for item in entry.success_criteria)
+        or "_No explicit success criteria recorded._"
+    )
+    exceptions = (
+        "\n".join(f"- {item}" for item in entry.exceptions)
+        or "_No exceptions recorded._"
+    )
+    triggers = (
+        "\n".join(f"- {item}" for item in index_entry.trigger_signals)
+        or "_No trigger signals recorded._"
+    )
     return "\n".join(
         [
             f"# {index_entry.problem}",
@@ -1066,6 +1438,10 @@ def _render_learning_detail(entry: LearningEntry, index_entry: LearningIndexEntr
             "## Lesson",
             "",
             index_entry.lesson,
+            "",
+            "## Recommended Action",
+            "",
+            entry.recommended_action or index_entry.lesson,
             "",
             "## When To Apply",
             "",
@@ -1089,9 +1465,16 @@ def _render_learning_detail(entry: LearningEntry, index_entry: LearningIndexEntr
             "Rejected paths:",
             rejected_paths,
             "",
+            "Avoid:",
+            avoid,
+            "",
+            "## Success Criteria",
+            "",
+            success,
+            "",
             "## Exceptions",
             "",
-            "_No exceptions recorded yet._",
+            exceptions,
             "",
         ]
     )
@@ -1110,7 +1493,11 @@ def _detail_path_for_ref(learning_dir: Path, detail_ref: str) -> Path:
 
 
 def _detail_ref_resolves_inside(learning_dir: Path, detail_ref: str) -> bool:
-    return _detail_path_for_ref(learning_dir, detail_ref).resolve().is_relative_to(learning_dir.resolve())
+    return (
+        _detail_path_for_ref(learning_dir, detail_ref)
+        .resolve()
+        .is_relative_to(learning_dir.resolve())
+    )
 
 
 def _normalized_detail_path_key(learning_dir: Path, detail_ref: str) -> str:
@@ -1120,25 +1507,33 @@ def _normalized_detail_path_key(learning_dir: Path, detail_ref: str) -> str:
 def _repair_detail_ref_from_learning(
     learning_dir: Path, entry: LearningEntry, index_entry: LearningIndexEntry
 ) -> None:
-    if _is_valid_detail_ref(index_entry.detail) and _detail_ref_resolves_inside(learning_dir, index_entry.detail):
+    if _is_valid_detail_ref(index_entry.detail) and _detail_ref_resolves_inside(
+        learning_dir, index_entry.detail
+    ):
         return
     index_entry.id = _learning_index_id(entry.recurrence_key, entry.first_seen)
     index_entry.detail = _detail_ref_for_index_id(index_entry.id)
-    if not _is_valid_detail_ref(index_entry.detail) or not _detail_ref_resolves_inside(learning_dir, index_entry.detail):
+    if not _is_valid_detail_ref(index_entry.detail) or not _detail_ref_resolves_inside(
+        learning_dir, index_entry.detail
+    ):
         raise ValueError("learning detail path escapes learning memory directory")
 
 
-def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_entry: LearningIndexEntry) -> Path:
+def _write_learning_detail(
+    paths: LearningPaths, entry: LearningEntry, index_entry: LearningIndexEntry
+) -> Path:
     learning_dir = paths.learning_index.parent
     _repair_detail_ref_from_learning(learning_dir, entry, index_entry)
     detail_path = _detail_path_for_ref(learning_dir, index_entry.detail)
-    detail_path.parent.mkdir(parents=True, exist_ok=True)
-    detail_path.write_text(_render_learning_detail(entry, index_entry), encoding="utf-8")
+    atomic_write_text(detail_path, _render_learning_detail(entry, index_entry))
     return detail_path
 
 
 def _detail_ref_used_by_other(
-    entries: list[LearningIndexEntry], detail_ref: str, recurrence_key: str, learning_dir: Path
+    entries: list[LearningIndexEntry],
+    detail_ref: str,
+    recurrence_key: str,
+    learning_dir: Path,
 ) -> bool:
     detail_key = _normalized_detail_path_key(learning_dir, detail_ref)
     return any(
@@ -1149,52 +1544,74 @@ def _detail_ref_used_by_other(
 
 
 def _unused_detail_ref(
-    entries: list[LearningIndexEntry], recurrence_key: str, first_seen: str, learning_dir: Path
+    entries: list[LearningIndexEntry],
+    recurrence_key: str,
+    first_seen: str,
+    learning_dir: Path,
 ) -> tuple[str, str]:
     base_id = _learning_index_id(recurrence_key, first_seen)
     candidate_id = base_id
     candidate_detail = _detail_ref_for_index_id(candidate_id)
     suffix = 2
-    while _detail_ref_used_by_other(entries, candidate_detail, recurrence_key, learning_dir):
+    while _detail_ref_used_by_other(
+        entries, candidate_detail, recurrence_key, learning_dir
+    ):
         candidate_id = f"{base_id}-{suffix}"
         candidate_detail = _detail_ref_for_index_id(candidate_id)
         suffix += 1
     return candidate_id, candidate_detail
 
 
-def _sync_learning_index_detail(paths: LearningPaths, stored: LearningEntry) -> tuple[LearningIndexEntry, Path]:
+def _sync_learning_index_detail(
+    paths: LearningPaths, stored: LearningEntry
+) -> tuple[LearningIndexEntry, Path]:
     index_preamble, index_entries = _read_index_entries(paths.learning_index)
-    index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
+    index_entries, stored_index = _upsert_index_entry(
+        index_entries, _index_entry_from_learning(stored)
+    )
     learning_dir = paths.learning_index.parent
     _repair_detail_ref_from_learning(learning_dir, stored, stored_index)
-    if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key, learning_dir):
+    if _detail_ref_used_by_other(
+        index_entries, stored_index.detail, stored_index.recurrence_key, learning_dir
+    ):
         stored_index.id, stored_index.detail = _unused_detail_ref(
             index_entries,
             stored.recurrence_key,
             stored.first_seen,
             learning_dir,
         )
-        if not _is_valid_detail_ref(stored_index.detail) or not _detail_ref_resolves_inside(learning_dir, stored_index.detail):
+        if not _is_valid_detail_ref(
+            stored_index.detail
+        ) or not _detail_ref_resolves_inside(learning_dir, stored_index.detail):
             raise ValueError("learning detail path escapes learning memory directory")
-    if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key, learning_dir):
-        raise ValueError("learning detail ref is already used by another recurrence key")
+    if _detail_ref_used_by_other(
+        index_entries, stored_index.detail, stored_index.recurrence_key, learning_dir
+    ):
+        raise ValueError(
+            "learning detail ref is already used by another recurrence key"
+        )
     detail_path = _write_learning_detail(paths, stored, stored_index)
-    _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
+    _write_index_entries(
+        paths.learning_index,
+        index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(),
+        index_entries,
+    )
     return stored_index, detail_path
 
 
-def _remove_by_recurrence(entries: list[LearningEntry], recurrence_key: str) -> list[LearningEntry]:
+def _remove_by_recurrence(
+    entries: list[LearningEntry], recurrence_key: str
+) -> list[LearningEntry]:
     return [entry for entry in entries if entry.recurrence_key != recurrence_key]
 
 
 def _append_review_note(path: Path, note: str) -> None:
     timestamp = now_iso()
     if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(REVIEW_TEMPLATE_TEXT, encoding="utf-8")
+        atomic_write_text(path, REVIEW_TEMPLATE_TEXT)
     content = path.read_text(encoding="utf-8").rstrip()
     content += f"\n- `{timestamp}` {note}\n"
-    path.write_text(content + "\n", encoding="utf-8")
+    atomic_write_text(path, content + "\n")
 
 
 def _format_evidence(title: str, items: list[tuple[str, Any]]) -> str:
@@ -1216,7 +1633,9 @@ def _format_evidence(title: str, items: list[tuple[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _suggest_implement_auto_capture(feature_dir: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
+def _suggest_implement_auto_capture(
+    feature_dir: Path,
+) -> tuple[Path, list[AutoCaptureSuggestion]]:
     tracker_path = feature_dir / "implement-tracker.md"
     if not tracker_path.exists():
         return tracker_path, []
@@ -1254,9 +1673,23 @@ def _suggest_implement_auto_capture(feature_dir: Path) -> tuple[Path, list[AutoC
                         ("completed_checks", completed_checks),
                     ],
                 ),
+                problem="Implementation recovery can be marked resolved before the planned validation is rerun.",
+                recommended_action="Rerun the planned validation after recovery and record green evidence before resolving the feature.",
+                trigger_signals=(
+                    "implementation retry completed",
+                    "recovery before terminal resolution",
+                ),
+                success_criteria=(
+                    "all planned post-recovery checks are recorded green",
+                ),
+                avoid=("resolving from the code change alone",),
             )
         )
-    if retry_attempts >= 1 and failed_tasks and (completed_checks or planned_checks or blockers):
+    if (
+        retry_attempts >= 1
+        and failed_tasks
+        and (completed_checks or planned_checks or blockers)
+    ):
         suggestions.append(
             AutoCaptureSuggestion(
                 learning_type="pitfall",
@@ -1272,13 +1705,40 @@ def _suggest_implement_auto_capture(feature_dir: Path) -> tuple[Path, list[AutoC
                         ("failed_tasks", failed_tasks),
                         ("planned_checks", planned_checks),
                         ("completed_checks", completed_checks),
-                        ("blockers", [item.get("recovery_action", "") for item in blockers if item.get("recovery_action")]),
+                        (
+                            "blockers",
+                            [
+                                item.get("recovery_action", "")
+                                for item in blockers
+                                if item.get("recovery_action")
+                            ],
+                        ),
                     ],
+                ),
+                problem="A failed task can be treated as finished while its recovery validation is still incomplete.",
+                recommended_action="Keep execution in recovery, clear the failed task, and rerun its planned checks before continuing.",
+                trigger_signals=(
+                    "failed task after retry",
+                    "validation incomplete after task failure",
+                ),
+                success_criteria=(
+                    "failed tasks are cleared and their planned checks are green",
+                ),
+                avoid=(
+                    "continuing later batches while failed-task validation is unresolved",
                 ),
             )
         )
-    gap_types = [str(item.get("type", "")).strip() for item in open_gaps if str(item.get("type", "")).strip()]
-    planning_gap_types = [value for value in gap_types if value in {"plan_gap", "research_gap", "spec_gap"}]
+    gap_types = [
+        str(item.get("type", "")).strip()
+        for item in open_gaps
+        if str(item.get("type", "")).strip()
+    ]
+    planning_gap_types = [
+        value
+        for value in gap_types
+        if value in {"plan_gap", "research_gap", "spec_gap"}
+    ]
     if planning_gap_types:
         suggestions.append(
             AutoCaptureSuggestion(
@@ -1294,17 +1754,42 @@ def _suggest_implement_auto_capture(feature_dir: Path) -> tuple[Path, list[AutoC
                         ("open_gap_types", planning_gap_types),
                         (
                             "open_gap_summaries",
-                            [str(item.get("summary", "")).strip() for item in open_gaps if str(item.get("summary", "")).strip()],
+                            [
+                                str(item.get("summary", "")).strip()
+                                for item in open_gaps
+                                if str(item.get("summary", "")).strip()
+                            ],
                         ),
                         (
                             "open_gap_next_actions",
-                            [str(item.get("next_action", "")).strip() for item in open_gaps if str(item.get("next_action", "")).strip()],
+                            [
+                                str(item.get("next_action", "")).strip()
+                                for item in open_gaps
+                                if str(item.get("next_action", "")).strip()
+                            ],
                         ),
                     ],
                 ),
+                problem="An execution blocker can change task shape while implementation continues against stale planning artifacts.",
+                recommended_action="Reopen the highest invalid planning stage, update the affected artifacts, then resume implementation.",
+                trigger_signals=(
+                    "plan gap during implementation",
+                    "research gap during implementation",
+                    "spec gap during implementation",
+                ),
+                success_criteria=(
+                    "the corrected planning artifacts and tasks reflect the blocker-driven shape change",
+                ),
+                avoid=(
+                    "patching a planning-shape change only inside the current implementation task",
+                ),
             )
         )
-    blocker_types = [str(item.get("type", "")).strip() for item in blockers if str(item.get("type", "")).strip()]
+    blocker_types = [
+        str(item.get("type", "")).strip()
+        for item in blockers
+        if str(item.get("type", "")).strip()
+    ]
     if any(value in {"external", "human-action"} for value in blocker_types):
         suggestions.append(
             AutoCaptureSuggestion(
@@ -1319,20 +1804,39 @@ def _suggest_implement_auto_capture(feature_dir: Path) -> tuple[Path, list[AutoC
                         ("blocker_types", blocker_types),
                         (
                             "blocker_evidence",
-                            [str(item.get("evidence", "")).strip() for item in blockers if str(item.get("evidence", "")).strip()],
+                            [
+                                str(item.get("evidence", "")).strip()
+                                for item in blockers
+                                if str(item.get("evidence", "")).strip()
+                            ],
                         ),
                         (
                             "recovery_actions",
-                            [str(item.get("recovery_action", "")).strip() for item in blockers if str(item.get("recovery_action", "")).strip()],
+                            [
+                                str(item.get("recovery_action", "")).strip()
+                                for item in blockers
+                                if str(item.get("recovery_action", "")).strip()
+                            ],
                         ),
                     ],
+                ),
+                problem="A human or external precondition cannot be cleared by repeating technical implementation attempts.",
+                recommended_action="Record the owner, exact human steps, unblock condition, and required evidence; stop technical retries until it is satisfied.",
+                trigger_signals=("external blocker", "human-action blocker"),
+                success_criteria=(
+                    "the precondition has explicit completion evidence before implementation resumes",
+                ),
+                avoid=(
+                    "repeating technical retries while the external precondition remains false",
                 ),
             )
         )
     return tracker_path, suggestions
 
 
-def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
+def _suggest_quick_auto_capture(
+    workspace: Path,
+) -> tuple[Path, list[AutoCaptureSuggestion]]:
     status_path = workspace / "STATUS.md"
     if not status_path.exists():
         return status_path, []
@@ -1351,7 +1855,11 @@ def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCapture
     next_action = str(current_focus.get("next_action", "")).strip()
 
     suggestions: list[AutoCaptureSuggestion] = []
-    if status == "resolved" and retry_attempts >= 1 and (completed_checks or blocker_reason or recovery_action):
+    if (
+        status == "resolved"
+        and retry_attempts >= 1
+        and (completed_checks or blocker_reason or recovery_action)
+    ):
         suggestions.append(
             AutoCaptureSuggestion(
                 learning_type="recovery_path",
@@ -1370,6 +1878,16 @@ def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCapture
                         ("completed_checks", completed_checks),
                     ],
                 ),
+                problem="A quick task can be marked resolved before the recovery step and scoped checks prove the fix.",
+                recommended_action="Run the smallest recorded recovery action, then rerun the scoped checks before resolving.",
+                trigger_signals=(
+                    "quick task recovered after retry",
+                    "quick blocker cleared",
+                ),
+                success_criteria=(
+                    "the recorded recovery action is followed by green scoped checks",
+                ),
+                avoid=("resolving immediately after the retry without validation",),
             )
         )
     if execution_fallback and execution_fallback.lower() != "none":
@@ -1389,6 +1907,18 @@ def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCapture
                         ("recovery_action", recovery_action),
                     ],
                 ),
+                problem="An inline fallback can hide a reusable runtime limitation and cause future dispatch attempts to repeat the same failure.",
+                recommended_action="Check the recorded runtime limitation before dispatch and reuse the approved fallback only while it still applies.",
+                trigger_signals=(
+                    "leader-inline fallback used",
+                    "agent runtime unavailable",
+                ),
+                success_criteria=(
+                    "future routing checks runtime readiness before selecting the fallback",
+                ),
+                avoid=(
+                    "retrying unavailable execution infrastructure without a state change",
+                ),
             )
         )
     return status_path, suggestions
@@ -1403,6 +1933,9 @@ WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS = {
     "sp-checklist",
     "sp-tasks",
     "sp-analyze",
+    "sp-accept",
+    "sp-prd-scan",
+    "sp-prd-build",
     *MAP_WORKFLOW_COMMANDS,
 }
 
@@ -1421,9 +1954,22 @@ def _suggest_workflow_state_auto_capture(
     next_action = str(checkpoint.get("next_action") or "").strip()
     route_reason = str(checkpoint.get("route_reason") or "").strip()
     blocked_reason = str(checkpoint.get("blocked_reason") or "").strip()
+    if route_reason.casefold() in {
+        "none",
+        "n/a",
+        "not-applicable",
+    } or route_reason.startswith("["):
+        route_reason = ""
+    if blocked_reason.casefold() in {
+        "none",
+        "n/a",
+        "not-applicable",
+    } or blocked_reason.startswith("["):
+        blocked_reason = ""
     false_starts = _coerce_str_list(checkpoint.get("false_starts"))
     hidden_dependencies = _coerce_str_list(checkpoint.get("hidden_dependencies"))
     reusable_constraints = _coerce_str_list(checkpoint.get("reusable_constraints"))
+    trigger_signals = _coerce_str_list(checkpoint.get("trigger_signals"))
     status = str(checkpoint.get("status") or "").strip()
     phase_mode = str(checkpoint.get("phase_mode") or "").strip()
 
@@ -1447,6 +1993,17 @@ def _suggest_workflow_state_auto_capture(
                         ("blocked_reason", blocked_reason),
                     ],
                 ),
+                problem="A changed workflow route can lose its exact re-entry reason between stages or after resume.",
+                recommended_action="Preserve the next command, next action, and exact route reason before handoff.",
+                trigger_signals=(
+                    "next command changed",
+                    "route reason recorded",
+                    "workflow re-entry",
+                ),
+                success_criteria=(
+                    "the resumed workflow can explain and follow the route without chat history",
+                ),
+                avoid=("routing from chat memory alone",),
             )
         )
     if blocked_reason and not (next_command and route_reason):
@@ -1467,6 +2024,13 @@ def _suggest_workflow_state_auto_capture(
                         ("next_action", next_action),
                     ],
                 ),
+                problem="A blocked terminal state can lose the blocker detail needed for safe recovery.",
+                recommended_action="Preserve the blocker, owner, next action, and unblock condition before stopping.",
+                trigger_signals=("workflow blocked", "blocked_reason present"),
+                success_criteria=(
+                    "resume can continue from the recorded unblock condition",
+                ),
+                avoid=("reporting blocked without a durable reason",),
             )
         )
     if false_starts:
@@ -1487,6 +2051,17 @@ def _suggest_workflow_state_auto_capture(
                         ("next_action", next_action),
                     ],
                 ),
+                problem="A later run can repeat a route or diagnosis already disproved by evidence.",
+                recommended_action="Check recorded false starts before repeating a route or hypothesis.",
+                trigger_signals=(
+                    "false start recorded",
+                    "hypothesis changed",
+                    "route rejected",
+                ),
+                success_criteria=(
+                    "the rejected path is not retried without new contradictory evidence",
+                ),
+                avoid=("replaying a false start without new evidence",),
             )
         )
     if hidden_dependencies or reusable_constraints:
@@ -1507,21 +2082,48 @@ def _suggest_workflow_state_auto_capture(
                         ("next_command", next_command),
                     ],
                 ),
+                problem="A hidden dependency or reusable constraint can disappear when it remains only in workflow-local state.",
+                recommended_action="Apply the recorded dependency or constraint before planning or changing the affected surface.",
+                trigger_signals=(
+                    "hidden dependency",
+                    "reusable constraint",
+                    "cross-workflow dependency",
+                ),
+                success_criteria=(
+                    "downstream work names and honors the dependency or constraint",
+                ),
+                avoid=("rediscovering the constraint after implementation starts",),
             )
         )
+    suggestions.extend(
+        _semantic_trigger_suggestions(
+            command_name=command_name,
+            feature_dir=feature_dir,
+            trigger_signals=trigger_signals,
+        )
+    )
     return state_path, suggestions
 
 
-def _suggest_debug_auto_capture(session_file: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
+def _suggest_debug_auto_capture(
+    session_file: Path,
+) -> tuple[Path, list[AutoCaptureSuggestion]]:
     if not session_file.exists():
         return session_file, []
 
     state = MarkdownPersistenceHandler(session_file.parent).load(session_file)
-    validation_summary = summarize_validation_results(state.resolution.validation_results)
+    validation_summary = summarize_validation_results(
+        state.resolution.validation_results
+    )
     validation_commands = [item.command for item in state.resolution.validation_results]
     suggestions: list[AutoCaptureSuggestion] = []
 
-    if state.status.value == "resolved" and state.resolution.fail_count >= 1 and validation_summary.failed == 0 and validation_summary.passed >= 1:
+    if (
+        state.status.value == "resolved"
+        and state.resolution.fail_count >= 1
+        and validation_summary.failed == 0
+        and validation_summary.passed >= 1
+    ):
         suggestions.append(
             AutoCaptureSuggestion(
                 learning_type="recovery_path",
@@ -1534,11 +2136,28 @@ def _suggest_debug_auto_capture(session_file: Path) -> tuple[Path, list[AutoCapt
                         ("trigger", state.trigger),
                         ("fail_count", state.resolution.fail_count),
                         ("fix", state.resolution.fix or ""),
-                        ("failure_mechanism", state.resolution.root_cause.failure_mechanism if state.resolution.root_cause else ""),
+                        (
+                            "failure_mechanism",
+                            state.resolution.root_cause.failure_mechanism
+                            if state.resolution.root_cause
+                            else "",
+                        ),
                         ("validation_commands", validation_commands),
-                        ("loop_restoration_proof", state.resolution.loop_restoration_proof),
+                        (
+                            "loop_restoration_proof",
+                            state.resolution.loop_restoration_proof,
+                        ),
                     ],
                 ),
+                problem="A failed verification can lead to stacked fixes without returning to the evidence and root-cause model.",
+                recommended_action="Return to investigation with the failed check as new evidence, update the hypothesis, then apply one justified fix.",
+                trigger_signals=(
+                    "debug verification failed before eventual resolution",
+                ),
+                success_criteria=(
+                    "the final fix restores the loop and all recorded validation commands pass",
+                ),
+                avoid=("stacking another fix without updating the investigation",),
             )
         )
     if state.resolution.fail_count >= 2:
@@ -1554,12 +2173,28 @@ def _suggest_debug_auto_capture(session_file: Path) -> tuple[Path, list[AutoCapt
                         ("trigger", state.trigger),
                         ("fail_count", state.resolution.fail_count),
                         ("validation_commands", validation_commands),
-                        ("root_cause_summary", state.resolution.root_cause.summary if state.resolution.root_cause else ""),
+                        (
+                            "root_cause_summary",
+                            state.resolution.root_cause.summary
+                            if state.resolution.root_cause
+                            else "",
+                        ),
                     ],
                 ),
+                problem="Repeated failed verification indicates the current debug model or capability evidence is insufficient.",
+                recommended_action="Pause the fix loop, open a focused research checkpoint, and return with evidence that changes the hypothesis or implementation chain.",
+                trigger_signals=("two or more debug verification failures",),
+                success_criteria=(
+                    "new evidence resolves the uncertainty before another production fix is attempted",
+                ),
+                avoid=("repeating the same debug-fix loop with unchanged evidence",),
             )
         )
-    if state.status.value == "resolved" and state.resolution.fix_scope == "surface-only" and state.resolution.rejected_surface_fixes:
+    if (
+        state.status.value == "resolved"
+        and state.resolution.fix_scope == "surface-only"
+        and state.resolution.rejected_surface_fixes
+    ):
         suggestions.append(
             AutoCaptureSuggestion(
                 learning_type="pitfall",
@@ -1570,10 +2205,26 @@ def _suggest_debug_auto_capture(session_file: Path) -> tuple[Path, list[AutoCapt
                     [
                         ("session_file", session_file),
                         ("trigger", state.trigger),
-                        ("rejected_surface_fixes", state.resolution.rejected_surface_fixes),
-                        ("loop_restoration_proof", state.resolution.loop_restoration_proof),
+                        (
+                            "rejected_surface_fixes",
+                            state.resolution.rejected_surface_fixes,
+                        ),
+                        (
+                            "loop_restoration_proof",
+                            state.resolution.loop_restoration_proof,
+                        ),
                     ],
                 ),
+                problem="A surface-only fix can suppress the symptom while leaving the broken causal loop unchanged.",
+                recommended_action="Reject the surface patch unless loop-restoration proof shows the underlying behavior is restored.",
+                trigger_signals=(
+                    "surface-only debug fix",
+                    "rejected surface fixes present",
+                ),
+                success_criteria=(
+                    "loop-restoration proof and targeted validation demonstrate the causal behavior is fixed",
+                ),
+                avoid=("accepting symptom disappearance as root-cause resolution",),
             )
         )
     return session_file, suggestions
@@ -1587,231 +2238,351 @@ def is_index_relevant_to_command(entry: LearningIndexEntry, command_name: str) -
     return normalize_command_name(command_name) in entry.applies_to
 
 
-def _recommended_detail_doc_paths(learning_dir: Path, entries: list[LearningIndexEntry]) -> list[str]:
-    return [
-        str(_detail_path_for_ref(learning_dir, entry.detail).resolve())
-        for entry in entries
-        if _is_valid_detail_ref(entry.detail) and _detail_ref_resolves_inside(learning_dir, entry.detail)
-    ]
-
-
 def is_highest_signal(entry: LearningEntry) -> bool:
     return entry.signal_strength == "high" or entry.occurrence_count >= 2
 
 
-def should_auto_promote_on_start(entry: LearningEntry, command_name: str) -> bool:
-    return (
-        entry.status == "candidate"
-        and is_relevant_to_command(entry, command_name)
-        and entry.occurrence_count >= 2
+def learning_workflow_policy(command_name: str) -> str:
+    """Return the explicit Learning consumption/capture policy for a workflow."""
+
+    normalized = normalize_command_name(command_name)
+    return LEARNING_WORKFLOW_POLICIES.get(normalized, "consume-capture")
+
+
+def _read_entries_if_present(path: Path) -> list[LearningEntry]:
+    if not path.is_file():
+        return []
+    try:
+        return _read_entries(path)[1]
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        return []
+
+
+def _learning_catalog(
+    project_root: Path,
+) -> tuple[
+    LearningPaths,
+    list[tuple[LearningIndexEntry, LearningEntry | None, str]],
+    dict[str, Any],
+]:
+    """Merge internal Learning stores into one deterministic consumer catalog."""
+
+    paths = build_learning_paths(project_root)
+    source_layers: list[tuple[str, list[LearningEntry]]] = [
+        ("candidate", _read_entries_if_present(paths.candidates)),
+        ("confirmed-learning", _read_entries_if_present(paths.confirmed_learnings)),
+        ("project-rule", _read_entries_if_present(paths.project_rules)),
+    ]
+    source_by_key: dict[str, tuple[LearningEntry, str]] = {}
+    for layer, entries in source_layers:
+        for entry in entries:
+            source_by_key[entry.recurrence_key] = (entry, layer)
+
+    if paths.learning_index.is_file():
+        _preamble, index_entries, diagnostics = _read_index_entries_with_diagnostics(
+            paths.learning_index
+        )
+    else:
+        index_entries = []
+        diagnostics = _empty_learning_index_diagnostics()
+        diagnostics["warnings"].append(
+            "Learning index is missing; run `specify learning ensure` before capture."
+        )
+
+    catalog: list[tuple[LearningIndexEntry, LearningEntry | None, str]] = []
+    seen: set[str] = set()
+    for index_entry in index_entries:
+        source = source_by_key.get(index_entry.recurrence_key)
+        entry, layer = source if source else (None, "index-only")
+        catalog.append((index_entry, entry, layer))
+        seen.add(index_entry.recurrence_key)
+
+    for recurrence_key, (entry, layer) in source_by_key.items():
+        if recurrence_key in seen:
+            continue
+        catalog.append((_index_entry_from_learning(entry), entry, layer))
+
+    catalog.sort(
+        key=lambda item: (
+            -item[0].occurrence_count,
+            {"high": 0, "medium": 1, "low": 2}.get(item[0].signal_strength, 3),
+            item[0].recurrence_key,
+        )
     )
+    return paths, catalog, diagnostics
 
 
-def _preflight_warning_payload(
-    entry: LearningEntry,
-    *,
-    current_command: str,
+def _learning_summary_card(
+    index_entry: LearningIndexEntry,
+    entry: LearningEntry | None,
     source_layer: str,
-    requires_confirmation: bool = False,
+    *,
+    command_name: str | None,
 ) -> dict[str, Any]:
-    layer_label_map = {
-        "project_rules": "stable project rule",
-        "project_learnings": "confirmed project learning",
-        "candidate": "candidate learning",
+    status = entry.status if entry else "indexed"
+    summary = entry.summary if entry else index_entry.problem
+    action = (
+        entry.recommended_action
+        if entry and entry.recommended_action
+        else index_entry.lesson
+    )
+    card: dict[str, Any] = {
+        "ref": index_entry.recurrence_key,
+        "summary": summary,
+        "action": action,
+        "type": index_entry.learning_type,
+        "status": status,
+        "signal": index_entry.signal_strength,
+        "occurrences": index_entry.occurrence_count,
+        "applies_to": index_entry.applies_to,
+        "trigger_signals": index_entry.trigger_signals,
+        "source_layer": source_layer,
+        "show_argv": [
+            "specify",
+            "learning",
+            "show",
+            "--ref",
+            index_entry.recurrence_key,
+            "--format",
+            "json",
+        ],
     }
-    label = layer_label_map.get(source_layer, "shared learning")
-    why_now = (
-        f"{label} applies to {current_command} and should shape this workflow run before the same issue repeats"
-        if source_layer != "candidate"
-        else f"high-signal candidate should be reviewed before {current_command} rediscovers the same issue from scratch"
+    if command_name:
+        card["why_relevant"] = f"applies to {command_name}"
+    return card
+
+
+def list_learning_summaries(
+    project_root: Path,
+    *,
+    command_name: str | None = None,
+    learning_type: str | None = None,
+    status: str | None = None,
+    query: str | None = None,
+    cursor: int = 0,
+    limit: int = 50,
+    include_all: bool = False,
+) -> dict[str, Any]:
+    """Return compact Learning cards; detail expansion is owned by ``show``."""
+
+    normalized_command = normalize_command_name(command_name) if command_name else None
+    normalized_type = normalize_learning_type(learning_type) if learning_type else None
+    normalized_status = status.strip().lower() if status else None
+    if normalized_status and normalized_status not in {*LEARNING_STATUSES, "indexed"}:
+        raise ValueError(f"unsupported learning status '{status}'")
+    normalized_query = query.strip().casefold() if query else ""
+    cursor = max(0, int(cursor))
+    if include_all:
+        limit = 0
+    elif limit < 1:
+        raise ValueError("limit must be at least 1 unless --all is used")
+    else:
+        limit = min(int(limit), 200)
+
+    _paths, catalog, diagnostics = _learning_catalog(project_root)
+    cards: list[dict[str, Any]] = []
+    for index_entry, entry, source_layer in catalog:
+        if normalized_command and not is_index_relevant_to_command(
+            index_entry, normalized_command
+        ):
+            continue
+        if normalized_type and index_entry.learning_type != normalized_type:
+            continue
+        entry_status = entry.status if entry else "indexed"
+        if normalized_status and entry_status != normalized_status:
+            continue
+        searchable = " ".join(
+            [
+                index_entry.recurrence_key,
+                index_entry.problem,
+                index_entry.lesson,
+                index_entry.learning_type,
+                *index_entry.trigger_signals,
+                *index_entry.applies_to,
+            ]
+        ).casefold()
+        if normalized_query and normalized_query not in searchable:
+            continue
+        cards.append(
+            _learning_summary_card(
+                index_entry,
+                entry,
+                source_layer,
+                command_name=normalized_command,
+            )
+        )
+
+    total = len(cards)
+    page = cards[cursor:] if include_all else cards[cursor : cursor + limit]
+    next_cursor = None if cursor + len(page) >= total else cursor + len(page)
+    next_argv: list[str] | None = None
+    if next_cursor is not None:
+        next_argv = ["specify", "learning", "list"]
+        if normalized_command:
+            next_argv.extend(["--command", normalized_command])
+        if normalized_type:
+            next_argv.extend(["--type", normalized_type])
+        if normalized_status:
+            next_argv.extend(["--status", normalized_status])
+        if query:
+            next_argv.extend(["--query", query])
+        next_argv.extend(
+            ["--cursor", str(next_cursor), "--limit", str(limit), "--format", "json"]
+        )
+    return {
+        "schema_version": 1,
+        "record_schema": ".specify/templates/project-learning-record-schema.json#/$defs/summaryList",
+        "command": normalized_command,
+        "policy": learning_workflow_policy(normalized_command)
+        if normalized_command
+        else None,
+        "filters": {
+            "type": normalized_type,
+            "status": normalized_status,
+            "query": query or None,
+        },
+        "pagination": {
+            "cursor": cursor,
+            "limit": None if include_all else limit,
+            "returned": len(page),
+            "total": total,
+            "next_cursor": next_cursor,
+            "next_argv": next_argv,
+        },
+        "items": page,
+        "warnings": list(diagnostics.get("warnings", [])),
+    }
+
+
+def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, Any]:
+    """Expand exactly one Learning into an agent-oriented detail record."""
+
+    requested = learning_ref.strip()
+    if not requested:
+        raise ValueError("learning ref is required")
+    paths, catalog, diagnostics = _learning_catalog(project_root)
+    match = next(
+        (item for item in catalog if requested in {item[0].id, item[0].recurrence_key}),
+        None,
+    )
+    if match is None:
+        raise ValueError(f"learning '{requested}' not found")
+    index_entry, entry, source_layer = match
+
+    detail_path: Path | None = None
+    if _is_valid_detail_ref(index_entry.detail) and _detail_ref_resolves_inside(
+        paths.learning_index.parent, index_entry.detail
+    ):
+        candidate_path = _detail_path_for_ref(
+            paths.learning_index.parent, index_entry.detail
+        )
+        if candidate_path.is_file():
+            detail_path = candidate_path
+            detail_entries = _read_entries_if_present(candidate_path)
+            detail_entry = next(
+                (
+                    item
+                    for item in detail_entries
+                    if item.recurrence_key == index_entry.recurrence_key
+                ),
+                None,
+            )
+            if detail_entry is not None:
+                entry = detail_entry
+
+    problem = entry.problem if entry and entry.problem else index_entry.problem
+    action = (
+        entry.recommended_action
+        if entry and entry.recommended_action
+        else index_entry.lesson
     )
     return {
-        "recurrence_key": entry.recurrence_key,
-        "summary": entry.summary,
-        "learning_type": entry.learning_type,
-        "source_layer": source_layer,
-        "signal_strength": entry.signal_strength,
-        "occurrence_count": entry.occurrence_count,
-        "requires_confirmation": requires_confirmation,
-        "why_now": why_now,
+        "schema_version": 1,
+        "record_schema": ".specify/templates/project-learning-record-schema.json#/$defs/detailRecord",
+        "ref": index_entry.recurrence_key,
+        "id": index_entry.id,
+        "summary": entry.summary if entry else index_entry.problem,
+        "type": index_entry.learning_type,
+        "status": entry.status if entry else "indexed",
+        "guidance": {
+            "problem": problem,
+            "action": action,
+            "avoid": entry.avoid if entry else [],
+            "success_criteria": entry.success_criteria if entry else [],
+            "exceptions": entry.exceptions if entry else [],
+        },
+        "applicability": {
+            "commands": index_entry.applies_to,
+            "trigger_signals": index_entry.trigger_signals,
+            "scope": entry.default_scope if entry else "",
+        },
+        "evidence": {
+            "observation": entry.evidence if entry else index_entry.lesson,
+            "decisive_signal": entry.decisive_signal if entry else "",
+            "false_starts": entry.false_starts if entry else [],
+            "rejected_paths": entry.rejected_paths if entry else [],
+            "root_cause_family": entry.root_cause_family if entry else "",
+        },
+        "provenance": {
+            "source_command": index_entry.source_command,
+            "first_seen": index_entry.first_seen,
+            "last_seen": index_entry.last_seen,
+            "occurrences": index_entry.occurrence_count,
+            "source_layer": source_layer,
+        },
+        "lifecycle": {
+            "signal": index_entry.signal_strength,
+            "pain_score": entry.pain_score if entry else 0,
+            "injection_targets": entry.injection_targets if entry else [],
+            "promotion_hint": entry.promotion_hint if entry else "",
+        },
+        "detail_path": str(detail_path) if detail_path else None,
+        "warnings": list(diagnostics.get("warnings", [])),
     }
 
 
 def start_learning_session(project_root: Path, *, command_name: str) -> dict[str, Any]:
-    paths = ensure_learning_files(project_root)
+    """Return the compact, read-only Learning intake for one workflow."""
+
+    paths = build_learning_paths(project_root)
     normalized_command = normalize_command_name(command_name)
-    rule_preamble, rule_entries = _read_entries(paths.project_rules)
-    learning_preamble, learning_entries = _read_entries(paths.project_learnings)
-    candidate_preamble, candidate_entries = _read_entries(paths.candidates)
-
-    auto_promoted: list[LearningEntry] = []
-    remaining_candidates: list[LearningEntry] = []
-    for entry in candidate_entries:
-        if should_auto_promote_on_start(entry, normalized_command):
-            promoted_entry = LearningEntry.from_payload(
-                {
-                    **entry.to_payload(),
-                    "status": "confirmed",
-                }
-            )
-            learning_entries, stored = _upsert_entry(learning_entries, promoted_entry, status="confirmed")
-            auto_promoted.append(stored)
-            _sync_learning_index_detail(paths, stored)
-            _append_review_note(
-                paths.review,
-                f"auto-promoted `{stored.recurrence_key}` to project learnings during `{normalized_command}` start",
-            )
-        else:
-            remaining_candidates.append(entry)
-
-    if auto_promoted:
-        _write_entries(
-            paths.project_learnings,
-            learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(),
-            learning_entries,
-        )
-        _write_entries(
-            paths.candidates,
-            candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(),
-            remaining_candidates,
-        )
-        candidate_entries = remaining_candidates
-
-    _index_preamble, index_entries, learning_index_diagnostics = _read_index_entries_with_diagnostics(
-        paths.learning_index
+    catalog = list_learning_summaries(
+        project_root,
+        command_name=normalized_command,
+        limit=20,
     )
-    learning_index_warnings = list(learning_index_diagnostics.get("warnings", []))
-    relevant_rules = [entry.to_payload() for entry in rule_entries if is_relevant_to_command(entry, normalized_command)]
-    relevant_learnings = [entry.to_payload() for entry in learning_entries if is_relevant_to_command(entry, normalized_command)]
-    relevant_candidates = [entry.to_payload() for entry in candidate_entries if is_relevant_to_command(entry, normalized_command)]
-    relevant_index_entries = [
-        entry.to_payload()
-        for entry in index_entries
-        if is_index_relevant_to_command(entry, normalized_command)
-    ]
-    relevant_detail_entries = [
+    candidates = [
         entry
-        for entry in index_entries
-        if is_index_relevant_to_command(entry, normalized_command)
+        for entry in _read_entries_if_present(paths.candidates)
+        if is_relevant_to_command(entry, normalized_command)
     ]
-    recommended_detail_docs = _recommended_detail_doc_paths(paths.learning_index.parent, relevant_detail_entries)
-
-    promotable = [
-        entry.to_payload()
-        for entry in candidate_entries
-        if is_relevant_to_command(entry, normalized_command) and entry.occurrence_count >= 2
-    ]
-    confirmation_candidates = [
-        entry.to_payload()
-        for entry in candidate_entries
-        if is_relevant_to_command(entry, normalized_command) and is_highest_signal(entry)
-    ]
-
-    preflight_warning_entries: list[dict[str, Any]] = []
-    seen_preflight_keys: set[str] = set()
-
-    for entry in rule_entries:
-        if not is_relevant_to_command(entry, normalized_command):
-            continue
-        if entry.recurrence_key in seen_preflight_keys:
-            continue
-        preflight_warning_entries.append(
-            _preflight_warning_payload(
-                entry,
-                current_command=normalized_command,
-                source_layer="project_rules",
-            )
-        )
-        seen_preflight_keys.add(entry.recurrence_key)
-
-    for entry in learning_entries:
-        if not is_relevant_to_command(entry, normalized_command):
-            continue
-        if entry.recurrence_key in seen_preflight_keys:
-            continue
-        preflight_warning_entries.append(
-            _preflight_warning_payload(
-                entry,
-                current_command=normalized_command,
-                source_layer="project_learnings",
-            )
-        )
-        seen_preflight_keys.add(entry.recurrence_key)
-
-    for entry in candidate_entries:
-        if not is_relevant_to_command(entry, normalized_command):
-            continue
-        if not is_highest_signal(entry):
-            continue
-        if entry.recurrence_key in seen_preflight_keys:
-            continue
-        preflight_warning_entries.append(
-            _preflight_warning_payload(
-                entry,
-                current_command=normalized_command,
-                source_layer="candidate",
-                requires_confirmation=True,
-            )
-        )
-        seen_preflight_keys.add(entry.recurrence_key)
-
-    top_warning_entries = sorted(
-        [
-            *auto_promoted,
-            *[LearningEntry.from_payload(item) for item in promotable],
-            *[LearningEntry.from_payload(item) for item in confirmation_candidates],
-        ],
-        key=lambda entry: (-entry.occurrence_count, entry.recurrence_key),
-    )
-    seen_warning_keys: set[str] = set()
-    top_warnings: list[dict[str, Any]] = []
-    for entry in top_warning_entries:
-        if entry.recurrence_key in seen_warning_keys:
-            continue
-        top_warnings.append(
-            {
-                "recurrence_key": entry.recurrence_key,
-                "summary": entry.summary,
-                "signal_strength": entry.signal_strength,
-                "occurrence_count": entry.occurrence_count,
-                "status": entry.status,
-            }
-        )
-        seen_warning_keys.add(entry.recurrence_key)
-        if len(top_warnings) == 5:
-            break
-
     return {
+        "schema_version": 1,
+        "record_schema": ".specify/templates/project-learning-record-schema.json#/$defs/startSummary",
         "command": normalized_command,
-        "paths": paths.to_dict(),
-        "relevant_rules": relevant_rules,
-        "relevant_learnings": relevant_learnings,
-        "relevant_candidates": relevant_candidates,
-        "relevant_index_entries": relevant_index_entries,
-        "recommended_detail_docs": recommended_detail_docs,
-        "auto_promoted": [entry.to_payload() for entry in auto_promoted],
-        "promotable_candidates": promotable,
-        "confirmation_candidates": confirmation_candidates,
-        "preflight_warnings": preflight_warning_entries,
-        "summary_counts": {
-            "relevant_rules": len(relevant_rules),
-            "relevant_learnings": len(relevant_learnings),
-            "relevant_candidates": len(relevant_candidates),
-            "relevant_index_entries": len(relevant_index_entries),
-            "auto_promoted": len(auto_promoted),
-            "promotable_candidates": len(promotable),
-            "confirmation_candidates": len(confirmation_candidates),
-            "preflight_warnings": len(preflight_warning_entries),
-            "learning_index_warnings": len(learning_index_warnings),
-            "skipped_malformed_index_entries": int(
-                learning_index_diagnostics.get("skipped_malformed_entries", 0)
-            ),
-        },
-        "top_warnings": top_warnings,
-        "warnings": learning_index_warnings,
-        "learning_index_diagnostics": {
-            key: value for key, value in learning_index_diagnostics.items() if key != "warnings"
-        },
+        "policy": learning_workflow_policy(normalized_command),
+        "read_only": True,
+        "items": catalog["items"],
+        "pagination": catalog["pagination"],
+        "promotion_ready": [
+            {
+                "ref": entry.recurrence_key,
+                "summary": entry.summary,
+                "occurrences": entry.occurrence_count,
+            }
+            for entry in candidates
+            if entry.occurrence_count >= 2
+        ],
+        "needs_confirmation": [
+            {
+                "ref": entry.recurrence_key,
+                "summary": entry.summary,
+                "signal": entry.signal_strength,
+            }
+            for entry in candidates
+            if is_highest_signal(entry)
+        ],
+        "warnings": catalog["warnings"],
     }
 
 
@@ -1834,8 +2605,13 @@ def capture_learning(
     root_cause_family: str | None = None,
     injection_targets: Iterable[str] | None = None,
     promotion_hint: str | None = None,
+    problem: str | None = None,
+    recommended_action: str | None = None,
+    avoid: Iterable[str] | None = None,
+    trigger_signals: Iterable[str] | None = None,
+    success_criteria: Iterable[str] | None = None,
+    exceptions: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    paths = ensure_learning_files(project_root)
     entry = build_learning_entry(
         command_name=command_name,
         learning_type=learning_type,
@@ -1853,16 +2629,49 @@ def capture_learning(
         root_cause_family=root_cause_family,
         injection_targets=injection_targets,
         promotion_hint=promotion_hint,
+        problem=problem,
+        recommended_action=recommended_action,
+        avoid=avoid,
+        trigger_signals=trigger_signals,
+        success_criteria=success_criteria,
+        exceptions=exceptions,
     )
 
+    with interprocess_lock(_learning_lock_path(project_root)):
+        paths = _ensure_learning_files_unlocked(project_root)
+        return _store_learning_entry(paths, entry, confirm=confirm)
+
+
+def _store_learning_entry(
+    paths: LearningPaths,
+    entry: LearningEntry,
+    *,
+    confirm: bool,
+) -> dict[str, Any]:
+
     if confirm:
-        preamble, learning_entries = _read_entries(paths.project_learnings)
-        learning_entries, stored = _upsert_entry(learning_entries, entry, status="confirmed")
-        _write_entries(paths.project_learnings, preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(), learning_entries)
+        preamble, learning_entries = _read_entries(paths.confirmed_learnings)
+        learning_entries, stored = _upsert_entry(
+            learning_entries, entry, status="confirmed"
+        )
+        _write_entries(
+            paths.confirmed_learnings,
+            preamble or CONFIRMED_LEARNINGS_TEMPLATE_TEXT.rstrip(),
+            learning_entries,
+        )
         candidate_preamble, candidate_entries = _read_entries(paths.candidates)
-        candidate_entries = _remove_by_recurrence(candidate_entries, stored.recurrence_key)
-        _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
-        _append_review_note(paths.review, f"confirmed `{stored.recurrence_key}` from `{stored.source_command}`")
+        candidate_entries = _remove_by_recurrence(
+            candidate_entries, stored.recurrence_key
+        )
+        _write_entries(
+            paths.candidates,
+            candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(),
+            candidate_entries,
+        )
+        _append_review_note(
+            paths.review,
+            f"confirmed `{stored.recurrence_key}` from `{stored.source_command}`",
+        )
         stored_index, detail_path = _sync_learning_index_detail(paths, stored)
         return {
             "status": "confirmed",
@@ -1873,9 +2682,18 @@ def capture_learning(
         }
 
     preamble, candidate_entries = _read_entries(paths.candidates)
-    candidate_entries, stored = _upsert_entry(candidate_entries, entry, status="candidate")
-    _write_entries(paths.candidates, preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
-    _append_review_note(paths.review, f"captured candidate `{stored.recurrence_key}` from `{stored.source_command}`")
+    candidate_entries, stored = _upsert_entry(
+        candidate_entries, entry, status="candidate"
+    )
+    _write_entries(
+        paths.candidates,
+        preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(),
+        candidate_entries,
+    )
+    _append_review_note(
+        paths.review,
+        f"captured candidate `{stored.recurrence_key}` from `{stored.source_command}`",
+    )
     stored_index, detail_path = _sync_learning_index_detail(paths, stored)
     return {
         "status": "candidate",
@@ -1927,51 +2745,58 @@ def capture_auto_learning(
         }
 
     fingerprint = _snapshot_fingerprint(normalized_command, source_path, suggestions)
-    registry = _load_auto_capture_registry(project_root)
-    if fingerprint in registry:
-        return {
-            "status": "duplicate-snapshot",
+    with interprocess_lock(_learning_lock_path(project_root)):
+        paths = _ensure_learning_files_unlocked(project_root)
+        registry = _load_auto_capture_registry(project_root)
+        if fingerprint in registry:
+            return {
+                "status": "duplicate-snapshot",
+                "command": normalized_command,
+                "source_path": str(source_path),
+                "captured": [],
+                "reason": "this workflow state snapshot was already auto-captured",
+                "fingerprint": fingerprint,
+            }
+
+        captured: list[dict[str, Any]] = []
+        for suggestion in suggestions:
+            entry = build_learning_entry(
+                command_name=normalized_command,
+                learning_type=suggestion.learning_type,
+                summary=suggestion.summary,
+                evidence=suggestion.evidence,
+                recurrence_key=suggestion.recurrence_key,
+                signal_strength=suggestion.signal_strength,
+                applies_to=suggestion.applies_to,
+                status="candidate",
+                problem=suggestion.problem or None,
+                recommended_action=suggestion.recommended_action or None,
+                trigger_signals=suggestion.trigger_signals,
+                success_criteria=suggestion.success_criteria,
+                avoid=suggestion.avoid,
+                exceptions=suggestion.exceptions,
+            )
+            captured.append(_store_learning_entry(paths, entry, confirm=False))
+
+        registry[fingerprint] = {
             "command": normalized_command,
             "source_path": str(source_path),
-            "captured": [],
-            "reason": "this workflow state snapshot was already auto-captured",
+            "recurrence_keys": [item["entry"]["recurrence_key"] for item in captured],
+            "captured_entries": [item["entry"] for item in captured],
+            "captured_at": now_iso(),
+        }
+        _write_auto_capture_registry(project_root, registry)
+        _append_review_note(
+            paths.review,
+            f"auto-captured {len(captured)} learning candidate(s) from `{normalized_command}` using `{source_path}`",
+        )
+        return {
+            "status": "captured",
+            "command": normalized_command,
+            "source_path": str(source_path),
+            "captured": captured,
             "fingerprint": fingerprint,
         }
-
-    captured: list[dict[str, Any]] = []
-    for suggestion in suggestions:
-        payload = capture_learning(
-            project_root,
-            command_name=normalized_command,
-            learning_type=suggestion.learning_type,
-            summary=suggestion.summary,
-            evidence=suggestion.evidence,
-            recurrence_key=suggestion.recurrence_key,
-            signal_strength=suggestion.signal_strength,
-            applies_to=suggestion.applies_to,
-            confirm=False,
-        )
-        captured.append(payload)
-
-    registry[fingerprint] = {
-        "command": normalized_command,
-        "source_path": str(source_path),
-        "recurrence_keys": [item["entry"]["recurrence_key"] for item in captured],
-        "captured_entries": [item["entry"] for item in captured],
-        "captured_at": now_iso(),
-    }
-    _write_auto_capture_registry(project_root, registry)
-    _append_review_note(
-        build_learning_paths(project_root).review,
-        f"auto-captured {len(captured)} learning candidate(s) from `{normalized_command}` using `{source_path}`",
-    )
-    return {
-        "status": "captured",
-        "command": normalized_command,
-        "source_path": str(source_path),
-        "captured": captured,
-        "fingerprint": fingerprint,
-    }
 
 
 def promote_learning(
@@ -1983,31 +2808,78 @@ def promote_learning(
     normalized_target = target.strip().lower()
     if normalized_target not in PROMOTION_TARGETS:
         raise ValueError(f"unsupported promotion target '{target}'")
+    normalized_recurrence_key = str(recurrence_key or "").strip().lower()
+    if not normalized_recurrence_key:
+        raise ValueError("learning recurrence_key is required")
 
-    paths = ensure_learning_files(project_root)
-    recurrence_key = recurrence_key.strip().lower()
+    with interprocess_lock(_learning_lock_path(project_root)):
+        paths = _ensure_learning_files_unlocked(project_root)
+        return _promote_learning_locked(
+            paths,
+            recurrence_key=normalized_recurrence_key,
+            normalized_target=normalized_target,
+        )
+
+
+def _promote_learning_locked(
+    paths: LearningPaths,
+    *,
+    recurrence_key: str,
+    normalized_target: str,
+) -> dict[str, Any]:
+
     candidate_preamble, candidate_entries = _read_entries(paths.candidates)
-    learning_preamble, learning_entries = _read_entries(paths.project_learnings)
+    learning_preamble, learning_entries = _read_entries(paths.confirmed_learnings)
     rule_preamble, rule_entries = _read_entries(paths.project_rules)
 
-    source_entry = next((entry for entry in candidate_entries if entry.recurrence_key == recurrence_key), None)
+    source_entry = next(
+        (
+            entry
+            for entry in candidate_entries
+            if entry.recurrence_key == recurrence_key
+        ),
+        None,
+    )
     source_layer = "candidates"
     if source_entry is None:
-        source_entry = next((entry for entry in learning_entries if entry.recurrence_key == recurrence_key), None)
-        source_layer = "project_learnings"
+        source_entry = next(
+            (
+                entry
+                for entry in learning_entries
+                if entry.recurrence_key == recurrence_key
+            ),
+            None,
+        )
+        source_layer = "confirmed_learnings"
     if source_entry is None:
-        source_entry = next((entry for entry in rule_entries if entry.recurrence_key == recurrence_key), None)
+        source_entry = next(
+            (entry for entry in rule_entries if entry.recurrence_key == recurrence_key),
+            None,
+        )
         source_layer = "project_rules"
     if source_entry is None:
         raise ValueError(f"learning '{recurrence_key}' not found")
 
     if normalized_target == "learning":
         source_entry.status = "confirmed"
-        learning_entries, stored = _upsert_entry(learning_entries, source_entry, status="confirmed")
+        learning_entries, stored = _upsert_entry(
+            learning_entries, source_entry, status="confirmed"
+        )
         candidate_entries = _remove_by_recurrence(candidate_entries, recurrence_key)
-        _write_entries(paths.project_learnings, learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(), learning_entries)
-        _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
-        _append_review_note(paths.review, f"promoted `{recurrence_key}` to project learnings from `{source_layer}`")
+        _write_entries(
+            paths.confirmed_learnings,
+            learning_preamble or CONFIRMED_LEARNINGS_TEMPLATE_TEXT.rstrip(),
+            learning_entries,
+        )
+        _write_entries(
+            paths.candidates,
+            candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(),
+            candidate_entries,
+        )
+        _append_review_note(
+            paths.review,
+            f"promoted `{recurrence_key}` to project learnings from `{source_layer}`",
+        )
         stored_index, detail_path = _sync_learning_index_detail(paths, stored)
         return {
             "status": "confirmed",
@@ -2017,13 +2889,28 @@ def promote_learning(
         }
 
     source_entry.status = "promoted-rule"
-    rule_entries, stored = _upsert_entry(rule_entries, source_entry, status="promoted-rule")
+    rule_entries, stored = _upsert_entry(
+        rule_entries, source_entry, status="promoted-rule"
+    )
     candidate_entries = _remove_by_recurrence(candidate_entries, recurrence_key)
     learning_entries = _remove_by_recurrence(learning_entries, recurrence_key)
-    _write_entries(paths.project_rules, rule_preamble or RULES_TEMPLATE_TEXT.rstrip(), rule_entries)
-    _write_entries(paths.project_learnings, learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(), learning_entries)
-    _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
-    _append_review_note(paths.review, f"promoted `{recurrence_key}` to project rules from `{source_layer}`")
+    _write_entries(
+        paths.project_rules, rule_preamble or RULES_TEMPLATE_TEXT.rstrip(), rule_entries
+    )
+    _write_entries(
+        paths.confirmed_learnings,
+        learning_preamble or CONFIRMED_LEARNINGS_TEMPLATE_TEXT.rstrip(),
+        learning_entries,
+    )
+    _write_entries(
+        paths.candidates,
+        candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(),
+        candidate_entries,
+    )
+    _append_review_note(
+        paths.review,
+        f"promoted `{recurrence_key}` to project rules from `{source_layer}`",
+    )
     stored_index, detail_path = _sync_learning_index_detail(paths, stored)
     return {
         "status": "promoted-rule",
@@ -2035,12 +2922,20 @@ def promote_learning(
 
 def _entry_counts(project_root: Path) -> dict[str, int]:
     paths = build_learning_paths(project_root)
-    _, candidate_entries = _read_entries(paths.candidates) if paths.candidates.exists() else ("", [])
-    _, learning_entries = _read_entries(paths.project_learnings) if paths.project_learnings.exists() else ("", [])
-    _, rule_entries = _read_entries(paths.project_rules) if paths.project_rules.exists() else ("", [])
+    _, candidate_entries = (
+        _read_entries(paths.candidates) if paths.candidates.exists() else ("", [])
+    )
+    _, learning_entries = (
+        _read_entries(paths.confirmed_learnings)
+        if paths.confirmed_learnings.exists()
+        else ("", [])
+    )
+    _, rule_entries = (
+        _read_entries(paths.project_rules) if paths.project_rules.exists() else ("", [])
+    )
     return {
         "candidates": len(candidate_entries),
-        "project_learnings": len(learning_entries),
+        "confirmed_learnings": len(learning_entries),
         "project_rules": len(rule_entries),
     }
 
@@ -2056,7 +2951,7 @@ def learning_status_payload(
         "exists": {
             "constitution": paths.constitution.exists(),
             "project_rules": paths.project_rules.exists(),
-            "project_learnings": paths.project_learnings.exists(),
+            "confirmed_learnings": paths.confirmed_learnings.exists(),
             "learning_index": paths.learning_index.exists(),
         },
         "counts": _entry_counts(project_root),

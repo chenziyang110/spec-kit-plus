@@ -31,12 +31,28 @@ def test_spx_auto_preserves_authoritative_resume_routing() -> None:
     assert "scope reduction" in content and "destructive" in content
 
 
-def test_spx_feature_stages_preserve_runtime_owned_resume_state() -> None:
+def test_spx_accept_preserves_classic_human_acceptance_boundary() -> None:
+    spx = _text("spx-accept", "acceptance-contract.md")
+    classic = (CLASSIC_COMMANDS / "accept.md").read_text(encoding="utf-8").lower()
+
+    for content in (spx, classic):
+        assert "human-acceptance.json" in content
+        assert "implementation-summary.md" in content
+        assert "no useful" in content or "no prior context" in content
+        assert "one" in content and "step" in content
+        assert "do not edit" in content or "must not edit" in content
+        assert "human" in content and "pass" in content
+        assert "implement" in content
+        assert "debug" in content
+
+    assert "technical completion is not human product acceptance" in _text(
+        "spx-implement"
+    )
+
+
+def test_spx_optional_feature_stages_preserve_runtime_owned_resume_state() -> None:
     expected = {
         "spx-clarify": ("clarify", "planning-only"),
-        "spx-specify": ("specify", "planning-only"),
-        "spx-plan": ("plan", "design-only"),
-        "spx-tasks": ("tasks", "task-generation-only"),
         "spx-analyze": ("analyze", "analysis-only"),
     }
 

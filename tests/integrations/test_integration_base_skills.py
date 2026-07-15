@@ -107,13 +107,14 @@ def _assert_compact_managed_context(content: str) -> None:
     assert SPEC_KIT_BLOCK_START in content
     assert "[AGENT]" in content
     assert "## Always-On Context" in content
-    assert "project cognition and project memory are always available" in lower
+    assert "project cognition and project learning are always available" in lower
     assert "even without an active `sp-*` workflow" in lower
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "specify learning start --command <workflow> --format json" in content
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
@@ -128,7 +129,7 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "frontstage-only deferred persistence" in lower
     assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
     assert "project cognition freshness truthful" in lower
-    assert "store reusable lessons in project memory" in lower
+    assert "store reusable lessons through project learning" in lower
 
     assert "## Workflow Activation Discipline" not in content
     assert "1% chance" not in content
@@ -1580,7 +1581,7 @@ class SkillsIntegrationTests:
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
             ".specify/memory/learnings/INDEX.md",
-            ".specify/memory/project-learnings.md",
+            ".specify/memory/learnings/confirmed.md",
             ".specify/memory/project-rules.md",
         ]
         # Script variant

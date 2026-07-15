@@ -5,6 +5,8 @@ description: Lean feature-specification workflow for advanced coding models. Use
 
 # SPX Specify
 
+Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/project-cognition.md`, using cognition intent `plan`.
 Read `references/requirements-contract.md`. Read
 `references/discussion-handoff.md` when consuming a ready discussion and
@@ -26,11 +28,10 @@ when revising an established spec. Render `assets/ui-brief.md` for substantive
 UI work; a narrow existing-pattern adjustment may instead record why a separate
 brief adds no decision value.
 
-Create or resume runtime-owned `workflow-state.md` before substantive artifact
-work, using the installed workflow-state template only when absent. Record
-`active_command: sp-specify`, `phase_mode: planning-only`, the source revision,
-target boundary, blocker, and next route; keep specification truth in the
-contract. Run `{{specify-subcmd:hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
+After the feature directory exists, enter or resume `specify` through the
+workflow runtime before substantive artifact work. Keep specification truth in
+the contract rather than reconstructing phase state. Run
+`{{specify-subcmd:hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
 and stop if the repaired state remains invalid.
 Create only specification-stage outputs here: `spec-contract.json`, `spec.md`,
 a triggered `ui-brief.md`, and specification evidence or runtime-owned state.

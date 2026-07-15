@@ -25,6 +25,7 @@ EXPECTED_WORKFLOW_STATE = {
     "deep-research": ("sp-deep-research", "research-only"),
     "plan": ("sp-plan", "design-only"),
     "tasks": ("sp-tasks", "task-generation-only"),
+    "accept": ("sp-accept", "acceptance-only"),
     "analyze": ("sp-analyze", "analysis-only"),
     "prd-scan": ("sp-prd-scan", "analysis-only"),
     "prd-build": ("sp-prd-build", "analysis-only"),
@@ -94,6 +95,29 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
             errors.append("workflow-state is missing authoritative_files")
         if not checkpoint["next_command"]:
             errors.append("workflow-state is missing next_command")
+        acceptance_validation: dict[str, object] | None = None
+        if command_name == "accept":
+            from specify_cli.human_acceptance import validate_human_acceptance
+
+            acceptance_validation = validate_human_acceptance(
+                project_root, feature_dir
+            )
+            acceptance_errors = [
+                str(error) for error in acceptance_validation.get("errors", [])
+            ]
+            if acceptance_errors:
+                return HookResult(
+                    event=WORKFLOW_STATE_VALIDATE,
+                    status="blocked",
+                    severity="critical",
+                    errors=acceptance_errors,
+                    data={
+                        "checkpoint": checkpoint,
+                        "validated_path": str(target.resolve()),
+                        "lane_context": diagnostics,
+                        "human_acceptance": acceptance_validation,
+                    },
+                )
         if errors:
             if autofix:
                 snippet = _autofix_sections_for_command(command_name)
@@ -135,6 +159,11 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 "checkpoint": checkpoint,
                 "validated_path": str(target.resolve()),
                 "lane_context": diagnostics,
+                **(
+                    {"human_acceptance": acceptance_validation}
+                    if acceptance_validation is not None
+                    else {}
+                ),
             },
         )
 
@@ -342,6 +371,23 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "task-index.json",
             ],
             "next_command": "/sp.implement",
+        },
+        "accept": {
+            "allowed": ["human-acceptance.json", "workflow-state.md"],
+            "forbidden": [
+                "edit production source code",
+                "edit tests",
+                "edit spec, plan, or task artifacts",
+                "edit implementation lifecycle records",
+                "commit, push, deploy, or perform external writes",
+                "silently run a repair workflow",
+            ],
+            "authoritative": [
+                "implementation-summary.md",
+                "human-acceptance.json",
+                "workflow-state.md",
+            ],
+            "next_command": "/sp.accept",
         },
         "analyze": {
             "allowed": ["workflow-state.md"],

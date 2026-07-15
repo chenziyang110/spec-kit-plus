@@ -5,6 +5,7 @@ description: Focused requirements-quality checklist workflow for advanced coding
 
 # SPX Checklist
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/checklist-contract.md`. Resolve the active feature with the
 installed prerequisite script. Use `assets/checklist.md` only as the compact

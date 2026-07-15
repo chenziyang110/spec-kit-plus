@@ -5,8 +5,10 @@ description: Lean tracked-change workflow for advanced coding models. Use when w
 
 # SPX Quick
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `implement`.
-Read `references/task-contract.md`. Read `references/worker-contract.md` only
+Read `references/human-confirmation.md`, then `references/task-contract.md`.
+Read `references/worker-contract.md` only
 when delegating. Read `references/consequence-gate.md` when work can affect
 lifecycle operations, running objects, concurrent work, destructive behavior,
 shared state, downstream consumers, compatibility, security-sensitive behavior,
@@ -22,9 +24,8 @@ Record bounded consequence obligations in `STATUS.md` with their affected
 objects, recovery, verification, and stop conditions. Route unbounded
 consequences to `$spx-specify`; do not shrink them to remain quick.
 
-Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and
-`.specify/memory/learnings/INDEX.md` in that order before broader quick-task
-context; open only task-relevant learning details.
+Read `.specify/memory/constitution.md` as governance. Consume project rules and
+task-relevant Learning only through the project-learning CLI intake.
 
 Create new state deterministically with
 `{{specify-subcmd:artifact scaffold --kind quick-status --out ".planning/quick/<id>-<slug>/STATUS.md" --vars "<compact-json>" --format json}}`
@@ -37,10 +38,12 @@ scaffold. Use the project launcher-backed
 Keep state compact and ask the user only for decisions the repository cannot
 supply.
 
-Initialize or preserve the unconfirmed intake state, present a compact
-Understanding Checkpoint, and wait for user confirmation before broad source or
-test reads, delegation, implementation, or validation. Persist the confirmed
-state only after confirmation.
+Initialize or preserve the unconfirmed intake state and render the Quick card
+from `references/human-confirmation.md`. For applicable UI work, append its UI
+implementation proposal, then ask once for both decisions. Wait for user
+confirmation before broad source or test reads, delegation, implementation, or
+validation. Persist the main and UI confirmations separately only after
+confirmation; keep the technical execution plan agent-owned.
 
 When intake names `.specify/discussions/<slug>/handoff-to-specify.json`, consume
 it only when it is handoff-ready, its digests are current, it has zero blocking

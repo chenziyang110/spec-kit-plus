@@ -68,6 +68,10 @@ The following flags are available and composable:
   states and viewports, must-preserve decisions, and real-entrypoint
   structure/visual/runtime evidence. Route a missing/bootstrap design or new visual direction to
   `sp-design`, and acceptance-heavy multi-surface work to `sp-specify`.
+- Carry the confirmed UI Confirmation unchanged into `STATUS.md` and every UI
+  worker packet. A worker may implement within its `must preserve`/`may adapt`
+  boundaries but must not redesign the confirmed proposal; any conflict returns
+  to the leader as a checkpoint amendment or workflow escalation.
 - Treat a user-provided PNG, screenshot, mockup, design export, reference image, or "make it like this" UI request as a first-class worker input when it shapes the quick task.
 - Before dispatch, record the image inputs in the quick-task context and include them in the `WorkerTaskPacket` or equivalent lane contract as `image_inputs` or UI reference inputs with stable project-relative paths when available.
 - If the image exists only as a chat attachment, materialize it to a stable project-local artifact path or pass it to the subagent as a runtime image item/local_image when the integration supports that. Do not rely on inherited chat context, `fork_context`, or a prose summary as the only handoff.

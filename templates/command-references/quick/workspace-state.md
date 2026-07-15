@@ -69,14 +69,6 @@ The generated scaffold initializes `understanding_confirmed: false`, `status: ga
 - `archive` controls storage semantics. Use it only after the quick task has already been closed.
 - Do not treat archive as an implied synonym for resolved. Closure says what happened; archive says where the closed task now lives.
 
-## Passive Project Learning Layer
-
-- Run `{{specify-subcmd:learning start --command quick --format json}}` when available so passive learning files exist and the current quick task sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader quick-task context.
-- Open only learning detail docs linked from quick-task-relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail document without asking for routine permission.
-- Prefer `{{specify-subcmd:learning capture-auto --command quick --format json}}` when `STATUS.md` already preserves route reasons, false starts, hidden dependencies, validation gaps, or reusable constraints.
-- When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
-- Treat this as passive shared memory, not as a separate user-visible quick-task command.
+{{spec-kit-include: ../../command-partials/common/learning-layer.md}}
 
 **This command tier: light.** Auto-capture learnings on resolution only. No review, no signal.

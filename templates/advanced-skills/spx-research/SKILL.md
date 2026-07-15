@@ -5,6 +5,7 @@ description: Compatibility research entrypoint for advanced coding models. Use o
 
 # SPX Research
 
+Read `references/project-learning.md` and apply its consume-capture policy using command `deep-research`.
 Read `references/project-cognition.md` only to preserve the shared evidence
 boundary; defer cognition intake to `$spx-deep-research`. This is a
 compatibility route, not a separate artifact lifecycle.

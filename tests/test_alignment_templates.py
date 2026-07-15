@@ -735,9 +735,11 @@ def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
 
 
 def _assert_learning_index_detail_model(content: str) -> None:
-    assert ".specify/memory/learnings/INDEX.md" in content
-    assert "detail document" in content or "detail docs" in content
+    assert "learning start --command" in content
+    assert "detail-level summary" in content
+    assert "show_argv" in content or "learning show" in content
     lowered = content.lower()
+    assert ".specify/memory/learnings/index.md" not in lowered
     assert ".specify/memory/project-learnings.md" not in lowered
     assert ".planning/learnings/candidates.md" not in lowered
     assert "returns no candidates" not in lowered
@@ -1078,13 +1080,14 @@ def _assert_managed_block_v2_contract(block: str) -> None:
 
     assert "## Spec Kit Plus Managed Rules" in block
     assert "## Always-On Context" in block
-    assert "project cognition and project memory are always available" in lowered
+    assert "project cognition and project learning are always available" in lowered
     assert "even without an active `sp-*` workflow" in lowered
     assert "when existing-system truth matters" in lowered
     assert "before broad source inspection" in lowered
     assert "narrow live reads" in lowered
-    assert ".specify/memory/project-rules.md" in block
-    assert ".specify/memory/learnings/INDEX.md" in block
+    assert "learning start --command <workflow> --format json" in block
+    assert "show_argv" in block
+    assert ".specify/memory/learnings/INDEX.md" not in block
 
     assert "## Workflow Recommendations" in block
     assert "do not auto-enter an `sp-*` workflow" in lowered
@@ -1109,7 +1112,7 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "suggest `checkpoint, continue`" in lowered
     assert "prompt does not write files by itself" in lowered
     assert "project cognition freshness truthful" in lowered
-    assert "store reusable lessons in project memory" in lowered
+    assert "store reusable lessons through project learning" in lowered
 
     assert "## Workflow Activation Discipline" not in block
     assert "1% chance" not in block
@@ -1141,12 +1144,14 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "support drift" in repo_docs
 
 
-def test_core_sp_templates_use_direct_passive_learning_without_hook_gates():
+def test_core_sp_templates_use_cli_progressive_learning_without_hook_gates():
     learning_layer = _read("templates/command-partials/common/learning-layer.md")
-    assert ".specify/memory/learnings/INDEX.md" in learning_layer
-    assert "Learning Reflex" in learning_layer
-    assert "detail document" in learning_layer
+    assert "learning start --command <classic-command-name> --format json" in learning_layer
+    assert "learning list --command <classic-command-name>" in learning_layer
+    assert "show_argv" in learning_layer
+    assert "only agent-facing Learning read surface" in learning_layer
     assert "learning capture-auto" in learning_layer
+    assert ".specify/memory/learnings/INDEX.md" not in learning_layer
 
     command_templates = (
         "templates/commands/specify.md",
@@ -1175,30 +1180,26 @@ def test_core_sp_templates_use_direct_passive_learning_without_hook_gates():
         assert "{{specify-subcmd:hook inject-learning" not in content, (
             f"{template_path} should use direct passive learning, not inject-learning hooks"
         )
-        assert ".specify/memory/learnings/INDEX.md" in content, (
-            f"{template_path} should preserve the learning index reference"
-        )
-        assert "Learning Reflex" in content, f"{template_path} should preserve Learning Reflex guidance"
-        assert "detail document" in content, (
-            f"{template_path} should preserve learning detail document guidance"
-        )
+        assert "learning start --command " in content
+        assert "--format json" in content
+        assert "--detail-level" not in content
+        assert "show_argv" in content
+        assert ".specify/memory/learnings/INDEX.md" not in content
 
     quick_content = _read("templates/commands/quick.md")
-    assert "{{specify-subcmd:learning start --command quick --format json}}" in quick_content or "Passive Project Learning Layer" in quick_content
+    assert "learning start --command <classic-command-name> --format json" in quick_content
     assert "{{specify-subcmd:hook review-learning --command quick" not in quick_content
     assert "{{specify-subcmd:hook capture-learning" not in quick_content
-    assert ".specify/memory/learnings/INDEX.md" in quick_content
-    assert "Learning Reflex" in quick_content
-    assert "detail document" in quick_content
+    assert ".specify/memory/learnings/INDEX.md" not in quick_content
+    assert "show_argv" in quick_content
 
     fast_content = _read("templates/commands/fast.md")
-    assert ".specify/memory/learnings/INDEX.md" in fast_content
-    assert "Learning Reflex" in fast_content
-    assert "detail document" in fast_content
+    assert "Do not run Learning intake" in fast_content
+    assert "Learning storage" in fast_content
     assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 
 
-def test_owned_workflow_templates_use_learning_index_reflex() -> None:
+def test_owned_workflow_templates_use_cli_learning_reflex() -> None:
     owned_workflow_templates = (
         "templates/commands/specify.md",
         "templates/commands/clarify.md",
@@ -1218,9 +1219,9 @@ def test_owned_workflow_templates_use_learning_index_reflex() -> None:
     for template_path in owned_workflow_templates:
         content = _read(template_path)
         assert ".specify/memory/constitution.md" in content
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/INDEX.md" in content
-        assert "Learning Reflex" in content or "future senior engineer" in content
+        assert "learning start" in content
+        assert "show_argv" in content or "selected matching Learning" in content
+        assert ".specify/memory/learnings/INDEX.md" not in content
 
 
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
@@ -1270,8 +1271,10 @@ def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> 
 def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates():
     content = _read("templates/passive-skills/spec-kit-project-learning/SKILL.md")
 
-    assert "Direct Learning Helpers" in content
+    assert "Consume With Progressive Disclosure" in content
     assert "learning start" in content
+    assert "learning list" in content
+    assert "learning show" in content or "show_argv" in content
     assert "learning capture-auto" in content
     assert "{{specify-subcmd:hook signal-learning" not in content
     assert "{{specify-subcmd:hook review-learning" not in content
@@ -1279,7 +1282,7 @@ def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates
     assert "{{specify-subcmd:hook inject-learning" not in content
     assert "tooling_trap" in content
     assert "map_coverage_gap" in content
-    assert "Do NOT" in content
+    assert "Do not promote during a read command" in content
 
 
 def _assert_discussion_advisor_upgrade_contract(content: str) -> None:
@@ -2585,7 +2588,7 @@ def test_project_map_root_templates_document_scenario_profile_contracts() -> Non
     assert "standard delivery" in workflows
     assert "reference-implementation" in workflows
     assert "profile routing" in workflows
-    assert "sp-specify -> sp-plan -> sp-tasks -> sp-implement" in workflows
+    assert "sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept" in workflows
 
     assert "profile-matched evidence" in testing
     assert "reference fidelity" in testing
@@ -2600,9 +2603,9 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     lowered = content.lower()
     shell_lowered = shell.lower()
 
-    assert ".specify/memory/project-rules.md" in content
-    _assert_learning_index_detail_model(content)
-    assert "{{specify-subcmd:learning start --command constitution --format json}}" in content
+    assert "consume-only Learning CLI intake" in content
+    assert "learning start --command constitution --format json" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "`/sp-map-scan` followed by `/sp-map-build`" in content
@@ -3222,9 +3225,9 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "Blocker Bundle" in content
     assert "selected/rejected concepts" in lowered
     assert "`route_pack`" in content
-    assert "Limit the visible findings table to 50 rows for readability" in content
+    assert "include every unique actionable finding" in content
     assert "`Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding" in content
-    assert "Do not place blocking findings only in overflow summaries" in content
+    assert "Do not hide blocking findings inside grouped summaries" in content
     assert "complete the full detection matrix before selecting the single `recommended next command`" in lowered
     assert "Stable Finding Identity" in content
     assert "fingerprint-first" in lowered
@@ -3348,9 +3351,8 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
 
     assert "### Required Context Inputs" in content
     assert ".specify/memory/constitution.md" in content
-    assert ".specify/memory/project-rules.md" in content
-    _assert_learning_index_detail_model(content)
-    assert "{{specify-subcmd:learning start --command debug --format json}}" in content
+    assert "learning start --command <classic-command-name> --format json" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert "spec.md`, `plan.md`, and `tasks.md`" in content
     assert "`context.md` exists for the active feature" in content
 
@@ -4499,7 +4501,7 @@ def test_tasks_template_clean_completion_hands_off_to_implement():
     assert "Implement Project" not in content
     assert "hand off directly to `{{invoke:implement}}`" in lowered
     assert "`next_command: /sp.implement`" in content
-    assert "clean self-audit" in lowered
+    assert "clean result" in lowered
     assert "legacy or diagnostic state explicitly records that route" in lowered
     assert "the analyze gate is mandatory" not in lowered
 
@@ -4654,10 +4656,9 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "native tool fields" in lowered
     assert "Output the questions (label Q1/Q2/Q3)." in content
     assert ".specify/memory/constitution.md" in content
-    assert ".specify/memory/project-rules.md" in content
-    _assert_learning_index_detail_model(content)
-    assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
-    assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
+    assert "learning start --command <classic-command-name> --format json" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
+    assert "capture-auto" in lowered
     assert "project-cognition query" in lowered
     assert "--query-plan" in lowered
     assert "project-cognition compass --intent plan" in lowered

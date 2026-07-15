@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from specify_cli.atomic_io import atomic_write_text
 from specify_cli.execution.implementation_review import (
     branch_review_path,
     ledger_path,
@@ -23,6 +24,22 @@ COMPARISON_COMMANDS = [
 ]
 
 
+def _resolve_project_feature_dir(project_root: Path, feature_dir: Path) -> Path:
+    root = project_root.resolve(strict=False)
+    resolved = (
+        feature_dir.resolve(strict=False)
+        if feature_dir.is_absolute()
+        else (root / feature_dir).resolve(strict=False)
+    )
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("feature_dir must stay inside the current project") from exc
+    if not relative.parts:
+        raise ValueError("feature_dir must identify a directory below the project root")
+    return resolved
+
+
 def build_implementation_summary(
     project_root: Path,
     feature_dir: Path,
@@ -32,7 +49,7 @@ def build_implementation_summary(
     """Build and optionally write a stable user-facing implementation summary."""
 
     root = project_root.resolve()
-    resolved_feature_dir = feature_dir if feature_dir.is_absolute() else (root / feature_dir).resolve()
+    resolved_feature_dir = _resolve_project_feature_dir(root, feature_dir)
     report_path = resolved_feature_dir / SUMMARY_FILENAME
     worker_results = _load_worker_results(resolved_feature_dir)
     tasks = _parse_tasks(resolved_feature_dir / "tasks.md")
@@ -40,13 +57,24 @@ def build_implementation_summary(
     completed_work = _completed_work(tasks, worker_results, root, resolved_feature_dir)
     changed_from_results = _changed_paths_from_results(worker_results)
     verification_evidence = _verification_evidence(worker_results)
-    git_comparison = _git_comparison(root)
+    git_comparison = _git_comparison(
+        root,
+        excluded_paths={
+            _display_path(report_path, root),
+            _display_path(resolved_feature_dir / "human-acceptance.json", root),
+        },
+    )
     behavior_surfaces = _behavior_surfaces(changed_from_results)
     review_artifacts = _review_artifacts(resolved_feature_dir, tasks, root)
-    human_needed_checks = _ui_human_needed_checks(resolved_feature_dir)
+    blockers = _implementation_blockers(resolved_feature_dir)
+    human_needed_checks = [
+        str(item["summary"])
+        for item in blockers
+        if item.get("human_action_required") is True
+    ]
 
     payload: dict[str, Any] = {
-        "status": "blocked" if human_needed_checks else "ok",
+        "status": "blocked" if blockers else "ok",
         "feature_dir": _display_path(resolved_feature_dir, root),
         "report_path": _display_path(report_path, root),
         "completed_work": completed_work,
@@ -66,11 +94,128 @@ def build_implementation_summary(
             "name_status": git_comparison["name_status"],
         },
         "human_needed_checks": human_needed_checks,
-        "unresolved_gaps": list(human_needed_checks),
+        "blockers": blockers,
+        "unresolved_gaps": [str(item["summary"]) for item in blockers],
+        "human_acceptance": {
+            "state_path": _display_path(
+                resolved_feature_dir / "human-acceptance.json", root
+            ),
+            "next_command": "sp-accept (Classic) or spx-accept (Advanced)",
+            "boundary": (
+                "Technical implementation closeout is complete only after its own gates pass; "
+                "human product acceptance is a separate post-implementation workflow."
+            ),
+        },
     }
     if write_report:
-        report_path.write_text(_render_markdown(payload), encoding="utf-8")
+        atomic_write_text(report_path, _render_markdown(payload))
     return payload
+
+
+def implementation_closeout_blockers(
+    feature_dir: Path,
+    *,
+    resume_audit: dict[str, Any] | None = None,
+    hook_errors: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Return canonical blockers for an implementation closeout stop."""
+
+    blockers = _implementation_blockers(feature_dir)
+    resume_argv = [
+        "specify",
+        "implement",
+        "resume-audit",
+        "--feature-dir",
+        str(feature_dir),
+        "--format",
+        "json",
+    ]
+    if hook_errors:
+        evidence = [str(item).strip() for item in hook_errors if str(item).strip()]
+        blockers.append(
+            _implementation_gate_blocker(
+                blocker_id="IMPLEMENT-SESSION-STATE",
+                category="artifact-or-state",
+                summary="Implementation session state is not valid for closeout.",
+                evidence=evidence
+                or ["workflow.session_state.validate returned blocked"],
+                exact_next_action="Repair the recorded implementation session state, then rerun the resume audit.",
+                unblock_criteria="The session-state hook passes and the implementation resume audit trusts a terminal state.",
+                resume_argv=resume_argv,
+            )
+        )
+    if resume_audit is not None and (
+        resume_audit.get("status") in {"fail", "conflict"}
+        or not resume_audit.get("trusted_terminal_state", False)
+    ):
+        evidence = [
+            str(item).strip()
+            for item in resume_audit.get("open_gaps", [])
+            if str(item).strip()
+        ]
+        exact_next_action = str(
+            resume_audit.get("recommended_next_action")
+            or "Resume implementation and close every recorded evidence gap."
+        )
+        blockers.append(
+            _implementation_gate_blocker(
+                blocker_id="IMPLEMENT-RESUME-AUDIT",
+                category=(
+                    "conflict-or-drift"
+                    if resume_audit.get("status") == "conflict"
+                    else "workflow-validation"
+                ),
+                summary="Implementation closeout evidence is incomplete or non-terminal.",
+                evidence=evidence
+                or ["resume audit does not trust a terminal implementation state"],
+                exact_next_action=exact_next_action,
+                unblock_criteria="The resume audit returns status=pass with trusted_terminal_state=true and no open gaps.",
+                resume_argv=resume_argv,
+            )
+        )
+    return blockers
+
+
+def _implementation_gate_blocker(
+    *,
+    blocker_id: str,
+    category: str,
+    summary: str,
+    evidence: list[str],
+    exact_next_action: str,
+    unblock_criteria: str,
+    resume_argv: list[str],
+) -> dict[str, Any]:
+    resume_command = subprocess.list2cmdline(resume_argv)
+    return {
+        "version": 1,
+        "blocker_id": blocker_id,
+        "code": "implementation-closeout-blocked",
+        "workflow": "sp-implement|spx-implement",
+        "stage": "implementation closeout",
+        "category": category,
+        "owner": "agent",
+        "summary": summary,
+        "details": "The deterministic closeout gate cannot claim implementation completion from the current recorded evidence.",
+        "evidence": evidence,
+        "attempted_recovery": [
+            {
+                "action": "Run the implementation session-state and resume-audit checks.",
+                "result": "The closeout prerequisites remain unsatisfied.",
+            }
+        ],
+        "exact_next_action": exact_next_action,
+        "unblock_criteria": unblock_criteria,
+        "affected_scope": ["implementation closeout", "human acceptance handoff"],
+        "can_continue": True,
+        "human_action_required": False,
+        "human_action_guide": None,
+        "resume": {
+            "instruction": f"Run the exact resume audit command: {resume_command}",
+            "command": resume_command,
+            "argv": resume_argv,
+        },
+    }
 
 
 def _load_worker_results(feature_dir: Path) -> list[dict[str, Any]]:
@@ -99,11 +244,11 @@ def _load_worker_results(feature_dir: Path) -> list[dict[str, Any]]:
     return results
 
 
-def _ui_human_needed_checks(feature_dir: Path) -> list[str]:
+def _implementation_blockers(feature_dir: Path) -> list[dict[str, Any]]:
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
     if not lifecycle_dir.is_dir():
         return []
-    checks: list[str] = []
+    blockers: list[dict[str, Any]] = []
     for lifecycle_path in sorted(lifecycle_dir.glob("*.json")):
         try:
             payload = json.loads(lifecycle_path.read_text(encoding="utf-8"))
@@ -111,20 +256,298 @@ def _ui_human_needed_checks(feature_dir: Path) -> list[str]:
             continue
         if not isinstance(payload, dict):
             continue
-        verification = payload.get("ui_verification")
-        if not isinstance(verification, dict) or verification.get("applicable") is not True:
-            continue
-        fidelity_status = str(verification.get("fidelity_status") or "").lower().replace("_", "-")
-        visual_status = str(verification.get("visual_comparison") or "").lower().replace("_", "-")
-        if fidelity_status != "pending-human-review" and visual_status not in {
-            "needs-human-review",
-            "pending-human-review",
-        }:
-            continue
         task_id = str(payload.get("task_id") or lifecycle_path.stem).upper()
-        review_ref = str(verification.get("human_review_ref") or "not recorded")
-        checks.append(f"{task_id}: UI visual approval is pending; review target: {review_ref}")
-    return checks
+        for index, raw_blocker in enumerate(payload.get("blockers") or [], start=1):
+            if isinstance(raw_blocker, dict):
+                blockers.append(_lifecycle_blocker_detail(task_id, index, raw_blocker))
+
+        verification = payload.get("ui_verification")
+        if isinstance(verification, dict) and verification.get("applicable") is True:
+            fidelity_status = (
+                str(verification.get("fidelity_status") or "").lower().replace("_", "-")
+            )
+            visual_status = (
+                str(verification.get("visual_comparison") or "")
+                .lower()
+                .replace("_", "-")
+            )
+            if fidelity_status == "pending-human-review" or visual_status in {
+                "needs-human-review",
+                "pending-human-review",
+            }:
+                review_ref = str(verification.get("human_review_ref") or "not recorded")
+                blockers.append(_ui_human_blocker(task_id, review_ref))
+    return blockers
+
+
+def _lifecycle_blocker_detail(
+    task_id: str,
+    index: int,
+    blocker: dict[str, Any],
+) -> dict[str, Any]:
+    classification = str(blocker.get("classification") or "technical")
+    owner = str(blocker.get("owner") or "agent")
+    evidence_value = blocker.get("evidence")
+    evidence = (
+        [str(item) for item in evidence_value if str(item).strip()]
+        if isinstance(evidence_value, list)
+        else [str(evidence_value or "No evidence recorded")]
+    )
+    next_action = str(
+        blocker.get("exact_next_action") or "Resolve the recorded task blocker"
+    )
+    unblock_criteria = str(blocker.get("unblock_criteria") or "Task validation passes")
+    human_required = owner in {"user", "maintainer"} or classification == "human-action"
+    category = {
+        "technical": "technical-failure",
+        "external": "external-system",
+        "human-action": "human-review",
+        "verification_policy": "workflow-validation",
+        "project_cognition_readiness": "project-cognition",
+        "baseline_timeout": "timeout",
+    }.get(classification, "workflow-validation")
+    combined = " ".join(
+        [classification, next_action, unblock_criteria, *evidence]
+    ).lower()
+    protected_ci = any(
+        term in combined
+        for term in (
+            "pipeline",
+            "protected ci",
+            "ci job",
+            "github actions",
+            "gitlab ci",
+        )
+    )
+    if human_required and protected_ci:
+        category = "external-system"
+    detail: dict[str, Any] = {
+        "version": 1,
+        "blocker_id": f"{task_id}-B{index:02d}",
+        "workflow": "sp-implement|spx-implement",
+        "stage": f"task {task_id}",
+        "category": category,
+        "owner": owner,
+        "summary": f"{task_id}: {next_action}",
+        "details": f"Task lifecycle classification is {classification}.",
+        "evidence": evidence,
+        "attempted_recovery": [],
+        "exact_next_action": next_action,
+        "approval_question": blocker.get("approval_question"),
+        "unblock_criteria": unblock_criteria,
+        "affected_scope": [task_id, "implementation closeout"],
+        "can_continue": bool(blocker.get("implementation_can_continue")),
+        "human_action_required": human_required,
+        "human_action_guide": None,
+        "resume": {
+            "instruction": f"Resume implementation at {task_id} after returning the requested evidence.",
+            "command": "sp-implement (Classic) or spx-implement (Advanced)",
+        },
+    }
+    if human_required:
+        detail["human_action_guide"] = _human_action_guide(
+            task_id,
+            next_action,
+            unblock_criteria,
+            evidence,
+            protected_ci=category == "external-system" and protected_ci,
+        )
+    return detail
+
+
+def _human_action_guide(
+    task_id: str,
+    next_action: str,
+    unblock_criteria: str,
+    evidence: list[str],
+    *,
+    protected_ci: bool,
+) -> dict[str, Any]:
+    if protected_ci:
+        return {
+            "goal": f"Obtain the protected CI result required to unblock {task_id}.",
+            "why_human": "The pipeline or protected job requires repository authority or an external UI the agent does not control.",
+            "prerequisites": [
+                "An account with access to the repository pipeline page",
+                "The exact repository, branch, and commit SHA named by the blocker evidence",
+                "Explicit approval before any push, pipeline trigger, deployment, or manual job",
+            ],
+            "safety_notes": [
+                "Do not paste tokens, cookies, private keys, or credential screenshots into chat.",
+                "Do not run release, deploy, destructive, or unrelated manual jobs.",
+                "If the repository, branch, commit, or required job is ambiguous, stop and return that ambiguity.",
+            ],
+            "steps": [
+                {
+                    "order": 1,
+                    "title": "Confirm the exact revision",
+                    "action": "In the repository checkout, record the current branch and commit SHA; compare them with the blocker evidence before opening CI.",
+                    "command": "git branch --show-current; git rev-parse HEAD; git status --short",
+                    "expected_result": "The intended branch and commit are unambiguous and no unexpected local changes will be sent.",
+                    "if_failed": "Do not commit or push. Return the command output with secrets and private paths redacted.",
+                },
+                {
+                    "order": 2,
+                    "title": "Open the matching pipeline",
+                    "action": "Open the repository's CI/Pipelines page and select the pipeline whose branch and commit SHA exactly match step 1. Trigger or push only when the recorded approval explicitly authorizes it.",
+                    "command": None,
+                    "expected_result": "The pipeline page shows the same repository, branch, and commit SHA.",
+                    "if_failed": "Do not use a similar branch or a different repository. Return `matching pipeline not found` plus the sanitized repository/branch/SHA shown.",
+                },
+                {
+                    "order": 3,
+                    "title": "Run only the required protected check",
+                    "action": next_action,
+                    "command": None,
+                    "expected_result": f"The named check reaches a terminal state satisfying: {unblock_criteria}",
+                    "if_failed": "Do not retry blindly. Capture the failed job name, terminal status, and the smallest relevant sanitized log excerpt.",
+                },
+                {
+                    "order": 4,
+                    "title": "Verify and return the result",
+                    "action": "Refresh the pipeline once and confirm its commit SHA and required-job terminal status have not changed.",
+                    "command": None,
+                    "expected_result": "The pipeline URL/ID, commit SHA, and required job status form one consistent evidence set.",
+                    "if_failed": "Return the inconsistency instead of declaring success.",
+                },
+            ],
+            "verification": [unblock_criteria],
+            "evidence_to_return": [
+                "Pipeline URL or ID",
+                "Repository, branch, and commit SHA",
+                "Required job names and terminal statuses",
+                "For failure only: a short sanitized error excerpt",
+            ],
+            "resume_instruction": f"Return the evidence and resume {task_id} with sp-implement or spx-implement; do not start a new feature workflow.",
+        }
+
+    return {
+        "goal": next_action,
+        "why_human": "The task lifecycle assigns this action to a user or maintainer boundary.",
+        "prerequisites": [
+            "Access to the target named in the blocker evidence",
+            *evidence,
+        ],
+        "safety_notes": [
+            "Do not share credentials or secrets; stop if the target or requested authority is ambiguous."
+        ],
+        "steps": [
+            {
+                "order": 1,
+                "title": "Confirm the target",
+                "action": "Match the repository, artifact, environment, or decision target against the blocker evidence.",
+                "command": None,
+                "expected_result": "There is exactly one matching target.",
+                "if_failed": "Return the conflicting target names and do not make a change.",
+            },
+            {
+                "order": 2,
+                "title": "Perform the requested action",
+                "action": next_action,
+                "command": None,
+                "expected_result": unblock_criteria,
+                "if_failed": "Capture the visible status and a sanitized error; do not broaden the action.",
+            },
+            {
+                "order": 3,
+                "title": "Verify",
+                "action": f"Recheck the target independently and confirm: {unblock_criteria}",
+                "command": None,
+                "expected_result": unblock_criteria,
+                "if_failed": "Return the observed result instead of approving completion.",
+            },
+        ],
+        "verification": [unblock_criteria],
+        "evidence_to_return": [
+            "The decision or terminal status",
+            "A sanitized URL/ID, screenshot, or output proving it",
+        ],
+        "resume_instruction": f"Return the evidence and resume {task_id} with sp-implement or spx-implement.",
+    }
+
+
+def _ui_human_blocker(task_id: str, review_ref: str) -> dict[str, Any]:
+    summary = f"{task_id}: UI visual approval is pending; review target: {review_ref}"
+    return {
+        "version": 1,
+        "blocker_id": f"{task_id}-UI-REVIEW",
+        "workflow": "sp-implement|spx-implement",
+        "stage": f"task {task_id} UI acceptance",
+        "category": "human-review",
+        "owner": "user",
+        "summary": summary,
+        "details": "Automated visual comparison could not close the required UI acceptance gate.",
+        "evidence": [review_ref],
+        "attempted_recovery": [],
+        "exact_next_action": f"Review the real UI against the approved design evidence in {review_ref}.",
+        "approval_question": f"Does {task_id} meet the approved visual and interaction contract for every required viewport and state?",
+        "unblock_criteria": "A human pass/reject decision and review evidence are returned for every required viewport and state.",
+        "affected_scope": [task_id, "UI acceptance", "implementation closeout"],
+        "can_continue": False,
+        "human_action_required": True,
+        "human_action_guide": {
+            "goal": f"Accept or reject the visual and interaction fidelity of {task_id}.",
+            "why_human": "The required comparison is subjective or the agent cannot inspect the real rendered surface in this environment.",
+            "prerequisites": [
+                f"Review packet: {review_ref}",
+                "Access to the real application entry point named by that packet",
+                "The approved design/reference inputs",
+            ],
+            "safety_notes": [
+                "Review the real entry point, not an isolated mock.",
+                "Do not approve a missing viewport/state or substitute passing tests for visual acceptance.",
+            ],
+            "steps": [
+                {
+                    "order": 1,
+                    "title": "Open the review packet",
+                    "action": f"Open {review_ref} and identify the real entry point, approved reference, viewport/state matrix, and must-preserve rules.",
+                    "command": None,
+                    "expected_result": "Every required viewport and state has a named target and comparison source.",
+                    "if_failed": "Return `review packet incomplete` and list the missing entry point, reference, viewport, or state.",
+                },
+                {
+                    "order": 2,
+                    "title": "Run the real surface",
+                    "action": "Use the run command in the review packet or implementation summary, open the real entry point, and reproduce each required state at its recorded viewport.",
+                    "command": None,
+                    "expected_result": "The real UI loads and each required state can be inspected.",
+                    "if_failed": "Return the failing run command, viewport/state, and sanitized runtime error; do not approve from static files alone.",
+                },
+                {
+                    "order": 3,
+                    "title": "Compare and capture",
+                    "action": "Compare layout, content, interaction, responsive behavior, and must-preserve details against the approved reference; capture one image per required viewport/state.",
+                    "command": None,
+                    "expected_result": "Each matrix entry has a pass or a concrete mismatch and a corresponding capture.",
+                    "if_failed": "Record the exact mismatch and reject that matrix entry rather than averaging it into an overall pass.",
+                },
+                {
+                    "order": 4,
+                    "title": "Return the decision",
+                    "action": "State PASS only if every required matrix entry passes; otherwise state REJECT and list each repair needed.",
+                    "command": None,
+                    "expected_result": "A clear PASS or REJECT decision is tied to the captured evidence.",
+                    "if_failed": "Return `decision pending` and name the unresolved matrix entries.",
+                },
+            ],
+            "verification": [
+                "Every required viewport/state has a decision and capture",
+                "PASS contains no unresolved must-preserve mismatch",
+            ],
+            "evidence_to_return": [
+                "PASS or REJECT",
+                "Viewport/state result list",
+                "Capture paths or sanitized attachments",
+                "Repair notes for every rejection",
+            ],
+            "resume_instruction": f"Return the review evidence and resume {task_id} with sp-implement or spx-implement.",
+        },
+        "resume": {
+            "instruction": f"Resume UI acceptance for {task_id} after the human decision is returned.",
+            "command": "sp-implement (Classic) or spx-implement (Advanced)",
+        },
+    }
 
 
 def _completed_work(
@@ -144,7 +567,9 @@ def _completed_work(
             continue
         task_id = str(task.get("task_id") or "").upper()
         result = by_task_id.get(task_id, {})
-        changed_files = _normalize_paths(result.get("changed_files") or result.get("changedFiles") or [])
+        changed_files = _normalize_paths(
+            result.get("changed_files") or result.get("changedFiles") or []
+        )
         result_path = result.get("path")
         review_path = task_review_path(feature_dir, task_id)
         completed.append(
@@ -153,7 +578,9 @@ def _completed_work(
                 "task": str(task.get("body") or "").strip(),
                 "summary": str(result.get("summary") or task.get("body") or "").strip(),
                 "result_status": str(result.get("status") or "missing-worker-result"),
-                "result_path": _display_path(result_path, project_root) if isinstance(result_path, Path) else "",
+                "result_path": _display_path(result_path, project_root)
+                if isinstance(result_path, Path)
+                else "",
                 "review_artifacts": {
                     "task_review": _display_path(review_path, project_root)
                     if review_path.is_file()
@@ -184,8 +611,12 @@ def _review_artifacts(
         if review_path.is_file():
             task_reviews[task_id] = _display_path(review_path, project_root)
     return {
-        "ledger": _display_path(review_ledger_path, project_root) if review_ledger_path.is_file() else "",
-        "branch_review": _display_path(review_branch_path, project_root) if review_branch_path.is_file() else "",
+        "ledger": _display_path(review_ledger_path, project_root)
+        if review_ledger_path.is_file()
+        else "",
+        "branch_review": _display_path(review_branch_path, project_root)
+        if review_branch_path.is_file()
+        else "",
         "task_reviews": task_reviews,
     }
 
@@ -193,16 +624,24 @@ def _review_artifacts(
 def _changed_paths_from_results(worker_results: list[dict[str, Any]]) -> list[str]:
     paths: list[str] = []
     for result in worker_results:
-        paths.extend(_normalize_paths(result.get("changed_files") or result.get("changedFiles") or []))
+        paths.extend(
+            _normalize_paths(
+                result.get("changed_files") or result.get("changedFiles") or []
+            )
+        )
     return sorted(set(paths))
 
 
-def _verification_evidence(worker_results: list[dict[str, Any]]) -> list[dict[str, str]]:
+def _verification_evidence(
+    worker_results: list[dict[str, Any]],
+) -> list[dict[str, str]]:
     evidence: list[dict[str, str]] = []
     seen: set[tuple[str, str, str]] = set()
     for result in worker_results:
         task_id = str(result.get("task_id") or "").upper()
-        validations = result.get("validation_results") or result.get("validationResults") or []
+        validations = (
+            result.get("validation_results") or result.get("validationResults") or []
+        )
         if not isinstance(validations, list):
             continue
         for item in validations:
@@ -231,9 +670,15 @@ def _verification_evidence(worker_results: list[dict[str, Any]]) -> list[dict[st
     return evidence
 
 
-def _git_comparison(project_root: Path) -> dict[str, Any]:
+def _git_comparison(
+    project_root: Path, *, excluded_paths: set[str] | None = None
+) -> dict[str, Any]:
     status = _run_git(project_root, ["status", "--short"])
     name_status = _run_git(project_root, ["diff", "--name-status", "HEAD"])
+    excluded = {path.replace("\\", "/") for path in (excluded_paths or set())}
+    if excluded:
+        status = _filter_git_output(status, excluded, short_status=True)
+        name_status = _filter_git_output(name_status, excluded, short_status=False)
     changed_paths = _paths_from_git_status(status) if status is not None else []
     return {
         "git_available": status is not None and name_status is not None,
@@ -241,6 +686,25 @@ def _git_comparison(project_root: Path) -> dict[str, Any]:
         "name_status": name_status.splitlines() if name_status else [],
         "changed_paths": changed_paths,
     }
+
+
+def _filter_git_output(
+    output: str | None, excluded_paths: set[str], *, short_status: bool
+) -> str | None:
+    if output is None:
+        return None
+    kept: list[str] = []
+    for line in output.splitlines():
+        if short_status:
+            path = line[3:].strip() if len(line) >= 4 else ""
+        else:
+            parts = line.split("\t")
+            path = parts[-1].strip() if len(parts) >= 2 else ""
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1].strip()
+        if path.replace("\\", "/") not in excluded_paths:
+            kept.append(line)
+    return "\n".join(kept)
 
 
 def _run_git(project_root: Path, args: list[str]) -> str | None:
@@ -284,7 +748,11 @@ def _behavior_surfaces(paths: list[str]) -> list[dict[str, str]]:
 
 def _surface_for_path(path: str) -> str:
     lowered = path.lower()
-    if lowered.startswith("tests/") or "/tests/" in lowered or lowered.endswith("_test.py"):
+    if (
+        lowered.startswith("tests/")
+        or "/tests/" in lowered
+        or lowered.endswith("_test.py")
+    ):
         return "tests"
     if lowered.startswith("templates/"):
         return "generated-workflow-template"
@@ -342,7 +810,9 @@ def _render_markdown(payload: dict[str, Any]) -> str:
             lines.append(f"- `{item['task_id']}`: {item['summary'] or item['task']}")
             changed_files = item.get("changed_files") or []
             if changed_files:
-                lines.append(f"  - Files: {', '.join(f'`{path}`' for path in changed_files)}")
+                lines.append(
+                    f"  - Files: {', '.join(f'`{path}`' for path in changed_files)}"
+                )
             if item.get("result_path"):
                 lines.append(f"  - Worker result: `{item['result_path']}`")
             review_artifacts = item.get("review_artifacts") or {}
@@ -381,7 +851,11 @@ def _render_markdown(payload: dict[str, Any]) -> str:
     branch_review = review_artifacts.get("branch_review") or ""
     task_reviews = review_artifacts.get("task_reviews") or {}
     lines.append(f"- Ledger: `{ledger}`" if ledger else "- Ledger: None recorded.")
-    lines.append(f"- Branch review: `{branch_review}`" if branch_review else "- Branch review: None recorded.")
+    lines.append(
+        f"- Branch review: `{branch_review}`"
+        if branch_review
+        else "- Branch review: None recorded."
+    )
     if task_reviews:
         for task_id, path in sorted(task_reviews.items()):
             lines.append(f"- `{task_id}` task review: `{path}`")
@@ -392,7 +866,9 @@ def _render_markdown(payload: dict[str, Any]) -> str:
     evidence = payload.get("verification_evidence") or []
     if evidence:
         for item in evidence:
-            command = item.get("command") or item.get("output") or "verification evidence"
+            command = (
+                item.get("command") or item.get("output") or "verification evidence"
+            )
             status = item.get("status") or "recorded"
             task = item.get("task_id") or "task"
             lines.append(f"- `{command}` -> {status} ({task})")
@@ -417,14 +893,46 @@ def _render_markdown(payload: dict[str, Any]) -> str:
         lines.extend(status_lines)
         lines.append("```")
     else:
-        lines.append("- No git working-tree changes were detected when this summary was generated.")
+        lines.append(
+            "- No git working-tree changes were detected when this summary was generated."
+        )
 
-    lines.extend(["", "## Human Checks Needed", ""])
-    human_checks = payload.get("human_needed_checks") or []
-    if human_checks:
-        lines.extend(f"- {check}" for check in human_checks)
+    lines.extend(["", "## Blockers", ""])
+    blockers = [
+        blocker
+        for blocker in (payload.get("blockers") or [])
+        if isinstance(blocker, dict)
+    ]
+    if blockers:
+        for blocker in blockers:
+            lines.extend(_render_blocker_detail(blocker))
     else:
         lines.append("- None recorded.")
+
+    lines.extend(["", "## Human Checks Needed", ""])
+    human_blockers = [
+        blocker
+        for blocker in (payload.get("blockers") or [])
+        if isinstance(blocker, dict) and blocker.get("human_action_required") is True
+    ]
+    if human_blockers:
+        for blocker in human_blockers:
+            lines.extend(_render_human_blocker(blocker))
+    else:
+        lines.append("- None recorded.")
+
+    acceptance = payload.get("human_acceptance") or {}
+    lines.extend(
+        [
+            "",
+            "## Human Product Acceptance",
+            "",
+            f"- State: `{acceptance.get('state_path', 'human-acceptance.json')}`",
+            f"- Next workflow: `{acceptance.get('next_command', 'sp-accept or spx-accept')}`",
+            f"- Boundary: {acceptance.get('boundary', 'Human acceptance is separate from technical closeout.')}",
+            "- The acceptance agent will restore context and guide the human one observable step at a time.",
+        ]
+    )
 
     lines.extend(["", "## Remaining Gaps", ""])
     gaps = payload.get("unresolved_gaps") or []
@@ -434,6 +942,85 @@ def _render_markdown(payload: dict[str, Any]) -> str:
         lines.append("- None recorded.")
 
     return "\n".join(lines) + "\n"
+
+
+def _render_blocker_detail(blocker: dict[str, Any]) -> list[str]:
+    attempted = blocker.get("attempted_recovery") or []
+    attempted_text = (
+        "; ".join(
+            f"{item.get('action', 'action')} -> {item.get('result', 'result not recorded')}"
+            for item in attempted
+            if isinstance(item, dict)
+        )
+        or "None recorded; no safe automatic recovery was claimed."
+    )
+    resume = blocker.get("resume") or {}
+    return [
+        f"### {blocker.get('blocker_id', 'BLOCKER')}: {blocker.get('summary', 'Workflow blocked')}",
+        "",
+        f"- Workflow / stage: `{blocker.get('workflow', 'unknown')}` / `{blocker.get('stage', 'unknown')}`",
+        f"- Category / owner: `{blocker.get('category', 'workflow-validation')}` / `{blocker.get('owner', 'agent')}`",
+        f"- Why blocked: {blocker.get('details', 'Not recorded')}",
+        f"- Evidence: {'; '.join(str(item) for item in blocker.get('evidence') or [])}",
+        f"- Automatic recovery attempted: {attempted_text}",
+        f"- Affected scope: {'; '.join(str(item) for item in blocker.get('affected_scope') or [])}",
+        f"- Safe independent work can continue: {'yes' if blocker.get('can_continue') else 'no'}",
+        f"- Exact next action: {blocker.get('exact_next_action', 'Not recorded')}",
+        f"- Unblock criteria: {blocker.get('unblock_criteria', 'Not recorded')}",
+        f"- Resume: {resume.get('command') or resume.get('instruction') or 'Not recorded'}",
+        "",
+    ]
+
+
+def _render_human_blocker(blocker: dict[str, Any]) -> list[str]:
+    guide = blocker.get("human_action_guide") or {}
+    rendered = [
+        f"### {blocker.get('blocker_id', 'BLOCKER')}: {blocker.get('summary', 'Human action required')}",
+        "",
+        f"- Why blocked: {blocker.get('details', 'Not recorded')}",
+        f"- Owner: `{blocker.get('owner', 'user')}`",
+        f"- Evidence: {'; '.join(str(item) for item in blocker.get('evidence') or [])}",
+        f"- Unblock criteria: {blocker.get('unblock_criteria', 'Not recorded')}",
+        f"- Goal: {guide.get('goal', blocker.get('exact_next_action', 'Resolve the blocker'))}",
+        f"- Why a human is required: {guide.get('why_human', 'Human authority is required.')}",
+        "",
+        "Before you start:",
+    ]
+    rendered.extend(
+        f"- {item}"
+        for item in guide.get("prerequisites")
+        or ["Confirm the target and required authority."]
+    )
+    rendered.extend(["", "Safety:"])
+    rendered.extend(
+        f"- {item}" for item in guide.get("safety_notes") or ["Do not share secrets."]
+    )
+    rendered.extend(["", "Steps:", ""])
+    for step in guide.get("steps") or []:
+        rendered.append(
+            f"{step.get('order', 1)}. **{step.get('title', 'Action')}** — {step.get('action', '')}"
+        )
+        if step.get("command"):
+            rendered.append(f"   - Command: `{step['command']}`")
+        rendered.append(
+            f"   - Expected: {step.get('expected_result', 'The requested state is visible.')}"
+        )
+        rendered.append(
+            f"   - If it fails: {step.get('if_failed', 'Return the observed error without retrying blindly.')}"
+        )
+    rendered.extend(["", "Return to the agent:"])
+    rendered.extend(
+        f"- {item}"
+        for item in guide.get("evidence_to_return") or ["Sanitized proof of the result"]
+    )
+    rendered.extend(
+        [
+            "",
+            f"Resume: {guide.get('resume_instruction', (blocker.get('resume') or {}).get('instruction', 'Resume the workflow.'))}",
+            "",
+        ]
+    )
+    return rendered
 
 
 def _path_lines(paths: list[str]) -> list[str]:

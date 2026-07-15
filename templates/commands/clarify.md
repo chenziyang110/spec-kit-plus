@@ -78,15 +78,7 @@ Use `execution_surface: native-subagents`.
 
 Goal: Strengthen an existing spec package after `/sp.specify` by closing planning-critical gaps, correcting misunderstandings, absorbing reference material better, and writing the improved results back into `spec.md`, `alignment.md`, `context.md`, and `references.md`.
 
-## Passive Project Learning Layer
-
-- Run `{{specify-subcmd:learning start --command clarify --format json}}` when available so this repair pass can consume existing project rules and learnings.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader clarification context.
-- Open only learning detail docs linked from clarification-relevant index entries, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- When clarification friction exposes user corrections, scope changes, route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
-- Prefer `{{specify-subcmd:learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
    - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}` before guessing from branch-only context.
@@ -119,8 +111,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `FEATURE_DIR/references.md` if present
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
-   - `.specify/memory/learnings/INDEX.md` if present
-   - relevant linked learning detail docs from the learning index
+   - compact `learning start --command clarify` results and only selected `learning show` records
    - **Project cognition gate:** query the active project's runtime before broad
      repository reads.
 

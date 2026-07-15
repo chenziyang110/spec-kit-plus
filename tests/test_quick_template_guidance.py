@@ -43,11 +43,11 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "## leader role" in content
     assert "you are the quick-task leader" in content
     assert "you are not the default implementer for the quick task" in content
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "linked detail markdown document" in content
-    assert "passive project learning layer" in content
-    assert "passive project learning layer" in content
+    assert "learning cli summary intake" in content
+    assert "select summaries by applicability and triggers" in content
+    assert "show_argv" in content
+    assert "do not parse learning storage" in content
+    assert "## project learning" in content
     assert "project cognition gate" in content
     assert "project-cognition compass --intent implement" in content
     assert "lexicon -> semantic_intake -> query" in content
@@ -128,17 +128,16 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     assert "## understanding checkpoint" in content
     assert_quick_checkpoint_card_shape(content)
     assert "where it appears, why it matters" in content
-    assert "concrete ordered sequence" in content
+    assert "user-owned decisions" in content
+    assert "technical execution belongs to the agent" in content
+    assert "for awareness, not as a request to approve technical details" in content
     assert "plain text for terminal output" in content
     assert "do not use html tags or inline line-break markup" in content
-    assert "semicolon-separated numbered clauses" in content
     assert "do not reuse the placeholder text as content" in content
-    assert "1. [task-specific first step]; 2." in content
     assert "<br>" not in content
-    assert "task-specific verification or closeout step" in content
     assert "locate the source of the behavior" not in content
-    assert "will change:" in content
-    assert "will not change:" in content
+    assert "include:" in content
+    assert "exclude:" in content
     assert "concrete files, commands, workflows, constraints, validation evidence, and known uncertainty" in content
     assert "unknown: [why it matters]" in content
     assert "wait for user confirmation" in content

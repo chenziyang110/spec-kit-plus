@@ -7,9 +7,10 @@ Give the worker the complete objective, allowed read/write paths, forbidden
 paths, authoritative inputs, acceptance checks, and expected handoff. Do not
 make the worker rediscover the task from broad planning files.
 For UI work, include original visual references and their intents, real
-content/image sources, the compact UI contract,
+content/image sources, the confirmed UI Confirmation, the compact UI contract,
 `references/ui-quality-gate.md`, and required structure/visual/runtime evidence; do not
-delegate from prose-only screenshot interpretation.
+delegate from prose-only screenshot interpretation. The worker must not redesign
+the confirmed direction; contract drift returns to the leader as a blocker.
 
 The worker returns:
 

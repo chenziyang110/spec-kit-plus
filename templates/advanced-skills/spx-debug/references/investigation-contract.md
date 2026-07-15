@@ -8,11 +8,39 @@ mechanism, and fix claim separate.
 ## Intake gate
 
 New or materially changed intake starts with `understanding_confirmed: false`.
-Present the symptom, environment, intended outcome, boundaries, and proposed
-first evidence step, then wait for user confirmation. Before reproduction, log
+Present the Debug card from `references/human-confirmation.md`; when UI applies,
+append its target-baseline card and use one reply for both. Persist user-owned
+facts, fix authority, and `ui_confirmation` separately from the
+`agent_investigation_plan`. Present the first evidence step only as agent-owned
+context, then wait for user confirmation. Before reproduction, log
 review, source or test reads, evidence collection, delegation,
 instrumentation, edits, or validation, only the minimal context needed to frame
 that checkpoint may be read. Persist confirmation before continuing.
+
+Do not reopen confirmation merely because evidence changes a hypothesis, adds
+reproduction, log, source, or test routes, or extends the minimum coherent fix
+through tightly coupled files in the same causal chain while the confirmed
+symptom, boundary, risk, and authority remain intact. Update the session and
+continue. Reopen only when evidence materially changes the problem or expected
+outcome or confirmed UI target baseline, introduces a separate or derived
+defect, crosses the investigation boundary, requires new fix authority, changes
+migration, compatibility, public-interface, external-side-effect, or material
+risk semantics, or hits an
+explicit stop condition; first set `understanding_confirmed: false` and pause
+substantive work.
+
+Before presenting the amendment, explain in user-facing prose the decisive
+evidence, why the previous confirmation no longer covers the investigation or
+fix, the consequence of omitting it, the current mutation state and safe pause
+point, and the exact incremental decision the user owns. Only after that
+explanation, present `## Debug Checkpoint Amendment` with only the changed rows
+or decisions and an `Unchanged` statement; do not repeat the full initial Debug
+Checkpoint. Persist the confirmed delta before resuming, and do not request
+duplicate confirmation when the user already approved that exact delta.
+
+For a UI-only material delta, keep the Debug amendment heading, include only
+the changed UI Confirmation rows. State that the main checkpoint is unchanged.
+The reason-first explanation remains mandatory; do not replay either complete initial table.
 
 1. Capture an executable reproduction or the strongest available failure
    signal, including environment and inputs that materially affect it.

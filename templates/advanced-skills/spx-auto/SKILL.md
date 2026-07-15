@@ -5,6 +5,7 @@ description: State-aware workflow continuation for advanced coding models. Use w
 
 # SPX Auto
 
+Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/project-cognition.md`, using cognition intent `ask`, and
 `references/routing-contract.md`.
 Read `references/ui-quality-gate.md` when the request or active state is

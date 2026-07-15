@@ -19,8 +19,12 @@
   ],
   "shared_references": [
     "_shared/project-cognition.md",
+    "_shared/project-learning.md",
     "_shared/consequence-gate.md",
-    "_shared/ui-quality-gate.md"
+    "_shared/ui-quality-gate.md",
+    "_shared/human-confirmation.md",
+    "_shared/blocker-resolution.md",
+    "_shared/workflow-runtime.md"
   ],
   "classic_companion_skills": [
     "sp-map-scan",
@@ -28,6 +32,12 @@
     "sp-map-update"
   ],
   "skills": {
+    "spx-accept": {
+      "absorbs": ["accept"],
+      "references": ["spx-accept/references/acceptance-contract.md"],
+      "assets": [],
+      "optimization": "context-restoring one-step human product acceptance with durable observations and repair routing"
+    },
     "spx-analyze": {
       "absorbs": ["analyze"],
       "references": ["spx-analyze/references/analysis-gate.md"],

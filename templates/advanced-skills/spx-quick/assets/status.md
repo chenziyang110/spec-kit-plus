@@ -19,11 +19,33 @@ blocker: none
 
 ## Understanding Checkpoint
 
-- reported_intent: {{intent}}
-- intended_outcome:
-- scope_boundaries:
-- validation_obligations:
+- request_and_outcome: {{intent}}
+- user_visible_result:
+- scope:
+  - include:
+  - exclude:
+- recommended_approach:
+- assumptions_and_risks:
+- completion_evidence:
+- reconfirmation_trigger:
 - confirmation_digest:
+
+## UI Confirmation
+
+ui_confirmation:
+  applicable: false
+  confirmation_purpose:
+  user_and_primary_job:
+  design_basis_and_source_material:
+  target_experience:
+  structure_and_visible_change:
+  interaction_states_and_adaptation:
+  design_boundaries:
+    must_preserve:
+    may_adapt:
+    must_not:
+  acceptance_evidence:
+  confirmation_digest:
 
 ## Scope and Acceptance
 
@@ -37,6 +59,12 @@ blocker: none
 - expected_paths:
 - changed_paths:
 - material_decisions:
+
+agent_execution_plan:
+  affected_surfaces:
+  implementation_steps:
+  next_action:
+  verification_route:
 
 ## Verification
 

@@ -123,22 +123,95 @@ run_project_cognition() {
     (cd "$REPO_ROOT" && "$bin" "$@")
 }
 
-mark_dirty_args() {
-    local -a args=("mark-dirty")
+parse_dirty_scope_paths() {
+    local payload="$1"
+    local candidate
+
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            "$candidate" - "$payload" <<'PY'
+import json
+import sys
+
+try:
+    payload = json.loads(sys.argv[1])
+except (TypeError, ValueError) as exc:
+    print(f"Dirty scope paths JSON is invalid: {exc}", file=sys.stderr)
+    raise SystemExit(2)
+
+if not isinstance(payload, list) or any(
+    not isinstance(item, str) or not item.strip() or "\n" in item or "\r" in item
+    for item in payload
+):
+    print("Dirty scope paths JSON must be an array of non-empty single-line strings.", file=sys.stderr)
+    raise SystemExit(2)
+
+for item in payload:
+    print(item)
+PY
+            return $?
+        fi
+    done
+
+    if command -v node >/dev/null 2>&1; then
+        node -e '
+let payload;
+try {
+  payload = JSON.parse(process.argv[1]);
+} catch (error) {
+  process.stderr.write(`Dirty scope paths JSON is invalid: ${error.message}\n`);
+  process.exit(2);
+}
+if (!Array.isArray(payload) || payload.some((item) => typeof item !== "string" || !item.trim() || /[\r\n]/.test(item))) {
+  process.stderr.write("Dirty scope paths JSON must be an array of non-empty single-line strings.\n");
+  process.exit(2);
+}
+for (const item of payload) process.stdout.write(`${item}\n`);
+' "$payload"
+        return $?
+    fi
+
+    if command -v jq >/dev/null 2>&1; then
+        jq -r '
+            if type != "array" then
+                error("Dirty scope paths JSON must be an array of non-empty single-line strings.")
+            elif any(.[]; type != "string" or test("^[[:space:]]*$") or test("[\\r\\n]")) then
+                error("Dirty scope paths JSON must be an array of non-empty single-line strings.")
+            else
+                .[]
+            end
+        ' <<< "$payload"
+        return $?
+    fi
+
+    echo "Cannot parse dirty scope paths JSON: install Python, Node.js, or jq." >&2
+    return 2
+}
+
+build_mark_dirty_args() {
+    _mark_dirty_args=("mark-dirty")
     if [[ -n "$REASON" ]]; then
-        args+=("--reason" "$REASON")
+        _mark_dirty_args+=("--reason" "$REASON")
     fi
     if [[ -n "$ORIGIN_COMMAND" ]]; then
-        args+=("--origin-command" "$ORIGIN_COMMAND")
+        _mark_dirty_args+=("--origin-command" "$ORIGIN_COMMAND")
     fi
     if [[ -n "$ORIGIN_FEATURE_DIR" ]]; then
-        args+=("--origin-feature-dir" "$ORIGIN_FEATURE_DIR")
+        _mark_dirty_args+=("--origin-feature-dir" "$ORIGIN_FEATURE_DIR")
     fi
     if [[ -n "$ORIGIN_LANE_ID" ]]; then
-        args+=("--origin-lane-id" "$ORIGIN_LANE_ID")
+        _mark_dirty_args+=("--origin-lane-id" "$ORIGIN_LANE_ID")
     fi
-    args+=("--format" "json")
-    printf '%s\n' "${args[@]}"
+
+    local scope_output
+    scope_output="$(parse_dirty_scope_paths "$DIRTY_SCOPE_PATHS_JSON")" || return $?
+    if [[ -n "$scope_output" ]]; then
+        local scope_path
+        while IFS= read -r scope_path; do
+            _mark_dirty_args+=("--scope" "$scope_path")
+        done <<< "$scope_output"
+    fi
+    _mark_dirty_args+=("--format" "json")
 }
 
 case "$COMMAND" in
@@ -160,7 +233,7 @@ case "$COMMAND" in
             usage
             exit 1
         fi
-        readarray -t _mark_dirty_args < <(mark_dirty_args)
+        build_mark_dirty_args || exit $?
         run_project_cognition "${_mark_dirty_args[@]}"
         ;;
     clear-dirty)

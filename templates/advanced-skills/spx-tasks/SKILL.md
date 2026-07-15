@@ -5,12 +5,15 @@ description: Dependency-aware task-generation workflow for advanced coding model
 
 # SPX Tasks
 
+Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/project-cognition.md`, using cognition intent `plan`,
 `references/task-graph-contract.md`, and `references/consequence-gate.md` only
 when the plan carries triggered obligations. Resolve the active feature with the
 installed `.specify/scripts/bash/check-prerequisites.sh --json` or PowerShell
-equivalent; create or resume task-generation state and keep implementation
-blocked.
+equivalent; resolve task-generation inputs and keep implementation blocked.
+Transition from the validated `plan` stage into `tasks` through the
+workflow runtime before creating task artifacts.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.
 
 Read `plan-contract.json` first and verify named owners, paths, and verification
@@ -18,10 +21,7 @@ entry points against cognition-selected live evidence. If planning truth is
 missing or stale, stop and route to `$spx-plan`, `$spx-clarify`, or
 `$spx-deep-research`; do not hide design work inside a task.
 
-Create or resume runtime-owned `workflow-state.md` before decomposition, using
-the installed workflow-state template only when absent. Record `active_command:
-sp-tasks`, `phase_mode: task-generation-only`, source revision, target boundary,
-blocker, and next route. Run
+Run
 `{{specify-subcmd:hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
 and stop if it remains invalid. Require the plan's ready transition to
 `sp-tasks`, locked target boundary, current revision, and zero unresolved

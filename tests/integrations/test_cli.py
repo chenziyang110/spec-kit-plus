@@ -290,10 +290,9 @@ class TestInitIntegrationFlag:
             skills_dir / "sp-quick" / "SKILL.md"
         ).lower()
         assert ".specify/memory/constitution.md" in quick_content
-        assert ".specify/memory/project-rules.md" in quick_content
-        assert ".specify/memory/learnings/index.md" in quick_content
-        assert "learning reflex" in quick_content
-        assert "future senior engineer" in quick_content
+        assert "learning start --command <classic-command-name> --format json" in quick_content
+        assert "show_argv" in quick_content
+        assert ".specify/memory/learnings/index.md" not in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
         assert "compass --intent implement" in quick_content

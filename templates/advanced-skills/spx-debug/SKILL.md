@@ -5,8 +5,10 @@ description: Lean evidence-driven debugging workflow for advanced coding models.
 
 # SPX Debug
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `debug`.
-Read `references/investigation-contract.md`. Read
+Read `references/human-confirmation.md`, then
+`references/investigation-contract.md`. Read
 `references/investigator-worker.md` only for delegated evidence. Resolve
 `assets/debug-session.md` relative to this Skill and use a created or resumed
 session as the durable source of truth for every debug invocation.
@@ -16,11 +18,13 @@ security, concurrency, retry, recovery, or generated consumers.
 Read `references/ui-quality-gate.md` when the symptom is visual, responsive,
 interaction, focus, accessibility, TUI, or CLI presentation behavior.
 
-Create or resume the session in its unconfirmed intake state. Present a compact
-Debug Understanding Checkpoint and wait for user confirmation before
-reproduction, log review, source or test reads, evidence collection,
-delegation, instrumentation, code edits, or validation. After confirmation,
-persist the confirmed state, then reproduce the symptom or establish
+Create or resume the session in its unconfirmed intake state. Render the Debug
+card from `references/human-confirmation.md`; for an applicable UI symptom,
+append its target-baseline card without proposing a repair, then ask once for
+both decisions. Wait for user confirmation before reproduction, log review,
+source or test reads, evidence collection, delegation, instrumentation, code
+edits, or validation. Persist the main and UI confirmations separately and keep
+hypotheses in the agent investigation plan. After confirmation, reproduce the symptom or establish
 the strongest available failure signal before changing behavior. Use cognition
 to locate likely owners, boundaries, and verification surfaces, then confirm
 claims against logs, configuration, tests, runtime output, and live source.

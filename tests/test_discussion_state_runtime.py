@@ -159,7 +159,7 @@ def test_initialize_discussion_creates_minimal_typed_state(runtime, tmp_path: Pa
     assert (workspace / "discussion-log.jsonl").is_file()
     assert not (workspace / "requirements.md").exists()
     assert "## Forbidden Actions" not in markdown
-    assert len(markdown.splitlines()) < 70
+    assert markdown.count("# Discussion State:") == 1
 
 
 def test_legacy_markdown_state_migrates_to_typed_shape(runtime, tmp_path: Path):

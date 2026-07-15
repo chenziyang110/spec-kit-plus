@@ -5,6 +5,8 @@ description: Lean implementation workflow for advanced coding models. Use for re
 
 # SPX Implement
 
+Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Read `references/execution-contract.md`. Read `references/worker-contract.md`
 only when delegating. Read `references/consequence-gate.md` only on its triggers.
@@ -14,6 +16,8 @@ Resolve the task-bearing feature with the installed
 `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks
 --include-tasks` or PowerShell equivalent. Inspect the current diff, project
 rules, ready tasks, and cognition-selected live paths before editing.
+Transition from the validated `tasks` stage into `implement` through the
+workflow runtime before any source or test edit.
 
 Recover durable execution truth before work: `workflow-state.md` is the phase gate,
 the compact execution state is the implementation source of truth,
@@ -50,4 +54,7 @@ design sources hand off to `$spx-design` and stop; unavailable comparison remain
 
 After verified repository changes, close out cognition with canonical workflow
 `implement`. Report changed files, checks actually run, failures or skipped
-checks, and residual risk. Never claim completion without fresh evidence.
+checks, and residual risk. Ensure closeout prepared `human-acceptance.json`,
+recommend `$spx-accept`, and stop. Technical completion is not human product
+acceptance; do not run acceptance inline or pre-fill its verdict. Never claim
+completion without fresh evidence.

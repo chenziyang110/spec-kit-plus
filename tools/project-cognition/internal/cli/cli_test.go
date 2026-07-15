@@ -41,6 +41,52 @@ func TestHelpListsClaimReconcileCommands(t *testing.T) {
 	}
 }
 
+func TestRebuildReturnsStableBlockedExitCodeWithJSONPayload(t *testing.T) {
+	root := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"rebuild", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 10 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want stable blocked exit 10", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode blocked payload: %v stdout=%s", err, stdout.String())
+	}
+	if payload["status"] != "blocked" || payload["recommended_next_action"] != "run_map_scan_build" {
+		t.Fatalf("payload = %#v, want blocked rebuild guidance", payload)
+	}
+}
+
+func TestRebuildTextOutputAlsoReturnsBlockedExitCode(t *testing.T) {
+	root := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"rebuild"}, &stdout, &stderr, "test")
+	if code != 10 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want stable blocked exit 10", code, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "/sp-map-scan") || !strings.Contains(stdout.String(), "/sp-map-build") {
+		t.Fatalf("stdout=%q, want rebuild recovery guidance", stdout.String())
+	}
+}
+
 func TestClaimReconcilePrepareReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
 	temp := t.TempDir()
 	inputPath := filepath.Join(temp, "prepare.json")

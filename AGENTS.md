@@ -28,11 +28,13 @@ For AI CLI workflows in this repository:
 - When introducing or changing a scripted/template generator, add or update tests that assert the rendered output and the source-of-truth surfaces stay in sync.
 - Existing examples of this direction include `src/specify_cli/agents.py` command/skill rendering and the shared `scripts/bash/update-agent-context.sh` plus `scripts/powershell/update-agent-context.ps1` managed-block renderers.
 
-## Project Memory
+## Project Learning
 
-- Generated projects use `.specify/memory/project-rules.md` for local rules and `.specify/memory/learnings/INDEX.md` plus linked detail documents as the first-read reusable learning layer. `.specify/memory/project-learnings.md` remains a compatibility summary; new durable lessons should write the index/detail memory first.
+- Generated projects store Learning under `.specify/memory/**` and runtime candidates under `.planning/learnings/**`, but agents consume it through `specify learning start -> list -> show`, not by parsing storage files. Summary intake is compact; `show` expands one selected record.
+- Learning reads are read-only. Production uses `learning capture` / `capture-auto`; confirmation and project-rule promotion use explicit `learning promote`. Never auto-promote during workflow start.
+- Classic commands use the shared Learning partial/passive skill. Advanced skills use `_shared/project-learning.md`; SPX command names normalize to the same Classic runtime namespace.
 - This repository itself does not treat its root `.specify/` directory as committed source-of-truth content; local `.specify/` state here is disposable and may be regenerated.
-- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
+- Project Learning is available to later work in this repository, not just when a `sp-*` workflow is active.
 
 ## Cross-CLI Improvement Policy
 
@@ -76,8 +78,8 @@ present in a test project.
   independent `spx-*` catalog from `templates/advanced-skills/**`. It is
   command-equivalent and prompt-optimized for advanced models: every Classic
   command has an independent SPX counterpart, while `spx-map-rebuild` is an
-  additional convenience orchestrator. The current topology is 29 SPX skills:
-  28 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  additional convenience orchestrator. The current topology is 30 SPX skills:
+  29 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
   keeps command ownership, read/write boundaries, resumable stops, and
   external-side-effect gates; it removes repeated tutorials, fixed role chains,
   unnecessary mandatory delegation, long examples, and model-authored stable
@@ -89,6 +91,16 @@ present in a test project.
   Advanced reference, or shared deterministic runtime. Leave implementation
   strategy and judgment to the advanced model only after those contracts are
   preserved.
+- Classic and Advanced share one blocked-exit semantic contract. Every blocked
+  stop must identify workflow/stage, category, owner, exact cause, sanitized
+  evidence, attempted recovery, affected scope, next action, observable unblock
+  criteria, and exact resume point. Keep agent-capable repair agent-owned. When
+  a genuine human boundary exists, provide a self-contained tutorial with
+  prerequisites, safety warnings, numbered UI/command steps, expected result
+  and failure branch per step, independent verification, sanitized evidence to
+  return, and the exact resume action. Protected CI and pending visual review
+  must name their concrete repository/branch/commit/job or real-entrypoint/
+  viewport/state/reference targets; “run CI” or “ask a human” is insufficient.
 - Advanced does **not** install the Classic passive-skill prompt bundle.
   Essential safety and execution gates belong in the owning SPX skill, a
   profile-local Advanced reference, or shared deterministic runtime.
@@ -793,9 +805,9 @@ When adding new agents:
 
 ## Always-On Context
 
-- Project cognition and project memory are always available, even without an active `sp-*` workflow.
+- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
-- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before decisions that depend on local conventions, constraints, or past lessons.
+- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
 ## Workflow Recommendations
 
@@ -815,7 +827,7 @@ When adding new agents:
 - When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.
 - For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.
 - Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.
-- Store reusable lessons in project memory, not only in chat or task artifacts.
+- Store reusable lessons through Project Learning, not only in chat or task artifacts.
 
 - Preserve content outside this managed block.
 <!-- SPEC-KIT:END -->

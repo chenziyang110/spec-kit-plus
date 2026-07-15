@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: '`tasks.md` is ready and the feature should move from planning into tracked execution batches.'
   primary_objective: Execute the ready batches while preserving tracker state, subagent contracts, verification discipline, and resumability.
   primary_outputs: Verified code, test, and documentation changes plus compact execution state, one task lifecycle record per executed task, conditional drift/repair records, and `implementation-summary.md` for the active feature.
-  default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or report completion only when the implementation contract is actually satisfied.
+  default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or after technical closeout hand human product acceptance to /sp.accept and stop.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -33,6 +33,7 @@ scripts:
    `pending-human-review` only when objective visual evidence cannot close the
    criterion; it blocks accepted closeout until resolved. Route an invalid,
    bootstrap, or missing design source to `sp-design` instead of inventing one.
+7. After successful technical closeout, ensure `human-acceptance.json` was prepared from the fresh `implementation-summary.md`, recommend `{{invoke:accept}}`, and stop. Do not claim that automated verification or implementation completion equals human product acceptance.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 

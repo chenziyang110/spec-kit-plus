@@ -5,6 +5,7 @@ description: Reconstruction-grade repository scan for advanced coding models. Us
 
 # SPX PRD Scan
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `research`, and
 `references/prd-scan-contract.md`.
 

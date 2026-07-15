@@ -220,22 +220,23 @@ your agent:
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
 5. `implement` to execute the task plan
-6. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
-7. `integrate` to close out completed independent feature lanes before mainline merge
+6. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
+7. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
+8. `integrate` to close out accepted independent feature lanes before mainline merge
 
 After an advanced-profile init, use independent, discoverable SPX skills:
 
 ```text
-$spx-analyze              $spx-ask                  $spx-auto
-$spx-checklist            $spx-clarify              $spx-constitution
-$spx-debug                $spx-deep-research        $spx-design
-$spx-discussion           $spx-explain              $spx-fast
-$spx-implement            $spx-implement-teams      $spx-integrate
-$spx-map-build            $spx-map-rebuild          $spx-map-scan
-$spx-map-update           $spx-plan                 $spx-prd
-$spx-prd-build            $spx-prd-scan             $spx-quick
-$spx-research             $spx-specify              $spx-tasks
-$spx-taskstoissues        $spx-team
+$spx-accept               $spx-analyze              $spx-ask
+$spx-auto                 $spx-checklist            $spx-clarify
+$spx-constitution         $spx-debug                $spx-deep-research
+$spx-design               $spx-discussion           $spx-explain
+$spx-fast                 $spx-implement            $spx-implement-teams
+$spx-integrate            $spx-map-build            $spx-map-rebuild
+$spx-map-scan             $spx-map-update           $spx-plan
+$spx-prd                  $spx-prd-build            $spx-prd-scan
+$spx-quick                $spx-research             $spx-specify
+$spx-tasks                $spx-taskstoissues        $spx-team
 ```
 
 Advanced installs also include the unchanged Classic map companions:
@@ -259,13 +260,36 @@ final-claim gate. The advanced profile is command-equivalent and
 prompt-optimized: every Classic command keeps an independent SPX entrypoint,
 state owner, write boundary, resumable stop point, and explicit side-effect
 gate. The normal feature path is
-`spx-specify -> spx-plan -> spx-tasks -> spx-implement`; clarification,
+`spx-specify -> spx-plan -> spx-tasks -> spx-implement -> spx-accept`; clarification,
 discussion (including an optional confirmed handoff into `spx-specify`),
 research, analysis, checklists, issue export, team execution,
 integration, PRD reconstruction, and map phases remain separately invocable
 instead of being hidden inside that path. `spx-fast` is for trivial direct
 changes; `spx-quick` provides lightweight resumable state for bounded but
 non-trivial work.
+
+`sp-accept` / `spx-accept` is deliberately separate from implementation's
+internal code review. Successful technical closeout prepares a fingerprinted
+`human-acceptance.json`; the acceptance agent assumes the human remembers
+nothing, explains what changed and why it matters, then leads one real product
+step at a time with an expected visible result and safe failure branch. Human
+PASS is required for every mandatory scenario. Failures preserve evidence and
+return to implement/debug or upstream requirements instead of being silently
+fixed inside acceptance.
+
+Classic and Advanced also share one blocked-exit contract. A blocked workflow
+must identify the exact stage, cause, owner, sanitized evidence, recovery
+already attempted, affected scope, smallest next action, observable unblock
+criteria, and exact resume point; an error list or “ask a human” is not a valid
+blocked result. Ordinary repository repair and available fallbacks stay
+agent-owned. When credentials, protected external systems, external-write
+approval, subjective product/visual decisions, or physical access genuinely
+require a person, the response expands into a step-by-step Human Action Guide
+with prerequisites, safety notes, exact clicks or commands, expected results,
+failure branches, verification, sanitized evidence to return, and the resume
+command. Protected CI guidance must bind the repository, branch, commit,
+pipeline/job, authorization boundary, and returned pipeline URL or ID rather
+than merely saying that CI remains to be run.
 
 SPX references are profile-local under `templates/advanced-skills/` and never
 copy or include classic `templates/command-references/`. The three separately
@@ -341,7 +365,7 @@ The discussion output is one canonical Agent-only JSON contract shared by eligib
 
 The discussion workflow must continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
 
-The main pipeline now uses one authority per phase: `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records. Project-facing Markdown is rendered only when it has independent human/repository value. Research, data model, API contracts, quickstart, lane manifests, and task packets are conditional; delegated packets are compiled just in time, and implementation review runs on evidence-triggered events rather than every phase or batch.
+The main pipeline now uses one authority per phase: `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `human-acceptance.json`. Project-facing Markdown is rendered only when it has independent human/repository value. Research, data model, API contracts, quickstart, lane manifests, and task packets are conditional; delegated packets are compiled just in time, implementation review runs on evidence-triggered events, and post-closeout acceptance restores human context before collecting an explicit product verdict.
 
 When a discussion direction is locked but the topic is not handoff-ready or downstream-ready, `sp-discussion` should use the same unified frontstage contract to include the locked direction, reason, blocked decisions, evidence gaps, downstream planning inputs to preserve, default discussion action, and override path instead of returning only state updates or waiting for the user to ask for "next". It must not split the work into P0/P1/P2, migration phases, release batches, task packets, or ordered implementation steps; those belong to `sp-plan`, `sp-tasks`, or `sp-implement`.
 
@@ -362,6 +386,8 @@ When `sp-specify` consumes a confirmed discussion contract, it preserves the dec
 Generated workflows preserve the user's complete user-confirmed scope. Scope reduction requires user confirmation: agents should not steer a requirement toward an MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or smaller validation build unless the user asked for that shape, the request already defines that boundary, or a named constraint makes reduced scope a decision the user confirms. Complexity alone is not a valid reason to shrink, defer, or block ordinary work; `sp-plan` and `sp-tasks` should use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 
 `implement` validates the task-graph revision before starting and runs review only on repository/task drift, parallel joins, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gaps, or review-window limits. It records the result in one task lifecycle record instead of separate briefs, review packages, and ledgers. A mandatory protected-CI, remote-system, or human evidence gap stays as a structured blocked task; when a local commit is required only to obtain that evidence, `external-evidence-checkpoint` permits a non-final checkpoint without accepting the task, resolving the tracker, authorizing push/CI, or weakening final closeout. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts still route back to the owning upstream workflow.
+
+After technical closeout, `accept` is the default human-facing stage. It reads the fingerprinted implementation summary, assumes the human has no prior context, explains the delivered outcome and exact entrypoint, and leads one required scenario step at a time. It writes only `human-acceptance.json` plus acceptance-owned workflow state. An explicit human PASS is required; defects and requirement gaps are recorded and handed back to their owning workflow.
 
 Command-surface minimization must not delete capability. If upstream discussion or specification text includes a new/create/scaffold/authoring operation, later workflows must preserve it through an explicit public command, TUI route, core API, private helper, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact. Static templates, manual copy steps, and template-only docs are supporting assets, not a substitute for the confirmed operation unless the user explicitly chose that narrower entry point.
 
@@ -428,6 +454,25 @@ Treat the live `specify --help` output as the only authoritative CLI command
 surface. Before suggesting or running a `specify <subcommand>` invocation,
 verify it exists in `specify --help` or `specify <subcommand> --help`, and do
 not invent unsupported names such as `specify create-feature`.
+
+### Agent-facing CLI discovery and workflow guard
+
+Agents should start with `specify api handshake --format json`; add repeated or
+comma-separated `--require` capability IDs when a workflow depends on a stable
+surface. `specify api list` lists the compact optimized Agent API, while
+`specify api commands --format json` inventories every live CLI operation as
+summary cards. Expand only a selected operation with
+`specify api command <dot-separated-id> --format json`, or expand one stable
+capability/schema with `specify api show` and `specify api schema`. This keeps
+help text and parameters out of context until they are needed.
+
+Feature stages use `specify workflow show|enter|next|transition|block|closeout`.
+The destination stage runs `specify workflow transition --to <stage>` with the
+current revision; the CLI validates the completed source-stage artifacts and
+refuses skips or stale writes without mutation. Exit code `10` means a durable,
+resumable business blocker, `2` means invalid usage, `1` means execution
+failure, and `0` means success. Human-owned blockers include exact steps,
+expected results, safe failure branches, evidence to return, and resume argv.
 
 Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
 
@@ -550,11 +595,11 @@ Routing guide for lightweight work:
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
-- `sp-quick` performs one Understanding Checkpoint before substantive execution. The agent presents the fixed plain-text Quick Checkpoint Markdown table with `| Item | Current understanding |` and rows for issue, target outcome, boundaries, known facts/assumptions, affected surfaces, concrete implementation plan, next action, validation evidence, and stop condition with concrete details, then waits for confirmation before continuing. Freeform prose or bullet-only confirmations do not satisfy this gate. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
+- `sp-quick` performs one Understanding Checkpoint before substantive execution. The fixed plain-text Quick table asks the user to confirm only the request/outcome, visible result, scope, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger; implementation sequencing remains agent-owned. For applicable UI work, an independent UI Confirmation proposal follows the main table and one reply confirms both. Freeform prose or bullet-only confirmations do not satisfy this gate. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
 - Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `project-cognition compass --intent implement --query "$ARGUMENTS" --format json` as the default brownfield navigation intake. Continue from the returned readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, use the advanced `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` path (`lexicon -> semantic_intake -> query`). Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH for these helpers; helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise call `project-cognition` from PATH.
 - On shells or native command launchers that strip nested JSON quotes, write the planned object to a file and call `project-cognition query --intent <intent> --query-plan-file <path> --format json`; `path_hints`/`reason` are accepted aliases for `paths`/`selection_reason`.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
-- `sp-debug` performs one Debug Understanding Checkpoint before substantive investigation. The agent presents a plain-text Debug Checkpoint card covering symptom, expected behavior, reproduction or failing signal, known evidence, investigation boundary, candidate focus, ordered investigation plan, first evidence action, fix gate, and progress signal with concrete details, then waits for confirmation before reproduction, logs, source/test reads, evidence collection, fixes, or validation. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
+- `sp-debug` performs one Debug Understanding Checkpoint before substantive investigation. The fixed plain-text Debug table asks the reporter to confirm the problem, expected behavior, occurrence conditions, investigation boundary, fix authority, assumptions to correct, and reconfirmation trigger; hypotheses and evidence sequencing remain agent-owned. For applicable UI symptoms, an independent UI Confirmation target baseline follows the main table without pre-approving a repair, and one reply confirms both. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
 - `sp-debug` is complexity-based: small focused investigations may run leader-inline, while broad or independent evidence lanes use one or more subagents. Unsafe or unavailable dispatch remains `subagent-blocked` with `execution_surface: none`.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, add the smallest safe bootstrap in the owning workflow or escalate to `sp-quick`/`sp-specify`.
 - UI/TUI/CLI/API/runtime-visible implementation tasks generated by `sp-tasks` should carry real-entrypoint evidence requirements. Component, reducer, helper, or hand-built state tests can support the change, but `sp-implement` must reject synthetic-only consumer proof when `required_evidence` includes `real_entrypoint_evidence`.
@@ -588,31 +633,41 @@ Required action markers:
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file append or replacement.
 - First-wave `[AGENT]` coverage started with `sp-fast`, `sp-quick`, `sp-map-scan`, and `sp-map-build`; the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for hard gates and required state updates.
 
-Passive project learning layer:
+Project Learning lifecycle:
 
-- Generated projects include `.specify/memory/learnings/INDEX.md` as the thin first-read learning layer.
-- Each reusable lesson may link to one detail markdown document per lesson under `.specify/memory/learnings/`.
-- `project-learnings.md` remains a compatibility summary; new captures write index/detail memory first.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work.
-- This shared project memory is available across later work in the repository, not just when a `sp-*` workflow is active.
-- The major workflow templates now read the passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
-- Low-level helper commands exist for the passive learning lifecycle:
+- Agents consume Learning only through the CLI. Storage files under `.specify/memory/learnings/` and `.planning/learnings/` are runtime implementation details, not normal agent read surfaces.
+- Consumption is progressive and read-only: `learning start` returns task-relevant summary cards, `learning list` filters or pages compact summaries, and `learning show` expands exactly one selected record.
+- A summary card carries `ref`, summary, recommended action, type, status, signal, occurrences, applicability, trigger signals, and `show_argv`. Full detail groups guidance, applicability, evidence, provenance, and lifecycle fields.
+- Production remains explicit: `capture` and `capture-auto` create or merge candidates; `promote` confirms a learning or promotes a stable recurring learning into project rules. Reading never auto-promotes.
+- Trigger review covers user corrections, repeated attempts, route changes, blockers/recovery, false leads, decisive signals, hidden dependencies, validation gaps, tooling traps, state loss, cognition gaps, reusable constraints, and near misses. Routine output and one-off facts are skipped.
+- Owning workflows record explicit semantic signals in `workflow-state.md` under `## Learning Triggers` as `kind: compact evidence`; `capture-auto` deterministically maps canonical kinds to Learning types and agent guidance.
+- Classic commands use the shared Learning partial/passive skill. Every SPX skill receives the independent Advanced `project-learning.md` reference; both profiles share one Classic command namespace in the runtime.
+- CLI surfaces:
 - `specify learning ensure --format json`
 - `specify learning status --format json`
 - `specify learning start`
   - Command shape: `specify learning start --command <workflow> --format json`
+- `specify learning list`
+  - Command shape: `specify learning list --command <workflow> --query "<signal>" --format json`
+  - Use `--all` for the complete matching summary catalog; otherwise follow `pagination.next_argv`.
+- `specify learning show`
+  - Command shape: `specify learning show --ref <recurrence-key-or-id> --format json`
 - `specify learning capture`
   - Required options: `--command`, `--type`, `--summary`, `--evidence`
+  - Agent guidance fields: `--problem`, `--action`, `--trigger`, `--success`, `--avoid`, and `--exception`
 - `specify learning capture-auto`
-  - Command shape: `specify learning capture-auto --command <workflow> --format json`
+  - Command shape: `specify learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
 - `specify implement closeout`
   - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
-  - Writes `FEATURE_DIR/implementation-summary.md` and returns `implementation_summary` with completed work, changed paths, behavior surfaces, verification evidence, and baseline comparison commands (`git status --short`, `git diff --stat HEAD`, `git diff --name-status HEAD`).
+  - Writes `FEATURE_DIR/implementation-summary.md`, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and returns both `implementation_summary` and `human_acceptance`. The summary retains baseline comparison commands such as `git diff --stat HEAD` and `git diff --name-status HEAD`. The next workflow is `sp-accept` / `spx-accept`, which restores context and collects the human product verdict.
+- `specify accept prepare|validate|closeout`
+  - Command shape: `specify accept prepare --feature-dir <feature-dir> --format json`
+  - Prepares or freshness-checks the resumable acceptance state, validates its scenarios/cursor/verdict, and closes only a fresh explicit human acceptance.
 - `specify learning aggregate --format json`
 - `specify learning promote`
   - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
-- Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
-- This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with direct learning-memory commands preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- Use `specify learning aggregate` for a promotion-oriented view across candidate, confirmed, and promoted patterns.
+- Learning remains a passive lifecycle rather than a new daily `sp-*` workflow. `fast` skips it unless work escalates; read-only/orchestrator workflows consume without capture; other non-trivial workflows consume before deeper work and capture at owning closeout only when a reusable signal exists.
 - Durable eval helpers turn promoted rules into local regression checks:
   - `specify eval create`
     - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`

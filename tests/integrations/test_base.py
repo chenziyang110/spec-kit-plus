@@ -337,6 +337,38 @@ class TestBasePrimitives:
                 first.parent,
             )
 
+    def test_render_template_content_injects_shared_blocker_contract_for_commands(self, tmp_path):
+        templates = tmp_path / "templates"
+        commands = templates / "commands"
+        common = templates / "command-partials" / "common"
+        commands.mkdir(parents=True)
+        common.mkdir(parents=True)
+        template = commands / "plan.md"
+        template.write_text("---\ndescription: Plan\n---\n\nPlan body\n", encoding="utf-8")
+        (common / "blocker-resolution.md").write_text(
+            "## Blocked Exit Contract\n\nDetailed recovery.\n",
+            encoding="utf-8",
+        )
+
+        rendered = IntegrationBase.render_template_content(
+            template.read_text(encoding="utf-8"),
+            template_path=template,
+        )
+
+        assert rendered.count("## Blocked Exit Contract") == 1
+        assert rendered.index("## Blocked Exit Contract") < rendered.index("Plan body")
+
+    def test_every_classic_command_renders_the_shared_blocker_contract(self):
+        commands = Path(__file__).resolve().parents[2] / "templates" / "commands"
+
+        for template in commands.glob("*.md"):
+            rendered = IntegrationBase.render_template_content(
+                template.read_text(encoding="utf-8"),
+                template_path=template,
+            )
+            assert rendered.count("## Blocked Exit Contract") == 1, template.name
+            assert ".specify/templates/workflow-blocker-template.md" in rendered
+
     def test_process_template_renders_workflow_contract_summary_from_frontmatter(self, tmp_path):
         template = tmp_path / "plan.md"
         template.write_text(

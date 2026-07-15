@@ -72,3 +72,14 @@ team execution to `$spx-implement-teams`, and independent lane closeout to
 Before completion, run
 `{{specify-subcmd:implement closeout --feature-dir <feature-dir> --format json}}`
 when available.
+
+Successful closeout must return the prepared `human_acceptance` state and its
+implementation-summary fingerprint. Hand off to `$spx-accept` and stop. The
+acceptance workflow restores a later human's context and owns the explicit
+product verdict; implementation tests, agent review, and technical closeout do
+not substitute for that verdict.
+
+Before stopping, keep `workflow-state.md` owned by `sp-implement`, record
+`status: completed`, `phase_mode: execution-only`, and canonical
+`next_command: /sp.accept`. Do not set `active_command: sp-accept`; the
+acceptance workflow claims that phase only when it actually starts.

@@ -10,3 +10,5 @@
 - review_events:
 - residual_risk:
 - recovery_or_follow_up:
+- human_acceptance_state: human-acceptance.json
+- next_workflow: spx-accept

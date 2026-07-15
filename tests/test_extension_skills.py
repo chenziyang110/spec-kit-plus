@@ -275,9 +275,10 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-prd" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
-        assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-confirmed-learnings-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learnings-index-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learning-detail-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learning-record-schema.json").exists()
         assert not (project_dir / ".specify" / "templates" / "testing").exists()
 
         def _skill_body(skill_name: str) -> str:
@@ -292,25 +293,25 @@ class TestBuiltInSkillGeneration:
             "sp-quick",
         ):
             body = _skill_body(skill_name).lower()
-            assert ".specify/memory/project-rules.md" in body
-            assert ".specify/memory/learnings/index.md" in body
-            assert "learning reflex" in body or "future senior engineer" in body
+            assert "learning start --command " in body
+            assert "--format json" in body
+            assert "--detail-level" not in body
+            assert "show_argv" in body
+            assert ".specify/memory/learnings/index.md" not in body
             assert ".planning/learnings/candidates.md" not in body or "compatibility" in body
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
         fast_body = _skill_body("sp-fast").lower()
-        assert "skip all learning hooks" in fast_body
-        assert "do not read constitution, project-rules, or project-learnings" in fast_body
-        assert ".specify/memory/learnings/index.md" in fast_body
+        assert "do not run learning intake" in fast_body
+        assert ".specify/memory/learnings/index.md" not in fast_body
         assert "workflow contract summary" in fast_body
         assert "routing metadata only" in fast_body
         constitution_body = _skill_body("sp-constitution").lower()
         constitution = (project_dir / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8").lower()
-        assert ".specify/memory/project-rules.md" in constitution_body
-        assert ".specify/memory/learnings/index.md" in constitution_body
-        assert "learning reflex" in constitution_body or "future senior engineer" in constitution_body
-        assert ".planning/learnings/candidates.md" not in constitution_body or "compatibility" in constitution_body
-        assert "specify learning start --command constitution --format json" in constitution_body
+        assert "learning start --command constitution --format json" in constitution_body
+        assert "show_argv" in constitution_body
+        assert ".specify/memory/learnings/index.md" not in constitution_body
+        assert ".planning/learnings/candidates.md" not in constitution_body
         assert ".specify/project-cognition/status.json" in constitution
         assert "workflow-appropriate cognition" in constitution
         assert "advisory project cognition index" in constitution
@@ -378,9 +379,10 @@ class TestBuiltInSkillGeneration:
         assert "one bounded `project-cognition compass" in specify_body
         assert "do not build a second broad repository summary" in specify_body.lower()
         assert "workflow-state.md" in specify_body
-        assert "Read `.specify/templates/workflow-state-template.md`" in specify_body
-        assert "create or resume sparse `WORKFLOW_STATE_FILE`" in specify_body
-        assert "phase_mode: planning-only" in specify_body
+        assert "specify workflow show --feature-dir <feature-dir> --format json" in specify_body
+        assert "specify workflow enter --command specify" in specify_body
+        assert "deterministic runtime owns `workflow-state.md`" in specify_body
+        assert "create or resume sparse `WORKFLOW_STATE_FILE`" not in specify_body
         assert "Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`." in specify_body
         assert "open live files only for the named gap" in specify_body.lower()
         assert "clarify only planning-critical ambiguity" in specify_body.lower()
@@ -413,7 +415,8 @@ class TestBuiltInSkillGeneration:
         assert "implementation target and boundary refs" in plan_body
         assert "Dispatch Compilation Hints" in plan_body
         assert "workflow-state.md" in plan_body
-        assert "phase_mode: design-only" in plan_body
+        assert "enter `plan` with the deterministic workflow transition" in plan_body.lower()
+        assert "workflow transition --to <this-stage>" in plan_body
         assert "do not edit source/runtime/test files" in plan_body.lower()
         assert "planning does not grant permission to start execution" in plan_body.lower()
         assert "planning/handoffs/<lane-id>.json" in plan_body
@@ -445,7 +448,8 @@ class TestBuiltInSkillGeneration:
         assert "MP-*" in tasks_body
         assert "CA-###" in tasks_body
         assert "workflow-state.md" in tasks_body
-        assert "phase_mode: task-generation-only" in tasks_body
+        assert "enter `tasks` through the deterministic workflow transition" in tasks_body.lower()
+        assert "the cli owns phase state" in tasks_body.lower()
         assert "one result per lane under `task-generation/handoffs/`" in tasks_body.lower()
         assert "task-generation/lane-manifest.json" in tasks_body
         assert "do not create separate evidence-index and checkpoint logs" in tasks_body.lower()
@@ -465,7 +469,7 @@ class TestBuiltInSkillGeneration:
         assert "manual override/fallback" in tasks_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
         routing_body = _body_without_frontmatter(PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-workflow-routing" / "SKILL.md").lower()
-        assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in routing_body
+        assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`" in routing_body
         assert "use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`." in routing_body
         assert "use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state." in routing_body
         assert "clean completed `sp-tasks` state with `/sp.implement` routes directly to" in routing_body
@@ -561,12 +565,11 @@ class TestBuiltInSkillGeneration:
         checklist_body = _skill_body("sp-checklist")
         checklist_lower = checklist_body.lower()
         assert ".specify/memory/constitution.md" in checklist_lower
-        assert ".specify/memory/project-rules.md" in checklist_lower
-        assert ".specify/memory/learnings/index.md" in checklist_lower
-        assert "learning reflex" in checklist_lower or "future senior engineer" in checklist_lower
-        assert ".planning/learnings/candidates.md" not in checklist_lower or "compatibility" in checklist_lower
-        assert "specify learning start --command checklist --format json" in checklist_lower
-        assert "specify learning capture --command checklist" in checklist_lower
+        assert "learning start --command <classic-command-name> --format json" in checklist_lower
+        assert "show_argv" in checklist_lower
+        assert ".specify/memory/learnings/index.md" not in checklist_lower
+        assert ".planning/learnings/candidates.md" not in checklist_lower
+        assert "consume-only" in checklist_lower
         assert "project-cognition compass --intent plan" in checklist_lower
         assert "lexicon -> semantic_intake -> query" in checklist_lower
         assert "query --intent plan --query-plan" in checklist_lower or "query --query-plan" in checklist_lower

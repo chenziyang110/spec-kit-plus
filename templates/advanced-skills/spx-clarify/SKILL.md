@@ -5,6 +5,7 @@ description: Existing-spec repair workflow for advanced coding models. Use when 
 
 # SPX Clarify
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `plan`,
 `references/clarification-contract.md`, and `references/consequence-gate.md`
 only on its triggers.

@@ -7,6 +7,7 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 - Provide the current hypothesis and the exact evidence question this worker must answer.
 - Provide the repro command, failing check, or focused code path to inspect.
 - State which files or logs are in scope.
+- For UI-related evidence, provide the confirmed UI target baseline, original references and intents, real entry point, viewport/window, and state to observe. The worker must not propose a redesign.
 
 ## Worker Contract
 
@@ -16,6 +17,7 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 - Do not declare the root cause final.
 - Do not update the debug file.
 - Do not mutate the investigation state machine.
+- Use the confirmed UI target baseline only to classify observed drift. Do not infer or approve a repair design before the leader proves the failure mechanism.
 
 ## Minimum Return Payload
 

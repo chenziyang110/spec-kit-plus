@@ -65,6 +65,28 @@ function Invoke-ProjectCognition {
     }
 }
 
+function ConvertFrom-DirtyScopePathsJson {
+    param([Parameter(Mandatory=$true)][string]$Json)
+
+    $trimmed = $Json.Trim()
+    if (-not $trimmed.StartsWith("[")) {
+        throw "Dirty scope paths JSON must be an array of non-empty single-line strings."
+    }
+
+    try {
+        $parsed = $Json | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        throw "Dirty scope paths JSON is invalid: $($_.Exception.Message)"
+    }
+
+    foreach ($item in @($parsed)) {
+        if ($item -isnot [string] -or [string]::IsNullOrWhiteSpace($item) -or $item.Contains("`n") -or $item.Contains("`r")) {
+            throw "Dirty scope paths JSON must be an array of non-empty single-line strings."
+        }
+        Write-Output $item
+    }
+}
+
 switch ($Command) {
     "check" {
         Invoke-ProjectCognition -ProjectCognitionArgs @("check", "--format", "json")
@@ -93,6 +115,15 @@ switch ($Command) {
         }
         if (-not [string]::IsNullOrWhiteSpace($OriginLaneId)) {
             $commandArgs += @("--origin-lane-id", $OriginLaneId)
+        }
+        try {
+            $dirtyScopePaths = @(ConvertFrom-DirtyScopePathsJson -Json $DirtyScopePathsJson)
+        } catch {
+            Write-Error $_.Exception.Message
+            exit 2
+        }
+        foreach ($scopePath in $dirtyScopePaths) {
+            $commandArgs += @("--scope", $scopePath)
         }
         $commandArgs += @("--format", "json")
         Invoke-ProjectCognition -ProjectCognitionArgs $commandArgs

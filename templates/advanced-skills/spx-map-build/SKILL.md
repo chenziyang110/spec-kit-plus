@@ -5,6 +5,7 @@ description: Deterministic project-cognition build workflow for advanced coding 
 
 # SPX Map Build
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md` for its evidence boundary and
 `references/build-gates.md`. Do not run Compass intake until after a valid build
 is published. This skill consumes the accepted scan package and does not read

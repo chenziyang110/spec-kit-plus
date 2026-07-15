@@ -5,6 +5,7 @@ description: Lean direct-change workflow for advanced coding models. Use for a t
 
 # SPX Fast
 
+Read `references/project-learning.md` only for its explicit skip/escalation policy.
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Use `references/scope-gate.md` when eligibility is not immediately obvious.
 Read `references/consequence-gate.md` when work can affect lifecycle operations,

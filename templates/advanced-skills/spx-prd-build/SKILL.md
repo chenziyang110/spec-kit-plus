@@ -5,6 +5,7 @@ description: Scan-to-PRD compilation workflow for advanced coding models. Use on
 
 # SPX PRD Build
 
+Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md` only for its evidence boundary, then read
 `references/prd-build-contract.md`. Do not run cognition intake in this phase:
 the frozen scan package is the only allowed product-fact source.

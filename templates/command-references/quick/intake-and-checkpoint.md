@@ -1,4 +1,4 @@
-Trigger: before quick-task execution, broad reads, delegation, or validation commands.
+Trigger: before quick-task execution, broad reads, delegation, or validation commands, and whenever a material discovery may invalidate the confirmed quick boundary.
 
 Purpose: preserve required context, understanding checkpoint, quick checkpoint, scope gate, escalation triggers, and consequence boundary.
 
@@ -46,7 +46,21 @@ When the confirmed contract introduces no quick-stage `semantic_delta`, bind the
 
 After the constitution gate, quick workspace initialization, project cognition query, and any bounded `minimal_live_reads`, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete files, commands, workflows, constraints, validation evidence, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
-Use the exact table shape below. The checkpoint should give the user confidence to approve or correct the work: `Issue` must explain the bad behavior, where it appears, why it matters, and what the user is not asking for; `Implementation plan` must be a concrete ordered sequence, not a vague promise to investigate. Keep the checkpoint plain text for terminal output: do not use HTML tags or inline line-break markup. Format multi-step plans as semicolon-separated numbered clauses inside the table cell; if the plan is too long to read cleanly, put a short summary in the cell and add a normal Markdown numbered list immediately below the table. Do not reuse the placeholder text as content; replace each bracketed item with task-specific steps.
+Use the exact card below. The main table contains only user-owned decisions:
+request and outcome, user-visible result, scope, recommended approach,
+assumptions and risks, completion evidence, and the reconfirmation trigger.
+Technical execution belongs to the agent. Put affected surfaces, implementation
+sequencing, and the next command in a short technical summary for awareness,
+not as a request to approve technical details. Keep the checkpoint plain text
+for terminal output: do not use HTML tags or inline line-break markup. Do not
+reuse the placeholder text as content; replace each bracketed item with
+task-specific facts.
+
+When the task affects a user-visible UI surface, append the UI Confirmation
+card from the fixed partial. It is a design proposal for this bounded
+implementation, not a replacement for an approved project design direction.
+Ask once after both cards; the user may confirm both or revise only scope, UI,
+or another named decision.
 
 {{spec-kit-include: ../../command-partials/quick/checkpoint-card.md}}
 
@@ -54,15 +68,50 @@ Wait for user confirmation before code edits, broad repository analysis, delegat
 
 Create or update `STATUS.md` with `understanding_confirmed: false` before any map maintenance handoff, broad repository analysis, delegation, implementation command, or validation command. Record the confirmed checkpoint in `STATUS.md`. `understanding_confirmed: false` blocks substantive execution on resume. While it is false, only read the minimal context needed to reconstruct or revise the checkpoint; you must not proceed to code edits, broad repository analysis, delegation, validation commands, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and `STATUS.md` is updated.
 
+## Quick Checkpoint Amendments
+
+The confirmed checkpoint remains valid while repository evidence only adds
+files, call sites, tests, or implementation details needed to deliver the same
+confirmed outcome within the confirmed boundary, risk, and authority. Update
+`STATUS.md` and continue; do not reopen confirmation for that ordinary causal
+closure.
+
+Reopen confirmation only when new evidence materially changes the confirmed
+problem or outcome, an included or excluded boundary, user-visible behavior,
+risk, authority, migration or compatibility obligations, an independent
+capability, or an explicit stop condition. Set `understanding_confirmed: false`
+and pause substantive work before requesting the new decision.
+
+Before presenting the amendment, explain in user-facing prose:
+
+- the new evidence and the exact trigger;
+- why the previous confirmation no longer covers the proposed work;
+- the consequence of omitting the newly discovered work;
+- the current mutation state, including what has and has not changed and the
+  safe pause point; and
+- the incremental decision the user owns and why repository evidence cannot
+  resolve it.
+
+Only after that explanation, present `## Quick Checkpoint Amendment`. Include
+only the changed rows or decisions plus one concise `Unchanged` statement; do
+not repeat the full initial Quick Checkpoint. Ask the user to confirm or revise
+that delta, then persist the amendment and confirmation before resuming. If the
+user already explicitly approved the exact delta in the message that supplied
+it, record that approval instead of requesting a duplicate confirmation.
+
+When the material delta is UI-only, keep the
+`## Quick Checkpoint Amendment` heading. Include only the changed UI Confirmation rows.
+State that the main checkpoint is unchanged. The reason-first explanation still
+comes before this delta; do not replay either complete initial table.
+
 ## Workflow Quality Requirements
 
 - Confirm project cognition freshness and valid quick-task entry before deeper execution.
 - Keep `STATUS.md` current as the durable quick-task source of truth for scope, lane state, blockers, verification, and terminal status.
 - Validate each `WorkerTaskPacket` or equivalent execution contract before dispatch and require a structured handoff before accepting delegated work.
 - Update durable state before compaction-risk transitions, join points, delegated fan-out, or any stop where resume will depend on more than the visible conversation.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader quick-task context.
-- Open only learning detail docs linked from quick-task-relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
+- Read `.specify/memory/constitution.md` as governance, then use the Learning CLI summary intake before broader quick-task context. Expand only selected matching records with `learning show`.
+- Learning Reflex: before final closeout, run `learning capture-auto` from `STATUS.md` when a reusable signal exists; do not edit Learning storage files directly.
 
 ## Scope Gate
 

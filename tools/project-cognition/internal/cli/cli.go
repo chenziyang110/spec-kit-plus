@@ -32,7 +32,11 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
 
-const deltaGitProbeTimeout = 750 * time.Millisecond
+const (
+	deltaGitProbeTimeout = 750 * time.Millisecond
+	// exitCodeBlocked distinguishes an actionable workflow stop from a runtime failure.
+	exitCodeBlocked = 10
+)
 
 type stringList []string
 
@@ -1255,10 +1259,13 @@ func rebuildCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 		"status_path":             paths.StatusPath,
 	}
 	if *format == "json" {
-		return writeJSON(stdout, payload)
+		if code := writeJSON(stdout, payload); code != 0 {
+			return code
+		}
+		return exitCodeBlocked
 	}
 	fmt.Fprintln(stdout, "Run /sp-map-scan, then /sp-map-build to rebuild project cognition.")
-	return 0
+	return exitCodeBlocked
 }
 
 func deltaCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

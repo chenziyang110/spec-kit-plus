@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/project-learning-record-schema.json",
+  "title": "Project Learning Agent Read Contract",
+  "description": "Read-only progressive-disclosure contract: start/list return compact decision cards; show expands exactly one card.",
+  "oneOf": [
+    { "$ref": "#/$defs/startSummary" },
+    { "$ref": "#/$defs/summaryList" },
+    { "$ref": "#/$defs/detailRecord" }
+  ],
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "learningType": {
+      "enum": [
+        "pitfall",
+        "recovery_path",
+        "user_preference",
+        "workflow_gap",
+        "project_constraint",
+        "routing_mistake",
+        "verification_gap",
+        "state_surface_gap",
+        "map_coverage_gap",
+        "tooling_trap",
+        "false_lead_pattern",
+        "near_miss",
+        "decision_debt"
+      ]
+    },
+    "learningStatus": {
+      "enum": ["candidate", "confirmed", "promoted-rule", "indexed"]
+    },
+    "summaryCard": {
+      "type": "object",
+      "required": [
+        "ref",
+        "summary",
+        "action",
+        "type",
+        "status",
+        "signal",
+        "occurrences",
+        "applies_to",
+        "trigger_signals",
+        "source_layer",
+        "show_argv"
+      ],
+      "properties": {
+        "ref": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1, "description": "One-line identity; evidence and rationale are intentionally omitted." },
+        "action": { "type": "string", "minLength": 1, "description": "Imperative next action for a future Agent." },
+        "type": { "$ref": "#/$defs/learningType" },
+        "status": { "$ref": "#/$defs/learningStatus" },
+        "signal": { "enum": ["low", "medium", "high"] },
+        "occurrences": { "type": "integer", "minimum": 1 },
+        "applies_to": { "$ref": "#/$defs/stringList" },
+        "trigger_signals": { "$ref": "#/$defs/stringList" },
+        "source_layer": { "enum": ["candidate", "confirmed-learning", "project-rule", "index-only"] },
+        "show_argv": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 7,
+          "description": "Ready-to-execute argv that expands only this record."
+        },
+        "why_relevant": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "summaryList": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "record_schema",
+        "command",
+        "policy",
+        "filters",
+        "pagination",
+        "items",
+        "warnings"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "record_schema": { "const": ".specify/templates/project-learning-record-schema.json#/$defs/summaryList" },
+        "command": { "type": ["string", "null"] },
+        "policy": { "type": ["string", "null"] },
+        "filters": {
+          "type": "object",
+          "required": ["type", "status", "query"],
+          "properties": {
+            "type": { "type": ["string", "null"] },
+            "status": { "type": ["string", "null"] },
+            "query": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "pagination": {
+          "type": "object",
+          "required": ["cursor", "limit", "returned", "total", "next_cursor", "next_argv"],
+          "properties": {
+            "cursor": { "type": "integer", "minimum": 0 },
+            "limit": { "type": ["integer", "null"], "minimum": 1 },
+            "returned": { "type": "integer", "minimum": 0 },
+            "total": { "type": "integer", "minimum": 0 },
+            "next_cursor": { "type": ["integer", "null"], "minimum": 0 },
+            "next_argv": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "minItems": 9
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/summaryCard" }
+        },
+        "warnings": { "$ref": "#/$defs/stringList" }
+      },
+      "additionalProperties": false
+    },
+    "startSummary": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "record_schema",
+        "command",
+        "policy",
+        "read_only",
+        "items",
+        "pagination",
+        "promotion_ready",
+        "needs_confirmation",
+        "warnings"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "record_schema": { "const": ".specify/templates/project-learning-record-schema.json#/$defs/startSummary" },
+        "command": { "type": "string", "minLength": 1 },
+        "policy": { "enum": ["skip", "consume-only", "consume-capture"] },
+        "read_only": { "const": true },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/summaryCard" }
+        },
+        "pagination": { "$ref": "#/$defs/pagination" },
+        "promotion_ready": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ref", "summary", "occurrences"],
+            "properties": {
+              "ref": { "type": "string", "minLength": 1 },
+              "summary": { "type": "string", "minLength": 1 },
+              "occurrences": { "type": "integer", "minimum": 2 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "needs_confirmation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ref", "summary", "signal"],
+            "properties": {
+              "ref": { "type": "string", "minLength": 1 },
+              "summary": { "type": "string", "minLength": 1 },
+              "signal": { "enum": ["low", "medium", "high"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "warnings": { "$ref": "#/$defs/stringList" }
+      },
+      "additionalProperties": false
+    },
+    "pagination": {
+      "type": "object",
+      "required": ["cursor", "limit", "returned", "total", "next_cursor", "next_argv"],
+      "properties": {
+        "cursor": { "type": "integer", "minimum": 0 },
+        "limit": { "type": ["integer", "null"], "minimum": 1 },
+        "returned": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 },
+        "next_cursor": { "type": ["integer", "null"], "minimum": 0 },
+        "next_argv": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 9
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "detailRecord": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "record_schema",
+        "ref",
+        "id",
+        "summary",
+        "type",
+        "status",
+        "guidance",
+        "applicability",
+        "evidence",
+        "provenance",
+        "lifecycle",
+        "detail_path",
+        "warnings"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "record_schema": { "const": ".specify/templates/project-learning-record-schema.json#/$defs/detailRecord" },
+        "ref": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "type": { "$ref": "#/$defs/learningType" },
+        "status": { "$ref": "#/$defs/learningStatus" },
+        "guidance": {
+          "type": "object",
+          "required": ["problem", "action", "avoid", "success_criteria", "exceptions"],
+          "properties": {
+            "problem": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 },
+            "avoid": { "$ref": "#/$defs/stringList" },
+            "success_criteria": { "$ref": "#/$defs/stringList" },
+            "exceptions": { "$ref": "#/$defs/stringList" }
+          },
+          "additionalProperties": false
+        },
+        "applicability": {
+          "type": "object",
+          "required": ["commands", "trigger_signals", "scope"],
+          "properties": {
+            "commands": { "$ref": "#/$defs/stringList" },
+            "trigger_signals": { "$ref": "#/$defs/stringList" },
+            "scope": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "evidence": {
+          "type": "object",
+          "required": ["observation", "decisive_signal", "false_starts", "rejected_paths", "root_cause_family"],
+          "properties": {
+            "observation": { "type": "string", "minLength": 1 },
+            "decisive_signal": { "type": "string" },
+            "false_starts": { "$ref": "#/$defs/stringList" },
+            "rejected_paths": { "$ref": "#/$defs/stringList" },
+            "root_cause_family": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "required": ["source_command", "first_seen", "last_seen", "occurrences", "source_layer"],
+          "properties": {
+            "source_command": { "type": "string", "minLength": 1 },
+            "first_seen": { "type": "string" },
+            "last_seen": { "type": "string" },
+            "occurrences": { "type": "integer", "minimum": 1 },
+            "source_layer": { "enum": ["candidate", "confirmed-learning", "project-rule", "index-only"] }
+          },
+          "additionalProperties": false
+        },
+        "lifecycle": {
+          "type": "object",
+          "required": ["signal", "pain_score", "injection_targets", "promotion_hint"],
+          "properties": {
+            "signal": { "enum": ["low", "medium", "high"] },
+            "pain_score": { "type": "integer", "minimum": 0 },
+            "injection_targets": { "$ref": "#/$defs/stringList" },
+            "promotion_hint": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "detail_path": { "type": ["string", "null"] },
+        "warnings": { "$ref": "#/$defs/stringList" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
