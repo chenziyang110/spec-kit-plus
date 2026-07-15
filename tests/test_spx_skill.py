@@ -322,6 +322,33 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "do not crawl or reread the repository" in skills["spx-prd-build"]
 
 
+def test_spx_core_pipeline_requires_an_explicit_stop_between_stages() -> None:
+    skills = {
+        name: (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower()
+        for name in ("spx-specify", "spx-plan", "spx-tasks")
+    }
+
+    for skill in skills.values():
+        assert "this invocation authorizes only this workflow stage" in skill
+
+    specify = skills["spx-specify"]
+    for downstream_artifact in (
+        "`plan-contract.json`",
+        "`plan.md`",
+        "`research.md`",
+        "`data-model.md`",
+        "`contracts/`",
+        "`quickstart.md`",
+        "`tasks.md`",
+        "`task-index.json`",
+    ):
+        assert downstream_artifact in specify
+    assert "do not invoke `$spx-plan`" in specify
+
+    assert "do not invoke `$spx-tasks`" in skills["spx-plan"]
+    assert "do not invoke `$spx-implement`" in skills["spx-tasks"]
+
+
 def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
     ui_gate = (ADVANCED_SKILLS / "_shared" / "ui-quality-gate.md").read_text(
         encoding="utf-8"
