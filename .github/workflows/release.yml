@@ -147,7 +147,7 @@ jobs:
           go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@${VERSION}
           \`\`\`
 
-          The generated helper scripts prefer \`PROJECT_COGNITION_BIN\` when it is set and otherwise call \`project-cognition\` from PATH.
+          The generated helper scripts prefer \`PROJECT_COGNITION_BIN\` when it is set, then the pinned \`.specify/config.json\` \`project_cognition_launcher\`, and finally \`project-cognition\` from PATH.
 
           NOTES_EOF
 

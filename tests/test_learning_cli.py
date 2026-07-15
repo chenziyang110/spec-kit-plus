@@ -505,8 +505,10 @@ def test_learning_ensure_migrates_legacy_confirmed_store_without_data_loss(
     )
 
     result = _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+    repeated = _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
 
     assert result.exit_code == 0, result.stdout
+    assert repeated.exit_code == 0, repeated.stdout
     paths = build_learning_paths(project)
     _, confirmed = read_learning_entries(paths.confirmed_learnings)
     migrated = [

@@ -299,6 +299,27 @@ def test_validate_detects_implementation_changes_without_a_git_repository(
     assert validation["valid"] is False
 
 
+def test_no_git_snapshot_ignores_root_gitignore_matches(tmp_path: Path) -> None:
+    project, feature = _feature(tmp_path)
+    (project / ".gitignore").write_text(".cache/\n", encoding="utf-8")
+    cache_file = project / ".cache" / "runtime.bin"
+    cache_file.parent.mkdir()
+    cache_file.write_text("before\n", encoding="utf-8")
+
+    prepare_human_acceptance(project, feature)
+    _accepted_state(feature / "human-acceptance.json")
+    cache_file.write_text("after\n", encoding="utf-8")
+
+    validation = validate_human_acceptance(
+        project,
+        feature,
+        require_accepted=True,
+    )
+
+    assert validation["valid"] is True
+    assert validation["stale"] is False
+
+
 def test_in_progress_state_requires_a_real_resume_cursor(tmp_path: Path) -> None:
     project, feature = _feature(tmp_path)
     prepare_human_acceptance(project, feature)

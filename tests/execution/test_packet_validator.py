@@ -244,6 +244,7 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         {"kind": "design_source", "value": "DESIGN.md", "source": "task-index.json"},
     ]
     sample_packet.ui_contract = UIContract(
+        fidelity_level="approximate",
         ui_work_type="feature-extension",
         surface_type="product-workspace",
         platforms=["web"],
@@ -267,6 +268,11 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     )
     assert validate_worker_task_packet(sample_packet) is sample_packet
 
+    sample_packet.ui_contract.fidelity_level = "none"
+    with pytest.raises(PacketValidationError, match="fidelity_level"):
+        validate_worker_task_packet(sample_packet)
+
+    sample_packet.ui_contract.fidelity_level = "approximate"
     sample_packet.ui_contract.approved_visual_ref = ""
     with pytest.raises(PacketValidationError, match="approved_visual_ref"):
         validate_worker_task_packet(sample_packet)

@@ -1048,10 +1048,20 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
             "visual_comparison_or_human_review",
         ],
     }
+    constraints = {
+        "entry_points": ["/settings"],
+        "required_states": ["loading", "ready", "error"],
+        "fidelity_mode": "approximate",
+        "must_preserve": ["compact hierarchy"],
+        "may_adapt": ["framework markup"],
+        "must_not": ["hide errors"],
+        "visual_acceptance": ["desktop and mobile states inspected"],
+    }
     spec_design = {
         "ui_applicable": True,
         "ui_brief_ref": "ui-brief.md",
         **direction,
+        **constraints,
     }
     (feature_dir / "spec-contract.json").write_text(
         json.dumps({"design_contract": spec_design}), encoding="utf-8"
@@ -1064,16 +1074,11 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
         "design_system_adoption": ["settings controls"],
         "token_strategy": ["reuse approved tokens"],
         "component_strategy": ["reuse settings form"],
-        "entry_points": ["/settings"],
-        "required_states": ["loading", "ready", "error"],
         "fidelity_refs": [],
-        "must_preserve": ["compact hierarchy"],
-        "may_adapt": ["framework markup"],
-        "must_not": ["hide errors"],
         "validation_refs": ["browser settings route"],
-        "visual_acceptance": ["desktop and mobile states inspected"],
         "human_review_conditions": ["comparison unavailable"],
         **direction,
+        **constraints,
     }
     (feature_dir / "plan-contract.json").write_text(
         json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
