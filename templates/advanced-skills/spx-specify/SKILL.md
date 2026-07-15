@@ -25,8 +25,11 @@ view, use this Skill's compact `assets/spec.md`; preserve existing semantic work
 when revising an established spec. Render `assets/ui-brief.md` for substantive
 UI work; a narrow existing-pattern adjustment may instead record why a separate
 brief adds no decision value.
-Add other artifacts only when they contain independently useful decisions or
-evidence.
+Create only specification-stage outputs here: `spec-contract.json`, `spec.md`,
+a triggered `ui-brief.md`, and specification evidence or runtime-owned state.
+Do not create `plan-contract.json`, `plan.md`, `research.md`, `data-model.md`,
+`contracts/`, `quickstart.md`, `tasks.md`, or `task-index.json`; `$spx-plan` and
+`$spx-tasks` own those downstream artifacts.
 
 An existing PRD used as input to one feature compiles into the ordinary spec
 contract with source traceability. Route project-wide principles to
@@ -39,4 +42,7 @@ available and preserve canonical `/sp.*` transition values required by the
 runtime.
 
 Do not implement or edit production code, tests, migrations, or runtime
-configuration. Planning-ready output continues with `$spx-plan`.
+configuration. This invocation authorizes only this workflow stage. Stop after
+reporting the specification result and recommend exactly one next workflow. Do
+not invoke `$spx-plan`, `$spx-clarify`, `$spx-deep-research`, or any other next
+workflow in this run; a handoff is not authorization to execute it.

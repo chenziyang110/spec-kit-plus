@@ -324,7 +324,11 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
 
 def test_spx_core_pipeline_requires_an_explicit_stop_between_stages() -> None:
     skills = {
-        name: (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower()
+        name: re.sub(
+            r"\s+",
+            " ",
+            (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
+        )
         for name in ("spx-specify", "spx-plan", "spx-tasks")
     }
 
@@ -332,21 +336,32 @@ def test_spx_core_pipeline_requires_an_explicit_stop_between_stages() -> None:
         assert "this invocation authorizes only this workflow stage" in skill
 
     specify = skills["spx-specify"]
-    for downstream_artifact in (
-        "`plan-contract.json`",
-        "`plan.md`",
-        "`research.md`",
-        "`data-model.md`",
-        "`contracts/`",
-        "`quickstart.md`",
-        "`tasks.md`",
-        "`task-index.json`",
-    ):
-        assert downstream_artifact in specify
+    assert (
+        "do not create `plan-contract.json`, `plan.md`, `research.md`, "
+        "`data-model.md`, `contracts/`, `quickstart.md`, `tasks.md`, or "
+        "`task-index.json`"
+    ) in specify
     assert "do not invoke `$spx-plan`" in specify
 
-    assert "do not invoke `$spx-tasks`" in skills["spx-plan"]
-    assert "do not invoke `$spx-implement`" in skills["spx-tasks"]
+    plan = skills["spx-plan"]
+    assert "do not create tasks or task artifacts" in plan
+    assert "`tasks.md`" in plan
+    assert "`task-index.json`" in plan
+    assert "do not invoke `$spx-tasks`" in plan
+
+    tasks = skills["spx-tasks"]
+    assert "read `plan-contract.json` first" in tasks
+    assert "do not implement or edit production source/tests" in tasks
+    assert "do not invoke `$spx-implement`" in tasks
+
+    implement = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "spx-implement" / "SKILL.md")
+        .read_text(encoding="utf-8")
+        .lower(),
+    )
+    assert "--require-tasks --include-tasks" in implement
 
 
 def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
@@ -804,6 +819,27 @@ def test_all_skills_integrations_support_the_advanced_profile(
     assert expected_handoff in cognition_reference
     if not expected_handoff.startswith("$"):
         assert "$spx-map-rebuild" not in cognition_reference
+
+    invocation_prefix = (
+        "/skill:"
+        if integration_key == "kimi"
+        else "$" if integration_key in {"agy", "codex", "trae", "zcode"} else "/"
+    )
+    for skill_name, next_skill in (
+        ("spx-specify", "spx-plan"),
+        ("spx-plan", "spx-tasks"),
+        ("spx-tasks", "spx-implement"),
+    ):
+        installed_skill = re.sub(
+            r"\s+",
+            " ",
+            (skills_dir / skill_name / "SKILL.md")
+            .read_text(encoding="utf-8")
+            .lower(),
+        )
+        assert "this invocation authorizes only this workflow stage" in installed_skill
+        expected_next = f"{invocation_prefix}{next_skill}"
+        assert f"do not invoke `{expected_next}`" in installed_skill
 
 
 def test_classic_then_advanced_profiles_are_additive_in_the_manifest(tmp_path) -> None:

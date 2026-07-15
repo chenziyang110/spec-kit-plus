@@ -36,6 +36,8 @@ global UI coverage table: the just-in-time packet compiler must receive design
 sources, task-specific visual constraints, states, and evidence without
 re-inferring them.
 
-Do not implement or edit production source/tests. Hand off to `$spx-implement`
-when the graph is executable; use `$spx-analyze` only when an independent
-consistency gate is requested or existing state requires it.
+Do not implement or edit production source/tests. This invocation authorizes
+only this workflow stage. Stop after reporting the executable graph and
+recommend `$spx-implement`; do not invoke `$spx-implement` in this run. A
+handoff is not authorization to execute it. Use `$spx-analyze` only when an
+independent consistency gate is requested or existing state requires it.

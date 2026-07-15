@@ -35,6 +35,10 @@ question to `$spx-deep-research`; do not hide research inside generic plan
 prose. Repair requirement contradictions through `$spx-clarify`.
 
 Validate the plan contract and compact plan view against confirmed requirements
-and live owners. Do not create tasks, checklists, issues, production source,
-tests, migrations, or runtime configuration in this workflow. Preserve
-canonical `/sp.*` state identifiers and continue with `$spx-tasks` when ready.
+and live owners. Do not create tasks or task artifacts such as `tasks.md` or
+`task-index.json`; also do not create checklists, issues, production source,
+tests, migrations, or runtime configuration in this workflow. Preserve canonical
+`/sp.*` state identifiers. This invocation authorizes only this workflow stage.
+Stop after reporting the validated plan and recommend `$spx-tasks` when ready.
+Do not invoke `$spx-tasks` in this run; a handoff is not authorization to execute
+it.
