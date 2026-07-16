@@ -37,6 +37,7 @@ const (
 	compassRecommendedActionUseReads        = "use_compass_minimal_live_reads"
 	compassRecommendedActionExpandBeforeFix = "run_compass_expansion_before_fix"
 	compassRecommendedActionReconcileClaims = "reconcile_claims_with_minimal_live_reads"
+	compassRecommendedActionRebuild         = "project_cognition.rebuild"
 )
 
 type CompassInput struct {
@@ -67,9 +68,40 @@ type CompassPayload struct {
 	Warnings                      []string                      `json:"warnings,omitempty"`
 	RepairHints                   []string                      `json:"repair_hints,omitempty"`
 	Errors                        []string                      `json:"errors"`
-	RecommendedNextAction         string                        `json:"recommended_next_action"`
+	RebuildReasons                []CompassRebuildReason        `json:"rebuild_reasons,omitempty"`
+	RecommendedNextAction         CompassAction                 `json:"recommended_next_action"`
 	RecoveryAction                string                        `json:"recovery_action,omitempty"`
 	BaselineKind                  string                        `json:"baseline_kind,omitempty"`
+}
+
+type CompassAction struct {
+	ActionID       string                 `json:"action_id"`
+	WorkflowRoutes *CompassWorkflowRoutes `json:"workflow_routes,omitempty"`
+}
+
+type CompassWorkflowRoutes struct {
+	Advanced CompassWorkflowRoute `json:"advanced"`
+	Classic  CompassWorkflowRoute `json:"classic"`
+}
+
+type CompassWorkflowRoute struct {
+	Steps []string `json:"steps"`
+}
+
+type CompassRebuildReason struct {
+	Code     string                       `json:"code"`
+	Message  string                       `json:"message"`
+	Evidence CompassRebuildReasonEvidence `json:"evidence"`
+}
+
+type CompassRebuildReasonEvidence struct {
+	StatusExists     *bool  `json:"status_exists,omitempty"`
+	GraphStoreExists *bool  `json:"graph_store_exists,omitempty"`
+	DetectedSchema   *int   `json:"detected_schema,omitempty"`
+	RequiredSchema   *int   `json:"required_schema,omitempty"`
+	RuntimeStatus    string `json:"runtime_status,omitempty"`
+	Freshness        string `json:"freshness,omitempty"`
+	Diagnostic       string `json:"diagnostic,omitempty"`
 }
 
 type CompassIntentFacet struct {
@@ -185,7 +217,7 @@ func looksLikeSemanticIntake(payload map[string]json.RawMessage) bool {
 
 func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	if agreement, exists := runtimegate.CheckExisting(paths); exists && agreement.Status != "ok" {
-		return blockedAgreementCompassPayload(input, agreement), nil
+		return blockedAgreementCompassPayload(paths, input, agreement), nil
 	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
@@ -212,11 +244,16 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		Warnings:                      input.PlanDiagnostics.Warnings,
 		RepairHints:                   input.PlanDiagnostics.RepairHints,
 		Errors:                        []string{},
-		RecommendedNextAction:         status.RecommendedNextAction,
+		RecommendedNextAction:         compassAction(status.RecommendedNextAction),
 		BaselineKind:                  status.BaselineKind,
 	}
 
 	if compassReadinessBlocked(status.Readiness) {
+		if status.Readiness == rt.NeedsRebuildReadiness {
+			payload.RebuildReasons = compassStatusRebuildReasons(paths, status)
+			payload.RecommendedNextAction = compassRebuildAction()
+			payload.RecoveryAction = compassRecommendedActionRebuild
+		}
 		payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
 		return payload, nil
 	}
@@ -269,7 +306,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	payload.IntentFacets = coverageForFacets(facets, payload.EvidenceLanes, payload.CoverageDiagnostics, true)
 	payload.AgentNormalization = compassAgentNormalization(status, input, payload)
 	payload.CompassState = compassState(status, input, payload)
-	payload.RecommendedNextAction = compassRecommendedNextAction(status, payload.CompassState, payload.CoverageDiagnostics)
+	payload.RecommendedNextAction = compassAction(compassRecommendedNextAction(status, payload.CompassState, payload.CoverageDiagnostics))
 	payload.Summary = compassSummary(payload)
 	if len(candidates) > 0 {
 		sectionPayloads := map[string]any{
@@ -299,14 +336,18 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	return payload, nil
 }
 
-func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Agreement) CompassPayload {
+func blockedAgreementCompassPayload(paths rt.Paths, input CompassInput, agreement runtimegate.Agreement) CompassPayload {
 	recoveryAction := firstNonEmpty(agreement.RecoveryAction, agreement.RecommendedNextAction)
-	recommendedAction := firstNonEmpty(agreement.RecommendedNextAction, recoveryAction)
+	recommendedAction := compassAction(recoveryAction)
 	readiness := agreement.Readiness
+	rebuildReasons := []CompassRebuildReason{}
+	summary := "Compass packet is blocked until project cognition runtime agreement is restored."
 	if compassAgreementNeedsRebuild(agreement, recoveryAction) {
 		readiness = rt.NeedsRebuildReadiness
-		recoveryAction = "run_map_scan_build"
-		recommendedAction = "run_map_scan_build"
+		recoveryAction = compassRecommendedActionRebuild
+		recommendedAction = compassRebuildAction()
+		rebuildReasons = compassAgreementRebuildReasons(paths, agreement)
+		summary = "Compass packet is blocked until project cognition baseline is rebuilt."
 	}
 	if readiness == "" {
 		readiness = rt.BlockedReadiness
@@ -322,7 +363,7 @@ func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Ag
 		ActiveGenerationID:            firstNonEmpty(agreement.StatusGenerationID, agreement.DBActiveGenerationID),
 		CandidateUniverseVersion:      CandidateUniverseVersion,
 		QueryFingerprint:              compassFingerprint(input),
-		Summary:                       "Compass packet is blocked until project cognition baseline is rebuilt.",
+		Summary:                       summary,
 		IntentFacets:                  []CompassIntentFacet{},
 		EvidenceLanes:                 []EvidenceLane{},
 		MinimalLiveReads:              []string{},
@@ -330,10 +371,177 @@ func blockedAgreementCompassPayload(input CompassInput, agreement runtimegate.Ag
 		Warnings:                      input.PlanDiagnostics.Warnings,
 		RepairHints:                   input.PlanDiagnostics.RepairHints,
 		Errors:                        append([]string{}, agreement.Errors...),
+		RebuildReasons:                rebuildReasons,
 		RecommendedNextAction:         recommendedAction,
 		RecoveryAction:                recoveryAction,
 		BaselineKind:                  firstNonEmpty(agreement.StatusBaselineKind, agreement.DBBaselineKind),
 	}
+}
+
+func compassAction(actionID string) CompassAction {
+	return CompassAction{ActionID: actionID}
+}
+
+func compassRebuildAction() CompassAction {
+	return CompassAction{
+		ActionID: compassRecommendedActionRebuild,
+		WorkflowRoutes: &CompassWorkflowRoutes{
+			Advanced: CompassWorkflowRoute{Steps: []string{"spx-map-rebuild"}},
+			Classic:  CompassWorkflowRoute{Steps: []string{"sp-map-scan", "sp-map-build"}},
+		},
+	}
+}
+
+func compassStatusRebuildReasons(paths rt.Paths, status rt.Status) []CompassRebuildReason {
+	statusExists, statusErr := compassPathExists(paths.StatusPath)
+	graphStoreExists, graphStoreErr := compassPathExists(paths.DatabasePath)
+	if statusErr != nil || graphStoreErr != nil {
+		return []CompassRebuildReason{{
+			Code:    "runtime_state_unreadable",
+			Message: "Project cognition runtime state could not be inspected safely.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstNonEmpty(errorText(statusErr), errorText(graphStoreErr)),
+			},
+		}}
+	}
+	if !statusExists && !graphStoreExists {
+		return []CompassRebuildReason{{
+			Code:    "missing_baseline",
+			Message: "No active project cognition baseline was found.",
+			Evidence: CompassRebuildReasonEvidence{
+				StatusExists:     compassBool(statusExists),
+				GraphStoreExists: compassBool(graphStoreExists),
+			},
+		}}
+	}
+	return []CompassRebuildReason{{
+		Code:    "status_requires_rebuild",
+		Message: "Project cognition status explicitly requires a baseline rebuild.",
+		Evidence: CompassRebuildReasonEvidence{
+			RuntimeStatus: status.Status,
+			Freshness:     status.Freshness,
+		},
+	}}
+}
+
+func compassAgreementRebuildReasons(paths rt.Paths, agreement runtimegate.Agreement) []CompassRebuildReason {
+	statusExists, statusErr := compassPathExists(paths.StatusPath)
+	graphStoreExists, graphStoreErr := compassPathExists(paths.DatabasePath)
+	switch {
+	case statusErr != nil || graphStoreErr != nil:
+		return []CompassRebuildReason{{
+			Code:    "runtime_state_unreadable",
+			Message: "Project cognition runtime state could not be inspected safely.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstNonEmpty(errorText(statusErr), errorText(graphStoreErr), firstAgreementError(agreement)),
+			},
+		}}
+	case !statusExists && !graphStoreExists:
+		return compassStatusRebuildReasons(paths, rt.Status{Status: "missing", Freshness: rt.MissingFreshness})
+	case !statusExists:
+		return []CompassRebuildReason{{
+			Code:    "missing_status",
+			Message: "The graph store exists but project cognition status is missing.",
+			Evidence: CompassRebuildReasonEvidence{
+				StatusExists:     compassBool(false),
+				GraphStoreExists: compassBool(true),
+			},
+		}}
+	case !graphStoreExists:
+		return []CompassRebuildReason{{
+			Code:    "missing_graph_store",
+			Message: "Project cognition status exists but the graph store is missing.",
+			Evidence: CompassRebuildReasonEvidence{
+				StatusExists:     compassBool(true),
+				GraphStoreExists: compassBool(false),
+			},
+		}}
+	}
+
+	detectedSchema, schemaDetected, schemaErr := store.ExistingDatabaseSchemaVersion(paths)
+	if schemaErr == nil && schemaDetected && detectedSchema != store.SchemaVersion {
+		return []CompassRebuildReason{{
+			Code:    "unsupported_schema",
+			Message: "The project cognition graph schema is not supported by this runtime.",
+			Evidence: CompassRebuildReasonEvidence{
+				DetectedSchema: compassInt(detectedSchema),
+				RequiredSchema: compassInt(store.SchemaVersion),
+			},
+		}}
+	}
+	joinedErrors := strings.Join(agreement.Errors, "\n")
+	switch {
+	case strings.Contains(joinedErrors, "unsupported_legacy_runtime"):
+		return []CompassRebuildReason{{
+			Code:    "unsupported_runtime",
+			Message: "The installed project cognition state uses an unsupported runtime format.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstAgreementError(agreement),
+			},
+		}}
+	case strings.Contains(joinedErrors, "structurally incompatible") || strings.Contains(joinedErrors, "schema_version"):
+		evidence := CompassRebuildReasonEvidence{
+			RequiredSchema: compassInt(store.SchemaVersion),
+			Diagnostic:     firstAgreementError(agreement),
+		}
+		if schemaErr == nil && schemaDetected {
+			evidence.DetectedSchema = compassInt(detectedSchema)
+		}
+		return []CompassRebuildReason{{
+			Code:     "unsupported_schema",
+			Message:  "The project cognition graph schema is incomplete or incompatible with this runtime.",
+			Evidence: evidence,
+		}}
+	case strings.Contains(joinedErrors, "no active generation"):
+		return []CompassRebuildReason{{
+			Code:    "missing_active_generation",
+			Message: "The graph store has no active project cognition generation.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstAgreementError(agreement),
+			},
+		}}
+	default:
+		return []CompassRebuildReason{{
+			Code:    "runtime_agreement_requires_rebuild",
+			Message: "Project cognition runtime agreement cannot be restored without rebuilding the baseline.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstNonEmpty(errorText(schemaErr), firstAgreementError(agreement)),
+			},
+		}}
+	}
+}
+
+func compassPathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+func firstAgreementError(agreement runtimegate.Agreement) string {
+	if len(agreement.Errors) == 0 {
+		return ""
+	}
+	return agreement.Errors[0]
+}
+
+func errorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func compassBool(value bool) *bool {
+	return &value
+}
+
+func compassInt(value int) *int {
+	return &value
 }
 
 func compassAgreementNeedsRebuild(agreement runtimegate.Agreement, recoveryAction string) bool {

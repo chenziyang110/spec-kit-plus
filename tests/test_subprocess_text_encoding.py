@@ -86,7 +86,7 @@ def test_debug_context_get_recent_git_changes_uses_explicit_utf8(monkeypatch, tm
     assert seen["errors"] == "replace"
 
 
-def test_source_subprocess_text_calls_use_explicit_utf8():
+def test_source_subprocess_text_calls_use_explicit_utf8_error_policy():
     project_root = Path(__file__).resolve().parents[1]
     source_root = project_root / "src" / "specify_cli"
     violations: list[str] = []
@@ -115,7 +115,7 @@ def test_source_subprocess_text_calls_use_explicit_utf8():
                 isinstance(encoding_kw, ast.Constant)
                 and encoding_kw.value == "utf-8"
                 and isinstance(errors_kw, ast.Constant)
-                and errors_kw.value == "replace"
+                and errors_kw.value in {"replace", "strict"}
             ):
                 violations.append(f"{py_file.relative_to(project_root)}:{node.lineno}")
 

@@ -9,7 +9,7 @@ files directly during normal execution.
 For every non-trivial workflow, run:
 
 ```text
-specify learning start --command <classic-command-name> --format json
+{{specify-subcmd:learning start --command <classic-command-name> --format json}}
 ```
 
 SPX and Classic share one namespace: pass `implement` for `spx-implement` and

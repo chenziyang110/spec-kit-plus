@@ -652,18 +652,23 @@ def test_discussion_workflow_uses_recommendation_first_decision_progression() ->
         )
 
 
-def test_discussion_helper_uses_active_python_interpreter() -> None:
+def test_discussion_helper_uses_active_python_interpreter_with_utf8_contract() -> None:
     cli = (PROJECT_ROOT / "src" / "specify_cli" / "__init__.py").read_text(encoding="utf-8")
     bash = (PROJECT_ROOT / "scripts" / "bash" / "discussion-state.sh").read_text(encoding="utf-8")
     powershell = (PROJECT_ROOT / "scripts" / "powershell" / "discussion-state.ps1").read_text(
         encoding="utf-8"
     )
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    discussion_helper = cli.split("def _run_discussion_helper", 1)[1].split(
+    discussion_helper = cli.split("def _discussion_helper_script", 1)[1].split(
         "def _prd_helper_script", 1
     )[0]
 
-    assert 'env.setdefault("SPECIFY_PYTHON", sys.executable)' in discussion_helper
+    assert 'return [sys.executable, "-X", "utf8"], script_path' in discussion_helper
+    assert '"scripts" / "shared" / "discussion-state.py"' in discussion_helper
+    assert 'env["PYTHONUTF8"] = "1"' in discussion_helper
+    assert 'env["PYTHONIOENCODING"] = "utf-8"' in discussion_helper
+    assert 'errors="strict"' in discussion_helper
+    assert 'errors="replace"' not in discussion_helper
     assert 'PYTHON_BIN="${SPECIFY_PYTHON:-python}"' in bash
     assert '"scripts/shared" = "specify_cli/core_pack/scripts/shared"' in pyproject
     assert 'SHARED_HELPER="$SCRIPT_DIR/../shared/discussion-state.py"' in bash

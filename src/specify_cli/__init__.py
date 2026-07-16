@@ -1598,30 +1598,12 @@ def _run_quick_helper(
 def _discussion_helper_script() -> tuple[list[str], Path]:
     project_root = _project_root_from_source()
     core_pack = _locate_core_pack()
-    if os.name == "nt":
-        script_path = (
-            core_pack / "scripts" / "powershell" / "discussion-state.ps1"
-            if core_pack is not None
-            else project_root / "scripts" / "powershell" / "discussion-state.ps1"
-        )
-        if shutil.which("pwsh"):
-            return ["pwsh", "-NoProfile", "-File"], script_path
-        if shutil.which("powershell"):
-            return [
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-            ], script_path
-        console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
-        raise typer.Exit(1)
     script_path = (
-        core_pack / "scripts" / "bash" / "discussion-state.sh"
+        core_pack / "scripts" / "shared" / "discussion-state.py"
         if core_pack is not None
-        else project_root / "scripts" / "bash" / "discussion-state.sh"
+        else project_root / "scripts" / "shared" / "discussion-state.py"
     )
-    return ["bash"], script_path
+    return [sys.executable, "-X", "utf8"], script_path
 
 
 def _run_discussion_helper(
@@ -1648,14 +1630,15 @@ def _run_discussion_helper(
     ]
 
     env = os.environ.copy()
-    env.setdefault("SPECIFY_PYTHON", sys.executable)
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
 
     result = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         encoding="utf-8",
-        errors="replace",
+        errors="strict",
         check=False,
         env=env,
     )
@@ -1685,30 +1668,12 @@ def _run_discussion_helper(
 def _prd_helper_script() -> tuple[list[str], Path]:
     project_root = _project_root_from_source()
     core_pack = _locate_core_pack()
-    if os.name == "nt":
-        script_path = (
-            core_pack / "scripts" / "powershell" / "prd-state.ps1"
-            if core_pack is not None
-            else project_root / "scripts" / "powershell" / "prd-state.ps1"
-        )
-        if shutil.which("pwsh"):
-            return ["pwsh", "-NoProfile", "-File"], script_path
-        if shutil.which("powershell"):
-            return [
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-            ], script_path
-        console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
-        raise typer.Exit(1)
     script_path = (
-        core_pack / "scripts" / "bash" / "prd-state.sh"
+        core_pack / "scripts" / "shared" / "prd-state.py"
         if core_pack is not None
-        else project_root / "scripts" / "bash" / "prd-state.sh"
+        else project_root / "scripts" / "shared" / "prd-state.py"
     )
-    return ["bash"], script_path
+    return [sys.executable, "-X", "utf8"], script_path
 
 
 def _run_prd_helper(
@@ -1729,14 +1694,15 @@ def _run_prd_helper(
     ]
 
     env = os.environ.copy()
-    env.setdefault("SPECIFY_PYTHON", sys.executable)
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
 
     result = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         encoding="utf-8",
-        errors="replace",
+        errors="strict",
         check=False,
         env=env,
     )
@@ -5202,6 +5168,13 @@ def init(
         try:
             # Integration-based scaffolding
             from .integrations.manifest import IntegrationManifest
+            from .launcher import write_project_specify_launcher_config
+
+            # Integration templates resolve launcher placeholders while they are
+            # rendered. Persist a source-bound launcher before setup so a fresh
+            # project cannot accidentally bake the PATH-level `specify` command
+            # into generated workflow guidance.
+            write_project_specify_launcher_config(project_path)
 
             tracker.start("project-cognition")
             try:

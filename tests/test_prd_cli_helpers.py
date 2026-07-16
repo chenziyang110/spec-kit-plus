@@ -434,7 +434,9 @@ def test_powershell_prd_helper_supports_prd_build_status(tmp_path: Path):
     _assert_minimal_build_status(payload, run_dir)
 
 
-def test_prd_helper_script_prefers_bundled_core_pack_scripts(tmp_path: Path, monkeypatch):
+def test_prd_helper_uses_bundled_shared_runtime_in_one_utf8_python_process(
+    tmp_path: Path, monkeypatch
+):
     core_pack = tmp_path / "core_pack"
     bundled_script = core_pack / "scripts" / ("powershell" if os.name == "nt" else "bash")
     bundled_script.mkdir(parents=True)
@@ -450,7 +452,33 @@ def test_prd_helper_script_prefers_bundled_core_pack_scripts(tmp_path: Path, mon
     monkeypatch.setattr(specify_cli, "_locate_core_pack", lambda: core_pack)
     monkeypatch.setattr(specify_cli, "_project_root_from_source", lambda: source_root)
 
-    _interpreter, script_path = specify_cli._prd_helper_script()
+    captured: dict[str, object] = {}
 
-    assert script_path == expected_script
-    assert expected_shared.exists()
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps({"mode": "status"}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(specify_cli.subprocess, "run", fake_run)
+
+    payload = specify_cli._run_prd_helper("status", run_slug="cjk-path")
+
+    assert payload == {"mode": "status"}
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert command[:3] == [specify_cli.sys.executable, "-X", "utf8"]
+    assert Path(command[3]) == expected_shared
+    assert expected_script not in map(Path, command)
+
+    kwargs = captured["kwargs"]
+    assert isinstance(kwargs, dict)
+    env = kwargs["env"]
+    assert env["PYTHONUTF8"] == "1"
+    assert env["PYTHONIOENCODING"] == "utf-8"
+    assert kwargs["encoding"] == "utf-8"
+    assert kwargs["errors"] == "strict"

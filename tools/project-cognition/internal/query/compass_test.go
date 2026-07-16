@@ -118,8 +118,8 @@ func TestCompassReviewReadinessWithLanesStaysUsableWithReview(t *testing.T) {
 	if len(payload.EvidenceLanes) == 0 {
 		t.Fatalf("EvidenceLanes is empty")
 	}
-	if payload.RecommendedNextAction == compassRecommendedActionExpandBeforeFix {
-		t.Fatalf("RecommendedNextAction = %q, want first-pass reads action", payload.RecommendedNextAction)
+	if payload.RecommendedNextAction.ActionID == compassRecommendedActionExpandBeforeFix {
+		t.Fatalf("RecommendedNextAction.ActionID = %q, want first-pass reads action", payload.RecommendedNextAction.ActionID)
 	}
 }
 
@@ -147,8 +147,8 @@ func TestCompassCJKMechanicalPartialFacetsRequireSemanticIntakeEvenWithLanes(t *
 	if payload.CompassState != compassStateNeedsSemanticIntake {
 		t.Fatalf("CompassState = %q, want %q", payload.CompassState, compassStateNeedsSemanticIntake)
 	}
-	if payload.RecommendedNextAction != "write_semantic_intake_from_alias_catalog" {
-		t.Fatalf("RecommendedNextAction = %q, want semantic intake action", payload.RecommendedNextAction)
+	if payload.RecommendedNextAction.ActionID != "write_semantic_intake_from_alias_catalog" {
+		t.Fatalf("RecommendedNextAction.ActionID = %q, want semantic intake action", payload.RecommendedNextAction.ActionID)
 	}
 }
 
@@ -693,8 +693,8 @@ func TestCompassUnsafeClaimStatesRequireLiveReconciliation(t *testing.T) {
 			if !compassDiagnosticsContain(payload.CoverageDiagnostics, tt.wantDiagnosticKind) {
 				t.Fatalf("CoverageDiagnostics = %#v, want %q", payload.CoverageDiagnostics, tt.wantDiagnosticKind)
 			}
-			if payload.RecommendedNextAction != compassRecommendedActionReconcileClaims {
-				t.Fatalf("RecommendedNextAction = %q, want %q", payload.RecommendedNextAction, compassRecommendedActionReconcileClaims)
+			if payload.RecommendedNextAction.ActionID != compassRecommendedActionReconcileClaims {
+				t.Fatalf("RecommendedNextAction.ActionID = %q, want %q", payload.RecommendedNextAction.ActionID, compassRecommendedActionReconcileClaims)
 			}
 			if len(payload.EvidenceLanes) != 1 || payload.EvidenceLanes[0].ClaimRanking == nil {
 				t.Fatalf("EvidenceLanes = %#v, want one claim-ranked lane", payload.EvidenceLanes)

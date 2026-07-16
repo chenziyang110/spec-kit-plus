@@ -15,6 +15,7 @@ from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import (
     SpecifyLauncherSpec,
+    diagnose_project_runtime_compatibility,
     write_project_cognition_launcher_config,
 )
 
@@ -807,9 +808,30 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
     discussion = (
         project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
     ).read_text(encoding="utf-8")
+    learning = (
+        project
+        / ".codex"
+        / "skills"
+        / "spx-discussion"
+        / "references"
+        / "project-learning.md"
+    ).read_text(encoding="utf-8")
     assert f"{pinned_command} discussion list --json" in discussion
     assert f"{pinned_command} discussion init <slug> --json" in discussion
+    assert (
+        f"{pinned_command} learning start --command <classic-command-name> "
+        "--format json"
+    ) in learning
     assert "`specify discussion" not in discussion
+    assert "\nspecify learning" not in learning
+    manifest = IntegrationManifest.load("codex", project)
+    assert ".codex/skills/spx-discussion/SKILL.md" in manifest.files
+    assert ".specify/config.json" not in manifest.files
+    assert manifest.check_modified() == []
+    diagnostic_codes = {
+        issue["code"] for issue in diagnose_project_runtime_compatibility(project)
+    }
+    assert "unbound-generated-specify-launcher" not in diagnostic_codes
 
 
 def test_advanced_local_references_without_cognition_launcher_use_recovery_contract(

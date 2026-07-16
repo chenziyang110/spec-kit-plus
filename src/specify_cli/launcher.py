@@ -65,6 +65,71 @@ GENERATED_GUIDANCE_ROOTS = (
 )
 GENERATED_GUIDANCE_SUFFIXES = {".md", ".toml"}
 SOURCE_BOUND_UVX_SPECIFY_RE = re.compile(r"uvx\s+--from\s+git\+\S+\s+specify")
+_MARKDOWN_INLINE_CODE_RE = re.compile(r"`(?P<code>[^`\r\n]+)`")
+_MARKDOWN_FENCE_RE = re.compile(
+    r"^\s*(?P<marker>`{3,}|~{3,})(?P<language>[A-Za-z0-9_+-]*)\s*$"
+)
+_BARE_SPECIFY_LINE_RE = re.compile(
+    r"^\s*(?:(?:PS>)|\$)?\s*(?P<command>specify(?:\s+[^\r\n]+)?)\s*$"
+)
+_NON_EXECUTABLE_SPECIFY_CONTEXT_RE = re.compile(
+    r"\b(?:do\s+not|don't|never|must\s+not|unsupported|not\s+executable|"
+    r"non-executable|documentation-only|display-only|literal|illustration|example)\b",
+    re.IGNORECASE,
+)
+_NON_SHELL_FENCE_LANGUAGES = frozenset(
+    {
+        "css",
+        "html",
+        "javascript",
+        "js",
+        "json",
+        "markdown",
+        "md",
+        "python",
+        "py",
+        "toml",
+        "typescript",
+        "ts",
+        "xml",
+        "yaml",
+        "yml",
+    }
+)
+_SPECIFY_RUNTIME_ROOTS = frozenset(
+    {
+        "accept",
+        "api",
+        "artifact",
+        "check",
+        "debug",
+        "design",
+        "discussion",
+        "eval",
+        "extension",
+        "hook",
+        "implement",
+        "init",
+        "integrate",
+        "integration",
+        "lane",
+        "learning",
+        "lint",
+        "map-build",
+        "map-scan",
+        "map-update",
+        "prd",
+        "prd-build",
+        "prd-scan",
+        "preset",
+        "quick",
+        "result",
+        "sp-debug",
+        "sp-teams",
+        "version",
+        "workflow",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -406,6 +471,85 @@ def _stale_source_bound_specify_launchers(text: str, launcher: SpecifyLauncherSp
     return stale
 
 
+def _is_bare_specify_runtime_command(command: str) -> bool:
+    """Return whether *command* starts a recognized bare Specify CLI call."""
+
+    stripped = command.strip()
+    if not stripped.startswith("specify"):
+        return False
+    try:
+        tokens = shlex.split(stripped, posix=os.name != "nt")
+    except ValueError:
+        return False
+    if not tokens or tokens[0] != "specify" or len(tokens) < 2:
+        return False
+    root = tokens[1]
+    return root.startswith("-") or root in _SPECIFY_RUNTIME_ROOTS
+
+
+def _contains_unbound_specify_runtime_call(text: str) -> bool:
+    """Detect executable Markdown spans that bypass a configured launcher.
+
+    Detection is deliberately limited to inline-code commands and shell-like
+    fenced command lines. Plain prose, negative examples, display-only
+    literals, and source-code fences are ignored.
+    """
+
+    fence_marker: str | None = None
+    fence_is_shell_like = False
+    previous_nonempty = ""
+    for line in text.splitlines():
+        fence_match = _MARKDOWN_FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group("marker")
+            if fence_marker is None:
+                fence_marker = marker
+                language = fence_match.group("language").lower()
+                fence_is_shell_like = language not in _NON_SHELL_FENCE_LANGUAGES
+            elif marker[0] == fence_marker[0]:
+                fence_marker = None
+                fence_is_shell_like = False
+            if line.strip():
+                previous_nonempty = line
+            continue
+
+        if fence_marker is not None:
+            if fence_is_shell_like:
+                command_match = _BARE_SPECIFY_LINE_RE.match(line)
+                context = f"{previous_nonempty}\n{line}"
+                if (
+                    command_match
+                    and _is_bare_specify_runtime_command(
+                        command_match.group("command")
+                    )
+                    and not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(context)
+                ):
+                    return True
+            if line.strip():
+                previous_nonempty = line
+            continue
+
+        command_match = _BARE_SPECIFY_LINE_RE.match(line)
+        if (
+            command_match
+            and _is_bare_specify_runtime_command(command_match.group("command"))
+            and not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(line)
+        ):
+            return True
+
+        for inline_match in _MARKDOWN_INLINE_CODE_RE.finditer(line):
+            code = inline_match.group("code")
+            if not _is_bare_specify_runtime_command(code):
+                continue
+            context = f"{previous_nonempty}\n{line}"
+            if not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(context):
+                return True
+
+        if line.strip():
+            previous_nonempty = line
+    return False
+
+
 def _generated_guidance_files(project_root: Path) -> list[Path]:
     files: list[Path] = []
     for rel_root in GENERATED_GUIDANCE_ROOTS:
@@ -589,10 +733,15 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 }
             )
         stale_launcher_files: list[str] = []
+        unbound_launcher_files: list[str] = []
         for path in _generated_guidance_files(project_root):
             text = _read_text_if_exists(path)
             if _stale_source_bound_specify_launchers(text, launcher):
                 stale_launcher_files.append(path.relative_to(project_root).as_posix())
+            if _contains_unbound_specify_runtime_call(text):
+                unbound_launcher_files.append(
+                    path.relative_to(project_root).as_posix()
+                )
         if stale_launcher_files:
             preview = ", ".join(stale_launcher_files[:5])
             if len(stale_launcher_files) > 5:
@@ -602,6 +751,32 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "code": "stale-generated-specify-launcher",
                     "summary": f"Generated workflow guidance embeds an older source-bound `specify` launcher than `.specify/config.json`: {preview}.",
                     "repair": "Run `specify integration repair` from the current trusted launcher, or re-run `specify init --here --force` with the active integration options, so generated commands are re-rendered from `.specify/config.json`.",
+                }
+            )
+        if unbound_launcher_files:
+            preview = ", ".join(unbound_launcher_files[:5])
+            if len(unbound_launcher_files) > 5:
+                preview += f", +{len(unbound_launcher_files) - 5} more"
+            repair = project_specify_subcommand(
+                project_root,
+                ("integration", "repair"),
+            )
+            repair_command = (
+                repair.command if repair is not None else launcher.command
+            )
+            issues.append(
+                {
+                    "code": "unbound-generated-specify-launcher",
+                    "summary": (
+                        "Generated workflow guidance invokes the PATH-level bare "
+                        f"`specify` command despite a project-pinned launcher: {preview}."
+                    ),
+                    "repair": (
+                        f"Run `{repair_command}` from the trusted project launcher, then "
+                        "re-run the active initialization profile if the listed generated "
+                        "files remain unbound. Verify that their executable Specify CLI "
+                        "calls begin with the launcher recorded in `.specify/config.json`."
+                    ),
                 }
             )
 

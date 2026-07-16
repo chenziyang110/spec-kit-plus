@@ -1890,6 +1890,7 @@ func TestCompassCommandEmitsCompactPacket(t *testing.T) {
 			t.Fatalf("expansion_ref missing for lanes; payload = %#v", payload)
 		}
 	}
+	assertCompassJSONAction(t, payload, "use_compass_minimal_live_reads", nil)
 }
 
 func TestCompassCommandAcceptsAskIntent(t *testing.T) {
@@ -1963,10 +1964,23 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 	if !strings.Contains(diagnostic, "schema_version 1") || !strings.Contains(diagnostic, "current runtime requires 5") {
 		t.Fatalf("errors = %#v, want current schema diagnostic", payload["errors"])
 	}
-	if payload["recommended_next_action"] != "run_map_scan_build" {
-		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
+	assertCompassJSONAction(t, payload, "project_cognition.rebuild", map[string][]string{
+		"advanced": {"spx-map-rebuild"},
+		"classic":  {"sp-map-scan", "sp-map-build"},
+	})
+	reasons, ok := payload["rebuild_reasons"].([]any)
+	if !ok || len(reasons) != 1 {
+		t.Fatalf("rebuild_reasons = %#v, want one unsupported_schema reason; payload=%#v", payload["rebuild_reasons"], payload)
 	}
-	if payload["recovery_action"] != "run_map_scan_build" {
+	reason, ok := reasons[0].(map[string]any)
+	if !ok || reason["code"] != "unsupported_schema" {
+		t.Fatalf("rebuild_reasons[0] = %#v, want unsupported_schema object", reasons[0])
+	}
+	evidence, ok := reason["evidence"].(map[string]any)
+	if !ok || evidence["detected_schema"] != float64(1) || evidence["required_schema"] != float64(store.SchemaVersion) {
+		t.Fatalf("rebuild_reasons[0].evidence = %#v, want detected=1 required=%d", reason["evidence"], store.SchemaVersion)
+	}
+	if payload["recovery_action"] != "project_cognition.rebuild" {
 		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
 }
@@ -2019,8 +2033,9 @@ func TestCompassActiveGenerationMismatchPreservesRewriteStatusRecovery(t *testin
 	if !strings.Contains(diagnostic, "active_generation_id mismatch") || !strings.Contains(diagnostic, "GEN-mismatched-status") {
 		t.Fatalf("errors = %#v, want active_generation_id mismatch diagnostic", payload["errors"])
 	}
-	if payload["recommended_next_action"] != "run_map_scan_build" {
-		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
+	assertCompassJSONAction(t, payload, "rewrite_status_from_db_metadata", nil)
+	if _, ok := payload["rebuild_reasons"]; ok {
+		t.Fatalf("rebuild_reasons = %#v, want omitted for non-rebuild blocker", payload["rebuild_reasons"])
 	}
 	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
 		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
@@ -3950,6 +3965,37 @@ func jsonAnySliceStrings(values []any) []string {
 		}
 	}
 	return out
+}
+
+func assertCompassJSONAction(t *testing.T, payload map[string]any, wantActionID string, wantRoutes map[string][]string) {
+	t.Helper()
+	action, ok := payload["recommended_next_action"].(map[string]any)
+	if !ok {
+		t.Fatalf("recommended_next_action = %#v, want action object; payload=%#v", payload["recommended_next_action"], payload)
+	}
+	if action["action_id"] != wantActionID {
+		t.Fatalf("recommended_next_action.action_id = %#v, want %q; action=%#v", action["action_id"], wantActionID, action)
+	}
+	if wantRoutes == nil {
+		if _, exists := action["workflow_routes"]; exists {
+			t.Fatalf("recommended_next_action.workflow_routes = %#v, want omitted for action %q", action["workflow_routes"], wantActionID)
+		}
+		return
+	}
+	routes, ok := action["workflow_routes"].(map[string]any)
+	if !ok {
+		t.Fatalf("recommended_next_action.workflow_routes = %#v, want object", action["workflow_routes"])
+	}
+	for profile, wantSteps := range wantRoutes {
+		route, ok := routes[profile].(map[string]any)
+		if !ok {
+			t.Fatalf("workflow_routes[%q] = %#v, want object", profile, routes[profile])
+		}
+		steps, ok := route["steps"].([]any)
+		if !ok || !reflect.DeepEqual(jsonAnySliceStrings(steps), wantSteps) {
+			t.Fatalf("workflow_routes[%q].steps = %#v, want %#v", profile, route["steps"], wantSteps)
+		}
+	}
 }
 
 func jsonStringSliceHasPrefix(value any, prefix string) bool {

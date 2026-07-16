@@ -31,11 +31,11 @@ The `epistemic_contract` cannot authorize source changes and cannot prove curren
 
 Graph claims are indexed assertions. Their lifecycle is `candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or `stale`; even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth. Graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`; open bounded live evidence and run matching workflow claim-specific verification before any final claim.
 
-Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
+Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and the structured `recommended_next_action` object. Do not treat `recommended_next_action` as a string. Read `recommended_next_action.action_id` for every packet. Non-rebuild actions omit `recommended_next_action.workflow_routes` and are selected by `action_id` alone.
 
 - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons before expanding.
 - `review`: inspect the returned `minimal_live_reads` before expanding and carry review notes from `coverage_diagnostics`.
-- `needs_rebuild`: reserve `{{invoke:map-scan}} -> {{invoke:map-build}}` for documented brownfield rebuild triggers.
+- `needs_rebuild`: inspect every entry in `rebuild_reasons[]` and preserve its stable `code`, human-readable `message`, and relevant `evidence`. Require `recommended_next_action.action_id=project_cognition.rebuild`, consume the canonical sequence from `recommended_next_action.workflow_routes.classic.steps`, and project those step names through this integration's invocation syntax. Reserve `{{invoke:map-scan}} -> {{invoke:map-build}}` for documented brownfield rebuild triggers; do not infer either the cause or route from a legacy action string.
 - `blocked`: report the runtime state clearly; continue with live evidence only when this workflow allows degraded advisory navigation.
 - `unsupported_runtime`: continue with live evidence and record that compass intake was unavailable.
 

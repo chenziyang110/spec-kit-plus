@@ -4,6 +4,8 @@ import shutil
 import stat
 import subprocess
 
+import pytest
+
 import specify_cli
 from specify_cli.launcher import (
     HookRuntimeSpec,
@@ -350,7 +352,61 @@ def test_diagnose_project_runtime_compatibility_reports_stale_generated_skill_la
     assert "integration repair" in stale["repair"]
 
 
+@pytest.mark.parametrize(
+    ("skill_name", "runtime_call"),
+    (
+        ("spx-discussion", "specify discussion list --json"),
+        ("spx-implement", "specify implement resume-audit --format json"),
+    ),
+)
 def test_diagnose_project_runtime_compatibility_reports_bare_generated_skill_launcher(
+    tmp_path,
+    skill_name,
+    runtime_call,
+):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    pinned_command = (
+        "uvx --from "
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
+    )
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": pinned_command,
+                    "argv": [
+                        "uvx",
+                        "--from",
+                        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                        "specify",
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    skill_path = tmp_path / ".codex" / "skills" / skill_name / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        f"Run `{runtime_call}`.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    codes = {issue["code"] for issue in issues}
+    assert "unbound-generated-specify-launcher" in codes
+    misbound = next(
+        issue
+        for issue in issues
+        if issue["code"] == "unbound-generated-specify-launcher"
+    )
+    assert f".codex/skills/{skill_name}/SKILL.md" in misbound["summary"]
+    assert pinned_command in misbound["repair"]
+
+
+def test_diagnose_project_runtime_compatibility_ignores_non_executable_specify_mentions(
     tmp_path,
 ):
     config_path = tmp_path / ".specify" / "config.json"
@@ -378,22 +434,23 @@ def test_diagnose_project_runtime_compatibility_reports_bare_generated_skill_lau
     skill_path = tmp_path / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
     skill_path.parent.mkdir(parents=True)
     skill_path.write_text(
-        "Run `specify discussion list --json` and then "
-        "`specify discussion resume <slug> --json`.\n",
+        "Specify discussion behavior in plain language.\n\n"
+        "Do not probe `specify cognition` or invent the unsupported "
+        "`specify create-feature` command.\n\n"
+        "The literal `specify discussion list --json` is documentation-only, "
+        "not an executable instruction.\n\n"
+        "```python\n"
+        "def specify(value):\n"
+        "    return value\n"
+        "```\n\n"
+        f"Run `{pinned_command} discussion list --json`.\n",
         encoding="utf-8",
     )
 
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
     codes = {issue["code"] for issue in issues}
-    assert "unbound-generated-specify-launcher" in codes
-    misbound = next(
-        issue
-        for issue in issues
-        if issue["code"] == "unbound-generated-specify-launcher"
-    )
-    assert ".codex/skills/spx-discussion/SKILL.md" in misbound["summary"]
-    assert pinned_command in misbound["repair"]
+    assert "unbound-generated-specify-launcher" not in codes
 
 
 def test_runtime_diagnostics_warn_when_learning_index_missing(tmp_path):
