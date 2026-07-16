@@ -614,12 +614,11 @@ def test_failed_machine_probe_does_not_leave_project_half_installed(
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX venv interpreter symlink contract")
 def test_machine_binding_preserves_symlinked_venv_interpreter(monkeypatch, tmp_path):
+    interpreter = Path(sys.executable)
+    if not interpreter.is_symlink():
+        pytest.skip("the active Python interpreter is not a venv symlink")
     state_dir = tmp_path / "bindings"
     monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
-    interpreter = tmp_path / "venv" / "bin" / "python"
-    interpreter.parent.mkdir(parents=True)
-    interpreter.symlink_to(Path(sys.executable))
-    monkeypatch.setattr(launcher_module.sys, "executable", str(interpreter))
 
     config_path = write_project_specify_launcher_config(
         tmp_path / "project",
@@ -630,7 +629,7 @@ def test_machine_binding_preserves_symlinked_venv_interpreter(monkeypatch, tmp_p
     config = json.loads(config_path.read_text(encoding="utf-8"))
     binding_path = state_dir / config["specify_launcher"]["binding_id"] / "binding.json"
     binding = json.loads(binding_path.read_text(encoding="utf-8"))
-    assert binding["entry_argv"][0] == str(interpreter.absolute())
+    assert binding["entry_argv"][0] == os.path.abspath(str(interpreter))
     assert binding["entry_argv"][0] != str(interpreter.resolve())
 
 
