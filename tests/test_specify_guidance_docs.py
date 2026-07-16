@@ -56,6 +56,22 @@ def test_agents_declares_classic_and_advanced_profile_contract() -> None:
     assert "For shared runtime changes, run both sets" in normalized
 
 
+def test_readme_advanced_profile_names_classic_map_companion_exception() -> None:
+    readme = _read("README.md")
+    section = _section(
+        readme,
+        "Skills-based projects now install two layers into the same skills directory:",
+        "## Multi-CLI Orchestration",
+    )
+    normalized = " ".join(section.split()).lower()
+
+    for companion in ("sp-map-scan", "sp-map-build", "sp-map-update"):
+        assert f"`{companion}`" in section
+    assert "does not install the classic `sp-*`" not in normalized
+    assert "passive" in normalized
+    assert "does not install" in normalized or "absent" in normalized
+
+
 def test_docs_describe_design_workflow_and_design_md() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
@@ -216,6 +232,36 @@ def test_upgrade_doc_mentions_project_launcher_binding():
     assert "specify_launcher" in upgrade
     assert "project launcher" in upgrade.lower()
     assert "runtime" in upgrade.lower()
+
+
+def test_helper_docs_preserve_project_cognition_launcher_precedence() -> None:
+    for rel_path in ("README.md", ".github/workflows/release.yml"):
+        content = _read(rel_path)
+        candidates = [
+            paragraph
+            for paragraph in content.split("\n\n")
+            if "helper" in paragraph.lower()
+            and "PROJECT_COGNITION_BIN" in paragraph
+            and "PATH" in paragraph
+        ]
+        assert candidates, f"{rel_path} must document helper launcher precedence"
+
+        for paragraph in candidates:
+            normalized = " ".join(paragraph.split())
+            priority = normalized[normalized.lower().index("helper") :]
+            env_index = priority.index("PROJECT_COGNITION_BIN")
+            pin_markers = ("project_cognition_launcher", ".specify/config.json")
+            pin_indexes = [
+                priority.index(marker)
+                for marker in pin_markers
+                if marker in priority
+            ]
+            assert pin_indexes, (
+                f"{rel_path} helper precedence must include the pinned launcher"
+            )
+            pin_index = min(pin_indexes)
+            path_index = priority.index("PATH", pin_index)
+            assert env_index < pin_index < path_index
 
 
 def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:

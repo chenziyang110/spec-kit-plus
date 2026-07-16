@@ -186,7 +186,7 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
         "workflow-enter-input",
         properties={
             "feature_dir": _PATH,
-            "stage": {"enum": ["discussion", "specify"], "default": "specify"},
+            "command": {"enum": ["discussion", "specify"], "default": "specify"},
             "expected_revision": _REVISION,
             "summary": {"type": "string"},
         },
@@ -196,7 +196,7 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
         "workflow-transition-input",
         properties={
             "feature_dir": _PATH,
-            "target_stage": {
+            "to": {
                 "enum": [
                     "specify",
                     "plan",
@@ -212,7 +212,7 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                 "items": _STRING,
             },
         },
-        required=["feature_dir", "target_stage", "expected_revision"],
+        required=["feature_dir", "to", "expected_revision"],
     ),
     "workflow-next-input": _object_schema(
         "workflow-next-input",

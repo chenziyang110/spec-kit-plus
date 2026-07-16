@@ -125,7 +125,7 @@ description: "Task list template for feature implementation"
 | direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
 | approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref] |
 | task_inputs | [design_sources; reference_intents; real_content_plan; image_plan] |
-| fidelity_level | [none | approximate | high | inspiration] |
+| fidelity_level | [approximate | high | inspiration] |
 | adaptation_rules | [must_preserve; may_adapt; must_not] |
 | required_states | [loading, empty, error, selected, disabled, permission-limited as applicable] |
 | required_evidence | [structure_snapshot; visual_capture; runtime_diagnostics; visual_comparison_or_human_review] |

@@ -10,12 +10,46 @@ import stat
 import tempfile
 
 
+def _absolute_path_without_link_resolution(path: Path) -> Path:
+    """Return an absolute lexical path without following filesystem links."""
+
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _reject_link_components(path: Path) -> None:
+    """Reject existing symlink or junction components before local state I/O."""
+
+    parts = path.parts
+    if not parts:
+        return
+    current = Path(parts[0])
+    for part in parts[1:]:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            continue
+        is_junction = getattr(current, "is_junction", None)
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        is_reparse_point = bool(
+            getattr(metadata, "st_file_attributes", 0) & reparse_flag
+        )
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or (callable(is_junction) and bool(is_junction()))
+            or is_reparse_point
+        ):
+            raise ValueError(f"refusing local state I/O through symlink: {current}")
+
+
 @contextmanager
 def interprocess_lock(path: Path) -> Iterator[None]:
     """Hold an OS-released exclusive lock for one local state transaction."""
 
-    lock_path = path.resolve(strict=False)
+    lock_path = _absolute_path_without_link_resolution(path)
+    _reject_link_components(lock_path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
+    _reject_link_components(lock_path)
     with lock_path.open("a+b") as handle:
         handle.seek(0, os.SEEK_END)
         if handle.tell() == 0:
@@ -48,8 +82,10 @@ def interprocess_lock(path: Path) -> Iterator[None]:
 def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> None:
     """Flush and atomically replace a text file in its destination directory."""
 
-    target = path.resolve(strict=False)
+    target = _absolute_path_without_link_resolution(path)
+    _reject_link_components(target)
     target.parent.mkdir(parents=True, exist_ok=True)
+    _reject_link_components(target)
     try:
         target_mode = stat.S_IMODE(target.stat().st_mode)
     except FileNotFoundError:
@@ -70,6 +106,7 @@ def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> N
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temp_path, target_mode)
+        _reject_link_components(target)
         os.replace(temp_path, target)
         temp_path = None
         if os.name != "nt":

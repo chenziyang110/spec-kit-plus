@@ -5409,6 +5409,44 @@ def test_tasks_template_ui_fidelity_levels_match_packet_schema() -> None:
     assert not (advertised_levels & {"low", "medium", "not_applicable"})
 
 
+def test_ui_task_specific_templates_require_active_fidelity() -> None:
+    task_template = _read("templates/tasks-template.md")
+    classic_match = re.search(
+        r"(?m)^\| fidelity_level \| \[(?P<levels>[^\]]+)\] \|$",
+        task_template,
+    )
+    assert classic_match, "tasks template must render task-local UI fidelity"
+    classic_levels = {
+        level.strip(" `").lower()
+        for level in classic_match.group("levels").split("|")
+        if level.strip()
+    }
+
+    advanced_markdown = _read(
+        "templates/advanced-skills/spx-tasks/assets/ui-task.md"
+    )
+    advanced_match = re.search(
+        r"(?m)^\| fidelity_level \| \{\{(?P<levels>[^}]+)\}\} \|$",
+        advanced_markdown,
+    )
+    assert advanced_match, "SPX UI task asset must render task-local fidelity"
+    advanced_markdown_levels = set(advanced_match.group("levels").split("_or_"))
+
+    advanced_json = json.loads(
+        _read("templates/advanced-skills/spx-tasks/assets/ui-task-index-entry.json")
+    )
+    advanced_json_levels = set(
+        advanced_json["ui_contract"]["fidelity_level"]
+        .strip("{}")
+        .split("_or_")
+    )
+
+    expected_active_levels = {"approximate", "high", "inspiration"}
+    assert classic_levels == expected_active_levels
+    assert advanced_markdown_levels == expected_active_levels
+    assert advanced_json_levels == expected_active_levels
+
+
 def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
     spec_contract = json.loads(_read("templates/spec-contract-template.json"))
     plan_contract = json.loads(_read("templates/plan-contract-template.json"))

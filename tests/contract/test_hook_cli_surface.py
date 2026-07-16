@@ -5813,6 +5813,26 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
     assert "## Review Artifacts" in report
     assert "## Human Product Acceptance" in report
 
+    (feature_dir / "human-acceptance.json").write_text(
+        "{invalid json\n", encoding="utf-8"
+    )
+    conflict = _invoke_in_project(
+        project,
+        [
+            "implement",
+            "closeout",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert conflict.exit_code == 10, conflict.output
+    conflict_payload = json.loads(conflict.output)
+    assert conflict_payload["status"] in {"blocked", "conflict"}
+    assert conflict_payload["human_acceptance"]["status"] == "conflict"
+
 
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)

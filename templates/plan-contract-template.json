@@ -61,6 +61,7 @@
     "entry_points": [],
     "required_states": [],
     "fidelity_refs": [],
+    "fidelity_mode": "none",
     "reference_intents": [],
     "real_content_plan": [],
     "image_plan": [],

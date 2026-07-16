@@ -1269,6 +1269,7 @@ def _ensure_learning_files_unlocked(
     tracker: Any | None = None,
 ) -> LearningPaths:
     paths = ensure_learning_memory_from_templates(project_root, tracker=tracker)
+    _migrate_legacy_confirmed_learnings_unlocked(project_root, paths)
     if include_runtime:
         ensure_learning_runtime_files(project_root)
     return paths
@@ -1276,6 +1277,123 @@ def _ensure_learning_files_unlocked(
 
 def _learning_lock_path(project_root: Path) -> Path:
     return build_learning_paths(project_root).review.parent / ".learning.lock"
+
+
+def _merge_distinct_evidence(current: str, legacy: str) -> str:
+    current = str(current or "").strip()
+    legacy = str(legacy or "").strip()
+    if not current:
+        return legacy
+    if not legacy or legacy in current:
+        return current
+    if current in legacy:
+        return legacy
+    return f"{current}\n\nLegacy store evidence:\n{legacy}"
+
+
+def _merge_legacy_confirmed_entry(
+    current: LearningEntry, legacy: LearningEntry
+) -> LearningEntry:
+    signal_rank = {"low": 0, "medium": 1, "high": 2}
+    signal_strength = max(
+        (current.signal_strength, legacy.signal_strength),
+        key=lambda value: signal_rank.get(value, -1),
+    )
+    first_seen = min(
+        (value for value in (current.first_seen, legacy.first_seen) if value),
+        default=current.first_seen or legacy.first_seen,
+    )
+    last_seen = max(
+        (value for value in (current.last_seen, legacy.last_seen) if value),
+        default=current.last_seen or legacy.last_seen,
+    )
+
+    return LearningEntry(
+        id=current.id,
+        summary=current.summary or legacy.summary,
+        learning_type=current.learning_type or legacy.learning_type,
+        source_command=current.source_command or legacy.source_command,
+        evidence=_merge_distinct_evidence(current.evidence, legacy.evidence),
+        recurrence_key=current.recurrence_key,
+        default_scope=current.default_scope or legacy.default_scope,
+        applies_to=sorted(dict.fromkeys([*current.applies_to, *legacy.applies_to])),
+        signal_strength=signal_strength,
+        status="confirmed",
+        first_seen=first_seen,
+        last_seen=last_seen,
+        occurrence_count=max(current.occurrence_count, legacy.occurrence_count),
+        pain_score=max(current.pain_score, legacy.pain_score),
+        false_starts=sorted(
+            dict.fromkeys([*current.false_starts, *legacy.false_starts])
+        ),
+        rejected_paths=sorted(
+            dict.fromkeys([*current.rejected_paths, *legacy.rejected_paths])
+        ),
+        decisive_signal=current.decisive_signal or legacy.decisive_signal,
+        root_cause_family=current.root_cause_family or legacy.root_cause_family,
+        injection_targets=sorted(
+            dict.fromkeys([*current.injection_targets, *legacy.injection_targets])
+        ),
+        promotion_hint=current.promotion_hint or legacy.promotion_hint,
+        problem=current.problem or legacy.problem,
+        recommended_action=current.recommended_action or legacy.recommended_action,
+        avoid=sorted(dict.fromkeys([*current.avoid, *legacy.avoid])),
+        trigger_signals=sorted(
+            dict.fromkeys([*current.trigger_signals, *legacy.trigger_signals])
+        ),
+        success_criteria=sorted(
+            dict.fromkeys([*current.success_criteria, *legacy.success_criteria])
+        ),
+        exceptions=sorted(dict.fromkeys([*current.exceptions, *legacy.exceptions])),
+    )
+
+
+def _migrate_legacy_confirmed_learnings_unlocked(
+    project_root: Path, paths: LearningPaths
+) -> None:
+    """Merge the pre-index Learning store while the caller holds the runtime lock."""
+
+    legacy_path = project_root / ".specify" / "memory" / "project-learnings.md"
+    if not legacy_path.is_file():
+        return
+
+    _legacy_preamble, legacy_entries = _read_entries(legacy_path)
+    if not legacy_entries:
+        return
+
+    preamble, confirmed_entries = _read_entries(paths.confirmed_learnings)
+    confirmed_by_key = {
+        entry.recurrence_key: index for index, entry in enumerate(confirmed_entries)
+    }
+    migrated_entries: list[LearningEntry] = []
+    changed = False
+
+    for legacy_entry in legacy_entries:
+        legacy_entry.recurrence_key = legacy_entry.recurrence_key.strip().lower()
+        legacy_entry.status = "confirmed"
+        existing_index = confirmed_by_key.get(legacy_entry.recurrence_key)
+        if existing_index is None:
+            confirmed_by_key[legacy_entry.recurrence_key] = len(confirmed_entries)
+            confirmed_entries.append(legacy_entry)
+            stored = legacy_entry
+            changed = True
+        else:
+            existing = confirmed_entries[existing_index]
+            stored = _merge_legacy_confirmed_entry(existing, legacy_entry)
+            if stored.to_payload() != existing.to_payload():
+                confirmed_entries[existing_index] = stored
+                changed = True
+        migrated_entries.append(stored)
+
+    if changed:
+        _write_entries(
+            paths.confirmed_learnings,
+            preamble or CONFIRMED_LEARNINGS_TEMPLATE_TEXT.rstrip(),
+            confirmed_entries,
+        )
+
+    for entry in migrated_entries:
+        _sync_learning_index_detail(paths, entry)
 
 
 def _merge_entry(
